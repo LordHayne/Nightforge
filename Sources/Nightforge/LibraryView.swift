@@ -108,6 +108,9 @@ struct LibraryView: View {
         .sheet(item: $model.saveChoice, onDismiss: { model.answerSaveChoice(takeNewer: false) }) { choice in
             SaveChoiceSheet(choice: choice)
         }
+        .sheet(item: $model.pendingDemoLicense) { game in
+            DemoLicenseSheet(game: game)
+        }
         .sheet(item: $model.pendingCloudGame) { game in
             GlassQuestion(L10n.t("Play %@ on GeForce Now?", game.name),
                           message: L10n.t("Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam. The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more."),
@@ -125,6 +128,7 @@ struct LibraryView: View {
             GlassQuestion(game.isInstalled ? L10n.t("Uninstall %@?", game.name) : L10n.t("Cancel the download of %@?", game.name),
                           message: game.isInstalled
                               ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk))
+                              : game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
                               : L10n.t("The part downloaded so far is deleted. You can start the download again any time."),
                           id: "uninstall") {
                 // Return (and A) keeps the game; uninstalling takes a deliberate click or a pad move first.
@@ -914,6 +918,12 @@ private struct GameDetail: View {
             if let block = game.antiCheatBlock {
                 AntiCheatNote(block: block)
             }
+            if game.demoOf != nil {
+                DemoNote(game: game)
+            }
+            if game.downloadRefused {
+                RefusedDownloadNote()
+            }
             if !compact, let insight = model.insights[game.appID] {
                 GameInsightNotes(game: game, insight: insight)
             }
@@ -957,6 +967,7 @@ private struct GameDetail: View {
                            status: model.launchPhase?.title,
                            unavailable: unavailable, cloud: game.playsInCloud,
                            noSpace: game.downloadNeedsSpace != nil,
+                           demo: game.demoOf != nil,
                            update: game.pendingUpdate) {
                     model.primaryAction()
                 }
@@ -1150,6 +1161,8 @@ private struct PlayButton: View {
     var cloud = false
     /// Steam stopped the download for lack of disk space: the button carries on with it.
     var noSpace = false
+    /// A demo, for a game the player doesn't own.
+    var demo = false
     /// An update Steam downloads first: its size, 0 when not known yet.
     var update: Int64?
     let action: () -> Void
@@ -1171,8 +1184,8 @@ private struct PlayButton: View {
         switch install {
         case .installed where update != nil:
             return update! > 0 ? L10n.t("Update & Play · %@", Format.bytes(update!)) : L10n.t("Update & Play")
-        case .installed: return L10n.t("Play")
-        case .notInstalled: return L10n.t("Download")
+        case .installed: return demo ? L10n.t("Play Demo") : L10n.t("Play")
+        case .notInstalled: return demo ? L10n.t("Download Demo") : L10n.t("Download")
         case .downloading(let fraction?): return L10n.t("Downloading … %ld %%", Int(fraction * 100))
         case .downloading(nil): return L10n.t("Preparing download …")
         case .inStore: return L10n.t("View in Steam Store")
@@ -1384,9 +1397,11 @@ struct GameContextMenu: ViewModifier {
             case _ where game.playsInCloud:
                 Button(L10n.t("Play on GeForce Now")) { select(); model.primaryAction() }
             case .installed where game.antiCheatBlock == nil || model.isRunning(game):
-                Button(model.isRunning(game) ? L10n.t("Switch to Game") : L10n.t("Play")) { select(); model.primaryAction() }
+                Button(model.isRunning(game) ? L10n.t("Switch to Game") : game.demoOf != nil ? L10n.t("Play Demo") : L10n.t("Play")) {
+                    select(); model.primaryAction()
+                }
             case .notInstalled where !game.isVROnly && game.antiCheatBlock == nil:
-                Button(L10n.t("Download")) { select(); model.primaryAction() }
+                Button(game.demoOf != nil ? L10n.t("Download Demo") : L10n.t("Download")) { select(); model.primaryAction() }
             case .inStore:
                 Button(L10n.t("View in Steam Store")) { model.openStorePage(game) }
             default:
@@ -1448,6 +1463,7 @@ struct CoverCard: View {
                     .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
             }
         }
+        .overlay(alignment: .topTrailing) { DemoTag(game: game) }
         .overlay(alignment: .bottomLeading) {
             // From the couch: which games play with a controller, at a glance.
             // Full support in the accent colour, so it reads across the room; partial in outline.
@@ -1509,7 +1525,7 @@ struct CoverCard: View {
         switch game.install {
         case .installed: parts.append(game.pendingUpdate != nil ? L10n.t("Installed, update waiting") : L10n.t("Installed"))
         case .downloading: parts.append(L10n.t("Downloading"))
-        case .notInstalled: parts.append(L10n.t("In your library"))
+        case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }

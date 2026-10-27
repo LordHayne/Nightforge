@@ -243,7 +243,7 @@ struct LibraryToolbar: View {
     }
 
     private var countText: String {
-        let owned = model.games.filter { $0.install != .inStore }.count
+        let owned = model.games.filter(\.inLibrary).count
         if model.showingHidden { return L10n.t("%ld hidden", owned) }
         let total = model.visibleCount
         if model.filters.narrows || !model.searchText.isEmpty {

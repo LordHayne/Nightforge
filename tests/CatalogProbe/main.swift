@@ -10,6 +10,12 @@ for game in games where CommandLine.arguments.count < 3 ? games.firstIndex(of: g
                                                    game.macAppleSilicon ? " Apple silicon" : "", Double(game.macSize) / 1e6)
     print(String(format: "%8d  %8.0f MB  %@  [%@]%@", game.appID, Double(game.size) / 1e6, game.name, game.installDir, mac))
 }
+let unowned = SteamCatalog.unownedGames(steamRoot: root)
+print("\(unowned.count) known but not owned (licence list \(SteamCatalog.owns(7, steamRoot: root) == nil ? "unreadable" : "read"))")
+for app in unowned {
+    let what = app.demoOf.map { "demo of \($0)\(app.owned ? "" : ", needs its free licence")" } ?? "store"
+    print(String(format: "%8d  %8.0f MB  %@  (%@)", app.appID, Double(app.size) / 1e6, app.name, what))
+}
 if CommandLine.arguments.count > 2, let appID = Int(CommandLine.arguments[2]) {
     for rule in SteamCatalog.saveRules(appID: appID, steamRoot: root) {
         print("  saves: \(rule.root)/\(rule.path)\(rule.pattern)\(rule.recursive ? " (with subfolders)" : "") → Mac: \(rule.macRoot.map { $0 + "/" + rule.macAddPath + rule.path } ?? "none")")

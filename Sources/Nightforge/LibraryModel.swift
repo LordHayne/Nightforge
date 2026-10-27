@@ -115,6 +115,8 @@ final class LibraryModel: ObservableObject {
     @Published var pendingSpace: SpaceRequest?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
+    /// A demo about to get its free licence in Steam's install window: what that takes is said first.
+    @Published var pendingDemoLicense: Game?
     private var macSteamPrewarmed = false
     @Published private(set) var uninstallingID: String?
     /// Games whose Windows process is running right now, with that process's pid.
@@ -394,7 +396,8 @@ final class LibraryModel: ObservableObject {
                 blocks: blocks), drives: drives)
         }.value
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
-        allGames = found
+        let wasRefused = Set(allGames.filter(\.downloadRefused).map(\.id))
+        allGames = withStorePrices(found)
         lastScan = Date()
         measureDownloads()
         libraryLoaded = true
@@ -412,6 +415,11 @@ final class LibraryModel: ObservableObject {
         if let game = finished.first {
             Toasts.shared.show(finished.count == 1 ? L10n.t("%@ is ready to play", game.name) : L10n.t("%ld games are ready to play", finished.count),
                                action: .init(label: L10n.t("Play")) { [weak self] in self?.play(game) })
+        }
+        // Said once, not left at "Preparing download …": Steam won't fetch a game the account doesn't own.
+        if let game = found.first(where: { $0.downloadRefused && !wasRefused.contains($0.id) }) {
+            Toasts.shared.show(L10n.t("Steam won't download %@: it isn't in your Steam library.", game.name),
+                               action: .init(label: L10n.t("Cancel Download")) { [weak self] in self?.requestUninstall(game) })
         }
         watchDownloads()
         afterScan()
@@ -633,8 +641,41 @@ final class LibraryModel: ObservableObject {
     /// Buying happens on Steam's own store page in the browser; Nightforge never sees payment data.
     /// Once Steam has the new licence, the game shows up in the library with its Download button.
     func openStorePage(_ game: Game) {
-        guard let url = URL(string: "https://store.steampowered.com/app/\(game.appID)") else { return }
+        guard let url = URL(string: "https://store.steampowered.com/app/\(game.demoOf ?? game.appID)") else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    /// Steam adds a demo's free licence when it's asked to install the demo (steam://install), in
+    /// its own install window: once the player has confirmed there, Steam writes the demo's manifest
+    /// and downloads it, and the library shows that like any download.
+    func addDemoLicense(_ game: Game) {
+        pendingDemoLicense = nil
+        Task {
+            if game.platform == .mac {
+                MacSteam.ask("install/\(game.appID)")
+            } else {
+                guard let wine = await Engine.installedWine() else { return }
+                do {
+                    try Engine.startSteam(wine, arguments: ["steam://install/\(game.appID)"])
+                } catch {
+                    errorMessage = error.localizedDescription
+                    return
+                }
+                try? await Task.sleep(for: .seconds(2))  // the window needs a moment to appear
+                for process in Engine.ownProcesses() where process.command.lowercased().contains("steamwebhelper") {
+                    NSRunningApplication(processIdentifier: process.pid)?.activate(options: .activateAllWindows)
+                }
+            }
+            let manifest = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("appmanifest_\(game.appID).acf")
+            for _ in 0..<150 {
+                try? await Task.sleep(for: .seconds(2))
+                if FileManager.default.fileExists(atPath: manifest.path) {
+                    reload(quiet: true)
+                    return
+                }
+            }
+        }
     }
 
     func installUpdate() {
@@ -693,15 +734,31 @@ final class LibraryModel: ObservableObject {
 
     /// Hits from the games-only search can lack price and platforms; fetch them once it's selected.
     private var storeDetailsRequested: Set<Int> = []
+    /// Prices of the library's store entries, once looked up; every scan brings them back.
+    private var storePrices: [Int: String] = [:]
+
+    private func withStorePrices(_ games: [Game]) -> [Game] {
+        guard !storePrices.isEmpty else { return games }
+        return games.map { game in
+            var game = game
+            if game.install == .inStore, let price = storePrices[game.appID] { game.storePrice = price }
+            return game
+        }
+    }
 
     private func loadStoreDetailsIfNeeded() {
         guard let game = selected, game.install == .inStore, game.storePrice == nil,
               storeDetailsRequested.insert(game.appID).inserted  // once: some games have no price at all
         else { return }
         Task {
-            guard let hit = await StoreSearch.shared.details(for: game.appID),
-                  let index = storeResults.firstIndex(where: { $0.appID == game.appID })
-            else { return }
+            guard let hit = await StoreSearch.shared.details(for: game.appID) else { return }
+            // Also for the library's store entries: games Steam knows that the account doesn't own.
+            storePrices[game.appID] = hit.price
+            allGames = withStorePrices(allGames)
+            guard let index = storeResults.firstIndex(where: { $0.appID == game.appID }) else {
+                applyFilter()
+                return
+            }
             var updated = storeGame(hit)
             updated.metascore = hit.metascore ?? storeResults[index].metascore
             storeResults[index] = updated
@@ -714,6 +771,10 @@ final class LibraryModel: ObservableObject {
     private var restartSteamWhenIdle = false
 
     private func download(_ game: Game) {
+        if game.demoNeedsLicense {
+            pendingDemoLicense = game
+            return
+        }
         if game.platform == .mac {
             downloadMac(game)
             return
@@ -1314,7 +1375,7 @@ final class LibraryModel: ObservableObject {
     // MARK: - Hide & pin
 
     /// The games in the library, without the hidden ones.
-    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.appID) }.count }
+    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.appID) && $0.inLibrary }.count }
 
     func isHidden(_ game: Game) -> Bool { hiddenGames.contains(game.appID) }
     func isPinned(_ game: Game) -> Bool { pinnedGames.contains(game.appID) }
@@ -1926,7 +1987,7 @@ final class LibraryModel: ObservableObject {
     /// own Steam. Uninstalling stops that Steam for a moment, so not while one of its games runs or
     /// anything starts – it would go too.
     func canUninstall(_ game: Game) -> Bool {
-        guard game.isInstalled || { if case .downloading = game.install { return true } else { return false } }()
+        guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
         guard uninstallingID == nil && launchingID == nil else { return false }
         if game.platform == .mac { return !anyRunning(.mac) }
