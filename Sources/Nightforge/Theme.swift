@@ -14,12 +14,63 @@ enum Theme {
     static let runsWithTweaks = Color(red: 0xE8 / 255, green: 0xC6 / 255, blue: 0x8A / 255)  // #E8C68A
     static let runsNot = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)         // #FF9E94
 
+    /// Nightforge's own share in the storage bar, beside the games in sodium (as in the design).
+    static let storageNightforge = Color(red: 0x8C / 255, green: 0xA8 / 255, blue: 0xDB / 255)  // #8CA8DB
+
     /// Wide, heavy display face for titles and the play button.
     static func display(_ size: CGFloat) -> Font {
         .system(size: size, weight: .heavy).width(.expanded)
     }
 
     static let gutter: CGFloat = 56
+}
+
+/// The N beside the name in the top bar: the app icon's three pieces in brushed silver, with the
+/// blue light seam along the slab (scripts/render-brand.swift draws the big one).
+struct NightforgeMark: View {
+    var body: some View {
+        ZStack {
+            NightforgeMarkShape()
+                .fill(LinearGradient(colors: [Theme.ink, Theme.muted], startPoint: .top, endPoint: .bottom))
+            NightforgeMarkShape.Seam()
+                .stroke(Color(red: 0.18, green: 0.48, blue: 1), lineWidth: 1)
+                .shadow(color: Color(red: 0.18, green: 0.48, blue: 1).opacity(0.8), radius: 2)
+        }
+        .aspectRatio(332 / 440, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct NightforgeMarkShape: Shape {
+    /// In a 332 × 440 box, origin top left.
+    private static let pieces: [[CGPoint]] = [
+        [CGPoint(x: 0, y: 0), CGPoint(x: 332, y: 308), CGPoint(x: 332, y: 440), CGPoint(x: 49, y: 170), CGPoint(x: 0, y: 128)],
+        [CGPoint(x: 0, y: 170), CGPoint(x: 82, y: 236), CGPoint(x: 82, y: 338), CGPoint(x: 0, y: 432)],
+        [CGPoint(x: 249, y: 100), CGPoint(x: 332, y: 24), CGPoint(x: 332, y: 280), CGPoint(x: 249, y: 204)],
+    ]
+
+    static func point(_ p: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(x: rect.minX + p.x / 332 * rect.width, y: rect.minY + p.y / 440 * rect.height)
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        for piece in Self.pieces {
+            path.addLines(piece.map { Self.point($0, in: rect) })
+            path.closeSubpath()
+        }
+        return path
+    }
+
+    /// The light seam along the slab's lower edge.
+    struct Seam: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: NightforgeMarkShape.point(CGPoint(x: 49, y: 170), in: rect))
+            path.addLine(to: NightforgeMarkShape.point(CGPoint(x: 332, y: 440), in: rect))
+            return path
+        }
+    }
 }
 
 enum Format {

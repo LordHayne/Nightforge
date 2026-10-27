@@ -55,8 +55,22 @@ struct LibraryView: View {
                     .padding(.bottom, 22)
             }
 
+            if model.showingDownloads {
+                // A click beside the panel closes it, like a popover.
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.showingDownloads = false }
+                DownloadsPanel()
+                    .padding(.top, 84)  // below the top bar (36 + 38), right under the downloads ring
+                    .padding(.trailing, Theme.gutter)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .transition(.opacity.combined(with: .offset(y: -8)))
+            }
+
             ToastHost()
         }
+        .animation(.easeOut(duration: 0.18), value: model.showingDownloads)
         .animation(.easeOut(duration: 0.28), value: model.heroGame?.id)
         .animation(.easeOut(duration: 0.22), value: model.route)
         // A changed version moves the game to another Steam: scan again.
@@ -621,9 +635,14 @@ private struct TopBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("Nightforge")
-                .font(Theme.display(15))
-                .foregroundStyle(Theme.ink)
+            HStack(spacing: 8) {
+                NightforgeMark()
+                    .frame(height: 17)
+                Text("Nightforge")
+                    .font(Theme.display(15))
+                    .foregroundStyle(Theme.ink)
+            }
+            .accessibilityElement(children: .combine)
             if !model.allGames.isEmpty {
                 SectionSwitch()
                     .fixedSize()
