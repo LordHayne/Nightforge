@@ -236,6 +236,7 @@ struct LibraryToolbar: View {
                                  id: "library.mac", help: L10n.t("Runs as its Mac version")) { model.filters.mac.toggle() }
                     Spacer(minLength: 0)
                 }
+                StoreSyncBanner(epic: model.epic)
             }
         }
         .padding(.horizontal, Theme.gutter)

@@ -219,9 +219,11 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 
 ### Epic Games (Branch `claude/epic-games-d52d35`, Roadmap 0.2, 7.1, 7.2)
 
-- **Mit echtem Konto durchspielen:** Anmelden in Epics Fenster (auch „Mit Google/Apple anmelden“ – öffnet im selben
-  Fenster, ungetestet), Bibliothek, ein kleines Spiel laden (Tempo/Restzeit im Download-Panel), starten (Grafik-Leiter,
-  Erstsekunden-Prüfung), Spielstand-Abgleich vor und nach dem Spielen, Deinstallieren, Offline-Start.
+- **Mit echtem Konto noch prüfen** (verbinden, laden, spielen gingen am 27.10.): ein Spiel mit Epic-Cloud-Spielständen
+  (Abgleich vor/nach dem Spielen, Zeile im „Willkommen zurück“), Deinstallieren, Abbrechen eines größeren Downloads,
+  Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
+  „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel.
+- **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
 - **„Update & Play“ für Epic.** Ein wartendes Update wird erkannt (`assets.json` ≠ installierte Version, Abzeichen),
   aber Play startet mit `--skip-version-check` die alte Version. Plan: vor dem Start `legendary install <app>` (Update)
   mit `LaunchPhase.updating` aus dem Log, dann starten (`LibraryModel.launch`, `EpicStore`).

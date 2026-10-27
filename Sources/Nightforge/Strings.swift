@@ -734,6 +734,12 @@ enum L10n {
         "Signed in as %@": "Angemeldet als %@",
         "Epic Games signed you out – sign in again to play %@": "Epic Games hat dich abgemeldet – melde dich wieder an, um %@ zu spielen",
         "Sign In Again": "Erneut anmelden",
+        // Sync status per store (7.5)
+        "Updating %@ …": "%@ wird aktualisiert …",
+        "%@ – your %@ games show up as soon as it answers.": "%@ – deine Spiele von %@ erscheinen, sobald es antwortet.",
+        "%@ – your %@ games are from %@ and still play.": "%@ – deine Spiele von %@ sind auf dem Stand %@ und laufen weiter.",
+        "%@ signed you out – your games stay here. Sign in again to download and to play online.":
+            "%@ hat dich abgemeldet – deine Spiele bleiben hier. Melde dich wieder an, um zu laden und online zu spielen.",
         "Epic Games doesn't approve it for offline play – it needs internet.": "Epic Games gibt es nicht für Offline-Spiel frei – es braucht Internet.",
         "Epic Games signed you out: sign in again in Settings › Stores, then it starts offline too.":
             "Epic Games hat dich abgemeldet: Melde dich unter Einstellungen › Stores wieder an, dann startet es auch offline.",
