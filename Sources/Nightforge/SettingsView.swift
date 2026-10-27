@@ -28,23 +28,9 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                Text(L10n.t("Settings"))
-                    .font(Theme.display(22))
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Theme.ink.opacity(0.8))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(GlassButtonStyle(shape: Circle()))
-                .keyboardShortcut(.cancelAction)
-                .help(L10n.t("Close"))
-                .padFocus("settings.close", cornerRadius: 16, activate: { dismiss() })
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 24)
+            GlassDialogHeader(title: L10n.t("Settings"), id: "settings") { dismiss() }
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
             Segmented(options: Tab.allCases.map { ($0, $0.label, nil) }, selection: tab, id: "settings.tab") { tab = $0 }
                 .padding(.horizontal, 28)
                 .padding(.top, 14)
@@ -67,27 +53,10 @@ struct SettingsView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
         }
-        .foregroundStyle(Theme.ink)
         .frame(width: 640)
         .fixedSize(horizontal: false, vertical: true)
         // The design's dialog: thick glass over the dimmed library, not a window of its own.
-        .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 28, style: .continuous)))
-        .presentationBackground(.clear)
-    }
-}
-
-/// A section's title, small and spaced out like the design's.
-private struct SectionTitle: View {
-    let title: String
-
-    init(_ title: String) { self.title = title }
-
-    var body: some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(1.6)
-            .textCase(.uppercase)
-            .foregroundStyle(Theme.muted)
+        .glassDialogBackground()
     }
 }
 
@@ -286,58 +255,71 @@ private struct ControllerSettings: View {
     private static let bluetoothSettings = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!
 
     var body: some View {
-        Form {
-            Section {
-                let pads = GCController.controllers().filter { $0.extendedGamepad != nil }
+        let pads = GCController.controllers().filter { $0.extendedGamepad != nil }
+        VStack(alignment: .leading, spacing: 14) {
+            // The connected controllers in one box, like the design's.
+            VStack(spacing: 0) {
                 if pads.isEmpty {
                     Text(L10n.t("No controller connected."))
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
                 }
-                ForEach(Array(pads.enumerated()), id: \.offset) { _, pad in
-                    LabeledContent {
-                        if let battery = pad.battery, battery.batteryState != .unknown {
-                            Label("\(Int((battery.batteryLevel * 100).rounded())) %",
-                                  systemImage: battery.batteryState == .charging ? "battery.100.bolt" : Self.batterySymbol(battery.batteryLevel))
-                                .monospacedDigit()
-                                .foregroundStyle(battery.batteryLevel < 0.2 && battery.batteryState != .charging ? Theme.sodium : .primary)
-                                .help(L10n.t("Controller battery"))
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(pad.vendorName ?? pad.productCategory)
-                            Text(L10n.t("Connected · works in every game and in Nightforge"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                ForEach(Array(pads.enumerated()), id: \.offset) { index, pad in
+                    if index > 0 { Rectangle().fill(.white.opacity(0.1)).frame(height: 1).padding(.horizontal, 14) }
+                    padRow(pad)
                 }
-                .id(refresh)
-                if pairing {
-                    Text(L10n.t("PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Button(L10n.t("Pair a Controller …"), action: pair)
-                    .padFocus("settings.pair", activate: pair)
             }
+            .background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1)))
+            .id(refresh)
 
-            Section {
-                Picker(L10n.t("Button labels"), selection: $padGlyphs) {
-                    ForEach(PadSymbols.Style.allCases, id: \.self) { style in
-                        Text(style.label).tag(style.rawValue)
-                    }
-                }
-                .padFocus("settings.padGlyphs", selection: $padGlyphs, values: PadSymbols.Style.allCases.map(\.rawValue))
-                .onChange(of: padGlyphs) { _, _ in model.refreshPadSymbols() }
-                Text(L10n.t("What the hints at the bottom of Nightforge show for the buttons: ✕ ○ □ △ or A B X Y."))
+            Button(L10n.t("Pair a Controller …"), action: pair)
+                .padFocus("settings.pair", cornerRadius: 15, activate: pair)
+            if pairing {
+                Text(L10n.t("PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            SectionTitle(L10n.t("Button labels"))
+                .padding(.top, 6)
+            Segmented(options: PadSymbols.Style.allCases.map { ($0.rawValue, $0.label, nil) }, selection: padGlyphs,
+                      id: "settings.padGlyphs") { padGlyphs = $0 }
+                .onChange(of: padGlyphs) { _, _ in model.refreshPadSymbols() }
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidConnect)) { _ in refresh += 1; pairing = false }
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidDisconnect)) { _ in refresh += 1 }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refresh += 1 }
+    }
+
+    /// One controller: its name, that it works everywhere, and its battery.
+    private func padRow(_ pad: GCController) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "gamecontroller")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Theme.sodium)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(pad.vendorName ?? pad.productCategory)
+                    .font(.system(size: 13.5, weight: .semibold))
+                Text(L10n.t("Connected · works in every game and in Nightforge"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let battery = pad.battery, battery.batteryState != .unknown {
+                Label("\(Int((battery.batteryLevel * 100).rounded())) %",
+                      systemImage: battery.batteryState == .charging ? "battery.100.bolt" : Self.batterySymbol(battery.batteryLevel))
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(battery.batteryLevel < 0.2 && battery.batteryState != .charging ? Theme.sodium : .secondary)
+                    .help(L10n.t("Controller battery"))
+            }
+        }
+        .padding(14)
     }
 
     /// Pairing happens in macOS: open its Bluetooth settings and say what to press on the controller.
@@ -373,7 +355,8 @@ private struct StorageSettings: View {
     @State private var removing = false
     @State private var removalError: String?
 
-    private struct RemovalPlan {
+    private struct RemovalPlan: Identifiable {
+        let id = UUID()
         let windowsGames: Int
         let windowsGamesSize: Int64
         let ownSize: Int64
@@ -414,7 +397,7 @@ private struct StorageSettings: View {
                         if let ownSize {
                             legend("Nightforge", ownSize, Theme.storageNightforge)
                         } else {
-                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text(L10n.t("Measuring Nightforge …")) }
+                            HStack(spacing: 6) { GlassSpinner(size: 12); Text(L10n.t("Measuring Nightforge …")) }
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
@@ -468,7 +451,7 @@ private struct StorageSettings: View {
                         if let shaderSize {
                             Text(Format.bytes(shaderSize)).monospacedDigit().foregroundStyle(.secondary)
                         } else {
-                            ProgressView().controlSize(.small)
+                            GlassSpinner()
                         }
                         Button(L10n.t("Clear"), action: clearShaders)
                             .disabled(!canClearShaders)
@@ -494,7 +477,7 @@ private struct StorageSettings: View {
                         .disabled(gameBusy || measuringRemoval || removing)
                         .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
                     if measuringRemoval || removing {
-                        ProgressView().controlSize(.small)
+                        GlassSpinner()
                         Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -504,17 +487,25 @@ private struct StorageSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .alert(L10n.t("Remove Nightforge completely?"), isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
-               presenting: removal) { _ in
-            Button(L10n.t("Remove Everything"), role: .destructive, action: removeEverything)
-            Button(L10n.t("Cancel"), role: .cancel) {}
-        } message: { plan in
-            Text(removalMessage(plan))
+        .sheet(item: $removal) { plan in
+            GlassQuestion(L10n.t("Remove Nightforge completely?"), message: removalMessage(plan), id: "removeAll") {
+                // Return keeps everything; removing takes a deliberate click or a pad move first.
+                Button(L10n.t("Cancel")) { removal = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("removeAll.cancel", cornerRadius: 21, preferred: true, activate: { removal = nil })
+                Button(L10n.t("Remove Everything"), action: removeEverything)
+                    .buttonStyle(GlassTextButtonStyle(destructive: true))
+                    .padFocus("removeAll.confirm", cornerRadius: 21, activate: removeEverything)
+            }
         }
-        .alert(L10n.t("Nothing was removed"), isPresented: Binding(get: { removalError != nil }, set: { if !$0 { removalError = nil } })) {
-            Button(L10n.t("OK")) {}
-        } message: {
-            Text(removalError ?? "")
+        .sheet(item: DialogMessage.item($removalError)) { error in
+            GlassQuestion(L10n.t("Nothing was removed"), message: error.text, id: "removeAllFailed") {
+                Button(L10n.t("OK")) { removalError = nil }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("removeAllFailed.ok", cornerRadius: 21, preferred: true, activate: { removalError = nil })
+            }
         }
         .task { await measureShaders() }
         .task(id: model.allGames.count) {
@@ -582,6 +573,7 @@ private struct StorageSettings: View {
     }
 
     private func removeEverything() {
+        removal = nil
         removing = true
         Task {
             do {

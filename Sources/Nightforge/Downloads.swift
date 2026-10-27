@@ -123,8 +123,7 @@ struct DownloadsPanel: View {
             }
         }
         .padding(10)
-        .background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1)))
+        .glassWell()
     }
 
     private func fraction(_ game: Game) -> Double? {

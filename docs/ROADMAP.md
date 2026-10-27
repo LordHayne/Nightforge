@@ -168,7 +168,7 @@
     - **Detailseite:** Karte „This game“ zeigt Store, Version, Grafik, HUD, Startoptionen, Engine, Offline-Status sowie „Your own settings … Back to the profile“.
   - **Wo:** `SettingsViews.swift` (`GameOptionsSheet`), `Launcher.swift` (`GameOptions`, `GraphicsLayer`), `Profiles.swift`.
   - **Design:** `Dialogs.tsx` → `GameOptionsDialog`; `Detail.tsx` → `OptionsSummary`; `data.ts` → `PRESETS`.
-  - **Stand** (teilweise): Kopfzeile in den Spieloptionen – „Tested by Nightforge on M5“ (Chips aus der Profilnotiz, Notiz beim Darüberfahren) bzw. „Community fix · from umu-protonfixes“; weichen die Optionen vom Standard ab: „Your own settings. Back to the Profile“ (ohne Profil „Back to Automatic“), wirksam mit „Save“. Offen – **braucht deine Entscheidung:** welche Ebene/Grenze/MetalFX „Fastest“, „Balanced“ und „Most compatible“ genau bedeuten; „updated 5 days ago“ (die Profilliste hat ein `generated`-Datum, aber nicht pro Spiel); Karte „This game“ auf der Detailseite.
+  - **Stand** (teilweise): Kopfzeile in den Spieloptionen – „Tested by Nightforge on M5“ (Chips aus der Profilnotiz, Notiz beim Darüberfahren) bzw. „Community fix · from umu-protonfixes“; weichen die Optionen vom Standard ab: „Your own settings. Back to the Profile“ (ohne Profil „Back to Automatic“), wirksam mit „Save“. **Entschieden (27.10.):** „Balanced“ = die heutige Automatik (MetalFX + gleichmäßige Bildrate passend zum Display, 60 FPS auf 120 Hz); „Fastest“ = MetalFX ohne FPS-Grenze; „Most compatible“ = der verträglichste Grafikweg ohne MetalFX, 60 FPS. Wird gebaut, sobald die Spieloptionen im Glas-Look sind. Offen: „updated 5 days ago“ (die Profilliste hat ein `generated`-Datum, aber nicht pro Spiel); Karte „This game“ auf der Detailseite.
 
 - [x] **2.4 „Bereit für offline“** · `M` · Recherche · PR #27
   - **Was:** Pro Spiel: „Ready“ oder „Start online once“. Steams Offline-Modus muss vorher online aktiviert worden sein – herausfinden, woran man das erkennt (z. B. `loginusers.vdf`, letzter erfolgreicher Online-Start).
@@ -200,7 +200,7 @@
 
 ## Phase 3 – Der Kreis ums Spielen
 
-- [ ] **3.1 Sitzungsabschluss („Welcome back“)** · `M` · teilweise in PR #27
+- [x] **3.1 Sitzungsabschluss („Welcome back“)** · `M` · PR #27, Glas-Look in `claude/ux-roadmap-next` · **Entschieden (27.10.):** nach jeder Sitzung ab einer Minute
   - **Warum:** Wir denken bisher nur bis zum Start. Am Ende will man wissen: Ist der Spielstand sicher, kann ich zuklappen?
   - **Was:** Wenn das Spiel endet (Nightforge kommt ja schon nach vorne), Sheet mit:
     - Spielzeit dieser Sitzung und gesamt
@@ -227,7 +227,7 @@
     - „Komplett entfernen“ (4.3) nimmt diese Sicherungen mit nach „Dokumente“.
     - Offen: Steam-Cloud-Konflikt – Steams eigenes Fenster nach vorne holen und sagen, was zu tun ist. Dafür braucht es einen echten Konflikt zum Ausprobieren.
 
-- [ ] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1
+- [x] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1 · lokal in `claude/engine-rollback-02a61e`
   - **Warum:** macOS-/Wine-Updates machen Spiele kaputt, die gestern liefen (siehe Whisky). Selbst-Heilung ist ein echtes Alleinstellungsmerkmal.
   - **Was:**
     - Pro Spiel die letzte funktionierende Kombination aus Engine und Grafikschicht merken.
@@ -237,6 +237,16 @@
   - **Wo:** `Components.swift` (`ComponentStore`, Versionen), `LaunchHealth.swift`, `Engine.swift`.
   - **Design:** `Parts.tsx` (`rollback`-Phase), `Detail.tsx` (Engine-Hinweis, Zeile „Engine … (held back)“).
   - **Fertig wenn:** Ein simuliertes kaputtes Engine-Update führt zu einem erfolgreichen Start mit der alten Version, ohne dass der Nutzer etwas tun muss.
+  - **Stand:**
+    - **Build:** `EngineRollback.swift`. Ein Engine-Build ist die Engine samt allen Grafik-Builds (DXMT-Paket, D3DMetal, MoltenVK, Gamepad, DXVK) – eine neue Version von einem davon ist ein Engine-Update. `Components/engine-history.json` merkt sich den aktuellen Build und pro Spiel Build und Grafikweg des letzten guten Starts (beim ersten Mal aus den bestätigten Wegen von `LaunchHealth`).
+    - **Vorige Engine behalten:** Bevor `ensureEngine` etwas an der Engine ändert, kopiert es den bisherigen Build nach `Components/.held/` – wenn ein Spiel zuletzt darauf gut lief. Kopiert werden Engine-, Grafik- und DXVK-Ordner als APFS-Klon (0,1 s für 1,4 GB; Platz kostet nur, was sich danach ändert). Die Kopie geht, sobald kein Spiel sie mehr als letzten guten Build hat. Höchstens zwei Kopien; nach 30 Tagen weg, außer ein Spiel ist darauf festgelegt; nie, solange etwas daraus läuft.
+    - **Rückfall:** Nach jedem neuen Build oder Weg wird ein Spiel einmal 30 s beobachtet (auch mit selbst gewählter Grafik). Endet es sofort und lief es mit demselben Weg auf dem Build davor, wird es auf die Kopie festgelegt und gleich damit neu gestartet. Steam zieht dafür auf die alte Engine um, der Prefix bekommt deren DXMT/DXVK-DLLs (`preparePrefix`, `Engine.engineForStart`). Die Grafik-Leiter bleibt, wo sie war. Läuft es auch dort nicht, fällt die Festlegung, und die bisherigen Wege folgen (Runtimes, nächste Grafikschicht).
+    - **Anzeige:** Spielknopf „Versucht die vorige Engine …“ mit Erklärzeile; bei späteren Starts, wenn Steam erst umziehen muss, „Startet mit der vorigen Engine …“. Spielseite: „Engine 4.7.3 (zurückgehalten)“ und der Hinweis „Läuft mit der vorigen Engine vom 27. Okt. – die neueste hat es abstürzen lassen …“ mit „Jetzt die neueste probieren“ (Toast wie im Entwurf; stürzt es wieder ab, geht es von selbst zurück). Haben zwei Builds dieselbe Engine-Version, unterscheidet sie das Datum.
+    - **Nächstes Update:** Alle Festlegungen fallen, die neue Engine wird probiert.
+    - **Abweichung:** „vorige Engine“ statt „last week's engine“ – Updates kommen nicht im Wochentakt.
+    - **Tests:** `tests/EngineRollbackTest/` (Fake-Engines und -Ordner, eigenes leeres Home).
+    - **In der echten App** (27.10., geklontes Home, deine Engine unverändert): Engine 4.7.4 mit eingebautem Absturz → Palworld nach 3 s weg → von selbst mit 4.7.3 neu gestartet, gespielt, Spielstand in der Steam Cloud.
+    - **Offen:** siehe `docs/TODO.md` („Engine-Rückfall“).
 
 - [x] **3.4 Akku-Modus** · `S` · PR #27 (standardmäßig aus)
   - **Was:** Ohne Netzteil (IOKit `IOPSCopyPowerSourcesInfo`): Bildrate auf 30 FPS begrenzen, Hinweis „On battery: capped at 30 FPS – about 1 h 40 min of play“, Akkustand in der Top-Bar. Abschaltbar in General. Grundlage für die Begrenzung: `FramePacing.swift`.
@@ -244,6 +254,19 @@
   - **Stand:** `PowerSource.swift` (IOKit: Akku/Netzteil, Ladestand; alle paar Sekunden im bestehenden Lauf-Check). Schalter „Save battery when unplugged“ in General – **standardmäßig aus** (Abweichung, bitte entscheiden: du magst 60 FPS fest, deshalb nicht ungefragt eingeschaltet). Ist er an und der Mac im Akkubetrieb, startet ein Spiel mit höchstens 30 FPS (auch ohne eigene Grenze), und aus so einer Sitzung lernt `FramePacing` nichts. Top-Bar zeigt im Akkubetrieb den Ladestand (unter 20 % in der Akzentfarbe), die Spielseite die Zeile „On battery: games are capped at 30 FPS …“. Ohne Restzeit-Schätzung – macOS' Schätzung gilt für die aktuelle Last, nicht fürs Spielen. Test in `tests/LaunchHealthTest/`.
 
 ---
+
+- [ ] **3.5 Schwaches Netzteil erkennen** · `S` · Idee des Nutzers am 27.10.
+  - **Warum:** Mit einem zu schwachen Netzteil steht der Mac auf „lädt“, verliert beim Spielen aber trotzdem Akku –
+    der Spielspaß ist schnell vorbei, ohne dass man merkt, warum.
+  - **Was:** Am Netzteil dezent zeigen, wenn es nicht reicht: in der Akku-Pille oben ein Bernstein-Blitz mit „18 W“
+    (Tooltip mit Erklärung), auf Startseite/Spielseite eine Hinweiszeile wie bei „Akku sparen“.
+  - **Recherche (27.10., echter Fall):** `IOPSCopyExternalPowerAdapterDetails()` liefert die Watt (`Watts` = 18, „pd
+    charger“, 9 V/1,98 A); `IOPSCopyPowerSourcesInfo` den Strom des Akkus (`Current`, mA). Am 18-W-Netzteil stand
+    „charging“, der Strom war aber −1236 mA: Der Akku entlud sich. `ChargerData.SlowChargingReason` blieb 0, taugt
+    also nicht. Regel: am Netzteil **und** (Akku entlädt sich über mehrere Messungen **oder** unter 30 W). Beim
+    Ladelimit (80 %) fließt kein Strom – das ist kein Fehler.
+  - **Wo:** `PowerSource.swift` (Watt, Entladen), `LibraryView.swift` (Akku-Pille, Hinweiszeilen).
+  - **Fertig wenn:** Mit dem 18-W-Netzteil erscheint der Hinweis, mit dem passenden Netzteil oder am Ladelimit nicht (Test mit Beispielwerten).
 
 ## Phase 4 – Speicherplatz & Downloads
 

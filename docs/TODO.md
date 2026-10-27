@@ -58,6 +58,17 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
   („Session Replaced“). Beobachtet wurde auch: Steam hängt, beendet sich nicht oder drängt sich nach vorne.
 
+### Engine-Rückfall (3.3, Branch `claude/engine-rollback-02a61e`)
+
+- **Speicher-Anzeige zählt die gehaltene Engine doppelt.** Sie ist ein APFS-Klon und teilt ihre Blöcke mit dem
+  Original. `Library.folderSize` summiert aber `totalFileAllocatedSize`, also erscheint sie in Einstellungen ›
+  Speicher mit voller Größe (bis 1,4 GB), solange das Original noch da ist.
+- **Nach dem Zusammenführen mit 0.2 (GameID):** `EngineRollback` merkt sich Spiele unter der Steam-App-ID, und
+  `LaunchHealth.confirmedWays` liest `launchHealth.<id>`. Beides auf die neue ID umstellen.
+- **Nur Abstürze eines Spiels zählen.** Startet Steam selbst mit der neuen Engine nicht, greift der Rückfall nicht.
+- **Datum der ersten gehaltenen Engine:** Es ist der Tag, an dem 3.3 zum ersten Mal lief, nicht der Tag, an dem
+  diese Engine kam.
+
 ## Mac-Versionen
 
 - **Windows-Fallback** hat noch nie wirklich ausgelöst (keine Mac-Version ist bisher abgestürzt).
@@ -162,11 +173,15 @@ weil die Bildschirmfreigabe abgelehnt war.
   Platz-Sheet.
 - **Glas-Look** (`Glass.swift`): Am 27.10. auf dem echten Bildschirm angesehen – der Hintergrund scheint durch, die
   Ränder leuchten, Spielen glänzt bernsteinfarben. „Willkommen zurück“ und die Einstellungen sind seitdem Glas-Dialoge
-  im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Offen: die übrigen Sheets (Optionen eines Spiels,
-  Fehlstart, Platz, Spielstand-Wahl, Steam für Mac) zeigen noch das System-Panel; die Speicherleiste bleibt einfarbig,
-  weil Sodium laut Regeln nie Deko ist (der Entwurf färbt sie).
-- **Entscheidungen:** Was „Fastest / Balanced / Most compatible“ in 2.3 genau einstellen; ob „Save battery when
-  unplugged“ (3.4) standardmäßig an sein soll (jetzt aus); ob „Welcome back“ nach *jeder* Sitzung kommen soll.
+  im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Seit dem Abend des 27.10. sind auch alle übrigen
+  Sheets und alle Alerts Glas-Dialoge (`GlassDialog`/`GlassQuestion` in `Glass.swift`, roter Knopf `Theme.danger`);
+  jeden auf dem Bildschirm angesehen, Return/Esc geprüft. Offen: mit einem echten Controller durchgehen (A startet
+  jetzt auf der Standardantwort, `padFocus(preferred:)`); die Picker bleiben System-Popups mit blauem Pfeil; die
+  Textfelder im Stores-Tab und der Lade-Kringel im Spielknopf sind noch System (dort arbeiten andere Branches).
+- **Entscheidungen (27.10. getroffen):** 2.3 wie vorgeschlagen (siehe Roadmap); „Save battery when unplugged“ (3.4)
+  bleibt standardmäßig aus; „Welcome back“ nach jeder Sitzung ab einer Minute. Abweichungen von der Vorlage, die
+  angeglichen werden: Genre/Jahr/Store-Zeile über dem Titel, Suche im Bibliothekskopf mit Beispiel, Metascore auf der
+  Spielseite, Bibliothekskopf „105 Spiele · aktuell vor 2 Min.“.
 - **`syncstate` in `remotecache.vdf`:** Nur „1“ (im Einklang) ist sicher belegt; die anderen Werte während eines
   Uploads einmal beobachten und `CloudSaves` danach schärfen.
 - **`LibraryView.swift` (über 1700 Zeilen) und `LibraryModel.swift` (fast 1900)** sind mit der Navigation weiter
@@ -207,8 +222,18 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
     verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
-- **DualSense** fehlte um 20:40 in Nightforge – macOS selbst meldete ihn als „nicht verbunden“ (weder Bluetooth noch
-  USB). Nach dem Wiederverbinden prüfen, ob Nightforge ihn ohne Neustart zeigt.
+- **Download-Knopf oben** erscheint nur, solange etwas lädt; im Entwurf ist er immer da (Panel mit „Nichts lädt
+  gerade“). Mit dem Nutzer besprechen (gemeldet von der Sitzung „Vorlage angleichen“, 27.10.).
+- **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
+  Tray-Symbol des unsichtbaren Windows-Steam als macOS-Statussymbol ab, und nach Neustarts von Steam bleiben alte stehen
+  (dazu kommt das echte Steam für Mac). Prüfen: wer welches Symbol besitzt; Tray-Symbol des Windows-Steam abschalten
+  oder beim Beenden aufräumen.
+- **Zwei Nightforge-Symbole im Dock** (Nutzer, 27.10. 21:48). Das zweite ist „Nightforge Game“, die Hülle, in der die
+  Wine-Prozesse laufen (wineserver, explorer, winedevice). Eigentlich sollen Hintergrundprozesse kein Dock-Symbol
+  zeigen (`hide-steam-dock.dylib`) – herausfinden, welcher Prozess es trotzdem zeigt und wann.
+- **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
+  wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
+  zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
 
 ## Aus dem Code-Audit
 

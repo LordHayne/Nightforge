@@ -27,6 +27,8 @@ struct CatalogApp: Hashable {
     var controller = ControllerSupport.none
     /// Steam lists a single-player mode (or says nothing about it); false: online only.
     var singlePlayer = true
+    /// Its store tags, genres, release and Metacritic score.
+    var store = StoreFacts()
 }
 
 /// What the Steam store says about playing a game with a controller.
@@ -67,6 +69,10 @@ enum SteamCatalog {
     /// Per Steam install, keyed by when its catalog files last changed.
     private static var cache: [String: (modified: Date, catalog: Catalog)] = [:]
     private static let lock = NSLock()
+    /// The store facts of the last read, per Steam install and app ID. A lock of their own: they're
+    /// asked while drawing, which mustn't wait for a scan reading the catalog.
+    private static var facts: [String: [Int: StoreFacts]] = [:]
+    private static let factsLock = NSLock()
 
     static func ownedGames(steamRoot: URL) -> [CatalogApp] {
         catalog(steamRoot: steamRoot).owned
@@ -122,11 +128,24 @@ enum SteamCatalog {
             }.sorted(by: byName)
         }
         cache[steamRoot.path] = (modified, result)
+        factsLock.lock()
+        facts[steamRoot.path] = Dictionary((result.owned + result.unowned).map { ($0.appID, $0.store) },
+                                           uniquingKeysWith: { first, _ in first })
+        factsLock.unlock()
         return result
     }
 
     private static func modificationDate(_ url: URL) -> Date? {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
+
+    /// Genre, release and Metacritic score of an owned game, as the last scan read them – without
+    /// touching the disk, so a view can ask while drawing. Another Steam install (Steam for Mac
+    /// beside Nightforge's own) stands in when the game's own doesn't know it. nil before a scan.
+    static func storeFacts(appID: Int, steamRoot: URL) -> StoreFacts? {
+        factsLock.lock()
+        defer { factsLock.unlock() }
+        return facts[steamRoot.path]?[appID] ?? facts.values.lazy.compactMap { $0[appID] }.first
     }
 
     // MARK: - Launch options
@@ -398,6 +417,7 @@ enum SteamCatalog {
                                       macNative: oslist.contains("macos"),
                                       windows: oslist.isEmpty || oslist.contains("windows"))
                 game.controller = controllerSupport(common)
+                game.store = storeFacts(common)
                 // Store category 2 is "Single-player"; a game with categories but not that one is online only.
                 if let categories = common["category"]?.object, !categories.isEmpty {
                     game.singlePlayer = categories["category_2"] != nil
@@ -412,6 +432,22 @@ enum SteamCatalog {
             reader.position = end
         }
         return games
+    }
+
+    /// Store tags (most voted first), genres, release dates and Metacritic score from common.
+    private static func storeFacts(_ common: [String: BinaryKV]) -> StoreFacts {
+        func ids(_ key: String) -> [Int] {
+            (common[key]?.object ?? [:])
+                .compactMap { key, value in Int(key).flatMap { place in value.int.map { (place, $0) } } }
+                .sorted { $0.0 < $1.0 }
+                .map(\.1)
+        }
+        // A game out elsewhere (or in Early Access) before Steam's release date came out then.
+        let released = ["steam_release_date", "original_release_date"]
+            .compactMap { common[$0]?.int }.filter { $0 > 0 }.min()
+        return StoreFacts(tags: ids("store_tags"), genres: ids("genres"), primaryGenre: common["primary_genre"]?.int,
+                          released: released.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                          metascore: common["metacritic_score"]?.int.flatMap { $0 > 0 ? $0 : nil })
     }
 
     /// common/controller_support ("full", "partial"), or the store categories that say the same:

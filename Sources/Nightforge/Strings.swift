@@ -70,6 +70,11 @@ enum L10n {
         // Steam store & Mac versions
         "View in Steam Store": "Im Steam-Store ansehen",
         "In the Steam Store": "Im Steam-Store",
+        "Price": "Preis",
+        "Free": "Kostenlos",
+        "Coming soon": "Demnächst",
+
+        // Games the account doesn't own: their demo, the store, downloads Steam won't fetch (ROADMAP 2.6)
         "Play Demo": "Demo spielen",
         "Steam won't download %@: it isn't in your Steam library.": "Steam lädt %@ nicht herunter: Das Spiel ist nicht in deiner Steam-Bibliothek.",
         "Steam won't download this game: it isn't in your Steam library. Cancel the download to take the request back.": "Steam lädt dieses Spiel nicht herunter: Es ist nicht in deiner Steam-Bibliothek. Brich den Download ab, um die Anfrage zurückzunehmen.",
@@ -80,9 +85,6 @@ enum L10n {
         "Full Game in Steam Store": "Vollversion im Steam-Store",
         "Add the free demo": "Kostenlose Demo hinzufügen",
         "%@ is free. Steam adds it to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge downloads and starts it like any other game.": "%@ ist kostenlos. Steam fügt die Demo einmal deiner Steam-Bibliothek hinzu: Bestätige dazu im Steam-Fenster, das sich gleich öffnet, die Installation. Danach lädt und startet Nightforge sie wie jedes andere Spiel.",
-        "Price": "Preis",
-        "Free": "Kostenlos",
-        "Coming soon": "Demnächst",
 
         // Performance
         "Frame limit": "FPS-Limit",
@@ -311,6 +313,14 @@ enum L10n {
         "In your library": "In deiner Bibliothek",
         "Open": "Öffnen",
         "Back": "Zurück",
+        // Library header, as in the design: search with an example, the scan, how fresh the library is
+        "Search – try “rdr2” or “bg3”": "Suchen – z. B. „rdr2“ oder „bg3“",
+        "Scanning …": "Wird eingelesen …",
+        "up to date just now": "gerade eben aktualisiert",
+        "up to date %ld min ago": "aktuell vor %ld Min.",
+        "up to date %ld h ago": "aktuell vor %ld Std.",
+        "up to date since yesterday": "aktuell seit gestern",
+        "up to date %ld days ago": "aktuell vor %ld Tagen",
 
         // Uninstall
         "Uninstall": "Deinstallieren",
@@ -382,8 +392,6 @@ enum L10n {
             "PlayStation: PS und Create halten, bis das Licht blinkt. Xbox: die Kopplungstaste oben halten, bis das Logo blinkt. Nintendo: die Sync-Taste halten. Dann in den Bluetooth-Einstellungen auswählen.",
         "Button labels": "Tastensymbole",
         "Like my controller": "Wie mein Controller",
-        "What the hints at the bottom of Nightforge show for the buttons: ✕ ○ □ △ or A B X Y.":
-            "Was die Hinweise unten in Nightforge für die Tasten zeigen: ✕ ○ □ △ oder A B X Y.",
         "No account. No telemetry. No background service.": "Kein Konto. Keine Telemetrie. Kein Hintergrunddienst.",
         "Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it.":
             "Nichts verlässt deinen Mac, außer du schickst es ab – ein Problembericht öffnet sich ausgefüllt auf GitHub und geht nirgendwohin, bis du ihn absendest.",
@@ -465,6 +473,21 @@ enum L10n {
         "First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.":
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",
+
+        // Engine rollback (3.3)
+        "Trying the previous engine …": "Versucht die vorige Engine …",
+        "Starting with the previous engine …": "Startet mit der vorigen Engine …",
+        "The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also startet Nightforge es mit der vorigen – du musst nichts tun. Nach dem nächsten Update probiert es die neue wieder.",
+        "The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also läuft es mit der vorigen – Steam startet dafür zuerst neu.",
+        "Engine": "Engine",
+        "%@ (held back)": "%@ (zurückgehalten)",
+        "Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.":
+            "Läuft mit der vorigen Engine vom %@ – die neueste hat es abstürzen lassen. Nightforge probiert die neue nach dem nächsten Update wieder.",
+        "Try the Newest Now": "Jetzt die neueste probieren",
+        "Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.":
+            "Der nächste Start nimmt die neueste Engine (%@). Stürzt es wieder ab, wechselt Nightforge von selbst zurück.",
 
         // Shortcuts
         "%@ is in Applications now – Spotlight finds it": "%@ ist jetzt in den Programmen – Spotlight findet es",
@@ -623,6 +646,41 @@ enum L10n {
         "Games you hid from your library": "Spiele, die du aus der Bibliothek ausgeblendet hast",
         "No games match these filters": "Keine Spiele passen zu diesen Filtern",
         "Clear filters": "Filter zurücksetzen",
+
+        // Genres above a game's title (StoreFacts)
+        "Adventure": "Abenteuer",
+        "Strategy": "Strategie",
+        "RPG": "Rollenspiel",
+        "Casual": "Gelegenheitsspiel",
+        "Racing": "Rennspiel",
+        "Sports": "Sport",
+        "Platformer": "Jump ’n’ Run",
+        "Card Game": "Kartenspiel",
+        "RTS": "Echtzeitstrategie",
+        "Stealth": "Schleichspiel",
+        "Psychological Horror": "Psycho-Horror",
+        "Hidden Object": "Wimmelbild",
+        "Turn-Based Strategy": "Rundenstrategie",
+        "Fighting": "Kampfspiel",
+        "Rhythm": "Rhythmusspiel",
+        "Board Game": "Brettspiel",
+        "Real Time Tactics": "Echtzeittaktik",
+        "Action RPG": "Action-Rollenspiel",
+        "City Builder": "Aufbauspiel",
+        "Grand Strategy": "Globalstrategie",
+        "God Game": "Göttersimulation",
+        "Puzzle Platformer": "Puzzle-Plattformer",
+        "Party Game": "Partyspiel",
+        "Trading Card Game": "Sammelkartenspiel",
+        "Life Sim": "Lebenssimulation",
+        "Turn-Based Tactics": "Rundentaktik",
+        "Space Sim": "Weltraumsimulation",
+        "Tactical RPG": "Taktik-Rollenspiel",
+        "Farming Sim": "Landwirtschaftssimulation",
+        "Colony Sim": "Koloniesimulation",
+        "Automation": "Automatisierung",
+        "Creature Collector": "Monstersammler",
+        "Driving Sim": "Fahrsimulation",
 
         // Hide & pin
         "Hidden": "Ausgeblendet",
