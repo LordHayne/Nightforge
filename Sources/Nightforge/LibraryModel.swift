@@ -747,10 +747,10 @@ final class LibraryModel: ObservableObject {
         else { return }
         Task {
             guard let hit = await StoreSearch.shared.details(for: game.appID) else { return }
+            // Also for the library's store entries: games Steam knows that the account doesn't own.
+            storePrices[game.appID] = hit.price
+            allGames = withStorePrices(allGames)
             guard let index = storeResults.firstIndex(where: { $0.appID == game.appID }) else {
-                // One of the library's store entries: a game Steam knows that the account doesn't own.
-                storePrices[game.appID] = hit.price
-                allGames = withStorePrices(allGames)
                 applyFilter()
                 return
             }
