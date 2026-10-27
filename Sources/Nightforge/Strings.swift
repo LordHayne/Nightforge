@@ -560,7 +560,8 @@ enum L10n {
         "On battery: games are capped at 30 FPS to last longer.": "Im Akkubetrieb: Spiele laufen mit höchstens 30 FPS, damit der Akku länger hält.",
 
         // Cloud saves
-        "Your save is in the Steam Cloud. You can close your Mac.": "Dein Spielstand ist in der Steam Cloud. Du kannst den Mac zuklappen.",
+        "Your save is in the Steam Cloud.": "Dein Spielstand ist in der Steam Cloud.",
+        "You can close your Mac.": "Du kannst den Mac zuklappen.",
         "Steam syncs your save in the background.": "Steam gleicht deinen Spielstand im Hintergrund ab.",
         "Steam is syncing your save with the Steam Cloud …": "Steam gleicht deinen Spielstand mit der Steam Cloud ab …",
         "No Steam Cloud for this game – its saves are on this Mac.": "Keine Steam Cloud für dieses Spiel – seine Spielstände liegen auf diesem Mac.",

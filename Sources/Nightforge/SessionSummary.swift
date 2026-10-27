@@ -64,79 +64,126 @@ struct SessionSummarySheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(L10n.t("Welcome back"))
-                .font(Theme.display(22))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(summary.game.name)
-                    .font(.headline)
-                Text(L10n.t("%@ this time · %@ in total", Format.playtime(summary.minutes), Format.playtime(total)))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                Text(L10n.t("Welcome back"))
+                    .font(Theme.display(22))
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.ink.opacity(0.8))
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(GlassButtonStyle(shape: Circle()))
+                .keyboardShortcut(.cancelAction)
+                .help(L10n.t("Close"))
+                .padFocus("session.close", cornerRadius: 16, activate: { dismiss() })
+                .padding(.top, -4)
+                .padding(.trailing, -8)
+            }
+
+            HStack(spacing: 16) {
+                SessionCover(game: summary.game)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(summary.game.name)
+                        .font(Theme.display(20))
+                        .lineLimit(2)
+                    Text(L10n.t("%@ this time · %@ in total", Format.playtime(summary.minutes), Format.playtime(total)))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.ink.opacity(0.85))
+                        .monospacedDigit()
+                }
             }
 
             if let cloud {
                 saveLine(cloud)
+                    .font(.system(size: 13.5))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1)))
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text(L10n.t("How did it run?"))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 14, weight: .medium))
                 if saved {
-                    Label(L10n.t("Thanks – noted on this Mac. It shapes how Nightforge rates the game for you."),
-                          systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(Theme.runsGreat)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.runsGreat)
+                        Text(L10n.t("Thanks – noted on this Mac. It shapes how Nightforge rates the game for you."))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .font(.system(size: 13))
                 } else if rating == false {
                     issueButtons
                     Button(L10n.t("Save")) { save(good: false) }
-                        .padFocus("session.saveIssues", activate: { save(good: false) })
+                        .buttonStyle(GlassTextButtonStyle(prominent: true))
+                        .padFocus("session.saveIssues", cornerRadius: 21, activate: { save(good: false) })
                 } else {
                     HStack(spacing: 10) {
-                        Button { save(good: true) } label: {
-                            Label(L10n.t("Well"), systemImage: "hand.thumbsup").frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .padFocus("session.good", activate: { save(good: true) })
-                        Button { rating = false } label: {
-                            Label(L10n.t("Not well"), systemImage: "hand.thumbsdown").frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .padFocus("session.bad", activate: { rating = false })
+                        ratingButton(L10n.t("Well"), symbol: "hand.thumbsup", id: "session.good") { save(good: true) }
+                        ratingButton(L10n.t("Not well"), symbol: "hand.thumbsdown", id: "session.bad") { rating = false }
                     }
                 }
             }
 
-            HStack {
-                Button { playAgain() } label: { Label(L10n.t("Play Again"), systemImage: "play.fill") }
-                    .padFocus("session.again", activate: playAgain)
+            HStack(spacing: 8) {
                 Spacer()
+                Button { playAgain() } label: {
+                    Label(L10n.t("Play Again"), systemImage: "play.fill")
+                }
+                .buttonStyle(GlassTextButtonStyle())
+                .padFocus("session.again", cornerRadius: 21, activate: playAgain)
                 Button(L10n.t("Done")) { dismiss() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
-                    .padFocus("session.done", activate: { dismiss() })
+                    .padFocus("session.done", cornerRadius: 21, activate: { dismiss() })
             }
+            .padding(.top, 4)
         }
-        .padding(24)
-        .frame(width: 480)
+        .foregroundStyle(Theme.ink)
+        .padding(28)
+        .frame(width: 520)
+        // The design's dialog: thick glass over the dimmed library, not the system's sheet panel.
+        .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 28, style: .continuous)))
+        .presentationBackground(.clear)
         .task { await followCloud() }
+    }
+
+    private func ratingButton(_ title: String, symbol: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Theme.ink.opacity(0.9))
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+        }
+        .buttonStyle(GlassButtonStyle(shape: Capsule()))
+        .padFocus(id, cornerRadius: 20, activate: action)
     }
 
     @ViewBuilder private func saveLine(_ state: CloudSaves.State) -> some View {
         switch state {
         case .synced:
-            Label(L10n.t("Your save is in the Steam Cloud. You can close your Mac."), systemImage: "checkmark.icloud")
-                .foregroundStyle(Theme.runsGreat)
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.icloud").font(.system(size: 18)).foregroundStyle(Theme.runsGreat)
+                Text("\(Text(L10n.t("Your save is in the Steam Cloud.")).fontWeight(.semibold)) \(L10n.t("You can close your Mac."))")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         case .syncing where cloudTookLong:
             Label(L10n.t("Steam syncs your save in the background."), systemImage: "icloud")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.ink.opacity(0.85))
         case .syncing:
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text(L10n.t("Steam is syncing your save with the Steam Cloud …")).foregroundStyle(.secondary)
+                Text(L10n.t("Steam is syncing your save with the Steam Cloud …")).foregroundStyle(Theme.ink.opacity(0.85))
             }
         case .noCloud:
             Label(L10n.t("No Steam Cloud for this game – its saves are on this Mac."), systemImage: "internaldrive")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.ink.opacity(0.85))
         }
     }
 
@@ -175,5 +222,25 @@ struct SessionSummarySheet: View {
     private func playAgain() {
         dismiss()
         model.play(summary.game)
+    }
+}
+
+/// The game's cover beside its name: small, with the hairline the design gives it.
+private struct SessionCover: View {
+    let game: Game
+    @State private var cover: NSImage?
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
+            if let cover {
+                Image(nsImage: cover).resizable().scaledToFill()
+            }
+        }
+        .frame(width: 64, height: 96)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.1)))
+        .accessibilityHidden(true)
+        .task(id: game.id) { cover = await ArtworkStore.shared.image(for: game, kind: .cover) }
     }
 }
