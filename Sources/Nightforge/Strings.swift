@@ -734,6 +734,9 @@ enum L10n {
         "Signed in as %@": "Angemeldet als %@",
         "Epic Games signed you out – sign in again to play %@": "Epic Games hat dich abgemeldet – melde dich wieder an, um %@ zu spielen",
         "Sign In Again": "Erneut anmelden",
+        "Epic Games doesn't approve it for offline play – it needs internet.": "Epic Games gibt es nicht für Offline-Spiel frei – es braucht Internet.",
+        "Epic Games signed you out: sign in again in Settings › Stores, then it starts offline too.":
+            "Epic Games hat dich abgemeldet: Melde dich unter Einstellungen › Stores wieder an, dann startet es auch offline.",
         "This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
             "Das entfernt das Spiel von deinem Mac und gibt %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
         "Epic Games signed you out – your games stay here": "Epic Games hat dich abgemeldet – deine Spiele bleiben hier",

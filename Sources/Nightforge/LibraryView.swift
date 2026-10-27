@@ -892,7 +892,8 @@ private struct GameDetail: View {
                 }
                 if !compact && game.isInstalled {
                     let offline = OfflineReadiness.of(game, analysis: model.insights[game.gameID]?.analysis,
-                                                      accountRemembered: OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
+                                                      accountRemembered: game.provider == .epic ? model.epic.isSignedIn
+                                                          : OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
                     Stat(label: L10n.t("Offline"), value: offline.label)
                         .help(offline.help)
                         .accessibilityElement(children: .combine)

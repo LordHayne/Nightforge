@@ -116,6 +116,8 @@ struct EpicTest {
               && command?.arguments.contains("-windowed") == true, "game, player and Epic parameters")
         check(command?.arguments.contains(#"-epicovt=Z:\Users\a\Epic\legendary\tmp\x.ovt"#) == true, "the ownership token as Wine sees it")
         check(Legendary.launchCommand(fromJSON: Data(#"{"game_directory": ""}"#.utf8)) == nil, "no program, no start")
+        check(EpicStore.gameLanguage(preferred: ["de-AT", "en-US"]) == "de", "games start in the Mac's language")
+        check(EpicStore.gameLanguage(preferred: []) == "en" && EpicStore.gameLanguage(preferred: ["x;rm"]) == "en", "else English")
 
         let inPrefix = Engine.prefix.appendingPathComponent("drive_c/Program Files/Epic Games/rocketleague/Binaries/Win64/RL.exe")
         check(Engine.windowsPath(of: inPrefix) == #"C:\Program Files\Epic Games\rocketleague\Binaries\Win64\RL.exe"#,
@@ -236,6 +238,11 @@ struct EpicTest {
         check(rl?.pendingUpdate != nil, "and Epic has a newer build of it")
         check(rl?.art?.cover?.absoluteString == "https://cdn1.epicgames.com/tall.jpg", "with Epic's cover")
         check(rl?.provider == .epic && rl?.appID == 0 && rl?.platform == .windows, "an Epic game run through Wine")
+        check(rl.map { var g = $0; g.onlineOnly = false; return OfflineReadiness.of(g, analysis: nil, accountRemembered: true) } == OfflineReadiness.startOnlineOnce,
+              "never played: start it online once (an update waiting doesn't stop Epic games offline)")
+        check(rl?.onlineOnly == true && rl.map { var g = $0; g.lastPlayed = Date(); return OfflineReadiness.of(g, analysis: nil, accountRemembered: true) } == OfflineReadiness.epicOnline,
+              "not approved for offline by Epic: needs internet")
+        check(rl.map { OfflineReadiness.of($0, analysis: nil, accountRemembered: false) } == OfflineReadiness.epicSignedOut, "signed out: not yet")
         let odd = games.first { $0.gameID == .epic("Odd") }
         check(odd?.install == .notInstalled && odd?.installDir.deletingLastPathComponent().path == Legendary.gamesDir.path,
               "a game not downloaded goes into Epic's folder in the Windows environment")

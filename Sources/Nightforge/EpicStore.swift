@@ -217,6 +217,7 @@ final class EpicStore: ObservableObject, StoreProvider {
             game.install = .downloading(downloading.fraction)
         } else if let install {
             game.install = .installed
+            game.onlineOnly = !install.canRunOffline  // Epic's own say on offline play
             if let latest, !install.version.isEmpty, latest != install.version { game.pendingUpdate = 0 }
         } else {
             game.install = .notInstalled
@@ -402,12 +403,22 @@ final class EpicStore: ObservableObject, StoreProvider {
     func launchCommand(for game: Game) async throws -> Legendary.LaunchCommand {
         let appName = game.gameID.id
         let program = try await Legendary.program()
-        let online = try await Legendary.run(["launch", appName, "--json", "--no-wine", "--skip-version-check"],
+        let language = ["--language", Self.gameLanguage()]
+        let online = try await Legendary.run(["launch", appName, "--json", "--no-wine", "--skip-version-check"] + language,
                                              program: program, timeout: 60)
         if online.status == 0, let command = Legendary.launchCommand(fromJSON: online.output) { return command }
-        let offline = try await Legendary.run(["launch", appName, "--json", "--no-wine", "--offline"], program: program, timeout: 30)
+        let offline = try await Legendary.run(["launch", appName, "--json", "--no-wine", "--offline"] + language,
+                                              program: program, timeout: 30)
         if offline.status == 0, let command = Legendary.launchCommand(fromJSON: offline.output) { return command }
         throw EpicError.failed(online.error ?? offline.error ?? L10n.t("Epic Games didn't give the launch details for %@.", game.name))
+    }
+
+    /// The Mac's language for the game ("de"), as Epic's launcher hands it over (-epiclocale):
+    /// legendary would otherwise say "en", not knowing the Mac's settings.
+    nonisolated static func gameLanguage(preferred: [String] = Locale.preferredLanguages) -> String {
+        guard let first = preferred.first else { return "en" }
+        let code = Locale(identifier: first).language.languageCode?.identifier ?? "en"
+        return code.allSatisfy(\.isLetter) && (2...3).contains(code.count) ? code : "en"
     }
 
     /// Brings the cloud saves up to date: before playing the newer ones from Epic, afterwards this
