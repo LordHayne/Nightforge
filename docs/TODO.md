@@ -204,6 +204,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Vollspiels „Demo laden“ zeigen. Eine Demo ohne Lizenz braucht vorher die freie Lizenz (wie `steam://install/<demo>`).
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
+- **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
+  Tray-Symbol des unsichtbaren Windows-Steam als macOS-Statussymbol ab, und nach Neustarts von Steam bleiben alte stehen
+  (dazu kommt das echte Steam für Mac). Prüfen: wer welches Symbol besitzt; Tray-Symbol des Windows-Steam abschalten
+  oder beim Beenden aufräumen.
+- **Zwei Nightforge-Symbole im Dock** (Nutzer, 27.10. 21:48). Das zweite ist „Nightforge Game“, die Hülle, in der die
+  Wine-Prozesse laufen (wineserver, explorer, winedevice). Eigentlich sollen Hintergrundprozesse kein Dock-Symbol
+  zeigen (`hide-steam-dock.dylib`) – herausfinden, welcher Prozess es trotzdem zeigt und wann.
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
