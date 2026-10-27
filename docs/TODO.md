@@ -188,6 +188,21 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 - **Spielstand-Wahl** (3.2): Ein Spiel mit Mac- und Windows-Version auf beiden Seiten spielen und dann wechseln. Kommt die Frage „Mit welchem Spielstand …“, und liegt der ersetzte Stand in `Backups/`?
 - **Externes Laufwerk** (4.2): Ein Laufwerk mit einer Steam-Bibliothek abziehen. Zeigt das Spiel „Schließe <Name des Laufwerks> an, um zu spielen“? (Irgendein externes Laufwerk – „T7“ war nur das Beispiel im Entwurf.) Danach Bibliothek anlegen und verschieben ausprobieren (siehe Recherche in der Roadmap).
 
+### Gefunden beim Test am 27.10.
+
+- **Nicht gekaufte Spiele gelten als gekauft.** `SteamCatalog.ownedAppIDs` nimmt jedes Paket aus
+  `appcache/packageinfo.vdf` – Steam legt dort aber auch Pakete ab, die das Konto nicht besitzt. Beispiel: The Last
+  Caretaker (1783560) über das Kaufpaket 642779 (billingtype 10), vermutlich wegen der Demo. Der Download hängt dann
+  ewig bei „Wird vorbereitet“: Steam übernimmt das appmanifest (`LastOwner` bleibt `0`), plant aber nichts ein. Wie
+  viele der 105 Spiele das betrifft, ist offen. Wege: die echten Lizenzen lesen (`config/licensecache`) oder nach
+  der Anfrage `LastOwner` prüfen und dann ehrlich „nicht in deiner Bibliothek“ sagen.
+- **Demos anbieten.** Steam kennt die Demo im appinfo (3916150, `type` Demo, `parent` 1783560). Statt Download des
+  Vollspiels „Demo laden“ zeigen. Eine Demo ohne Lizenz braucht vorher die freie Lizenz (wie `steam://install/<demo>`).
+- **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
+  die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
+- **DualSense** fehlte um 20:40 in Nightforge – macOS selbst meldete ihn als „nicht verbunden“ (weder Bluetooth noch
+  USB). Nach dem Wiederverbinden prüfen, ob Nightforge ihn ohne Neustart zeigt.
+
 ## Aus dem Code-Audit
 
 Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #11, #12, #14–#19).
