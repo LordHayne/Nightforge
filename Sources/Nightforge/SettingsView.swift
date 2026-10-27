@@ -28,23 +28,9 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                Text(L10n.t("Settings"))
-                    .font(Theme.display(22))
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Theme.ink.opacity(0.8))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(GlassButtonStyle(shape: Circle()))
-                .keyboardShortcut(.cancelAction)
-                .help(L10n.t("Close"))
-                .padFocus("settings.close", cornerRadius: 16, activate: { dismiss() })
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 24)
+            GlassDialogHeader(title: L10n.t("Settings"), id: "settings") { dismiss() }
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
             Segmented(options: Tab.allCases.map { ($0, $0.label, nil) }, selection: tab, id: "settings.tab") { tab = $0 }
                 .padding(.horizontal, 28)
                 .padding(.top, 14)
@@ -67,12 +53,10 @@ struct SettingsView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
         }
-        .foregroundStyle(Theme.ink)
         .frame(width: 640)
         .fixedSize(horizontal: false, vertical: true)
         // The design's dialog: thick glass over the dimmed library, not a window of its own.
-        .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 28, style: .continuous)))
-        .presentationBackground(.clear)
+        .glassDialogBackground()
     }
 }
 

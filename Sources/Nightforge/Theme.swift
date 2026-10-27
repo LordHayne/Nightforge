@@ -17,6 +17,11 @@ enum Theme {
     /// Nightforge's own share in the storage bar, beside the games in sodium (as in the design).
     static let storageNightforge = Color(red: 0x8C / 255, green: 0xA8 / 255, blue: 0xDB / 255)  // #8CA8DB
 
+    /// A button that deletes something (Uninstall, Remove Everything), the design's `dangerBtn`.
+    static let danger = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x5E / 255)  // #FF6B5E
+    /// Text that says something failed: paler than `danger`, readable on the night blue.
+    static let errorText = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)  // #FF9E94
+
     /// Wide, heavy display face for titles and the play button.
     static func display(_ size: CGFloat) -> Font {
         .system(size: size, weight: .heavy).width(.expanded)
