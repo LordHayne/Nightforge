@@ -454,6 +454,14 @@ enum L10n {
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",
 
+        // Engine rollback (3.3)
+        "Trying the previous engine …": "Versucht die vorige Engine …",
+        "Starting with the previous engine …": "Startet mit der vorigen Engine …",
+        "The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also startet Nightforge es mit der vorigen – du musst nichts tun. Nach dem nächsten Update probiert es die neue wieder.",
+        "The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also läuft es mit der vorigen – Steam startet dafür zuerst neu.",
+
         // Shortcuts
         "%@ is in Applications now – Spotlight finds it": "%@ ist jetzt in den Programmen – Spotlight findet es",
         "%@ couldn't be added to Applications: %@": "%@ konnte nicht zu den Programmen hinzugefügt werden: %@",
