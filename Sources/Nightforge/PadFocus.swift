@@ -15,6 +15,8 @@ final class PadFocus: ObservableObject {
         var activate: () -> Void
         /// Left/right on a switch or picker change its value instead of moving on.
         var adjust: ((Int) -> Void)?
+        /// Where the highlight starts in its window: a dialog's default answer, like Return.
+        var preferred = false
     }
 
     @Published private(set) var focused: String?
@@ -49,13 +51,18 @@ final class PadFocus: ObservableObject {
     func clear() { focused = nil }
 
     /// Moves the highlight one step (dx: -1 left, 1 right; dy: -1 up, 1 down). With nothing
-    /// focused yet, up enters from the bottom (the main window's action row, above the games)
-    /// and any other direction from the top. Returns false when there's nothing that way.
+    /// focused yet, it starts on the preferred control (a dialog's default answer); else up enters
+    /// from the bottom (the main window's action row, above the games) and any other direction
+    /// from the top. Returns false when there's nothing that way.
     @discardableResult
     func move(dx: Int, dy: Int, in window: NSWindow) -> Bool {
         let all = entries(in: window)
         guard !all.isEmpty else { return false }
         guard let current = all.first(where: { $0.id == focused }) else {
+            if let preferred = all.first(where: { $0.item.preferred }) {
+                focused = preferred.id
+                return true
+            }
             let sorted = all.sorted { a, b in
                 abs(a.frame.midY - b.frame.midY) > 8 ? a.frame.midY > b.frame.midY : a.frame.minX < b.frame.minX
             }
@@ -92,10 +99,12 @@ final class PadFocus: ObservableObject {
 
 extension View {
     /// Makes a control reachable with the pad. `activate` is what A does on it; `adjust`, for
-    /// switches and pickers, what left/right do. `shape` is the highlight's corner radius.
-    func padFocus(_ id: String, enabled: Bool = true, cornerRadius: CGFloat = 10,
+    /// switches and pickers, what left/right do. `shape` is the highlight's corner radius;
+    /// `preferred` marks a dialog's default answer, where the highlight starts.
+    func padFocus(_ id: String, enabled: Bool = true, cornerRadius: CGFloat = 10, preferred: Bool = false,
                   activate: @escaping () -> Void, adjust: ((Int) -> Void)? = nil) -> some View {
-        modifier(PadFocusModifier(id: id, enabled: enabled, cornerRadius: cornerRadius, activate: activate, adjust: adjust))
+        modifier(PadFocusModifier(id: id, enabled: enabled, cornerRadius: cornerRadius, preferred: preferred,
+                                  activate: activate, adjust: adjust))
     }
 
     /// A switch: A and left/right flip it.
@@ -120,13 +129,14 @@ private struct PadFocusModifier: ViewModifier {
     let id: String
     let enabled: Bool
     let cornerRadius: CGFloat
+    let preferred: Bool
     let activate: () -> Void
     let adjust: ((Int) -> Void)?
     @ObservedObject private var focus = PadFocus.shared
 
     func body(content: Content) -> some View {
         content
-            .background(PadAnchor(id: id, enabled: enabled, activate: activate, adjust: adjust))
+            .background(PadAnchor(id: id, enabled: enabled, preferred: preferred, activate: activate, adjust: adjust))
             .overlay {
                 if focus.focused == id {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -145,6 +155,7 @@ private struct PadFocusModifier: ViewModifier {
 private struct PadAnchor: NSViewRepresentable {
     let id: String
     let enabled: Bool
+    let preferred: Bool
     let activate: () -> Void
     let adjust: ((Int) -> Void)?
 
@@ -152,7 +163,7 @@ private struct PadAnchor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         view.identifier = NSUserInterfaceItemIdentifier(id)
-        PadFocus.shared.register(id, .init(view: view, enabled: enabled, activate: activate, adjust: adjust))
+        PadFocus.shared.register(id, .init(view: view, enabled: enabled, activate: activate, adjust: adjust, preferred: preferred))
     }
 
     static func dismantleNSView(_ view: NSView, coordinator: ()) {

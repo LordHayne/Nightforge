@@ -178,32 +178,48 @@ struct LibraryToolbar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(model.showingHidden ? L10n.t("Hidden games") : L10n.t("Library"))
-                    .font(Theme.display(26))
-                    .foregroundStyle(Theme.ink)
-                Text(countText)
-                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Theme.muted)
-                if model.showingHidden {
-                    Text(L10n.t("Open a game to bring it back."))
-                        .font(.system(size: 13, weight: .medium))
+            HeaderRow {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(model.showingHidden ? L10n.t("Hidden games") : L10n.t("Library"))
+                        .font(Theme.display(26))
+                        .foregroundStyle(Theme.ink)
+                    Text(countText)
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
                         .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
+                    if !model.showingHidden {
+                        // Redrawn every half minute, so "2 min ago" moves on by itself.
+                        TimelineView(.periodic(from: .now, by: 30)) { context in
+                            if let fresh = ScanFreshness.text(lastScan: model.lastScan, scanning: model.isScanning, now: context.date) {
+                                Text("· " + fresh)
+                                    .font(.system(size: 12.5).monospacedDigit())
+                                    .foregroundStyle(Theme.muted.opacity(0.8))
+                            }
+                        }
+                    }
+                    if model.showingHidden {
+                        Text(L10n.t("Open a game to bring it back."))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.muted)
+                            .lineLimit(1)
+                    }
                 }
-                Spacer(minLength: 12)
-                if !model.hiddenGames.isEmpty {
-                    FilterToggle(title: L10n.t("Hidden"), symbol: "eye.slash", count: model.hiddenGames.count,
-                                 on: model.showingHidden, id: "library.hidden",
-                                 help: L10n.t("Games you hid from your library")) { model.toggleShowingHidden() }
-                        .padding(.trailing, model.showingHidden ? 0 : 8)
-                }
-                if !model.showingHidden {
-                    Text(L10n.t("Sort"))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.muted)
-                    Segmented(options: LibraryFilters.Sort.allCases.map { ($0, $0.label, nil) }, selection: model.filters.sort,
-                              id: "library.sort") { model.filters.sort = $0 }
+                .fixedSize()
+                HStack(spacing: 12) {
+                    if !model.hiddenGames.isEmpty {
+                        FilterToggle(title: L10n.t("Hidden"), symbol: "eye.slash", count: model.hiddenGames.count,
+                                     on: model.showingHidden, id: "library.hidden",
+                                     help: L10n.t("Games you hid from your library")) { model.toggleShowingHidden() }
+                            .padding(.trailing, model.showingHidden ? 0 : 8)
+                    }
+                    if !model.showingHidden {
+                        Text(L10n.t("Sort"))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize()
+                        Segmented(options: LibraryFilters.Sort.allCases.map { ($0, $0.label, nil) }, selection: model.filters.sort,
+                                  id: "library.sort") { model.filters.sort = $0 }
+                    }
+                    LibrarySearchField()
                 }
             }
             if !model.showingHidden {
@@ -234,6 +250,123 @@ struct LibraryToolbar: View {
             return total == 1 ? L10n.t("%ld of 1 game", owned) : L10n.t("%ld of %ld games", owned, total)
         }
         return total == 1 ? L10n.t("1 game") : L10n.t("%ld games", total)
+    }
+}
+
+/// "up to date 2 min ago" beside the library's count: when the last scan finished – or that one
+/// is running.
+enum ScanFreshness {
+    static func text(lastScan: Date?, scanning: Bool, now: Date = Date()) -> String? {
+        if scanning { return L10n.t("Scanning …") }
+        guard let lastScan else { return nil }
+        let minutes = max(0, Int(now.timeIntervalSince(lastScan) / 60))
+        switch minutes {
+        case ..<1: return L10n.t("up to date just now")
+        case ..<60: return L10n.t("up to date %ld min ago", minutes)
+        case ..<1440: return L10n.t("up to date %ld h ago", Int((Double(minutes) / 60).rounded()))
+        case ..<2880: return L10n.t("up to date since yesterday")
+        default: return L10n.t("up to date %ld days ago", minutes / 1440)
+        }
+    }
+}
+
+/// The header's title and its controls side by side, the controls at the right end – or under the
+/// title when the window is too narrow for both (the longer German texts need more room).
+private struct HeaderRow: Layout {
+    var spacing: CGFloat = 16
+    var lineSpacing: CGFloat = 12
+
+    private func sizes(_ subviews: Subviews) -> (title: CGSize, controls: CGSize)? {
+        guard subviews.count == 2 else { return nil }
+        return (subviews[0].sizeThatFits(.unspecified), subviews[1].sizeThatFits(.unspecified))
+    }
+
+    private func fits(_ sizes: (title: CGSize, controls: CGSize), in width: CGFloat) -> Bool {
+        sizes.title.width + spacing + sizes.controls.width <= width
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let sizes = sizes(subviews) else { return .zero }
+        let width = proposal.width ?? sizes.title.width + spacing + sizes.controls.width
+        return fits(sizes, in: width)
+            ? CGSize(width: width, height: max(sizes.title.height, sizes.controls.height))
+            : CGSize(width: width, height: sizes.title.height + lineSpacing + sizes.controls.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let sizes = sizes(subviews) else { return }
+        if fits(sizes, in: bounds.width) {
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(sizes.title))
+            subviews[1].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: ProposedViewSize(sizes.controls))
+        } else {
+            subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(sizes.title))
+            subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.minY + sizes.title.height + lineSpacing),
+                              proposal: ProposedViewSize(width: min(sizes.controls.width, bounds.width), height: sizes.controls.height))
+        }
+    }
+}
+
+/// Search as you type, in the library's header: ⌘F or / jumps here (from Home too, which opens the
+/// library), Return or ↓ goes back to the hits, Esc clears and then leaves.
+private struct LibrarySearchField: View {
+    @EnvironmentObject private var model: LibraryModel
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.muted)
+            TextField("", text: $model.searchText,
+                      prompt: Text(L10n.t("Search – try “rdr2” or “bg3”")).foregroundStyle(Theme.muted))
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.ink)
+                .focused($focused)
+                .onSubmit { focused = false }
+                .onKeyPress(.downArrow) {
+                    focused = false
+                    return .handled
+                }
+                .onExitCommand {
+                    if model.searchText.isEmpty { focused = false } else { model.searchText = "" }
+                }
+            if !model.searchText.isEmpty {
+                Button {
+                    model.searchText = ""
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Theme.ink.opacity(0.8))
+                        .frame(width: 20, height: 20)
+                        .background(Color.white.opacity(0.15), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help(L10n.t("Clear search"))
+                .accessibilityLabel(L10n.t("Clear search"))
+            } else {
+                Text("⌘F")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .frame(minWidth: 180, idealWidth: 300, maxWidth: 300)
+        .frame(height: 38)
+        .background(GlassBackground(glass: .regular, shape: Capsule()))
+        .overlay(Capsule().strokeBorder(Theme.sodium.opacity(focused || !model.searchText.isEmpty ? 0.8 : 0), lineWidth: 1.5))
+        .padFocus("library.search", cornerRadius: 19, activate: { focused = true })
+        .onChange(of: model.searchFocusRequest) { _, _ in takeFocus() }
+        .onAppear { takeFocus() }
+        .help(L10n.t("Search (⌘F)"))
+    }
+
+    /// A request from ⌘F, / or Home; on appearing, the field shows only once it's on screen.
+    private func takeFocus() {
+        guard model.takeSearchFocus() else { return }
+        Task { @MainActor in focused = true }
     }
 }
 

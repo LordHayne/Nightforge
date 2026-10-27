@@ -239,6 +239,19 @@
 
 ---
 
+- [ ] **3.5 Schwaches Netzteil erkennen** · `S` · Idee des Nutzers am 27.10.
+  - **Warum:** Mit einem zu schwachen Netzteil steht der Mac auf „lädt“, verliert beim Spielen aber trotzdem Akku –
+    der Spielspaß ist schnell vorbei, ohne dass man merkt, warum.
+  - **Was:** Am Netzteil dezent zeigen, wenn es nicht reicht: in der Akku-Pille oben ein Bernstein-Blitz mit „18 W“
+    (Tooltip mit Erklärung), auf Startseite/Spielseite eine Hinweiszeile wie bei „Akku sparen“.
+  - **Recherche (27.10., echter Fall):** `IOPSCopyExternalPowerAdapterDetails()` liefert die Watt (`Watts` = 18, „pd
+    charger“, 9 V/1,98 A); `IOPSCopyPowerSourcesInfo` den Strom des Akkus (`Current`, mA). Am 18-W-Netzteil stand
+    „charging“, der Strom war aber −1236 mA: Der Akku entlud sich. `ChargerData.SlowChargingReason` blieb 0, taugt
+    also nicht. Regel: am Netzteil **und** (Akku entlädt sich über mehrere Messungen **oder** unter 30 W). Beim
+    Ladelimit (80 %) fließt kein Strom – das ist kein Fehler.
+  - **Wo:** `PowerSource.swift` (Watt, Entladen), `LibraryView.swift` (Akku-Pille, Hinweiszeilen).
+  - **Fertig wenn:** Mit dem 18-W-Netzteil erscheint der Hinweis, mit dem passenden Netzteil oder am Ladelimit nicht (Test mit Beispielwerten).
+
 ## Phase 4 – Speicherplatz & Downloads
 
 - [x] **4.1 Platz prüfen vor dem Download** · `M` · PR #27
