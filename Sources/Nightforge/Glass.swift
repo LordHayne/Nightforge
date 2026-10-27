@@ -104,15 +104,18 @@ struct GlassButtonStyle<S: InsettableShape>: ButtonStyle {
 struct GlassTextButtonStyle: ButtonStyle {
     /// Sodium glass for the action a screen is about.
     var prominent = false
+    /// Red glass for the answer that deletes something – never a dialog's default.
+    var destructive = false
     var small = false
 
     func makeBody(configuration: Configuration) -> some View {
+        let tint = destructive ? Theme.danger : prominent ? Theme.sodium : nil
         GlassControl(label: configuration.label
                         .font(.system(size: small ? 12.5 : 14, weight: .semibold))
-                        .foregroundStyle(prominent ? Theme.night : Theme.ink)
+                        .foregroundStyle(tint != nil ? Theme.night : Theme.ink)
                         .padding(.horizontal, small ? 14 : 22)
                         .frame(height: small ? 30 : 42),
-                     glass: prominent ? .tinted(Theme.sodium) : .regular, shape: Capsule(), pressed: configuration.isPressed)
+                     glass: tint.map { .tinted($0) } ?? .regular, shape: Capsule(), pressed: configuration.isPressed)
     }
 }
 
@@ -211,5 +214,248 @@ private struct GlassControl<Label: View, S: InsettableShape>: View {
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.15), value: hovering)
             .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.6), value: pressed)
+    }
+}
+
+// MARK: - Dialogs
+
+/// The design's dialog: its title, the round close button, then the content – on thick glass over
+/// the library instead of the system's sheet panel. Esc and B close it through the × button.
+struct GlassDialog<Content: View>: View {
+    let title: String
+    let id: String
+    let width: CGFloat
+    let spacing: CGFloat
+    let close: (() -> Void)?
+    let content: Content
+    @Environment(\.dismiss) private var dismiss
+
+    /// `id` names the pad's close button ("<id>.close"); `close` replaces just closing the sheet.
+    init(_ title: String, id: String, width: CGFloat = 500, spacing: CGFloat = 20, close: (() -> Void)? = nil,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.id = id
+        self.width = width
+        self.spacing = spacing
+        self.close = close
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            GlassDialogHeader(title: title, id: id) { (close ?? { dismiss() })() }
+            content
+        }
+        .padding(28)
+        .frame(width: width)
+        .glassDialogBackground()
+    }
+}
+
+/// A dialog's title with the round × beside it.
+struct GlassDialogHeader: View {
+    let title: String
+    let id: String
+    let close: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            Text(title)
+                .font(Theme.display(22))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            GlassCloseButton(id: "\(id).close", action: close)
+                .padding(.top, -4)
+                .padding(.trailing, -8)
+        }
+    }
+}
+
+/// The round × at a dialog's top right; Esc (and B, which sends it) presses it.
+struct GlassCloseButton: View {
+    let id: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.ink.opacity(0.8))
+                .frame(width: 32, height: 32)
+        }
+        .buttonStyle(GlassButtonStyle(shape: Circle()))
+        .keyboardShortcut(.cancelAction)
+        .help(L10n.t("Close"))
+        .accessibilityLabel(L10n.t("Close"))
+        .padFocus(id, cornerRadius: 16, activate: action)
+    }
+}
+
+/// A question or a message instead of the system's alert: the text, then the answers on the right.
+/// The safe answer is the default (Return, and where the pad starts); a destructive one never is.
+struct GlassQuestion<Buttons: View>: View {
+    let title: String
+    let message: String
+    let id: String
+    let buttons: Buttons
+
+    init(_ title: String, message: String, id: String, @ViewBuilder buttons: () -> Buttons) {
+        self.title = title
+        self.message = message
+        self.id = id
+        self.buttons = buttons()
+    }
+
+    var body: some View {
+        GlassDialog(title, id: id, width: 460) {
+            Text(message)
+                .font(.system(size: 14))
+                .lineSpacing(3)
+                .foregroundStyle(Theme.ink.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Spacer()
+                buttons
+            }
+            .padding(.top, 4)
+        }
+    }
+}
+
+/// A section's title, small and spaced out like the design's.
+struct SectionTitle: View {
+    let title: String
+
+    init(_ title: String) { self.title = title }
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(1.6)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.muted)
+    }
+}
+
+/// A message for a GlassQuestion sheet, known by its text.
+struct DialogMessage: Identifiable {
+    let text: String
+    var id: String { text }
+
+    /// `message` as a sheet's item: shown while it's set, cleared when the sheet closes.
+    static func item(_ message: Binding<String?>) -> Binding<DialogMessage?> {
+        Binding(get: { message.wrappedValue.map(DialogMessage.init) },
+                set: { if $0 == nil { message.wrappedValue = nil } })
+    }
+}
+
+extension View {
+    /// Thick night-blue glass behind a dialog, in place of the system's sheet panel.
+    func glassDialogBackground() -> some View {
+        foregroundStyle(Theme.ink)
+            .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 28, style: .continuous)))
+            .presentationBackground(.clear)
+    }
+
+    /// A darker well in the glass for rows and notes, like a download's row.
+    func glassWell(cornerRadius: CGFloat = 16) -> some View {
+        background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).strokeBorder(.white.opacity(0.1)))
+    }
+}
+
+// MARK: - Inputs and progress
+
+/// The design's tick box, for picking several (games to make room with): sodium while ticked.
+struct GlassCheckboxStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(configuration.isOn ? Theme.sodium : .white.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(.white.opacity(configuration.isOn ? 0.45 : 0.3)))
+                .overlay {
+                    if configuration.isOn {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(Theme.night)
+                    }
+                }
+                .frame(width: 18, height: 18)
+            configuration.label
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { configuration.isOn.toggle() }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityValue(configuration.isOn ? L10n.t("On") : L10n.t("Off"))
+        .accessibilityAction { configuration.isOn.toggle() }
+    }
+}
+
+/// The design's text field: a dark well in the glass, a sodium rim while typing. A on the pad
+/// puts the cursor in it.
+struct GlassTextField: View {
+    let prompt: String
+    @Binding var text: String
+    let id: String
+    var monospaced = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("", text: $text, prompt: Text(prompt).foregroundStyle(Theme.muted.opacity(0.7)))
+            .textFieldStyle(.plain)
+            .font(.system(size: 14, design: monospaced ? .monospaced : .default))
+            .foregroundStyle(Theme.ink)
+            .focused($focused)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(focused ? Theme.sodium.opacity(0.7) : .white.opacity(0.1)))
+            .padFocus(id, cornerRadius: 12, activate: { focused = true })
+    }
+}
+
+/// Busy: a faint ring with a sodium arc going round, in place of the system's spinner.
+struct GlassSpinner: View {
+    var size: CGFloat = 16
+    /// Night on sodium glass, where a sodium arc wouldn't show.
+    var tint = Theme.sodium
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9
+            ZStack {
+                Circle().stroke(tint == Theme.sodium ? .white.opacity(0.2) : tint.opacity(0.25), lineWidth: 2)
+                Circle()
+                    .trim(from: 0, to: 0.28)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(turn * 360))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// How far something is: sodium in a dark groove, like a download's bar.
+struct GlassProgressBar: View {
+    let value: Double
+    var height: CGFloat = 5
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.1))
+                Capsule().fill(Theme.sodium)
+                    .frame(width: max(height, geo.size.width * min(max(value, 0), 1)))
+            }
+        }
+        .frame(height: height)
+        .accessibilityElement()
+        .accessibilityValue("\(Int((value * 100).rounded())) %")
     }
 }

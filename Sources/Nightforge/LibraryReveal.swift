@@ -41,14 +41,21 @@ struct LibraryRevealSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(L10n.t("Your library on this Mac"))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(reveal.total == 1 ? L10n.t("%ld of your 1 game runs here", reveal.running)
-                 : L10n.t("%ld of your %ld games run here", reveal.running, reveal.total))
-                .font(Theme.display(28))
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top, spacing: 24) {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionTitle(L10n.t("Your library on this Mac"))
+                    Text(reveal.total == 1 ? L10n.t("%ld of your 1 game runs here", reveal.running)
+                         : L10n.t("%ld of your %ld games run here", reveal.running, reveal.total))
+                        .font(Theme.display(28))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                Spacer(minLength: 0)
+                GlassCloseButton(id: "reveal.close") { dismiss() }
+                    .padding(.top, -4)
+                    .padding(.trailing, -8)
+            }
 
             GeometryReader { geo in
                 HStack(spacing: 2) {
@@ -57,9 +64,11 @@ struct LibraryRevealSheet: View {
                             .frame(width: max(0, geo.size.width * CGFloat(part.count) / CGFloat(max(reveal.total, 1)) - 2))
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(0.1))
                 .clipShape(Capsule())
             }
-            .frame(height: 14)
+            .frame(height: 12)
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 12) {
@@ -77,14 +86,13 @@ struct LibraryRevealSheet: View {
 
             HStack {
                 Spacer()
-                Button(L10n.t("Let's Play")) { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-                    .controlSize(.large)
-                    .padFocus("reveal.play", activate: { dismiss() })
+                SetupButton(title: L10n.t("Let's Play"), symbol: "play.fill", preferred: true) { dismiss() }
             }
+            .padding(.top, 4)
         }
-        .padding(26)
+        .padding(28)
         .frame(width: 520)
+        .glassDialogBackground()
     }
 
     /// Why: anti-cheat (some on GeForce Now instead) and VR headsets.
@@ -107,10 +115,15 @@ struct LibraryRevealSheet: View {
 
     private func row(_ level: Compatibility.Level, _ count: Int, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: level.symbol).foregroundStyle(level.color)
+            Image(systemName: level.symbol)
+                .foregroundStyle(level.color)
+                .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(count) · \(level.label)").fontWeight(.semibold)
-                Text(text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("\(count) · \(level.label)").font(.system(size: 14, weight: .semibold))
+                Text(text)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .accessibilityElement(children: .combine)

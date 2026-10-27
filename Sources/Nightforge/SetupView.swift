@@ -95,13 +95,13 @@ struct StepRow: View {
                 case .pending:
                     Circle().strokeBorder(Theme.muted.opacity(0.5), lineWidth: 1.5)
                 case .active:
-                    ProgressView().controlSize(.small)
+                    GlassSpinner()
                 case .waiting:
                     Image(systemName: "hand.point.right.fill").foregroundStyle(Theme.sodium)
                 case .done:
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.sodium)
                 case .failed:
-                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
+                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Theme.danger)
                 }
             }
             .font(.system(size: 17, weight: .semibold))
@@ -112,8 +112,7 @@ struct StepRow: View {
                     .font(.system(size: 15, weight: state == .pending ? .regular : .semibold))
                     .foregroundStyle(state == .pending ? Theme.muted : Theme.ink)
                 if let progress {
-                    ProgressView(value: progress)
-                        .tint(Theme.sodium)
+                    GlassProgressBar(value: progress)
                         .frame(width: 320)
                     Text("\(Int(progress * 100)) %")
                         .font(.system(size: 12, weight: .medium).monospacedDigit())
@@ -136,7 +135,7 @@ struct Note: View {
     var body: some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundStyle(isError ? Color(red: 1, green: 0.62, blue: 0.58) : Theme.ink.opacity(0.85))
+            .foregroundStyle(isError ? Theme.errorText : Theme.ink.opacity(0.85))
             .frame(maxWidth: 560, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -145,6 +144,8 @@ struct Note: View {
 struct SetupButton: View {
     let title: String
     let symbol: String
+    /// In a dialog: where the pad's highlight starts.
+    var preferred = false
     let action: () -> Void
 
     var body: some View {
@@ -159,6 +160,6 @@ struct SetupButton: View {
         }
         .buttonStyle(GlassButtonStyle(glass: .tinted(Theme.sodium, glows: true), shape: Capsule()))
         .keyboardShortcut(.defaultAction)
-        .padFocus("setup.\(symbol)", cornerRadius: 26, activate: action)
+        .padFocus("setup.\(symbol)", cornerRadius: 26, preferred: preferred, activate: action)
     }
 }
