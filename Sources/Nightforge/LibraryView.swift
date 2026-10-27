@@ -924,6 +924,11 @@ private struct GameDetail: View {
                         .accessibilityElement(children: .combine)
                         .accessibilityHint(offline.help)
                 }
+                if !compact, let held = model.heldEngine(of: game) {
+                    Stat(label: L10n.t("Engine"),
+                         value: L10n.t("%@ (held back)", EngineRollback.label(held.build, setUp: held.setUp,
+                                                                               other: EngineRollback.shared.history().current)))
+                }
             }
 
             if game.isVROnly {
@@ -936,6 +941,10 @@ private struct GameDetail: View {
             }
             if !compact, let insight = model.insights[game.appID] {
                 GameInsightNotes(game: game, insight: insight)
+            }
+            // Not while it's being started: "Runs with …" only once it did.
+            if !compact, model.launchingID != game.id, let held = model.heldEngine(of: game) {
+                HeldEngineNote(game: game, held: held)
             }
             if model.power.onBattery && Prefs.saveBattery && game.isInstalled && !model.isRunning(game) {
                 Label(L10n.t("On battery: games are capped at 30 FPS to last longer."), systemImage: "battery.50percent")
@@ -1079,6 +1088,29 @@ private struct CompatibilityLine: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
             }
+        }
+    }
+}
+
+/// The newest engine crashed this game, so it runs with the previous one – and the way to give the
+/// newest another try now rather than after the next update (EngineRollback).
+private struct HeldEngineNote: View {
+    let game: Game
+    let held: HeldBuild
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Label(L10n.t("Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.",
+                         EngineRollback.day(held.setUp)),
+                  systemImage: "arrow.uturn.backward")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.muted)
+                .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(L10n.t("Try the Newest Now")) { model.tryNewestEngine(game) }
+                .buttonStyle(GlassTextButtonStyle(small: true))
+                .padFocus("detail.newestEngine", activate: { model.tryNewestEngine(game) })
         }
     }
 }

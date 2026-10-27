@@ -1799,6 +1799,25 @@ final class LibraryModel: ObservableObject {
         Compatibility.of(game, profile: profiles[game.appID], analysis: insights[game.appID]?.analysis)
     }
 
+    /// The previous engine this game runs with, because the newest crashed it (EngineRollback).
+    func heldEngine(of game: Game) -> HeldBuild? {
+        guard game.bottle.isBuiltIn, game.platform == .windows, game.isInstalled else { return nil }
+        return EngineRollback.shared.pinnedBuild(game.appID)
+    }
+
+    /// "Try the newest now": the next start uses the newest engine; should it crash again,
+    /// Nightforge switches back by itself.
+    func tryNewestEngine(_ game: Game) {
+        let rollback = EngineRollback.shared
+        let held = rollback.pinnedBuild(game.appID)
+        objectWillChange.send()
+        rollback.tryNewest(game.appID)
+        let history = rollback.history()
+        guard let current = history.current else { return }
+        Toasts.shared.show(L10n.t("Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.",
+                                  EngineRollback.label(current, setUp: history.currentSetUp, other: held?.build)))
+    }
+
     /// The detail page's "Add to Applications": a little app that opens the game, found by Spotlight.
     func addShortcut(for game: Game) {
         Task {
