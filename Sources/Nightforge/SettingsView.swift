@@ -20,32 +20,74 @@ struct SettingsView: View {
     }
 
     @State private var tab: Tab
+    @Environment(\.dismiss) private var dismiss
 
     init(tab: Tab = .general) {
         _tab = State(initialValue: tab)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                Text(L10n.t("Settings"))
+                    .font(Theme.display(22))
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.ink.opacity(0.8))
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(GlassButtonStyle(shape: Circle()))
+                .keyboardShortcut(.cancelAction)
+                .help(L10n.t("Close"))
+                .padFocus("settings.close", cornerRadius: 16, activate: { dismiss() })
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 24)
             Segmented(options: Tab.allCases.map { ($0, $0.label, nil) }, selection: tab, id: "settings.tab") { tab = $0 }
-                .padding(.top, 16)
-                .padding(.bottom, 4)
+                .padding(.horizontal, 28)
+                .padding(.top, 14)
+                .padding(.bottom, 2)
             Group {
                 switch tab {
                 case .stores: StoresSettings()
                 case .general: GeneralSettings()
                 case .controller: ControllerSettings()
                 case .storage: StorageSettings()
-                        .frame(height: 560)  // the list of games scrolls
+                        .frame(height: 480)  // the list of games scrolls
                 case .about: AboutSettings()
-                        .frame(height: 560)  // the list of projects scrolls
+                        .frame(height: 480)  // the list of projects scrolls
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .toggleStyle(GlassSwitchStyle())
+            .buttonStyle(GlassTextButtonStyle(small: true))
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .frame(width: 580)
+        .foregroundStyle(Theme.ink)
+        .frame(width: 640)
         .fixedSize(horizontal: false, vertical: true)
+        // The design's dialog: thick glass over the dimmed library, not a window of its own.
+        .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 28, style: .continuous)))
+        .presentationBackground(.clear)
+    }
+}
+
+/// A section's title, small and spaced out like the design's.
+private struct SectionTitle: View {
+    let title: String
+
+    init(_ title: String) { self.title = title }
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(1.6)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.muted)
     }
 }
 
@@ -71,8 +113,6 @@ private struct StoresSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            } header: {
-                Text(L10n.t("Stores"))
             }
 
             // Only for players who bring their own Wine setup; Nightforge needs none of it.
@@ -96,7 +136,7 @@ private struct StoresSettings: View {
                 Button(L10n.t("Rescan Library")) { model.reload() }
                     .padFocus("settings.rescan", activate: { model.reload() })
             } header: {
-                Text(L10n.t("CrossOver, Whisky and your own Wine"))
+                SectionTitle(L10n.t("CrossOver, Whisky and your own Wine"))
             }
         }
     }
@@ -139,7 +179,6 @@ private struct GeneralSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
                 .padFocus("settings.sharp", toggle: $sharpAndSmooth)
                 Toggle(isOn: $gameMode) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -149,7 +188,6 @@ private struct GeneralSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
                 .onChange(of: gameMode) { _, _ in model.applySteamSettings() }
                 .padFocus("settings.gameMode", toggle: $gameMode)
                 Toggle(isOn: $saveBattery) {
@@ -160,7 +198,6 @@ private struct GeneralSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
                 .padFocus("settings.saveBattery", toggle: $saveBattery)
                 Toggle(isOn: $performanceHUD) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -170,7 +207,6 @@ private struct GeneralSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
                 .onChange(of: performanceHUD) { _, _ in model.applySteamSettings() }
                 .padFocus("settings.hud", toggle: $performanceHUD)
                 Toggle(isOn: $notifyDownloads) {
@@ -181,7 +217,6 @@ private struct GeneralSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
                 .padFocus("settings.notify", toggle: $notifyDownloads)
                 Picker(L10n.t("After Launch"), selection: $afterLaunch) {
                     ForEach(AfterLaunch.allCases) { option in
@@ -189,8 +224,6 @@ private struct GeneralSettings: View {
                     }
                 }
                 .padFocus("settings.afterLaunch", selection: $afterLaunch, values: AfterLaunch.allCases.map(\.rawValue))
-            } header: {
-                Text(L10n.t("General"))
             }
 
             Section {
@@ -202,10 +235,9 @@ private struct GeneralSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .toggleStyle(.switch)
                 .padFocus("settings.reduceMotion", toggle: reduceMotion)
             } header: {
-                Text(L10n.t("Accessibility"))
+                SectionTitle(L10n.t("Accessibility"))
             }
         }
     }
@@ -265,8 +297,6 @@ private struct ControllerSettings: View {
                 }
                 Button(L10n.t("Pair a Controller …"), action: pair)
                     .padFocus("settings.pair", activate: pair)
-            } header: {
-                Text(L10n.t("Controllers"))
             }
 
             Section {
@@ -375,7 +405,7 @@ private struct StorageSettings: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
-                    Text(disk.name)
+                    SectionTitle(disk.name)
                 }
             }
 
@@ -406,7 +436,7 @@ private struct StorageSettings: View {
                     }
                 }
             } header: {
-                Text(L10n.t("Games on this Mac"))
+                SectionTitle(L10n.t("Games on this Mac"))
             }
 
             Section {
@@ -432,7 +462,7 @@ private struct StorageSettings: View {
                     }
                 }
             } header: {
-                Text(L10n.t("Caches"))
+                SectionTitle(L10n.t("Caches"))
             }
 
             Section {
@@ -555,8 +585,7 @@ private struct StorageSettings: View {
 
     /// Asks in the main window, like the game's own Uninstall button.
     private func uninstall(_ game: Game) {
-        NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
-        model.requestUninstall(game)
+        model.closeSettings { model.requestUninstall(game) }
     }
 }
 
@@ -611,7 +640,7 @@ private struct AboutSettings: View {
                     Image(systemName: "lock.fill")
                 }
             } header: {
-                Text(L10n.t("Nightforge %@", Updater.currentVersion))
+                SectionTitle(L10n.t("Nightforge %@", Updater.currentVersion))
             }
 
             Section {
@@ -643,7 +672,7 @@ private struct AboutSettings: View {
                 Button(L10n.t("Show the First Start Again"), action: showReveal)
                     .padFocus("settings.reveal", activate: showReveal)
             } header: {
-                Text(L10n.t("Built on"))
+                SectionTitle(L10n.t("Built on"))
             }
         }
     }
@@ -692,8 +721,7 @@ private struct AboutSettings: View {
 
     /// How the library runs here, as after the first start – in the main window.
     private func showReveal() {
-        NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
-        model.showLibraryReveal()
+        model.closeSettings { model.showLibraryReveal() }
     }
 
     private func showLicences() {

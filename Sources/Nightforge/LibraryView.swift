@@ -88,6 +88,9 @@ struct LibraryView: View {
         .sheet(item: $model.libraryReveal) { reveal in
             LibraryRevealSheet(reveal: reveal)
         }
+        .sheet(isPresented: $model.showingSettings) {
+            SettingsView()
+        }
         .sheet(item: $model.sessionSummary) { summary in
             SessionSummarySheet(summary: summary)
         }
@@ -615,7 +618,6 @@ private struct Backdrop: View {
 
 private struct TopBar: View {
     @EnvironmentObject private var model: LibraryModel
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         HStack(spacing: 12) {
@@ -686,13 +688,13 @@ private struct TopBar: View {
                 .accessibilityLabel(L10n.t("Rescan library"))
                 .padFocus("top.rescan", cornerRadius: 15, activate: { model.reload() })
                 GlassDivider()
-                SettingsLink {
+                Button { model.openSettings() } label: {
                     Image(systemName: "gearshape").font(.system(size: 14, weight: .semibold))
                 }
                 .buttonStyle(GlassGroupButtonStyle())
                 .help(L10n.t("Settings (⌘,)"))
                 .accessibilityLabel(L10n.t("Settings"))
-                .padFocus("top.settings", cornerRadius: 15, activate: { openSettings() })
+                .padFocus("top.settings", cornerRadius: 15, activate: { model.openSettings() })
             }
             .padding(.horizontal, 4)
             .frame(height: 38)

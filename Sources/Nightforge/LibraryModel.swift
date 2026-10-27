@@ -85,6 +85,8 @@ final class LibraryModel: ObservableObject {
     /// The profile list at hand, for how well each game runs (Compatibility).
     @Published private(set) var profiles: [Int: GameProfile] = [:]
     @Published var showingOptions = false
+    /// Settings, as a dialog over the library (also over it in full screen).
+    @Published var showingSettings = false
     /// Waiting for the user to confirm removing this game (or its download).
     @Published var pendingUninstall: Game?
     /// Waiting for the user to confirm removing the Windows version of a game that now runs its Mac one.
@@ -1796,6 +1798,20 @@ final class LibraryModel: ObservableObject {
         failedLaunch = nil
         LaunchHealth.reset(failed.game.appID)
         play(failed.game)
+    }
+
+    func openSettings() {
+        NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+        showingSettings = true
+    }
+
+    /// Closes the settings, then does what asks in the main window (a question, a sheet).
+    func closeSettings(then action: @escaping () -> Void) {
+        showingSettings = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))  // one sheet closes before the next opens
+            action()
+        }
     }
 
     /// After a failed start: the game's options, where the graphics layer is picked by hand.

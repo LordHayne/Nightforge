@@ -120,6 +120,47 @@ struct GlassGroupButtonStyle: ButtonStyle {
     }
 }
 
+/// The design's switch: sodium while on, a white knob that slides across. The label sits on the left.
+struct GlassSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            configuration.label
+                .frame(maxWidth: .infinity, alignment: .leading)
+            GlassSwitch(isOn: configuration.isOn) { configuration.isOn.toggle() }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityValue(configuration.isOn ? L10n.t("On") : L10n.t("Off"))
+        .accessibilityAction { configuration.isOn.toggle() }
+    }
+}
+
+private struct GlassSwitch: View {
+    let isOn: Bool
+    let toggle: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.reduceMotion) private var reduceMotion
+
+    var body: some View {
+        Capsule()
+            .fill(isOn ? Theme.sodium : .white.opacity(0.15))
+            .overlay(Capsule().strokeBorder(LinearGradient(colors: [.white.opacity(isOn ? 0.5 : 0.1), .white.opacity(0)],
+                                                           startPoint: .top, endPoint: .bottom)))
+            .overlay(alignment: isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(.white)
+                    .shadow(color: .black.opacity(0.35), radius: 3, y: 2)
+                    .frame(width: 20, height: 20)
+                    .padding(3)
+            }
+            .frame(width: 46, height: 26)
+            .contentShape(Capsule())
+            .onTapGesture { if isEnabled { toggle() } }
+            .opacity(isEnabled ? 1 : 0.5)
+            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isOn)
+    }
+}
+
 /// The thin line between buttons that share a piece of glass.
 struct GlassDivider: View {
     var body: some View {

@@ -29,13 +29,11 @@ struct NightforgeApp: App {
                 Button(L10n.t("Rescan Library")) { model.reload() }
                     .keyboardShortcut("r")
             }
-        }
-
-        Settings {
-            SettingsView()
-                .id(language)
-                .environmentObject(model)
-                .preferredColorScheme(.dark)
+            // A dialog over the library, not a window of its own.
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.t("Settings …")) { model.openSettings() }
+                    .keyboardShortcut(",")
+            }
         }
     }
 }
