@@ -211,7 +211,7 @@
     - „Komplett entfernen“ (4.3) nimmt diese Sicherungen mit nach „Dokumente“.
     - Offen: Steam-Cloud-Konflikt – Steams eigenes Fenster nach vorne holen und sagen, was zu tun ist. Dafür braucht es einen echten Konflikt zum Ausprobieren.
 
-- [ ] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1
+- [x] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1 · lokal in `claude/engine-rollback-02a61e`
   - **Warum:** macOS-/Wine-Updates machen Spiele kaputt, die gestern liefen (siehe Whisky). Selbst-Heilung ist ein echtes Alleinstellungsmerkmal.
   - **Was:**
     - Pro Spiel die letzte funktionierende Kombination aus Engine und Grafikschicht merken.
@@ -221,6 +221,16 @@
   - **Wo:** `Components.swift` (`ComponentStore`, Versionen), `LaunchHealth.swift`, `Engine.swift`.
   - **Design:** `Parts.tsx` (`rollback`-Phase), `Detail.tsx` (Engine-Hinweis, Zeile „Engine … (held back)“).
   - **Fertig wenn:** Ein simuliertes kaputtes Engine-Update führt zu einem erfolgreichen Start mit der alten Version, ohne dass der Nutzer etwas tun muss.
+  - **Stand:**
+    - **Build:** `EngineRollback.swift`. Ein Engine-Build ist die Engine samt allen Grafik-Builds (DXMT-Paket, D3DMetal, MoltenVK, Gamepad, DXVK) – eine neue Version von einem davon ist ein Engine-Update. `Components/engine-history.json` merkt sich den aktuellen Build und pro Spiel Build und Grafikweg des letzten guten Starts (beim ersten Mal aus den bestätigten Wegen von `LaunchHealth`).
+    - **Vorige Engine behalten:** Bevor `ensureEngine` etwas an der Engine ändert, kopiert es den bisherigen Build nach `Components/.held/` – wenn ein Spiel zuletzt darauf gut lief. Kopiert werden Engine-, Grafik- und DXVK-Ordner als APFS-Klon (0,1 s für 1,4 GB; Platz kostet nur, was sich danach ändert). Die Kopie geht, sobald kein Spiel sie mehr als letzten guten Build hat. Höchstens zwei Kopien; nach 30 Tagen weg, außer ein Spiel ist darauf festgelegt; nie, solange etwas daraus läuft.
+    - **Rückfall:** Nach jedem neuen Build oder Weg wird ein Spiel einmal 30 s beobachtet (auch mit selbst gewählter Grafik). Endet es sofort und lief es mit demselben Weg auf dem Build davor, wird es auf die Kopie festgelegt und gleich damit neu gestartet. Steam zieht dafür auf die alte Engine um, der Prefix bekommt deren DXMT/DXVK-DLLs (`preparePrefix`, `Engine.engineForStart`). Die Grafik-Leiter bleibt, wo sie war. Läuft es auch dort nicht, fällt die Festlegung, und die bisherigen Wege folgen (Runtimes, nächste Grafikschicht).
+    - **Anzeige:** Spielknopf „Versucht die vorige Engine …“ mit Erklärzeile; bei späteren Starts, wenn Steam erst umziehen muss, „Startet mit der vorigen Engine …“. Spielseite: „Engine 4.7.3 (zurückgehalten)“ und der Hinweis „Läuft mit der vorigen Engine vom 27. Okt. – die neueste hat es abstürzen lassen …“ mit „Jetzt die neueste probieren“ (Toast wie im Entwurf; stürzt es wieder ab, geht es von selbst zurück). Haben zwei Builds dieselbe Engine-Version, unterscheidet sie das Datum.
+    - **Nächstes Update:** Alle Festlegungen fallen, die neue Engine wird probiert.
+    - **Abweichung:** „vorige Engine“ statt „last week's engine“ – Updates kommen nicht im Wochentakt.
+    - **Tests:** `tests/EngineRollbackTest/` (Fake-Engines und -Ordner, eigenes leeres Home).
+    - **In der echten App** (27.10., geklontes Home, deine Engine unverändert): Engine 4.7.4 mit eingebautem Absturz → Palworld nach 3 s weg → von selbst mit 4.7.3 neu gestartet, gespielt, Spielstand in der Steam Cloud.
+    - **Offen:** siehe `docs/TODO.md` („Engine-Rückfall“).
 
 - [x] **3.4 Akku-Modus** · `S` · PR #27 (standardmäßig aus)
   - **Was:** Ohne Netzteil (IOKit `IOPSCopyPowerSourcesInfo`): Bildrate auf 30 FPS begrenzen, Hinweis „On battery: capped at 30 FPS – about 1 h 40 min of play“, Akkustand in der Top-Bar. Abschaltbar in General. Grundlage für die Begrenzung: `FramePacing.swift`.
