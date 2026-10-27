@@ -223,6 +223,17 @@ enum Engine {
         }
     }
 
+    /// The wine of the engine Steam's session runs on: the folder its wineserver comes from. Usually
+    /// the newest engine, but one held back for a game (EngineRollback) after that game's start.
+    static func sessionWine() -> URL? {
+        for process in ownProcesses() {
+            guard let path = executablePath(process.pid), path.hasSuffix("/bin/wineserver") else { continue }
+            let wine = URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent("wine")
+            if FileManager.default.isExecutableFile(atPath: wine.path) { return wine }
+        }
+        return nil
+    }
+
     private static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
@@ -241,8 +252,10 @@ enum Engine {
         try await Task.detached(priority: .userInitiated) { try work() }.value
     }
 
-    /// Ends every Windows process in Nightforge's prefix.
+    /// Ends every Windows process in Nightforge's prefix – through the wineserver that runs, which
+    /// is another engine's while a game is held back on one (EngineRollback).
     static func stopAll(_ wine: URL) {
+        let wine = sessionWine() ?? wine
         let server = Process()
         server.executableURL = wine.deletingLastPathComponent().appendingPathComponent("wineserver")
         server.arguments = ["-k"]
@@ -370,13 +383,15 @@ enum Engine {
         let engineDir = try await store.install(engine)
         let graphicsDir = try await store.install(graphics)
         guard let wine = wineBinary(in: engineDir) else { throw SetupError.engineBroken }
-        // A wineserver from a previous engine can't talk to the new one, so its session has to end –
-        // but not under a running game: that keeps the old engine until the next start without one.
+        let rollback = EngineRollback.shared
+        // A wineserver from a previous engine – or from one held back for a game – can't talk to the
+        // new one, so its session has to end – but not under a running game: that keeps the old
+        // engine until the next start without one.
         let oldEngines = [engineID, winecxEngineID, "wine-staging"].flatMap { id in
             ((try? FileManager.default.contentsOfDirectory(
                 at: store.root.appendingPathComponent(id), includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0 != engineDir }
-        }
+        } + rollback.heldEngineFolders()
         for dir in oldEngines where !ownProcesses(under: dir).isEmpty {
             guard let old = wineBinary(in: dir) else { continue }
             if gameRunning || windowsGameRunning { return old }
@@ -392,11 +407,20 @@ enum Engine {
         // it installs has changed. The stamps live in what they describe, so a fresh engine or
         // prefix starts without one.
         let matchesEngine = graphics.version.hasPrefix(engine.version + "-")
-        let graphicsStamp = stamp(in: wine.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("lib/wine", isDirectory: true), name: "graphics")
+        let graphicsStamp = graphicsStampFile(wine: wine)
         let moltenVK = manifest.component(moltenVKID)
         let graphicsWanted = "\(graphics.id) \(graphics.version) engine-match \(matchesEngine) moltenvk \(moltenVK?.version ?? "engine")"
             + " d3dmetal \(d3dMetal?.version ?? "-") gamepad \(gamepad?.version ?? "-")"
+        let dxvk = manifest.component(dxvkID)
+        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, d3dMetal, gamepad, dxvk].compactMap { $0 },
+                                stamp: graphicsWanted)
+        // Before anything of the engine changes, the build games last ran well on stays as a copy:
+        // a game the new one breaks starts with it instead (EngineRollback).
+        if !gameRunning, !windowsGameRunning {
+            rollback.holdBack(before: build, copying: [graphicsID, upstreamGraphicsID, dxvkID]) { current, folder in
+                wineBinary(in: folder).map { readStamp(graphicsStampFile(wine: $0)) == current.stamp } ?? false
+            }
+        }
         if readStamp(graphicsStamp) != graphicsWanted, !gameRunning, !windowsGameRunning {
             try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             var moltenVKDir: URL?
@@ -411,24 +435,46 @@ enum Engine {
         detachUserFolders()
         trimSteamLogs()
         excludeGamesFromBackup()
-        let prefixStamp = stamp(in: prefix, name: "setup")
-        let dxvk = manifest.component(dxvkID)
-        let prefixWanted = "\(engine.version) \(dxvk?.version ?? "-") \(gptk ? graphics.version + " d3dmetal " + (d3dMetal?.version ?? "-") : "-") "
-            + gameEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
-        if readStamp(prefixStamp) != prefixWanted {
-            applyGameEnvironment(wine: wine)
-            if let dxvk { try installDXVK(try await store.install(dxvk), wine: wine, d3d9Only: gptk) }
-            let written = loadOrdersWritten
-            if gptk {
-                try installDXMTNatives(graphicsDir)
-                try installWineD3D12Natives(wine: wine)
-            }
-            if written { writeStamp(prefixStamp, prefixWanted) }
-        }
+        var dxvkDir: URL?
+        if let dxvk { dxvkDir = try await store.install(dxvk) }
+        try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir)
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
-        if !gameRunning, !windowsGameRunning { removeUnusedComponents(keeping: manifest, store: store) }
+        if !gameRunning, !windowsGameRunning {
+            removeUnusedComponents(keeping: manifest, store: store)
+            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
+        }
         return wine
+    }
+
+    /// The prefix's share of an engine build: the game environment, DXVK's DLLs and load orders, and
+    /// on winecx DXMT's DLLs and Wine's own Direct3D 12 as natives. Redone only when the build or the
+    /// environment changed since (the stamp) – after an update, or switching to a held-back build and back.
+    static func preparePrefix(wine: URL, build: EngineBuild, graphicsDir: URL, dxvkDir: URL?) throws {
+        let gptk = isGPTKCapable(wine: wine)
+        let prefixStamp = stamp(in: prefix, name: "setup")
+        let prefixWanted = prefixStampText(build, gptk: gptk)
+        guard readStamp(prefixStamp) != prefixWanted else { return }
+        applyGameEnvironment(wine: wine)
+        if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk) }
+        let written = loadOrdersWritten
+        if gptk {
+            try installDXMTNatives(graphicsDir)
+            try installWineD3D12Natives(wine: wine)
+        }
+        if written { writeStamp(prefixStamp, prefixWanted) }
+    }
+
+    static func prefixStampText(_ build: EngineBuild, gptk: Bool) -> String {
+        let graphics = build.version(of: graphicsID) ?? build.version(of: upstreamGraphicsID) ?? "-"
+        return "\(build.engineVersion) \(build.version(of: dxvkID) ?? "-") \(gptk ? graphics + " d3dmetal " + (build.version(of: d3dMetalID) ?? "-") : "-") "
+            + gameEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+    }
+
+    /// The stamp in an engine's lib/wine that says which graphics builds were installed into it.
+    static func graphicsStampFile(wine: URL) -> URL {
+        stamp(in: wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine", isDirectory: true),
+              name: "graphics")
     }
 
     /// Versions the component list no longer names, and components it dropped (an older engine
@@ -499,7 +545,7 @@ enum Engine {
     /// when Nightforge started it. A game that was running when Nightforge quit brings Nightforge
     /// back when it ends, so the player lands in the launcher again, controller in hand.
     static func scheduleSteamShutdown() {
-        let wine = isSteamInstalled ? installedWineNow() : nil
+        let wine = isSteamInstalled ? sessionWine() ?? installedWineNow() : nil
         let macSteam = MacSteam.startedByNightforge && MacSteam.isRunning
         let macLibrary = FileManager.default.fileExists(atPath: MacSteam.steamapps.path) ? MacSteam.steamapps.path : ""
         let script = supportDir.appendingPathComponent("steam-shutdown.sh")
@@ -587,6 +633,56 @@ enum Engine {
             return wine
         }
         return installedWineNow()
+    }
+
+    /// The engine a game of Nightforge's own Steam starts with, and its build (nil before the first
+    /// setup that recorded one). Normally `newest`; a game the newest crashed starts with the build
+    /// held back for it (EngineRollback). Steam's session moves to that engine first and the prefix
+    /// gets its graphics DLLs – unless a game still runs on the other one: then this start stays
+    /// with the engine that runs, held or not. `switching` is told before Steam is stopped for it.
+    static func engineForStart(appID: Int, newest: URL,
+                               switching: @MainActor () -> Void = {}) async -> (wine: URL, build: EngineBuild?, held: HeldBuild?) {
+        let rollback = EngineRollback.shared
+        let history = rollback.history()
+        func root(_ wine: URL) -> String { wine.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL.path }
+        var target: (wine: URL, build: EngineBuild?, held: HeldBuild?, graphics: URL?, dxvk: URL?) = (newest, nil, nil, nil, nil)
+        if let held = rollback.pinnedBuild(appID), let wine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID)) {
+            let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
+            target = (wine, held.build, held, rollback.folder(of: held, part: graphics), rollback.folder(of: held, part: dxvkID))
+        } else if let current = history.current, let folder = rollback.installedFolder(of: current, part: current.engineID),
+                  wineBinary(in: folder).map(root) == root(newest) {
+            let graphics = current.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
+            target = (newest, current, nil, rollback.installedFolder(of: current, part: graphics),
+                      rollback.installedFolder(of: current, part: dxvkID))
+        }
+        guard let build = target.build else { return (newest, nil, nil) }
+
+        if let session = await offMain({ sessionWine() }), root(session) != root(target.wine) {
+            guard await offMain({ !windowsGameRunning }) else {
+                // Another game runs there: this start joins it, on whichever build that is.
+                let held = history.held.first { held in
+                    wineBinary(in: rollback.folder(of: held, part: held.build.engineID)).map(root) == root(session)
+                }
+                return (session, held?.build ?? (root(session) == root(newest) ? history.current : nil), held)
+            }
+            await switching()
+            try? await stopSteam(session)
+            await offMain { stopAll(session) }
+        }
+        let (wine, held) = (target.wine, target.held)
+        let (graphics, dxvk) = (target.graphics, target.dxvk)
+        await offMain {
+            if let graphics {
+                try? preparePrefix(wine: wine, build: build, graphicsDir: graphics,
+                                   dxvkDir: dxvk.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil })
+            }
+            // A held copy builds its own game bundle the first time; the newest one has it from setup.
+            if held != nil {
+                installGameBundle(wine: wine)
+                if isGPTKCapable(wine: wine) { linkCrossOverProfile() }
+            }
+        }
+        return (wine, build, held)
     }
 
     /// Copies DXMT (Direct3D 10/11 → Metal) into the engine's builtin DLL folders. Safe to repeat.
@@ -1545,10 +1641,11 @@ enum Engine {
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
 
-    /// Asks Steam to quit and waits up to 20 s before ending it the hard way.
+    /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
+    /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
         guard isSteamRunning else { return }
-        try startSteam(wine, arguments: ["-shutdown"])
+        try startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
         for _ in 0..<20 {
             guard isSteamRunning else { return }
             try await Task.sleep(for: .seconds(1))

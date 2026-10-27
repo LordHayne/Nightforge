@@ -124,6 +124,20 @@ enum LaunchHealth {
         return next
     }
 
+    /// Games whose way is confirmed, with that way's id: what they ran well with so far
+    /// (EngineRollback starts from it).
+    static func confirmedWays(_ defaults: UserDefaults = .standard) -> [Int: String] {
+        var ways: [Int: String] = [:]
+        for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix("launchHealth.") {
+            guard let appID = Int(key.dropFirst("launchHealth.".count)), let data = value as? Data,
+                  let state = try? JSONDecoder().decode(State.self, from: data), state.confirmed,
+                  state.ladder.indices.contains(state.index)
+            else { continue }
+            ways[appID] = state.ladder[state.index]
+        }
+        return ways
+    }
+
     /// Choosing a layer by hand starts over: the player wants to try for themselves.
     static func reset(_ appID: Int) {
         UserDefaults.standard.removeObject(forKey: key(appID))
