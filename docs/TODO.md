@@ -198,6 +198,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   - **Steam-Familienbibliothek** ist ungeprüft: Stehen geliehene Spiele in der Lizenzliste (`owner_id` ≠ eigenes Konto)?
   - **Installierte Spiele ohne Lizenz** (z. B. ein Gratis-Wochenende, das nach dem Laden ablief) bleiben „installiert“
     und starten dann nicht. Ansatz: `SteamCatalog.owns` beim Start prüfen und dasselbe ehrlich sagen.
+  - **The Last Caretaker Demo bleibt schwarz** (27.10.): Sie startet (Unreal, `-dx11`, Metal-HUD zeigt ~53 FPS und
+    MetalFX), das Bild bleibt aber nach 3 Minuten schwarz. Der Speicher wächst dabei laut HUD auf ~60 GB, darum habe ich sie
+    beendet. Kein Besitz-, sondern ein Grafikthema: mit DXVK/WineD3D oder `-dx12` über D3DMetal versuchen und Unreals
+    Log in `AppData/Local/Voyage/Saved/Logs` prüfen (dort lag nur `cef3.log`, der GPU-Prozess der eingebauten
+    Web-Oberfläche brach ab).
+  - **Toast „Steam lädt … nicht herunter“** ist in der App nicht gesehen. Der Eintrag selbst wechselte richtig; der Toast
+    verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
 - **DualSense** fehlte um 20:40 in Nightforge – macOS selbst meldete ihn als „nicht verbunden“ (weder Bluetooth noch

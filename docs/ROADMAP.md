@@ -194,6 +194,7 @@
     - **Demo ohne Lizenz:** Ein Glas-Dialog erklärt den Klick im Steam-Fenster und öffnet dann `steam://install/<Demo>`.
     - **Hängende Downloads:** Ein angefragter Download, den Steam nicht holt, wird nach einer Minute ohne Änderung zum Store-Eintrag mit Hinweis und Toast. „Download abbrechen“ nimmt die Anfrage zurück. Ohne Lizenzliste entscheidet `LastOwner` "0", solange Steam angemeldet ist und nichts anderes lädt.
     - Dateien: `SteamCatalog.swift`, `Library.swift` (`demoOf`, `downloadRefused`), `Demos.swift`. Test `tests/SteamOwnershipTest/`; `tests/CatalogProbe/run.sh <Steam-Ordner>` zeigt die Liste eines echten Steams.
+    - **In der echten App geprüft** (27.10., 22:28–22:47): Die Bibliothek zeigt 100 Spiele, „Im Steam-Store 4“ am Ende (FOR HONOR mit Spielzeit 13 Min. und 29,99 €). The Last Caretaker Demo erscheint mit „DEMO“, Hinweis und „Demo laden“. Der Download lief ohne Steam-Fenster an (12,6 GB, ~28 MB/s, fertig nach 11 Min.). „Demo spielen“ startete sie, danach kam „Willkommen zurück“. Die alte Anfrage für The Last Caretaker nachgestellt: Nach einer Minute wurde aus „Download wird vorbereitet …“ ein Store-Eintrag mit Hinweis, „Download abbrechen“ nahm die Anfrage zurück, und Steam startete neu.
 
 ---
 
