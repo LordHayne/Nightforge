@@ -155,6 +155,16 @@ struct StoreFactsTest {
         check(SteamCatalog.storeFacts(appID: 9999, steamRoot: steam) == nil, "an app not in the catalog: nil")
         try? fm.removeItem(at: steam)
 
+        // MARK: Asking the store for a missing score
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        check(Metascores.needsAsking(nil, now: now), "never asked: ask")
+        check(!Metascores.needsAsking(.init(score: 88, asked: now.addingTimeInterval(-400 * 86400)), now: now),
+              "a score found: kept for good")
+        check(!Metascores.needsAsking(.init(score: nil, asked: now.addingTimeInterval(-10 * 86400)), now: now),
+              "none 10 days ago: not again yet")
+        check(Metascores.needsAsking(.init(score: nil, asked: now.addingTimeInterval(-31 * 86400)), now: now),
+              "none a month ago: ask again")
+
         print(failures == 0 ? "✓ all checks passed" : "\(failures) checks failed")
         exit(failures == 0 ? 0 : 1)
     }

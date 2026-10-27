@@ -803,6 +803,8 @@ private struct GameDetail: View {
     var compact = false
     @EnvironmentObject private var model: LibraryModel
     @State private var logo: NSImage?
+    /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
+    @State private var askedScore: Int?
 
     static func openBatterySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension")!)
@@ -812,8 +814,7 @@ private struct GameDetail: View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                MetaLine(compatibility: model.compatibility(of: game),
-                         facts: SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot))
+                MetaLine(compatibility: model.compatibility(of: game), facts: facts)
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -867,6 +868,9 @@ private struct GameDetail: View {
                          ? L10n.t("up to %@", Format.bytes(game.sizeOnDisk)) : "–")
                 case .downloading:
                     Stat(label: L10n.t("Download"), value: Format.bytes(game.sizeOnDisk))
+                }
+                if !compact && game.install != .inStore, let score = metascore {
+                    Stat(label: "Metascore", value: "\(score)")
                 }
                 if game.switchable {
                     Stat(label: L10n.t("Version"), value: game.platform == .mac ? "Mac" : "Windows")
@@ -1006,6 +1010,20 @@ private struct GameDetail: View {
         .task(id: game.id) {
             logo = await ArtworkStore.shared.image(for: game, kind: .logo)
         }
+        .task(id: game.id) {
+            guard !compact, game.install != .inStore, facts?.metascore == nil else { return }
+            askedScore = await Metascores.score(for: game.appID)
+        }
+    }
+
+    /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it).
+    private var facts: StoreFacts? {
+        SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot)
+    }
+
+    /// Steam's catalog first; else what the store said, now or before (offline).
+    private var metascore: Int? {
+        facts?.metascore ?? askedScore ?? Metascores.cached(game.appID)
     }
 
     /// Nothing a Mac can run (VR only, anti-cheat): the button says why instead.

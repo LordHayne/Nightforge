@@ -128,3 +128,55 @@ struct StoreFacts: Hashable {
         }
     }
 }
+
+/// Metacritic scores Steam's catalog on this Mac doesn't have, asked from the store once (when
+/// the game's page opens) and kept: offline, the page shows what was found before. A game Steam
+/// knows no score for is asked again after a month – it may have one by then.
+@MainActor
+enum Metascores {
+    struct Entry: Codable, Equatable {
+        var score: Int?
+        var asked: Date
+    }
+
+    private static let storageKey = "metascores"
+    static let askAgainAfter: TimeInterval = 30 * 24 * 3600
+    /// Asked in this run: a game the store didn't answer for (offline, delisted) isn't asked on
+    /// every visit of its page.
+    private static var asked: Set<Int> = []
+
+    /// Read once per run: a game's page asks while drawing.
+    private static var loaded: [Int: Entry]?
+
+    private static var stored: [Int: Entry] {
+        get {
+            if let loaded { return loaded }
+            let data = UserDefaults.standard.data(forKey: storageKey)
+            let entries = data.flatMap { try? JSONDecoder().decode([Int: Entry].self, from: $0) } ?? [:]
+            loaded = entries
+            return entries
+        }
+        set {
+            loaded = newValue
+            if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data, forKey: storageKey) }
+        }
+    }
+
+    /// The score found before, without asking.
+    static func cached(_ appID: Int) -> Int? { stored[appID]?.score }
+
+    static func needsAsking(_ entry: Entry?, now: Date = Date()) -> Bool {
+        guard let entry else { return true }
+        return entry.score == nil && now.timeIntervalSince(entry.asked) > askAgainAfter
+    }
+
+    /// The score, asked from the store if it isn't known yet; nil offline or when there's none.
+    static func score(for appID: Int) async -> Int? {
+        let entry = stored[appID]
+        guard needsAsking(entry), asked.insert(appID).inserted else { return entry?.score }
+        // No answer at all (offline, store down): nothing is noted, the next start asks again.
+        guard let hit = await StoreSearch.shared.details(for: appID) else { return entry?.score }
+        stored[appID] = Entry(score: hit.metascore, asked: Date())
+        return hit.metascore
+    }
+}
