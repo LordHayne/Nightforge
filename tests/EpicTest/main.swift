@@ -34,7 +34,7 @@ struct EpicTest {
 
     static let list = #"""
     [{"app_name": "Sugar", "app_title": "Rocket League", "asset_infos": {"Windows": "GameAsset(app_name='Sugar')"},
-      "metadata": {"namespace": "9773aa1aa54f4f7b80e44bef04986cea",
+      "metadata": {"namespace": "9773aa1aa54f4f7b80e44bef04986cea", "categories": [{"path": "applications"}, {"path": "games"}],
                    "keyImages": [{"type": "DieselGameBox", "url": "https://cdn1.epicgames.com/wide.jpg"},
                                  {"type": "DieselGameBoxTall", "url": "https://cdn1.epicgames.com/tall.jpg"},
                                  {"type": "DieselGameBoxLogo", "url": "https://cdn1.epicgames.com/logo.png"},
@@ -42,6 +42,9 @@ struct EpicTest {
                    "customAttributes": {"FolderName": {"type": "STRING", "value": "rocketleague"},
                                         "CloudSaveFolder": {"type": "STRING", "value": "{AppData}/RL"}}}, "dlcs": []},
      {"app_name": "Ubi", "app_title": "Far Cry", "metadata": {"customAttributes": {"ThirdPartyManagedApp": {"value": "Uplay"}}}},
+     {"app_name": "discord", "app_title": "Discord", "metadata": {"categories": [{"path": "applications"}, {"path": "software"}]}},
+     {"app_name": "dsc", "app_title": "Death Stranding Content",
+      "metadata": {"categories": [{"path": "applications"}, {"path": "digitalextras"}, {"path": "games"}]}},
      {"app_name": "../x", "app_title": "Escape", "metadata": {}},
      {"app_name": "Odd", "app_title": "Odd Folder", "metadata": {"customAttributes": {"FolderName": {"value": "../.."}}}},
      {"app_name": "NoTitle", "app_title": "", "metadata": {}}]
@@ -49,7 +52,8 @@ struct EpicTest {
 
     static func libraryList() {
         let games = EpicLibrary.games(fromList: Data(list.utf8)) ?? []
-        check(games.map(\.appName) == ["Sugar", "Odd"], "games another launcher runs and odd entries are left out: \(games.map(\.appName))")
+        check(games.map(\.appName) == ["Sugar", "Odd"],
+              "games another launcher runs, programs, extras and odd entries are left out: \(games.map(\.appName))")
         let rl = games.first
         check(rl?.title == "Rocket League" && rl?.namespace == "9773aa1aa54f4f7b80e44bef04986cea", "title and namespace")
         check(rl?.cover?.absoluteString == "https://cdn1.epicgames.com/tall.jpg", "the portrait cover is the tall box art")

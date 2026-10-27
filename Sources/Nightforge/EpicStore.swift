@@ -23,7 +23,8 @@ struct EpicLibrary: Codable, Equatable {
     var loaded: Date?
 
     /// `legendary list --json`: one object per game with its catalog data under "metadata". Games
-    /// another launcher runs (EA app, Ubisoft Connect) and what Nightforge can't start are left out.
+    /// another launcher runs (EA app, Ubisoft Connect), programs (Discord: "software", no "games")
+    /// and extras that aren't a game of their own ("digitalextras") are left out.
     static func games(fromList json: Data) -> [EpicGame]? {
         guard let items = try? JSONSerialization.jsonObject(with: json) as? [[String: Any]] else { return nil }
         return items.compactMap { item in
@@ -34,6 +35,8 @@ struct EpicLibrary: Codable, Equatable {
             let attributes = metadata["customAttributes"] as? [String: Any] ?? [:]
             func attribute(_ name: String) -> String? { (attributes[name] as? [String: Any])?["value"] as? String }
             if attribute("ThirdPartyManagedApp") != nil || attribute("ThirdPartyManagedProvider") != nil { return nil }
+            let categories = Set((metadata["categories"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String })
+            if !categories.isEmpty && (!categories.contains("games") || categories.contains("digitalextras")) { return nil }
             let images = (metadata["keyImages"] as? [[String: Any]] ?? []).reduce(into: [String: URL]()) { found, image in
                 guard let type = image["type"] as? String, found[type] == nil,
                       let url = (image["url"] as? String).flatMap(URL.init(string:)), url.scheme == "https" else { return }
