@@ -852,7 +852,8 @@ private struct GameDetail: View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                CompatibilityLine(compatibility: model.compatibility(of: game), detailed: !compact)
+                MetaLine(compatibility: model.compatibility(of: game),
+                         facts: SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot))
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -926,6 +927,9 @@ private struct GameDetail: View {
                 }
             }
 
+            if !compact {
+                CompatibilityNote(compatibility: model.compatibility(of: game))
+            }
             if game.isVROnly {
                 Label(L10n.t("Needs a VR headset – this game can't be played on a Mac."), systemImage: "visionpro")
                     .font(.system(size: 13, weight: .medium))
@@ -1058,27 +1062,20 @@ private struct GameDetail: View {
     }
 }
 
-/// How well it runs on a Mac: the badge, and on a game's page what it means for this game.
-private struct CompatibilityLine: View {
+/// On a game's page, what its badge above the title means for this game, and where it was tested.
+private struct CompatibilityNote: View {
     let compatibility: Compatibility
-    var detailed = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            CompatibilityBadge(compatibility: compatibility)
-            if detailed, let note = compatibility.note {
-                Text(note)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(2)
-                    .frame(minWidth: 320, maxWidth: 560, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if detailed, !compatibility.testedOn.isEmpty {
-                Text(L10n.t("Tested on %@", compatibility.testedOn.joined(separator: ", ")))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-            }
+        let tested = compatibility.testedOn.isEmpty ? nil : L10n.t("Tested on %@", compatibility.testedOn.joined(separator: ", "))
+        let parts = [compatibility.note, tested].compactMap { $0 }
+        if !parts.isEmpty {
+            Label(parts.joined(separator: " · "), systemImage: compatibility.level.symbol)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(3)
+                .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
