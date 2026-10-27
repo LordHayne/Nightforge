@@ -4,11 +4,6 @@ import SwiftUI
 struct LibraryView: View {
     @EnvironmentObject private var model: LibraryModel
 
-    private var uninstallTitle: String {
-        guard let game = model.pendingUninstall else { return "" }
-        return game.isInstalled ? L10n.t("Uninstall %@?", game.name) : L10n.t("Cancel the download of %@?", game.name)
-    }
-
     var body: some View {
         ZStack {
             Theme.night.ignoresSafeArea()
@@ -90,15 +85,14 @@ struct LibraryView: View {
                 close: { model.closeMacSetup() }
             )
         }
-        .alert(
-            L10n.t("Something went wrong"),
-            isPresented: Binding(
-                get: { model.errorMessage != nil },
-                set: { if !$0 { model.errorMessage = nil } }
-            ),
-            actions: { Button("OK") {} },
-            message: { Text(model.errorMessage ?? "") }
-        )
+        .sheet(item: DialogMessage.item($model.errorMessage)) { error in
+            GlassQuestion(L10n.t("Something went wrong"), message: error.text, id: "error") {
+                Button(L10n.t("OK")) { model.errorMessage = nil }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("error.ok", cornerRadius: 21, preferred: true, activate: { model.errorMessage = nil })
+            }
+        }
         .sheet(item: $model.libraryReveal) { reveal in
             LibraryRevealSheet(reveal: reveal)
         }
@@ -114,59 +108,49 @@ struct LibraryView: View {
         .sheet(item: $model.saveChoice, onDismiss: { model.answerSaveChoice(takeNewer: false) }) { choice in
             SaveChoiceSheet(choice: choice)
         }
-        .alert(
-            L10n.t("Play %@ on GeForce Now?", model.pendingCloudGame?.name ?? ""),
-            isPresented: Binding(
-                get: { model.pendingCloudGame != nil },
-                set: { if !$0 { model.pendingCloudGame = nil } }
-            ),
-            presenting: model.pendingCloudGame,
-            actions: { _ in
+        .sheet(item: $model.pendingCloudGame) { game in
+            GlassQuestion(L10n.t("Play %@ on GeForce Now?", game.name),
+                          message: L10n.t("Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam. The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more."),
+                          id: "cloud") {
+                Button(L10n.t("Cancel")) { model.pendingCloudGame = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("cloud.cancel", cornerRadius: 21, activate: { model.pendingCloudGame = nil })
                 Button(L10n.t("Continue to GeForce Now")) { model.confirmCloud() }
-                Button(L10n.t("Cancel"), role: .cancel) {}
-            },
-            message: { _ in
-                Text(L10n.t("Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam. The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more."))
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("cloud.continue", cornerRadius: 21, preferred: true, activate: { model.confirmCloud() })
             }
-        )
-        .alert(
-            uninstallTitle,
-            isPresented: Binding(
-                get: { model.pendingUninstall != nil },
-                set: { if !$0 { model.pendingUninstall = nil } }
-            ),
-            presenting: model.pendingUninstall,
-            actions: { game in
-                Button(game.isInstalled ? L10n.t("Uninstall") : L10n.t("Cancel Download"), role: .destructive) {
-                    model.confirmUninstall()
-                }
+        }
+        .sheet(item: $model.pendingUninstall) { game in
+            GlassQuestion(game.isInstalled ? L10n.t("Uninstall %@?", game.name) : L10n.t("Cancel the download of %@?", game.name),
+                          message: game.isInstalled
+                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk))
+                              : L10n.t("The part downloaded so far is deleted. You can start the download again any time."),
+                          id: "uninstall") {
                 // Return (and A) keeps the game; uninstalling takes a deliberate click or a pad move first.
-                Button(L10n.t("Keep"), role: .cancel) {}
+                Button(L10n.t("Keep")) { model.pendingUninstall = nil }
+                    .buttonStyle(GlassTextButtonStyle())
                     .keyboardShortcut(.defaultAction)
-            },
-            message: { game in
-                Text(game.isInstalled
-                     ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk))
-                     : L10n.t("The part downloaded so far is deleted. You can start the download again any time."))
+                    .padFocus("uninstall.keep", cornerRadius: 21, preferred: true, activate: { model.pendingUninstall = nil })
+                Button(game.isInstalled ? L10n.t("Uninstall") : L10n.t("Cancel Download")) { model.confirmUninstall() }
+                    .buttonStyle(GlassTextButtonStyle(destructive: true))
+                    .padFocus("uninstall.confirm", cornerRadius: 21, activate: { model.confirmUninstall() })
             }
-        )
-        .alert(
-            L10n.t("Remove the Windows version of %@?", model.pendingLeftoverRemoval?.name ?? ""),
-            isPresented: Binding(
-                get: { model.pendingLeftoverRemoval != nil },
-                set: { if !$0 { model.pendingLeftoverRemoval = nil } }
-            ),
-            presenting: model.pendingLeftoverRemoval,
-            actions: { _ in
-                Button(L10n.t("Remove"), role: .destructive) { model.confirmLeftoverRemoval() }
-                Button(L10n.t("Keep"), role: .cancel) {}
+        }
+        .sheet(item: $model.pendingLeftoverRemoval) { game in
+            GlassQuestion(L10n.t("Remove the Windows version of %@?", game.name),
+                          message: L10n.t("Nightforge uses the Mac version of this game now. Removing the Windows version frees %@; you can switch back and download it again any time.",
+                                          Format.bytes(game.windowsLeftover ?? 0)),
+                          id: "leftover") {
+                Button(L10n.t("Keep")) { model.pendingLeftoverRemoval = nil }
+                    .buttonStyle(GlassTextButtonStyle())
                     .keyboardShortcut(.defaultAction)
-            },
-            message: { game in
-                Text(L10n.t("Nightforge uses the Mac version of this game now. Removing the Windows version frees %@; you can switch back and download it again any time.",
-                            Format.bytes(game.windowsLeftover ?? 0)))
+                    .padFocus("leftover.keep", cornerRadius: 21, preferred: true, activate: { model.pendingLeftoverRemoval = nil })
+                Button(L10n.t("Remove")) { model.confirmLeftoverRemoval() }
+                    .buttonStyle(GlassTextButtonStyle(destructive: true))
+                    .padFocus("leftover.confirm", cornerRadius: 21, activate: { model.confirmLeftoverRemoval() })
             }
-        )
+        }
         .onAppear {
             model.startInput()
             if model.games.isEmpty { model.reload() }

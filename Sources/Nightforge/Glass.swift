@@ -323,6 +323,18 @@ struct GlassQuestion<Buttons: View>: View {
     }
 }
 
+/// A message for a GlassQuestion sheet, known by its text.
+struct DialogMessage: Identifiable {
+    let text: String
+    var id: String { text }
+
+    /// `message` as a sheet's item: shown while it's set, cleared when the sheet closes.
+    static func item(_ message: Binding<String?>) -> Binding<DialogMessage?> {
+        Binding(get: { message.wrappedValue.map(DialogMessage.init) },
+                set: { if $0 == nil { message.wrappedValue = nil } })
+    }
+}
+
 extension View {
     /// Thick night-blue glass behind a dialog, in place of the system's sheet panel.
     func glassDialogBackground() -> some View {

@@ -357,7 +357,8 @@ private struct StorageSettings: View {
     @State private var removing = false
     @State private var removalError: String?
 
-    private struct RemovalPlan {
+    private struct RemovalPlan: Identifiable {
+        let id = UUID()
         let windowsGames: Int
         let windowsGamesSize: Int64
         let ownSize: Int64
@@ -488,17 +489,25 @@ private struct StorageSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .alert(L10n.t("Remove Nightforge completely?"), isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
-               presenting: removal) { _ in
-            Button(L10n.t("Remove Everything"), role: .destructive, action: removeEverything)
-            Button(L10n.t("Cancel"), role: .cancel) {}
-        } message: { plan in
-            Text(removalMessage(plan))
+        .sheet(item: $removal) { plan in
+            GlassQuestion(L10n.t("Remove Nightforge completely?"), message: removalMessage(plan), id: "removeAll") {
+                // Return keeps everything; removing takes a deliberate click or a pad move first.
+                Button(L10n.t("Cancel")) { removal = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("removeAll.cancel", cornerRadius: 21, preferred: true, activate: { removal = nil })
+                Button(L10n.t("Remove Everything"), action: removeEverything)
+                    .buttonStyle(GlassTextButtonStyle(destructive: true))
+                    .padFocus("removeAll.confirm", cornerRadius: 21, activate: removeEverything)
+            }
         }
-        .alert(L10n.t("Nothing was removed"), isPresented: Binding(get: { removalError != nil }, set: { if !$0 { removalError = nil } })) {
-            Button(L10n.t("OK")) {}
-        } message: {
-            Text(removalError ?? "")
+        .sheet(item: DialogMessage.item($removalError)) { error in
+            GlassQuestion(L10n.t("Nothing was removed"), message: error.text, id: "removeAllFailed") {
+                Button(L10n.t("OK")) { removalError = nil }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("removeAllFailed.ok", cornerRadius: 21, preferred: true, activate: { removalError = nil })
+            }
         }
         .task { await measureShaders() }
         .task(id: model.allGames.count) {
@@ -566,6 +575,7 @@ private struct StorageSettings: View {
     }
 
     private func removeEverything() {
+        removal = nil
         removing = true
         Task {
             do {
