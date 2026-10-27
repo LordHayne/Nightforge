@@ -341,7 +341,8 @@
 
 ## Phase 7 – Mehrere Stores (groß)
 
-- [ ] **7.1 Store-Abstraktion** · `L` · braucht 0.2 — Protokoll `StoreProvider`: Bibliothek laden (offline-Cache zuerst), installieren, starten, Cloud-Spielstände, Sync-Status. Steam wird die erste Implementierung.
+- [x] **7.1 Store-Abstraktion** · `L` · braucht 0.2 · `claude/epic-games-d52d35` — Protokoll `StoreProvider`: Bibliothek laden (offline-Cache zuerst), installieren, starten, Cloud-Spielstände, Sync-Status. Steam wird die erste Implementierung.
+  - **Stand:** `Stores.swift`: `StoreProvider` mit `library()` (was auf dem Mac ist – zuletzt Geladenes plus Installiertes/Ladendes, ohne Netz, sofort), `refresh()` (beim Store nachfragen, im Hintergrund), `install(_:context:)`, `uninstall(_:)`, `isConnected` und `sync` (`StoreSync`: ok / syncing / failed mit Grund, `lastSuccess`). Fortschritt steht wie bisher in `Game.install`. `SteamStore` ist die erste Umsetzung: Scan (Nightforges Steam, CrossOver-Flaschen, Steam für Mac, Laufwerke, Anti-Cheat), Download-Anfrage samt Steam-Neustart (sofort oder wenn nichts läuft) und Deinstallieren. `LibraryModel.rescan` sammelt alle Stores ein, Download und Deinstallieren gehen an den Store des Spiels. **Abweichung:** Steams Start bleibt im `LibraryModel` (Anmeldung, Neustarts, `LaunchWatcher`, Mac-Versionen und Steam für Mac sind dort mit dem Startablauf verwoben); andere Stores hängen sich an denselben Ablauf mit Grafik-Leiter und Erstsekunden-Prüfung (siehe 7.2). Cloud-Spielstände sind pro Store eigene Wege (Steam: Steam selbst; Epic: 7.2).
 - [ ] **7.2 Epic Games ohne Epic-Launcher** · `L` · Recherche — Weg wie Heroic: [legendary](https://github.com/derrod/legendary) (GPL-3.0, passt zu Nightforges GPL-3.0). Login im eigenen Fenster, Download/Start direkt.
 - [ ] **7.3 GOG ohne Galaxy** · `L` · Recherche — Weg wie Heroic (`gogdl`) bzw. GOG-API; DRM-freie Installer direkt.
 - [ ] **7.4 Doppelt gekaufte Spiele zusammenführen** · `M`

@@ -132,6 +132,14 @@ final class LibraryModel: ObservableObject {
     /// First-run "Connect Steam" flow for Nightforge's own engine.
     let setup = SetupModel()
 
+    /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
+    let steam = SteamStore()
+    var stores: [StoreProvider] { [steam] }
+
+    func store(for game: Game) -> StoreProvider {
+        stores.first { $0.provider == game.provider } ?? steam
+    }
+
     private lazy var input = InputRouter()
     private var inputStarted = false
 
@@ -192,8 +200,8 @@ final class LibraryModel: ObservableObject {
                 watchForGameEnd(found)
                 if found.isEmpty, launchingID == nil, playing.isEmpty { idleLooks += 1 } else { idleLooks = 0 }
                 if idleLooks == 20 { GameDisplay.leaveGame() }  // a start that never got going (~1 min)
-                if restartSteamWhenIdle && found.isEmpty && launchingID == nil {
-                    restartSteamWhenIdle = false
+                if steam.restartWhenIdle && found.isEmpty && launchingID == nil {
+                    steam.restartWhenIdle = false
                     if let wine = await Engine.installedWine() { try? await Engine.restartSteamInBackground(wine) }
                 }
                 // Every few seconds while it matters (Nightforge in front, a game running or starting),
@@ -372,23 +380,15 @@ final class LibraryModel: ObservableObject {
     private var scanInFlight = false
     private var scanAgain = false
 
-    /// Scans the library and shows what it found.
+    /// Reads every store's library from the Mac and shows what it found.
     private func rescan() async {
-        let root = Prefs.bottlesRoot
-        let builtIn = Engine.isSteamInstalled ? [Engine.bottle] : []
-        let preferWindows = await ProfileStore.shared.preferWindows()
-        let blocks = await ProfileStore.shared.antiCheatBlocks()
-        antiCheatBlocks = blocks
+        antiCheatBlocks = await ProfileStore.shared.antiCheatBlocks()
         profiles = await ProfileStore.shared.knownProfiles()
-        let found = await Task.detached(priority: .userInitiated) {
-            // Libraries on drives that are unplugged, in Nightforge's Steam and in Steam for Mac.
-            let drives = (builtIn.isEmpty ? [:] : LibraryScanner.missingDrives(steamRoot: Engine.steamRoot, bottle: Engine.bottle))
-                .merging(LibraryScanner.missingDrives(steamRoot: MacSteam.root, bottle: MacSteam.bottle)) { windows, _ in windows }
-            return LibraryScanner.markMissingDrives(LibraryScanner.markAntiCheat(
-                LibraryScanner.merge(LibraryScanner.scan(bottlesRoot: root, extraBottles: builtIn),
-                                     mac: LibraryScanner.scanMac(), preferWindows: preferWindows),
-                blocks: blocks), drives: drives)
-        }.value
+        var found: [Game] = []
+        for store in stores {
+            found += await store.library()
+        }
+        found = LibraryScanner.sorted(found)
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
         allGames = found
         measureDownloads()
@@ -704,10 +704,6 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// A download Steam only picks up after a restart, which waits while a game runs: restarting
-    /// Steam then would end the game too.
-    private var restartSteamWhenIdle = false
-
     private func download(_ game: Game) {
         if game.platform == .mac {
             downloadMac(game)
@@ -715,14 +711,8 @@ final class LibraryModel: ObservableObject {
         }
         Task {
             do {
-                guard let wine = await Engine.installedWine() else { return }
-                try Engine.requestDownload(appID: game.appID, name: game.name, installDir: game.installDirName)
-                reload(quiet: true)
-                if running.isEmpty && launchingID == nil {
-                    try await Engine.restartSteamInBackground(wine)
-                } else {
-                    restartSteamWhenIdle = true
-                }
+                let context = StoreContext(busy: !running.isEmpty || launchingID != nil) { [weak self] in self?.reload(quiet: true) }
+                try await store(for: game).install(game, context: context)
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -783,7 +773,7 @@ final class LibraryModel: ObservableObject {
                 if running.isEmpty && launchingID == nil {
                     try? await Engine.restartSteamInBackground(wine)
                 } else {
-                    restartSteamWhenIdle = true
+                    steam.restartWhenIdle = true
                 }
             }
             reload(quiet: true)
@@ -1917,12 +1907,7 @@ final class LibraryModel: ObservableObject {
         uninstallingID = game.id
         defer { uninstallingID = nil }
         do {
-            if game.platform == .mac {
-                try await MacSteam.uninstall(appID: game.appID, installDir: game.installDir)
-                return
-            }
-            guard let wine = await Engine.installedWine() else { return }
-            try await Engine.uninstall(appID: game.appID, installDir: game.installDir, wine: wine)
+            try await store(for: game).uninstall(game)
         } catch {
             errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
         }
