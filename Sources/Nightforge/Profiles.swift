@@ -146,6 +146,8 @@ actor ProfileStore {
         .flatMap { $0.isEmpty ? nil : URL(string: $0) }
     private var cachedURL: URL { Engine.supportDir.appendingPathComponent("profiles.json") }
     private var profiles: [Int: GameProfile]?
+    /// Epic games' entries ("epic.<namespace>" in the list), by catalog namespace.
+    private var epicProfiles: [String: GameProfile] = [:]
     private var refreshed = false
 
     func profile(for appID: Int) async -> GameProfile? {
@@ -182,11 +184,26 @@ actor ProfileStore {
         }
     }
 
+    /// Epic games whose anti-cheat stops them on a Mac, by catalog namespace (like `antiCheatBlocks`).
+    func epicAntiCheatBlocks() -> [String: AntiCheatBlock] {
+        loadLocalIfNeeded()
+        return epicProfiles.compactMapValues { profile in
+            if let antiCheat = profile.antiCheat, !antiCheat.isEmpty {
+                return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow)
+            }
+            if let antiCheat = profile.antiCheatOnline, !antiCheat.isEmpty {
+                return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow, onlineOnly: true)
+            }
+            return nil
+        }
+    }
+
     private func loadLocalIfNeeded() {
         guard profiles == nil else { return }
         for local in [cachedURL, Bundle.main.url(forResource: "profiles", withExtension: "json")].compactMap({ $0 }) {
             if let data = try? Data(contentsOf: local), let decoded = decode(data) {
                 profiles = decoded
+                epicProfiles = Self.decodeEpic(data)
                 return
             }
         }
@@ -204,8 +221,20 @@ actor ProfileStore {
               let decoded = decode(data)
         else { return }
         profiles = decoded
+        epicProfiles = Self.decodeEpic(data)
         try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
         try? data.write(to: cachedURL, options: .atomic)
+    }
+
+    /// The entries keyed "epic.<namespace>" (older Nightforge versions skip them: not a number).
+    static func decodeEpic(_ data: Data) -> [String: GameProfile] {
+        guard let document = try? JSONDecoder().decode(ProfileDocument.self, from: data),
+              document.formatVersion <= supportedFormat
+        else { return [:] }
+        return Dictionary(uniqueKeysWithValues: document.games.compactMap { key, value in
+            guard key.hasPrefix("epic."), let profile = value.profile else { return nil }
+            return (String(key.dropFirst("epic.".count)), profile)
+        })
     }
 
     private func decode(_ data: Data) -> [Int: GameProfile]? {

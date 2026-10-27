@@ -14,6 +14,10 @@ enum LaunchPhase: Equatable {
     case retrying(String)
     /// Steam updates the game before it starts it: how far, when known.
     case updating(Double?)
+    /// Epic gives the game a fresh sign-in (legendary).
+    case signingInEpic
+    /// The newest save comes down from Epic's cloud first.
+    case syncingSaves
 
     var title: String {
         switch self {
@@ -27,6 +31,8 @@ enum LaunchPhase: Equatable {
         case .retrying(let way): return L10n.t("Starting again with %@ …", way)
         case .updating(let fraction?): return L10n.t("Updating … %ld %%", Int(fraction * 100))
         case .updating(nil): return L10n.t("Updating …")
+        case .signingInEpic: return L10n.t("Signing in to Epic Games …")
+        case .syncingSaves: return L10n.t("Getting your save …")
         }
     }
 
@@ -41,6 +47,8 @@ enum LaunchPhase: Equatable {
         case .restartingSteam: return L10n.t("Steam got stuck while starting – a fresh start fixes that.")
         case .retrying: return L10n.t("It closed right away – Nightforge starts it the next way and remembers what works.")
         case .updating: return L10n.t("Steam updates the game first – it starts by itself when the update is done.")
+        case .signingInEpic: return L10n.t("The game gets a fresh sign-in from Epic, so it starts online with your account.")
+        case .syncingSaves: return L10n.t("Your newest save comes from Epic's cloud first, so you go on where you stopped.")
         }
     }
 

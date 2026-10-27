@@ -115,6 +115,14 @@ private struct StoresSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                EpicStoreRow(epic: model.epic)
+            } footer: {
+                Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed. You sign in in Epic's own window; Nightforge never sees your login."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Only for players who bring their own Wine setup; Nightforge needs none of it.
@@ -166,8 +174,89 @@ private struct StoresSettings: View {
 
     private var steamStatus: String {
         guard Engine.isSteamInstalled else { return L10n.t("Not set up yet – Nightforge does it at the first start.") }
-        let games = model.visibleCount == 1 ? L10n.t("1 game") : L10n.t("%ld games", model.visibleCount)
+        let count = model.visibleCount(of: .steam)
+        let games = count == 1 ? L10n.t("1 game") : L10n.t("%ld games", count)
         return Engine.steamSignedIn ? L10n.t("Signed in · %@", games) : L10n.t("Not signed in · %@", games)
+    }
+}
+
+/// Epic Games: connect in Epic's own sign-in window, then how its library stands – with a way out
+/// when Epic couldn't be reached (the games from last time still play).
+private struct EpicStoreRow: View {
+    @EnvironmentObject private var model: LibraryModel
+    @ObservedObject var epic: EpicStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LabeledContent {
+                HStack(spacing: 8) {
+                    if epic.isConnected && epic.sync.state == .signedOut {
+                        Button(epic.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Sign In Again")) { model.connectEpic() }
+                            .buttonStyle(GlassTextButtonStyle(prominent: !epic.connecting, small: true))
+                            .padFocus("settings.epic.signIn", activate: { model.connectEpic() })
+                    } else if epic.isConnected && epic.sync.failed {
+                        Button { model.refreshStores(force: true) } label: {
+                            Label(L10n.t("Try Again"), systemImage: "arrow.clockwise")
+                        }
+                        .padFocus("settings.epic.retry", activate: { model.refreshStores(force: true) })
+                    }
+                    if epic.isConnected {
+                        Button(L10n.t("Disconnect")) { model.disconnectEpic() }
+                            .padFocus("settings.epic.disconnect", activate: { model.disconnectEpic() })
+                    } else {
+                        Button(epic.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Connect")) { model.connectEpic() }
+                            .buttonStyle(GlassTextButtonStyle(prominent: !epic.connecting, small: true))
+                            .padFocus("settings.epic.connect", activate: { model.connectEpic() })
+                    }
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Provider.epic.label)
+                    status
+                        .font(.caption)
+                }
+            }
+            if epic.connecting {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "person.badge.key")
+                        .foregroundStyle(Theme.sodium)
+                    Text(L10n.t("Epic Games' sign-in page is open in a window. Once you're signed in, your games appear here by themselves."))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.system(size: 12.5))
+                .foregroundStyle(Theme.ink.opacity(0.85))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        if !epic.isConnected {
+            Text(epic.connecting ? L10n.t("Sign in in Epic's window") : L10n.t("Not connected"))
+                .foregroundStyle(.secondary)
+        } else {
+            switch epic.sync.state {
+            case .syncing:
+                Text(L10n.t("Updating …")).foregroundStyle(.secondary)
+            case .failed(let reason):
+                Text(epic.sync.lastSuccess.map { L10n.t("%@ · last update %@", reason, Format.relative($0)) } ?? reason)
+                    .foregroundStyle(Theme.sodium)
+            case .signedOut:
+                Text(L10n.t("Epic Games signed you out – your games stay here"))
+                    .foregroundStyle(Theme.sodium)
+            case .ok:
+                let count = model.visibleCount(of: .epic)
+                let games = count == 1 ? L10n.t("1 game") : L10n.t("%ld games", count)
+                HStack(spacing: 6) {
+                    Circle().fill(Theme.runsGreat).frame(width: 7, height: 7)
+                    Text(epic.sync.lastSuccess.map { L10n.t("%@ · up to date %@", games, Format.relative($0)) } ?? games)
+                }
+                .foregroundStyle(.secondary)
+                .help(epic.accountName.map { L10n.t("Signed in as %@", $0) } ?? "")
+            }
+        }
     }
 }
 

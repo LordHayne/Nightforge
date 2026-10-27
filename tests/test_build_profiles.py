@@ -106,6 +106,21 @@ class AntiCheatTests(unittest.TestCase):
             "1245620": {"name": "Elden Ring", "antiCheatOnline": ["Easy Anti-Cheat"]},
         })
 
+    def test_epic_games_are_blocked_by_namespace(self):
+        blocks = build_profiles.epic_anticheat_blocks([
+            {"name": "Fortnite", "status": "Denied", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "fn", "slug": "fortnite"}}},
+            {"name": "PUBG", "status": "Broken", "anticheats": ["BattlEye"],
+             "storeIds": {"steam": "578080", "epic": {"namespace": "9361c8c6d2f34b42b5f2f61093eedf48"}}},
+            {"name": "Back 4 Blood", "status": "Supported", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "57df"}}},
+            {"name": "Paladins", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "badb"}}},
+            {"name": "Odd", "status": "Denied", "anticheats": ["BattlEye"], "storeIds": {"epic": {"namespace": "../x"}}},
+        ])
+        self.assertEqual(blocks, {
+            "epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]},
+            "epic.9361c8c6d2f34b42b5f2f61093eedf48": {"name": "PUBG", "antiCheat": ["BattlEye"], "steam": "578080"},
+            "epic.57df": {"name": "Back 4 Blood", "antiCheatOnline": ["Easy Anti-Cheat"]},
+        })
+
     def test_geforce_now_ids_come_from_steam_variants(self):
         ids = build_profiles.geforce_now_ids([
             {"id": "d176-uuid", "variants": [{"appStore": "EPIC", "storeId": "06bd"}, {"appStore": "STEAM", "storeId": "1085660"}]},

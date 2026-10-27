@@ -8,15 +8,20 @@ struct StoreSync: Equatable {
         case syncing
         /// Why the last try failed, in words for the player.
         case failed(String)
+        /// The store ended the sign-in (it expired): signing in again brings the library up to date.
+        case signedOut
     }
 
     var state = State.ok
     /// When the library was last loaded from the store; nil before the first time.
     var lastSuccess: Date?
 
+    /// Not up to date and the player can do something about it (try again, sign in again).
     var failed: Bool {
-        if case .failed = state { return true }
-        return false
+        switch state {
+        case .failed, .signedOut: return true
+        case .ok, .syncing: return false
+        }
     }
 }
 

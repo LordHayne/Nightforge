@@ -4686,7 +4686,410 @@
    },
    "partial": true,
    "source": "umu"
+  },
+  "epic.03ecca4e19a9483aa05b3d99948c43ce": {
+   "name": "Tom Clancy's The Division",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "FairFight"
+   ],
+   "geforceNow": "6086a01a-3e88-4632-a393-5e672f34c025"
+  },
+  "epic.0584d2013f0149a791e7b9bad0eec102": {
+   "name": "Grand Theft Auto V",
+   "source": "anticheat",
+   "antiCheat": [
+    "BattlEye"
+   ]
+  },
+  "epic.076207fa2b5c4803a636af606c3c28b7": {
+   "name": "SMITE",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "14c04189-e9b6-484d-8953-7d61daa25700"
+  },
+  "epic.0a84818055e740a7be21a2e5b6162703": {
+   "name": "Watch Dogs®: Legion",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ]
+  },
+  "epic.0c6aee83b9b64372bf44a043001325f2": {
+   "name": "NARAKA: BLADEPOINT",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "NEAC Protect"
+   ],
+   "geforceNow": "4f399ae4-6fe9-415b-8c7f-bce41bb5fe14"
+  },
+  "epic.17a1f8585f9246808597b30780aaf4fb": {
+   "name": "Crysis",
+   "source": "anticheat",
+   "antiCheat": [
+    "PunkBuster"
+   ]
+  },
+  "epic.1d3e38b5e921433caffbbef89e265517": {
+   "name": "iRacing",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.2016da2363da487bbf78961d8faec81c": {
+   "name": "Worms Rumble",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.244aaaa06bfa49d088205b13b9d2d115": {
+   "name": "Warframe",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Unknown (Custom)"
+   ],
+   "geforceNow": "3b6c8822-d334-45d8-9dc9-b6efd59778ab"
+  },
+  "epic.24b9b5e323bc40eea252a10cdd3b2f10": {
+   "name": "League of Legends",
+   "source": "anticheat",
+   "antiCheat": [
+    "Vanguard"
+   ]
+  },
+  "epic.2b352b4aea3849bd9519842dda263ac7": {
+   "name": "CRSED: F.O.A.D.",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "74f1639d-5cef-41d7-9730-4e46eb133708"
+  },
+  "epic.2dbd2f64abdc4bbab077424d5c85e01b": {
+   "name": "Tom Clancy's Ghost Recon Breakpoint",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "7ef4a125-560f-4a6c-94c1-cc8ca9523809"
+  },
+  "epic.3a212c0da4f1438e840c21565df4b6fe": {
+   "name": "Multiversus",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.3e02273b543f4ff0a1c24d3b534a9ac3": {
+   "name": "Hell Let Loose",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "9357241e-49a8-476c-bbb8-6fa5e55f25f8"
+  },
+  "epic.428115def4ca4deea9d69c99c5a5a99e": {
+   "name": "Destiny 2",
+   "source": "anticheat",
+   "antiCheat": [
+    "BattlEye"
+   ],
+   "geforceNow": "d1768dc1-b451-449a-8f7f-cf5b20f98f6f"
+  },
+  "epic.47cba32bce2f4b1e9da0eee33bbb489a": {
+   "name": "Splitgate",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "EQU8"
+   ],
+   "geforceNow": "39699fb7-5a05-41e6-86b2-3cd6fd6c459c"
+  },
+  "epic.52f57f57120c440fad9bfa0e6c279317": {
+   "name": "Battlefield™ 2042",
+   "source": "anticheat",
+   "antiCheat": [
+    "EA anticheat"
+   ],
+   "geforceNow": "2584fa7f-a3fd-4c6c-9f64-ed0154f6a0c4"
+  },
+  "epic.57dfd95548214a138218e56cd9e5b9d8": {
+   "name": "Back 4 Blood",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.599d248ca46b45a8b40a3b4e484712cb": {
+   "name": "The Crew™ 2",
+   "source": "anticheat",
+   "antiCheat": [
+    "BattlEye"
+   ],
+   "geforceNow": "b97d848a-3ac5-4d1c-ae4a-cdee27b2d3d6"
+  },
+  "epic.5a2108f4db804040aaf44d139bd21bd1": {
+   "name": "Hood: Outlaws & Legends",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.5bb3d43818ae4188850fe1dbad9d57a5": {
+   "name": "Knockout City",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.611482b8586142cda48a0786eb8a127c": {
+   "name": "Dead By Daylight",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "9cca0ab8-6f62-42ee-8ef3-46fcddc09140"
+  },
+  "epic.6fd5e6a8632c499fa2657cf650c96b14": {
+   "name": "Wild Card Football",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.80e804312c2149c69a75aee703e85a9a": {
+   "name": "Warface",
+   "source": "anticheat",
+   "antiCheat": [
+    "FairFight",
+    "Mail.ru Anti-Cheat"
+   ]
+  },
+  "epic.933ada2ec45e4184ae840d64c99e0ba9": {
+   "name": "Rogue Company",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.9361c8c6d2f34b42b5f2f61093eedf48": {
+   "name": "PUBG: Battlegrounds",
+   "source": "anticheat",
+   "antiCheat": [
+    "Zakynthos",
+    "BattlEye",
+    "UNCHEATER"
+   ]
+  },
+  "epic.94cec4802e954a6c9579e29e8b817f3a": {
+   "name": "Insurgency: Sandstorm",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "e43f44db-c985-4f23-99f3-114dcca8be15"
+  },
+  "epic.95e09a8c24c44684bca1a6f25aea920c": {
+   "name": "Evil Dead: The Game",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.9773aa1aa54f4f7b80e44bef04986cea": {
+   "name": "Rocket League®",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "9bcbf5b4-c460-4091-931c-a5a2a1fd9cc2"
+  },
+  "epic.97b084f37e344733ac82f493ac90753c": {
+   "name": "Predecessor",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "a20de844-7825-4a68-a2ef-a433fb8e4ceb"
+  },
+  "epic.a2dcbb9e34204bda9da8415f97b3f4ea": {
+   "name": "Honkai Star Rail",
+   "source": "anticheat",
+   "antiCheat": [
+    "miHoYo Protect"
+   ]
+  },
+  "epic.aeac94c7a11048758064b82f8f8d20ed": {
+   "name": "Mount & Blade II: Bannerlord",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "0f4350c2-04c9-4cde-8195-832205df269a"
+  },
+  "epic.argyle": {
+   "name": "Trials Rising",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.ark": {
+   "name": "ARK: Survival Evolved",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "7479a1d8-1303-4ece-9573-1bdc5815b9dd"
+  },
+  "epic.b156c3365a5b4cb9a01a5e1108b4e3f4": {
+   "name": "STAR WARS™ Battlefront™ II (2017)",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "FairFight"
+   ],
+   "geforceNow": "4f6b5d5e-0628-466c-8c59-13e5203e2a40"
+  },
+  "epic.b6ab3ae326064cd0884d7df16f69b9cb": {
+   "name": "Infinity Nikki",
+   "source": "anticheat",
+   "antiCheat": [
+    "Anti-Cheat Expert"
+   ]
+  },
+  "epic.bc2b0372eaa448469cb9a769f27acea1": {
+   "name": "STAR WARS™: Squadrons",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "eb19da32-8d6e-4f6d-a739-ed17cb68dfb2"
+  },
+  "epic.bf333e6236914222a95a536389c05813": {
+   "name": "Phantasy Star Online 2 (NA)",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "nProtect GameGuard"
+   ]
+  },
+  "epic.bf5708c386744107b8a8a24ac707dd0e": {
+   "name": "Battlefield V",
+   "source": "anticheat",
+   "antiCheat": [
+    "FairFight",
+    "EA anticheat"
+   ],
+   "geforceNow": "619b3461-3e7e-4b88-9087-c09e9e0b8c2e"
+  },
+  "epic.c3e63401d6ba410493de31ed69a798a1": {
+   "name": "Heroes & Generals",
+   "source": "anticheat",
+   "antiCheat": [
+    "BattlEye"
+   ]
+  },
+  "epic.c6e54ebd92da4ee8819c1c0956cebdc4": {
+   "name": "Outriders",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.carnation": {
+   "name": "Tom Clancy's Rainbow Six® Siege X",
+   "source": "anticheat",
+   "antiCheat": [
+    "FairFight",
+    "BattlEye",
+    "R6 ShieldGuard"
+   ],
+   "geforceNow": "1dd07d47-6601-42f7-80e9-e4d8db08ea1b"
+  },
+  "epic.cbd5b3d310a54b12bf3fe8c41994174f": {
+   "name": "Valorant",
+   "source": "anticheat",
+   "antiCheat": [
+    "Vanguard"
+   ]
+  },
+  "epic.conanexiles": {
+   "name": "Conan Exiles",
+   "source": "anticheat",
+   "antiCheat": [
+    "BattlEye"
+   ],
+   "geforceNow": "3ad93cb1-8352-4fce-a423-7b0a00fafc25"
+  },
+  "epic.coriander": {
+   "name": "Far Cry 5",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "039e96dd-94a1-4721-a32c-a4142a2ad312"
+  },
+  "epic.d2d162953fec40e381867d7af8371362": {
+   "name": "Honkai Impact 3rd",
+   "source": "anticheat",
+   "antiCheat": [
+    "Anti-Cheat Expert"
+   ]
+  },
+  "epic.f698d5d792654ac99f47d67e93916bef": {
+   "name": "Century: Age of Ashes",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "7780c752-eca2-4dd0-8ef6-f93e28e6e01e"
+  },
+  "epic.fefe1db11f534484987ef50ec1e25225": {
+   "name": "STAR WARS™ Battlefront™ (2015)",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "FairFight"
+   ]
+  },
+  "epic.fn": {
+   "name": "Fortnite",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.hyacinth": {
+   "name": "Tom Clancy's Ghost Recon Wildlands",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.impala": {
+   "name": "Tom Clancy's The Division 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "c035d87d-fff6-4869-abcd-429595c4ceba"
+  },
+  "epic.newt": {
+   "name": "Spellbreak",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.sundrop": {
+   "name": "For Honor",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "eed1e86e-71ef-4c8e-9c55-2b9ca7c803d9"
   }
  },
- "generated": "2026-10-26T16:32:00Z"
+ "generated": "2026-10-27T20:21:54Z"
 }

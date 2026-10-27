@@ -205,6 +205,30 @@ def anticheat_blocks(games):
     return blocks
 
 
+def epic_anticheat_blocks(games):
+    """"epic.<namespace>" → the same as `anticheat_blocks`, for the games AreWeAntiCheatYet knows
+    from the Epic Games Store (Nightforge's Epic games carry their catalog namespace). "steam" is
+    the game's Steam app ID when it has one, so it can share that profile's GeForce Now id."""
+    blocks = {}
+    for game in games:
+        store_ids = game.get("storeIds") or {}
+        namespace = str((store_ids.get("epic") or {}).get("namespace") or "")
+        names = [n for n in game.get("anticheats") or [] if n not in HARMLESS_ANTICHEATS]
+        if not (namespace.isalnum() and names):
+            continue
+        steam = str(store_ids.get("steam") or "")
+        if game.get("status") in BLOCKING_STATUSES:
+            block = {"name": game.get("name"), "antiCheat": names}
+        elif game.get("status") in ONLINE_BLOCKING_STATUSES:
+            block = {"name": game.get("name"), "antiCheatOnline": names}
+        else:
+            continue
+        if steam.isdigit():
+            block["steam"] = steam
+        blocks["epic." + namespace] = block
+    return blocks
+
+
 def geforce_now_ids(games):
     """Steam app ID → GeForce Now game id, for the games GeForce Now streams from Steam."""
     ids = {}
@@ -263,13 +287,24 @@ def main() -> int:
         if options.geforcenow:
             cloud = geforce_now_ids(json.loads(options.geforcenow.read_text(encoding="utf-8")))
             sources["geforce-now"] = {"url": "https://play.geforcenow.com"}
-        for app_id, block in anticheat_blocks(json.loads(options.anticheat.read_text(encoding="utf-8"))).items():
+        anticheat = json.loads(options.anticheat.read_text(encoding="utf-8"))
+        for app_id, block in anticheat_blocks(anticheat).items():
             profile = games.setdefault(app_id, {"name": block["name"], "source": "anticheat"})
             for field in ("antiCheat", "antiCheatOnline"):
                 if field in block:
                     profile[field] = block[field]
             if app_id in cloud:
                 profile["geforceNow"] = cloud[app_id]
+            blocked += 1
+        # Epic games by catalog namespace; older Nightforge versions skip keys that aren't numbers.
+        for key, block in epic_anticheat_blocks(anticheat).items():
+            profile = {"name": block["name"], "source": "anticheat"}
+            for field in ("antiCheat", "antiCheatOnline"):
+                if field in block:
+                    profile[field] = block[field]
+            if block.get("steam") in cloud:
+                profile["geforceNow"] = cloud[block["steam"]]
+            games[key] = profile
             blocked += 1
         sources["areweanticheatyet"] = {"url": "https://areweanticheatyet.com", "license": "MIT"}
 
@@ -285,7 +320,8 @@ def main() -> int:
         "sources": sources | {
             "mac": {"url": "https://github.com/LordHayne/Nightforge/blob/main/profiles/mac.json"},
         },
-        "games": dict(sorted(games.items(), key=lambda item: int(item[0]))),
+        # Steam app IDs by number, then the other stores' keys ("epic.<namespace>").
+        "games": dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0]))),
     }
     previous = None
     if options.out.exists():

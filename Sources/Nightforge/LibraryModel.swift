@@ -134,7 +134,8 @@ final class LibraryModel: ObservableObject {
 
     /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
     let steam = SteamStore()
-    var stores: [StoreProvider] { [steam] }
+    let epic = EpicStore()
+    var stores: [StoreProvider] { [steam, epic] }
 
     func store(for game: Game) -> StoreProvider {
         stores.first { $0.provider == game.provider } ?? steam
@@ -147,6 +148,10 @@ final class LibraryModel: ObservableObject {
         setup.onFinished = { [weak self] in
             self?.revealAfterScan = true  // the first start ends with how the library runs here
             self?.reload()
+        }
+        epic.changed = { [weak self] in self?.reload(quiet: true) }
+        epic.downloadFailed = { [weak self] name, reason in
+            self?.errorMessage = L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
         }
     }
 
@@ -181,7 +186,88 @@ final class LibraryModel: ObservableObject {
         }
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.reload(quiet: true) }
+            MainActor.assumeIsolated {
+                self?.reload(quiet: true)
+                self?.refreshStores()
+            }
+        }
+        refreshStores()
+    }
+
+    // MARK: - Stores
+
+    /// When each store was last asked (not only successfully): a store that can't be reached isn't
+    /// asked again at every switch back to Nightforge.
+    private var storeAsked: [Provider: Date] = [:]
+
+    /// Asks the stores whose library was loaded a while ago again, in the background; what's on
+    /// the Mac shows meanwhile. `force`: "Try again".
+    func refreshStores(force: Bool = false) {
+        for store in stores where store.isConnected && store.sync.state != .syncing {
+            let asked = storeAsked[store.provider] ?? .distantPast
+            guard force || Date().timeIntervalSince(asked) > 15 * 60 else { continue }
+            storeAsked[store.provider] = Date()
+            Task { await store.refresh() }
+        }
+    }
+
+    /// Epic's sign-in page in its own window; its code goes to legendary.
+    func connectEpic() {
+        guard !epic.connecting else {
+            EpicSignIn.bringToFront()
+            return
+        }
+        epic.connecting = true
+        Task { await Legendary.prepare() }
+        EpicSignIn.present { [weak self] code in
+            guard let self else { return }
+            guard let code else {
+                self.epic.connecting = false
+                return
+            }
+            Task {
+                defer { self.epic.connecting = false }
+                do {
+                    try await self.epic.connect(code: code)
+                    self.storeAsked[.epic] = Date()
+                    self.reload(quiet: true)
+                    Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
+                } catch {
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    /// Epic ended the sign-in: the game needs a fresh one to download or start (its sign-in code
+    /// comes from Epic), so Epic's sign-in window opens, with a word on why.
+    private func needsEpicSignIn(_ game: Game) -> Bool {
+        guard game.provider == .epic, !epic.isSignedIn else { return false }
+        Toasts.shared.show(L10n.t("Epic Games signed you out – sign in again to play %@", game.name))
+        connectEpic()
+        return true
+    }
+
+    /// Signs out of Epic Games; the games on this Mac stay there and return with the next sign-in.
+    func disconnectEpic() {
+        Task {
+            await epic.disconnect()
+            reload(quiet: true)
+        }
+    }
+
+    /// Epic games' cloud saves after a session: how the upload is going (Welcome back sheet).
+    @Published private(set) var epicSaves: [GameID: CloudSaves.State] = [:]
+
+    /// After an Epic game: its save goes up to Epic, and its play time is kept.
+    private func afterEpicSession(_ game: Game, minutes: Int) {
+        epic.recordSession(game, minutes: minutes)
+        let hasCloud = epic.catalog.games.contains { $0.appName == game.gameID.id && $0.cloudSaves }
+        epicSaves[game.gameID] = hasCloud ? .syncing : .noCloud
+        guard hasCloud else { return }
+        Task {
+            let done = await epic.syncSaves(game, upload: true)
+            epicSaves[game.gameID] = done ? .synced : .failed
         }
     }
 
@@ -252,6 +338,7 @@ final class LibraryModel: ObservableObject {
             let minutes = Int(Date().timeIntervalSince(start.date) / 60)
             // Shorter is a start that didn't take (LaunchHealth deals with those).
             // The processes were gone a few looks ago (~4–7 s), with a little margin.
+            if game.provider == .epic { afterEpicSession(game, minutes: minutes) }
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: Date().addingTimeInterval(-10)) : nil
         }
@@ -276,7 +363,7 @@ final class LibraryModel: ObservableObject {
         Dictionary(games.filter(\.isInstalled).map { game in
             game.platform == .mac
                 ? (game.installDir.path.lowercased() + "/", game.id)
-                : ("\\steamapps\\common\\\(game.installDirName.lowercased())\\", game.id)
+                : (game.windowsFolderMarker.lowercased(), game.id)
         }, uniquingKeysWith: { first, _ in first })
     }
 
@@ -705,6 +792,7 @@ final class LibraryModel: ObservableObject {
     }
 
     private func download(_ game: Game) {
+        if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             downloadMac(game)
             return
@@ -1291,6 +1379,11 @@ final class LibraryModel: ObservableObject {
     /// The games in the library, without the hidden ones.
     var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.gameID) }.count }
 
+    /// … of one store.
+    func visibleCount(of provider: Provider) -> Int {
+        allGames.lazy.filter { $0.provider == provider && !self.hiddenGames.contains($0.gameID) }.count
+    }
+
     func isHidden(_ game: Game) -> Bool { hiddenGames.contains(game.gameID) }
     func isPinned(_ game: Game) -> Bool { pinnedGames.contains(game.gameID) }
 
@@ -1406,11 +1499,13 @@ final class LibraryModel: ObservableObject {
 
     private func launch(_ game: Game) {
         guard game.isInstalled, launchingID == nil else { return }
+        if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             launchMac(game)
             return
         }
-        if game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
+        let viaSteam = game.provider == .steam
+        if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         launchingID = game.id
         GameDisplay.enterGame()
         launchNeedsConfirmation = false
@@ -1423,21 +1518,21 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
                 launchBuildsShaders = false
             }
-            if game.bottle.isBuiltIn, let startup = steamStartup {
+            if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value
                 launchPhase = nil
             }
             // Steam for Mac signed in since and signed this Steam out: sign it in again, or the
             // game starts without its cloud saves.
-            if game.bottle.isBuiltIn, Engine.sessionReplaced(), let wine = await Engine.installedWine() {
+            if viaSteam, game.bottle.isBuiltIn, Engine.sessionReplaced(), let wine = await Engine.installedWine() {
                 launchPhase = .signingIn
                 _ = await restartStuckSteam(wine)
                 launchPhase = nil
             }
             // A Steam that is still signing in starts the game offline ("Steam is currently in
             // Offline Mode"): wait for it, and start it afresh if it doesn't get there.
-            if game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn, let wine = await Engine.installedWine() {
+            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn, let wine = await Engine.installedWine() {
                 launchPhase = .signingIn
                 var waited = 0
                 while !Engine.steamSignedIn, waited < 45 {
@@ -1447,10 +1542,16 @@ final class LibraryModel: ObservableObject {
                 if !Engine.steamSignedIn { _ = await restartStuckSteam(wine) }
                 launchPhase = nil
             }
-            if game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            // Epic: the newest save comes down from Epic before the game reads it.
+            if game.provider == .epic, epic.catalog.games.contains(where: { $0.appName == game.gameID.id && $0.cloudSaves }) {
+                launchPhase = .syncingSaves
+                await epic.syncSaves(game, upload: false)
+                launchPhase = nil
+            }
             let runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
-            let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
+            let profile = viaSteam && game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
             let insight = await insight(of: game)
             let analysis = insight?.analysis
             var options = GameOptionsStore.load(game.gameID)
@@ -1501,7 +1602,7 @@ final class LibraryModel: ObservableObject {
                 }
                 // Settings a game only takes from the environment come with the Steam that starts it.
                 let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
-                if game.bottle.isBuiltIn,
+                if viaSteam, game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile)),
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
@@ -1512,13 +1613,15 @@ final class LibraryModel: ObservableObject {
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
-                guard await start(game, runner: runner, options: options, profile: profile,
-                                  arguments: arguments, frameLimit: frameLimit)
-                else { return }
+                let started = viaSteam
+                    ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
+                    : await startDirect(game, runner: runner, options: options, profile: profile, arguments: arguments,
+                                        frameLimit: frameLimit, layer: layer)
+                guard started else { return }
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false
                 launchingID = nil
-                if game.bottle.isBuiltIn { SteamPriority.watch(game) }
+                if viaSteam, game.bottle.isBuiltIn { SteamPriority.watch(game) }
                 startedHere.insert(game.id)
                 await bringToFront(game)
                 guard watchFirstSeconds else { break }
@@ -1709,6 +1812,52 @@ final class LibraryModel: ObservableObject {
         return false
     }
 
+    /// A game from another store starts straight with Nightforge's engine, no Steam in between: the
+    /// store hands over how (Epic: legendary's parameters with a fresh sign-in), and Nightforge
+    /// waits until its process is there. Whether it keeps running, `survivesFirstSeconds` sees.
+    private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
+                             arguments: [String], frameLimit: Int, layer: GraphicsLayer) async -> Bool {
+        guard let runner else {
+            errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
+            return false
+        }
+        awaitingSteam = true
+        defer { awaitingSteam = false }
+        launchPhase = .signingInEpic
+        let command: Legendary.LaunchCommand
+        do {
+            command = try await epic.launchCommand(for: game)
+        } catch {
+            launchPhase = nil
+            if !Task.isCancelled { errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription) }
+            return false
+        }
+        launchPhase = nil
+        guard !Task.isCancelled else { return false }
+        let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
+                                                         frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile))
+        let process: Process
+        do {
+            process = try await Task.detached(priority: .userInitiated) {
+                try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
+                                          frameLimit: frameLimit, extraArguments: arguments, environment: environment)
+            }.value
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+        epic.recordStart(game)
+        // Its process shows up within seconds; one that ends before that is the next way's business.
+        let folders = Self.processFolders([game])
+        for _ in 0..<30 {
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return false }
+            if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil { break }
+            if !process.isRunning { break }
+        }
+        return true
+    }
+
     /// Whether the game is still running `LaunchHealth.failureWindow` seconds after it started.
     /// A launcher handing over to the game leaves a gap of a few seconds, so only a longer absence
     /// counts as the game having ended. A game whose Direct3D layer failed (GameLog) is ended here:
@@ -1747,7 +1896,8 @@ final class LibraryModel: ObservableObject {
             // Scrolling through the covers asks again before the first look is done: one look per game.
             let running = analyzing[game.gameID] ?? Task.detached(priority: .utility) {
                 GameAnalysis.analyze(installDir: game.installDir,
-                                     launchExecutable: SteamCatalog.launchExecutable(appID: game.appID, steamRoot: game.steamRoot))
+                                     launchExecutable: game.provider == .epic ? EpicStore.executable(of: game.gameID.id)
+                                         : SteamCatalog.launchExecutable(appID: game.appID, steamRoot: game.steamRoot))
             }
             analyzing[game.gameID] = running
             analysis = await running.value
@@ -1928,7 +2078,8 @@ final class LibraryModel: ObservableObject {
     func revealSelected() {
         guard let game = selected else { return }
         let fm = FileManager.default
-        let target = fm.fileExists(atPath: game.installDir.path) ? game.installDir : game.steamRoot
+        let target = fm.fileExists(atPath: game.installDir.path) ? game.installDir
+            : game.provider == .steam ? game.steamRoot : game.installDir.deletingLastPathComponent()
         NSWorkspace.shared.activateFileViewerSelecting([target])
     }
 

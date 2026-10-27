@@ -145,9 +145,11 @@ struct LibraryView: View {
                     .keyboardShortcut(.defaultAction)
             },
             message: { game in
-                Text(game.isInstalled
-                     ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk))
-                     : L10n.t("The part downloaded so far is deleted. You can start the download again any time."))
+                Text(!game.isInstalled
+                     ? L10n.t("The part downloaded so far is deleted. You can start the download again any time.")
+                     : game.provider == .epic
+                     ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", Format.bytes(game.sizeOnDisk))
+                     : L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk)))
             }
         )
         .alert(
@@ -853,6 +855,15 @@ private struct GameDetail: View {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 CompatibilityLine(compatibility: model.compatibility(of: game), detailed: !compact)
+                if game.provider != .steam {
+                    Text(game.provider.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.ink.opacity(0.8))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.1), in: Capsule())
+                        .accessibilityLabel(L10n.t("From %@", game.provider.label))
+                }
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -1422,6 +1433,17 @@ struct CoverCard: View {
         .saturation(game.install == .notInstalled || game.install == .inStore ? 0.15 : 1)
         .overlay(alignment: .bottom) { installBadge }
         .overlay(alignment: .topTrailing) {
+            // Another store than Steam: which one (Steam is where most games come from).
+            if game.provider != .steam {
+                Text(game.provider.short)
+                    .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Theme.night.opacity(0.78), in: Capsule())
+                    .padding(7)
+                    .help(L10n.t("From %@", game.provider.label))
+            }
             // The version in use; in the store, that Steam has one.
             if game.platform == .mac || (game.install == .inStore && game.macNative) {
                 Text("MAC")
@@ -1499,6 +1521,7 @@ struct CoverCard: View {
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }
+        if game.provider != .steam { parts.append(L10n.t("From %@", game.provider.label)) }
         if isPinned { parts.append(L10n.t("Pinned to Home")) }
         if game.controller != .none { parts.append(game.controller.help) }
         if isRunning { parts.append(L10n.t("Running")) }

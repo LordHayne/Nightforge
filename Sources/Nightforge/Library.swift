@@ -75,6 +75,8 @@ struct Game: Identifiable, Hashable {
     var macPending: InstallState?
     /// Keeps a game's place in the list when it changes version.
     var listID: String?
+    /// Where another store keeps the game's art (Steam's comes from its own cache and CDN).
+    var art: StoreArt?
     /// Store hits only: price as shown in the store, and the Metacritic score.
     var storePrice: String?
     var metascore: Int?
@@ -107,6 +109,12 @@ struct Game: Identifiable, Hashable {
         listID ?? (provider == .steam ? "\(bottle.name)#\(appID)" : "\(bottle.name)#\(gameID.key)")
     }
     var isInstalled: Bool { install == .installed }
+
+    /// What a running Windows version shows in `ps` (Wine gives its Windows path): Steam's games run
+    /// from steamapps\common, Epic's from Program Files\Epic Games.
+    var windowsFolderMarker: String {
+        provider == .steam ? "\\steamapps\\common\\\(installDirName)\\" : "\\Epic Games\\\(installDirName)\\"
+    }
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
         antiCheatBlock?.geforceNowURL != nil && (install == .notInstalled || install == .installed)

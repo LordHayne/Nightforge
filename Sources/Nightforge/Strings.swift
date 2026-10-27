@@ -650,6 +650,53 @@ enum L10n {
         "Nightforge found what it needs by itself and applies it at every start.":
             "Nightforge hat selbst herausgefunden, was es braucht, und wendet es bei jedem Start an.",
 
+        // Epic Games
+        "Sign in to Epic Games": "Bei Epic Games anmelden",
+        "Couldn't reach Epic Games": "Epic Games nicht erreichbar",
+        "legendary stopped (code %d)": "legendary hat aufgehört (Code %d)",
+        "Epic Games didn't give the launch details for %@.": "Epic Games hat die Startdaten für %@ nicht geliefert.",
+        "Signing in to Epic Games …": "Bei Epic Games anmelden …",
+        "Getting your save …": "Spielstand wird geholt …",
+        "The game gets a fresh sign-in from Epic, so it starts online with your account.":
+            "Das Spiel bekommt eine frische Anmeldung von Epic und startet so online mit deinem Konto.",
+        "Your newest save comes from Epic's cloud first, so you go on where you stopped.":
+            "Dein neuester Spielstand kommt zuerst aus Epics Cloud – so spielst du dort weiter, wo du aufgehört hast.",
+        "Epic Games support isn't in the component list yet. Check your internet connection and try again.":
+            "Epic Games fehlt noch in der Komponentenliste. Prüfe deine Internetverbindung und versuch es noch einmal.",
+        "Epic Games didn't accept the sign-in (%@). Please try again.": "Epic Games hat die Anmeldung nicht angenommen (%@). Bitte versuch es noch einmal.",
+        "Epic Games didn't accept the sign-in. Please try again.": "Epic Games hat die Anmeldung nicht angenommen. Bitte versuch es noch einmal.",
+        "The download of %@ stopped: %@. Download it again to carry on where it stopped.":
+            "Der Download von %@ hat aufgehört: %@. Lade es noch einmal – es geht dort weiter, wo es aufgehört hat.",
+        "Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.":
+            "Nightforges Engine ist noch nicht installiert. Öffne Einstellungen › Stores oder starte Nightforge neu, damit es sie einrichtet.",
+        "%@ couldn't start: %@": "%@ konnte nicht starten: %@",
+        "Epic Games is connected – your games are in the library": "Epic Games ist verbunden – deine Spiele sind in der Bibliothek",
+        "From %@": "Von %@",
+        "Your save is with Epic Games.": "Dein Spielstand ist bei Epic Games.",
+        "Your save goes up to Epic Games in the background.": "Dein Spielstand geht im Hintergrund zu Epic Games.",
+        "Uploading your save to Epic Games …": "Dein Spielstand wird zu Epic Games hochgeladen …",
+        "No Epic cloud saves for this game – its saves are on this Mac.": "Keine Epic-Cloud für dieses Spiel – seine Spielstände sind auf diesem Mac.",
+        "Epic Games couldn't take your save just now. It's safe on this Mac and goes up after your next session.":
+            "Epic Games konnte deinen Spielstand gerade nicht annehmen. Er ist sicher auf diesem Mac und geht nach deiner nächsten Runde hoch.",
+        "Games from every connected store show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed. You sign in in Epic's own window; Nightforge never sees your login.":
+            "Spiele aus allen verbundenen Stores stehen zusammen in der Bibliothek. Epic-Spiele lädt und startet Nightforge selbst – ohne den Epic-Launcher. Du meldest dich in Epics eigenem Fenster an; Nightforge sieht deine Anmeldedaten nie.",
+        "Try Again": "Erneut versuchen",
+        "Disconnect": "Trennen",
+        "Connect": "Verbinden",
+        "Waiting for sign-in …": "Warte auf Anmeldung …",
+        "Epic Games' sign-in page is open in a window. Once you're signed in, your games appear here by themselves.":
+            "Die Anmeldeseite von Epic Games ist in einem Fenster offen. Sobald du angemeldet bist, erscheinen deine Spiele hier von selbst.",
+        "Not connected": "Nicht verbunden",
+        "Sign in in Epic's window": "Melde dich in Epics Fenster an",
+        "%@ · last update %@": "%@ · zuletzt aktualisiert %@",
+        "%@ · up to date %@": "%@ · aktuell, %@",
+        "Signed in as %@": "Angemeldet als %@",
+        "Epic Games signed you out – sign in again to play %@": "Epic Games hat dich abgemeldet – melde dich wieder an, um %@ zu spielen",
+        "Sign In Again": "Erneut anmelden",
+        "This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
+            "Das entfernt das Spiel von deinem Mac und gibt %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
+        "Epic Games signed you out – your games stay here": "Epic Games hat dich abgemeldet – deine Spiele bleiben hier",
+
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",
         "No component list available. Check your internet connection.": "Keine Komponentenliste verfügbar. Prüfe deine Internetverbindung.",

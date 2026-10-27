@@ -1,6 +1,21 @@
 import AppKit
 import ImageIO
 
+/// A store's own addresses for a game's art, as its library lists them.
+struct StoreArt: Hashable {
+    var cover: URL?
+    var hero: URL?
+    var logo: URL?
+
+    func url(_ kind: ArtKind) -> URL? {
+        switch kind {
+        case .cover: return cover
+        case .hero: return hero
+        case .logo: return logo
+        }
+    }
+}
+
 enum ArtKind: String {
     case cover, hero, logo
 
@@ -102,8 +117,10 @@ actor ArtworkStore {
             try? fm.removeItem(at: missingMarker)
         }
 
-        var everythingWas404 = true
-        for url in remoteURLs(game: game.gameID, kind: kind) {
+        let urls = remoteURLs(game: game, kind: kind)
+        // No address at all (a store that lists none for it): nothing to remember as missing.
+        var everythingWas404 = !urls.isEmpty
+        for url in urls {
             var request = URLRequest(url: url)
             request.timeoutInterval = 10
             do {
@@ -145,8 +162,8 @@ actor ArtworkStore {
         return nil
     }
 
-    private static func remoteURLs(game: GameID, kind: ArtKind) -> [URL] {
-        guard let appID = game.steamAppID else { return [] }
+    private static func remoteURLs(game: Game, kind: ArtKind) -> [URL] {
+        guard let appID = game.gameID.steamAppID else { return game.art?.url(kind).map { [$0] } ?? [] }
         let bases = [
             "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/\(appID)/",
             "https://cdn.akamai.steamstatic.com/steam/apps/\(appID)/",

@@ -13,6 +13,14 @@ enum Provider: String, CaseIterable, Identifiable {
         case .epic: return "Epic Games"
         }
     }
+
+    /// For the cover's badge.
+    var short: String {
+        switch self {
+        case .steam: return "STEAM"
+        case .epic: return "EPIC"
+        }
+    }
 }
 
 /// Which store a game comes from and its ID there – Steam's app ID, Epic's app name. Everything
