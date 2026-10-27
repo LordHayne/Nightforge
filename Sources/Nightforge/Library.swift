@@ -435,7 +435,7 @@ enum LibraryScanner {
 
     // MARK: - Extra library folders (e.g. D:\SteamLibrary)
 
-    private static func libraryFolders(steamRoot: URL, bottle: Bottle) -> [URL] {
+    static func libraryFolders(steamRoot: URL, bottle: Bottle) -> [URL] {
         var urls = [steamRoot.appendingPathComponent("steamapps", isDirectory: true)]
 
         let vdfURL = steamRoot.appendingPathComponent("steamapps/libraryfolders.vdf")

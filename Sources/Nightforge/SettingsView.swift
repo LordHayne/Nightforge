@@ -311,6 +311,21 @@ private struct StorageSettings: View {
     /// Nightforge's own folder without the games in it (engine, Windows environment, Steam, caches);
     /// nil while it's being measured.
     @State private var ownSize: Int64?
+    /// The shader caches' size; nil while measured or cleared.
+    @State private var shaderSize: Int64?
+    @State private var clearingShaders = false
+    /// "Remove Nightforge completely": what it would take, once measured; then the question.
+    @State private var removal: RemovalPlan?
+    @State private var measuringRemoval = false
+    @State private var removing = false
+    @State private var removalError: String?
+
+    private struct RemovalPlan {
+        let windowsGames: Int
+        let windowsGamesSize: Int64
+        let ownSize: Int64
+        let savesSize: Int64
+    }
 
     private struct Disk {
         let name: String
@@ -393,13 +408,135 @@ private struct StorageSettings: View {
             } header: {
                 Text(L10n.t("Games on this Mac"))
             }
+
+            Section {
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        if let shaderSize {
+                            Text(Format.bytes(shaderSize)).monospacedDigit().foregroundStyle(.secondary)
+                        } else {
+                            ProgressView().controlSize(.small)
+                        }
+                        Button(L10n.t("Clear"), action: clearShaders)
+                            .disabled(!canClearShaders)
+                            .padFocus("storage.clearShaders", enabled: canClearShaders, activate: clearShaders)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.t("Shader caches"))
+                        Text(gameBusy ? L10n.t("Quit the game first – it's using them.")
+                                      : L10n.t("Rebuilt by itself – the next start of each game takes a moment longer."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } header: {
+                Text(L10n.t("Caches"))
+            }
+
+            Section {
+                HStack {
+                    Button(L10n.t("Remove Nightforge Completely …"), action: planRemoval)
+                        .disabled(gameBusy || measuringRemoval || removing)
+                        .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
+                    if measuringRemoval || removing {
+                        ProgressView().controlSize(.small)
+                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text(L10n.t("Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .alert(L10n.t("Remove Nightforge completely?"), isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
+               presenting: removal) { _ in
+            Button(L10n.t("Remove Everything"), role: .destructive, action: removeEverything)
+            Button(L10n.t("Cancel"), role: .cancel) {}
+        } message: { plan in
+            Text(removalMessage(plan))
+        }
+        .alert(L10n.t("Nothing was removed"), isPresented: Binding(get: { removalError != nil }, set: { if !$0 { removalError = nil } })) {
+            Button(L10n.t("OK")) {}
+        } message: {
+            Text(removalError ?? "")
+        }
+        .task { await measureShaders() }
         .task(id: model.allGames.count) {
             let builtIn = model.allGames.filter { $0.bottle.isBuiltIn && $0.install != .notInstalled && $0.install != .inStore }
                 .reduce(Int64(0)) { $0 + $1.sizeOnDisk }
             let folder = Engine.supportDir
             let total = await Task.detached(priority: .utility) { LibraryScanner.folderSize(folder) }.value
             ownSize = max(0, total - builtIn)
+        }
+    }
+
+    /// A game running or starting has its shaders open.
+    private var gameBusy: Bool { !model.running.isEmpty || model.launchingID != nil }
+
+    private var canClearShaders: Bool { !gameBusy && !clearingShaders && (shaderSize ?? 0) > 0 }
+
+    nonisolated private static var shaderFolders: [URL] {
+        ShaderCaches.folders(steamapps: LibraryScanner.libraryFolders(steamRoot: Engine.steamRoot, bottle: Engine.bottle))
+    }
+
+    private func measureShaders() async {
+        shaderSize = await Task.detached(priority: .utility) { ShaderCaches.size(Self.shaderFolders) }.value
+    }
+
+    private func clearShaders() {
+        guard canClearShaders else { return }
+        clearingShaders = true
+        shaderSize = nil
+        Task {
+            _ = await Task.detached(priority: .userInitiated) { ShaderCaches.clear(Self.shaderFolders) }.value
+            clearingShaders = false
+            await measureShaders()
+        }
+    }
+
+    private func planRemoval() {
+        guard !gameBusy else { return }
+        measuringRemoval = true
+        let windows = model.allGames.filter { $0.bottle.isBuiltIn && $0.install != .notInstalled && $0.install != .inStore }
+        let gamesSize = windows.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
+        Task {
+            let (own, saves) = await Task.detached(priority: .userInitiated) {
+                let total = CompleteRemoval.targets().reduce(Int64(0)) { $0 + LibraryScanner.folderSize($1) }
+                let saves = CompleteRemoval.saveSources().reduce(Int64(0)) { $0 + LibraryScanner.folderSize($1.source) }
+                return (total, saves)
+            }.value
+            measuringRemoval = false
+            removal = RemovalPlan(windowsGames: windows.count, windowsGamesSize: gamesSize, ownSize: max(0, own - gamesSize), savesSize: saves)
+        }
+    }
+
+    private func removalMessage(_ plan: RemovalPlan) -> String {
+        var parts: [String] = []
+        if plan.windowsGames > 0 {
+            parts.append(plan.windowsGames == 1
+                ? L10n.t("1 Windows game (%@) is deleted – it stays in your Steam library and can be downloaded again.", Format.bytes(plan.windowsGamesSize))
+                : L10n.t("%ld Windows games (%@) are deleted – they stay in your Steam library and can be downloaded again.", plan.windowsGames, Format.bytes(plan.windowsGamesSize)))
+        }
+        parts.append(L10n.t("The game engine, the Windows environment, caches and settings: %@.", Format.bytes(plan.ownSize)))
+        if plan.savesSize > 0 {
+            parts.append(L10n.t("Saves that are only on this Mac (%@) are copied to Documents › Nightforge Saves first.", Format.bytes(plan.savesSize)))
+        }
+        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in the Steam Cloud stay. Then Nightforge moves itself to the Bin and quits."))
+        return parts.joined(separator: "\n\n")
+    }
+
+    private func removeEverything() {
+        removing = true
+        Task {
+            do {
+                try await CompleteRemoval.run()
+            } catch {
+                removing = false
+                removalError = L10n.t("The saves couldn't be copied to Documents (%@), so everything is still there.", error.localizedDescription)
+            }
         }
     }
 

@@ -250,7 +250,13 @@
     - **Shader-Caches:** „Clear“ mit Größe.
     - **Komplett entfernen:** „Remove Nightforge completely …“ löscht Engine, Windows-Umgebung und Caches; nur lokal gespeicherte Spielstände werden vorher nach `Documents/Nightforge Saves` kopiert.
   - **Design:** `Dialogs.tsx` → Tab „Storage“.
-  - **Stand:** Tab „Storage“: Balken für das Laufwerk mit Nightforges Daten (Spiele / Nightforge ohne Spiele, im Hintergrund gemessen / Anderes / frei) und die Spiele auf dem Mac nach Größe mit „Im Finder zeigen“ und „Uninstall …“ (fragt im Hauptfenster). Offen: „Move to …“ (braucht 4.2), Shader-Caches leeren (Ordner recherchieren), „Remove Nightforge completely …“.
+  - **Stand:** Tab „Storage“: Balken für das Laufwerk mit Nightforges Daten (Spiele / Nightforge ohne Spiele, im Hintergrund gemessen / Anderes / frei) und die Spiele auf dem Mac nach Größe mit „Im Finder zeigen“ und „Uninstall …“ (fragt im Hauptfenster). Seit `claude/ux-roadmap-next` gibt es im Abschnitt „Caches“ die Zeile „Shader caches · 150 MB · Clear“ (`ShaderCaches.swift`) mit den Ordnern aus der Recherche. Geleert wird nur der Inhalt, und nicht, während ein Spiel läuft oder startet. Danach zeigt der erste Start jedes Spiels wieder die Shader-Zeile aus 1.1. Test `tests/ShaderCachesTest/`. „Remove Nightforge Completely …“ gibt es seit `claude/ux-roadmap-next` (`CompleteRemoval.swift`):
+    1. Eine Abfrage zeigt die Größen: Windows-Spiele, Engine mit Umgebung und Caches, Spielstände.
+    2. Steam und Wine werden gestoppt.
+    3. Die lokalen Spielstände werden nach `Dokumente/Nightforge Saves/<Datum>` kopiert. Klappt das nicht, wird nichts gelöscht.
+    4. Gelöscht werden Nightforges Ordner, die Caches, die Kurzbefehle und die Einstellungen.
+    5. Nightforge legt sich selbst in den Papierkorb und beendet sich.
+    Test `tests/CompleteRemovalTest/` auf Test-Ordnern; in echt nie ausgeführt. Offen: „Move to …“ (braucht 4.2).
   - **Recherche** (27.10.):
     - **Shader-Caches** liegen an drei Stellen:
       1. `steamapps/shadercache/<App-ID>` jeder Windows-Bibliothek (DXVK-Zustand, Steams Vulkan-Caches).
