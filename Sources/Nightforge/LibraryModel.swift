@@ -195,12 +195,13 @@ final class LibraryModel: ObservableObject {
                     if let wine = await Engine.installedWine() { try? await Engine.restartSteamInBackground(wine) }
                 }
                 // Every few seconds while it matters (Nightforge in front, a game running or starting),
-                // otherwise less often: nothing waits on it then, and the Mac stays quieter.
+                // otherwise less often: nothing waits on it then, and the Mac stays quieter. A game
+                // that just ended is looked after quickest: the player waits to be back in Nightforge.
                 if controllerConnected && NSApp.isActive { input.refreshBattery() }
                 let source = PowerSource.current()
                 if source != power { power = source }
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
-                try? await Task.sleep(for: .seconds(busy ? 3 : 10))
+                try? await Task.sleep(for: .seconds(goneFor > 0 ? 2 : busy ? 3 : 10))
             }
         }
     }
@@ -217,7 +218,7 @@ final class LibraryModel: ObservableObject {
     private var goneFor = 0
     private var idleLooks = 0
 
-    /// Once the games Nightforge started have all ended (gone for three looks, ~6–9 s, so a
+    /// Once the games Nightforge started have all ended (gone for three looks, ~4–7 s, so a
     /// launcher handing over to the game doesn't count), Nightforge comes back to the front: the
     /// controller keeps working, and neither the desktop nor Steam is what the player sees.
     private func watchForGameEnd(_ found: [String: pid_t]) {
@@ -240,9 +241,9 @@ final class LibraryModel: ObservableObject {
             guard let start = sessionStarts.removeValue(forKey: id), let game = allGames.first(where: { $0.id == id }) else { return nil }
             let minutes = Int(Date().timeIntervalSince(start.date) / 60)
             // Shorter is a start that didn't take (LaunchHealth deals with those).
-            // The processes were gone a few looks ago (~6–9 s, up to 30 s in the background).
+            // The processes were gone a few looks ago (~4–7 s), with a little margin.
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
-                                                 endedAt: Date().addingTimeInterval(-30)) : nil
+                                                 endedAt: Date().addingTimeInterval(-10)) : nil
         }
         comeBack()
         sessionSummary = sessions.max { $0.minutes < $1.minutes }
