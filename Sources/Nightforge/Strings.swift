@@ -301,6 +301,9 @@ enum L10n {
         "In your library": "In deiner Bibliothek",
         "Open": "Öffnen",
         "Back": "Zurück",
+        // Library header, as in the design: search with an example, the scan, how fresh the library is
+        "Search – try “rdr2” or “bg3”": "Suchen – z. B. „rdr2“ oder „bg3“",
+        "Scanning …": "Wird eingelesen …",
 
         // Uninstall
         "Uninstall": "Deinstallieren",

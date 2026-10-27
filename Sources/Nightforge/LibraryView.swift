@@ -651,6 +651,16 @@ private struct TopBar: View {
 
             Spacer()
 
+            if model.isScanning {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(L10n.t("Scanning …"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize()
+                }
+                .accessibilityElement(children: .combine)
+            }
             if let update = model.availableUpdate {
                 Button {
                     model.installUpdate()
@@ -676,9 +686,6 @@ private struct TopBar: View {
                 .help(L10n.t("Installs the new version and restarts Nightforge. Your games and settings stay."))
             }
 
-            if !model.allGames.isEmpty {
-                SearchField()
-            }
 
             if model.power.onBattery, let level = model.power.level {
                 Label("\(Int((level * 100).rounded())) %", systemImage: PowerSource.symbol(level))
@@ -689,9 +696,6 @@ private struct TopBar: View {
                     .background(GlassBackground(glass: .regular, shape: Capsule()))
                     .help(Prefs.saveBattery ? L10n.t("On battery – games are capped at 30 FPS to last longer")
                           : L10n.t("On battery – “Save battery when unplugged” in Settings caps games at 30 FPS"))
-            }
-            if model.isScanning {
-                ProgressView().controlSize(.small)
             }
             // Downloads, rescan and settings share one piece of glass.
             HStack(spacing: 2) {
@@ -773,50 +777,6 @@ private struct SectionSwitch: View {
         .help(level == .home ? L10n.t("Home – what you play (L)") : L10n.t("Whole library (L)"))
         .accessibilityAddTraits(on ? .isSelected : [])
         .padFocus("top.\(level == .home ? "home" : "library")", cornerRadius: 15, activate: action)
-    }
-}
-
-/// Search as you type; ⌘F or / jumps here, Return goes back to the results, Esc clears.
-private struct SearchField: View {
-    @EnvironmentObject private var model: LibraryModel
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.muted)
-            TextField("", text: $model.searchText, prompt: Text(L10n.t("Search")).foregroundStyle(Theme.muted))
-                .textFieldStyle(.plain)
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.ink)
-                .focused($focused)
-                .onSubmit { focused = false }
-                .onExitCommand {
-                    model.searchText = ""
-                    focused = false
-                }
-            if !model.searchText.isEmpty {
-                Button {
-                    model.searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.muted)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.t("Clear search"))
-                .accessibilityLabel(L10n.t("Clear search"))
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(minWidth: 100, idealWidth: 230, maxWidth: 230)
-        .frame(height: 38)
-        .background(GlassBackground(glass: .regular, shape: Capsule()))
-        .overlay(Capsule().strokeBorder(Theme.sodium.opacity(focused ? 0.8 : 0), lineWidth: 1.5))
-        .padFocus("top.search", cornerRadius: 19, activate: { focused = true })
-        .onChange(of: model.searchFocusRequest) { _, _ in focused = true }
-        .help(L10n.t("Search (⌘F)"))
     }
 }
 
@@ -1596,6 +1556,9 @@ private struct HintBar: View {
                     Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Open"))
                     Hint(controller ? .pad(pad.stick) : .key("← ↑ →"),
                          text: L10n.t("Select"))
+                    if !controller {
+                        Hint(.key("⌘F"), text: L10n.t("Search"))
+                    }
                     Hint(controller ? .pad(pad.back) : .key("esc"),
                          text: !model.searchText.isEmpty ? L10n.t("Clear search") : model.showingHidden ? L10n.t("All games") : L10n.t("Home"))
                 case .detail(_, let from):

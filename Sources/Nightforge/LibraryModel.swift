@@ -28,8 +28,10 @@ final class LibraryModel: ObservableObject {
     /// Steam store hits for the current search, games the account doesn't own yet.
     @Published private(set) var storeResults: [Game] = []
     private var storeSearch: Task<Void, Never>?
-    /// Bumped to move keyboard focus into the search field (⌘F).
+    /// Bumped to move keyboard focus into the search field in the library's header (⌘F, /).
     @Published private(set) var searchFocusRequest = 0
+    /// A focus request the field hasn't taken yet: it may only appear with the library.
+    private var searchFocusPending = false
     /// Home, the library grid, or a game's page.
     @Published private(set) var route = Route.home
     /// The games on Home's rail, as indices into `games` (HomeRail).
@@ -1161,8 +1163,18 @@ final class LibraryModel: ObservableObject {
         }
     }
 
+    /// The search lives in the library's header: from Home or a game's page it opens the library.
     func focusSearch() {
+        guard !allGames.isEmpty else { return }
+        if route != .library { goLibrary() }
+        searchFocusPending = true
         searchFocusRequest += 1
+    }
+
+    /// The search field takes a focus request once, when it's asked or when it appears.
+    func takeSearchFocus() -> Bool {
+        defer { searchFocusPending = false }
+        return searchFocusPending
     }
 
     // MARK: - Navigation
