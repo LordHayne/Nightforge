@@ -165,8 +165,10 @@ weil die Bildschirmfreigabe abgelehnt war.
   im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Offen: die übrigen Sheets (Optionen eines Spiels,
   Fehlstart, Platz, Spielstand-Wahl, Steam für Mac) zeigen noch das System-Panel; die Speicherleiste bleibt einfarbig,
   weil Sodium laut Regeln nie Deko ist (der Entwurf färbt sie).
-- **Entscheidungen:** Was „Fastest / Balanced / Most compatible“ in 2.3 genau einstellen; ob „Save battery when
-  unplugged“ (3.4) standardmäßig an sein soll (jetzt aus); ob „Welcome back“ nach *jeder* Sitzung kommen soll.
+- **Entscheidungen (27.10. getroffen):** 2.3 wie vorgeschlagen (siehe Roadmap); „Save battery when unplugged“ (3.4)
+  bleibt standardmäßig aus; „Welcome back“ nach jeder Sitzung ab einer Minute. Abweichungen von der Vorlage, die
+  angeglichen werden: Genre/Jahr/Store-Zeile über dem Titel, Suche im Bibliothekskopf mit Beispiel, Metascore auf der
+  Spielseite, Bibliothekskopf „105 Spiele · aktuell vor 2 Min.“.
 - **`syncstate` in `remotecache.vdf`:** Nur „1“ (im Einklang) ist sicher belegt; die anderen Werte während eines
   Uploads einmal beobachten und `CloudSaves` danach schärfen.
 - **`LibraryView.swift` (über 1700 Zeilen) und `LibraryModel.swift` (fast 1900)** sind mit der Navigation weiter

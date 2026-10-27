@@ -168,7 +168,7 @@
     - **Detailseite:** Karte „This game“ zeigt Store, Version, Grafik, HUD, Startoptionen, Engine, Offline-Status sowie „Your own settings … Back to the profile“.
   - **Wo:** `SettingsViews.swift` (`GameOptionsSheet`), `Launcher.swift` (`GameOptions`, `GraphicsLayer`), `Profiles.swift`.
   - **Design:** `Dialogs.tsx` → `GameOptionsDialog`; `Detail.tsx` → `OptionsSummary`; `data.ts` → `PRESETS`.
-  - **Stand** (teilweise): Kopfzeile in den Spieloptionen – „Tested by Nightforge on M5“ (Chips aus der Profilnotiz, Notiz beim Darüberfahren) bzw. „Community fix · from umu-protonfixes“; weichen die Optionen vom Standard ab: „Your own settings. Back to the Profile“ (ohne Profil „Back to Automatic“), wirksam mit „Save“. Offen – **braucht deine Entscheidung:** welche Ebene/Grenze/MetalFX „Fastest“, „Balanced“ und „Most compatible“ genau bedeuten; „updated 5 days ago“ (die Profilliste hat ein `generated`-Datum, aber nicht pro Spiel); Karte „This game“ auf der Detailseite.
+  - **Stand** (teilweise): Kopfzeile in den Spieloptionen – „Tested by Nightforge on M5“ (Chips aus der Profilnotiz, Notiz beim Darüberfahren) bzw. „Community fix · from umu-protonfixes“; weichen die Optionen vom Standard ab: „Your own settings. Back to the Profile“ (ohne Profil „Back to Automatic“), wirksam mit „Save“. **Entschieden (27.10.):** „Balanced“ = die heutige Automatik (MetalFX + gleichmäßige Bildrate passend zum Display, 60 FPS auf 120 Hz); „Fastest“ = MetalFX ohne FPS-Grenze; „Most compatible“ = der verträglichste Grafikweg ohne MetalFX, 60 FPS. Wird gebaut, sobald die Spieloptionen im Glas-Look sind. Offen: „updated 5 days ago“ (die Profilliste hat ein `generated`-Datum, aber nicht pro Spiel); Karte „This game“ auf der Detailseite.
 
 - [x] **2.4 „Bereit für offline“** · `M` · Recherche · PR #27
   - **Was:** Pro Spiel: „Ready“ oder „Start online once“. Steams Offline-Modus muss vorher online aktiviert worden sein – herausfinden, woran man das erkennt (z. B. `loginusers.vdf`, letzter erfolgreicher Online-Start).
@@ -184,7 +184,7 @@
 
 ## Phase 3 – Der Kreis ums Spielen
 
-- [ ] **3.1 Sitzungsabschluss („Welcome back“)** · `M` · teilweise in PR #27
+- [x] **3.1 Sitzungsabschluss („Welcome back“)** · `M` · PR #27, Glas-Look in `claude/ux-roadmap-next` · **Entschieden (27.10.):** nach jeder Sitzung ab einer Minute
   - **Warum:** Wir denken bisher nur bis zum Start. Am Ende will man wissen: Ist der Spielstand sicher, kann ich zuklappen?
   - **Was:** Wenn das Spiel endet (Nightforge kommt ja schon nach vorne), Sheet mit:
     - Spielzeit dieser Sitzung und gesamt
