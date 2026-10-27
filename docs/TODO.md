@@ -172,6 +172,19 @@ weil die Bildschirmfreigabe abgelehnt war.
   gewachsen. Die drei Ebenen, die Sheets und die Navigation in eigene Dateien ziehen – erst wenn keine anderen
   Branches mehr an diesen Dateien arbeiten.
 
+### Danach gebaut (Branch `claude/ux-roadmap-next`, auf PR #27) – in der echten App prüfen
+
+Nur mit Tests auf Test-Ordnern und Renderings geprüft:
+
+- **Download-Geschwindigkeit** (4.4): Steht bei einem echten Download „12 MB/s · noch 25 Min.“ unter dem Spiel, und passt die Restzeit ungefähr?
+- **Shader-Caches leeren** (4.3, Einstellungen › Speicher): Danach sollte der erste Start eines Spiels wieder „Shader werden vorbereitet“ zeigen und etwas länger dauern.
+- **Nightforge komplett entfernen** (4.3): **Nicht** im eigenen Konto ausprobieren – es löscht die Windows-Umgebung mit allen Windows-Spielen. Besser mit leerem HOME (`build/fh`, wie beim Test der Ersteinrichtung). Zu prüfen:
+  - Landen die Spielstände in `Dokumente/Nightforge Saves/<Datum>`?
+  - Fragt macOS nach dem Zugriff auf „Dokumente“?
+  - Legt sich die App in den Papierkorb?
+- **Spielstand-Wahl** (3.2): Ein Spiel mit Mac- und Windows-Version auf beiden Seiten spielen und dann wechseln. Kommt die Frage „Mit welchem Spielstand …“, und liegt der ersetzte Stand in `Backups/`?
+- **Externes Laufwerk** (4.2): Ein Laufwerk mit einer Steam-Bibliothek abziehen. Zeigt das Spiel „Schließe T7 an, um zu spielen“? Danach Bibliothek anlegen und verschieben ausprobieren (siehe Recherche in der Roadmap).
+
 ## Aus dem Code-Audit
 
 Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #11, #12, #14–#19).
