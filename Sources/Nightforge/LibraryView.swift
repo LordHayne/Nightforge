@@ -660,6 +660,16 @@ private struct TopBar: View {
 
             Spacer()
 
+            if model.isScanning {
+                HStack(spacing: 8) {
+                    GlassSpinner(size: 14)
+                    Text(L10n.t("Scanning …"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize()
+                }
+                .accessibilityElement(children: .combine)
+            }
             if let update = model.availableUpdate {
                 Button {
                     model.installUpdate()
@@ -685,9 +695,6 @@ private struct TopBar: View {
                 .help(L10n.t("Installs the new version and restarts Nightforge. Your games and settings stay."))
             }
 
-            if !model.allGames.isEmpty {
-                SearchField()
-            }
 
             if model.power.onBattery, let level = model.power.level {
                 Label("\(Int((level * 100).rounded())) %", systemImage: PowerSource.symbol(level))
@@ -698,9 +705,6 @@ private struct TopBar: View {
                     .background(GlassBackground(glass: .regular, shape: Capsule()))
                     .help(Prefs.saveBattery ? L10n.t("On battery – games are capped at 30 FPS to last longer")
                           : L10n.t("On battery – “Save battery when unplugged” in Settings caps games at 30 FPS"))
-            }
-            if model.isScanning {
-                GlassSpinner()
             }
             // Downloads, rescan and settings share one piece of glass.
             HStack(spacing: 2) {
@@ -785,50 +789,6 @@ private struct SectionSwitch: View {
     }
 }
 
-/// Search as you type; ⌘F or / jumps here, Return goes back to the results, Esc clears.
-private struct SearchField: View {
-    @EnvironmentObject private var model: LibraryModel
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.muted)
-            TextField("", text: $model.searchText, prompt: Text(L10n.t("Search")).foregroundStyle(Theme.muted))
-                .textFieldStyle(.plain)
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.ink)
-                .focused($focused)
-                .onSubmit { focused = false }
-                .onExitCommand {
-                    model.searchText = ""
-                    focused = false
-                }
-            if !model.searchText.isEmpty {
-                Button {
-                    model.searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.muted)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.t("Clear search"))
-                .accessibilityLabel(L10n.t("Clear search"))
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(minWidth: 100, idealWidth: 230, maxWidth: 230)
-        .frame(height: 38)
-        .background(GlassBackground(glass: .regular, shape: Capsule()))
-        .overlay(Capsule().strokeBorder(Theme.sodium.opacity(focused ? 0.8 : 0), lineWidth: 1.5))
-        .padFocus("top.search", cornerRadius: 19, activate: { focused = true })
-        .onChange(of: model.searchFocusRequest) { _, _ in focused = true }
-        .help(L10n.t("Search (⌘F)"))
-    }
-}
-
 private struct NoResults: View {
     @EnvironmentObject private var model: LibraryModel
 
@@ -852,6 +812,8 @@ private struct GameDetail: View {
     var compact = false
     @EnvironmentObject private var model: LibraryModel
     @State private var logo: NSImage?
+    /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
+    @State private var askedScore: Int?
 
     static func openBatterySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension")!)
@@ -861,16 +823,7 @@ private struct GameDetail: View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                CompatibilityLine(compatibility: model.compatibility(of: game), detailed: !compact)
-                if game.provider != .steam {
-                    Text(game.provider.label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.ink.opacity(0.8))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.1), in: Capsule())
-                        .accessibilityLabel(L10n.t("From %@", game.provider.label))
-                }
+                MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: [game.provider.label])
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -925,6 +878,9 @@ private struct GameDetail: View {
                 case .downloading:
                     Stat(label: L10n.t("Download"), value: Format.bytes(game.sizeOnDisk))
                 }
+                if !compact && game.install != .inStore, let score = metascore {
+                    Stat(label: "Metascore", value: "\(score)")
+                }
                 if game.switchable {
                     Stat(label: L10n.t("Version"), value: game.platform == .mac ? "Mac" : "Windows")
                 }
@@ -944,6 +900,9 @@ private struct GameDetail: View {
                 }
             }
 
+            if !compact {
+                CompatibilityNote(compatibility: model.compatibility(of: game))
+            }
             if game.isVROnly {
                 Label(L10n.t("Needs a VR headset – this game can't be played on a Mac."), systemImage: "visionpro")
                     .font(.system(size: 13, weight: .medium))
@@ -1060,6 +1019,20 @@ private struct GameDetail: View {
         .task(id: game.id) {
             logo = await ArtworkStore.shared.image(for: game, kind: .logo)
         }
+        .task(id: game.id) {
+            guard !compact, game.provider == .steam, game.install != .inStore, facts?.metascore == nil else { return }
+            askedScore = await Metascores.score(for: game.appID)
+        }
+    }
+
+    /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it; other stores' games neither).
+    private var facts: StoreFacts? {
+        game.provider == .steam ? SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot) : nil
+    }
+
+    /// Steam's catalog first; else what the store said, now or before (offline).
+    private var metascore: Int? {
+        facts?.metascore ?? askedScore ?? (game.provider == .steam ? Metascores.cached(game.appID) : nil)
     }
 
     /// Nothing a Mac can run (VR only, anti-cheat): the button says why instead.
@@ -1076,27 +1049,20 @@ private struct GameDetail: View {
     }
 }
 
-/// How well it runs on a Mac: the badge, and on a game's page what it means for this game.
-private struct CompatibilityLine: View {
+/// On a game's page, what its badge above the title means for this game, and where it was tested.
+private struct CompatibilityNote: View {
     let compatibility: Compatibility
-    var detailed = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            CompatibilityBadge(compatibility: compatibility)
-            if detailed, let note = compatibility.note {
-                Text(note)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(2)
-                    .frame(minWidth: 320, maxWidth: 560, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if detailed, !compatibility.testedOn.isEmpty {
-                Text(L10n.t("Tested on %@", compatibility.testedOn.joined(separator: ", ")))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-            }
+        let tested = compatibility.testedOn.isEmpty ? nil : L10n.t("Tested on %@", compatibility.testedOn.joined(separator: ", "))
+        let parts = [compatibility.note, tested].compactMap { $0 }
+        if !parts.isEmpty {
+            Label(parts.joined(separator: " · "), systemImage: compatibility.level.symbol)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(3)
+                .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -1629,6 +1595,9 @@ private struct HintBar: View {
                     Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Open"))
                     Hint(controller ? .pad(pad.stick) : .key("← ↑ →"),
                          text: L10n.t("Select"))
+                    if !controller {
+                        Hint(.key("⌘F"), text: L10n.t("Search"))
+                    }
                     Hint(controller ? .pad(pad.back) : .key("esc"),
                          text: !model.searchText.isEmpty ? L10n.t("Clear search") : model.showingHidden ? L10n.t("All games") : L10n.t("Home"))
                 case .detail(_, let from):
