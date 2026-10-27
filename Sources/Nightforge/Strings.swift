@@ -74,6 +74,18 @@ enum L10n {
         "Free": "Kostenlos",
         "Coming soon": "Demnächst",
 
+        // Games the account doesn't own: their demo, the store, downloads Steam won't fetch (ROADMAP 2.6)
+        "Play Demo": "Demo spielen",
+        "Steam won't download %@: it isn't in your Steam library.": "Steam lädt %@ nicht herunter: Das Spiel ist nicht in deiner Steam-Bibliothek.",
+        "Steam won't download this game: it isn't in your Steam library. Cancel the download to take the request back.": "Steam lädt dieses Spiel nicht herunter: Es ist nicht in deiner Steam-Bibliothek. Brich den Download ab, um die Anfrage zurückzunehmen.",
+        "Nightforge takes the download request back from Steam. Nothing was downloaded.": "Nightforge nimmt die Download-Anfrage bei Steam zurück. Heruntergeladen wurde nichts.",
+        "Download Demo": "Demo laden",
+        "Free demo": "Kostenlose Demo",
+        "Free demo – the full game isn't in your Steam library.": "Kostenlose Demo – das volle Spiel ist nicht in deiner Steam-Bibliothek.",
+        "Full Game in Steam Store": "Vollversion im Steam-Store",
+        "Add the free demo": "Kostenlose Demo hinzufügen",
+        "%@ is free. Steam adds it to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge downloads and starts it like any other game.": "%@ ist kostenlos. Steam fügt die Demo einmal deiner Steam-Bibliothek hinzu: Bestätige dazu im Steam-Fenster, das sich gleich öffnet, die Installation. Danach lädt und startet Nightforge sie wie jedes andere Spiel.",
+
         // Performance
         "Frame limit": "FPS-Limit",
         "Off": "Aus",
@@ -461,6 +473,21 @@ enum L10n {
         "First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.":
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",
+
+        // Engine rollback (3.3)
+        "Trying the previous engine …": "Versucht die vorige Engine …",
+        "Starting with the previous engine …": "Startet mit der vorigen Engine …",
+        "The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also startet Nightforge es mit der vorigen – du musst nichts tun. Nach dem nächsten Update probiert es die neue wieder.",
+        "The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also läuft es mit der vorigen – Steam startet dafür zuerst neu.",
+        "Engine": "Engine",
+        "%@ (held back)": "%@ (zurückgehalten)",
+        "Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.":
+            "Läuft mit der vorigen Engine vom %@ – die neueste hat es abstürzen lassen. Nightforge probiert die neue nach dem nächsten Update wieder.",
+        "Try the Newest Now": "Jetzt die neueste probieren",
+        "Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.":
+            "Der nächste Start nimmt die neueste Engine (%@). Stürzt es wieder ab, wechselt Nightforge von selbst zurück.",
 
         // Shortcuts
         "%@ is in Applications now – Spotlight finds it": "%@ ist jetzt in den Programmen – Spotlight findet es",

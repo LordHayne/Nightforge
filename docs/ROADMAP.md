@@ -181,6 +181,22 @@
   - **Design:** `Dialogs.tsx` → Tab „General › Accessibility“; `index.css` (`.ns-reduce`).
   - **Stand** (teilweise): „Reduce motion“ in General › Accessibility – folgt macOS, bis man es umstellt (`Prefs.reduceMotion`, eigener Umgebungswert `\.reduceMotion`, weil SwiftUIs eigener nicht überschreibbar ist); schaltet Cover-Zoom, Rail-/Raster-Scrollen und Toast-Gleiten ab. VoiceOver-Labels: alle neuen Icon-Knöpfe, Abzeichen (Kompatibilität, Pin) und Kacheln haben Namen. Offen: „Larger text“ – die Ansichten nutzen feste Schriftgrößen (`.system(size:)`), das braucht einen Skalierungsfaktor quer durch alle Views.
 
+- [x] **2.6 Nur eigene Spiele – Demo oder Store für den Rest** · `M` · Recherche · Branch `claude/steam-ownership-3b3bdd`
+  - **Warum:** Nightforge zeigte 105 Spiele als „in deiner Bibliothek“, dem Konto gehören 100. Der Download eines fremden Spiels (The Last Caretaker) hing ewig bei „Download wird vorbereitet …“.
+  - **Recherche** (27.10.):
+    - `appcache/packageinfo.vdf` ist ein Cache aller Pakete, nach denen der Client gefragt hat. Darin stehen auch abgelaufene Gratis-Wochenenden (Lizenz mit Flag „Expired“) und Pakete von Store-Seiten, die man in Steam geöffnet hat (The Last Caretaker: Kaufpaket 642779, `billingtype` 10). Besitz folgt daraus nicht.
+    - Die echte Lizenzliste liegt pro Konto in `userdata/<Konto-ID>/config/licensecache` (nicht unter `config/`). Inhalt ist die `CMsgClientLicenseList` (Protobuf), die die Steam-Server bei der Anmeldung schicken, dahinter ihre CRC32. Jedes Byte ist per XOR mit `RandomInt(32, 126)` aus Valves `CUniformRandomStream` verknüpft (vstdlib, Numerical Recipes' `ran1`), Startwert ist die Konto-ID (der Ordnername). Die CRC32 bestätigt, dass richtig entschlüsselt wurde. Windows-Steam und Steam für Mac schreiben dasselbe Format. Eine öffentliche Beschreibung habe ich nicht gefunden; das Format ist durch Abgleich mit den echten Dateien ermittelt.
+    - Pro Lizenz stehen u. a. `package_id` (Feld 1), `flags` (7, ELicenseFlags: 4 ausstehend, 8 abgelaufen, 16/32 storniert/erstattet, 1024 Betrugssperre), Kaufland (8) und `owner_id` (12) darin. Nightforge liest nur Paket und Flags. Nichts verlässt den Mac, Anmeldedaten werden nicht angefasst (die liegen woanders).
+    - Andere Werkzeuge: Playnite, Lutris und GOG Galaxy fragen meines Wissens die Steam-Web-API (API-Key oder öffentliches Profil). Steam Achievement Manager fragt den laufenden Client über `steamclient` (`BIsSubscribedApp`). Beides passt nicht zu „offline, ohne Key, ohne fremden Code“.
+    - Ergebnis auf diesem Mac: **100 von 105 besessen**. Nicht besessen sind Conan Exiles Enhanced, FOR HONOR, The Culling und Rainbow Six Siege (abgelaufene Gratis-Wochenenden) sowie The Last Caretaker. Von The Last Caretaker liegt nur die Demo 3916150 im Konto, deren kostenlose Lizenz seit 27.10. 20:29 besteht.
+    - Demos: `appinfo.vdf` kennt sie (`common/type` „Demo“, `common/parent` = das Spiel). Jede Demo braucht eine eigene kostenlose Lizenz (Paket mit `billingtype` 12, FreeOnDemand). Ganz ohne Fenster lässt sie sich nicht holen. `steam://install/<Demo>` öffnet Steams Installationsdialog und fügt die Lizenz beim Bestätigen hinzu. Die Store-Webseite (`addfreelicense`) bräuchte Login-Cookies, die Steam-Konsole (`app_license_request`) ein sichtbares Fenster. Darum gibt es einen einmaligen, vorher erklärten Klick.
+  - **Stand:** `SteamCatalog` liest die Lizenzliste des zuletzt angemeldeten Kontos. Abgelaufene, erstattete und ausstehende Lizenzen zählen nicht. Ohne lesbare Liste zählt alles aus `packageinfo.vdf`, wie bisher.
+    - **Nicht besessene Spiele**, die Steam kennt, erscheinen als ihre Demo: Cover mit „DEMO“, „Demo laden“ bzw. „Demo spielen“ auf Spielseite und Startseite, dazu ein Hinweis und „Vollversion im Steam-Store“. Ohne Demo erscheinen sie als Store-Eintrag mit Preis. Beides zählt nicht zur Anzahl der Spiele.
+    - **Demo ohne Lizenz:** Ein Glas-Dialog erklärt den Klick im Steam-Fenster und öffnet dann `steam://install/<Demo>`.
+    - **Hängende Downloads:** Ein angefragter Download, den Steam nicht holt, wird nach einer Minute ohne Änderung zum Store-Eintrag mit Hinweis und Toast. „Download abbrechen“ nimmt die Anfrage zurück. Ohne Lizenzliste entscheidet `LastOwner` "0", solange Steam angemeldet ist und nichts anderes lädt.
+    - Dateien: `SteamCatalog.swift`, `Library.swift` (`demoOf`, `downloadRefused`), `Demos.swift`. Test `tests/SteamOwnershipTest/`; `tests/CatalogProbe/run.sh <Steam-Ordner>` zeigt die Liste eines echten Steams.
+    - **In der echten App geprüft** (27.10., 22:28–22:47): Die Bibliothek zeigt 100 Spiele, „Im Steam-Store 4“ am Ende (FOR HONOR mit Spielzeit 13 Min. und 29,99 €). The Last Caretaker Demo erscheint mit „DEMO“, Hinweis und „Demo laden“. Der Download lief ohne Steam-Fenster an (12,6 GB, ~28 MB/s, fertig nach 11 Min.). „Demo spielen“ startete sie, danach kam „Willkommen zurück“. Die alte Anfrage für The Last Caretaker nachgestellt: Nach einer Minute wurde aus „Download wird vorbereitet …“ ein Store-Eintrag mit Hinweis, „Download abbrechen“ nahm die Anfrage zurück, und Steam startete neu.
+
 ---
 
 ## Phase 3 – Der Kreis ums Spielen
@@ -212,7 +228,7 @@
     - „Komplett entfernen“ (4.3) nimmt diese Sicherungen mit nach „Dokumente“.
     - Offen: Steam-Cloud-Konflikt – Steams eigenes Fenster nach vorne holen und sagen, was zu tun ist. Dafür braucht es einen echten Konflikt zum Ausprobieren.
 
-- [ ] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1
+- [x] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1 · lokal in `claude/engine-rollback-02a61e`
   - **Warum:** macOS-/Wine-Updates machen Spiele kaputt, die gestern liefen (siehe Whisky). Selbst-Heilung ist ein echtes Alleinstellungsmerkmal.
   - **Was:**
     - Pro Spiel die letzte funktionierende Kombination aus Engine und Grafikschicht merken.
@@ -222,6 +238,16 @@
   - **Wo:** `Components.swift` (`ComponentStore`, Versionen), `LaunchHealth.swift`, `Engine.swift`.
   - **Design:** `Parts.tsx` (`rollback`-Phase), `Detail.tsx` (Engine-Hinweis, Zeile „Engine … (held back)“).
   - **Fertig wenn:** Ein simuliertes kaputtes Engine-Update führt zu einem erfolgreichen Start mit der alten Version, ohne dass der Nutzer etwas tun muss.
+  - **Stand:**
+    - **Build:** `EngineRollback.swift`. Ein Engine-Build ist die Engine samt allen Grafik-Builds (DXMT-Paket, D3DMetal, MoltenVK, Gamepad, DXVK) – eine neue Version von einem davon ist ein Engine-Update. `Components/engine-history.json` merkt sich den aktuellen Build und pro Spiel Build und Grafikweg des letzten guten Starts (beim ersten Mal aus den bestätigten Wegen von `LaunchHealth`).
+    - **Vorige Engine behalten:** Bevor `ensureEngine` etwas an der Engine ändert, kopiert es den bisherigen Build nach `Components/.held/` – wenn ein Spiel zuletzt darauf gut lief. Kopiert werden Engine-, Grafik- und DXVK-Ordner als APFS-Klon (0,1 s für 1,4 GB; Platz kostet nur, was sich danach ändert). Die Kopie geht, sobald kein Spiel sie mehr als letzten guten Build hat. Höchstens zwei Kopien; nach 30 Tagen weg, außer ein Spiel ist darauf festgelegt; nie, solange etwas daraus läuft.
+    - **Rückfall:** Nach jedem neuen Build oder Weg wird ein Spiel einmal 30 s beobachtet (auch mit selbst gewählter Grafik). Endet es sofort und lief es mit demselben Weg auf dem Build davor, wird es auf die Kopie festgelegt und gleich damit neu gestartet. Steam zieht dafür auf die alte Engine um, der Prefix bekommt deren DXMT/DXVK-DLLs (`preparePrefix`, `Engine.engineForStart`). Die Grafik-Leiter bleibt, wo sie war. Läuft es auch dort nicht, fällt die Festlegung, und die bisherigen Wege folgen (Runtimes, nächste Grafikschicht).
+    - **Anzeige:** Spielknopf „Versucht die vorige Engine …“ mit Erklärzeile; bei späteren Starts, wenn Steam erst umziehen muss, „Startet mit der vorigen Engine …“. Spielseite: „Engine 4.7.3 (zurückgehalten)“ und der Hinweis „Läuft mit der vorigen Engine vom 27. Okt. – die neueste hat es abstürzen lassen …“ mit „Jetzt die neueste probieren“ (Toast wie im Entwurf; stürzt es wieder ab, geht es von selbst zurück). Haben zwei Builds dieselbe Engine-Version, unterscheidet sie das Datum.
+    - **Nächstes Update:** Alle Festlegungen fallen, die neue Engine wird probiert.
+    - **Abweichung:** „vorige Engine“ statt „last week's engine“ – Updates kommen nicht im Wochentakt.
+    - **Tests:** `tests/EngineRollbackTest/` (Fake-Engines und -Ordner, eigenes leeres Home).
+    - **In der echten App** (27.10., geklontes Home, deine Engine unverändert): Engine 4.7.4 mit eingebautem Absturz → Palworld nach 3 s weg → von selbst mit 4.7.3 neu gestartet, gespielt, Spielstand in der Steam Cloud.
+    - **Offen:** siehe `docs/TODO.md` („Engine-Rückfall“).
 
 - [x] **3.4 Akku-Modus** · `S` · PR #27 (standardmäßig aus)
   - **Was:** Ohne Netzteil (IOKit `IOPSCopyPowerSourcesInfo`): Bildrate auf 30 FPS begrenzen, Hinweis „On battery: capped at 30 FPS – about 1 h 40 min of play“, Akkustand in der Top-Bar. Abschaltbar in General. Grundlage für die Begrenzung: `FramePacing.swift`.

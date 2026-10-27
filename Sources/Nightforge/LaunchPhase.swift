@@ -18,6 +18,10 @@ enum LaunchPhase: Equatable {
     case signingInEpic
     /// The newest save comes down from Epic's cloud first.
     case syncingSaves
+    /// The newest engine crashed a game that ran well on the one before: it starts again with that one.
+    case rollingBack
+    /// A game held back on the previous engine: Steam moves over to that one first.
+    case heldEngine
 
     var title: String {
         switch self {
@@ -33,6 +37,8 @@ enum LaunchPhase: Equatable {
         case .updating(nil): return L10n.t("Updating …")
         case .signingInEpic: return L10n.t("Signing in to Epic Games …")
         case .syncingSaves: return L10n.t("Getting your save …")
+        case .rollingBack: return L10n.t("Trying the previous engine …")
+        case .heldEngine: return L10n.t("Starting with the previous engine …")
         }
     }
 
@@ -49,6 +55,10 @@ enum LaunchPhase: Equatable {
         case .updating: return L10n.t("Steam updates the game first – it starts by itself when the update is done.")
         case .signingInEpic: return L10n.t("The game gets a fresh sign-in from Epic, so it starts online with your account.")
         case .syncingSaves: return L10n.t("Your newest save comes from Epic's cloud first, so you go on where you stopped.")
+        case .rollingBack:
+            return L10n.t("The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.")
+        case .heldEngine:
+            return L10n.t("The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.")
         }
     }
 

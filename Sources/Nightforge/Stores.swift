@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// How a store's library stands: loaded, being loaded, or not reachable – and when the games shown
 /// were last loaded, so a failure can say how old they are (they still play).
@@ -108,6 +108,29 @@ final class SteamStore: StoreProvider {
     /// A download Steam only picks up after a restart, which waits while a game runs: restarting
     /// Steam then would end the game too.
     var restartWhenIdle = false
+
+    /// A demo the account has no licence for yet: Steam adds the free licence when asked to install
+    /// it (steam://install), in its own install window. True once the player confirmed there and
+    /// Steam wrote the demo's manifest (up to 5 min) – from then on it downloads like any game.
+    func addDemoLicense(_ game: Game) async throws -> Bool {
+        if game.platform == .mac {
+            MacSteam.ask("install/\(game.appID)")
+        } else {
+            guard let wine = await Engine.installedWine() else { return false }
+            try Engine.startSteam(wine, arguments: ["steam://install/\(game.appID)"])
+            try? await Task.sleep(for: .seconds(2))  // the window needs a moment to appear
+            for process in Engine.ownProcesses() where process.command.lowercased().contains("steamwebhelper") {
+                NSRunningApplication(processIdentifier: process.pid)?.activate(options: .activateAllWindows)
+            }
+        }
+        let manifest = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("appmanifest_\(game.appID).acf")
+        for _ in 0..<150 {
+            try? await Task.sleep(for: .seconds(2))
+            if FileManager.default.fileExists(atPath: manifest.path) { return true }
+        }
+        return false
+    }
 
     func uninstall(_ game: Game) async throws {
         if game.platform == .mac {

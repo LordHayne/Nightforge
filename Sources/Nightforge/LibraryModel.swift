@@ -115,6 +115,8 @@ final class LibraryModel: ObservableObject {
     @Published var pendingSpace: SpaceRequest?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
+    /// A demo about to get its free licence in Steam's install window: what that takes is said first.
+    @Published var pendingDemoLicense: Game?
     private var macSteamPrewarmed = false
     @Published private(set) var uninstallingID: String?
     /// Games whose Windows process is running right now, with that process's pid.
@@ -481,7 +483,8 @@ final class LibraryModel: ObservableObject {
         }
         found = LibraryScanner.sorted(found)
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
-        allGames = found
+        let wasRefused = Set(allGames.filter(\.downloadRefused).map(\.id))
+        allGames = withStorePrices(found)
         lastScan = Date()
         measureDownloads()
         libraryLoaded = true
@@ -499,6 +502,11 @@ final class LibraryModel: ObservableObject {
         if let game = finished.first {
             Toasts.shared.show(finished.count == 1 ? L10n.t("%@ is ready to play", game.name) : L10n.t("%ld games are ready to play", finished.count),
                                action: .init(label: L10n.t("Play")) { [weak self] in self?.play(game) })
+        }
+        // Said once, not left at "Preparing download …": Steam won't fetch a game the account doesn't own.
+        if let game = found.first(where: { $0.downloadRefused && !wasRefused.contains($0.id) }) {
+            Toasts.shared.show(L10n.t("Steam won't download %@: it isn't in your Steam library.", game.name),
+                               action: .init(label: L10n.t("Cancel Download")) { [weak self] in self?.requestUninstall(game) })
         }
         watchDownloads()
         afterScan()
@@ -720,8 +728,22 @@ final class LibraryModel: ObservableObject {
     /// Buying happens on Steam's own store page in the browser; Nightforge never sees payment data.
     /// Once Steam has the new licence, the game shows up in the library with its Download button.
     func openStorePage(_ game: Game) {
-        guard let url = URL(string: "https://store.steampowered.com/app/\(game.appID)") else { return }
+        guard let url = URL(string: "https://store.steampowered.com/app/\(game.demoOf ?? game.appID)") else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    /// Steam adds a demo's free licence when it's asked to install the demo (steam://install), in
+    /// its own install window: once the player has confirmed there, Steam writes the demo's manifest
+    /// and downloads it, and the library shows that like any download.
+    func addDemoLicense(_ game: Game) {
+        pendingDemoLicense = nil
+        Task {
+            do {
+                if try await steam.addDemoLicense(game) { reload(quiet: true) }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 
     func installUpdate() {
@@ -780,15 +802,31 @@ final class LibraryModel: ObservableObject {
 
     /// Hits from the games-only search can lack price and platforms; fetch them once it's selected.
     private var storeDetailsRequested: Set<Int> = []
+    /// Prices of the library's store entries, once looked up; every scan brings them back.
+    private var storePrices: [Int: String] = [:]
+
+    private func withStorePrices(_ games: [Game]) -> [Game] {
+        guard !storePrices.isEmpty else { return games }
+        return games.map { game in
+            var game = game
+            if game.install == .inStore, let price = storePrices[game.appID] { game.storePrice = price }
+            return game
+        }
+    }
 
     private func loadStoreDetailsIfNeeded() {
         guard let game = selected, game.install == .inStore, game.storePrice == nil,
               storeDetailsRequested.insert(game.appID).inserted  // once: some games have no price at all
         else { return }
         Task {
-            guard let hit = await StoreSearch.shared.details(for: game.appID),
-                  let index = storeResults.firstIndex(where: { $0.appID == game.appID })
-            else { return }
+            guard let hit = await StoreSearch.shared.details(for: game.appID) else { return }
+            // Also for the library's store entries: games Steam knows that the account doesn't own.
+            storePrices[game.appID] = hit.price
+            allGames = withStorePrices(allGames)
+            guard let index = storeResults.firstIndex(where: { $0.appID == game.appID }) else {
+                applyFilter()
+                return
+            }
             var updated = storeGame(hit)
             updated.metascore = hit.metascore ?? storeResults[index].metascore
             storeResults[index] = updated
@@ -798,6 +836,10 @@ final class LibraryModel: ObservableObject {
 
     private func download(_ game: Game) {
         if needsEpicSignIn(game) { return }
+        if game.demoNeedsLicense {
+            pendingDemoLicense = game
+            return
+        }
         if game.platform == .mac {
             downloadMac(game)
             return
@@ -1392,11 +1434,11 @@ final class LibraryModel: ObservableObject {
     // MARK: - Hide & pin
 
     /// The games in the library, without the hidden ones.
-    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.gameID) }.count }
+    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.gameID) && $0.inLibrary }.count }
 
     /// … of one store.
     func visibleCount(of provider: Provider) -> Int {
-        allGames.lazy.filter { $0.provider == provider && !self.hiddenGames.contains($0.gameID) }.count
+        allGames.lazy.filter { $0.provider == provider && !self.hiddenGames.contains($0.gameID) && $0.inLibrary }.count
     }
 
     func isHidden(_ game: Game) -> Bool { hiddenGames.contains(game.gameID) }
@@ -1564,7 +1606,8 @@ final class LibraryModel: ObservableObject {
                 await epic.syncSaves(game, upload: false)
                 launchPhase = nil
             }
-            let runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
+            var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
+            let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
             let profile = viaSteam && game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
             let insight = await insight(of: game)
@@ -1587,6 +1630,17 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             while true {
+                // The newest engine – or, for a game it crashed, the one before (EngineRollback).
+                var build: EngineBuild?
+                if game.bottle.isBuiltIn, let newest {
+                    let pinned = EngineRollback.shared.pinnedBuild(game.gameID) != nil
+                    let engine = await Engine.engineForStart(game: game.gameID, newest: URL(fileURLWithPath: newest)) {
+                        // Steam moves over to the other engine: it starts afresh.
+                        if self.launchPhase == nil { self.launchPhase = pinned ? .heldEngine : .startingSteam }
+                    }
+                    runner = engine.wine.path
+                    build = engine.build
+                }
                 if let runner {
                     await installRuntimes(for: game, profile: profile, analysis: analysis,
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
@@ -1617,6 +1671,9 @@ final class LibraryModel: ObservableObject {
                 }
                 // Settings a game only takes from the environment come with the Steam that starts it.
                 let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
+                // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
+                let way = LaunchAttempt(graphics: layer, arguments: arguments).id
+                if let build, EngineRollback.shared.needsWatch(game.gameID, build: build, way: way) { watchFirstSeconds = true }
                 if viaSteam, game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile)),
@@ -1643,11 +1700,18 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark) {
-                    LaunchHealth.confirm(game.gameID, attempts)
+                    if automatic, !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
+                    if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     break
                 }
                 launchingID = game.id
                 NSApp.activate()
+                // It ran well this way on the engine before and ends at once on the newest: the newest
+                // broke it, so it starts with the one before – the way stays.
+                if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.gameID, build: build, way: way) {
+                    launchPhase = .rollingBack
+                    continue
+                }
                 let needed = GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName)
                     .filter { !LearnedFixes.winetricks(game.gameID).contains($0) }
                 if !needed.isEmpty {
@@ -1666,6 +1730,8 @@ final class LibraryModel: ObservableObject {
                     LearnedFixes.setNoAVX(game.gameID)
                     continue
                 }
+                // Graphics chosen by hand, or nothing known about the game: no other way to try.
+                guard automatic, !attempts.isEmpty else { break }
                 if LaunchHealth.advance(game.gameID, attempts) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
@@ -1930,6 +1996,25 @@ final class LibraryModel: ObservableObject {
         Compatibility.of(game, profile: game.gameID.steamAppID.flatMap { profiles[$0] }, analysis: insights[game.gameID]?.analysis)
     }
 
+    /// The previous engine this game runs with, because the newest crashed it (EngineRollback).
+    func heldEngine(of game: Game) -> HeldBuild? {
+        guard game.bottle.isBuiltIn, game.platform == .windows, game.isInstalled else { return nil }
+        return EngineRollback.shared.pinnedBuild(game.gameID)
+    }
+
+    /// "Try the newest now": the next start uses the newest engine; should it crash again,
+    /// Nightforge switches back by itself.
+    func tryNewestEngine(_ game: Game) {
+        let rollback = EngineRollback.shared
+        let held = rollback.pinnedBuild(game.gameID)
+        objectWillChange.send()
+        rollback.tryNewest(game.gameID)
+        let history = rollback.history()
+        guard let current = history.current else { return }
+        Toasts.shared.show(L10n.t("Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.",
+                                  EngineRollback.label(current, setUp: history.currentSetUp, other: held?.build)))
+    }
+
     /// The detail page's "Add to Applications": a little app that opens the game, found by Spotlight.
     func addShortcut(for game: Game) {
         Task {
@@ -2023,7 +2108,7 @@ final class LibraryModel: ObservableObject {
     /// own Steam. Uninstalling stops that Steam for a moment, so not while one of its games runs or
     /// anything starts – it would go too.
     func canUninstall(_ game: Game) -> Bool {
-        guard game.isInstalled || { if case .downloading = game.install { return true } else { return false } }()
+        guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
         guard uninstallingID == nil && launchingID == nil else { return false }
         if game.platform == .mac { return !anyRunning(.mac) }
