@@ -500,6 +500,8 @@ enum L10n {
         "Paused – not enough space": "Pausiert – zu wenig Platz",
         "%ld %% of %@": "%ld %% von %@",
         "Preparing …": "Wird vorbereitet …",
+        "%@ · %@ left": "%@ · noch %@",
+        "under a minute": "unter einer Minute",
 
         // First start
         "Your library on this Mac": "Deine Bibliothek auf diesem Mac",

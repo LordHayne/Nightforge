@@ -92,6 +92,11 @@ struct DownloadsPanel: View {
                                 .padFocus("downloads.cancel.\(game.id)", activate: { model.requestUninstall(game) })
                         }
                     }
+                    if let speed = model.downloadRates[game.appID]?.label(total: Double(game.sizeOnDisk)) {
+                        Text(speed)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             if !model.downloads.isEmpty {

@@ -92,6 +92,8 @@ final class LibraryModel: ObservableObject {
     @Published var showingDownloads = false
     /// What Steam is downloading now, in the library's order.
     var downloads: [Game] { allGames.filter { Self.isDownloading($0.install) } }
+    /// Speed and time left of each download, by app ID.
+    @Published private(set) var downloadRates: [Int: DownloadRate] = [:]
     /// A download that wouldn't fit: which games could make room (SpaceCheck).
     @Published var pendingSpace: SpaceRequest?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
@@ -372,6 +374,7 @@ final class LibraryModel: ObservableObject {
         }.value
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
         allGames = found
+        measureDownloads()
         libraryLoaded = true
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
@@ -463,6 +466,18 @@ final class LibraryModel: ObservableObject {
     }
 
     private var downloadWatcher: Task<Void, Never>?
+
+    /// Adds this look's progress to each download's speed; a download that ended drops out.
+    private func measureDownloads(now: Date = Date()) {
+        var rates: [Int: DownloadRate] = [:]
+        for game in downloads where game.downloadNeedsSpace == nil {
+            guard case .downloading(let fraction?) = game.install, game.sizeOnDisk > 0 else { continue }
+            var rate = downloadRates[game.appID] ?? DownloadRate()
+            rate.add(bytes: fraction * Double(game.sizeOnDisk), at: now)
+            rates[game.appID] = rate
+        }
+        if rates != downloadRates { downloadRates = rates }
+    }
 
     /// While Steam downloads something, re-read the manifests every few seconds for progress.
     private func watchDownloads() {
