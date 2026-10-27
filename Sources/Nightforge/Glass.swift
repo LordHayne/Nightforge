@@ -47,7 +47,11 @@ struct GlassBackground<S: InsettableShape>: View {
             } else {
                 shape.fill(.ultraThinMaterial)
                     .shadow(color: shadow.color, radius: shadow.radius, y: shadow.y)
-                if glass.thick { shape.fill(Theme.night.opacity(0.55)) }
+                // Thick glass is the design's night blue, lighter at the top, not the material's grey.
+                if glass.thick {
+                    shape.fill(LinearGradient(colors: [Theme.slate.opacity(0.85), Theme.night.opacity(0.9)],
+                                              startPoint: .top, endPoint: .bottom))
+                }
                 shape.fill(LinearGradient(colors: [.white.opacity(glass.thick ? 0.06 : hovering ? 0.16 : 0.09),
                                                    .white.opacity(glass.thick ? 0.02 : hovering ? 0.06 : 0.03)],
                                           startPoint: .top, endPoint: .bottom))

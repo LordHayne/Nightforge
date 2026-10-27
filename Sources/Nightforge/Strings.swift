@@ -291,6 +291,7 @@ enum L10n {
         "%ld of 1 game": "%ld von 1 Spiel",
         "Settings": "Einstellungen",
         "Settings …": "Einstellungen …",
+        "Only needed to also show games from your own bottles.": "Nur nötig, wenn auch Spiele aus deinen eigenen Bottles erscheinen sollen.",
         "Bottle": "Bottle",
         "No games match “%@”": "Keine Spiele zu „%@“",
         "Whole library (L)": "Ganze Bibliothek (L)",

@@ -97,6 +97,8 @@ private struct StoresSettings: View {
     @EnvironmentObject private var model: LibraryModel
     @AppStorage(Prefs.Keys.bottlesRoot) private var bottlesRoot = ""
     @AppStorage(Prefs.Keys.runnerPath) private var runnerPath = ""
+    /// Folded away unless something is filled in: most players never need it.
+    @State private var showsOwnWine = false
 
     var body: some View {
         Form {
@@ -117,6 +119,26 @@ private struct StoresSettings: View {
 
             // Only for players who bring their own Wine setup; Nightforge needs none of it.
             Section {
+                Button { showsOwnWine.toggle() } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(L10n.t("CrossOver, Whisky and your own Wine"))
+                            Text(L10n.t("Only needed to also show games from your own bottles."))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(showsOwnWine ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showsOwnWine ? L10n.t("On") : L10n.t("Off"))
+                .padFocus("settings.ownWine", activate: { showsOwnWine.toggle() })
+                if showsOwnWine {
                 LabeledContent(L10n.t("Bottles Folder")) {
                     HStack {
                         TextField("", text: $bottlesRoot, prompt: Text(LibraryScanner.defaultBottlesRoot().path))
@@ -135,10 +157,11 @@ private struct StoresSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button(L10n.t("Rescan Library")) { model.reload() }
                     .padFocus("settings.rescan", activate: { model.reload() })
-            } header: {
-                SectionTitle(L10n.t("CrossOver, Whisky and your own Wine"))
+                }
             }
         }
+        .animation(.easeOut(duration: 0.2), value: showsOwnWine)
+        .onAppear { showsOwnWine = !bottlesRoot.isEmpty || !runnerPath.isEmpty }
     }
 
     private var steamStatus: String {
@@ -384,17 +407,17 @@ private struct StorageSettings: View {
                 Section {
                     let own = ownSize ?? 0
                     let other = max(0, disk.total - disk.free - gamesSize - own)
-                    StorageBar(parts: [(gamesSize, Theme.ink.opacity(0.85)), (own, Theme.ink.opacity(0.5)), (other, Theme.ink.opacity(0.22))],
+                    StorageBar(parts: [(gamesSize, Theme.sodium), (own, Theme.storageNightforge), (other, .white.opacity(0.25))],
                                total: disk.total)
                     HStack(spacing: 16) {
-                        legend(L10n.t("Games"), gamesSize, Theme.ink.opacity(0.85))
+                        legend(L10n.t("Games"), gamesSize, Theme.sodium)
                         if let ownSize {
-                            legend("Nightforge", ownSize, Theme.ink.opacity(0.5))
+                            legend("Nightforge", ownSize, Theme.storageNightforge)
                         } else {
                             HStack(spacing: 6) { ProgressView().controlSize(.small); Text(L10n.t("Measuring Nightforge …")) }
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        legend(L10n.t("Other"), other, Theme.ink.opacity(0.22))
+                        legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
                         Text(L10n.t("%@ free", Format.bytes(disk.free)))
                             .font(.caption.monospacedDigit())
@@ -596,17 +619,17 @@ private struct StorageBar: View {
 
     var body: some View {
         GeometryReader { geo in
-            HStack(spacing: 2) {
+            HStack(spacing: 0) {
                 ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
                     Rectangle().fill(part.color)
-                        .frame(width: max(0, geo.size.width * CGFloat(part.bytes) / CGFloat(max(total, 1)) - 2))
+                        .frame(width: max(0, geo.size.width * CGFloat(part.bytes) / CGFloat(max(total, 1))))
                 }
                 Spacer(minLength: 0)
             }
-            .background(Color.white.opacity(0.06))
+            .background(Color.white.opacity(0.1))
             .clipShape(Capsule())
         }
-        .frame(height: 12)
+        .frame(height: 10)
         .accessibilityHidden(true)
     }
 }
