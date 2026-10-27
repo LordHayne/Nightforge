@@ -150,6 +150,7 @@ struct LibraryView: View {
             message: { game in
                 Text(game.isInstalled
                      ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk))
+                     : game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
                      : L10n.t("The part downloaded so far is deleted. You can start the download again any time."))
             }
         )
@@ -939,6 +940,14 @@ private struct GameDetail: View {
             }
             if game.demoOf != nil {
                 DemoNote(game: game)
+            }
+            if game.downloadRefused {
+                Label(L10n.t("Steam won't download this game: it isn't in your Steam library. Cancel the download to take the request back."),
+                      systemImage: "xmark.circle")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if !compact, let insight = model.insights[game.appID] {
                 GameInsightNotes(game: game, insight: insight)

@@ -233,6 +233,50 @@ struct SteamOwnershipTest {
         check(library[1007]?.isInstalled == true && library[1007]?.demoOf == 1006,
               "an installed demo is still a demo: \(String(describing: library[1007]?.demoOf))")
 
+        // MARK: A download Steam won't fetch
+        typealias Scanner = LibraryScanner
+        check(!Scanner.downloadRefused(lastOwner: nil, unchangedFor: 30, owned: false, signedIn: true, otherDownloadRunning: false),
+              "a fresh request gets a minute (a demo's licence may be on its way)")
+        check(Scanner.downloadRefused(lastOwner: nil, unchangedFor: 90, owned: false, signedIn: false, otherDownloadRunning: true),
+              "the licence list says not owned: refused, whatever Steam is doing")
+        check(!Scanner.downloadRefused(lastOwner: "0", unchangedFor: 900, owned: true, signedIn: true, otherDownloadRunning: false),
+              "owned: never refused")
+        check(!Scanner.downloadRefused(lastOwner: "76561197960265729", unchangedFor: 900, owned: false, signedIn: true, otherDownloadRunning: false),
+              "an owner Steam wrote in (a shared library, say) beats the list")
+        check(Scanner.downloadRefused(lastOwner: "0", unchangedFor: 90, owned: nil, signedIn: true, otherDownloadRunning: false),
+              "no licence list: Steam signed in, wrote no owner and does nothing else")
+        check(!Scanner.downloadRefused(lastOwner: "0", unchangedFor: 900, owned: nil, signedIn: false, otherDownloadRunning: false),
+              "no licence list and Steam signed out: it may not have looked yet")
+        check(!Scanner.downloadRefused(lastOwner: "0", unchangedFor: 900, owned: nil, signedIn: true, otherDownloadRunning: true),
+              "no licence list and another download running: it may be queued")
+        check(!Scanner.downloadRefused(lastOwner: nil, unchangedFor: 900, owned: nil, signedIn: true, otherDownloadRunning: false),
+              "no licence list and Steam hasn't touched the request: wait")
+
+        func request(_ appID: Int, _ name: String, lastOwner: String?, age: TimeInterval) {
+            let file = steamapps.appendingPathComponent("appmanifest_\(appID).acf")
+            try? """
+            "AppState"
+            {
+            \t"appid"\t\t"\(appID)"
+            \t"name"\t\t"\(name)"
+            \t"StateFlags"\t\t"1026"
+            \t"installdir"\t\t"\(name)"
+            \t"buildid"\t\t"0"\(lastOwner.map { "\n\t\"LastOwner\"\t\t\"\($0)\"" } ?? "")
+            }
+            """.write(to: file, atomically: true, encoding: .utf8)
+            try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: file.path)
+        }
+        request(1004, "Has A Demo", lastOwner: "0", age: 600)     // The Last Caretaker on 27.10.
+        request(1002, "Free Weekend Over", lastOwner: nil, age: 5)  // just asked for
+        request(1001, "Bought", lastOwner: nil, age: 600)           // Steam hasn't started since
+        let requests = Dictionary(LibraryScanner.scan(bottle: Bottle(name: "Test", url: prefix, isBuiltIn: true)).map { ($0.appID, $0) },
+                                  uniquingKeysWith: { a, _ in a })
+        check(requests[1004]?.downloadRefused == true && requests[1004]?.install == .inStore,
+              "a request for a game the account doesn't own ends as a store entry: \(String(describing: requests[1004]?.install))")
+        check(requests[1005]?.demoOf == 1004, "its demo is still offered beside it")
+        check(requests[1002]?.downloadRefused == false && requests[1002]?.install == .downloading(nil), "a fresh request waits")
+        check(requests[1001]?.downloadRefused == false && requests[1001]?.install == .downloading(nil), "an owned game's request waits for Steam")
+
         // tests/SteamOwnershipTest/run.sh <Steam folder>: what a real Steam's licence list says.
         if CommandLine.arguments.count > 1 {
             let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)

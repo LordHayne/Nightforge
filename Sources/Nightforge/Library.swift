@@ -81,6 +81,9 @@ struct Game: Identifiable, Hashable {
     var demoOf: Int?
     /// … and Steam still has to add the demo's free licence to the account, which takes one click in Steam.
     var demoNeedsLicense = false
+    /// Steam took the download request but won't fetch it – the account doesn't own the game – so it
+    /// shows as a store entry, not as a download that never starts. Cancelling removes the request.
+    var downloadRefused = false
 
     var id: String { listID ?? "\(bottle.name)#\(appID)" }
     var isInstalled: Bool { install == .installed }
@@ -181,6 +184,7 @@ enum LibraryScanner {
             guard fm.fileExists(atPath: steamRoot.appendingPathComponent("steam.exe").path) else { continue }
 
             let usage = readUsage(steamRoot: steamRoot)
+            var found: [(game: Game, manifest: URL)] = []
 
             for steamapps in libraryFolders(steamRoot: steamRoot, bottle: bottle) {
                 for manifest in manifests(in: steamapps) {
@@ -189,9 +193,10 @@ enum LibraryScanner {
                         steamRoot: steamRoot, steamExe: candidate.exe, usage: usage
                     ), !seen.contains(game.appID) else { continue }
                     seen.insert(game.appID)
-                    result.append(game)
+                    found.append((game, manifest))
                 }
             }
+            result += markRefused(found, steamRoot: steamRoot)
 
             // What Steam knows about each game: VR only, a Mac version. Games the account doesn't own
             // (an expired free weekend, a store page looked at) come as their demo or from the store.
@@ -235,7 +240,7 @@ enum LibraryScanner {
         let usage = readUsage(steamRoot: root)
         let catalog = Dictionary((SteamCatalog.ownedGames(steamRoot: root) + SteamCatalog.unownedGames(steamRoot: root)).map { ($0.appID, $0) },
                                  uniquingKeysWith: { first, _ in first })
-        var result: [Game] = []
+        var found: [(game: Game, manifest: URL)] = []
         var seen = Set<Int>()
         for steamapps in libraryFolders(steamRoot: root, bottle: bottle) {
             for manifest in manifests(in: steamapps) {
@@ -249,10 +254,47 @@ enum LibraryScanner {
                 }
                 if let app = catalog[game.appID] { game.adoptCatalogFacts(app) }
                 game.macNative = true
-                result.append(game)
+                found.append((game, manifest))
             }
         }
-        return result
+        return markRefused(found, steamRoot: root)
+    }
+
+    // MARK: - Downloads Steam won't fetch
+
+    /// Requested downloads (Engine.requestDownload) Steam won't fetch become store entries
+    /// (`downloadRefused`) instead of sitting at "Preparing download …" for good.
+    private static func markRefused(_ found: [(game: Game, manifest: URL)], steamRoot: URL) -> [Game] {
+        let waiting = found.filter { $0.game.install == .downloading(nil) }
+        guard !waiting.isEmpty else { return found.map(\.game) }
+        let signedIn = Engine.signedIn(steamRoot: steamRoot)
+        let busy = found.contains { if case .downloading(.some) = $0.game.install { return true } else { return false } }
+        return found.map { game, manifest in
+            guard game.install == .downloading(nil) else { return game }
+            let modified = (try? manifest.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
+            let lastOwner = VDF.parse(contentsOf: manifest)?["appstate"]?["lastowner"]?.string
+            guard downloadRefused(lastOwner: lastOwner, unchangedFor: Date().timeIntervalSince(modified),
+                                  owned: SteamCatalog.owns(game.appID, steamRoot: steamRoot),
+                                  signedIn: signedIn, otherDownloadRunning: busy)
+            else { return game }
+            var refused = game
+            refused.install = .inStore
+            refused.downloadRefused = true
+            return refused
+        }
+    }
+
+    /// Steam has a download request but won't act on it: the account doesn't own the game. Known
+    /// from the licence list (`owned`); without one, from Steam rewriting the manifest with no owner
+    /// ("LastOwner" "0") while it's signed in and busy with no other download. Either way only once
+    /// the manifest has sat unchanged for a minute: a demo Steam is still adding the free licence
+    /// for gets that long. An owner Steam has written settles it the other way.
+    static func downloadRefused(lastOwner: String?, unchangedFor: TimeInterval, owned: Bool?,
+                                signedIn: Bool, otherDownloadRunning: Bool) -> Bool {
+        guard unchangedFor >= 60 else { return false }
+        if let lastOwner, lastOwner != "0" { return false }
+        if let owned { return !owned }
+        return lastOwner == "0" && signedIn && !otherDownloadRunning
     }
 
     /// One entry per game: the Windows scan's, switched to the Mac version where VersionChoice

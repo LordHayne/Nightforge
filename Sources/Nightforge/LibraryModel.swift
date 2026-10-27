@@ -392,6 +392,7 @@ final class LibraryModel: ObservableObject {
                 blocks: blocks), drives: drives)
         }.value
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
+        let wasRefused = Set(allGames.filter(\.downloadRefused).map(\.id))
         allGames = withStorePrices(found)
         measureDownloads()
         libraryLoaded = true
@@ -409,6 +410,11 @@ final class LibraryModel: ObservableObject {
         if let game = finished.first {
             Toasts.shared.show(finished.count == 1 ? L10n.t("%@ is ready to play", game.name) : L10n.t("%ld games are ready to play", finished.count),
                                action: .init(label: L10n.t("Play")) { [weak self] in self?.play(game) })
+        }
+        // Said once, not left at "Preparing download …": Steam won't fetch a game the account doesn't own.
+        if let game = found.first(where: { $0.downloadRefused && !wasRefused.contains($0.id) }) {
+            Toasts.shared.show(L10n.t("Steam won't download %@: it isn't in your Steam library.", game.name),
+                               action: .init(label: L10n.t("Cancel Download")) { [weak self] in self?.requestUninstall(game) })
         }
         watchDownloads()
         afterScan()
@@ -1923,7 +1929,7 @@ final class LibraryModel: ObservableObject {
     /// own Steam. Uninstalling stops that Steam for a moment, so not while one of its games runs or
     /// anything starts – it would go too.
     func canUninstall(_ game: Game) -> Bool {
-        guard game.isInstalled || { if case .downloading = game.install { return true } else { return false } }()
+        guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
         guard uninstallingID == nil && launchingID == nil else { return false }
         if game.platform == .mac { return !anyRunning(.mac) }
