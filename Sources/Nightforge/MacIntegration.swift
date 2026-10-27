@@ -13,8 +13,8 @@ enum MacIntegration {
     nonisolated static let dockLimit = 5
 
     /// Installed games, the last played first; never played ones aren't "recent".
-    nonisolated static func recentGames(_ games: [Game], hidden: Set<Int> = []) -> [Game] {
-        let played = games.filter { $0.isInstalled && $0.lastPlayed != nil && !hidden.contains($0.appID) }
+    nonisolated static func recentGames(_ games: [Game], hidden: Set<GameID> = []) -> [Game] {
+        let played = games.filter { $0.isInstalled && $0.lastPlayed != nil && !hidden.contains($0.gameID) }
         return Array(played.sorted { $0.lastPlayed! > $1.lastPlayed! }.prefix(dockLimit))
     }
 
@@ -34,8 +34,8 @@ enum MacIntegration {
 
     /// From the Dock menu, a notification's Play button or a game's link: Nightforge comes to the
     /// front and plays the game – or shows its page when it isn't installed (a link never downloads).
-    static func open(id: String? = nil, appID: Int? = nil, play: Bool) {
-        guard let model, let game = model.allGames.first(where: { $0.id == id || (appID != nil && $0.appID == appID) }) else { return }
+    static func open(id: String? = nil, gameID: GameID? = nil, play: Bool) {
+        guard let model, let game = model.allGames.first(where: { $0.id == id || (gameID != nil && $0.gameID == gameID) }) else { return }
         NSApp.activate()
         if play && game.isInstalled {
             model.play(game)
@@ -54,8 +54,8 @@ enum MacIntegration {
             return
         }
         switch action {
-        case .play(let appID): open(appID: appID, play: true)
-        case .show(let appID): open(appID: appID, play: false)
+        case .play(let game): open(gameID: game, play: true)
+        case .show(let game): open(gameID: game, play: false)
         }
     }
 
@@ -64,8 +64,8 @@ enum MacIntegration {
         guard let link = pendingLink else { return }
         pendingLink = nil
         switch link {
-        case .play(let appID): open(appID: appID, play: true)
-        case .show(let appID): open(appID: appID, play: false)
+        case .play(let game): open(gameID: game, play: true)
+        case .show(let game): open(gameID: game, play: false)
         }
     }
 
@@ -95,8 +95,8 @@ enum MacIntegration {
         content.body = games.count == 1 ? L10n.t("The download is done.") : games.map(\.name).joined(separator: ", ")
         content.sound = .default
         content.categoryIdentifier = category
-        content.userInfo = ["appID": game.appID]
-        let request = UNNotificationRequest(identifier: "download.\(game.appID)", content: content, trigger: nil)
+        content.userInfo = ["game": game.gameID.key]
+        let request = UNNotificationRequest(identifier: "download.\(game.gameID.key)", content: content, trigger: nil)
         Task {
             guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
             try? await center.add(request)
@@ -105,13 +105,13 @@ enum MacIntegration {
 
     /// A click on the notification or its Play button.
     nonisolated static func handle(_ response: UNNotificationResponse) {
-        let appID = response.notification.request.content.userInfo["appID"] as? Int
+        let game = (response.notification.request.content.userInfo["game"] as? String).flatMap(GameID.init(key:))
         let action = response.actionIdentifier
         Task { @MainActor in
             if action == playAction {
-                open(appID: appID, play: true)
+                open(gameID: game, play: true)
             } else if action == UNNotificationDefaultActionIdentifier {
-                open(appID: appID, play: false)
+                open(gameID: game, play: false)
             }
         }
     }

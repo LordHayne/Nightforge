@@ -76,7 +76,7 @@ struct LibraryView: View {
         // A changed version moves the game to another Steam: scan again.
         .sheet(isPresented: $model.showingOptions, onDismiss: { model.reload(quiet: true) }) {
             if let game = model.selected {
-                GameOptionsSheet(game: game, insight: model.insights[game.appID]) { model.reportProblem(for: game) }
+                GameOptionsSheet(game: game, insight: model.insights[game.gameID]) { model.reportProblem(for: game) }
             }
         }
         .sheet(item: $model.pendingSpace) { request in
@@ -408,7 +408,7 @@ struct FailedLaunchSheet: View {
     /// Vulkan, OpenGL and DirectX 12 have one way each: nothing to pick by hand.
     private var hasLayers: Bool {
         guard failed.game.bottle.isBuiltIn, failed.game.platform == .windows else { return false }
-        guard let analysis = model.insights[failed.game.appID]?.analysis else { return true }
+        guard let analysis = model.insights[failed.game.gameID]?.analysis else { return true }
         return analysis.usesD3D11 || analysis.usesD3D9 || analysis.apis.isEmpty
     }
 
@@ -917,7 +917,7 @@ private struct GameDetail: View {
                     Stat(label: L10n.t("Bottle"), value: game.bottle.name)
                 }
                 if !compact && game.isInstalled {
-                    let offline = OfflineReadiness.of(game, analysis: model.insights[game.appID]?.analysis,
+                    let offline = OfflineReadiness.of(game, analysis: model.insights[game.gameID]?.analysis,
                                                       accountRemembered: OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
                     Stat(label: L10n.t("Offline"), value: offline.label)
                         .help(offline.help)
@@ -934,7 +934,7 @@ private struct GameDetail: View {
             if let block = game.antiCheatBlock {
                 AntiCheatNote(block: block)
             }
-            if !compact, let insight = model.insights[game.appID] {
+            if !compact, let insight = model.insights[game.gameID] {
                 GameInsightNotes(game: game, insight: insight)
             }
             if model.power.onBattery && Prefs.saveBattery && game.isInstalled && !model.isRunning(game) {
@@ -1824,8 +1824,8 @@ private struct GameInsightNotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if GameOptionsStore.load(game.appID).graphics == .automatic,
-               let healed = LaunchHealth.note(game.appID, insight.attempts) {
+            if GameOptionsStore.load(game.gameID).graphics == .automatic,
+               let healed = LaunchHealth.note(game.gameID, insight.attempts) {
                 note(healed, systemImage: "wand.and.stars")
             }
             if insight.analysis.onlyD3D12, !insight.attempts.contains(where: { $0.graphics == .d3dmetal }) {

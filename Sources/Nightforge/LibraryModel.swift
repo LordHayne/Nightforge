@@ -36,7 +36,7 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var homeRail: [Int] = []
     /// On Home, the "All games" tile after the rail is selected instead of a game.
     @Published private(set) var homeOnAllGames = false
-    /// Games hidden from the library and pinned to Home, by app ID (GameMarks).
+    /// Games hidden from the library and pinned to Home (GameMarks).
     @Published private(set) var hiddenGames = GameMarks.load(.hidden)
     @Published private(set) var pinnedGames = GameMarks.load(.pinned)
     /// The library shows only the hidden games, to bring them back.
@@ -79,10 +79,10 @@ final class LibraryModel: ObservableObject {
         let from: Platform
         let newer: SaveTransfer.Newer
     }
-    /// What Nightforge knows about installed games before starting them, by app ID.
-    @Published private(set) var insights: [Int: GameInsight] = [:]
-    private var analyses: [Int: GameAnalysis] = [:]
-    /// The profile list at hand, for how well each game runs (Compatibility).
+    /// What Nightforge knows about installed games before starting them.
+    @Published private(set) var insights: [GameID: GameInsight] = [:]
+    private var analyses: [GameID: GameAnalysis] = [:]
+    /// The profile list at hand, for how well each game runs (Compatibility), by Steam app ID.
     @Published private(set) var profiles: [Int: GameProfile] = [:]
     @Published var showingOptions = false
     /// Settings, as a dialog over the library (also over it in full screen).
@@ -105,8 +105,8 @@ final class LibraryModel: ObservableObject {
     @Published var showingDownloads = false
     /// What Steam is downloading now, in the library's order.
     var downloads: [Game] { allGames.filter { Self.isDownloading($0.install) } }
-    /// Speed and time left of each download, by app ID.
-    @Published private(set) var downloadRates: [Int: DownloadRate] = [:]
+    /// Speed and time left of each download.
+    @Published private(set) var downloadRates: [GameID: DownloadRate] = [:]
     /// A download that wouldn't fit: which games could make room (SpaceCheck).
     @Published var pendingSpace: SpaceRequest?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
@@ -486,12 +486,12 @@ final class LibraryModel: ObservableObject {
 
     /// Adds this look's progress to each download's speed; a download that ended drops out.
     private func measureDownloads(now: Date = Date()) {
-        var rates: [Int: DownloadRate] = [:]
+        var rates: [GameID: DownloadRate] = [:]
         for game in downloads where game.downloadNeedsSpace == nil {
             guard case .downloading(let fraction?) = game.install, game.sizeOnDisk > 0 else { continue }
-            var rate = downloadRates[game.appID] ?? DownloadRate()
+            var rate = downloadRates[game.gameID] ?? DownloadRate()
             rate.add(bytes: fraction * Double(game.sizeOnDisk), at: now)
-            rates[game.appID] = rate
+            rates[game.gameID] = rate
         }
         if rates != downloadRates { downloadRates = rates }
     }
@@ -824,9 +824,9 @@ final class LibraryModel: ObservableObject {
     /// From the setup sheet: this game keeps to its Windows version.
     func useWindowsVersion(of game: Game) {
         closeMacSetup()
-        var options = GameOptionsStore.load(game.appID)
+        var options = GameOptionsStore.load(game.gameID)
         options.version = .windows
-        GameOptionsStore.save(options, for: game.appID)
+        GameOptionsStore.save(options, for: game.gameID)
         MacHealth.reset(game.appID)
         reload(quiet: true)
     }
@@ -885,7 +885,7 @@ final class LibraryModel: ObservableObject {
         launchNeedsConfirmation = false
         launchPhase = nil
         let behavior = Prefs.afterLaunch
-        let arguments = GameOptionsStore.load(game.appID).extraArgs.trimmingCharacters(in: .whitespaces)
+        let arguments = GameOptionsStore.load(game.gameID).extraArgs.trimmingCharacters(in: .whitespaces)
         launchTask = Task {
             defer {
                 launchingID = nil
@@ -1030,12 +1030,12 @@ final class LibraryModel: ObservableObject {
     /// Windows version, and goes on with it at once – starts it when it's installed, else
     /// downloads it. The game's note says so; its options can switch back.
     private func fallBackToWindows(_ game: Game) -> Bool {
-        guard game.switchable, GameOptionsStore.load(game.appID).version == .automatic else { return false }
+        guard game.switchable, GameOptionsStore.load(game.gameID).version == .automatic else { return false }
         MacHealth.fail(game.appID)
         NSApp.activate()
         Task {
             await rescan()  // after the Mac launch has wound down: one launch at a time
-            guard let windows = allGames.first(where: { $0.appID == game.appID && $0.platform == .windows }) else { return }
+            guard let windows = allGames.first(where: { $0.gameID == game.gameID && $0.platform == .windows }) else { return }
             if windows.isInstalled {
                 launch(windows)
             } else if windows.install == .notInstalled {
@@ -1130,7 +1130,7 @@ final class LibraryModel: ObservableObject {
         let previous = selected?.id
         let words = Search.key(searchText).split(separator: " ")
         // Hidden games only show where they're brought back from; the filters only in the library.
-        var shelf = allGames.filter { hiddenGames.contains($0.appID) == showingHidden }
+        var shelf = allGames.filter { hiddenGames.contains($0.gameID) == showingHidden }
         if route.level == .library {
             shelf = shelf.filter { filters.admits($0) { compatibility(of: $0).level } }
             shelf = showingHidden ? LibraryFilters(sort: .name).sorted(shelf) : filters.sorted(shelf)
@@ -1141,10 +1141,10 @@ final class LibraryModel: ObservableObject {
             // Word starts first ("ark" → ARK, Arkham), then initials ("rdr2"), then mid-word hits
             // (Amnesia: The Dark Descent); within each, the order above.
             let ranked = shelf.compactMap { game in Search.rank(name: game.name, query: searchText).map { (game, $0) } }
-            let owned = Set(allGames.map(\.appID))
+            let owned = Set(allGames.map(\.gameID))
             // Store hits are games you don't own: only without filters that ask about your copy.
             let storeHits = showingHidden || filters.status != .all || filters.controller || filters.mac ? []
-                : storeResults.filter { !owned.contains($0.appID) && (!filters.great || compatibility(of: $0).level == .great) }
+                : storeResults.filter { !owned.contains($0.gameID) && (!filters.great || compatibility(of: $0).level == .great) }
             games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + storeHits
         }
         let first = route.level == .library ? gridLayout.order.first ?? 0 : 0
@@ -1299,10 +1299,10 @@ final class LibraryModel: ObservableObject {
     // MARK: - Hide & pin
 
     /// The games in the library, without the hidden ones.
-    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.appID) }.count }
+    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.gameID) }.count }
 
-    func isHidden(_ game: Game) -> Bool { hiddenGames.contains(game.appID) }
-    func isPinned(_ game: Game) -> Bool { pinnedGames.contains(game.appID) }
+    func isHidden(_ game: Game) -> Bool { hiddenGames.contains(game.gameID) }
+    func isPinned(_ game: Game) -> Bool { pinnedGames.contains(game.gameID) }
 
     /// Pinning keeps a game on Home's rail; only games on this Mac are there.
     func canPin(_ game: Game) -> Bool {
@@ -1317,10 +1317,10 @@ final class LibraryModel: ObservableObject {
     func toggleHidden(_ game: Game) {
         guard game.install != .inStore else { return }
         let hide = !isHidden(game), wasPinned = isPinned(game)
-        mark(game.appID, hidden: hide, pinned: hide ? false : nil)
+        mark(game.gameID, hidden: hide, pinned: hide ? false : nil)
         Toasts.shared.show(hide ? L10n.t("%@ is hidden from your library", game.name) : L10n.t("%@ is back in your library", game.name),
                            action: .init(label: L10n.t("Undo")) { [weak self] in
-                               self?.mark(game.appID, hidden: !hide, pinned: hide && wasPinned ? true : nil)
+                               self?.mark(game.gameID, hidden: !hide, pinned: hide && wasPinned ? true : nil)
                            })
     }
 
@@ -1328,19 +1328,19 @@ final class LibraryModel: ObservableObject {
     func togglePinned(_ game: Game) {
         guard canPin(game) || isPinned(game) else { return }
         let pin = !isPinned(game)
-        mark(game.appID, pinned: pin)
+        mark(game.gameID, pinned: pin)
         Toasts.shared.show(pin ? L10n.t("%@ stays on Home – even when you haven't played it for a while", game.name)
                                : L10n.t("%@ is no longer pinned", game.name))
     }
 
-    private func mark(_ appID: Int, hidden: Bool? = nil, pinned: Bool? = nil) {
+    private func mark(_ game: GameID, hidden: Bool? = nil, pinned: Bool? = nil) {
         if let hidden {
-            if hidden { hiddenGames.insert(appID) } else { hiddenGames.remove(appID) }
+            if hidden { hiddenGames.insert(game) } else { hiddenGames.remove(game) }
             GameMarks.save(hiddenGames, .hidden)
             if hiddenGames.isEmpty { showingHidden = false }
         }
         if let pinned {
-            if pinned { pinnedGames.insert(appID) } else { pinnedGames.remove(appID) }
+            if pinned { pinnedGames.insert(game) } else { pinnedGames.remove(game) }
             GameMarks.save(pinnedGames, .pinned)
         }
         applyFilter()
@@ -1463,19 +1463,19 @@ final class LibraryModel: ObservableObject {
             let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
             let insight = await insight(of: game)
             let analysis = insight?.analysis
-            var options = GameOptionsStore.load(game.appID)
+            var options = GameOptionsStore.load(game.gameID)
             let automatic = game.bottle.isBuiltIn && options.graphics == .automatic
             let attempts = insight?.attempts ?? []
-            if automatic { LaunchHealth.review(game.appID, attempts, steamRoot: game.steamRoot) }
+            if automatic { LaunchHealth.review(game.gameID, attempts, steamRoot: game.steamRoot) }
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
                 await Task.detached(priority: .utility) {
-                    FramePacing.learn(appID: game.appID, installDir: game.installDir)
+                    FramePacing.learn(game: game.gameID, installDir: game.installDir)
                 }.value
             }
 
-            if let preparing = preparations[game.appID] {
+            if let preparing = preparations[game.gameID] {
                 launchPhase = .settingUp
                 await preparing.value
                 launchPhase = nil
@@ -1488,16 +1488,16 @@ final class LibraryModel: ObservableObject {
                 var arguments = analysis?.preferD3D11Arguments ?? []
                 var watchFirstSeconds = false
                 if automatic, !attempts.isEmpty {
-                    let (index, confirmed) = LaunchHealth.current(game.appID, attempts)
+                    let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
                     options.graphics = attempts[index].graphics
                     arguments = attempts[index].arguments
                     watchFirstSeconds = !confirmed
-                    if watchFirstSeconds { LaunchHealth.recordStart(game.appID, attempts) }
+                    if watchFirstSeconds { LaunchHealth.recordStart(game.gameID, attempts) }
                 }
                 let logMark = GameLog.mark()
                 let startedAt = Date()
-                LearnedFixes.setLastLaunch(game.appID, logMark: logMark)
-                var (frameLimit, learning) = FramePacing.automaticLimit(appID: game.appID, options: options,
+                LearnedFixes.setLastLaunch(game.gameID, logMark: logMark)
+                var (frameLimit, learning) = FramePacing.automaticLimit(game: game.gameID, options: options,
                                                                          profile: profile, refreshRate: refreshRate)
                 // On battery with "Save battery" on: 30 FPS, and nothing learned from a capped session.
                 let capped = PowerSource.cappedLimit(frameLimit, onBattery: power.onBattery, saveBattery: Prefs.saveBattery)
@@ -1506,13 +1506,13 @@ final class LibraryModel: ObservableObject {
                     learning = false
                 }
                 if game.bottle.isBuiltIn {
-                    FramePacing.recordStart(appID: game.appID, options: options, profile: profile, refreshRate: refreshRate,
+                    FramePacing.recordStart(game: game.gameID, options: options, profile: profile, refreshRate: refreshRate,
                                             logMark: logMark, limit: frameLimit, learning: learning)
                 }
                 // Settings a game only takes from the environment come with the Steam that starts it.
                 let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
                 if game.bottle.isBuiltIn,
-                   Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.appID, profile: profile), d3dMetal: layer == .d3dmetal,
+                   Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile)),
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
@@ -1521,11 +1521,11 @@ final class LibraryModel: ObservableObject {
                 }
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
-                launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.appID, signature: shaders)
+                launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
                 guard await start(game, runner: runner, options: options, profile: profile,
                                   arguments: arguments, frameLimit: frameLimit)
                 else { return }
-                if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.appID, signature: shaders) }
+                if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false
                 launchingID = nil
                 if game.bottle.isBuiltIn { SteamPriority.watch(game) }
@@ -1535,16 +1535,16 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark) {
-                    LaunchHealth.confirm(game.appID, attempts)
+                    LaunchHealth.confirm(game.gameID, attempts)
                     break
                 }
                 launchingID = game.id
                 NSApp.activate()
                 let needed = GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName)
-                    .filter { !LearnedFixes.winetricks(game.appID).contains($0) }
+                    .filter { !LearnedFixes.winetricks(game.gameID).contains($0) }
                 if !needed.isEmpty {
                     // Wine said what's missing: install it and try the same way again.
-                    LearnedFixes.addWinetricks(needed, for: game.appID)
+                    LearnedFixes.addWinetricks(needed, for: game.gameID)
                     continue
                 }
                 if game.bottle.isBuiltIn, Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir) {
@@ -1552,14 +1552,14 @@ final class LibraryModel: ObservableObject {
                     // profile turns off: the same way again, with the file fixed.
                     continue
                 }
-                if game.bottle.isBuiltIn, LearnedFixes.avx(game.appID, profile: profile),
+                if game.bottle.isBuiltIn, LearnedFixes.avx(game.gameID, profile: profile),
                    GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt) {
                     // Rosetta's AVX hint sent it down a path Rosetta can't run: the same way without it.
-                    LearnedFixes.setNoAVX(game.appID)
+                    LearnedFixes.setNoAVX(game.gameID)
                     continue
                 }
-                if LaunchHealth.advance(game.appID, attempts) {
-                    let next = attempts[LaunchHealth.current(game.appID, attempts).index]
+                if LaunchHealth.advance(game.gameID, attempts) {
+                    let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
                     continue
                 }
@@ -1581,7 +1581,7 @@ final class LibraryModel: ObservableObject {
     /// for .NET games. `showStatus` says so on the Play button while it takes.
     private func installRuntimes(for game: Game, profile: GameProfile?, analysis: GameAnalysis?,
                                  wine: URL, showStatus: Bool) async {
-        let learned = LearnedFixes.winetricks(game.appID)
+        let learned = LearnedFixes.winetricks(game.gameID)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono })
             .filter(Engine.isSafeWinetricksVerb)
         if !missing.isEmpty {
@@ -1598,17 +1598,17 @@ final class LibraryModel: ObservableObject {
     }
 
     /// Games being set up in the background right after their download; Play waits for them.
-    private var preparations: [Int: Task<Void, Never>] = [:]
+    private var preparations: [GameID: Task<Void, Never>] = [:]
 
     /// A Windows game Steam has just finished downloading gets what it needs to start (runtimes,
     /// .NET) now, while nobody waits – so its first Play starts it at once. Not while a game runs
     /// or starts: that one gets the Mac's full attention, and Play does the setup then.
     private func prepare(_ game: Game) {
-        guard game.bottle.isBuiltIn, game.platform == .windows, preparations[game.appID] == nil,
+        guard game.bottle.isBuiltIn, game.platform == .windows, preparations[game.gameID] == nil,
               running.isEmpty, launchingID == nil
         else { return }
-        preparations[game.appID] = Task {
-            defer { preparations[game.appID] = nil }
+        preparations[game.gameID] = Task {
+            defer { preparations[game.gameID] = nil }
             guard let wine = await Engine.installedWine() else { return }
             let profile = await ProfileStore.shared.profile(for: game.appID)
             let analysis = await insight(of: game)?.analysis
@@ -1746,33 +1746,33 @@ final class LibraryModel: ObservableObject {
     }
 
     /// What a game's files reveal (read once per game and app run) and the ways to start it.
-    private var analyzing: [Int: Task<GameAnalysis, Never>] = [:]
+    private var analyzing: [GameID: Task<GameAnalysis, Never>] = [:]
 
     func insight(of game: Game) async -> GameInsight? {
         guard game.bottle.isBuiltIn, game.isInstalled else { return nil }
         let analysis: GameAnalysis
-        if let known = analyses[game.appID] {
+        if let known = analyses[game.gameID] {
             analysis = known
         } else {
             // Scrolling through the covers asks again before the first look is done: one look per game.
-            let running = analyzing[game.appID] ?? Task.detached(priority: .utility) {
+            let running = analyzing[game.gameID] ?? Task.detached(priority: .utility) {
                 GameAnalysis.analyze(installDir: game.installDir,
                                      launchExecutable: SteamCatalog.launchExecutable(appID: game.appID, steamRoot: game.steamRoot))
             }
-            analyzing[game.appID] = running
+            analyzing[game.gameID] = running
             analysis = await running.value
-            analyzing[game.appID] = nil
-            analyses[game.appID] = analysis
+            analyzing[game.gameID] = nil
+            analyses[game.gameID] = analysis
         }
         let profile = await ProfileStore.shared.profile(for: game.appID)
         let insight = GameInsight(analysis: analysis, attempts: LaunchHealth.attempts(for: analysis, profile: profile))
-        if insights[game.appID] != insight { insights[game.appID] = insight }
+        if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
     }
 
     /// How well it runs on a Mac, from the profile list and what this Mac learned about it.
     func compatibility(of game: Game) -> Compatibility {
-        Compatibility.of(game, profile: profiles[game.appID], analysis: insights[game.appID]?.analysis)
+        Compatibility.of(game, profile: game.gameID.steamAppID.flatMap { profiles[$0] }, analysis: insights[game.gameID]?.analysis)
     }
 
     /// The detail page's "Add to Applications": a little app that opens the game, found by Spotlight.
@@ -1796,7 +1796,7 @@ final class LibraryModel: ObservableObject {
     /// After a failed start: every way again from the first, as if the game were new.
     func startOver(_ failed: FailedLaunch) {
         failedLaunch = nil
-        LaunchHealth.reset(failed.game.appID)
+        LaunchHealth.reset(failed.game.gameID)
         play(failed.game)
     }
 

@@ -122,10 +122,10 @@ extension Compatibility {
     static func of(_ game: Game, profile: GameProfile?, analysis: GameAnalysis?) -> Compatibility {
         var facts = Facts(platform: game.platform, vrOnly: game.isVROnly, antiCheatBlock: game.antiCheatBlock,
                           profile: profile, analysis: analysis)
-        facts.learnedFixes = !LearnedFixes.winetricks(game.appID).isEmpty || LearnedFixes.noAVX(game.appID)
-        facts.ownRating = GameRatings.load(game.appID)
+        facts.learnedFixes = !LearnedFixes.winetricks(game.gameID).isEmpty || LearnedFixes.noAVX(game.gameID)
+        facts.ownRating = GameRatings.load(game.gameID)
         if let analysis {
-            facts.launch = LaunchHealth.peek(game.appID, LaunchHealth.attempts(for: analysis, profile: profile))
+            facts.launch = LaunchHealth.peek(game.gameID, LaunchHealth.attempts(for: analysis, profile: profile))
         }
         return rate(facts)
     }

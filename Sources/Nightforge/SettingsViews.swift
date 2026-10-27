@@ -15,7 +15,7 @@ struct GameOptionsSheet: View {
         self.game = game
         self.insight = insight
         self.report = report
-        _options = State(initialValue: GameOptionsStore.load(game.appID))
+        _options = State(initialValue: GameOptionsStore.load(game.gameID))
     }
 
     var body: some View {
@@ -94,7 +94,7 @@ struct GameOptionsSheet: View {
                     Picker(L10n.t("Frame limit"), selection: $options.frameLimit) {
                         // What the next start uses, including what Nightforge learned (FramePacing).
                         Text(automaticLabel(FramePacing.automaticLimit(
-                            appID: game.appID, options: { var o = options; o.frameLimit = nil; return o }(),
+                            game: game.gameID, options: { var o = options; o.frameLimit = nil; return o }(),
                             profile: profile, refreshRate: refreshRate).limit.fpsLabel))
                             .tag(Int?.none)
                         ForEach(GameOptions.frameLimits, id: \.self) { limit in
@@ -172,9 +172,9 @@ private extension GameOptionsSheet {
 
     func save() {
         // Picking a layer or version by hand overrides what self-healing learned.
-        if options.graphics != .automatic { LaunchHealth.reset(game.appID) }
-        if options.version != GameOptionsStore.load(game.appID).version { MacHealth.reset(game.appID) }
-        GameOptionsStore.save(options, for: game.appID)
+        if options.graphics != .automatic { LaunchHealth.reset(game.gameID) }
+        if options.version != GameOptionsStore.load(game.gameID).version { MacHealth.reset(game.appID) }
+        GameOptionsStore.save(options, for: game.gameID)
         dismiss()
     }
 
@@ -219,7 +219,7 @@ private extension GameOptionsSheet {
     /// The way "Automatic" takes right now (LaunchHealth).
     var automaticWay: LaunchAttempt {
         guard let attempts = insight?.attempts, !attempts.isEmpty else { return LaunchAttempt(graphics: Engine.defaultGraphics) }
-        return attempts[LaunchHealth.current(game.appID, attempts).index]
+        return attempts[LaunchHealth.current(game.gameID, attempts).index]
     }
 
     var drawsWith: GraphicsLayer { options.graphics == .automatic ? automaticWay.graphics : options.graphics }

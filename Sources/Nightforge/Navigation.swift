@@ -34,7 +34,7 @@ enum HomeRail {
 
     /// Indices into `games`: pinned games first (by name), then downloads, then installed games
     /// played in the last 90 days, the latest first. Only what's on this Mac.
-    static func pick(_ games: [Game], pinned: Set<Int> = [], now: Date = Date()) -> [Int] {
+    static func pick(_ games: [Game], pinned: Set<GameID> = [], now: Date = Date()) -> [Int] {
         let onMac = games.indices.filter { index in
             switch games[index].install {
             case .installed, .downloading: return true
@@ -58,8 +58,8 @@ enum HomeRail {
             }
         }
 
-        let pins = onMac.filter { pinned.contains(games[$0].appID) }.sorted(by: byName)
-        let rest = onMac.filter { !pinned.contains(games[$0].appID) }
+        let pins = onMac.filter { pinned.contains(games[$0].gameID) }.sorted(by: byName)
+        let rest = onMac.filter { !pinned.contains(games[$0].gameID) }
         let downloads = rest.filter { downloading(games[$0]) }.sorted(by: byRecency)
         let lately = rest.filter { !downloading(games[$0]) && recent(games[$0]) }.sorted(by: byRecency)
         var rail = pins + downloads + lately

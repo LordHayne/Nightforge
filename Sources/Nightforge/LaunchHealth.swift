@@ -63,89 +63,89 @@ enum LaunchHealth {
         var startedAt: Date?
     }
 
-    private static func key(_ appID: Int) -> String { "launchHealth.\(appID)" }
+    private static func key(_ game: GameID) -> String { "launchHealth.\(game.key)" }
 
-    private static func load(_ appID: Int, _ attempts: [LaunchAttempt]) -> State {
+    private static func load(_ game: GameID, _ attempts: [LaunchAttempt]) -> State {
         let ladder = attempts.map(\.id)
-        if let data = UserDefaults.standard.data(forKey: key(appID)),
+        if let data = UserDefaults.standard.data(forKey: key(game)),
            let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == ladder {
             return state
         }
         var state = State(ladder: ladder)
         // Up to 0.2: only "DXMT failed, DXVK from now on" was remembered.
-        let legacy = "health.dxmtFailed.\(appID)"
+        let legacy = "health.dxmtFailed.\(game.key)"
         if UserDefaults.standard.bool(forKey: legacy), let dxvk = attempts.firstIndex(where: { $0.graphics == .dxvk }) {
             state.index = dxvk
         }
         UserDefaults.standard.removeObject(forKey: legacy)
-        UserDefaults.standard.removeObject(forKey: "health.launch.\(appID)")
+        UserDefaults.standard.removeObject(forKey: "health.launch.\(game.key)")
         return state
     }
 
-    private static func save(_ appID: Int, _ state: State) {
-        if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: key(appID)) }
+    private static func save(_ game: GameID, _ state: State) {
+        if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: key(game)) }
     }
 
     /// The way to start the game now.
-    static func current(_ appID: Int, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool) {
-        let state = load(appID, attempts)
+    static func current(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool) {
+        let state = load(game, attempts)
         return (min(state.index, max(attempts.count - 1, 0)), state.confirmed)
     }
 
     /// How it stands without touching what's saved: nil when the game hasn't been started this way yet.
-    static func peek(_ appID: Int, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool)? {
-        guard let data = UserDefaults.standard.data(forKey: key(appID)),
+    static func peek(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool)? {
+        guard let data = UserDefaults.standard.data(forKey: key(game)),
               let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == attempts.map(\.id)
         else { return nil }
         return (min(state.index, max(attempts.count - 1, 0)), state.confirmed)
     }
 
-    static func recordStart(_ appID: Int, _ attempts: [LaunchAttempt], at date: Date = Date()) {
-        var state = load(appID, attempts)
+    static func recordStart(_ game: GameID, _ attempts: [LaunchAttempt], at date: Date = Date()) {
+        var state = load(game, attempts)
         state.startedAt = date
-        save(appID, state)
+        save(game, state)
     }
 
-    static func confirm(_ appID: Int, _ attempts: [LaunchAttempt]) {
-        var state = load(appID, attempts)
+    static func confirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
+        var state = load(game, attempts)
         state.confirmed = true
         state.startedAt = nil
-        save(appID, state)
+        save(game, state)
     }
 
     /// Moves on to the next way. False when there is none: then the list starts over next time.
-    static func advance(_ appID: Int, _ attempts: [LaunchAttempt]) -> Bool {
-        var state = load(appID, attempts)
+    static func advance(_ game: GameID, _ attempts: [LaunchAttempt]) -> Bool {
+        var state = load(game, attempts)
         state.startedAt = nil
         state.confirmed = false
         let next = state.index + 1 < attempts.count
         state.index = next ? state.index + 1 : 0
-        save(appID, state)
+        save(game, state)
         return next
     }
 
     /// Choosing a layer by hand starts over: the player wants to try for themselves.
-    static func reset(_ appID: Int) {
-        UserDefaults.standard.removeObject(forKey: key(appID))
-        UserDefaults.standard.removeObject(forKey: "health.dxmtFailed.\(appID)")
+    static func reset(_ game: GameID) {
+        UserDefaults.standard.removeObject(forKey: key(game))
+        UserDefaults.standard.removeObject(forKey: "health.dxmtFailed.\(game.key)")
     }
 
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
-    static func review(_ appID: Int, _ attempts: [LaunchAttempt], steamRoot: URL) {
-        let state = load(appID, attempts)
+    static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
+        let state = load(game, attempts)
         guard !state.confirmed, let started = state.startedAt,
-              let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
+              let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
         if span < failureWindow {
-            _ = advance(appID, attempts)
+            _ = advance(game, attempts)
         } else {
-            confirm(appID, attempts)
+            confirm(game, attempts)
         }
     }
 
     /// What the player should know about the way Nightforge picked, if it isn't the first.
-    static func note(_ appID: Int, _ attempts: [LaunchAttempt]) -> String? {
-        let (index, _) = current(appID, attempts)
+    static func note(_ game: GameID, _ attempts: [LaunchAttempt]) -> String? {
+        let (index, _) = current(game, attempts)
         guard index > 0 else { return nil }
         // Which graphics layer that is shows in the game's options; here it's enough to know it was handled.
         return L10n.t("This game didn't start the usual way, so Nightforge now starts it another way, automatically.")
@@ -195,36 +195,36 @@ enum LaunchHealth {
 /// What Nightforge found out about a game by itself, beyond the profile list: runtimes its
 /// programs turned out to need, and where its last start begins in GameLog.
 enum LearnedFixes {
-    private static func winetricksKey(_ appID: Int) -> String { "learned.winetricks.\(appID)" }
-    private static func markKey(_ appID: Int) -> String { "learned.logMark.\(appID)" }
+    private static func winetricksKey(_ game: GameID) -> String { "learned.winetricks.\(game.key)" }
+    private static func markKey(_ game: GameID) -> String { "learned.logMark.\(game.key)" }
 
-    static func winetricks(_ appID: Int) -> [String] {
-        UserDefaults.standard.stringArray(forKey: winetricksKey(appID)) ?? []
+    static func winetricks(_ game: GameID) -> [String] {
+        UserDefaults.standard.stringArray(forKey: winetricksKey(game)) ?? []
     }
 
-    static func addWinetricks(_ verbs: [String], for appID: Int) {
-        let known = winetricks(appID)
-        UserDefaults.standard.set(known + verbs.filter { !known.contains($0) }, forKey: winetricksKey(appID))
+    static func addWinetricks(_ verbs: [String], for game: GameID) {
+        let known = winetricks(game)
+        UserDefaults.standard.set(known + verbs.filter { !known.contains($0) }, forKey: winetricksKey(game))
     }
 
-    private static func noAVXKey(_ appID: Int) -> String { "learned.noAVX.\(appID)" }
+    private static func noAVXKey(_ game: GameID) -> String { "learned.noAVX.\(game.key)" }
 
     /// The game crashed on an instruction Rosetta can't run while AVX was advertised: it starts
     /// without the hint from now on.
-    static func noAVX(_ appID: Int) -> Bool { UserDefaults.standard.bool(forKey: noAVXKey(appID)) }
+    static func noAVX(_ game: GameID) -> Bool { UserDefaults.standard.bool(forKey: noAVXKey(game)) }
 
-    static func setNoAVX(_ appID: Int) { UserDefaults.standard.set(true, forKey: noAVXKey(appID)) }
+    static func setNoAVX(_ game: GameID) { UserDefaults.standard.set(true, forKey: noAVXKey(game)) }
 
     /// Whether Rosetta advertises AVX to this game.
-    static func avx(_ appID: Int, profile: GameProfile?) -> Bool {
-        profile?.avx != false && !noAVX(appID)
+    static func avx(_ game: GameID, profile: GameProfile?) -> Bool {
+        profile?.avx != false && !noAVX(game)
     }
 
-    static func setLastLaunch(_ appID: Int, logMark: UInt64) {
-        UserDefaults.standard.set(String(logMark), forKey: markKey(appID))
+    static func setLastLaunch(_ game: GameID, logMark: UInt64) {
+        UserDefaults.standard.set(String(logMark), forKey: markKey(game))
     }
 
-    static func lastLaunchMark(_ appID: Int) -> UInt64? {
-        UserDefaults.standard.string(forKey: markKey(appID)).flatMap(UInt64.init)
+    static func lastLaunchMark(_ game: GameID) -> UInt64? {
+        UserDefaults.standard.string(forKey: markKey(game)).flatMap(UInt64.init)
     }
 }

@@ -208,13 +208,13 @@ struct EngineLayoutTest {
         check(!GameLog.illegalInstruction(since: UInt64.max, installDir: game, startedAt: Date().addingTimeInterval(60)),
               "an older crash report doesn't count")
         let noAVXProfile = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"avx": false}"#.utf8))
-        let app = 990_002
-        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app)")
+        let app = GameID.steam(990_002)
+        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app.key)")
         check(LearnedFixes.avx(app, profile: nil), "AVX is advertised by default")
         check(!LearnedFixes.avx(app, profile: noAVXProfile), "a profile turns it off")
         LearnedFixes.setNoAVX(app)
         check(!LearnedFixes.avx(app, profile: nil), "a learned crash turns it off")
-        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app)")
+        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app.key)")
 
         // MARK: Steam's environment
         Engine.launchEnvironment = [:]

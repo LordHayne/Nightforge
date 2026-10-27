@@ -18,7 +18,8 @@ enum InstallState: Hashable {
 }
 
 struct Game: Identifiable, Hashable {
-    let appID: Int
+    /// Which store it's from and its ID there: the key for everything Nightforge keeps per game.
+    let gameID: GameID
     let name: String
     let bottle: Bottle
     /// macOS path of the Steam install inside the bottle
@@ -78,7 +79,33 @@ struct Game: Identifiable, Hashable {
     var storePrice: String?
     var metascore: Int?
 
-    var id: String { listID ?? "\(bottle.name)#\(appID)" }
+    init(gameID: GameID, name: String, bottle: Bottle, steamRoot: URL, steamExeWindowsPath: String,
+         installDir: URL, sizeOnDisk: Int64, lastPlayed: Date? = nil, playtimeMinutes: Int? = nil) {
+        self.gameID = gameID
+        self.name = name
+        self.bottle = bottle
+        self.steamRoot = steamRoot
+        self.steamExeWindowsPath = steamExeWindowsPath
+        self.installDir = installDir
+        self.sizeOnDisk = sizeOnDisk
+        self.lastPlayed = lastPlayed
+        self.playtimeMinutes = playtimeMinutes
+    }
+
+    /// A Steam game.
+    init(appID: Int, name: String, bottle: Bottle, steamRoot: URL, steamExeWindowsPath: String,
+         installDir: URL, sizeOnDisk: Int64, lastPlayed: Date? = nil, playtimeMinutes: Int? = nil) {
+        self.init(gameID: .steam(appID), name: name, bottle: bottle, steamRoot: steamRoot, steamExeWindowsPath: steamExeWindowsPath,
+                  installDir: installDir, sizeOnDisk: sizeOnDisk, lastPlayed: lastPlayed, playtimeMinutes: playtimeMinutes)
+    }
+
+    /// Steam's app ID; 0 for games from other stores, which never reach Steam's paths with it.
+    var appID: Int { gameID.steamAppID ?? 0 }
+    var provider: Provider { gameID.provider }
+
+    var id: String {
+        listID ?? (provider == .steam ? "\(bottle.name)#\(appID)" : "\(bottle.name)#\(gameID.key)")
+    }
     var isInstalled: Bool { install == .installed }
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
@@ -249,7 +276,7 @@ enum LibraryScanner {
     /// One entry per game: the Windows scan's, switched to the Mac version where VersionChoice
     /// says so, plus Mac versions in Steam for Mac that no scanned Windows Steam knows.
     static func merge(_ windows: [Game], mac: [Game], preferWindows: Set<Int>,
-                      choice: (Int) -> GameVersion = { GameOptionsStore.load($0).version },
+                      choice: (Int) -> GameVersion = { GameOptionsStore.load(.steam($0)).version },
                       macFailed: (Int) -> Bool = MacHealth.failed) -> [Game] {
         let onMac = Dictionary(mac.map { ($0.appID, $0) }, uniquingKeysWith: { first, _ in first })
         var taken = Set<Int>()  // two bottles with the same game: one entry gets the Mac version

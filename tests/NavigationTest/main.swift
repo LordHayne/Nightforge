@@ -50,23 +50,23 @@ struct NavigationTest {
         check(HomeRail.pick([]).isEmpty, "no games, no rail")
 
         // Pinned games lead the rail (by name), even ones not played for long; only games on this Mac.
-        let pinned = HomeRail.pick(games, pinned: [5, 0, 7])
+        let pinned = HomeRail.pick(games, pinned: [.steam(5), .steam(0), .steam(7)])
         check(pinned == [5, 7, 4, 3, 1], "pinned first (by name), even unplayed; a pinned game not on the Mac stays off: \(pinned)")
-        let pinnedMany = HomeRail.pick(many, pinned: [139, 137])
+        let pinnedMany = HomeRail.pick(many, pinned: [.steam(139), .steam(137)])
         check(pinnedMany.prefix(2) == [137, 139] && pinnedMany.count == HomeRail.limit, "pins beat recent games and the limit holds: \(pinnedMany.prefix(3))")
 
-        // Hidden and pinned marks survive a restart (UserDefaults), by app ID.
+        // Hidden and pinned marks survive a restart (UserDefaults), by store and ID.
         let defaults = UserDefaults(suiteName: "nightforge.navigation-test")!
         defaults.removePersistentDomain(forName: "nightforge.navigation-test")
-        GameMarks.save([570, 10], .hidden, to: defaults)
-        GameMarks.save([1091500], .pinned, to: defaults)
-        check(GameMarks.load(.hidden, from: defaults) == [570, 10], "hidden games come back")
-        check(GameMarks.load(.pinned, from: defaults) == [1091500], "pinned games come back")
+        GameMarks.save([.steam(570), .steam(10)], .hidden, to: defaults)
+        GameMarks.save([.steam(1091500), .epic("Fortnite")], .pinned, to: defaults)
+        check(GameMarks.load(.hidden, from: defaults) == [.steam(570), .steam(10)], "hidden games come back")
+        check(GameMarks.load(.pinned, from: defaults) == [.steam(1091500), .epic("Fortnite")], "pinned games come back, from any store")
         check(GameMarks.load(.hidden, from: UserDefaults(suiteName: "nightforge.navigation-test.empty")!).isEmpty, "nothing marked at first")
         defaults.removePersistentDomain(forName: "nightforge.navigation-test")
 
         // The Dock menu: installed games played before, the last first, five at most, none hidden.
-        let dock = MacIntegration.recentGames(games + many.map { var g = $0; g.lastPlayed = nil; return g }, hidden: [3])
+        let dock = MacIntegration.recentGames(games + many.map { var g = $0; g.lastPlayed = nil; return g }, hidden: [.steam(3)])
         check(dock.map(\.appID) == [1, 7], "only installed and played, hidden left out, latest first: \(dock.map(\.appID))")
         check(MacIntegration.recentGames(many).count == MacIntegration.dockLimit, "five at most")
 

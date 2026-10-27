@@ -24,14 +24,14 @@ struct GameRating: Codable, Equatable {
 }
 
 enum GameRatings {
-    private static func key(_ appID: Int) -> String { "rating.\(appID)" }
+    private static func key(_ game: GameID) -> String { "rating.\(game.key)" }
 
-    static func load(_ appID: Int, from defaults: UserDefaults = .standard) -> GameRating? {
-        defaults.data(forKey: key(appID)).flatMap { try? JSONDecoder().decode(GameRating.self, from: $0) }
+    static func load(_ game: GameID, from defaults: UserDefaults = .standard) -> GameRating? {
+        defaults.data(forKey: key(game)).flatMap { try? JSONDecoder().decode(GameRating.self, from: $0) }
     }
 
-    static func save(_ rating: GameRating, for appID: Int, to defaults: UserDefaults = .standard) {
-        if let data = try? JSONEncoder().encode(rating) { defaults.set(data, forKey: key(appID)) }
+    static func save(_ rating: GameRating, for game: GameID, to defaults: UserDefaults = .standard) {
+        if let data = try? JSONEncoder().encode(rating) { defaults.set(data, forKey: key(game)) }
     }
 }
 
@@ -214,7 +214,7 @@ struct SessionSummarySheet: View {
     }
 
     private func save(good: Bool) {
-        GameRatings.save(GameRating(good: good, issues: good ? [] : GameRating.Issue.allCases.filter(issues.contains)), for: summary.game.appID)
+        GameRatings.save(GameRating(good: good, issues: good ? [] : GameRating.Issue.allCases.filter(issues.contains)), for: summary.game.gameID)
         rating = good
         saved = true
     }

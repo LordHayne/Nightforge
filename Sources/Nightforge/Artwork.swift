@@ -28,9 +28,14 @@ actor ArtworkStore {
     private var inflight: [String: Task<NSImage?, Never>] = [:]
     private let cacheDir: URL
 
+    /// Art already fetched, one file per game and kind ("steam.570_cover").
+    static var cacheDirectory: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge/Artwork", isDirectory: true)
+    }
+
     init() {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        cacheDir = base.appendingPathComponent("Nightforge/Artwork", isDirectory: true)
+        cacheDir = Self.cacheDirectory
         try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
         memory.countLimit = 400
         // Decoded pixels, not files: a whole library of covers stays well within this.
@@ -38,7 +43,7 @@ actor ArtworkStore {
     }
 
     func image(for game: Game, kind: ArtKind) async -> NSImage? {
-        let key = "\(game.appID)_\(kind.rawValue)"
+        let key = "\(game.gameID.key)_\(kind.rawValue)"
         if let cached = memory.object(forKey: key as NSString) { return cached }
         if let running = inflight[key] { return await running.value }
 
@@ -98,7 +103,7 @@ actor ArtworkStore {
         }
 
         var everythingWas404 = true
-        for url in remoteURLs(appID: game.appID, kind: kind) {
+        for url in remoteURLs(game: game.gameID, kind: kind) {
             var request = URLRequest(url: url)
             request.timeoutInterval = 10
             do {
@@ -120,6 +125,7 @@ actor ArtworkStore {
     }
 
     private static func localFile(game: Game, kind: ArtKind) -> URL? {
+        guard game.provider == .steam else { return nil }
         let fm = FileManager.default
         let cache = game.steamRoot.appendingPathComponent("appcache/librarycache", isDirectory: true)
 
@@ -139,7 +145,8 @@ actor ArtworkStore {
         return nil
     }
 
-    private static func remoteURLs(appID: Int, kind: ArtKind) -> [URL] {
+    private static func remoteURLs(game: GameID, kind: ArtKind) -> [URL] {
+        guard let appID = game.steamAppID else { return [] }
         let bases = [
             "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/\(appID)/",
             "https://cdn.akamai.steamstatic.com/steam/apps/\(appID)/",

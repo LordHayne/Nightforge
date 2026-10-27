@@ -50,7 +50,7 @@ enum LaunchPhase: Equatable {
 
     // MARK: - First start with new graphics
 
-    private static func shaderKey(_ appID: Int) -> String { "shaders.\(appID)" }
+    private static func shaderKey(_ game: GameID) -> String { "shaders.\(game.key)" }
 
     /// What the shaders depend on: the engine, the layer and the graphics builds in the component list.
     static func graphicsSignature(runner: String?, layer: GraphicsLayer, components: [Component]) -> String {
@@ -58,11 +58,11 @@ enum LaunchPhase: Equatable {
         return ([runner ?? "", layer.rawValue] + builds).joined(separator: "|")
     }
 
-    static func isFirstStart(_ appID: Int, signature: String, defaults: UserDefaults = .standard) -> Bool {
-        defaults.string(forKey: shaderKey(appID)) != signature
+    static func isFirstStart(_ game: GameID, signature: String, defaults: UserDefaults = .standard) -> Bool {
+        defaults.string(forKey: shaderKey(game)) != signature
     }
 
-    static func recordStart(_ appID: Int, signature: String, defaults: UserDefaults = .standard) {
-        defaults.set(signature, forKey: shaderKey(appID))
+    static func recordStart(_ game: GameID, signature: String, defaults: UserDefaults = .standard) {
+        defaults.set(signature, forKey: shaderKey(game))
     }
 }

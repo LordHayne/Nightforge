@@ -208,20 +208,20 @@ struct GameOptions: Codable, Equatable {
 }
 
 enum GameOptionsStore {
-    private static func key(_ appID: Int) -> String { "options.\(appID)" }
+    private static func key(_ game: GameID) -> String { "options.\(game.key)" }
 
-    static func load(_ appID: Int) -> GameOptions {
-        guard let data = UserDefaults.standard.data(forKey: key(appID)),
+    static func load(_ game: GameID) -> GameOptions {
+        guard let data = UserDefaults.standard.data(forKey: key(game)),
               let options = try? JSONDecoder().decode(GameOptions.self, from: data)
         else { return GameOptions() }
         return options
     }
 
-    static func save(_ options: GameOptions, for appID: Int) {
+    static func save(_ options: GameOptions, for game: GameID) {
         if options == GameOptions() {
-            UserDefaults.standard.removeObject(forKey: key(appID))
+            UserDefaults.standard.removeObject(forKey: key(game))
         } else if let data = try? JSONEncoder().encode(options) {
-            UserDefaults.standard.set(data, forKey: key(appID))
+            UserDefaults.standard.set(data, forKey: key(game))
         }
     }
 }
