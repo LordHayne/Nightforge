@@ -190,14 +190,14 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 
 ### Gefunden beim Test am 27.10.
 
-- **Nicht gekaufte Spiele gelten als gekauft.** `SteamCatalog.ownedAppIDs` nimmt jedes Paket aus
-  `appcache/packageinfo.vdf` – Steam legt dort aber auch Pakete ab, die das Konto nicht besitzt. Beispiel: The Last
-  Caretaker (1783560) über das Kaufpaket 642779 (billingtype 10), vermutlich wegen der Demo. Der Download hängt dann
-  ewig bei „Wird vorbereitet“: Steam übernimmt das appmanifest (`LastOwner` bleibt `0`), plant aber nichts ein. Wie
-  viele der 105 Spiele das betrifft, ist offen. Wege: die echten Lizenzen lesen (`config/licensecache`) oder nach
-  der Anfrage `LastOwner` prüfen und dann ehrlich „nicht in deiner Bibliothek“ sagen.
-- **Demos anbieten.** Steam kennt die Demo im appinfo (3916150, `type` Demo, `parent` 1783560). Statt Download des
-  Vollspiels „Demo laden“ zeigen. Eine Demo ohne Lizenz braucht vorher die freie Lizenz (wie `steam://install/<demo>`).
+- **Nur eigene Spiele, Demos für den Rest** (ROADMAP 2.6, Branch `claude/steam-ownership-3b3bdd`): Behoben. Nightforge
+  liest Steams Lizenzliste (`userdata/<Konto>/config/licensecache`), 100 von 105 Spielen sind besessen. Noch offen:
+  - **Demo ohne Lizenz einmal echt durchspielen.** Der Glas-Dialog und `steam://install/<Demo>` im Windows-Steam sind
+    noch nicht in der echten App geprüft. Erscheint Steams Installationsdialog vor Nightforge, und lädt die Demo nach dem Bestätigen?
+    Auf diesem Mac hat gerade kein angezeigtes Spiel eine Demo ohne Lizenz.
+  - **Steam-Familienbibliothek** ist ungeprüft: Stehen geliehene Spiele in der Lizenzliste (`owner_id` ≠ eigenes Konto)?
+  - **Installierte Spiele ohne Lizenz** (z. B. ein Gratis-Wochenende, das nach dem Laden ablief) bleiben „installiert“
+    und starten dann nicht. Ansatz: `SteamCatalog.owns` beim Start prüfen und dasselbe ehrlich sagen.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
 - **DualSense** fehlte um 20:40 in Nightforge – macOS selbst meldete ihn als „nicht verbunden“ (weder Bluetooth noch
