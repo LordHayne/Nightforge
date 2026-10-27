@@ -64,25 +64,7 @@ struct SessionSummarySheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top) {
-                Text(L10n.t("Welcome back"))
-                    .font(Theme.display(22))
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Theme.ink.opacity(0.8))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(GlassButtonStyle(shape: Circle()))
-                .keyboardShortcut(.cancelAction)
-                .help(L10n.t("Close"))
-                .padFocus("session.close", cornerRadius: 16, activate: { dismiss() })
-                .padding(.top, -4)
-                .padding(.trailing, -8)
-            }
-
+        GlassDialog(L10n.t("Welcome back"), id: "session", width: 520) {
             HStack(spacing: 16) {
                 SessionCover(game: summary.game)
                 VStack(alignment: .leading, spacing: 4) {
@@ -102,8 +84,7 @@ struct SessionSummarySheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1)))
+                    .glassWell()
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -140,16 +121,10 @@ struct SessionSummarySheet: View {
                 Button(L10n.t("Done")) { dismiss() }
                     .buttonStyle(GlassTextButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
-                    .padFocus("session.done", cornerRadius: 21, activate: { dismiss() })
+                    .padFocus("session.done", cornerRadius: 21, preferred: true, activate: { dismiss() })
             }
             .padding(.top, 4)
         }
-        .foregroundStyle(Theme.ink)
-        .padding(28)
-        .frame(width: 520)
-        // The design's dialog: thick glass over the dimmed library, not the system's sheet panel.
-        .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 28, style: .continuous)))
-        .presentationBackground(.clear)
         .task { await followCloud() }
     }
 
@@ -180,7 +155,7 @@ struct SessionSummarySheet: View {
                 .foregroundStyle(Theme.ink.opacity(0.85))
         case .syncing:
             HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
+                GlassSpinner()
                 Text(epic ? L10n.t("Uploading your save to Epic Games …") : L10n.t("Steam is syncing your save with the Steam Cloud …"))
                     .foregroundStyle(Theme.ink.opacity(0.85))
             }

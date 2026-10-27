@@ -59,6 +59,19 @@ struct PadFocusTest {
         focus.unregister("top.left", view: views[0])
         check(focus.focused == nil, "a control that goes away takes the highlight with it")
 
+        // A dialog: the highlight starts on its default answer (Keep), not on the × at the top.
+        let dialog = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 240), styleMask: [.titled], backing: .buffered, defer: false)
+        add("dialog.close", NSRect(x: 400, y: 190, width: 32, height: 32), in: dialog)
+        let keep = NSView(frame: NSRect(x: 220, y: 30, width: 90, height: 42))
+        dialog.contentView!.addSubview(keep)
+        views.append(keep)
+        focus.register("dialog.keep", .init(view: keep, enabled: true, activate: {}, preferred: true))
+        add("dialog.remove", NSRect(x: 320, y: 30, width: 110, height: 42), in: dialog)
+        check(focus.move(dx: 0, dy: 1, in: dialog) && focus.focused == "dialog.keep", "a dialog starts on its default: \(focus.focused ?? "nil")")
+        focus.move(dx: 1, dy: 0, in: dialog)
+        check(focus.focused == "dialog.remove", "the other answer is one step away: \(focus.focused ?? "nil")")
+        focus.clear()
+
         // The library grid: groups start their own rows, and a search's order isn't the grid's.
         // Games 0–2 installed, 3 in the store, 4–11 owned; four columns.
         func game(_ id: Int, _ install: InstallState) -> Game {

@@ -19,27 +19,31 @@ struct GameOptionsSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(game.name)
-                    .font(Theme.display(22))
-                    .lineLimit(2)
-                if let origin = profileOrigin {
-                    Label(origin.text, systemImage: origin.symbol)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help(profile?.note ?? origin.text)
-                }
-                if options != GameOptions() {
-                    HStack(spacing: 8) {
-                        Text(L10n.t("Your own settings."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        GlassDialog(game.name, id: "options", spacing: 22) {
+            if profileOrigin != nil || options != GameOptions() {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let origin = profileOrigin {
+                            Label(origin.text, systemImage: origin.symbol)
+                                .font(.system(size: 13.5, weight: .medium))
+                                .help(profile?.note ?? origin.text)
+                        }
+                        if options != GameOptions() {
+                            Text(L10n.t("Your own settings."))
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Theme.muted)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if options != GameOptions() {
                         Button(profileOrigin == nil ? L10n.t("Back to Automatic") : L10n.t("Back to the Profile")) { options = GameOptions() }
-                            .controlSize(.small)
-                            .padFocus("options.reset", activate: { options = GameOptions() })
+                            .buttonStyle(GlassTextButtonStyle(small: true))
+                            .padFocus("options.reset", cornerRadius: 15, activate: { options = GameOptions() })
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .glassWell()
             }
 
             if game.switchable {
@@ -50,25 +54,18 @@ struct GameOptionsSheet: View {
                         Text("Windows").tag(GameVersion.windows)
                     }
                     .padFocus("options.version", selection: $options.version, values: [.automatic, .mac, .windows])
-                    Text(game.platform == .mac
-                         ? L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation; its graphics settings are in the game itself. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs.")
-                         : L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    caption(game.platform == .mac
+                            ? L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation; its graphics settings are in the game itself. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs.")
+                            : L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs."))
                 }
             }
 
             if !game.bottle.isBuiltIn && game.platform == .windows {
                 Toggle(isOn: $options.metalHUD) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(L10n.t("Performance HUD in game"))
-                        Text(L10n.t("Shows frames per second, frame times and GPU load in the top left corner of the game."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    switchLabel(L10n.t("Performance HUD in game"),
+                                L10n.t("Shows frames per second, frame times and GPU load in the top left corner of the game."))
                 }
-                .toggleStyle(.switch)
+                .toggleStyle(GlassSwitchStyle())
                 .padFocus("options.hud", toggle: $options.metalHUD)
             }
 
@@ -76,6 +73,7 @@ struct GameOptionsSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if layers.isEmpty {
                         Text(L10n.t("Graphics"))
+                            .font(.system(size: 14, weight: .medium))
                     } else {
                         Picker(L10n.t("Graphics"), selection: $options.graphics) {
                             ForEach(layers) { layer in
@@ -84,10 +82,7 @@ struct GameOptionsSheet: View {
                         }
                         .padFocus("options.graphics", selection: $options.graphics, values: layers)
                     }
-                    Text(graphicsCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    caption(graphicsCaption)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -111,53 +106,43 @@ struct GameOptionsSheet: View {
                     .disabled(!drawsWith.upscales || layers.isEmpty)
                     .padFocus("options.upscaling", enabled: drawsWith.upscales && !layers.isEmpty,
                               selection: $options.upscaling, values: [.automatic, .on, .off])
-                    Text(L10n.t("Automatic follows “Sharp & smooth” in Settings. The frame limit keeps frames even; MetalFX upscales the picture to full Retina sharpness (not with WineD3D) – set a lower resolution in the game for more FPS."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    caption(L10n.t("Automatic follows “Sharp & smooth” in Settings. The frame limit keeps frames even; MetalFX upscales the picture to full Retina sharpness (not with WineD3D) – set a lower resolution in the game for more FPS."))
                 }
 
                 Toggle(isOn: $options.hdr) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("HDR")
-                        Text(L10n.t("For games that draw through Vulkan, on the XDR display. Off by default: under Wine HDR mostly looks washed out."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    switchLabel("HDR", L10n.t("For games that draw through Vulkan, on the XDR display. Off by default: under Wine HDR mostly looks washed out."))
                 }
-                .toggleStyle(.switch)
+                .toggleStyle(GlassSwitchStyle())
                 .disabled(drawsWith == .dxmt && insight?.analysis.apis.contains(.vulkan) != true)
                 .padFocus("options.hdr", enabled: !(drawsWith == .dxmt && insight?.analysis.apis.contains(.vulkan) != true),
                           toggle: $options.hdr)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(L10n.t("Launch Options"))
-                TextField(L10n.t("e.g. -dx11 -skipintro"), text: $options.extraArgs)
-                    .textFieldStyle(.roundedBorder)
-                Text(L10n.t("Passed straight to the game at launch."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, weight: .medium))
+                GlassTextField(prompt: L10n.t("e.g. -dx11 -skipintro"), text: $options.extraArgs, id: "options.args", monospaced: true)
+                caption(L10n.t("Passed straight to the game at launch."))
             }
 
-            HStack {
+            HStack(spacing: 8) {
                 if game.bottle.isBuiltIn {
                     Button(L10n.t("Report problem …"), action: reportProblem)
-                        .padFocus("options.report", activate: reportProblem)
-                    .help(L10n.t("Opens a problem report on GitHub, filled in with what Nightforge knows about the game. Nothing is sent until you submit it there."))
+                        .buttonStyle(GlassTextButtonStyle())
+                        .help(L10n.t("Opens a problem report on GitHub, filled in with what Nightforge knows about the game. Nothing is sent until you submit it there."))
+                        .padFocus("options.report", cornerRadius: 21, activate: reportProblem)
                 }
                 Spacer()
                 Button(L10n.t("Cancel")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .padFocus("options.cancel", activate: { dismiss() })
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("options.cancel", cornerRadius: 21, activate: { dismiss() })
                 Button(L10n.t("Save"), action: save)
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
-                    .padFocus("options.save", activate: save)
+                    .padFocus("options.save", cornerRadius: 21, activate: save)
             }
+            .padding(.top, 2)
         }
-        .padding(28)
-        .frame(width: 470)
         .task {
             if game.bottle.isBuiltIn || game.switchable { profile = await ProfileStore.shared.profile(for: game.appID) }
         }
@@ -165,6 +150,25 @@ struct GameOptionsSheet: View {
 }
 
 private extension GameOptionsSheet {
+    /// What an option means, under it.
+    func caption(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12.5))
+            .foregroundStyle(Theme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A switch's name with what it does, like the switches in Settings.
+    func switchLabel(_ title: String, _ help: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.system(size: 14, weight: .medium))
+            Text(help)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     func reportProblem() {
         report()
         dismiss()
