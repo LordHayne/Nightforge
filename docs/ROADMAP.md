@@ -237,7 +237,7 @@
   - **Fertig wenn:** Kein Download startet, der mangels Platz abbrechen würde.
   - **Stand:** `SpaceCheck.swift` – vor jedem Download (Windows und Mac) Vergleich Downloadgröße + 1 GB Reserve mit dem freien Platz des Ziel-Volumes (nächster existierender Ordner). Reicht es nicht: Sheet „<Spiel> needs up to …“ mit fehlender Menge und bis zu 8 installierten Spielen auf demselben Volume, die seit 30 Tagen nicht (oder nie) gespielt wurden, größte zuerst, vorausgewählt bis es reicht → „Uninstall n & Download“ deinstalliert nacheinander und lädt dann (prüft vorher noch einmal). Gibt es keine Kandidaten, sagt das Sheet das. „Install on <externe SSD>“ kommt mit 4.2. Test `tests/SpaceCheckTest/`.
 
-- [ ] **4.2 Spiele auf externen Laufwerken** · `L` · Recherche
+- [ ] **4.2 Spiele auf externen Laufwerken** · `L` · Recherche · teilweise in `claude/ux-roadmap-next`
   - **Was:** Steam-Bibliotheksordner auf externen Volumes anlegen/erkennen (`libraryfolders.vdf`), Spiele dorthin installieren und zwischen Laufwerken verschieben. Ist das Laufwerk nicht angeschlossen: Spiel ausgegraut mit „Connect Samsung T7 to play“.
   - **Design:** `Detail.tsx` (Stat „On“), `Dialogs.tsx` → Tab „Storage“ (Move to …).
   - **Recherche** (27.10.):
@@ -248,6 +248,10 @@
     - **Steam für Mac** hat eigene Bibliotheksordner (Mac-Pfade, gleiches Format).
     - **Dateisystem:** exFAT geht, hat aber keine Unix-Rechte und Symlinks, deshalb könnten einzelne Spiele scheitern. APFS ist besser.
     - Anlegen und Verschieben bleiben offen bis zum Test mit einem echten externen Laufwerk (gerade ist keins angeschlossen).
+  - **Stand** (`claude/ux-roadmap-next`, teilweise): **Nicht angeschlossen:** Liegt ein Spiel in einer Steam-Bibliothek auf einem Laufwerk, das gerade fehlt, heißt der Play-Knopf „Connect T7 to Play“ und ist gesperrt. ↩/A lädt dann auch nichts doppelt herunter.
+    - Erkannt wird das an `libraryfolders.vdf` (`LibraryScanner.missingDrives`): `/Volumes/<Name>` fehlt. Das gilt für Mac-Pfade, für `Z:\Volumes\…` und für Laufwerksbuchstaben, die Wine dorthin verlinkt hat – in Nightforges Steam und in Steam für Mac.
+    - Test `tests/ExternalDriveTest/`.
+    - Offen: Bibliothek anlegen, „Install on <Laufwerk>“ im Platz-Sheet und „Move to …“ – erst mit einem echten Laufwerk ausprobieren.
 
 - [ ] **4.3 Speicher-Übersicht & sauber entfernen** · `M` · teilweise in PR #27
   - **Was:** Tab „Storage“:

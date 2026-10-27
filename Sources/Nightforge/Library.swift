@@ -35,6 +35,9 @@ struct Game: Identifiable, Hashable {
     /// Steam stopped its download for lack of disk space: the space it needs for it (download and
     /// unpacking). Steam leaves such a download paused for good, so it waits for the player.
     var downloadNeedsSpace: Int64?
+    /// Installed in a Steam library on a drive that isn't connected (its name, "T7"): plays once
+    /// it's plugged in, and must not be downloaded again meanwhile.
+    var missingDrive: String?
     /// Installed, with an update Steam has to download before it starts: what's left of it
     /// (0 while Steam hasn't worked the size out).
     var pendingUpdate: Int64?
@@ -431,6 +434,54 @@ enum LibraryScanner {
             total += Int64(values.totalFileAllocatedSize ?? 0)
         }
         return total
+    }
+
+    // MARK: - Libraries on drives that aren't connected
+
+    /// Games in libraries whose drive isn't plugged in, by app ID, with the drive's name. Steam
+    /// keeps each library's games in libraryfolders.vdf even while its folder is gone.
+    static func missingDrives(steamRoot: URL, bottle: Bottle) -> [Int: String] {
+        let vdfURL = steamRoot.appendingPathComponent("steamapps/libraryfolders.vdf")
+        guard let folders = VDF.parse(contentsOf: vdfURL)?["libraryfolders"]?.object else { return [:] }
+        var missing: [Int: String] = [:]
+        for (_, entry) in folders {
+            guard let path = entry["path"]?.string, let drive = missingVolume(forLibrary: path, in: bottle),
+                  let apps = entry["apps"]?.object
+            else { continue }
+            for key in apps.keys {
+                if let appID = Int(key) { missing[appID] = drive }
+            }
+        }
+        return missing
+    }
+
+    /// The name of the drive a library is on when that drive isn't mounted: "/Volumes/T7/…" with
+    /// no /Volumes/T7, as a Mac path, through Z: or through a drive letter Wine linked to it.
+    static func missingVolume(forLibrary path: String, in bottle: Bottle, volumes: URL = URL(fileURLWithPath: "/Volumes")) -> String? {
+        var mac: String?
+        if path.hasPrefix("/") {
+            mac = path
+        } else {
+            let parts = path.split(whereSeparator: { $0 == "\\" || $0 == "/" }).map(String.init)
+            guard let drive = parts.first?.lowercased(), drive.count == 2, drive.hasSuffix(":") else { return nil }
+            let link = bottle.url.appendingPathComponent("dosdevices/\(drive)").path
+            guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: link) else { return nil }
+            mac = ([target.hasPrefix("/") ? target : "/" + target] + parts.dropFirst()).joined(separator: "/")
+        }
+        let components = (mac ?? "").split(separator: "/").map(String.init)
+        guard components.count >= 2, components[0] == "Volumes" else { return nil }
+        let volume = volumes.appendingPathComponent(components[1], isDirectory: true)
+        return FileManager.default.fileExists(atPath: volume.path) ? nil : components[1]
+    }
+
+    /// Owned games not on this Mac that are installed on a drive that's unplugged.
+    static func markMissingDrives(_ games: [Game], drives: [Int: String]) -> [Game] {
+        guard !drives.isEmpty else { return games }
+        return games.map { game in
+            var game = game
+            if game.install == .notInstalled { game.missingDrive = drives[game.appID] }
+            return game
+        }
     }
 
     // MARK: - Extra library folders (e.g. D:\SteamLibrary)

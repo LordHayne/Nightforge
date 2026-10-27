@@ -1026,6 +1026,9 @@ private struct GameDetail: View {
     /// Nothing a Mac can run (VR only, anti-cheat): the button says why instead.
     private var unavailable: PlayButton.Unavailable? {
         guard game.install == .notInstalled || game.install == .installed, !model.isRunning(game) else { return nil }
+        if let drive = game.missingDrive, game.install == .notInstalled {
+            return .init(title: L10n.t("Connect %@ to Play", drive), symbol: "externaldrive.badge.xmark")
+        }
         if game.isVROnly && game.install == .notInstalled { return .init(title: L10n.t("VR only"), symbol: "visionpro") }
         if game.antiCheatBlock != nil && !game.playsInCloud {
             return .init(title: L10n.t("Doesn't run on a Mac"), symbol: "shield.slash")

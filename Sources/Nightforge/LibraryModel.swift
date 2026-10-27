@@ -378,10 +378,13 @@ final class LibraryModel: ObservableObject {
         antiCheatBlocks = blocks
         profiles = await ProfileStore.shared.knownProfiles()
         let found = await Task.detached(priority: .userInitiated) {
-            LibraryScanner.markAntiCheat(
+            // Libraries on drives that are unplugged, in Nightforge's Steam and in Steam for Mac.
+            let drives = (builtIn.isEmpty ? [:] : LibraryScanner.missingDrives(steamRoot: Engine.steamRoot, bottle: Engine.bottle))
+                .merging(LibraryScanner.missingDrives(steamRoot: MacSteam.root, bottle: MacSteam.bottle)) { windows, _ in windows }
+            return LibraryScanner.markMissingDrives(LibraryScanner.markAntiCheat(
                 LibraryScanner.merge(LibraryScanner.scan(bottlesRoot: root, extraBottles: builtIn),
                                      mac: LibraryScanner.scanMac(), preferWindows: preferWindows),
-                blocks: blocks)
+                blocks: blocks), drives: drives)
         }.value
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
         allGames = found
@@ -589,6 +592,8 @@ final class LibraryModel: ObservableObject {
             playInCloud(game)
             return
         }
+        // On a drive that's unplugged: plugging it in plays it; downloading would make a second copy.
+        if game.install == .notInstalled && game.missingDrive != nil { return }
         switch game.install {
         case .installed: launchSelected()
         case .installed where game.antiCheatBlock != nil: break

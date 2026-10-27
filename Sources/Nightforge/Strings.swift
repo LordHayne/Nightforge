@@ -509,6 +509,7 @@ enum L10n {
         "Quit the game first – it's using them.": "Beende zuerst das Spiel – es nutzt sie gerade.",
         "Remove Nightforge Completely …": "Nightforge komplett entfernen …",
         "Which save do you want to play on?": "Mit welchem Spielstand willst du weiterspielen?",
+        "Connect %@ to Play": "Schließe %@ an, um zu spielen",
         "%@ has saves from both its Windows and its Mac version, and they're different.":
             "%@ hat Spielstände von der Windows- und von der Mac-Version, und sie sind verschieden.",
         "Newer": "Neuer",
