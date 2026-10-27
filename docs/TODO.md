@@ -162,9 +162,11 @@ weil die Bildschirmfreigabe abgelehnt war.
   Platz-Sheet.
 - **Glas-Look** (`Glass.swift`): Am 27.10. auf dem echten Bildschirm angesehen – der Hintergrund scheint durch, die
   Ränder leuchten, Spielen glänzt bernsteinfarben. „Willkommen zurück“ und die Einstellungen sind seitdem Glas-Dialoge
-  im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Offen: die übrigen Sheets (Optionen eines Spiels,
-  Fehlstart, Platz, Spielstand-Wahl, Steam für Mac) zeigen noch das System-Panel; die Speicherleiste bleibt einfarbig,
-  weil Sodium laut Regeln nie Deko ist (der Entwurf färbt sie).
+  im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Seit dem Abend des 27.10. sind auch alle übrigen
+  Sheets und alle Alerts Glas-Dialoge (`GlassDialog`/`GlassQuestion` in `Glass.swift`, roter Knopf `Theme.danger`);
+  jeden auf dem Bildschirm angesehen, Return/Esc geprüft. Offen: mit einem echten Controller durchgehen (A startet
+  jetzt auf der Standardantwort, `padFocus(preferred:)`); die Picker bleiben System-Popups mit blauem Pfeil; die
+  Textfelder im Stores-Tab und der Lade-Kringel im Spielknopf sind noch System (dort arbeiten andere Branches).
 - **Entscheidungen (27.10. getroffen):** 2.3 wie vorgeschlagen (siehe Roadmap); „Save battery when unplugged“ (3.4)
   bleibt standardmäßig aus; „Welcome back“ nach jeder Sitzung ab einer Minute. Abweichungen von der Vorlage, die
   angeglichen werden: Genre/Jahr/Store-Zeile über dem Titel, Suche im Bibliothekskopf mit Beispiel, Metascore auf der
