@@ -200,8 +200,9 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Vollspiels „Demo laden“ zeigen. Eine Demo ohne Lizenz braucht vorher die freie Lizenz (wie `steam://install/<demo>`).
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
-- **DualSense** fehlte um 20:40 in Nightforge – macOS selbst meldete ihn als „nicht verbunden“ (weder Bluetooth noch
-  USB). Nach dem Wiederverbinden prüfen, ob Nightforge ihn ohne Neustart zeigt.
+- **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
+  wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
+  zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
 
 ## Aus dem Code-Audit
 
