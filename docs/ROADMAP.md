@@ -201,6 +201,9 @@
   - **Wo:** `SaveTransfer.swift`, `SteamCatalog.SaveRule`.
   - **Design:** `Detail.tsx` → `SaveChoice` (+ kompakte Variante in `Home.tsx`).
   - **Fertig wenn:** Kein Szenario, in dem Nightforge stillschweigend einen neueren Spielstand verliert (Test mit Fake-Ordnern).
+  - **Recherche** (27.10.): Zwei Fälle.
+    - **Steam Cloud:** Steam vergleicht beim Start selbst und zeigt bei einem Konflikt sein eigenes Fenster („Cloud Sync Conflict“). Was in der Cloud liegt, weiß vorher nur Steam: `remotecache.vdf` hält pro Datei `localtime`, `remotetime`, `sha` und `syncstate` vom *letzten* Abgleich. Nightforge kann vorab nur erkennen, dass lokal etwas geändert wurde (Datei neuer oder `sha` anders). Aufgabe hier: Steams Konfliktfenster nach vorne holen und sagen, was zu tun ist – wie bei „Confirm in the Steam window“.
+    - **Wechsel Windows ↔ Mac-Version** (`SaveTransfer`): Heute füllt Nightforge nur *leere* Spielstand-Ordner. Haben beide Seiten Stände, passiert nichts, und man spielt womöglich mit dem älteren weiter. Plan: vor dem ersten Start nach einem Versionswechsel die neueste Datei beider Seiten vergleichen; weichen sie ab, Auswahl „Weiter mit dem Stand der Windows-Version · heute 14:02 (neuer)“ / „… der Mac-Version · gestern“. Der andere Stand wird vorher nach `Backups/` kopiert.
 
 - [ ] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1
   - **Warum:** macOS-/Wine-Updates machen Spiele kaputt, die gestern liefen (siehe Whisky). Selbst-Heilung ist ein echtes Alleinstellungsmerkmal.
@@ -231,6 +234,14 @@
 - [ ] **4.2 Spiele auf externen Laufwerken** · `L` · Recherche
   - **Was:** Steam-Bibliotheksordner auf externen Volumes anlegen/erkennen (`libraryfolders.vdf`), Spiele dorthin installieren und zwischen Laufwerken verschieben. Ist das Laufwerk nicht angeschlossen: Spiel ausgegraut mit „Connect Samsung T7 to play“.
   - **Design:** `Detail.tsx` (Stat „On“), `Dialogs.tsx` → Tab „Storage“ (Move to …).
+  - **Recherche** (27.10.):
+    - **Pfad:** Steam unter Wine nimmt jeden Laufwerksbuchstaben, und `Z:` zeigt auf `/`. Ein Bibliotheksordner `Z:\Volumes\T7\Nightforge Games` braucht also keinen eigenen Buchstaben und bleibt gültig, solange das Laufwerk so heißt. Wine legt für eingesteckte Laufwerke zwar selbst Buchstaben an (`d:` → `/Volumes/…`), die wechseln aber.
+    - **Bibliothek anlegen:** Ein Eintrag in `steamapps/libraryfolders.vdf` (Pfad, `contentid`, `apps` mit App-ID → Größe) plus ein Ordner mit `steamapps/`. Steam liest beides beim Start, also bei gestopptem Steam schreiben – wie `requestDownload`. Nightforge liest Zusatzbibliotheken schon heute (`LibraryScanner.libraryFolders`).
+    - **Verschieben:** Bei gestopptem Steam `steamapps/common/<Ordner>` und `appmanifest_<id>.acf` in die andere Bibliothek legen, dann findet Steam das Spiel dort. So steht es in Erfahrungsberichten ([Steam-Forum](https://steamcommunity.com/discussions/forum/1/1762481957319992375), [steam-mv](https://github.com/oaksisfolks/steam-mv)); selten will Steam danach neu prüfen.
+    - **Nicht angeschlossen:** Die `apps`-Liste des Eintrags bleibt in `libraryfolders.vdf` stehen. Das Spiel kann also „Connect T7 to play“ zeigen statt „Download“.
+    - **Steam für Mac** hat eigene Bibliotheksordner (Mac-Pfade, gleiches Format).
+    - **Dateisystem:** exFAT geht, hat aber keine Unix-Rechte und Symlinks, deshalb könnten einzelne Spiele scheitern. APFS ist besser.
+    - Anlegen und Verschieben bleiben offen bis zum Test mit einem echten externen Laufwerk (gerade ist keins angeschlossen).
 
 - [ ] **4.3 Speicher-Übersicht & sauber entfernen** · `M` · teilweise in PR #27
   - **Was:** Tab „Storage“:
@@ -240,6 +251,23 @@
     - **Komplett entfernen:** „Remove Nightforge completely …“ löscht Engine, Windows-Umgebung und Caches; nur lokal gespeicherte Spielstände werden vorher nach `Documents/Nightforge Saves` kopiert.
   - **Design:** `Dialogs.tsx` → Tab „Storage“.
   - **Stand:** Tab „Storage“: Balken für das Laufwerk mit Nightforges Daten (Spiele / Nightforge ohne Spiele, im Hintergrund gemessen / Anderes / frei) und die Spiele auf dem Mac nach Größe mit „Im Finder zeigen“ und „Uninstall …“ (fragt im Hauptfenster). Offen: „Move to …“ (braucht 4.2), Shader-Caches leeren (Ordner recherchieren), „Remove Nightforge completely …“.
+  - **Recherche** (27.10.):
+    - **Shader-Caches** liegen an drei Stellen:
+      1. `steamapps/shadercache/<App-ID>` jeder Windows-Bibliothek (DXVK-Zustand, Steams Vulkan-Caches).
+      2. `~/Library/Caches/Nightforge/dxmt` (DXMT).
+      3. Die Metal-Caches in `$(getconf DARWIN_USER_CACHE_DIR)`, jeweils mit `com.apple.metal`, `com.apple.metalfe` und `com.apple.gpuarchiver`. Sie liegen unter `io.github.lordhayne.nightforge.game` (Spiele im Spielmodus), `org.winehq.wine` und `com.codeweavers.CrossOver.wineloader` (D3DMetal, MoltenVK).
+      Alles baut sich beim nächsten Start neu, der Start dauert dann länger.
+    - **Nightforge komplett entfernen** erfasst:
+      - `~/Library/Application Support/Nightforge`: Prefix (die Windows-Umgebung *mit den Windows-Spielen*), Components, Backups, Logs, Profile.
+      - `~/Library/Caches/Nightforge`: Cover, DXMT, winetricks.
+      - Die Metal-Caches von oben.
+      - `~/Library/Preferences/io.github.lordhayne.nightforge.plist` und `~/Library/HTTPStorages/io.github.lordhayne.nightforge`.
+      - `~/Applications/Nightforge Games` (5.3).
+    - **Nicht anfassen:** Steam für Mac mit seinen Mac-Spielen und CrossOver-/Whisky-Flaschen.
+    - **Lokale Spielstände** stecken in der Windows-Umgebung:
+      - unter `users/crossover`: `Documents`, `Saved Games` und `AppData/{Local,LocalLow,Roaming}` ohne `Temp`, `Steam` und `Microsoft`,
+      - in `Steam/userdata/<Konto>/<App-ID>`.
+      Die kommen vorher nach `Documents/Nightforge Saves`. macOS fragt dabei einmal nach dem Zugriff auf „Dokumente“.
 
 - [ ] **4.4 Download-Warteschlange & Ruhezustand** · `M` · braucht 0.3 · teilweise in PR #27
   - **Was:**
@@ -250,6 +278,12 @@
   - **Stand** (teilweise): Ring in der Top-Bar (Durchschnitt aller Downloads, Anzahl in der Mitte, Taste D, per Pad erreichbar) mit Panel: je Spiel Fortschritt „42 % von 20 GB“ bzw. „Pausiert – zu wenig Platz“ und „Cancel“. Während Downloads laufen, hält `KeepAwake` eine `IOPMAssertion` gegen den Ruhezustand (der Bildschirm darf ausgehen) – das Panel sagt es. Fertig → Toast + Mitteilung (5.1). Offen: Reihenfolge, Pause/Fortsetzen, Geschwindigkeit/Restzeit, „Only download overnight“ – dafür erst recherchieren, was sich an Steams Warteschlange von außen steuern lässt. In der App nicht gesehen (gerade lädt nichts).
   - **Wo:** Steam-Download-Warteschlange über Steam steuern (recherchieren, was von außen geht), sonst eigene Reihenfolge.
   - **Design:** `Overlays.tsx` → `DownloadsPanel`.
+  - **Recherche** (27.10.): Von außen lässt sich Steams Warteschlange nicht direkt steuern. Es gibt keinen steam://-Befehl für Pause, Fortsetzen oder Reihenfolge ([Valve-Wiki](https://developer.valvesoftware.com/wiki/Steam_browser_protocol)). Was geht:
+    - **Geschwindigkeit und Restzeit** aus `BytesDownloaded` / `BytesToDownload` im appmanifest, das Nightforge ohnehin alle paar Sekunden liest.
+    - **Reihenfolge** über Nightforges eigene Anfragen: Nightforge schreibt das appmanifest selbst (`requestDownload`) und kann den nächsten Download deshalb erst anfragen, wenn der vorige fertig ist. „Download this next“ heißt dann: in Nightforges Liste nach vorne.
+    - **Pause** nur grob. Steam hält Downloads an, solange ein Spiel läuft. Sonst bliebe nur „Steam beenden“, was alles pausiert, oder `StateFlags` 512 (UpdatePaused) im appmanifest bei gestopptem Steam – ungetestet.
+    - **Nachts laden:** Steams „Nur zwischen … automatisch aktualisieren“ (`AutoUpdateWindowEnabled` in `config/config.vdf`) gilt nur für Updates. Für neue Spiele müsste Nightforge die Anfrage bis 1 Uhr zurückhalten, und das geht nur, solange Nightforge offen ist (kein Hintergrunddienst).
+    - `config.vdf` enthält außerdem `DownloadsStoreRecentlyCompleted`, ein JSON mit `queue_index`, `paused` und Restzeit. Wann Steam das schreibt, ist unklar.
 
 ---
 
