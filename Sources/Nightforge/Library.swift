@@ -77,9 +77,15 @@ struct Game: Identifiable, Hashable {
     /// Store hits only: price as shown in the store, and the Metacritic score.
     var storePrice: String?
     var metascore: Int?
+    /// A demo, standing in for the game it's the demo of (that game's app ID): the account doesn't own it.
+    var demoOf: Int?
+    /// … and Steam still has to add the demo's free licence to the account, which takes one click in Steam.
+    var demoNeedsLicense = false
 
     var id: String { listID ?? "\(bottle.name)#\(appID)" }
     var isInstalled: Bool { install == .installed }
+    /// One of the player's own games: not a store entry, nor the demo of a game they don't own.
+    var inLibrary: Bool { install != .inStore && demoOf == nil }
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
         antiCheatBlock?.geforceNowURL != nil && (install == .notInstalled || install == .installed)
@@ -97,6 +103,8 @@ extension Game {
         macAppleSilicon = app.macAppleSilicon
         macSize = app.macSize
         windowsBuild = app.windows
+        demoOf = app.demoOf
+        demoNeedsLicense = app.demoOf != nil && !app.owned
     }
 }
 
@@ -185,8 +193,9 @@ enum LibraryScanner {
                 }
             }
 
-            // What Steam knows about each game: VR only, a Mac version.
-            let catalog = SteamCatalog.ownedGames(steamRoot: steamRoot)
+            // What Steam knows about each game: VR only, a Mac version. Games the account doesn't own
+            // (an expired free weekend, a store page looked at) come as their demo or from the store.
+            let catalog = SteamCatalog.ownedGames(steamRoot: steamRoot) + SteamCatalog.unownedGames(steamRoot: steamRoot)
             let known = Dictionary(catalog.map { ($0.appID, $0) }, uniquingKeysWith: { first, _ in first })
             for index in result.indices {
                 guard let app = known[result[index].appID] else { continue }
@@ -207,7 +216,7 @@ enum LibraryScanner {
                         lastPlayed: usage[app.appID]?.lastPlayed,
                         playtimeMinutes: usage[app.appID]?.playtimeMinutes
                     )
-                    game.install = .notInstalled
+                    game.install = app.owned || app.demoOf != nil ? .notInstalled : .inStore
                     game.installDirName = app.installDir
                     game.adoptCatalogFacts(app)
                     result.append(game)
@@ -224,7 +233,7 @@ enum LibraryScanner {
         guard FileManager.default.fileExists(atPath: root.appendingPathComponent("steamapps").path) else { return [] }
         let bottle = Bottle(name: MacSteam.bottle.name, url: root)
         let usage = readUsage(steamRoot: root)
-        let catalog = Dictionary(SteamCatalog.ownedGames(steamRoot: root).map { ($0.appID, $0) },
+        let catalog = Dictionary((SteamCatalog.ownedGames(steamRoot: root) + SteamCatalog.unownedGames(steamRoot: root)).map { ($0.appID, $0) },
                                  uniquingKeysWith: { first, _ in first })
         var result: [Game] = []
         var seen = Set<Int>()
@@ -330,6 +339,8 @@ enum LibraryScanner {
         entry.lastPlayed = [game.lastPlayed, onMac?.lastPlayed].compactMap { $0 }.max()
         entry.playtimeMinutes = [game.playtimeMinutes, onMac?.playtimeMinutes].compactMap { $0 }.max()
         entry.windowsBuild = game.windowsBuild
+        entry.demoOf = game.demoOf
+        entry.demoNeedsLicense = game.demoNeedsLicense
         entry.switchable = game.switchable
         entry.versionReason = game.versionReason
         entry.listID = game.id

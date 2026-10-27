@@ -70,6 +70,13 @@ enum L10n {
         // Steam store & Mac versions
         "View in Steam Store": "Im Steam-Store ansehen",
         "In the Steam Store": "Im Steam-Store",
+        "Play Demo": "Demo spielen",
+        "Download Demo": "Demo laden",
+        "Free demo": "Kostenlose Demo",
+        "Free demo – the full game isn't in your Steam library.": "Kostenlose Demo – das volle Spiel ist nicht in deiner Steam-Bibliothek.",
+        "Full Game in Steam Store": "Vollversion im Steam-Store",
+        "Add the free demo": "Kostenlose Demo hinzufügen",
+        "%@ is free. Steam adds it to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge downloads and starts it like any other game.": "%@ ist kostenlos. Steam fügt die Demo einmal deiner Steam-Bibliothek hinzu: Bestätige dazu im Steam-Fenster, das sich gleich öffnet, die Installation. Danach lädt und startet Nightforge sie wie jedes andere Spiel.",
         "Price": "Preis",
         "Free": "Kostenlos",
         "Coming soon": "Demnächst",

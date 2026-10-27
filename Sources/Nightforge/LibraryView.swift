@@ -114,6 +114,9 @@ struct LibraryView: View {
         .sheet(item: $model.saveChoice, onDismiss: { model.answerSaveChoice(takeNewer: false) }) { choice in
             SaveChoiceSheet(choice: choice)
         }
+        .sheet(item: $model.pendingDemoLicense) { game in
+            DemoLicenseSheet(game: game)
+        }
         .alert(
             L10n.t("Play %@ on GeForce Now?", model.pendingCloudGame?.name ?? ""),
             isPresented: Binding(
@@ -934,6 +937,9 @@ private struct GameDetail: View {
             if let block = game.antiCheatBlock {
                 AntiCheatNote(block: block)
             }
+            if game.demoOf != nil {
+                DemoNote(game: game)
+            }
             if !compact, let insight = model.insights[game.appID] {
                 GameInsightNotes(game: game, insight: insight)
             }
@@ -973,6 +979,7 @@ private struct GameDetail: View {
                            status: model.launchPhase?.title,
                            unavailable: unavailable, cloud: game.playsInCloud,
                            noSpace: game.downloadNeedsSpace != nil,
+                           demo: game.demoOf != nil,
                            update: game.pendingUpdate) {
                     model.primaryAction()
                 }
@@ -1136,6 +1143,8 @@ private struct PlayButton: View {
     var cloud = false
     /// Steam stopped the download for lack of disk space: the button carries on with it.
     var noSpace = false
+    /// A demo, for a game the player doesn't own.
+    var demo = false
     /// An update Steam downloads first: its size, 0 when not known yet.
     var update: Int64?
     let action: () -> Void
@@ -1157,8 +1166,8 @@ private struct PlayButton: View {
         switch install {
         case .installed where update != nil:
             return update! > 0 ? L10n.t("Update & Play · %@", Format.bytes(update!)) : L10n.t("Update & Play")
-        case .installed: return L10n.t("Play")
-        case .notInstalled: return L10n.t("Download")
+        case .installed: return demo ? L10n.t("Play Demo") : L10n.t("Play")
+        case .notInstalled: return demo ? L10n.t("Download Demo") : L10n.t("Download")
         case .downloading(let fraction?): return L10n.t("Downloading … %ld %%", Int(fraction * 100))
         case .downloading(nil): return L10n.t("Preparing download …")
         case .inStore: return L10n.t("View in Steam Store")
@@ -1370,9 +1379,11 @@ struct GameContextMenu: ViewModifier {
             case _ where game.playsInCloud:
                 Button(L10n.t("Play on GeForce Now")) { select(); model.primaryAction() }
             case .installed where game.antiCheatBlock == nil || model.isRunning(game):
-                Button(model.isRunning(game) ? L10n.t("Switch to Game") : L10n.t("Play")) { select(); model.primaryAction() }
+                Button(model.isRunning(game) ? L10n.t("Switch to Game") : game.demoOf != nil ? L10n.t("Play Demo") : L10n.t("Play")) {
+                    select(); model.primaryAction()
+                }
             case .notInstalled where !game.isVROnly && game.antiCheatBlock == nil:
-                Button(L10n.t("Download")) { select(); model.primaryAction() }
+                Button(game.demoOf != nil ? L10n.t("Download Demo") : L10n.t("Download")) { select(); model.primaryAction() }
             case .inStore:
                 Button(L10n.t("View in Steam Store")) { model.openStorePage(game) }
             default:
@@ -1422,17 +1433,19 @@ struct CoverCard: View {
         .saturation(game.install == .notInstalled || game.install == .inStore ? 0.15 : 1)
         .overlay(alignment: .bottom) { installBadge }
         .overlay(alignment: .topTrailing) {
-            // The version in use; in the store, that Steam has one.
-            if game.platform == .mac || (game.install == .inStore && game.macNative) {
-                Text("MAC")
-                    .font(.system(size: 9.5, weight: .heavy).width(.expanded))
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Theme.night.opacity(0.78), in: Capsule())
-                    .padding(7)
-                    .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
+            HStack(spacing: 4) {
+                // A game the player doesn't own, offered as its demo.
+                if game.demoOf != nil {
+                    coverTag("DEMO")
+                        .help(L10n.t("Free demo"))
+                }
+                // The version in use; in the store, that Steam has one.
+                if game.platform == .mac || (game.install == .inStore && game.macNative) {
+                    coverTag("MAC")
+                        .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
+                }
             }
+            .padding(7)
         }
         .overlay(alignment: .bottomLeading) {
             // From the couch: which games play with a controller, at a glance.
@@ -1490,12 +1503,21 @@ struct CoverCard: View {
         }
     }
 
+    private func coverTag(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Theme.night.opacity(0.78), in: Capsule())
+    }
+
     private var spokenDescription: String {
         var parts = [game.name]
         switch game.install {
         case .installed: parts.append(game.pendingUpdate != nil ? L10n.t("Installed, update waiting") : L10n.t("Installed"))
         case .downloading: parts.append(L10n.t("Downloading"))
-        case .notInstalled: parts.append(L10n.t("In your library"))
+        case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }

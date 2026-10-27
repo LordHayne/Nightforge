@@ -198,6 +198,41 @@ struct SteamOwnershipTest {
         check(ids(SteamCatalog.ownedGames(steamRoot: steam)) == [1001, 1006] && SteamCatalog.owns(1001, steamRoot: steam) == nil,
               "an unreadable licence list falls back: \(ids(SteamCatalog.ownedGames(steamRoot: steam)))")
 
+        // MARK: The library Nightforge's own Steam shows
+        let prefix = steam.appendingPathComponent("prefix", isDirectory: true)
+        let root = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true)
+        let steamapps = root.appendingPathComponent("steamapps", isDirectory: true)
+        try? fm.createDirectory(at: root.appendingPathComponent("appcache"), withIntermediateDirectories: true)
+        try? fm.createDirectory(at: steamapps, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: root.appendingPathComponent("userdata/\(account)/config"), withIntermediateDirectories: true)
+        try? Data().write(to: root.appendingPathComponent("steam.exe"))
+        try? appinfo(apps).write(to: root.appendingPathComponent("appcache/appinfo.vdf"))
+        try? packageinfo([10: [1001], 20: [1002], 98: [1004], 60: [1005], 97: [1006], 96: [1007]])
+            .write(to: root.appendingPathComponent("appcache/packageinfo.vdf"))
+        try? Data(licensecache([(10, 0), (20, 8), (60, 0)], accountID: account))
+            .write(to: root.appendingPathComponent("userdata/\(account)/config/licensecache"))
+        // The demo of 1006 is installed (Steam added its licence a moment ago; its list isn't rewritten yet).
+        try? """
+        "AppState"
+        {
+        \t"appid"\t\t"1007"
+        \t"name"\t\t"Demo Not Added Demo"
+        \t"StateFlags"\t\t"4"
+        \t"installdir"\t\t"Demo Not Added Demo"
+        \t"SizeOnDisk"\t\t"1000"
+        }
+        """.write(to: steamapps.appendingPathComponent("appmanifest_1007.acf"), atomically: true, encoding: .utf8)
+        let library = Dictionary(LibraryScanner.scan(bottle: Bottle(name: "Test", url: prefix, isBuiltIn: true)).map { ($0.appID, $0) },
+                                 uniquingKeysWith: { a, _ in a })
+        check(Set(library.keys) == [1001, 1002, 1005, 1007], "library entries: \(library.keys.sorted())")
+        check(library[1001]?.install == .notInstalled && library[1001]?.inLibrary == true, "an owned game to download")
+        check(library[1002]?.install == .inStore && library[1002]?.inLibrary == false, "a free weekend that ended: from the store")
+        check(library[1005]?.install == .notInstalled && library[1005]?.demoOf == 1004 && library[1005]?.demoNeedsLicense == false
+              && library[1005]?.inLibrary == false && library[1005]?.installDirName == "Has A Demo Demo",
+              "the demo instead of the game, ready to download: \(String(describing: library[1005]))")
+        check(library[1007]?.isInstalled == true && library[1007]?.demoOf == 1006,
+              "an installed demo is still a demo: \(String(describing: library[1007]?.demoOf))")
+
         // tests/SteamOwnershipTest/run.sh <Steam folder>: what a real Steam's licence list says.
         if CommandLine.arguments.count > 1 {
             let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
