@@ -384,7 +384,7 @@ private struct StorageSettings: View {
                         if let ownSize {
                             legend("Nightforge", ownSize, Theme.storageNightforge)
                         } else {
-                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text(L10n.t("Measuring Nightforge …")) }
+                            HStack(spacing: 6) { GlassSpinner(size: 12); Text(L10n.t("Measuring Nightforge …")) }
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
@@ -438,7 +438,7 @@ private struct StorageSettings: View {
                         if let shaderSize {
                             Text(Format.bytes(shaderSize)).monospacedDigit().foregroundStyle(.secondary)
                         } else {
-                            ProgressView().controlSize(.small)
+                            GlassSpinner()
                         }
                         Button(L10n.t("Clear"), action: clearShaders)
                             .disabled(!canClearShaders)
@@ -464,7 +464,7 @@ private struct StorageSettings: View {
                         .disabled(gameBusy || measuringRemoval || removing)
                         .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
                     if measuringRemoval || removing {
-                        ProgressView().controlSize(.small)
+                        GlassSpinner()
                         Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(.caption).foregroundStyle(.secondary)
                     }
                 }

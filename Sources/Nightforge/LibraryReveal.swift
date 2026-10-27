@@ -115,7 +115,9 @@ struct LibraryRevealSheet: View {
 
     private func row(_ level: Compatibility.Level, _ count: Int, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: level.symbol).foregroundStyle(level.color)
+            Image(systemName: level.symbol)
+                .foregroundStyle(level.color)
+                .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(count) · \(level.label)").font(.system(size: 14, weight: .semibold))
                 Text(text)

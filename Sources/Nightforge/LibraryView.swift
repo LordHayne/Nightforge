@@ -541,10 +541,12 @@ struct SpaceSheet: View {
                 Spacer()
                 Button(L10n.t("Cancel")) { dismiss() }
                     .buttonStyle(GlassTextButtonStyle())
+                    .fixedSize()
                     .padFocus("space.cancel", cornerRadius: 21, activate: { dismiss() })
                 if !request.candidates.isEmpty {
                     Button(L10n.t("Uninstall %ld & Download", picked.count)) { model.freeUpAndDownload(picked) }
                         .buttonStyle(GlassTextButtonStyle(prominent: true))
+                        .fixedSize()
                         .keyboardShortcut(.defaultAction)
                         .disabled(!enough)
                         .padFocus("space.confirm", enabled: enough, cornerRadius: 21, activate: { model.freeUpAndDownload(picked) })
@@ -662,7 +664,7 @@ private struct TopBar: View {
                 } label: {
                     HStack(spacing: 7) {
                         if model.updating {
-                            ProgressView().controlSize(.small).environment(\.colorScheme, .light)
+                            GlassSpinner(size: 14, tint: Theme.night)
                         } else {
                             Image(systemName: "arrow.down.circle.fill")
                         }
@@ -696,7 +698,7 @@ private struct TopBar: View {
                           : L10n.t("On battery – “Save battery when unplugged” in Settings caps games at 30 FPS"))
             }
             if model.isScanning {
-                ProgressView().controlSize(.small)
+                GlassSpinner()
             }
             // Downloads, rescan and settings share one piece of glass.
             HStack(spacing: 2) {
@@ -1747,11 +1749,10 @@ private struct VersionNotes: View {
                 HStack(spacing: 10) {
                     if case .downloading(let fraction) = pending {
                         if let fraction {
-                            ProgressView(value: fraction)
-                                .tint(Theme.sodium)
+                            GlassProgressBar(value: fraction)
                                 .frame(width: 200)
                         } else {
-                            ProgressView().controlSize(.small)
+                            GlassSpinner()
                         }
                         Text(fraction.map { L10n.t("Loading the Mac version … %ld %%", Int($0 * 100)) }
                              ?? L10n.t("Preparing the Mac version …"))
