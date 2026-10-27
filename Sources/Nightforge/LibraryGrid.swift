@@ -186,6 +186,16 @@ struct LibraryToolbar: View {
                     Text(countText)
                         .font(.system(size: 13, weight: .semibold).monospacedDigit())
                         .foregroundStyle(Theme.muted)
+                    if !model.showingHidden {
+                        // Redrawn every half minute, so "2 min ago" moves on by itself.
+                        TimelineView(.periodic(from: .now, by: 30)) { context in
+                            if let fresh = ScanFreshness.text(lastScan: model.lastScan, scanning: model.isScanning, now: context.date) {
+                                Text("· " + fresh)
+                                    .font(.system(size: 12.5).monospacedDigit())
+                                    .foregroundStyle(Theme.muted.opacity(0.8))
+                            }
+                        }
+                    }
                     if model.showingHidden {
                         Text(L10n.t("Open a game to bring it back."))
                             .font(.system(size: 13, weight: .medium))
@@ -240,6 +250,23 @@ struct LibraryToolbar: View {
             return total == 1 ? L10n.t("%ld of 1 game", owned) : L10n.t("%ld of %ld games", owned, total)
         }
         return total == 1 ? L10n.t("1 game") : L10n.t("%ld games", total)
+    }
+}
+
+/// "up to date 2 min ago" beside the library's count: when the last scan finished – or that one
+/// is running.
+enum ScanFreshness {
+    static func text(lastScan: Date?, scanning: Bool, now: Date = Date()) -> String? {
+        if scanning { return L10n.t("Scanning …") }
+        guard let lastScan else { return nil }
+        let minutes = max(0, Int(now.timeIntervalSince(lastScan) / 60))
+        switch minutes {
+        case ..<1: return L10n.t("up to date just now")
+        case ..<60: return L10n.t("up to date %ld min ago", minutes)
+        case ..<1440: return L10n.t("up to date %ld h ago", Int((Double(minutes) / 60).rounded()))
+        case ..<2880: return L10n.t("up to date since yesterday")
+        default: return L10n.t("up to date %ld days ago", minutes / 1440)
+        }
     }
 }
 

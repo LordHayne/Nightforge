@@ -304,6 +304,11 @@ enum L10n {
         // Library header, as in the design: search with an example, the scan, how fresh the library is
         "Search – try “rdr2” or “bg3”": "Suchen – z. B. „rdr2“ oder „bg3“",
         "Scanning …": "Wird eingelesen …",
+        "up to date just now": "gerade eben aktualisiert",
+        "up to date %ld min ago": "aktuell vor %ld Min.",
+        "up to date %ld h ago": "aktuell vor %ld Std.",
+        "up to date since yesterday": "aktuell seit gestern",
+        "up to date %ld days ago": "aktuell vor %ld Tagen",
 
         // Uninstall
         "Uninstall": "Deinstallieren",

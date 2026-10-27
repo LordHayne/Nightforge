@@ -53,6 +53,8 @@ final class LibraryModel: ObservableObject {
     /// Covers per row in the grid, reported by the grid so ↑/↓ can jump a row.
     var gridColumns = 1
     @Published private(set) var isScanning = false
+    /// When the last scan finished: the library's header says how fresh it is.
+    @Published private(set) var lastScan: Date?
     @Published private(set) var launchingID: String?
     /// Steam is showing a question (licence, setup) for the game being launched.
     @Published private(set) var launchNeedsConfirmation = false
@@ -393,6 +395,7 @@ final class LibraryModel: ObservableObject {
         }.value
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
         allGames = found
+        lastScan = Date()
         measureDownloads()
         libraryLoaded = true
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
