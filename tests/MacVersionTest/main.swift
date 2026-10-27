@@ -221,6 +221,50 @@ struct MacVersionTest {
         check(SaveTransfer.resolve("HelloGames/NMS/st_{64BitSteamID}/", under: places.prefix.appendingPathComponent("drive_c/users/player/AppData/Roaming"))
               == ["HelloGames/NMS/st_76561198118309630"], "placeholders match the folder that's there")
 
+        // MARK: Saves on both sides (3.2): the player chooses, nothing is overwritten without a backup
+        let both = steam.appendingPathComponent("both", isDirectory: true)
+        var bothPlaces = SaveTransfer.Places()
+        bothPlaces.prefix = both.appendingPathComponent("prefix", isDirectory: true)
+        bothPlaces.windowsUser = "player"
+        bothPlaces.macHome = both.appendingPathComponent("home", isDirectory: true)
+        let winSaves = bothPlaces.prefix.appendingPathComponent("drive_c/users/player/AppData/Roaming/HelloGames/NMS/st_1")
+        let macOwn = bothPlaces.macHome.appendingPathComponent("Library/Application Support/HelloGames/NMS/st_1")
+        func save(_ text: String, _ file: URL, daysAgo: Double) {
+            try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data(text.utf8).write(to: file)
+            try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(-daysAgo * 86_400)], ofItemAtPath: file.path)
+        }
+        save("windows progress", winSaves.appendingPathComponent("save.hg"), daysAgo: 0)
+        save("windows slot 2", winSaves.appendingPathComponent("save2.hg"), daysAgo: 0.5)
+        save("old mac progress", macOwn.appendingPathComponent("save.hg"), daysAgo: 1)
+        save("a slot only the mac had", macOwn.appendingPathComponent("mac-only.hg"), daysAgo: 2)
+
+        let newerOnWindows = SaveTransfer.newerElsewhere(to: .mac, rules: rules, places: bothPlaces)
+        check(newerOnWindows.map { $0.theirs > $0.ours } == true, "starting the Mac version: Windows has the newer saves")
+        check(SaveTransfer.newerElsewhere(to: .windows, rules: rules, places: bothPlaces) == nil,
+              "starting the Windows version: its own saves are the newer ones, nothing to ask")
+        check(SaveTransfer.carryOver(to: .mac, rules: rules, places: bothPlaces) == 0,
+              "without asking, a folder with saves stays as it is")
+
+        let stamp = Date(timeIntervalSince1970: 1_793_093_400)  // 27.10.2026
+        let backup = SaveTransfer.backupFolder(game: "No Man's Sky", platform: .mac, now: stamp, support: both.appendingPathComponent("support"))
+        check(backup.path.hasSuffix("Backups/No Man s Sky-saves-" + {
+            let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd-HHmm"; return f.string(from: stamp)
+        }() + "/Mac version"), "backups by game, time and version: \(backup.path)")
+        let taken = (try? SaveTransfer.takeNewer(to: .mac, rules: rules, places: bothPlaces, backup: backup)) ?? -1
+        check(taken == 2, "the newer Windows saves came over: \(taken)")
+        check((try? String(contentsOf: macOwn.appendingPathComponent("save.hg"), encoding: .utf8)) == "windows progress"
+              && fm.fileExists(atPath: macOwn.appendingPathComponent("save2.hg").path)
+              && !fm.fileExists(atPath: macOwn.appendingPathComponent("mac-only.hg").path),
+              "the Mac version now has exactly the Windows saves")
+        let kept = backup.appendingPathComponent("WinAppDataRoaming/HelloGames/NMS/st_1", isDirectory: true)
+        check((try? String(contentsOf: kept.appendingPathComponent("save.hg"), encoding: .utf8)) == "old mac progress"
+              && fm.fileExists(atPath: kept.appendingPathComponent("mac-only.hg").path),
+              "the Mac version's own saves are in the backup, every one")
+        check((try? String(contentsOf: winSaves.appendingPathComponent("save.hg"), encoding: .utf8)) == "windows progress",
+              "the Windows side is untouched")
+        check(SaveTransfer.newerElsewhere(to: .mac, rules: rules, places: bothPlaces) == nil, "the same saves on both sides: nothing to ask")
+
         // MARK: Steam for Mac's library
         let steamapps = steam.appendingPathComponent("steamapps", isDirectory: true)
         try? fm.createDirectory(at: steamapps, withIntermediateDirectories: true)

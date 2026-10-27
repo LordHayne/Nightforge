@@ -94,6 +94,9 @@ struct LibraryView: View {
         .sheet(item: $model.failedLaunch) { failed in
             FailedLaunchSheet(failed: failed)
         }
+        .sheet(item: $model.saveChoice, onDismiss: { model.answerSaveChoice(takeNewer: false) }) { choice in
+            SaveChoiceSheet(choice: choice)
+        }
         .alert(
             L10n.t("Play %@ on GeForce Now?", model.pendingCloudGame?.name ?? ""),
             isPresented: Binding(
@@ -395,6 +398,89 @@ struct FailedLaunchSheet: View {
     private func startOver() { model.startOver(failed) }
     private func chooseByHand() { model.chooseGraphicsByHand(failed) }
     private func report() { model.reportProblem(for: failed.game, tried: failed.tried) }
+}
+
+// MARK: - Saves of both versions
+
+/// A game switching between its Windows and Mac version where both have saves and the one played
+/// before has newer ones: go on with those (this version's are backed up) or keep this version's.
+struct SaveChoiceSheet: View {
+    let choice: LibraryModel.SaveChoice
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(L10n.t("Which save do you want to play on?"))
+                .font(Theme.display(20))
+                .fixedSize(horizontal: false, vertical: true)
+            Label(L10n.t("%@ has saves from both its Windows and its Mac version, and they're different.", choice.game.name),
+                  systemImage: "exclamationmark.triangle")
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 10) {
+                // Return and A take the newer one – nothing is lost either way.
+                option(title: version(choice.from), date: choice.newer.theirs, newer: true) { model.answerSaveChoice(takeNewer: true) }
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("saves.newer", activate: { model.answerSaveChoice(takeNewer: true) })
+                option(title: version(choice.from == .mac ? .windows : .mac), date: choice.newer.ours, newer: false) {
+                    model.answerSaveChoice(takeNewer: false)
+                }
+                .keyboardShortcut(.cancelAction)
+                .padFocus("saves.keep", activate: { model.answerSaveChoice(takeNewer: false) })
+            }
+            Text(L10n.t("Taking the newer one keeps this version's save as a backup in Nightforge's Backups folder."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(24)
+        .frame(width: 480)
+    }
+
+    private func version(_ platform: Platform) -> String {
+        platform == .mac ? L10n.t("Mac version") : L10n.t("Windows version")
+    }
+
+    private func option(title: String, date: Date, newer: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: newer ? "clock.arrow.circlepath" : "clock")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(title).font(.system(size: 14, weight: .semibold))
+                        if newer {
+                            Text(L10n.t("Newer"))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Theme.sodium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(Theme.sodium.opacity(0.2), in: Capsule())
+                        }
+                    }
+                    Text(Self.when(date)).font(.system(size: 12.5)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(newer ? 0.08 : 0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+            .contentShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// "Today at 14:02", "Yesterday at 21:10", "12 Oct 2026 at 9:30".
+    static func when(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = L10n.locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.doesRelativeDateFormatting = true
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - Not enough space

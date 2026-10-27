@@ -68,6 +68,17 @@ final class LibraryModel: ObservableObject {
     }
     /// A game that ended right after starting with every way Nightforge knows.
     @Published var failedLaunch: FailedLaunch?
+    /// Both versions of a game have saves and the one played before has newer ones: which to go on with.
+    @Published var saveChoice: SaveChoice?
+    private var saveChoiceAnswer: CheckedContinuation<Bool, Never>?
+
+    struct SaveChoice: Identifiable {
+        let id = UUID()
+        let game: Game
+        /// The version played before, whose saves are newer.
+        let from: Platform
+        let newer: SaveTransfer.Newer
+    }
     /// What Nightforge knows about installed games before starting them, by app ID.
     @Published private(set) var insights: [Int: GameInsight] = [:]
     private var analyses: [Int: GameAnalysis] = [:]
@@ -955,9 +966,10 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The first start of a game's other version (SaveTransfer): its empty save folders get the
-    /// saves the version played before left, so it doesn't start from scratch.
+    /// saves the version played before left, so it doesn't start from scratch. Where it has saves
+    /// of its own but the other version's are newer, the player picks which to go on with.
     private func takeSavesAlong(_ game: Game, to platform: Platform) async {
-        guard game.macNative else { return }
+        guard game.macNative, SaveTransfer.isSwitch(appID: game.appID, platform: platform) else { return }
         let appID = game.appID
         let installDir = game.installDirName
         // Where each version really is when that's known (an extra library on an external drive),
@@ -966,7 +978,7 @@ final class LibraryModel: ObservableObject {
         let windowsDir = platform == .windows ? started : game.windowsLeftoverDir
         let macDir = platform == .mac ? started : nil
         let profileRules = await ProfileStore.shared.profile(for: appID)?.saves ?? []
-        await Task.detached(priority: .userInitiated) {
+        let (rules, places, newer) = await Task.detached(priority: .userInitiated) {
             let macCatalog = MacSteam.root.appendingPathComponent("appcache/appinfo.vdf")
             let rules = SteamCatalog.saveRules(
                 appID: appID, steamRoot: FileManager.default.fileExists(atPath: macCatalog.path) ? MacSteam.root : Engine.steamRoot)
@@ -975,8 +987,35 @@ final class LibraryModel: ObservableObject {
             places.windowsInstall = windowsDir
                 ?? Engine.steamRoot.appendingPathComponent("steamapps/common/\(installDir)", isDirectory: true)
             places.macInstall = macDir ?? MacSteam.steamapps.appendingPathComponent("common/\(installDir)", isDirectory: true)
+            return (rules, places, SaveTransfer.newerElsewhere(to: platform, rules: rules, places: places))
+        }.value
+        if let newer, await askSaveChoice(game, from: platform == .mac ? .windows : .mac, newer: newer) {
+            let backup = SaveTransfer.backupFolder(game: game.name, platform: platform)
+            do {
+                try await Engine.offMain { try SaveTransfer.takeNewer(to: platform, rules: rules, places: places, backup: backup) }
+            } catch {
+                errorMessage = L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name)
+            }
+        }
+        _ = await Task.detached(priority: .userInitiated) {
             SaveTransfer.beforeStart(appID: appID, platform: platform, rules: rules, places: places)
         }.value
+    }
+
+    /// Shows the choice and waits for it: true to go on with the other version's newer saves.
+    private func askSaveChoice(_ game: Game, from: Platform, newer: SaveTransfer.Newer) async -> Bool {
+        saveChoiceAnswer?.resume(returning: false)
+        return await withCheckedContinuation { answer in
+            saveChoiceAnswer = answer
+            saveChoice = SaveChoice(game: game, from: from, newer: newer)
+        }
+    }
+
+    /// The player's answer (or the sheet closed: keep this version's own).
+    func answerSaveChoice(takeNewer: Bool) {
+        saveChoice = nil
+        saveChoiceAnswer?.resume(returning: takeNewer)
+        saveChoiceAnswer = nil
     }
 
     /// A Mac version that didn't start: "Automatic" moves the game to the best alternative, its

@@ -508,6 +508,14 @@ enum L10n {
         "Rebuilt by itself – the next start of each game takes a moment longer.": "Baut sich von selbst neu auf – der nächste Start jedes Spiels dauert etwas länger.",
         "Quit the game first – it's using them.": "Beende zuerst das Spiel – es nutzt sie gerade.",
         "Remove Nightforge Completely …": "Nightforge komplett entfernen …",
+        "Which save do you want to play on?": "Mit welchem Spielstand willst du weiterspielen?",
+        "%@ has saves from both its Windows and its Mac version, and they're different.":
+            "%@ hat Spielstände von der Windows- und von der Mac-Version, und sie sind verschieden.",
+        "Newer": "Neuer",
+        "Taking the newer one keeps this version's save as a backup in Nightforge's Backups folder.":
+            "Nimmst du den neueren, bleibt der Spielstand dieser Version als Sicherung in Nightforges Ordner „Backups“.",
+        "The newer save couldn't be copied over (%@). %@ starts with its own.":
+            "Der neuere Spielstand ließ sich nicht übernehmen (%@). %@ startet mit seinem eigenen.",
         "Removing …": "Wird entfernt …",
         "Measuring …": "Wird gemessen …",
         "Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first.":
@@ -591,6 +599,7 @@ enum L10n {
         "On this Mac": "Auf diesem Mac",
         "Not downloaded": "Nicht geladen",
         "Mac version": "Mac-Version",
+        "Windows version": "Windows-Version",
         "Your games": "Deine Spiele",
         "A – Z": "A – Z",
         "Largest first": "Größte zuerst",

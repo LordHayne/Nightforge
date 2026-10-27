@@ -196,7 +196,7 @@
   - **Fertig wenn:** Erscheint nach jedem Spielende; die Bewertung wird lokal gespeichert und fließt in 1.3 (eigene Erfahrung schlägt Profil).
   - **Stand** (teilweise): `SessionSummary.swift` – nach jedem von Nightforge gestarteten Spiel, das mindestens eine Minute lief, Sheet „Welcome back“: Spielzeit diesmal und insgesamt (Steams Zählung, ohne Doppelzählung), „How did it run?“ 👍/👎 mit Gründen (Stutters, Crashed, Low frame rate, Graphics glitches, Controller, Sound), „Play Again“ / „Done“. Bewertung lokal (`GameRatings`, UserDefaults) und in `Compatibility.rate` vor dem Profil (👍 → great, 👎 → tweaks mit „You said: …“; Anti-Cheat/VR bleiben „no“). Test in `tests/CompatibilityTest/`. Spielstand-Zeile: `CloudSaves.swift` liest `userdata/<Konto>/<App-ID>/remotecache.vdf` (pro Cloud-Datei `syncstate`, 1 = im Einklang); „Your save is in the Steam Cloud. You can close your Mac.“ erst, wenn Steam die Datei nach dem Spielende neu geschrieben hat und alle Dateien auf 1 stehen – vorher „Steam is syncing …“ (alle 2 s geprüft), nach einer Minute ohne Bestätigung „Steam syncs your save in the background.“, ohne Datei „No Steam Cloud for this game – its saves are on this Mac.“ Test `tests/CloudSavesTest/`. Die Bedeutung der anderen `syncstate`-Werte ist nicht dokumentiert – deshalb nur „1“ als sicher. Offen: „Use ‚Most compatible‘ next time“ (braucht 2.3).
 
-- [ ] **3.2 Spielstand-Konflikt lösen, bevor etwas überschrieben wird** · `L` · Recherche
+- [ ] **3.2 Spielstand-Konflikt lösen, bevor etwas überschrieben wird** · `L` · Recherche · teilweise in `claude/ux-roadmap-next`
   - **Was:** Weichen lokaler und Cloud-Spielstand voneinander ab: Vor dem Start „Keep this Mac · today 14:02 (Newer)“ vs. „Keep the cloud · yesterday“; der andere wird als Backup im Spielordner behalten. Play zeigt bis dahin „Choose a save first“.
   - **Wo:** `SaveTransfer.swift`, `SteamCatalog.SaveRule`.
   - **Design:** `Detail.tsx` → `SaveChoice` (+ kompakte Variante in `Home.tsx`).
@@ -204,6 +204,12 @@
   - **Recherche** (27.10.): Zwei Fälle.
     - **Steam Cloud:** Steam vergleicht beim Start selbst und zeigt bei einem Konflikt sein eigenes Fenster („Cloud Sync Conflict“). Was in der Cloud liegt, weiß vorher nur Steam: `remotecache.vdf` hält pro Datei `localtime`, `remotetime`, `sha` und `syncstate` vom *letzten* Abgleich. Nightforge kann vorab nur erkennen, dass lokal etwas geändert wurde (Datei neuer oder `sha` anders). Aufgabe hier: Steams Konfliktfenster nach vorne holen und sagen, was zu tun ist – wie bei „Confirm in the Steam window“.
     - **Wechsel Windows ↔ Mac-Version** (`SaveTransfer`): Heute füllt Nightforge nur *leere* Spielstand-Ordner. Haben beide Seiten Stände, passiert nichts, und man spielt womöglich mit dem älteren weiter. Plan: vor dem ersten Start nach einem Versionswechsel die neueste Datei beider Seiten vergleichen; weichen sie ab, Auswahl „Weiter mit dem Stand der Windows-Version · heute 14:02 (neuer)“ / „… der Mac-Version · gestern“. Der andere Stand wird vorher nach `Backups/` kopiert.
+  - **Stand** (`claude/ux-roadmap-next`, teilweise):
+    - **Wechsel Windows ↔ Mac-Version:** Haben beide Seiten Spielstände und die zuletzt gespielte Version die neueren, fragt ein Sheet vor dem Start: „Mit welchem Spielstand willst du weiterspielen?“. Zur Wahl stehen die Windows-Version (Heute, 14:02, Abzeichen „Neuer“) und die Mac-Version (Gestern). Die neuere ist vorausgewählt (↩/A); Esc/B behält den eigenen.
+    - **Übernehmen:** Zuerst kommen alle eigenen Stände dieser Version nach `Backups/<Spiel>-saves-<Zeit>/<Version>/`. Klappt das nicht, bleibt alles unverändert. Danach hat der Ordner genau die Stände der anderen Version.
+    - Gleiche Dateien auf beiden Seiten lösen nichts aus. `SaveTransfer.newerElsewhere` / `takeNewer`, Test in `tests/MacVersionTest/`.
+    - „Komplett entfernen“ (4.3) nimmt diese Sicherungen mit nach „Dokumente“.
+    - Offen: Steam-Cloud-Konflikt – Steams eigenes Fenster nach vorne holen und sagen, was zu tun ist. Dafür braucht es einen echten Konflikt zum Ausprobieren.
 
 - [ ] **3.3 Automatisches Zurückrollen der Engine** · `L` · braucht 1.1
   - **Warum:** macOS-/Wine-Updates machen Spiele kaputt, die gestern liefen (siehe Whisky). Selbst-Heilung ist ein echtes Alleinstellungsmerkmal.

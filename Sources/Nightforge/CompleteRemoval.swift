@@ -62,6 +62,11 @@ enum CompleteRemoval {
                 sources.append((folder, "\(user.lastPathComponent)/AppData/Local/\(folder.lastPathComponent)"))
             }
         }
+        // Saves a switch between a game's versions replaced, and older backups of saves.
+        for backup in folders(in: places.support.appendingPathComponent("Backups", isDirectory: true))
+        where backup.lastPathComponent.lowercased().contains("saves") {
+            sources.append((backup, "Backups/\(backup.lastPathComponent)"))
+        }
         for account in folders(in: places.steam.appendingPathComponent("userdata", isDirectory: true)) {
             for app in folders(in: account) where Int(app.lastPathComponent) != nil && app.lastPathComponent != "7" {
                 sources.append((app, "Steam userdata/\(account.lastPathComponent)/\(app.lastPathComponent)"))
