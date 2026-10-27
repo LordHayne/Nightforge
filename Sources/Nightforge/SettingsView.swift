@@ -60,21 +60,6 @@ struct SettingsView: View {
     }
 }
 
-/// A section's title, small and spaced out like the design's.
-private struct SectionTitle: View {
-    let title: String
-
-    init(_ title: String) { self.title = title }
-
-    var body: some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(1.6)
-            .textCase(.uppercase)
-            .foregroundStyle(Theme.muted)
-    }
-}
-
 // MARK: - Stores
 
 private struct StoresSettings: View {

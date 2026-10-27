@@ -331,62 +331,55 @@ private struct AllGamesHero: View {
 struct FailedLaunchSheet: View {
     let failed: FailedLaunch
     @EnvironmentObject private var model: LibraryModel
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(L10n.t("%@ didn't start", failed.game.name))
-                .font(Theme.display(20))
-                .lineLimit(2)
-            Label(L10n.t("It ended right after starting, with every way Nightforge knows to start it."),
-                  systemImage: "exclamationmark.triangle")
-                .fixedSize(horizontal: false, vertical: true)
-            if !failed.tried.isEmpty {
-                Text(L10n.t("Tried: %@", failed.tried.joined(separator: " · ")))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        GlassDialog(L10n.t("%@ didn't start", failed.game.name), id: "failed") {
+            VStack(alignment: .leading, spacing: 8) {
+                DialogWarning(L10n.t("It ended right after starting, with every way Nightforge knows to start it."))
+                if !failed.tried.isEmpty {
+                    Text(L10n.t("Tried: %@", failed.tried.joined(separator: " · ")))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 26)
+                }
             }
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 // A on a controller is Return: the first way out, not a browser.
                 Button(action: startOver) {
                     Label(L10n.t("Try Again From the First Way"), systemImage: "arrow.counterclockwise")
                         .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(GlassTextButtonStyle(prominent: true))
                 .keyboardShortcut(.defaultAction)
-                .controlSize(.large)
-                .padFocus("failed.again", activate: startOver)
+                .padFocus("failed.again", cornerRadius: 21, preferred: true, activate: startOver)
                 Text(L10n.t("Helps when something got in the way the first time – Steam updating, a window asking something."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
                 if hasLayers {
                     Button(action: chooseByHand) {
                         Label(L10n.t("Choose Graphics by Hand …"), systemImage: "slider.horizontal.3")
                             .frame(maxWidth: .infinity)
                     }
-                    .controlSize(.large)
-                    .padFocus("failed.options", activate: chooseByHand)
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
+                    .padding(.top, 4)
                 }
             }
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center, spacing: 12) {
                 Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 12)
+                Spacer(minLength: 0)
                 Button(L10n.t("Report problem"), action: report)
-                    .padFocus("failed.report", activate: report)
-            }
-            HStack {
-                Spacer()
-                Button(L10n.t("Close")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .padFocus("failed.close", activate: { dismiss() })
+                    .buttonStyle(GlassTextButtonStyle(small: true))
+                    .fixedSize()
+                    .padFocus("failed.report", cornerRadius: 15, activate: report)
             }
         }
-        .padding(24)
-        .frame(width: 500)
     }
 
     /// Vulkan, OpenGL and DirectX 12 have one way each: nothing to pick by hand.
@@ -410,31 +403,24 @@ struct SaveChoiceSheet: View {
     @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(L10n.t("Which save do you want to play on?"))
-                .font(Theme.display(20))
-                .fixedSize(horizontal: false, vertical: true)
-            Label(L10n.t("%@ has saves from both its Windows and its Mac version, and they're different.", choice.game.name),
-                  systemImage: "exclamationmark.triangle")
-                .fixedSize(horizontal: false, vertical: true)
+        // × and Esc keep this version's own save, like the second answer.
+        GlassDialog(L10n.t("Which save do you want to play on?"), id: "saves", width: 480, spacing: 18) {
+            DialogWarning(L10n.t("%@ has saves from both its Windows and its Mac version, and they're different.", choice.game.name))
             VStack(spacing: 10) {
                 // Return and A take the newer one – nothing is lost either way.
                 option(title: version(choice.from), date: choice.newer.theirs, newer: true) { model.answerSaveChoice(takeNewer: true) }
                     .keyboardShortcut(.defaultAction)
-                    .padFocus("saves.newer", activate: { model.answerSaveChoice(takeNewer: true) })
+                    .padFocus("saves.newer", cornerRadius: 16, preferred: true, activate: { model.answerSaveChoice(takeNewer: true) })
                 option(title: version(choice.from == .mac ? .windows : .mac), date: choice.newer.ours, newer: false) {
                     model.answerSaveChoice(takeNewer: false)
                 }
-                .keyboardShortcut(.cancelAction)
-                .padFocus("saves.keep", activate: { model.answerSaveChoice(takeNewer: false) })
+                .padFocus("saves.keep", cornerRadius: 16, activate: { model.answerSaveChoice(takeNewer: false) })
             }
             Text(L10n.t("Taking the newer one keeps this version's save as a backup in Nightforge's Backups folder."))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(24)
-        .frame(width: 480)
     }
 
     private func version(_ platform: Platform) -> String {
@@ -446,10 +432,11 @@ struct SaveChoiceSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: newer ? "clock.arrow.circlepath" : "clock")
                     .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Theme.ink.opacity(0.85))
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text(title).font(.system(size: 14, weight: .semibold))
+                        Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.ink)
                         if newer {
                             Text(L10n.t("Newer"))
                                 .font(.system(size: 11, weight: .semibold))
@@ -459,18 +446,15 @@ struct SaveChoiceSheet: View {
                                 .background(Theme.sodium.opacity(0.2), in: Capsule())
                         }
                     }
-                    Text(Self.when(date)).font(.system(size: 12.5)).foregroundStyle(.secondary)
+                    Text(Self.when(date)).font(.system(size: 12.5)).foregroundStyle(Theme.muted)
                 }
                 Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(newer ? 0.08 : 0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
-            .contentShape(RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GlassButtonStyle(shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
     }
 
     /// "Today at 14:02", "Yesterday at 21:10", "12 Oct 2026 at 9:30".
@@ -502,61 +486,98 @@ struct SpaceSheet: View {
     private var enough: Bool { freed >= request.shortfall }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(L10n.t("%@ needs up to %@", request.game.name, Format.bytes(request.game.sizeOnDisk)))
-                .font(Theme.display(20))
-                .lineLimit(2)
-            Label(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
-                         Format.bytes(request.free), Format.bytes(request.shortfall)),
-                  systemImage: "externaldrive.badge.exclamationmark")
-                .fixedSize(horizontal: false, vertical: true)
+        GlassDialog(L10n.t("%@ needs up to %@", request.game.name, Format.bytes(request.game.sizeOnDisk)), id: "space", width: 540) {
+            DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
+                                 Format.bytes(request.free), Format.bytes(request.shortfall)),
+                          symbol: "externaldrive.badge.exclamationmark")
             if request.candidates.isEmpty {
                 Text(L10n.t("No game here has gone unplayed for a month. Remove games or other files you don't need, then try again."))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept."))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                VStack(spacing: 8) {
-                    ForEach(request.candidates) { game in
-                        let on = Binding(get: { picked.contains(game.id) },
-                                         set: { if $0 { picked.insert(game.id) } else { picked.remove(game.id) } })
-                        Toggle(isOn: on) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(game.name).lineLimit(1)
-                                    Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept."))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(spacing: 0) {
+                        ForEach(Array(request.candidates.enumerated()), id: \.element.id) { place, game in
+                            let on = Binding(get: { picked.contains(game.id) },
+                                             set: { if $0 { picked.insert(game.id) } else { picked.remove(game.id) } })
+                            if place > 0 { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
+                            Toggle(isOn: on) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(game.name)
+                                            .font(.system(size: 13.5, weight: .semibold))
+                                            .lineLimit(1)
+                                        Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Theme.muted)
+                                    }
+                                    Spacer()
+                                    Text(Format.bytes(game.sizeOnDisk))
+                                        .font(.system(size: 13))
+                                        .monospacedDigit()
+                                        .foregroundStyle(Theme.ink.opacity(0.8))
                                 }
-                                Spacer()
-                                Text(Format.bytes(game.sizeOnDisk)).monospacedDigit().foregroundStyle(.secondary)
                             }
+                            .toggleStyle(GlassCheckboxStyle())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .padFocus("space.\(game.id)", toggle: on)
                         }
-                        .toggleStyle(.checkbox)
-                        .padFocus("space.\(game.id)", toggle: on)
                     }
+                    .glassWell()
                 }
-                Text(enough ? L10n.t("Frees %@ – enough", Format.bytes(freed)) : L10n.t("Frees %@ of %@", Format.bytes(freed), Format.bytes(request.shortfall)))
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(enough ? Theme.runsGreat : .secondary)
             }
-            HStack {
+            HStack(spacing: 8) {
+                if !request.candidates.isEmpty {
+                    Text(enough ? L10n.t("Frees %@ – enough", Format.bytes(freed)) : L10n.t("Frees %@ of %@", Format.bytes(freed), Format.bytes(request.shortfall)))
+                        .font(.system(size: 12.5).monospacedDigit())
+                        .foregroundStyle(enough ? Theme.runsGreat : Theme.muted)
+                }
                 Spacer()
                 Button(L10n.t("Cancel")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .padFocus("space.cancel", activate: { dismiss() })
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("space.cancel", cornerRadius: 21, activate: { dismiss() })
                 if !request.candidates.isEmpty {
                     Button(L10n.t("Uninstall %ld & Download", picked.count)) { model.freeUpAndDownload(picked) }
+                        .buttonStyle(GlassTextButtonStyle(prominent: true))
                         .keyboardShortcut(.defaultAction)
                         .disabled(!enough)
-                        .padFocus("space.confirm", enabled: enough, activate: { model.freeUpAndDownload(picked) })
+                        .padFocus("space.confirm", enabled: enough, cornerRadius: 21, activate: { model.freeUpAndDownload(picked) })
                 }
             }
+            .padding(.top, 2)
         }
-        .padding(24)
-        .frame(width: 520)
+    }
+}
+
+/// A dialog's warning line: the sign, then what happened.
+private struct DialogWarning: View {
+    let text: String
+    var symbol = "exclamationmark.triangle"
+
+    init(_ text: String, symbol: String = "exclamationmark.triangle") {
+        self.text = text
+        self.symbol = symbol
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.warning)
+                .frame(width: 16)
+            Text(text)
+                .font(.system(size: 14))
+                .lineSpacing(3)
+                .foregroundStyle(Theme.ink.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

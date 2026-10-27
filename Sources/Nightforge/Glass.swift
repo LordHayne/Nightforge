@@ -323,6 +323,21 @@ struct GlassQuestion<Buttons: View>: View {
     }
 }
 
+/// A section's title, small and spaced out like the design's.
+struct SectionTitle: View {
+    let title: String
+
+    init(_ title: String) { self.title = title }
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(1.6)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.muted)
+    }
+}
+
 /// A message for a GlassQuestion sheet, known by its text.
 struct DialogMessage: Identifiable {
     let text: String
