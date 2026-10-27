@@ -218,13 +218,12 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
     beendet. Kein Besitz-, sondern ein Grafikthema: mit DXVK/WineD3D oder `-dx12` über D3DMetal versuchen und Unreals
     Log in `AppData/Local/Voyage/Saved/Logs` prüfen (dort lag nur `cef3.log`, der GPU-Prozess der eingebauten
     Web-Oberfläche brach ab).
+    Der Nutzer sah dasselbe (schwarz, ~60 GB laut Aktivitätsanzeige). Dazu passt nicht, dass die Demo „Läuft super“
+    zeigt – das Abzeichen sollte nach so einem Start nicht grün bleiben.
   - **Toast „Steam lädt … nicht herunter“** ist in der App nicht gesehen. Der Eintrag selbst wechselte richtig; der Toast
     verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
-- **The Last Caretaker (Demo) bleibt schwarz** (Nutzer, 27.10. abends): Die Demo startete, das Bild blieb schwarz, und
-  der Speicherverbrauch stieg auf rund 60 GB („App“ in der Aktivitätsanzeige). Untersuchen: welcher Prozess (Wine,
-  Spiel, Nightforge), welcher Grafikweg (DXMT/D3DMetal/DXVK), Logs unter `~/Library/Application Support/Nightforge/Logs`.
 - **Download-Knopf oben** erscheint nur, solange etwas lädt; im Entwurf ist er immer da (Panel mit „Nichts lädt
   gerade“). Mit dem Nutzer besprechen (gemeldet von der Sitzung „Vorlage angleichen“, 27.10.).
 - **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
