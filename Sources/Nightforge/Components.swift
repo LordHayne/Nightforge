@@ -226,6 +226,14 @@ actor ComponentStore {
             .appendingPathComponent(component.version, isDirectory: true)
     }
 
+    /// Copies a folder as an APFS clone: instant, and it takes space only for what later changes in
+    /// either copy. Elsewhere (another file system) an ordinary copy.
+    static func cloneFolder(_ source: URL, to target: URL) throws {
+        if clonefile(source.path, target.path, 0) == 0 { return }
+        try? FileManager.default.removeItem(at: target)
+        try FileManager.default.copyItem(at: source, to: target)
+    }
+
     static func sha256(of file: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }

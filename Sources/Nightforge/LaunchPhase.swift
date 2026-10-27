@@ -14,6 +14,10 @@ enum LaunchPhase: Equatable {
     case retrying(String)
     /// Steam updates the game before it starts it: how far, when known.
     case updating(Double?)
+    /// The newest engine crashed a game that ran well on the one before: it starts again with that one.
+    case rollingBack
+    /// A game held back on the previous engine: Steam moves over to that one first.
+    case heldEngine
 
     var title: String {
         switch self {
@@ -27,6 +31,8 @@ enum LaunchPhase: Equatable {
         case .retrying(let way): return L10n.t("Starting again with %@ …", way)
         case .updating(let fraction?): return L10n.t("Updating … %ld %%", Int(fraction * 100))
         case .updating(nil): return L10n.t("Updating …")
+        case .rollingBack: return L10n.t("Trying the previous engine …")
+        case .heldEngine: return L10n.t("Starting with the previous engine …")
         }
     }
 
@@ -41,6 +47,10 @@ enum LaunchPhase: Equatable {
         case .restartingSteam: return L10n.t("Steam got stuck while starting – a fresh start fixes that.")
         case .retrying: return L10n.t("It closed right away – Nightforge starts it the next way and remembers what works.")
         case .updating: return L10n.t("Steam updates the game first – it starts by itself when the update is done.")
+        case .rollingBack:
+            return L10n.t("The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.")
+        case .heldEngine:
+            return L10n.t("The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.")
         }
     }
 

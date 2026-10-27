@@ -1473,7 +1473,8 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             if game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
-            let runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
+            var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
+            let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
             let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
             let insight = await insight(of: game)
@@ -1496,6 +1497,17 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             while true {
+                // The newest engine – or, for a game it crashed, the one before (EngineRollback).
+                var build: EngineBuild?
+                if game.bottle.isBuiltIn, let newest {
+                    let pinned = EngineRollback.shared.pinnedBuild(game.appID) != nil
+                    let engine = await Engine.engineForStart(appID: game.appID, newest: URL(fileURLWithPath: newest)) {
+                        // Steam moves over to the other engine: it starts afresh.
+                        if self.launchPhase == nil { self.launchPhase = pinned ? .heldEngine : .startingSteam }
+                    }
+                    runner = engine.wine.path
+                    build = engine.build
+                }
                 if let runner {
                     await installRuntimes(for: game, profile: profile, analysis: analysis,
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
@@ -1526,6 +1538,9 @@ final class LibraryModel: ObservableObject {
                 }
                 // Settings a game only takes from the environment come with the Steam that starts it.
                 let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
+                // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
+                let way = LaunchAttempt(graphics: layer, arguments: arguments).id
+                if let build, EngineRollback.shared.needsWatch(game.appID, build: build, way: way) { watchFirstSeconds = true }
                 if game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.appID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile)),
@@ -1550,11 +1565,18 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark) {
-                    LaunchHealth.confirm(game.appID, attempts)
+                    if automatic, !attempts.isEmpty { LaunchHealth.confirm(game.appID, attempts) }
+                    if let build { EngineRollback.shared.recordGood(game.appID, build: build, way: way) }
                     break
                 }
                 launchingID = game.id
                 NSApp.activate()
+                // It ran well this way on the engine before and ends at once on the newest: the newest
+                // broke it, so it starts with the one before – the way stays.
+                if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.appID, build: build, way: way) {
+                    launchPhase = .rollingBack
+                    continue
+                }
                 let needed = GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName)
                     .filter { !LearnedFixes.winetricks(game.appID).contains($0) }
                 if !needed.isEmpty {
@@ -1573,6 +1595,8 @@ final class LibraryModel: ObservableObject {
                     LearnedFixes.setNoAVX(game.appID)
                     continue
                 }
+                // Graphics chosen by hand, or nothing known about the game: no other way to try.
+                guard automatic, !attempts.isEmpty else { break }
                 if LaunchHealth.advance(game.appID, attempts) {
                     let next = attempts[LaunchHealth.current(game.appID, attempts).index]
                     launchPhase = .retrying(next.label)
@@ -1788,6 +1812,25 @@ final class LibraryModel: ObservableObject {
     /// How well it runs on a Mac, from the profile list and what this Mac learned about it.
     func compatibility(of game: Game) -> Compatibility {
         Compatibility.of(game, profile: profiles[game.appID], analysis: insights[game.appID]?.analysis)
+    }
+
+    /// The previous engine this game runs with, because the newest crashed it (EngineRollback).
+    func heldEngine(of game: Game) -> HeldBuild? {
+        guard game.bottle.isBuiltIn, game.platform == .windows, game.isInstalled else { return nil }
+        return EngineRollback.shared.pinnedBuild(game.appID)
+    }
+
+    /// "Try the newest now": the next start uses the newest engine; should it crash again,
+    /// Nightforge switches back by itself.
+    func tryNewestEngine(_ game: Game) {
+        let rollback = EngineRollback.shared
+        let held = rollback.pinnedBuild(game.appID)
+        objectWillChange.send()
+        rollback.tryNewest(game.appID)
+        let history = rollback.history()
+        guard let current = history.current else { return }
+        Toasts.shared.show(L10n.t("Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.",
+                                  EngineRollback.label(current, setUp: history.currentSetUp, other: held?.build)))
     }
 
     /// The detail page's "Add to Applications": a little app that opens the game, found by Spotlight.

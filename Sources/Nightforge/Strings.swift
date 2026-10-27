@@ -462,6 +462,21 @@ enum L10n {
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",
 
+        // Engine rollback (3.3)
+        "Trying the previous engine …": "Versucht die vorige Engine …",
+        "Starting with the previous engine …": "Startet mit der vorigen Engine …",
+        "The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also startet Nightforge es mit der vorigen – du musst nichts tun. Nach dem nächsten Update probiert es die neue wieder.",
+        "The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.":
+            "Die neueste Engine hat dieses Spiel abstürzen lassen, also läuft es mit der vorigen – Steam startet dafür zuerst neu.",
+        "Engine": "Engine",
+        "%@ (held back)": "%@ (zurückgehalten)",
+        "Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.":
+            "Läuft mit der vorigen Engine vom %@ – die neueste hat es abstürzen lassen. Nightforge probiert die neue nach dem nächsten Update wieder.",
+        "Try the Newest Now": "Jetzt die neueste probieren",
+        "Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.":
+            "Der nächste Start nimmt die neueste Engine (%@). Stürzt es wieder ab, wechselt Nightforge von selbst zurück.",
+
         // Shortcuts
         "%@ is in Applications now – Spotlight finds it": "%@ ist jetzt in den Programmen – Spotlight findet es",
         "%@ couldn't be added to Applications: %@": "%@ konnte nicht zu den Programmen hinzugefügt werden: %@",
