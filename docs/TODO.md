@@ -160,10 +160,11 @@ weil die Bildschirmfreigabe abgelehnt war.
   App?), „Update & Play“ bei einem echten Update, Download-Ring und Wachhalten bei einem echten Download,
   „Welcome back“ nach einer echten Sitzung (wird die Steam-Cloud-Zeile grün?), das Fehlstart-Sheet, das
   Platz-Sheet.
-- **Glas-Look** (`Glass.swift`, nach dem MagicPath-Entwurf): In den Offscreen-Renderings ist das Milchglas eine
-  flache graue Fläche. Ob es auf dem echten Bildschirm den Hintergrund so durchscheinen lässt wie im Entwurf und wie
-  Hover und Drücken wirken, einmal in der App ansehen. Das Liquid Glass von macOS 26 (`glassEffect`) wäre die
-  Alternative, lässt sich offscreen aber nicht prüfen (die Aufnahme wird weiß).
+- **Glas-Look** (`Glass.swift`): Am 27.10. auf dem echten Bildschirm angesehen – der Hintergrund scheint durch, die
+  Ränder leuchten, Spielen glänzt bernsteinfarben. „Willkommen zurück“ und die Einstellungen sind seitdem Glas-Dialoge
+  im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Offen: die übrigen Sheets (Optionen eines Spiels,
+  Fehlstart, Platz, Spielstand-Wahl, Steam für Mac) zeigen noch das System-Panel; die Speicherleiste bleibt einfarbig,
+  weil Sodium laut Regeln nie Deko ist (der Entwurf färbt sie).
 - **Entscheidungen:** Was „Fastest / Balanced / Most compatible“ in 2.3 genau einstellen; ob „Save battery when
   unplugged“ (3.4) standardmäßig an sein soll (jetzt aus); ob „Welcome back“ nach *jeder* Sitzung kommen soll.
 - **`syncstate` in `remotecache.vdf`:** Nur „1“ (im Einklang) ist sicher belegt; die anderen Werte während eines
@@ -176,14 +177,16 @@ weil die Bildschirmfreigabe abgelehnt war.
 
 Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 
+- **Shader-Caches leeren** und **Spielstart** am 27.10. geprüft: 149,7 MB weg, alle Ordner leer; OxyRail startete
+  danach „butterweich“ im Vordergrund, „Willkommen zurück“ kam, die Steam-Cloud-Zeile wurde grün. Die Rückkehr zu
+  Nightforge dauerte 20–30 s (nach dem Spielende nur alle 10 s geschaut) – behoben, jetzt 4–7 s; einmal nachprüfen.
 - **Download-Geschwindigkeit** (4.4): Steht bei einem echten Download „12 MB/s · noch 25 Min.“ unter dem Spiel, und passt die Restzeit ungefähr?
-- **Shader-Caches leeren** (4.3, Einstellungen › Speicher): Danach sollte der erste Start eines Spiels wieder „Shader werden vorbereitet“ zeigen und etwas länger dauern.
-- **Nightforge komplett entfernen** (4.3): **Nicht** im eigenen Konto ausprobieren – es löscht die Windows-Umgebung mit allen Windows-Spielen. Besser mit leerem HOME (`build/fh`, wie beim Test der Ersteinrichtung). Zu prüfen:
+- **Nightforge komplett entfernen** (4.3): **Nicht** im eigenen Konto ausprobieren – es löscht die Windows-Umgebung mit allen Windows-Spielen. Besser mit leerem HOME (`build/fh`, wie beim Test der Ersteinrichtung; am 27.10. mit Test-Spielständen vorbereitet, gelöscht würde nur dort und in den Metal-Caches unter `/var/folders`). Zu prüfen:
   - Landen die Spielstände in `Dokumente/Nightforge Saves/<Datum>`?
   - Fragt macOS nach dem Zugriff auf „Dokumente“?
   - Legt sich die App in den Papierkorb?
 - **Spielstand-Wahl** (3.2): Ein Spiel mit Mac- und Windows-Version auf beiden Seiten spielen und dann wechseln. Kommt die Frage „Mit welchem Spielstand …“, und liegt der ersetzte Stand in `Backups/`?
-- **Externes Laufwerk** (4.2): Ein Laufwerk mit einer Steam-Bibliothek abziehen. Zeigt das Spiel „Schließe T7 an, um zu spielen“? Danach Bibliothek anlegen und verschieben ausprobieren (siehe Recherche in der Roadmap).
+- **Externes Laufwerk** (4.2): Ein Laufwerk mit einer Steam-Bibliothek abziehen. Zeigt das Spiel „Schließe <Name des Laufwerks> an, um zu spielen“? (Irgendein externes Laufwerk – „T7“ war nur das Beispiel im Entwurf.) Danach Bibliothek anlegen und verschieben ausprobieren (siehe Recherche in der Roadmap).
 
 ## Aus dem Code-Audit
 
