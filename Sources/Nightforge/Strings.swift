@@ -645,6 +645,18 @@ enum L10n {
         "Collapsed": "Zugeklappt",
         "Graphics layer": "Grafikweg",
 
+        // A game's page: "This game"
+        "This game": "Dieses Spiel",
+        "Change …": "Ändern …",
+        "Store": "Store",
+        "Performance HUD": "Leistungsanzeige",
+        "Launch options": "Startparameter",
+        "Options for this game": "Optionen für dieses Spiel",
+        "Your own settings, on top of the profile.": "Deine eigenen Einstellungen, zusätzlich zum Profil.",
+        "No profile yet – Nightforge uses its automatic settings.": "Noch kein Profil – Nightforge nimmt seine automatischen Einstellungen.",
+        "%@ (automatic)": "%@ (automatisch)",
+        "In the game": "Im Spiel",
+
         // Library filters
         "Sort": "Sortieren",
         "Recently played": "Zuletzt gespielt",

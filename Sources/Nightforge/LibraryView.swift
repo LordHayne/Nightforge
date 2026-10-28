@@ -258,8 +258,15 @@ private struct DetailLevel: View {
             BackPill(to: model.route.level)
                 .padding(.top, 18)
             Spacer(minLength: 24)
-            GameDetail(game: game, compact: false)
-                .id(game.id)
+            HStack(alignment: .bottom, spacing: 32) {
+                GameDetail(game: game, compact: false)
+                // What's set for it and where that comes from (2.3), beside the title as in the design.
+                if game.install != .inStore {
+                    Spacer(minLength: 0)
+                    ThisGameCard(game: game)
+                }
+            }
+            .id(game.id)
             Spacer(minLength: 28)
         }
         .padding(.horizontal, Theme.gutter)
@@ -902,20 +909,6 @@ private struct GameDetail: View {
                 }
                 if !game.bottle.isBuiltIn && game.platform == .windows {  // only means something with several CrossOver bottles
                     Stat(label: L10n.t("Bottle"), value: game.bottle.name)
-                }
-                if !compact && game.isInstalled {
-                    let offline = OfflineReadiness.of(game, analysis: model.insights[game.gameID]?.analysis,
-                                                      accountRemembered: game.provider == .epic ? model.epic.isSignedIn
-                                                          : OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
-                    Stat(label: L10n.t("Offline"), value: offline.label)
-                        .help(offline.help)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityHint(offline.help)
-                }
-                if !compact, let held = model.heldEngine(of: game) {
-                    Stat(label: L10n.t("Engine"),
-                         value: L10n.t("%@ (held back)", EngineRollback.label(held.build, setUp: held.setUp,
-                                                                               other: EngineRollback.shared.history().current)))
                 }
             }
 
