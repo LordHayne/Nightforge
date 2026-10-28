@@ -368,8 +368,11 @@ enum Launcher {
                                     frameLimit: frameLimit,
                                     upscaling: options.effectiveUpscaling(profile: profile),
                                     vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
-            Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir)
+            Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
+            Engine.applyIniSettings(profile?.iniSettings ?? [])
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+            // This call starts Steam when it isn't running: in the Retina mode the game wants.
+            if !Engine.isSteamRunning { Engine.applyRetinaMode(runner) }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own
         // games get the HUD from the background Steam instead (Prefs.performanceHUD).
@@ -413,7 +416,8 @@ enum Launcher {
         Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
                                 upscaling: options.effectiveUpscaling(profile: profile),
                                 vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
-        Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir)
+        Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
+        Engine.applyIniSettings(profile?.iniSettings ?? [])
         Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
 
         var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
