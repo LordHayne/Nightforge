@@ -22,6 +22,9 @@ struct EpicTest {
         libraryList()
         installs()
         progress()
+        updates()
+        sizes()
+        addOns()
         launch()
         signIn()
         packed()
@@ -40,13 +43,17 @@ struct EpicTest {
                                  {"type": "DieselGameBoxLogo", "url": "https://cdn1.epicgames.com/logo.png"},
                                  {"type": "Thumbnail", "url": "http://insecure.example/thumb.jpg"}],
                    "customAttributes": {"FolderName": {"type": "STRING", "value": "rocketleague"},
-                                        "CloudSaveFolder": {"type": "STRING", "value": "{AppData}/RL"}}}, "dlcs": []},
+                                        "CloudSaveFolder": {"type": "STRING", "value": "{AppData}/RL"}}},
+      "dlcs": [{"app_name": "SugarDLC", "app_title": "Season Pass", "metadata": {"categories": [{"path": "addons"}, {"path": "addons/durable"}]}},
+               {"app_name": "SugarOST", "app_title": "Soundtrack", "metadata": {"categories": [{"path": "addons"}, {"path": "digitalextras"}]}},
+               {"app_name": "../evil", "app_title": "Evil", "metadata": {}}]},
      {"app_name": "Ubi", "app_title": "Far Cry", "metadata": {"customAttributes": {"ThirdPartyManagedApp": {"value": "Uplay"}}}},
      {"app_name": "discord", "app_title": "Discord", "metadata": {"categories": [{"path": "applications"}, {"path": "software"}]}},
      {"app_name": "dsc", "app_title": "Death Stranding Content",
       "metadata": {"categories": [{"path": "applications"}, {"path": "digitalextras"}, {"path": "games"}]}},
      {"app_name": "../x", "app_title": "Escape", "metadata": {}},
-     {"app_name": "Odd", "app_title": "Odd Folder", "metadata": {"customAttributes": {"FolderName": {"value": "../.."}}}},
+     {"app_name": "Odd", "app_title": "Odd Folder", "metadata": {"customAttributes": {"FolderName": {"value": "../.."}}},
+      "dlcs": [{"app_name": "OddDLC", "app_title": "Odd Expansion", "metadata": {}}]},
      {"app_name": "NoTitle", "app_title": "", "metadata": {}}]
     """#
 
@@ -61,6 +68,11 @@ struct EpicTest {
         check(rl?.folder == "rocketleague" && rl?.cloudSaves == true, "its folder and that Epic keeps its saves")
         check(games.last?.folder == "Odd", "a folder name that would climb out falls back to the app name")
         check(EpicLibrary.games(fromList: Data("not json".utf8)) == nil, "no list, no games (the old ones stay)")
+        check(rl?.dlcs == [EpicDLC(appName: "SugarDLC", title: "Season Pass")],
+              "its add-ons, without soundtracks and odd names: \(String(describing: rl?.dlcs))")
+        let older = #"{"games": [{"appName": "X", "title": "Old", "namespace": "", "folder": "X", "cloudSaves": false}]}"#
+        let decoded = try? JSONDecoder().decode(EpicLibrary.self, from: Data(older.utf8))
+        check(decoded?.games.first?.title == "Old" && decoded?.games.first?.dlcs == nil, "a library.json from before add-ons still loads")
     }
 
     static func installs() {
@@ -75,6 +87,8 @@ struct EpicTest {
         let rl = all["Sugar"]
         check(rl?.path.path == "/G/rocketleague" && rl?.size == 26_000_000_000 && rl?.canRunOffline == true, "where, how big, offline")
         check(rl?.executable == #"Binaries\Win64\RocketLeague.exe"#, "its program")
+        check(EpicInstall.versions(fromJSON: Data(json.utf8)) == ["Sugar": "++Prime+Update50-CL-1", "SugarDLC": "", "Rel": ""],
+              "the versions of everything installed, add-ons too")
         let assets = #"{"Windows": [{"app_name": "Sugar", "build_version": "++Prime+Update51-CL-2"}], "Mac": [{"app_name": "Sugar", "build_version": "mac"}]}"#
         check(EpicInstall.latestVersions(fromAssets: Data(assets.utf8)) == ["Sugar": "++Prime+Update51-CL-2"], "the newest Windows build")
     }
@@ -99,6 +113,92 @@ struct EpicTest {
         let full = Legendary.progress(inLog: log + "\n ! Failure: Not enough available disk space! 12.00 GiB < 25.00 GiB\n[cli] CRITICAL: Installation cannot proceed, exiting.")
         check(full.failure?.contains("Not enough available disk space") == true, "why it stopped: \(full.failure ?? "-")")
         check(Legendary.progress(inLog: "").fraction == nil, "nothing yet: no share")
+        // legendary's downloader runs in processes of its own: stopping legendary stops them too.
+        let table = "  1     0\n 500     1\n 501   500\n 502   500\n 510   501\n 600     1\n 601   600\nbad line\n"
+        check(Set(Legendary.descendants(of: 500, in: table)) == [501, 502, 510], "legendary's helpers, and theirs")
+        check(Legendary.descendants(of: 601, in: table).isEmpty, "none: nothing else is touched")
+    }
+
+    /// "Update & Play": what legendary's update log means for the start.
+    static func updates() {
+        let start = "[cli] INFO: Preparing download for \"Rocket League\" (Sugar)...\n"
+        let done = Legendary.progress(inLog: start + """
+            [cli] INFO: Install size: 25000.50 MiB
+            [cli] INFO: Download size: 300.00 MiB (Compression savings: 52.0%)
+            [DLManager] INFO: = Progress: 100.00% (996/996), Running for 00:00:30, ETA: 00:00:00
+            [cli] INFO: Finished installation process in 31.00 seconds.
+            """)
+        check(EpicStore.updateOutcome(done, status: 0) == .updated, "updated: the game starts")
+        let current = Legendary.progress(inLog: start + "[cli] INFO: Download size is 0, the game is either already up to date or has not changed. Exiting...")
+        check(EpicStore.updateOutcome(current, status: 0) == .updated, "nothing to fetch: it starts")
+        let offline = Legendary.progress(inLog: "[cli] ERROR: Login failed! Cannot continue with download process.")
+        check(EpicStore.updateOutcome(offline, status: 1) == .skipped(.offline), "Epic out of reach: the version on the Mac starts")
+        check(EpicStore.updateOutcome(Legendary.progress(inLog: ""), status: 1) == .skipped(.offline), "legendary said nothing: it starts as it is")
+        let locked = Legendary.progress(inLog: "[cli] CRITICAL: Failed to acquire installed data lock, only one instance of Legendary may install/import/move applications at a time.")
+        check(EpicStore.updateOutcome(locked, status: 0) == .skipped(.busy), "another download has legendary: it starts as it is")
+        let full = Legendary.progress(inLog: start + " ! Failure: Not enough available disk space! 0.20 GiB < 0.29 GiB\n[cli] CRITICAL: Installation cannot proceed, exiting.")
+        if case .failed(let reason) = EpicStore.updateOutcome(full, status: 1) {
+            check(reason.contains("disk space"), "no room for the update: says so: \(reason)")
+        } else {
+            check(false, "no room for the update: it doesn't start quietly with the old files")
+        }
+        let halfway = Legendary.progress(inLog: start + "[DLManager] INFO: = Progress: 40.00% (400/996), Running for 00:00:10, ETA: 00:00:15")
+        check(EpicStore.updateOutcome(halfway, status: 15) == .failed(L10n.t("legendary stopped (code %d)", 15)),
+              "stopped halfway: the game waits for the rest")
+    }
+
+    /// `legendary info --json`: what a game comes to before it's downloaded.
+    static func sizes() {
+        let info = #"""
+        {"game": {"app_name": "Sugar", "title": "Rocket League", "version": "++Prime+Update51-CL-2", "is_dlc": false,
+                  "owned_dlc": [{"app_name": "SugarDLC", "title": "Season Pass", "installable": [{"appId": "SugarDLC"}], "id": "d1"}]},
+         "install": null,
+         "manifest": {"size": 1234, "type": "binary", "version": 21, "build_version": "++Prime+Update51-CL-2",
+                      "disk_size": 26843545600, "download_size": 12884901888, "install_tags": [""]}}
+        """#
+        let size = EpicSize.from(info: Data(info.utf8))
+        check(size == EpicSize(version: "++Prime+Update51-CL-2", download: 12_884_901_888, install: 26_843_545_600),
+              "download and disk size of the newest build: \(String(describing: size))")
+        check(EpicSize.from(info: Data(#"{"game": {"app_name": "Ubi"}, "install": null, "manifest": null}"#.utf8)) == nil,
+              "no manifest (no Windows build): no size")
+        check(EpicSize.from(info: Data("Log in failed!".utf8)) == nil, "no answer: no size")
+    }
+
+    /// Add-ons: a game and its add-ons download as one, and an update brings them along.
+    static func addOns() {
+        let gib: Int64 = 1 << 30
+        func part(_ done: Bool, _ fraction: Double?, log size: Int64? = nil, said: Int64? = nil) -> EpicStore.JobPart {
+            var progress = Legendary.Progress()
+            progress.fraction = fraction
+            progress.downloadSize = size
+            return EpicStore.JobPart(done: done, progress: progress, size: said)
+        }
+        let dlcHalf = EpicStore.jobProgress([part(true, 1, log: 10 * gib), part(false, 0.5, log: 2 * gib)])
+        check(dlcHalf.size == 12 * gib && dlcHalf.fraction.map { abs($0 - 11.0 / 12) < 0.0001 } == true,
+              "the game done, its add-on half way: 11 of 12 GB \(String(describing: dlcHalf.fraction))")
+        let gameQuarter = EpicStore.jobProgress([part(false, 0.25, log: 8 * gib), part(false, nil, said: 2 * gib)])
+        check(gameQuarter.size == 10 * gib && gameQuarter.fraction.map { abs($0 - 0.2) < 0.0001 } == true,
+              "an add-on not started counts with the size Epic said: \(String(describing: gameQuarter.fraction))")
+        check(EpicStore.jobProgress([part(false, 0.4)]).fraction == 0.4, "no size known: the part under way says")
+        check(EpicStore.jobProgress([part(false, nil, said: gib)]).fraction == nil, "nothing started: no share yet")
+
+        let latest = ["G": "2", "D1": "5", "D2": "1"]
+        check(EpicStore.updateParts("G", addOns: ["D1"], versions: ["G": "1", "D1": "5"], latest: latest, empty: []) == ["G"],
+              "a newer build of the game")
+        check(EpicStore.updateParts("G", addOns: ["D1"], versions: ["G": "2", "D1": "4"], latest: latest, empty: []) == ["D1"],
+              "an add-on behind")
+        check(EpicStore.updateParts("G", addOns: ["D1", "D2"], versions: ["G": "1", "D1": "5"], latest: latest, empty: []) == ["G", "D2"],
+              "an add-on bought later comes with the update, after the game")
+        check(EpicStore.updateParts("G", addOns: ["D2"], versions: ["G": "2"], latest: latest, empty: ["D2"]).isEmpty,
+              "an add-on with nothing to download doesn't keep asking")
+        check(EpicStore.updateParts("G", addOns: ["D1"], versions: ["G": "2", "D1": "5"], latest: latest, empty: []).isEmpty,
+              "all up to date: nothing")
+        check(EpicStore.updateParts("X", addOns: [], versions: ["X": "1"], latest: [:], empty: []).isEmpty, "no newer build known: nothing")
+
+        check(AddOns.line(["Season Pass"]) == L10n.t("Your add-on: %@ – it downloads and updates with the game.", "Season Pass"), "one add-on")
+        check(AddOns.line(["A", "B", "C", "D", "E"])
+              == L10n.t("Your add-ons: %@ – they download and update with the game.", L10n.t("%@ and %ld more", "A, B, C", 2)),
+              "many: the first three and how many more")
     }
 
     static func launch() {
@@ -221,7 +321,13 @@ struct EpicTest {
         let installPath = Legendary.gamesDir.appendingPathComponent("rocketleague").path
         let installed = #"{"Sugar": {"app_name": "Sugar", "install_path": "\#(installPath)", "executable": "RL.exe", "install_size": 1000, "version": "1"}}"#
         try? Data(installed.utf8).write(to: Legendary.configDir.appendingPathComponent("installed.json"))
-        try? Data(#"{"Windows": [{"app_name": "Sugar", "build_version": "2"}]}"#.utf8).write(to: Legendary.configDir.appendingPathComponent("assets.json"))
+        try? Data(#"{"Windows": [{"app_name": "Sugar", "build_version": "2"}, {"app_name": "Odd", "build_version": "7"}, {"app_name": "OddDLC", "build_version": "3"}, {"app_name": "fn", "build_version": "new"}]}"#.utf8)
+            .write(to: Legendary.configDir.appendingPathComponent("assets.json"))
+        // Sizes Epic gave earlier: Odd's for its newest build, Fortnite's for an older one.
+        try? JSONEncoder().encode(["Odd": EpicSize(version: "7", download: 2_000_000_000, install: 5_000_000_000),
+                                   "OddDLC": EpicSize(version: "3", download: 1_000_000_000, install: 2_000_000_000),
+                                   "fn": EpicSize(version: "old", download: 1, install: 2)])
+            .write(to: epicFolder.appendingPathComponent("sizes.json"))
         try? Data(#"{"formatVersion": 1, "games": {"epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#.utf8)
             .write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
 
@@ -246,6 +352,14 @@ struct EpicTest {
         let odd = games.first { $0.gameID == .epic("Odd") }
         check(odd?.install == .notInstalled && odd?.installDir.deletingLastPathComponent().path == Legendary.gamesDir.path,
               "a game not downloaded goes into Epic's folder in the Windows environment")
+        check(odd?.sizeOnDisk == 7_000_000_000 && odd?.downloadSize == 3_000_000_000,
+              "its size is known before the download, with its add-on: on disk (the space check) and the download")
+        check(odd?.addOns == ["Odd Expansion"] && rl?.addOns == ["Season Pass"], "the game page names the add-ons")
+        check(SpaceCheck.shortfall(needed: odd?.sizeOnDisk ?? 0, free: 1_000_000_000) != nil, "so a download that won't fit is caught")
+        let fortnite = games.first { $0.gameID == .epic("fn") }
+        check(fortnite?.sizeOnDisk == 0 && fortnite?.downloadSize == nil, "a size from an older build isn't shown")
+        check(await store.size(of: odd!) == EpicSize(version: "7", download: 3_000_000_000, install: 7_000_000_000),
+              "a known size is answered without asking Epic")
         check(games.first { $0.gameID == .epic("fn") }?.antiCheatBlock?.antiCheat == ["Easy Anti-Cheat"],
               "anti-cheat games are marked like Steam's")
 
@@ -258,6 +372,7 @@ struct EpicTest {
         // Epic ended the sign-in (legendary drops it): the games stay, and signing in again is the way out.
         try? fm.removeItem(at: Legendary.configDir.appendingPathComponent("user.json"))
         check(store.isConnected && !store.isSignedIn, "still connected, no longer signed in")
+        check(await store.size(of: fortnite!) == nil, "signed out: Epic isn't asked for a size")
         await store.refresh()
         check(store.sync.state == .signedOut && store.sync.failed, "says Epic signed the player out")
         check(StoreSyncBanner.text(provider: .epic, sync: store.sync)?.contains("Epic Games") == true, "the library's banner says so")
