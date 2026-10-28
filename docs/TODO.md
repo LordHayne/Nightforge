@@ -244,6 +244,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
   „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel.
 - **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
+- **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
+  zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
+  vermutlich ein Fehlklick, als das Fenster gerade nach vorne kam. Nicht nachvollzogen – im Auge behalten.
+- **`MacVersionTest` hängt von der Umgebung ab:** Die Prüfung „das Beenden-Skript holt Nightforge zurück“ scheitert,
+  solange auf dem Mac ein echtes Windows-Spiel läuft (das Skript sucht systemweit nach `\steamapps\common\` und
+  `\Epic Games\`). Tests nicht laufen lassen, während ein Spiel läuft – oder das Skript im Test auf einen eigenen
+  Prozess-Filter umstellen.
 - **„Update & Play“ für Epic.** Ein wartendes Update wird erkannt (`assets.json` ≠ installierte Version, Abzeichen),
   aber Play startet mit `--skip-version-check` die alte Version. Plan: vor dem Start `legendary install <app>` (Update)
   mit `LaunchPhase.updating` aus dem Log, dann starten (`LibraryModel.launch`, `EpicStore`).
