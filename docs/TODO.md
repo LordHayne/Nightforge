@@ -246,13 +246,19 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Tray-Symbol des unsichtbaren Windows-Steam als macOS-Statussymbol ab, und nach Neustarts von Steam bleiben alte stehen
   (dazu kommt das echte Steam für Mac). Prüfen: wer welches Symbol besitzt; Tray-Symbol des Windows-Steam abschalten
   oder beim Beenden aufräumen.
-- **Zwei Nightforge-Symbole im Dock** (Nutzer, 27.10. und 28.10.). Ursache am 28.10. gefunden: `lsappinfo` zeigt eine
-  beendete Nightforge als „exited-with-subordinates“ – macOS hält ihr Dock-Symbol („im Hintergrund ausgeführt“) am
-  Leben, weil Prozesse, für die sie „verantwortlich“ ist, weiterlaufen (Wine/Steam, die Nightforge gestartet hat und
-  die nach dem Beenden absichtlich weiterlaufen). Startet man Nightforge neu, stehen zwei Symbole im Dock; Klicks auf
-  das alte landen ins Leere. Ansatz: Hintergrundprozesse (Steam, Wine-Befehle, `steam-shutdown.sh`) ohne diese
-  Verantwortung starten – über `Nightforge Game.app`/launchd statt als Kindprozess, oder per posix_spawn mit
-  „disclaim“ – und prüfen, dass Mitteilungen/Dock-Menü danach die laufende App treffen.
+- **Nightforge Helper (Dock-Fix vom 28.10.) – noch offen:** Steam, Wine, Spiele, Epic-Downloads und die Skripte
+  starten über `Nightforge Helper.app` (Datenordner, `Detached.swift`), damit eine beendete Nightforge nicht im Dock
+  stehen bleibt. Geprüft: ⌘Q mit Steam, ⌘Q während eines Spiels, Neustart, Spielende. Noch nicht gesehen:
+  - **Berechtigungen** gehören für macOS jetzt dem Helfer: Abfragen (Spiele/Bibliotheken auf externen Laufwerken,
+    „Steam steuern“ für das Beenden von Steam für Mac) kommen unter „Nightforge Helper“, vielleicht einmal neu.
+  - **DMG-Installation** (mit Quarantäne-Flag): Der Helfer wird von Nightforge selbst geschrieben und trägt keins.
+    Weist macOS ihn trotzdem ab, startet Nightforge wie früher als Kindprozess (dann wieder zwei Symbole).
+  - **Mitteilungen und Dock-Menü** nicht eigens geprüft (es gibt nur noch einen Eintrag, also sollten sie treffen).
+- **`reopened()` im Beenden-Skript** (`pgrep -f "Nightforge.app/Contents/MacOS/Nightforge"`) zählt jede Befehlszeile,
+  die den Pfad nur erwähnt – im Test hielt es eine Shell dafür und beendete sich, ohne Steam zu beenden. Robuster:
+  `pgrep -x Nightforge` (Prozessname). `MacVersionTest` ersetzt `pgrep` und müsste mitziehen.
+- **`nightforge://`-Links** öffnen die Standard-Kopie (`~/Applications`), auch wenn gerade ein Worktree-Build läuft – nur
+  auf diesem Mac mit vielen registrierten Kopien. Zum Testen: `open -a <Build>.app "nightforge://play/<ID>"`.
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
