@@ -605,6 +605,7 @@ enum Engine {
         steam_running() { has_process '\steam\steam.exe'; }
         game_running() {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
+          has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
           return 1
         }
