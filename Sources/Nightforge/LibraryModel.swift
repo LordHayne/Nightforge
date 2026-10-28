@@ -67,6 +67,9 @@ final class LibraryModel: ObservableObject {
     var launchHint: String? {
         guard launchingID != nil else { return nil }
         if launchNeedsConfirmation { return LaunchPhase.confirmHint }
+        if case .updating? = launchPhase, allGames.first(where: { $0.id == launchingID })?.provider == .epic {
+            return LaunchPhase.epicUpdateHint
+        }
         if let launchPhase { return launchPhase.hint }
         return launchBuildsShaders ? LaunchPhase.shaderHint : nil
     }
@@ -1600,6 +1603,10 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            // Epic: a waiting update comes first, like Steam's "Update & Play".
+            if game.provider == .epic, game.pendingUpdate != nil {
+                guard await updateEpic(game) else { return }
+            }
             // Epic: the newest save comes down from Epic before the game reads it.
             if game.provider == .epic, epic.catalog.games.contains(where: { $0.appName == game.gameID.id && $0.cloudSaves }) {
                 launchPhase = .syncingSaves
@@ -1891,6 +1898,32 @@ final class LibraryModel: ObservableObject {
         // No sign of life for two minutes: say so instead of quietly turning back into Play.
         errorMessage = L10n.t("Steam didn't respond, so %@ didn't start. Please try again.", game.name)
         return false
+    }
+
+    /// Brings an Epic game up to date before it starts, its progress on the Play button. Without
+    /// Epic, or while another Epic download runs, the version on the Mac starts (Epic allows that).
+    /// False when the start is off: called off, or the update stopped halfway (Play carries on with it).
+    private func updateEpic(_ game: Game) async -> Bool {
+        launchPhase = .updating(nil)
+        awaitingSteam = true
+        let outcome = await epic.update(game) { [weak self] fraction in self?.launchPhase = .updating(fraction) }
+        awaitingSteam = false
+        launchPhase = nil
+        if Task.isCancelled { return false }
+        switch outcome {
+        case .updated:
+            analyses[game.gameID] = nil  // its files changed
+            reload(quiet: true)
+        case .skipped(.offline):
+            Toasts.shared.show(L10n.t("Epic Games can't be reached – %@ starts without its update.", game.name))
+        case .skipped(.busy):
+            Toasts.shared.show(L10n.t("Another Epic download is running – %@ starts now and updates next time.", game.name))
+        case .failed(let reason):
+            errorMessage = L10n.t("The update of %@ stopped: %@. Press Play again to carry on where it stopped.", game.name, reason)
+            reload(quiet: true)
+            return false
+        }
+        return true
     }
 
     /// A game from another store starts straight with Nightforge's engine, no Steam in between: the

@@ -773,6 +773,15 @@ enum L10n {
         "This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
             "Das entfernt das Spiel von deinem Mac und gibt %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
         "Epic Games signed you out – your games stay here": "Epic Games hat dich abgemeldet – deine Spiele bleiben hier",
+        // Epic: Update & Play
+        "The update comes from Epic Games first – the game starts by itself when it's done.":
+            "Das Update kommt zuerst von Epic Games – das Spiel startet von selbst, sobald es fertig ist.",
+        "Epic Games can't be reached – %@ starts without its update.": "Epic Games ist nicht erreichbar – %@ startet ohne das Update.",
+        "Another Epic download is running – %@ starts now and updates next time.":
+            "Ein anderer Epic-Download läuft – %@ startet jetzt und wird beim nächsten Mal aktualisiert.",
+        "The update of %@ stopped: %@. Press Play again to carry on where it stopped.":
+            "Das Update von %@ wurde unterbrochen: %@. Drück noch einmal auf Spielen, dann geht es dort weiter.",
+        "An update is waiting – it comes from Epic Games before the game starts": "Ein Update wartet – es kommt von Epic Games, bevor das Spiel startet",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

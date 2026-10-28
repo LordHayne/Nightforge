@@ -1559,7 +1559,8 @@ struct CoverCard: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Theme.ink, Theme.night.opacity(0.7))
                     .padding(8)
-                    .help(L10n.t("An update is waiting – Steam downloads it before the game starts"))
+                    .help(game.provider == .epic ? L10n.t("An update is waiting – it comes from Epic Games before the game starts")
+                          : L10n.t("An update is waiting – Steam downloads it before the game starts"))
             }
             .frame(maxHeight: .infinity, alignment: .bottom)
         case .installed:

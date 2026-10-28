@@ -22,6 +22,7 @@ struct EpicTest {
         libraryList()
         installs()
         progress()
+        updates()
         launch()
         signIn()
         packed()
@@ -99,6 +100,34 @@ struct EpicTest {
         let full = Legendary.progress(inLog: log + "\n ! Failure: Not enough available disk space! 12.00 GiB < 25.00 GiB\n[cli] CRITICAL: Installation cannot proceed, exiting.")
         check(full.failure?.contains("Not enough available disk space") == true, "why it stopped: \(full.failure ?? "-")")
         check(Legendary.progress(inLog: "").fraction == nil, "nothing yet: no share")
+    }
+
+    /// "Update & Play": what legendary's update log means for the start.
+    static func updates() {
+        let start = "[cli] INFO: Preparing download for \"Rocket League\" (Sugar)...\n"
+        let done = Legendary.progress(inLog: start + """
+            [cli] INFO: Install size: 25000.50 MiB
+            [cli] INFO: Download size: 300.00 MiB (Compression savings: 52.0%)
+            [DLManager] INFO: = Progress: 100.00% (996/996), Running for 00:00:30, ETA: 00:00:00
+            [cli] INFO: Finished installation process in 31.00 seconds.
+            """)
+        check(EpicStore.updateOutcome(done, status: 0) == .updated, "updated: the game starts")
+        let current = Legendary.progress(inLog: start + "[cli] INFO: Download size is 0, the game is either already up to date or has not changed. Exiting...")
+        check(EpicStore.updateOutcome(current, status: 0) == .updated, "nothing to fetch: it starts")
+        let offline = Legendary.progress(inLog: "[cli] ERROR: Login failed! Cannot continue with download process.")
+        check(EpicStore.updateOutcome(offline, status: 1) == .skipped(.offline), "Epic out of reach: the version on the Mac starts")
+        check(EpicStore.updateOutcome(Legendary.progress(inLog: ""), status: 1) == .skipped(.offline), "legendary said nothing: it starts as it is")
+        let locked = Legendary.progress(inLog: "[cli] CRITICAL: Failed to acquire installed data lock, only one instance of Legendary may install/import/move applications at a time.")
+        check(EpicStore.updateOutcome(locked, status: 0) == .skipped(.busy), "another download has legendary: it starts as it is")
+        let full = Legendary.progress(inLog: start + " ! Failure: Not enough available disk space! 0.20 GiB < 0.29 GiB\n[cli] CRITICAL: Installation cannot proceed, exiting.")
+        if case .failed(let reason) = EpicStore.updateOutcome(full, status: 1) {
+            check(reason.contains("disk space"), "no room for the update: says so: \(reason)")
+        } else {
+            check(false, "no room for the update: it doesn't start quietly with the old files")
+        }
+        let halfway = Legendary.progress(inLog: start + "[DLManager] INFO: = Progress: 40.00% (400/996), Running for 00:00:10, ETA: 00:00:15")
+        check(EpicStore.updateOutcome(halfway, status: 15) == .failed(L10n.t("legendary stopped (code %d)", 15)),
+              "stopped halfway: the game waits for the rest")
     }
 
     static func launch() {

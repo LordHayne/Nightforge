@@ -274,7 +274,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// Signs out (legendary forgets the tokens). Installed games stay on the Mac and come back
     /// with the next sign-in.
     func disconnect() async {
-        for process in downloads.values where process.isRunning { process.interrupt() }
+        for process in downloads.values.map({ $0 }) + updates.values where process.isRunning { process.interrupt() }
         _ = try? await Legendary.run(["auth", "--delete"], timeout: 30)
         try? FileManager.default.removeItem(at: Self.userFile)
         try? FileManager.default.removeItem(at: Self.accountFile)
@@ -412,6 +412,87 @@ final class EpicStore: ObservableObject, StoreProvider {
                                               program: program, timeout: 30)
         if offline.status == 0, let command = Legendary.launchCommand(fromJSON: offline.output) { return command }
         throw EpicError.failed(online.error ?? offline.error ?? L10n.t("Epic Games didn't give the launch details for %@.", game.name))
+    }
+
+    // MARK: - Updates
+
+    /// How the update before a start went ("Update & Play").
+    enum UpdateOutcome: Equatable {
+        /// Up to date now, or legendary found nothing to fetch.
+        case updated
+        /// Nothing was fetched, so the version on the Mac starts – as Epic's launcher does offline.
+        case skipped(UpdateSkip)
+        /// It stopped once it had begun, or there's no room for it: the game may be half updated, and
+        /// the next try carries on where this one stopped.
+        case failed(String)
+    }
+
+    enum UpdateSkip: Equatable {
+        /// Epic out of reach (offline, no answer).
+        case offline
+        /// Another Epic download has legendary, which installs one thing at a time.
+        case busy
+    }
+
+    /// Updates running before a start, by app name.
+    private var updates: [String: Process] = [:]
+
+    /// Brings an installed game up to date before it starts, like Steam's "Update & Play": legendary
+    /// fetches only what changed and carries on where an earlier try stopped. `progress` hears how
+    /// far it is, from legendary's log.
+    func update(_ game: Game, progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
+        loadFromDisk()
+        let appName = game.gameID.id
+        let running = await Engine.offMain { Self.runningDownloads() }
+        // An update an earlier Nightforge started is still going: follow it instead of starting a second.
+        let following = running.contains(appName)
+        if !following && (!downloads.isEmpty || !starting.isEmpty || !running.isEmpty) { return .skipped(.busy) }
+        var process: Process?
+        if !following {
+            do {
+                process = try await Legendary.start(["install", appName, "--update-only", "--skip-sdl", "--skip-dlcs", "-y"],
+                                                    log: Legendary.log(for: appName))
+            } catch {
+                return .skipped(.offline)
+            }
+        }
+        updates[appName] = process
+        defer { updates[appName] = nil }
+        var silent = 0
+        while true {
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled {
+                process?.interrupt()  // legendary keeps what it has for next time
+                return .skipped(.offline)
+            }
+            let state = await Engine.offMain { Legendary.progress(inLog: Self.logText(for: appName)) }
+            progress(state.fraction)
+            let ended: Bool
+            if let process {
+                ended = !process.isRunning
+            } else {
+                ended = !(await Engine.offMain { Self.runningDownloads() }).contains(appName)
+            }
+            if ended { return Self.updateOutcome(state, status: process?.terminationStatus) }
+            // Not a word from Epic for 90 s (a network that doesn't answer): the game starts as it is.
+            silent = state.fraction == nil ? silent + 1 : 0
+            if silent >= 90 {
+                process?.interrupt()
+                return .skipped(.offline)
+            }
+        }
+    }
+
+    /// What an update's log says once legendary has ended.
+    nonisolated static func updateOutcome(_ state: Legendary.Progress, status: Int32?) -> UpdateOutcome {
+        if state.finished { return .updated }
+        let reason = state.failure ?? L10n.t("legendary stopped (code %d)", status ?? -1)
+        // Nothing fetched yet: the game's files are as they were, so it starts with them – unless
+        // there's no room for the update, which the player has to hear about.
+        if state.fraction == nil && !reason.contains("disk space") {
+            return reason.contains("lock") ? .skipped(.busy) : .skipped(.offline)
+        }
+        return .failed(reason)
     }
 
     /// The Mac's language for the game ("de"), as Epic's launcher hands it over (-epiclocale):

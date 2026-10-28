@@ -242,7 +242,8 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 - **Mit echtem Konto noch prüfen** (verbinden, laden, spielen gingen am 27.10.): ein Spiel mit Epic-Cloud-Spielständen
   (Abgleich vor/nach dem Spielen, Zeile im „Willkommen zurück“), Deinstallieren, Abbrechen eines größeren Downloads,
   Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
-  „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel.
+  „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel,
+  „Update & Play“ bei einem Spiel mit wartendem Update (Fortschritt im Play-Knopf, offline startet die alte Version).
 - **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
@@ -251,9 +252,6 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   solange auf dem Mac ein echtes Windows-Spiel läuft (das Skript sucht systemweit nach `\steamapps\common\` und
   `\Epic Games\`). Tests nicht laufen lassen, während ein Spiel läuft – oder das Skript im Test auf einen eigenen
   Prozess-Filter umstellen.
-- **„Update & Play“ für Epic.** Ein wartendes Update wird erkannt (`assets.json` ≠ installierte Version, Abzeichen),
-  aber Play startet mit `--skip-version-check` die alte Version. Plan: vor dem Start `legendary install <app>` (Update)
-  mit `LaunchPhase.updating` aus dem Log, dann starten (`LibraryModel.launch`, `EpicStore`).
 - **Größe vor dem Download.** Epic-Spiele kennen ihre Größe erst beim Laden, deshalb prüft `SpaceCheck` nichts;
   legendary bricht selbst mit „Not enough available disk space“ ab (Meldung mit Grund). Besser: `legendary info <app>
   --json` vorher fragen und das Platz-Sheet zeigen.
