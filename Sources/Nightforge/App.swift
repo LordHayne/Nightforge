@@ -11,6 +11,7 @@ struct NightforgeApp: App {
 
     init() {
         LegacyMigration.run()  // before anything reads settings or the data folder
+        GameIDMigration.run()  // settings kept per game: from Steam app IDs to store and ID
     }
 
     var body: some Scene {

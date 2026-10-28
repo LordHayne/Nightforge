@@ -240,6 +240,10 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
     verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
+- **`MacVersionTest` schlägt fehl, solange ein echtes Windows-Spiel läuft** (28.10.): Der Check „the quit script
+  brings Nightforge back“ startet das echte `steam-shutdown.sh`, und dessen `game_running` sucht in *allen* Prozessen
+  nach `\steamapps\common\` – läuft z. B. die Caretaker-Demo, wartet das Skript 30 s und der Check scheitert. Im
+  Test auch `ps` durch einen Shim ersetzen (wie schon `open` und `pgrep`).
 - **Download-Knopf oben** erscheint nur, solange etwas lädt; im Entwurf ist er immer da (Panel mit „Nichts lädt
   gerade“). Mit dem Nutzer besprechen (gemeldet von der Sitzung „Vorlage angleichen“, 27.10.).
 - **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
@@ -252,6 +256,45 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
+
+### Epic Games (Branch `claude/epic-games-d52d35`, Roadmap 0.2, 7.1, 7.2)
+
+- **Mit echtem Konto noch prüfen** (verbinden, laden, spielen gingen am 27.10.): ein Spiel mit Epic-Cloud-Spielständen
+  (Abgleich vor/nach dem Spielen, Zeile im „Willkommen zurück“), Deinstallieren, Abbrechen eines größeren Downloads,
+  Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
+  „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel.
+- **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
+- **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
+  zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
+  vermutlich ein Fehlklick, als das Fenster gerade nach vorne kam. Nicht nachvollzogen – im Auge behalten.
+- **`MacVersionTest` hängt von der Umgebung ab:** Die Prüfung „das Beenden-Skript holt Nightforge zurück“ scheitert,
+  solange auf dem Mac ein echtes Windows-Spiel läuft (das Skript sucht systemweit nach `\steamapps\common\` und
+  `\Epic Games\`). Tests nicht laufen lassen, während ein Spiel läuft – oder das Skript im Test auf einen eigenen
+  Prozess-Filter umstellen.
+- **„Update & Play“ für Epic.** Ein wartendes Update wird erkannt (`assets.json` ≠ installierte Version, Abzeichen),
+  aber Play startet mit `--skip-version-check` die alte Version. Plan: vor dem Start `legendary install <app>` (Update)
+  mit `LaunchPhase.updating` aus dem Log, dann starten (`LibraryModel.launch`, `EpicStore`).
+- **Größe vor dem Download.** Epic-Spiele kennen ihre Größe erst beim Laden, deshalb prüft `SpaceCheck` nichts;
+  legendary bricht selbst mit „Not enough available disk space“ ab (Meldung mit Grund). Besser: `legendary info <app>
+  --json` vorher fragen und das Platz-Sheet zeigen.
+- **Voraussetzungen der Spiele** (VC++-Pakete usw., `prereq_info` in `installed.json`) überspringt legendary mit `-y`.
+  Fehlt etwas, lernt Nightforge es aus `wine.log` (winetricks) – oder den Installer des Spiels einmal unter Wine starten.
+- **Nicht dabei:** Spiele, die über EA app oder Ubisoft Connect laufen (ausgelassen), DLCs (`--skip-dlcs`), Mac-Versionen
+  von Epic-Spielen, Rockstar-Spiele, die `EpicGamesLauncher.exe` als Elternprozess erwarten (legendarys Wrapper-Exe).
+- **GeForce Now für Epic-Anti-Cheat-Spiele** nur, wenn das Spiel auch auf Steam ist (GeForce-Now-ID des Steam-Zwillings).
+  Fortnite & Co. bekommen „Läuft nicht“ ohne GeForce-Now-Knopf; GeForce Nows Katalog hat `EPIC`-Varianten mit eigener ID.
+- **Epic ohne Steam:** Die Ersteinrichtung richtet Engine und Prefix nur zusammen mit Steam ein. Wer nur Epic verbindet,
+  sieht die Bibliothek, aber Starten scheitert ohne Engine („Nightforges Engine ist noch nicht installiert“).
+- **legendary-Updates:** Komponente ist auf 0.21.1 gepinnt (`components/sources.json`). Der Schnellstart (`PackedApp` in
+  `Legendary.swift`) nutzt, wie PyInstallers Starter sich selbst startet (`_PYI_APPLICATION_HOME_DIR` usw.). Vor einem
+  Update prüfen, dass ein Aufruf aus dem entpackten Ordner weiter ~0,2 s braucht; sonst fällt es auf 5–16 s zurück.
+  Sauberer wäre ein eigener onedir-Build per GitHub-Workflow wie bei den Grafik-Paketen.
+- **legendary fragt beim Start** `api.legendary.gl/v1/version.json` ab (Epic-Client-Daten, keine Nutzerdaten) – erst
+  nach dem Verbinden. In „Über“ erwähnen oder per `config.ini` abschalten (dann fehlen Epics neue Client-Daten).
+- **Alte Schlüssel aufräumen:** `GameIDMigration` lässt „options.570“, „library.hidden“ usw. für ältere Builds stehen.
+  In einer späteren Version löschen.
+- **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Also add
+  Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ (1.2/7.4).
 
 ## Aus dem Code-Audit
 

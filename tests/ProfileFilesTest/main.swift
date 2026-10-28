@@ -75,7 +75,7 @@ struct ProfileFilesTest {
             GameProfile.FileEdit(path: "Voyage/Saved/Config/Windows/GameUserSettings.ini", find: "bUseRayTracing=True",
                                  replace: "bUseRayTracing=False", root: "WinAppDataLocal"),
         ]
-        func apply() -> Bool { Engine.applyFileEdits(edits, installDir: installDir, appID: 7, places: places, defaults: defaults) }
+        func apply() -> Bool { Engine.applyFileEdits(edits, installDir: installDir, game: "steam.7", places: places, defaults: defaults) }
         func text() -> String { (try? String(contentsOf: settings, encoding: .utf8)) ?? "" }
         check(!apply(), "nothing to change before the game wrote its file")
         try? "CustomSettings=(UpscalingMethod=TSR,bUseRayTracing=True)\n".write(to: settings, atomically: true, encoding: .utf8)
@@ -86,9 +86,9 @@ struct ProfileFilesTest {
               "after that the player's own upscaler stays, the fix applies every time: \(text())")
         let later = UserDefaults(suiteName: "ProfileFilesTest-\(UUID().uuidString)")!
         try? "CustomSettings=(UpscalingMethod=DLSS)\n".write(to: settings, atomically: true, encoding: .utf8)
-        _ = Engine.applyFileEdits(edits, installDir: installDir, appID: 8, places: places, defaults: later)
+        _ = Engine.applyFileEdits(edits, installDir: installDir, game: "steam.8", places: places, defaults: later)
         try? "CustomSettings=(UpscalingMethod=TSR)\n".write(to: settings, atomically: true, encoding: .utf8)
-        _ = Engine.applyFileEdits(edits, installDir: installDir, appID: 8, places: places, defaults: later)
+        _ = Engine.applyFileEdits(edits, installDir: installDir, game: "steam.8", places: places, defaults: later)
         check(text() == "CustomSettings=(UpscalingMethod=TSR)\n",
               "a file found without the starting value still counts as the one chance: \(text())")
         let gameFile = installDir.appendingPathComponent("b1/Settings.ini")

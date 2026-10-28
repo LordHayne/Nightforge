@@ -24,10 +24,10 @@ enum ProblemReport {
     }
 
     static func url(game: Game, insight: GameInsight?, tried: [String] = []) -> URL? {
-        let options = GameOptionsStore.load(game.appID)
+        let options = GameOptionsStore.load(game.gameID)
         var graphics = options.graphics.label
         if options.graphics == .automatic, let insight, !insight.attempts.isEmpty {
-            let (index, confirmed) = LaunchHealth.current(game.appID, insight.attempts)
+            let (index, confirmed) = LaunchHealth.current(game.gameID, insight.attempts)
             graphics += " → " + insight.attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
         }
         var detected = insight?.analysis.summary ?? "–"
@@ -51,10 +51,10 @@ enum ProblemReport {
         ]
         if !tried.isEmpty { lines.append("| Tried, each ended right away | \(tried.joined(separator: " → ")) |") }
         if !options.extraArgs.isEmpty { lines.append("| Launch options | `\(options.extraArgs)` |") }
-        let learned = LearnedFixes.winetricks(game.appID)
+        let learned = LearnedFixes.winetricks(game.gameID)
         if !learned.isEmpty { lines.append("| Installed by itself | \(learned.joined(separator: ", ")) |") }
 
-        var errors = GameLog.errors(since: LearnedFixes.lastLaunchMark(game.appID) ?? GameLog.mark())
+        var errors = GameLog.errors(since: LearnedFixes.lastLaunchMark(game.gameID) ?? GameLog.mark())
         // GitHub cuts off long links; the newest errors matter most.
         while !errors.isEmpty, errors.joined(separator: "\n").count > 3500 { errors.removeFirst() }
         if !errors.isEmpty {

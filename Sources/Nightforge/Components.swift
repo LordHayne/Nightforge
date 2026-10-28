@@ -155,6 +155,14 @@ actor ComponentStore {
         return nil
     }
 
+    /// The list that came with the app. A component it names that the online list doesn't yet (an
+    /// app newer than the list) is taken from here.
+    static func bundledManifest() -> ComponentManifest? {
+        guard let url = Bundle.main.url(forResource: "manifest", withExtension: "json"),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(ComponentManifest.self, from: data)
+    }
+
     private func decode(_ data: Data) throws -> ComponentManifest {
         let manifest = try JSONDecoder().decode(ComponentManifest.self, from: data)
         guard manifest.schemaVersion <= ComponentManifest.supportedSchema else {

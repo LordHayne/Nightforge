@@ -57,7 +57,7 @@ struct EngineRollbackTest {
     /// What `Engine.ensureEngine` does for an update to `next`: the build so far is held back if a
     /// game needs it, the new parts are installed (the engine folder gets the new graphics), older
     /// versions are removed, and the new build settles.
-    static func update(_ rollback: EngineRollback, to next: EngineBuild, seed: [Int: String] = [:],
+    static func update(_ rollback: EngineRollback, to next: EngineBuild, seed: [GameID: String] = [:],
                        inUse: (URL) -> Bool = { _ in false }, now: Date = Date()) {
         rollback.holdBack(before: next, copying: [Engine.graphicsID, Engine.upstreamGraphicsID, Engine.dxvkID], isIntact: { current, folder in
             Engine.wineBinary(in: folder).map { read(Engine.graphicsStampFile(wine: $0)) == current.stamp } ?? false
@@ -75,18 +75,18 @@ struct EngineRollbackTest {
     /// Mirrors the start loop in `LibraryModel.launch`: the game starts with the build held back for
     /// it, else the newest; a start with a new build or way is watched; one that ends at once may
     /// roll back and start again. Returns the build it ended up running on (nil: it didn't start).
-    static func play(_ rollback: EngineRollback, _ appID: Int, way: String = "dxmt",
+    static func play(_ rollback: EngineRollback, _ game: GameID, way: String = "dxmt",
                      broken: Set<String>) -> (ranOn: EngineBuild?, rolledBack: Bool) {
         var rolledBack = false
         for _ in 0..<4 {
             guard let current = rollback.history().current else { return (nil, rolledBack) }
-            let build = rollback.pinnedBuild(appID)?.build ?? current
-            let watched = rollback.needsWatch(appID, build: build, way: way)
+            let build = rollback.pinnedBuild(game)?.build ?? current
+            let watched = rollback.needsWatch(game, build: build, way: way)
             if !broken.contains(build.id) {
-                if watched { rollback.recordGood(appID, build: build, way: way) }
+                if watched { rollback.recordGood(game, build: build, way: way) }
                 return (build, rolledBack)
             }
-            guard watched, case .rollBack = rollback.afterFailedStart(appID, build: build, way: way) else { return (nil, rolledBack) }
+            guard watched, case .rollBack = rollback.afterFailedStart(game, build: build, way: way) else { return (nil, rolledBack) }
             rolledBack = true
         }
         return (nil, rolledBack)
@@ -101,7 +101,7 @@ struct EngineRollbackTest {
         let b = build("4.7.3", "11.18-dxmt0.80-17")  // a graphics update: same engine folder
         let c = build("4.7.4", "11.18-dxmt0.80-17")  // an engine update: a new engine folder
         let d = build("4.7.5", "11.18-dxmt0.80-18")
-        let game = 100, other = 200, rare = 300
+        let game = GameID.steam(100), other = GameID.steam(200), rare = GameID.steam(300)
 
         // MARK: Builds
         check(a.id == "winecx@4.7.3 dxvk-macos@1.10 graphics@11.18-dxmt0.80-13", "a build is named by all its parts: \(a.id)")
@@ -159,7 +159,7 @@ struct EngineRollbackTest {
         // MARK: Not the engine's doing
         check(play(rollback, rare, way: "dxvk", broken: [b.id]).ranOn == nil && rollback.pinnedBuild(rare) == nil,
               "a game started another way than it ran well with is left to the graphics ladder")
-        let fresh = 400
+        let fresh = GameID.steam(400)
         check(play(rollback, fresh, broken: [b.id]).ranOn == nil && rollback.pinnedBuild(fresh) == nil,
               "a game that never ran well has nothing to roll back to")
 
@@ -175,10 +175,10 @@ struct EngineRollbackTest {
         check(pinAgain.ranOn == nil && !pinAgain.rolledBack, "once good on the newest, the held build is no fallback any more")
 
         // MARK: The held build fails too
-        let twice = 500
+        let twice = GameID.steam(500)
         rollback.recordGood(twice, build: a, way: "dxmt")
         check(play(rollback, twice, broken: [a.id, b.id]).ranOn == nil, "crashing on both builds: no start")
-        check(rollback.pinnedBuild(twice) == nil && rollback.history().lastGood["500"] == nil,
+        check(rollback.pinnedBuild(twice) == nil && rollback.history().lastGood["steam.500"] == nil,
               "the pin goes, and the held build no longer counts as good for it – no rollback loop")
 
         // MARK: The next update tries the newest again
@@ -261,9 +261,23 @@ struct EngineRollbackTest {
         let suite = UserDefaults(suiteName: "nightforge.engine-rollback-test-\(UUID().uuidString)")!
         let ladder = [LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"]), LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])]
         let state = #"{"ladder":["dxmt -dx11","dxvk -dx11"],"index":1,"confirmed":true}"#
-        suite.set(Data(state.utf8), forKey: "launchHealth.42")
-        suite.set(Data(#"{"ladder":["dxmt"],"index":0,"confirmed":false}"#.utf8), forKey: "launchHealth.43")
-        check(LaunchHealth.confirmedWays(suite) == [42: ladder[1].id], "confirmed ways are read from LaunchHealth: \(LaunchHealth.confirmedWays(suite))")
+        suite.set(Data(state.utf8), forKey: "launchHealth.steam.42")
+        suite.set(Data(#"{"ladder":["dxmt"],"index":0,"confirmed":false}"#.utf8), forKey: "launchHealth.steam.43")
+        suite.set(Data(state.utf8), forKey: "launchHealth.epic.Sugar")
+        // The copy under the bare app ID GameIDMigration left for older builds doesn't count twice.
+        suite.set(Data(#"{"ladder":["dxmt"],"index":0,"confirmed":true}"#.utf8), forKey: "launchHealth.42")
+        check(LaunchHealth.confirmedWays(suite) == [.steam(42): ladder[1].id, .epic("Sugar"): ladder[1].id],
+              "confirmed ways are read from LaunchHealth, by store and ID: \(LaunchHealth.confirmedWays(suite))")
+
+        // A history from before store keys: "570" reads as "steam.570".
+        let older = FileManager.default.temporaryDirectory.appendingPathComponent("rollback-keys-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: older, withIntermediateDirectories: true)
+        try? Data(#"{"held":[],"lastGood":{"570":{"build":"x","way":"dxmt"}},"pinned":{"570":"x"}}"#.utf8)
+            .write(to: older.appendingPathComponent("engine-history.json"))
+        let keys = EngineRollback(root: older).history()
+        check(keys.lastGood["steam.570"] == .init(build: "x", way: "dxmt") && keys.pinned["steam.570"] == "x" && keys.lastGood["570"] == nil,
+              "a history written with app IDs reads with store keys")
+        try? FileManager.default.removeItem(at: older)
 
         // MARK: The prefix follows the build a game starts with
         await prefixSwitch()
@@ -288,7 +302,7 @@ struct EngineRollbackTest {
 
         let a = build("4.7.3", "11.18-dxmt0.80-13")
         let b = build("4.7.3", "11.18-dxmt0.80-17")
-        let game = 700, other = 800
+        let game = GameID.steam(700), other = GameID.steam(800)
         install(a, root: root)
         rollback.settle(a, seed: [game: "dxmt", other: "dxmt"])
         let gptk = Engine.isGPTKCapable(wine: Engine.wineBinary(in: root.appendingPathComponent("winecx/4.7.3"))!)
@@ -307,7 +321,7 @@ struct EngineRollbackTest {
         check(rollback.pinnedBuild(game)?.build == a, "the game is held back on a")
 
         var switched = false
-        let start = await Engine.engineForStart(appID: game, newest: newest) { switched = true }
+        let start = await Engine.engineForStart(game: game, newest: newest) { switched = true }
         check(start.build == a && start.held?.build == a, "a held-back game starts with the held build")
         check(start.wine.path.contains("/.held/"), "with the held copy's wine: \(start.wine.path)")
         check(read(system32.appendingPathComponent("d3d11.dll")) == "dxmt 11.18-dxmt0.80-13",
@@ -316,7 +330,7 @@ struct EngineRollbackTest {
         check(read(Engine.prefix.appendingPathComponent(".nightforge-setup")) == Engine.prefixStampText(a, gptk: true),
               "the prefix stamp says so")
 
-        let next = await Engine.engineForStart(appID: other, newest: newest) { switched = true }
+        let next = await Engine.engineForStart(game: other, newest: newest) { switched = true }
         check(next.build == b && next.held == nil && next.wine == newest, "another game starts with the newest build")
         check(read(system32.appendingPathComponent("d3d11.dll")) == "dxmt 11.18-dxmt0.80-17", "and the prefix gets the newest DXMT back")
         check(!switched, "without a Steam session there's nothing to stop")

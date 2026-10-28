@@ -157,6 +157,28 @@ enum Engine {
         defaults.set(launchRetina, forKey: key)
     }
 
+    /// What a game started straight by Nightforge (not through Steam) gets on top of `gameEnvironment`:
+    /// the same as `prepareLaunchEnvironment` hands Steam ("" takes a variable away).
+    static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool) -> [String: String] {
+        var environment = gameEnvironment
+        if !avx { environment["ROSETTA_ADVERTISE_AVX"] = nil }
+        if d3dMetal {
+            if frameLimit > 0 { environment["D3DM_MAX_FPS"] = String(frameLimit) }
+            if upscaling { environment["D3DM_ENABLE_METALFX"] = "1" }
+        }
+        return environment
+    }
+
+    /// The Windows path of a file in the prefix ("C:\Program Files\…"), else as Wine sees the Mac (Z:).
+    static func windowsPath(of url: URL) -> String {
+        let drive = prefix.appendingPathComponent("drive_c", isDirectory: true).standardizedFileURL.path + "/"
+        let path = url.standardizedFileURL.path
+        if path.hasPrefix(drive) {
+            return "C:\\" + path.dropFirst(drive.count).replacingOccurrences(of: "/", with: "\\")
+        }
+        return Legendary.windowsPath(path)
+    }
+
     /// Wine's builtin crypto avoids TLS failures in Steam's browser; the overlay DLL deadlocks games.
     /// Games inherit these from Steam, so DirectX goes to DXVK's DLLs in the prefix (native first).
     /// The Direct3D choice itself lives in the registry (see `installDXVK` / `applyGameSettings`): an
@@ -221,9 +243,13 @@ enum Engine {
             && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
     }
 
-    /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path).
+    /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
+    /// Steam's steamapps\common, Epic's Program Files\Epic Games).
     static var windowsGameRunning: Bool {
-        ownProcesses().contains { $0.command.lowercased().contains(#"\steamapps\common\"#) }
+        ownProcesses().contains { process in
+            let command = process.command.lowercased()
+            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#)
+        }
     }
 
     /// Processes started from Nightforge's engine (executable inside its folder), with the command
@@ -506,7 +532,9 @@ enum Engine {
     /// still running from a folder stays, like the old engine a game keeps until it ends.
     private static func removeUnusedComponents(keeping manifest: ComponentManifest, store: ComponentStore) {
         let fm = FileManager.default
-        let wanted = Dictionary(manifest.components.map { ($0.id, $0.version) }, uniquingKeysWith: { first, _ in first })
+        // What only the app's own list names (legendary before the online list has it) stays too.
+        let bundled = ComponentStore.bundledManifest()?.components ?? []
+        let wanted = Dictionary((manifest.components + bundled).map { ($0.id, $0.version) }, uniquingKeysWith: { first, _ in first })
         let ids = (try? fm.contentsOfDirectory(at: store.root, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
         for id in ids where !id.lastPathComponent.hasPrefix(".")
             && (try? id.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
@@ -608,6 +636,7 @@ enum Engine {
         steam_running() { has_process '\steam\steam.exe'; }
         game_running() {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
+          has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
           return 1
         }
@@ -671,13 +700,13 @@ enum Engine {
     /// held back for it (EngineRollback). Steam's session moves to that engine first and the prefix
     /// gets its graphics DLLs – unless a game still runs on the other one: then this start stays
     /// with the engine that runs, held or not. `switching` is told before Steam is stopped for it.
-    static func engineForStart(appID: Int, newest: URL,
+    static func engineForStart(game: GameID, newest: URL,
                                switching: @MainActor () -> Void = {}) async -> (wine: URL, build: EngineBuild?, held: HeldBuild?) {
         let rollback = EngineRollback.shared
         let history = rollback.history()
         func root(_ wine: URL) -> String { wine.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL.path }
         var target: (wine: URL, build: EngineBuild?, held: HeldBuild?, graphics: URL?, dxvk: URL?) = (newest, nil, nil, nil, nil)
-        if let held = rollback.pinnedBuild(appID), let wine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID)) {
+        if let held = rollback.pinnedBuild(game), let wine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID)) {
             let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
             target = (wine, held.build, held, rollback.folder(of: held, part: graphics), rollback.folder(of: held, part: dxvkID))
         } else if let current = history.current, let folder = rollback.installedFolder(of: current, part: current.engineID),
@@ -1624,14 +1653,14 @@ enum Engine {
     /// that crashed on such a setting can be tried again right away. An edit marked `once` counts
     /// as done at the first start that finds its file, matched or not: from then on the player decides.
     @discardableResult
-    static func applyFileEdits(_ edits: [GameProfile.FileEdit], installDir: URL, appID: Int = 0,
+    static func applyFileEdits(_ edits: [GameProfile.FileEdit], installDir: URL, game: String = "",
                                places: SaveTransfer.Places = SaveTransfer.Places(),
                                defaults: UserDefaults = .standard) -> Bool {
         var changed = false
         var places = places
         places.windowsInstall = installDir
         for edit in edits {
-            let done = "fileEdit.done.\(appID).\(edit.root ?? "GameInstall")/\(edit.path)#\(edit.find)"
+            let done = "fileEdit.done.\(game).\(edit.root ?? "GameInstall")/\(edit.path)#\(edit.find)"
             guard edit.once != true || !defaults.bool(forKey: done),
                   let base = edit.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir
             else { continue }

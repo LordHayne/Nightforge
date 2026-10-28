@@ -70,3 +70,48 @@ enum LegacyMigration {
         for process in Engine.ownProcesses(under: folder) { kill(process.pid, SIGKILL) }
     }
 }
+
+/// Up to Epic Games, everything Nightforge kept per game was filed under the Steam app ID
+/// ("options.570"); now it's the store and its ID ("options.steam.570", `GameID.key`). On the first
+/// start with that, the options, what earlier starts taught Nightforge, ratings, marks and the
+/// cached art come over once. The old entries stay where they are, so a Nightforge from before
+/// that is started in between still finds them; the cached art is linked, not copied.
+enum GameIDMigration {
+    static let doneKey = "migratedToGameIDs"
+    /// Settings kept per game as "<prefix><Steam app ID>".
+    static let prefixes = ["options.", "launchHealth.", "health.dxmtFailed.", "learned.winetricks.", "learned.logMark.",
+                           "learned.noAVX.", "shaders.", "framePacing.", "rating."]
+
+    static func run(defaults: UserDefaults = .standard, domain: String? = Bundle.main.bundleIdentifier,
+                    artwork: URL = ArtworkStore.cacheDirectory) {
+        guard !defaults.bool(forKey: doneKey) else { return }
+        // Only this app's own settings: the global domain has nothing of Nightforge's.
+        let stored = domain.flatMap { defaults.persistentDomain(forName: $0) } ?? defaults.dictionaryRepresentation()
+        for (key, value) in stored {
+            guard let prefix = prefixes.first(where: { key.hasPrefix($0) }),
+                  let appID = Int(key.dropFirst(prefix.count)), appID > 0
+            else { continue }
+            let new = prefix + GameID.steam(appID).key
+            if defaults.object(forKey: new) == nil { defaults.set(value, forKey: new) }
+        }
+        for kind in [GameMarks.Kind.hidden, .pinned] where defaults.object(forKey: GameMarks.key(kind)) == nil {
+            guard let old = defaults.array(forKey: GameMarks.legacyKey(kind)) as? [Int] else { continue }
+            GameMarks.save(Set(old.filter { $0 > 0 }.map(GameID.steam)), kind, to: defaults)
+        }
+        linkArtwork(in: artwork)
+        defaults.set(true, forKey: doneKey)
+    }
+
+    /// "570_cover" (and its ".missing" marker) also as "steam.570_cover": the covers stay there
+    /// offline, without being fetched again.
+    static func linkArtwork(in folder: URL) {
+        let fm = FileManager.default
+        for file in (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] {
+            let name = file.lastPathComponent
+            guard let underscore = name.firstIndex(of: "_"), let appID = Int(name[..<underscore]), appID > 0 else { continue }
+            let target = folder.appendingPathComponent(GameID.steam(appID).key + name[underscore...])
+            guard !fm.fileExists(atPath: target.path) else { continue }
+            if (try? fm.linkItem(at: file, to: target)) == nil { try? fm.copyItem(at: file, to: target) }
+        }
+    }
+}

@@ -11,6 +11,8 @@ enum CloudSaves {
         case syncing
         /// Every file is in step with the cloud, recorded after the game ended.
         case synced
+        /// The store couldn't take the save now (Epic): it stays on this Mac and goes up next time.
+        case failed
     }
 
     /// The game's cloud record, from the account folder that touched it last.

@@ -24,14 +24,14 @@ struct GameRating: Codable, Equatable {
 }
 
 enum GameRatings {
-    private static func key(_ appID: Int) -> String { "rating.\(appID)" }
+    private static func key(_ game: GameID) -> String { "rating.\(game.key)" }
 
-    static func load(_ appID: Int, from defaults: UserDefaults = .standard) -> GameRating? {
-        defaults.data(forKey: key(appID)).flatMap { try? JSONDecoder().decode(GameRating.self, from: $0) }
+    static func load(_ game: GameID, from defaults: UserDefaults = .standard) -> GameRating? {
+        defaults.data(forKey: key(game)).flatMap { try? JSONDecoder().decode(GameRating.self, from: $0) }
     }
 
-    static func save(_ rating: GameRating, for appID: Int, to defaults: UserDefaults = .standard) {
-        if let data = try? JSONEncoder().encode(rating) { defaults.set(data, forKey: key(appID)) }
+    static func save(_ rating: GameRating, for game: GameID, to defaults: UserDefaults = .standard) {
+        if let data = try? JSONEncoder().encode(rating) { defaults.set(data, forKey: key(game)) }
     }
 }
 
@@ -141,29 +141,48 @@ struct SessionSummarySheet: View {
     }
 
     @ViewBuilder private func saveLine(_ state: CloudSaves.State) -> some View {
+        let epic = summary.game.provider == .epic
         switch state {
         case .synced:
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.icloud").font(.system(size: 18)).foregroundStyle(Theme.runsGreat)
-                Text("\(Text(L10n.t("Your save is in the Steam Cloud.")).fontWeight(.semibold)) \(L10n.t("You can close your Mac."))")
+                Text("\(Text(epic ? L10n.t("Your save is with Epic Games.") : L10n.t("Your save is in the Steam Cloud.")).fontWeight(.semibold)) \(L10n.t("You can close your Mac."))")
                     .fixedSize(horizontal: false, vertical: true)
             }
         case .syncing where cloudTookLong:
-            Label(L10n.t("Steam syncs your save in the background."), systemImage: "icloud")
+            Label(epic ? L10n.t("Your save goes up to Epic Games in the background.") : L10n.t("Steam syncs your save in the background."),
+                  systemImage: "icloud")
                 .foregroundStyle(Theme.ink.opacity(0.85))
         case .syncing:
             HStack(spacing: 10) {
                 GlassSpinner()
-                Text(L10n.t("Steam is syncing your save with the Steam Cloud …")).foregroundStyle(Theme.ink.opacity(0.85))
+                Text(epic ? L10n.t("Uploading your save to Epic Games …") : L10n.t("Steam is syncing your save with the Steam Cloud …"))
+                    .foregroundStyle(Theme.ink.opacity(0.85))
             }
         case .noCloud:
-            Label(L10n.t("No Steam Cloud for this game – its saves are on this Mac."), systemImage: "internaldrive")
+            Label(epic ? L10n.t("No Epic cloud saves for this game – its saves are on this Mac.")
+                       : L10n.t("No Steam Cloud for this game – its saves are on this Mac."), systemImage: "internaldrive")
                 .foregroundStyle(Theme.ink.opacity(0.85))
+        case .failed:
+            Label(L10n.t("Epic Games couldn't take your save just now. It's safe on this Mac and goes up after your next session."),
+                  systemImage: "exclamationmark.icloud")
+                .foregroundStyle(Theme.ink.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    /// Asks Steam's cloud record every two seconds for a minute, until it confirms.
+    /// Asks Steam's cloud record every two seconds for a minute, until it confirms. Epic games:
+    /// how the upload Nightforge started after the session is going.
     private func followCloud() async {
+        if summary.game.provider == .epic {
+            for _ in 0..<90 {
+                cloud = model.epicSaves[summary.game.gameID] ?? .syncing
+                if cloud != .syncing { return }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            cloudTookLong = true
+            return
+        }
         for _ in 0..<30 {
             let game = summary.game, ended = summary.endedAt
             let state = await Task.detached(priority: .utility) {
@@ -189,7 +208,7 @@ struct SessionSummarySheet: View {
     }
 
     private func save(good: Bool) {
-        GameRatings.save(GameRating(good: good, issues: good ? [] : GameRating.Issue.allCases.filter(issues.contains)), for: summary.game.appID)
+        GameRatings.save(GameRating(good: good, issues: good ? [] : GameRating.Issue.allCases.filter(issues.contains)), for: summary.game.gameID)
         rating = good
         saved = true
     }
