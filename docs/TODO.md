@@ -224,6 +224,10 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
     verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
+- **`MacVersionTest` schlägt fehl, solange ein echtes Windows-Spiel läuft** (28.10.): Der Check „the quit script
+  brings Nightforge back“ startet das echte `steam-shutdown.sh`, und dessen `game_running` sucht in *allen* Prozessen
+  nach `\steamapps\common\` – läuft z. B. die Caretaker-Demo, wartet das Skript 30 s und der Check scheitert. Im
+  Test auch `ps` durch einen Shim ersetzen (wie schon `open` und `pgrep`).
 - **Download-Knopf oben** erscheint nur, solange etwas lädt; im Entwurf ist er immer da (Panel mit „Nichts lädt
   gerade“). Mit dem Nutzer besprechen (gemeldet von der Sitzung „Vorlage angleichen“, 27.10.).
 - **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
