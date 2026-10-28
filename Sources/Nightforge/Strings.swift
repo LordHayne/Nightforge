@@ -782,6 +782,14 @@ enum L10n {
         "The update of %@ stopped: %@. Press Play again to carry on where it stopped.":
             "Das Update von %@ wurde unterbrochen: %@. Drück noch einmal auf Spielen, dann geht es dort weiter.",
         "An update is waiting – it comes from Epic Games before the game starts": "Ein Update wartet – es kommt von Epic Games, bevor das Spiel startet",
+        // Epic: add-ons (DLCs)
+        "The add-on %@ didn't download: %@. Its game is ready – the add-on follows with its next Update & Play.":
+            "Der Zusatzinhalt %@ wurde nicht geladen: %@. Das Spiel ist bereit – der Zusatzinhalt kommt mit dem nächsten „Aktualisieren & spielen“.",
+        "The add-on %@ didn't update (%@) – %@ starts without it and tries again next time.":
+            "Der Zusatzinhalt %@ wurde nicht aktualisiert (%@) – %@ startet ohne ihn und versucht es beim nächsten Mal wieder.",
+        "Your add-on: %@ – it downloads and updates with the game.": "Dein Zusatzinhalt: %@ – er wird mit dem Spiel geladen und aktualisiert.",
+        "Your add-ons: %@ – they download and update with the game.": "Deine Zusatzinhalte: %@ – sie werden mit dem Spiel geladen und aktualisiert.",
+        "%@ and %ld more": "%@ und %ld weitere",
         // Epic: size before the download
         "Checking the size …": "Größe wird geprüft …",
         "On your Mac": "Auf dem Mac",

@@ -920,6 +920,13 @@ private struct GameDetail: View {
             if !compact {
                 CompatibilityNote(compatibility: model.compatibility(of: game))
             }
+            if !compact, !game.addOns.isEmpty {
+                Label(AddOns.line(game.addOns), systemImage: "puzzlepiece.extension")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if game.isVROnly {
                 Label(L10n.t("Needs a VR headset – this game can't be played on a Mac."), systemImage: "visionpro")
                     .font(.system(size: 13, weight: .medium))

@@ -39,6 +39,8 @@ struct Game: Identifiable, Hashable {
     /// Installed in a Steam library on a drive that isn't connected (its name, "T7"): plays once
     /// it's plugged in, and must not be downloaded again meanwhile.
     var missingDrive: String?
+    /// Add-ons the player owns for it, which download and update with it (Epic's DLCs), by name.
+    var addOns: [String] = []
     /// Not on the Mac yet: what the download comes to, when that's less than `sizeOnDisk` (Epic's
     /// files come compressed). Steam's games say only the one size.
     var downloadSize: Int64?

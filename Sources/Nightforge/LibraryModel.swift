@@ -162,8 +162,10 @@ final class LibraryModel: ObservableObject {
             self?.reload()
         }
         epic.changed = { [weak self] in self?.reload(quiet: true) }
-        epic.downloadFailed = { [weak self] name, reason in
-            self?.errorMessage = L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
+        epic.downloadFailed = { [weak self] name, reason, addOn in
+            self?.errorMessage = addOn
+                ? L10n.t("The add-on %@ didn't download: %@. Its game is ready – the add-on follows with its next Update & Play.", name, reason)
+                : L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
         }
     }
 
@@ -1952,6 +1954,10 @@ final class LibraryModel: ObservableObject {
             errorMessage = L10n.t("The update of %@ stopped: %@. Press Play again to carry on where it stopped.", game.name, reason)
             reload(quiet: true)
             return false
+        case .addOnFailed(let addOn, let reason):
+            Toasts.shared.show(L10n.t("The add-on %@ didn't update (%@) – %@ starts without it and tries again next time.",
+                                      addOn, reason, game.name))
+            reload(quiet: true)
         }
         return true
     }

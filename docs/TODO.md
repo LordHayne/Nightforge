@@ -244,7 +244,9 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
   „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel,
   „Update & Play“ bei einem Spiel mit wartendem Update (Fortschritt im Play-Knopf, offline startet die alte Version),
-  Größe vor dem Download (`legendary info` auf der Spielseite, Platz-Sheet bei vollem Mac).
+  Größe vor dem Download (`legendary info` auf der Spielseite, Platz-Sheet bei vollem Mac),
+  ein Spiel mit Zusatzinhalten (ein Download mit einem Fortschritt, Spielseite nennt sie, ein später gekaufter kommt mit
+  „Aktualisieren & spielen“), zwei Epic-Downloads hintereinander (der zweite wartet, dann läuft er von selbst an).
 - **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
@@ -253,9 +255,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   solange auf dem Mac ein echtes Windows-Spiel läuft (das Skript sucht systemweit nach `\steamapps\common\` und
   `\Epic Games\`). Tests nicht laufen lassen, während ein Spiel läuft – oder das Skript im Test auf einen eigenen
   Prozess-Filter umstellen.
+- **Wartende Epic-Downloads** zeigen „Download wird vorbereitet …“, solange ein anderer Epic-Download läuft (legendary
+  installiert nur eins zugleich). Besser: „Wartet auf <Spiel>“ – braucht einen Wartezustand in `InstallState`.
+- **Abbrechen während der Zusatzinhalte** entfernt auch das schon geladene Spiel (Spiel und DLCs sind ein Download).
+  Vielleicht: dann nur die DLCs abbrechen und das Spiel behalten.
 - **Voraussetzungen der Spiele** (VC++-Pakete usw., `prereq_info` in `installed.json`) überspringt legendary mit `-y`.
   Fehlt etwas, lernt Nightforge es aus `wine.log` (winetricks) – oder den Installer des Spiels einmal unter Wine starten.
-- **Nicht dabei:** Spiele, die über EA app oder Ubisoft Connect laufen (ausgelassen), DLCs (`--skip-dlcs`), Mac-Versionen
+- **Nicht dabei:** Spiele, die über EA app oder Ubisoft Connect laufen (ausgelassen), Mac-Versionen
   von Epic-Spielen, Rockstar-Spiele, die `EpicGamesLauncher.exe` als Elternprozess erwarten (legendarys Wrapper-Exe).
 - **GeForce Now für Epic-Anti-Cheat-Spiele** nur, wenn das Spiel auch auf Steam ist (GeForce-Now-ID des Steam-Zwillings).
   Fortnite & Co. bekommen „Läuft nicht“ ohne GeForce-Now-Knopf; GeForce Nows Katalog hat `EPIC`-Varianten mit eigener ID.
