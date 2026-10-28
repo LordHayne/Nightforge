@@ -250,9 +250,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Tray-Symbol des unsichtbaren Windows-Steam als macOS-Statussymbol ab, und nach Neustarts von Steam bleiben alte stehen
   (dazu kommt das echte Steam für Mac). Prüfen: wer welches Symbol besitzt; Tray-Symbol des Windows-Steam abschalten
   oder beim Beenden aufräumen.
-- **Zwei Nightforge-Symbole im Dock** (Nutzer, 27.10. 21:48). Das zweite ist „Nightforge Game“, die Hülle, in der die
-  Wine-Prozesse laufen (wineserver, explorer, winedevice). Eigentlich sollen Hintergrundprozesse kein Dock-Symbol
-  zeigen (`hide-steam-dock.dylib`) – herausfinden, welcher Prozess es trotzdem zeigt und wann.
+- **Zwei Nightforge-Symbole im Dock** (Nutzer, 27.10. und 28.10.). Ursache am 28.10. gefunden: `lsappinfo` zeigt eine
+  beendete Nightforge als „exited-with-subordinates“ – macOS hält ihr Dock-Symbol („im Hintergrund ausgeführt“) am
+  Leben, weil Prozesse, für die sie „verantwortlich“ ist, weiterlaufen (Wine/Steam, die Nightforge gestartet hat und
+  die nach dem Beenden absichtlich weiterlaufen). Startet man Nightforge neu, stehen zwei Symbole im Dock; Klicks auf
+  das alte landen ins Leere. Ansatz: Hintergrundprozesse (Steam, Wine-Befehle, `steam-shutdown.sh`) ohne diese
+  Verantwortung starten – über `Nightforge Game.app`/launchd statt als Kindprozess, oder per posix_spawn mit
+  „disclaim“ – und prüfen, dass Mitteilungen/Dock-Menü danach die laufende App treffen.
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
