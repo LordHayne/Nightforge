@@ -256,7 +256,7 @@
 
 ---
 
-- [ ] **3.5 Schwaches Netzteil erkennen** · `S` · Idee des Nutzers am 27.10.
+- [x] **3.5 Schwaches Netzteil erkennen** · `S` · Idee des Nutzers am 27.10. · lokal in `claude/ux-roadmap-next`
   - **Warum:** Mit einem zu schwachen Netzteil steht der Mac auf „lädt“, verliert beim Spielen aber trotzdem Akku –
     der Spielspaß ist schnell vorbei, ohne dass man merkt, warum.
   - **Was:** Am Netzteil dezent zeigen, wenn es nicht reicht: in der Akku-Pille oben ein Bernstein-Blitz mit „18 W“
@@ -268,6 +268,17 @@
     Ladelimit (80 %) fließt kein Strom – das ist kein Fehler.
   - **Wo:** `PowerSource.swift` (Watt, Entladen), `LibraryView.swift` (Akku-Pille, Hinweiszeilen).
   - **Fertig wenn:** Mit dem 18-W-Netzteil erscheint der Hinweis, mit dem passenden Netzteil oder am Ladelimit nicht (Test mit Beispielwerten).
+  - **Stand:**
+    - **Messen:** `PowerSource.reading()` liest jetzt auch die Watt des Netzteils (`adapterWatts`) und den Strom des Akkus. Der Strom bleibt außerhalb von `PowerSource`, sonst würde die Oberfläche bei jeder Messung neu zeichnen.
+    - **Bewerten:** `ChargerCheck` gilt nur am Netzteil und nur bei einem Mac mit Akku.
+      - Unter 30 W warnt er sofort, auch am Ladelimit: Für Spiele reicht so ein Netzteil nie.
+      - Sonst warnt er, wenn sich der Akku drei Messungen in Folge um mehr als 100 mA entlädt, und hört nach drei guten Messungen wieder auf (kein Flackern). Die Messungen kommen im bestehenden Lauf-Check alle 3–10 s.
+      - Ein Rinnsal um 0 mA am Ladelimit zählt nicht.
+    - **Anzeigen:**
+      - Oben in der Top-Bar steht eine Glas-Pille mit Bernstein-Blitz und „18 W“, ohne bekannte Watt der Ladestand. Den Tooltip liest VoiceOver vor.
+      - Auf Startseite und Spielseite steht die Zeile „Das Netzteil liefert nur 18 W – zu wenig für Spiele: Beim Spielen entlädt sich der Akku. Ein stärkeres hilft.“ Ohne bekannte Watt heißt sie „Der Akku entlädt sich, obwohl der Mac am Netzteil hängt …“.
+    - **Test:** Fälle in `tests/LaunchHealthTest/` mit den Werten des echten Falls (18 W, −1236 mA), dazu 96 W am Ladelimit, kurze Spitzen, ohne Watt, Akkubetrieb und Mac ohne Akku.
+    - Am 28.10. mit dem 18-W-Netzteil gemessen: 18 W, −356 mA bei „charging“.
 
 ## Phase 4 – Speicherplatz & Downloads
 
@@ -354,7 +365,7 @@
   - **URL-Schema:** `nightforge://play/<id>` registrieren.
   - **Siri/Kurzbefehle:** App Intents für „Siri, play Hades II“.
   - **Detailseite:** Button „Add to Applications“.
-  - **Stand** (teilweise): `nightforge://play/<App-ID>` und `nightforge://show/<App-ID>` im Info.plist registriert (`AppDelegate.application(_:open:)`; kommt ein Link vor dem ersten Scan, wartet er darauf). Ein Link startet nur installierte Spiele, sonst öffnet er die Spielseite – er lädt nie etwas herunter. Detailseite: Knopf „Add to Applications“ legt `~/Applications/Nightforge Games/<Spiel>.app` an (Skript, das den Link öffnet, Cover als Icon, ohne Dock-Symbol); danach zeigt der Knopf die App im Finder. Test `tests/GameShortcutTest/`. Offen: App Intents für Siri/Kurzbefehle; in der echten App noch nicht durchgeklickt (Bildschirmfreigabe fehlte).
+  - **Stand** (teilweise): `nightforge://play/<App-ID>` und `nightforge://show/<App-ID>` im Info.plist registriert (`AppDelegate.application(_:open:)`; kommt ein Link vor dem ersten Scan, wartet er darauf). Ein Link startet nur installierte Spiele, sonst öffnet er die Spielseite – er lädt nie etwas herunter. Detailseite: Knopf „Add to Applications“ legt `~/Applications/Nightforge Games/<Spiel>.app` an (Skript, das den Link öffnet, Cover als Icon, ohne Dock-Symbol); danach zeigt der Knopf die App im Finder. Test `tests/GameShortcutTest/`. Offen: App Intents für Siri/Kurzbefehle – brauchen Xcode: Der Build muss die Intents mit `appintentsmetadataprocessor` auslesen, und den gibt es in den Command Line Tools nicht (geprüft 28.10.); in der echten App noch nicht durchgeklickt (Bildschirmfreigabe fehlte).
 - [x] **5.4 Controller-Tab** · `M` · PR #27
   - **Anzeige:** Verbundene Controller mit Akkustand (`GCController.battery`).
   - **Koppeln:** „Pair a controller“ mit Anleitung je Hersteller. Direktes Bluetooth-Koppeln ist eingeschränkt → bei Bedarf die Bluetooth-Einstellungen öffnen und dort warten, bis der Controller erscheint.
