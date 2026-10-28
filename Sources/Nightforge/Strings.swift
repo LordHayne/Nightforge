@@ -640,6 +640,45 @@ enum L10n {
         "Tested by Nightforge on %@": "Von Nightforge getestet auf %@",
         "Community fix · from umu-protonfixes": "Community-Fix · aus umu-protonfixes",
 
+        // Graphics presets
+        "Balanced": "Ausgewogen",
+        "Fastest": "Am schnellsten",
+        "Most compatible": "Am verträglichsten",
+        "Custom": "Eigene",
+        "What the profile for this game says and what Nightforge learns while you play – the best choice for most games.":
+            "Was das Profil für dieses Spiel sagt und was Nightforge beim Spielen lernt – für die meisten Spiele das Beste.",
+        "MetalFX sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen).":
+            "MetalFX-Schärfe und eine gleichmäßige Bildrate passend zum Display (60 FPS auf einem 120-Hz-Bildschirm).",
+        "The highest frame rate: MetalFX upscaling, no frame limit.": "Die höchste Bildrate: MetalFX-Hochskalierung, kein FPS-Limit.",
+        "The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.":
+            "Der langsamere, sicherste Grafikweg: ohne MetalFX, 60 FPS. Für Spiele, die abstürzen oder schwarz bleiben.",
+        "Custom: your own choice in the expert options below.": "Eigene: deine eigene Wahl in den Expertenoptionen darunter.",
+        "recommended": "empfohlen",
+        "Expert options": "Expertenoptionen",
+        "Expanded": "Aufgeklappt",
+        "Collapsed": "Zugeklappt",
+        "Graphics layer": "Grafikweg",
+
+        // A game's page: "This game"
+        "This game": "Dieses Spiel",
+        "Change …": "Ändern …",
+        "Store": "Store",
+        "Performance HUD": "Leistungsanzeige",
+        "Launch options": "Startparameter",
+        "Options for this game": "Optionen für dieses Spiel",
+        "Your own settings, on top of the profile.": "Deine eigenen Einstellungen, zusätzlich zum Profil.",
+        "No profile yet – Nightforge uses its automatic settings.": "Noch kein Profil – Nightforge nimmt seine automatischen Einstellungen.",
+        "%@ (automatic)": "%@ (automatisch)",
+        "In the game": "Im Spiel",
+
+        // "Most compatible" after a failed start and in "Welcome back"
+        "Try “Most compatible”": "„Am verträglichsten“ versuchen",
+        "Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options.":
+            "Startet es auf dem langsameren, sichersten Weg – ohne MetalFX, mit 60 FPS, die sicherste Grafik zuerst – und bleibt dabei für dieses Spiel. Ändern kannst du das jederzeit in seinen Optionen.",
+        "Use “Most compatible” next time": "Nächstes Mal „Am verträglichsten“",
+        "Thanks – noted on this Mac. Next time it starts with “Most compatible”; change it any time in its options.":
+            "Danke – auf diesem Mac notiert. Nächstes Mal startet es mit „Am verträglichsten“; ändern kannst du das jederzeit in seinen Optionen.",
+
         // Library filters
         "Sort": "Sortieren",
         "Recently played": "Zuletzt gespielt",
@@ -810,6 +849,12 @@ enum L10n {
         "Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept.":
             "Platz schaffen – diese wurden länger nicht gespielt. Sie bleiben in der Bibliothek ihres Stores, Spielstände in dessen Cloud bleiben erhalten.",
         "There's still not enough space: %@ needs %@, your Mac has %@ free.": "Noch immer zu wenig Platz: %@ braucht %@, dein Mac hat %@ frei.",
+        // A game from several stores, one card
+        "Start through": "Starten über",
+        "Saves stay with each store.": "Spielstände bleiben beim jeweiligen Store.",
+        "Downloading from %@ … %ld %%": "Wird von %@ geladen … %ld %%",
+        "Preparing the download from %@ …": "Download von %@ wird vorbereitet …",
+        "%@ and %@": "%@ und %@",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

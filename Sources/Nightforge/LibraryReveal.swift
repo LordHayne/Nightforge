@@ -122,7 +122,7 @@ extension LibraryModel {
         while lastScan == before, !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))
         }
-        return allGames.filter(\.inLibrary)
+        return cards.filter(\.inLibrary)  // a game from two stores is one game (DuplicateGames)
     }
 }
 

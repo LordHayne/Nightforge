@@ -54,6 +54,11 @@ fi
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
 
+# Starts Steam, Wine, games and downloads apart from Nightforge, so a quit Nightforge leaves the Dock
+# (wrapper/nightforge-helper.c; Nightforge makes an app of it at runtime, see Detached.swift).
+clang -arch arm64 -mmacosx-version-min=14.0 -O2 -Wall \
+  -o "$OUT/Contents/Resources/nightforge-helper" wrapper/nightforge-helper.c
+
 # Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX (x86_64,
 # loaded by Wine's Vulkan loader).
 # Its MetalFX upscaling is Objective-C (wrapper/nightforge-vulkan-metalfx.m); MetalFX is weak-linked for older Macs.

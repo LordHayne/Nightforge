@@ -12,15 +12,16 @@ enum MacIntegration {
 
     nonisolated static let dockLimit = 5
 
-    /// Installed games, the last played first; never played ones aren't "recent".
+    /// Installed games, the last played first; never played ones aren't "recent". `games` are the
+    /// library's cards: a game from several stores is there once, hidden when one of them is.
     nonisolated static func recentGames(_ games: [Game], hidden: Set<GameID> = []) -> [Game] {
-        let played = games.filter { $0.isInstalled && $0.lastPlayed != nil && !hidden.contains($0.gameID) }
+        let played = games.filter { $0.isInstalled && $0.lastPlayed != nil && !$0.isMarked(in: hidden) }
         return Array(played.sorted { $0.lastPlayed! > $1.lastPlayed! }.prefix(dockLimit))
     }
 
     static func dockMenu(target: AnyObject, action: Selector) -> NSMenu? {
         guard let model else { return nil }
-        let games = recentGames(model.allGames, hidden: model.hiddenGames)
+        let games = recentGames(model.cards, hidden: model.hiddenGames)
         guard !games.isEmpty else { return nil }
         let menu = NSMenu()
         for game in games {
@@ -34,10 +35,11 @@ enum MacIntegration {
 
     /// From the Dock menu, a notification's Play button or a game's link: Nightforge comes to the
     /// front and plays the game – or shows its page when it isn't installed (a link never downloads).
+    /// Any store's link of a game from several stores leads to its one card (`LibraryModel.play`).
     static func open(id: String? = nil, gameID: GameID? = nil, play: Bool) {
         guard let model, let game = model.allGames.first(where: { $0.id == id || (gameID != nil && $0.gameID == gameID) }) else { return }
         NSApp.activate()
-        if play && game.isInstalled {
+        if play && (game.isInstalled || model.card(holding: game.id)?.isInstalled == true) {
             model.play(game)
         } else if model.reveal(game), play {
             model.openDetail()

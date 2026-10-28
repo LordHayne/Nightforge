@@ -17,18 +17,22 @@ struct FailedLaunch: Identifiable {
 
 /// "Doesn't run?": a GitHub issue filled in with what Nightforge knows about the game, opened in
 /// the player's browser. Nothing leaves the Mac unless the player submits it there.
+@MainActor
 enum ProblemReport {
     /// `tried`: the ways a start that failed every time went through, in order.
-    static func open(game: Game, insight: GameInsight?, tried: [String] = []) {
-        if let url = url(game: game, insight: insight, tried: tried) { NSWorkspace.shared.open(url) }
+    static func open(game: Game, insight: GameInsight?, profile: GameProfile? = nil, tried: [String] = []) {
+        if let url = url(game: game, insight: insight, profile: profile, tried: tried) { NSWorkspace.shared.open(url) }
     }
 
-    static func url(game: Game, insight: GameInsight?, tried: [String] = []) -> URL? {
-        let options = GameOptionsStore.load(game.gameID)
-        var graphics = options.graphics.label
-        if options.graphics == .automatic, let insight, !insight.attempts.isEmpty {
-            let (index, confirmed) = LaunchHealth.current(game.gameID, insight.attempts)
-            graphics += " → " + insight.attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
+    static func url(game: Game, insight: GameInsight?, profile: GameProfile? = nil, tried: [String] = []) -> URL? {
+        // English in the report, whatever the app's language: it's read on GitHub.
+        let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: GameDisplay.screen?.maximumFramesPerSecond ?? 60,
+                                                                  profile: profile)
+        var graphics = "\(options.preset.rawValue) · " + options.graphics.label
+        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile)
+        if options.graphics == .automatic, !attempts.isEmpty {
+            let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
+            graphics += " → " + attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
         }
         var detected = insight?.analysis.summary ?? "–"
         if let analysis = insight?.analysis {

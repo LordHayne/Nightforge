@@ -611,9 +611,10 @@ enum Engine {
         let text = steamShutdownScript
         guard (try? text.write(to: script, atomically: true, encoding: .utf8)) != nil else { return }
 
-        let process = Process()
+        let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath]
+        process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
+                             String(getpid())]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -621,13 +622,14 @@ enum Engine {
     }
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
-    /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game.
+    /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
+    /// process of the Nightforge that is quitting.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
-        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"
+        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
@@ -646,6 +648,11 @@ enum Engine {
           [ -n "$MAC_STEAMAPPS" ] && find "$MAC_STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
           return 1
         }
+        # The Nightforge that started this is still on its way out (it waits until this runs): until
+        # it's gone it would count as opened again.
+        if [ -n "$QUITTING" ]; then
+          for i in $(seq 1 100); do kill -0 "$QUITTING" 2>/dev/null || break; sleep 0.1; done
+        fi
         # The game ends: back to Nightforge (gone for three looks, so a launcher handing over doesn't count).
         if [ -n "$APP" ] && game_running; then
           gone=0
@@ -1095,7 +1102,7 @@ enum Engine {
         else { return }
         let package = mono.appendingPathComponent("\(version)/support/winemono-support.msi")
         await Task.detached(priority: .userInitiated) {
-            let process = Process()
+            let process = DetachedProcess()
             process.executableURL = wine
             process.arguments = ["msiexec", "/i", "Z:" + package.path.replacingOccurrences(of: "/", with: "\\"), "/qn"]
             var env = environment(wine: wine)
@@ -1171,7 +1178,7 @@ enum Engine {
         env["XDG_CACHE_HOME"] = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge", isDirectory: true).path
 
-        let process = Process()
+        let process = DetachedProcess()
         process.executableURL = script
         process.arguments = ["--unattended"] + verbs
         process.environment = env
@@ -1307,7 +1314,8 @@ enum Engine {
     }
 
     /// Imports registry settings into the prefix and waits only for regedit itself (not for the
-    /// wineserver, which keeps running as long as Steam does).
+    /// wineserver, which keeps running as long as Steam does). Detached like every Wine command: the
+    /// first one of a session starts the wineserver and Wine's services, which Steam then joins.
     @discardableResult
     static func importRegistry(_ body: String, wine: URL) -> Bool {
         let temp = prefix.appendingPathComponent("drive_c/windows/temp", isDirectory: true)
@@ -1316,7 +1324,7 @@ enum Engine {
         guard (try? ("REGEDIT4\n\n" + body + "\n").write(to: file, atomically: true, encoding: .utf8)) != nil else { return false }
         defer { try? FileManager.default.removeItem(at: file) }
 
-        let regedit = Process()
+        let regedit = DetachedProcess()
         regedit.executableURL = wine
         regedit.arguments = ["regedit", "/S", #"C:\windows\temp\"# + file.lastPathComponent]
         regedit.environment = environment(wine: wine)
@@ -1531,7 +1539,7 @@ enum Engine {
     /// Runs a Wine command and waits for it (and the wineserver it started) to finish.
     static func run(_ wine: URL, _ arguments: [String]) async throws -> Int32 {
         try await Task.detached(priority: .userInitiated) {
-            let process = Process()
+            let process = DetachedProcess()
             process.executableURL = wine
             process.arguments = arguments
             process.environment = environment(wine: wine)
@@ -1883,7 +1891,7 @@ enum Engine {
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
-        let process = Process()
+        let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader
         process.arguments = [steamExeWindowsPath] + steamArguments + arguments

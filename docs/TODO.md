@@ -176,7 +176,7 @@ weil die Bildschirmfreigabe abgelehnt war.
   im Hauptfenster wie im Entwurf (Branch `claude/ux-roadmap-next`). Seit dem Abend des 27.10. sind auch alle übrigen
   Sheets und alle Alerts Glas-Dialoge (`GlassDialog`/`GlassQuestion` in `Glass.swift`, roter Knopf `Theme.danger`);
   jeden auf dem Bildschirm angesehen, Return/Esc geprüft. Offen: mit einem echten Controller durchgehen (A startet
-  jetzt auf der Standardantwort, `padFocus(preferred:)`); die Picker bleiben System-Popups mit blauem Pfeil; die
+  jetzt auf der Standardantwort, `padFocus(preferred:)`); die Picker in den Einstellungen bleiben System-Popups mit blauem Pfeil (die Spieloptionen haben seit 2.3 Glas-Segmente); die
   Textfelder im Stores-Tab und der Lade-Kringel im Spielknopf sind noch System (dort arbeiten andere Branches).
 - **Entscheidungen (27.10. getroffen):** 2.3 wie vorgeschlagen (siehe Roadmap); „Save battery when unplugged“ (3.4)
   bleibt standardmäßig aus; „Welcome back“ nach jeder Sitzung ab einer Minute. Abweichungen von der Vorlage, die
@@ -201,6 +201,7 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   - Fragt macOS nach dem Zugriff auf „Dokumente“?
   - Legt sich die App in den Papierkorb?
 - **Spielstand-Wahl** (3.2): Ein Spiel mit Mac- und Windows-Version auf beiden Seiten spielen und dann wechseln. Kommt die Frage „Mit welchem Spielstand …“, und liegt der ersetzte Stand in `Backups/`?
+- **Grafik-Voreinstellungen und Karte „This game“** (2.3, Branch `claude/presets-2-3-390808`): Nur offscreen gerendert (echte Views, Deutsch und Englisch) – der Blick in die echte App wurde am 28.10. abgelehnt. In der echten App prüfen: Spieloptionen (Karten, „Expert options“ aufklappen, scrollt es bei kleinem Fenster, folgt der Pad-Fokus?), die Karte rechts neben dem Titel (passt sie bei 980 pt Fensterbreite?), „Back to the Profile“ in der Karte, ein Start mit „Most compatible“ (kommt DXVK bzw. WineD3D zuerst, 60 FPS, ohne MetalFX?).
 - **Externes Laufwerk** (4.2): Ein Laufwerk mit einer Steam-Bibliothek abziehen. Zeigt das Spiel „Schließe <Name des Laufwerks> an, um zu spielen“? (Irgendein externes Laufwerk – „T7“ war nur das Beispiel im Entwurf.) Danach Bibliothek anlegen und verschieben ausprobieren (siehe Recherche in der Roadmap).
 
 ### Gefunden beim Test am 27.10.
@@ -240,19 +241,34 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
     verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
   die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
+- **`osascript … quit` meldet „abgebrochen“ (-128)** (28.10., beim Test von 7.4): Einmal mit offenen Einstellungen –
+  die App lief weiter (siehe oben); einmal endete sie trotz der Meldung wenige Sekunden später. Wer Nightforge per
+  Skript beendet, darf sich nicht auf den Rückgabewert verlassen, sondern muss mit
+  `pgrep -f "Nightforge.app/Contents/MacOS/Nightforge"` warten, bis sie wirklich weg ist – sonst laufen zwei Nightforge
+  (ist dabei für ein paar Sekunden passiert, der Testbuild wurde sofort wieder beendet).
+- **Ein `build/`-Ordner eines Worktrees wurde von außen geleert** (28.10. gegen 23:08, Worktree `merge-dupes-7-4`):
+  `build/Nightforge.app` war weg, während andere Sitzungen bauten und testeten. Ursache unklar – vielleicht ein Aufräumen
+  von Worktree-Builds wegen der `nightforge://`-Links oder der Dock-Symbole. Vor dem Start eines Testbuilds prüfen, dass
+  er noch da ist; wer Builds anderer Worktrees aufräumt, sagt es in den Sitzungsnotizen.
 - **Download-Knopf oben** erscheint nur, solange etwas lädt; im Entwurf ist er immer da (Panel mit „Nichts lädt
   gerade“). Mit dem Nutzer besprechen (gemeldet von der Sitzung „Vorlage angleichen“, 27.10.).
 - **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
   Tray-Symbol des unsichtbaren Windows-Steam als macOS-Statussymbol ab, und nach Neustarts von Steam bleiben alte stehen
   (dazu kommt das echte Steam für Mac). Prüfen: wer welches Symbol besitzt; Tray-Symbol des Windows-Steam abschalten
   oder beim Beenden aufräumen.
-- **Zwei Nightforge-Symbole im Dock** (Nutzer, 27.10. und 28.10.). Ursache am 28.10. gefunden: `lsappinfo` zeigt eine
-  beendete Nightforge als „exited-with-subordinates“ – macOS hält ihr Dock-Symbol („im Hintergrund ausgeführt“) am
-  Leben, weil Prozesse, für die sie „verantwortlich“ ist, weiterlaufen (Wine/Steam, die Nightforge gestartet hat und
-  die nach dem Beenden absichtlich weiterlaufen). Startet man Nightforge neu, stehen zwei Symbole im Dock; Klicks auf
-  das alte landen ins Leere. Ansatz: Hintergrundprozesse (Steam, Wine-Befehle, `steam-shutdown.sh`) ohne diese
-  Verantwortung starten – über `Nightforge Game.app`/launchd statt als Kindprozess, oder per posix_spawn mit
-  „disclaim“ – und prüfen, dass Mitteilungen/Dock-Menü danach die laufende App treffen.
+- **Nightforge Helper (Dock-Fix vom 28.10.) – noch offen:** Steam, Wine, Spiele, Epic-Downloads und die Skripte
+  starten über `Nightforge Helper.app` (Datenordner, `Detached.swift`), damit eine beendete Nightforge nicht im Dock
+  stehen bleibt. Geprüft: ⌘Q mit Steam, ⌘Q während eines Spiels, Neustart, Spielende. Noch nicht gesehen:
+  - **Berechtigungen** gehören für macOS jetzt dem Helfer: Abfragen (Spiele/Bibliotheken auf externen Laufwerken,
+    „Steam steuern“ für das Beenden von Steam für Mac) kommen unter „Nightforge Helper“, vielleicht einmal neu.
+  - **DMG-Installation** (mit Quarantäne-Flag): Der Helfer wird von Nightforge selbst geschrieben und trägt keins.
+    Weist macOS ihn trotzdem ab, startet Nightforge wie früher als Kindprozess (dann wieder zwei Symbole).
+  - **Mitteilungen und Dock-Menü** nicht eigens geprüft (es gibt nur noch einen Eintrag, also sollten sie treffen).
+- **`reopened()` im Beenden-Skript** (`pgrep -f "Nightforge.app/Contents/MacOS/Nightforge"`) zählt jede Befehlszeile,
+  die den Pfad nur erwähnt – im Test hielt es eine Shell dafür und beendete sich, ohne Steam zu beenden. Robuster:
+  `pgrep -x Nightforge` (Prozessname). `MacVersionTest` ersetzt `pgrep` und müsste mitziehen.
+- **`nightforge://`-Links** öffnen die Standard-Kopie (`~/Applications`), auch wenn gerade ein Worktree-Build läuft – nur
+  auf diesem Mac mit vielen registrierten Kopien. Zum Testen: `open -a <Build>.app "nightforge://play/<ID>"`.
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
@@ -290,7 +306,15 @@ von „Epic Games“ unten:
   in der App selbst (28.10. nur ohne Fenster geprüft, siehe Roadmap 7.2): „Wird aktualisiert … 42 %“ im Play-Knopf, offline
   startet die alte Version, „Download 12 GB · Auf dem Mac 25 GB“ und „Größe wird geprüft …“, Platz-Sheet bei vollem Mac,
   „Deine Zusatzinhalte: …“ auf der Spielseite, zwei Epic-Downloads hintereinander (der zweite wartet, läuft dann an).
-- **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
+- **Doppelt gekaufte Spiele (7.4, Branch `claude/merge-dupes-7-4-b22892`):** Am 28.10. in der App mit der Maus gesehen
+  (ARK, Karte, Spielseite, Wechsel Steam ↔ Epic, Größe, Zähler 192). Noch offen: Store-Wahl per Pad, ein Download im nicht
+  gewählten Store (Fortschritt auf Cover und Spielseite), Ausblenden/Anheften einer zusammengeführten Karte. ARC Raiders
+  stand am 28.10. in keiner der beiden Bibliotheken auf dem Mac.
+- **Esc auf der Spielseite, wenn die Suche noch den Fokus hatte** (28.10., gefunden beim 7.4-Test, nicht von 7.4): Die
+  Bibliothek bleibt hinter einer Spielseite stehen, ihr Suchfeld behielt den Tastaturfokus – Esc leerte die verdeckte
+  Suche, statt zurückzugehen, und Buchstaben (H, P, O …) wären in die Suche getippt worden. **Behoben** im selben Branch:
+  Das Suchfeld gibt den Fokus ab, sobald die Bibliothek verlassen wird (`LibrarySearchField`, `onChange(of: route)`).
+  In der App geprüft (28.10., 23:10): ⌘F, „ark surv“, Spielseite per Klick, Esc → zurück in die Bibliothek, Suche bleibt.
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
   vermutlich ein Fehlklick, als das Fenster gerade nach vorne kam. Nicht nachvollzogen – im Auge behalten.
@@ -322,7 +346,7 @@ von „Epic Games“ unten:
 - **Alte Schlüssel aufräumen:** `GameIDMigration` lässt „options.570“, „library.hidden“ usw. für ältere Builds stehen.
   In einer späteren Version löschen.
 - **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Also add
-  Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ (1.2/7.4).
+  Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da).
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 
@@ -337,6 +361,19 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
   nie vor, daneben schon. Nicht auf 14 ausprobiert.
 - **Zurück zur Startseite:** Beim Mitgleiten scheint nur die Bibliothek durch (sie liegt schon hinter einer Spielseite).
   Die Startseite erscheint erst am Ende mit dem Überblenden. Sie dahinter vorzurendern wäre schöner.
+
+## Ideen für später
+
+- **Lizenzen in „Über“ zum Aufklappen** (Idee des Nutzers, 28.10.; noch nicht anfangen):
+  - Ein Klick oder A auf eine Komponente (Wine, DXMT …) wechselt im selben Glas-Sheet in eine Detailansicht, kein
+    zweites Sheet darüber. Oben „‹ Zurück“ (B/Esc), weiche Überblendung.
+  - Darin der vollständige Lizenztext, scrollbar und sauber gesetzt. Für LGPL-2.1, GPL-3.0, Zlib, Apache-2.0 und MIT
+    die Standardtexte mitliefern; bisher liegen nur Nightforges, umu-protonfixes' und AreWeAntiCheatYets Dateien in der App.
+  - Unten ein unaufdringlicher Knopf zum Quellcode, möglichst zur mitgelieferten Version. Die `source`-URL steht schon in
+    `components/manifest.json`. Wo sie aufs Nightforge-Repo zeigt (eigene Builds: Grafik, Gamepad, cabextract), zwei
+    Links: „Original: <Projekt>“ und „Unser Build: Nightforge“.
+  - D3DMetal ist Apples Game Porting Toolkit, nicht quelloffen: klar sagen („Proprietär, nur auf Apple-Hardware“),
+    Apples Lizenztext, kein Quellcode-Knopf.
 
 ## Aus dem Code-Audit
 
