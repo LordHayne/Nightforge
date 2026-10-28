@@ -113,6 +113,10 @@ struct EpicTest {
         let full = Legendary.progress(inLog: log + "\n ! Failure: Not enough available disk space! 12.00 GiB < 25.00 GiB\n[cli] CRITICAL: Installation cannot proceed, exiting.")
         check(full.failure?.contains("Not enough available disk space") == true, "why it stopped: \(full.failure ?? "-")")
         check(Legendary.progress(inLog: "").fraction == nil, "nothing yet: no share")
+        // legendary's downloader runs in processes of its own: stopping legendary stops them too.
+        let table = "  1     0\n 500     1\n 501   500\n 502   500\n 510   501\n 600     1\n 601   600\nbad line\n"
+        check(Set(Legendary.descendants(of: 500, in: table)) == [501, 502, 510], "legendary's helpers, and theirs")
+        check(Legendary.descendants(of: 601, in: table).isEmpty, "none: nothing else is touched")
     }
 
     /// "Update & Play": what legendary's update log means for the start.

@@ -243,10 +243,9 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   (Abgleich vor/nach dem Spielen, Zeile im „Willkommen zurück“), Deinstallieren, Abbrechen eines größeren Downloads,
   Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
   „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel,
-  „Update & Play“ bei einem Spiel mit wartendem Update (Fortschritt im Play-Knopf, offline startet die alte Version),
-  Größe vor dem Download (`legendary info` auf der Spielseite, Platz-Sheet bei vollem Mac),
-  ein Spiel mit Zusatzinhalten (ein Download mit einem Fortschritt, Spielseite nennt sie, ein später gekaufter kommt mit
-  „Aktualisieren & spielen“), zwei Epic-Downloads hintereinander (der zweite wartet, dann läuft er von selbst an).
+  in der App selbst (28.10. nur ohne Fenster geprüft, siehe Roadmap 7.2): „Wird aktualisiert … 42 %“ im Play-Knopf, offline
+  startet die alte Version, „Download 12 GB · Auf dem Mac 25 GB“ und „Größe wird geprüft …“, Platz-Sheet bei vollem Mac,
+  „Deine Zusatzinhalte: …“ auf der Spielseite, zwei Epic-Downloads hintereinander (der zweite wartet, läuft dann an).
 - **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
@@ -255,6 +254,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   solange auf dem Mac ein echtes Windows-Spiel läuft (das Skript sucht systemweit nach `\steamapps\common\` und
   `\Epic Games\`). Tests nicht laufen lassen, während ein Spiel läuft – oder das Skript im Test auf einen eigenen
   Prozess-Filter umstellen.
+- **Update & Play mit DLCs:** Alle Teile zählen gleich viel – bei Spiel + 1-KB-DLC steht der Balken nach dem Spiel auf
+  50 % und springt dann auf 100 %. Besser nach Größe gewichten (legendary schreibt die Größe erst, wenn ein Teil startet).
+- **DLCs eines schon wartenden Downloads:** Steht ein Spiel schon in `Epic/downloads.json` (von einem Build ohne DLCs),
+  kommen seine DLCs nicht dazu; sie folgen erst mit „Aktualisieren & spielen“. Ältere Builds schreiben `library.json`
+  ohne `dlcs` – der neue Build holt sie beim nächsten Abgleich zurück.
+- **Reste vom Test am 27.10.:** `Prefix/drive_c/Program Files/Epic Games/MinutesTillDawnxgosd` (12 KB, nur
+  dxmt.conf/dxvk.conf) – vor dem Fix 6bd8f20 deinstalliert; kann weg.
 - **Wartende Epic-Downloads** zeigen „Download wird vorbereitet …“, solange ein anderer Epic-Download läuft (legendary
   installiert nur eins zugleich). Besser: „Wartet auf <Spiel>“ – braucht einen Wartezustand in `InstallState`.
 - **Abbrechen während der Zusatzinhalte** entfernt auch das schon geladene Spiel (Spiel und DLCs sind ein Download).

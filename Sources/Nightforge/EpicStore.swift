@@ -465,7 +465,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// Signs out (legendary forgets the tokens). Installed games stay on the Mac and come back
     /// with the next sign-in.
     func disconnect() async {
-        for process in downloads.values.map({ $0 }) + updates.values where process.isRunning { process.interrupt() }
+        for process in downloads.values.map({ $0 }) + updates.values where process.isRunning { Legendary.stop(process.processIdentifier) }
         _ = try? await Legendary.run(["auth", "--delete"], timeout: 30)
         try? FileManager.default.removeItem(at: Self.userFile)
         try? FileManager.default.removeItem(at: Self.accountFile)
@@ -606,12 +606,12 @@ final class EpicStore: ObservableObject, StoreProvider {
             save(wanted, to: Self.wantedFile)
             for part in parts {
                 guard let process = downloads.removeValue(forKey: part) else { continue }
-                process.terminate()
-                await Engine.offMain { process.waitUntilExit() }
+                Legendary.stop(process.processIdentifier)
+                while process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }  // see Legendary.run
             }
             for pid in Engine.ownProcesses(under: ComponentStore.shared.root.appendingPathComponent(Legendary.componentID))
                 .filter({ process in parts.contains { process.command.contains(" install \($0) ") } }).map(\.pid) {
-                kill(pid, SIGTERM)
+                Legendary.stop(pid)
             }
         }
         let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
@@ -760,7 +760,7 @@ final class EpicStore: ObservableObject, StoreProvider {
         while true {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled {
-                process?.interrupt()  // legendary keeps what it has for next time
+                if let process { Legendary.stop(process.processIdentifier) }  // it carries on next time
                 return .skipped(.offline)
             }
             let state = await Engine.offMain { Legendary.progress(inLog: Self.logText(for: appName)) }
@@ -775,7 +775,7 @@ final class EpicStore: ObservableObject, StoreProvider {
             // Not a word from Epic for 90 s (a network that doesn't answer): the game starts as it is.
             silent = state.fraction == nil ? silent + 1 : 0
             if silent >= 90 {
-                process?.interrupt()
+                if let process { Legendary.stop(process.processIdentifier) }
                 return .skipped(.offline)
             }
         }
