@@ -294,9 +294,11 @@ von „Epic Games“ unten:
   (ARK, Karte, Spielseite, Wechsel Steam ↔ Epic, Größe, Zähler 192). Noch offen: Store-Wahl per Pad, ein Download im nicht
   gewählten Store (Fortschritt auf Cover und Spielseite), Ausblenden/Anheften einer zusammengeführten Karte. ARC Raiders
   stand am 28.10. in keiner der beiden Bibliotheken auf dem Mac.
-- **Esc auf der Spielseite, wenn die Suche noch den Fokus hat** (28.10., gefunden beim 7.4-Test, nicht von 7.4): Spielseite
-  aus einer Suche geöffnet, das Suchfeld behält den Tastaturfokus – Esc leert dann die (verdeckte) Suche, statt
-  zurückzugehen. Erst nach einem Klick außerhalb geht Esc zurück. Beim Öffnen der Spielseite den Fokus vom Suchfeld nehmen.
+- **Esc auf der Spielseite, wenn die Suche noch den Fokus hatte** (28.10., gefunden beim 7.4-Test, nicht von 7.4): Die
+  Bibliothek bleibt hinter einer Spielseite stehen, ihr Suchfeld behielt den Tastaturfokus – Esc leerte die verdeckte
+  Suche, statt zurückzugehen, und Buchstaben (H, P, O …) wären in die Suche getippt worden. **Behoben** im selben Branch:
+  Das Suchfeld gibt den Fokus ab, sobald die Bibliothek verlassen wird (`LibrarySearchField`, `onChange(of: route)`).
+  In der App noch ansehen: suchen, Spielseite öffnen, Esc → zurück in die Bibliothek, Suche bleibt.
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
   vermutlich ein Fehlklick, als das Fenster gerade nach vorne kam. Nicht nachvollzogen – im Auge behalten.

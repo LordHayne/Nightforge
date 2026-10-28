@@ -368,6 +368,11 @@ private struct LibrarySearchField: View {
         .modifier(SwipeArea(kind: .search))  // two fingers over the field never swipe
         .padFocus("library.search", cornerRadius: 19, activate: { focused = true })
         .onChange(of: model.searchFocusRequest) { _, _ in takeFocus() }
+        // The library stays behind a game's page it opened: the field mustn't keep the keys there
+        // (Esc would clear the search instead of going back, letters would type into it).
+        .onChange(of: model.route) { _, route in
+            if route != .library { focused = false }
+        }
         .onAppear { takeFocus() }
         .help(L10n.t("Search (⌘F)"))
     }
