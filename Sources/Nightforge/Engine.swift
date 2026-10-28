@@ -613,7 +613,8 @@ enum Engine {
 
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath]
+        process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
+                             String(getpid())]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -621,13 +622,14 @@ enum Engine {
     }
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
-    /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game.
+    /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
+    /// process of the Nightforge that is quitting.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
-        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"
+        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
@@ -646,6 +648,11 @@ enum Engine {
           [ -n "$MAC_STEAMAPPS" ] && find "$MAC_STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
           return 1
         }
+        # The Nightforge that started this is still on its way out (it waits until this runs): until
+        # it's gone it would count as opened again.
+        if [ -n "$QUITTING" ]; then
+          for i in $(seq 1 100); do kill -0 "$QUITTING" 2>/dev/null || break; sleep 0.1; done
+        fi
         # The game ends: back to Nightforge (gone for three looks, so a launcher handing over doesn't count).
         if [ -n "$APP" ] && game_running; then
           gone=0

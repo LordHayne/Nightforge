@@ -487,7 +487,8 @@ struct MacVersionTest {
 
         // MARK: Quit script: back to Nightforge when the game ends
         // A stand-in game (a process whose path lies in the Mac library), `open` and `pgrep` replaced
-        // so nothing real is opened and no running Nightforge counts as "opened again".
+        // so nothing real is opened and no running Nightforge counts as "opened again" – only a
+        // stand-in for the Nightforge that is still quitting when the script starts.
         let sandbox = steam.appendingPathComponent("quit-script", isDirectory: true)
         let shims = sandbox.appendingPathComponent("bin", isDirectory: true)
         let library = sandbox.appendingPathComponent("Steam/steamapps", isDirectory: true)
@@ -496,15 +497,16 @@ struct MacVersionTest {
         let script = sandbox.appendingPathComponent("steam-shutdown.sh")
         try? Engine.steamShutdownScript.write(to: script, atomically: true, encoding: .utf8)
         for (name, body) in [("open", "echo \"$@\" > '\(opened.path)'"),
-                             ("pgrep", "case \"$*\" in *Nightforge.app*) exit 1;; esac; exec /usr/bin/pgrep \"$@\"")] {
+                             ("pgrep", "case \"$*\" in *Nightforge.app*) exec /usr/bin/pgrep -qf /Fake/Nightforge.app/Contents/MacOS/Nightforge;; esac; exec /usr/bin/pgrep \"$@\"")] {
             let shim = shims.appendingPathComponent(name)
             try? "#!/bin/bash\n\(body)\n".write(to: shim, atomically: true, encoding: .utf8)
             try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shim.path)
         }
-        func runScript() -> Process {
+        func runScript(quitting: pid_t? = nil) -> Process {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = [script.path, "", sandbox.appendingPathComponent("Prefix").path, library.path, "0", "/Fake/Nightforge.app"]
+            process.arguments = [script.path, "", sandbox.appendingPathComponent("Prefix").path, library.path, "0", "/Fake/Nightforge.app",
+                                 quitting.map(String.init) ?? ""]
             process.environment = ["PATH": shims.path + ":/usr/bin:/bin:/usr/sbin:/sbin"]
             try? process.run()
             return process
@@ -513,8 +515,12 @@ struct MacVersionTest {
         fakeGame.executableURL = URL(fileURLWithPath: "/bin/bash")
         fakeGame.arguments = ["-c", "exec -a '\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake' /bin/sleep 3"]
         try? fakeGame.run()
+        let quittingNightforge = Process()
+        quittingNightforge.executableURL = URL(fileURLWithPath: "/bin/bash")
+        quittingNightforge.arguments = ["-c", "exec -a /Fake/Nightforge.app/Contents/MacOS/Nightforge /bin/sleep 1.5"]
+        try? quittingNightforge.run()
         Thread.sleep(forTimeInterval: 0.5)
-        let waiting = runScript()
+        let waiting = runScript(quitting: quittingNightforge.processIdentifier)
         let started = Date()
         while waiting.isRunning && Date().timeIntervalSince(started) < 30 { Thread.sleep(forTimeInterval: 0.5) }
         let reopenedAfter = Date().timeIntervalSince(started)
