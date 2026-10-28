@@ -95,6 +95,27 @@ struct EpicInstall: Equatable {
     }
 }
 
+/// What a game comes to before it's downloaded, from `legendary info --json` (legendary reads the
+/// game's manifest from Epic): kept per build in sizes.json, so the game page and the space check
+/// know it before the download starts.
+struct EpicSize: Codable, Equatable {
+    /// The build it was read for: a newer one is asked again.
+    var version: String
+    /// What legendary downloads (compressed), and what the game takes on disk.
+    var download: Int64
+    var install: Int64
+
+    static func from(info json: Data) -> EpicSize? {
+        guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
+              let manifest = object["manifest"] as? [String: Any],
+              let install = (manifest["disk_size"] as? NSNumber)?.int64Value, install > 0
+        else { return nil }
+        let download = (manifest["download_size"] as? NSNumber)?.int64Value ?? install
+        let version = manifest["build_version"] as? String ?? (object["game"] as? [String: Any])?["version"] as? String ?? ""
+        return EpicSize(version: version, download: download, install: install)
+    }
+}
+
 /// Play time Nightforge counts itself for Epic games (Epic's own isn't at hand offline).
 struct EpicPlayTime: Codable, Equatable {
     var lastPlayed: Date?
@@ -122,6 +143,12 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// Downloads asked for: they carry on after Nightforge was quit or the Mac restarted.
     private var wanted: Set<String> = []
     private var playTimes: [String: EpicPlayTime] = [:]
+    /// Sizes of games not on the Mac yet, by app name, and the newest build of each (assets.json).
+    private var sizes: [String: EpicSize] = [:]
+    private var latest: [String: String] = [:]
+    /// Sizes being asked for, and when asking last failed (offline): not again for a few minutes.
+    private var sizing: [String: Task<EpicSize?, Never>] = [:]
+    private var sizeFailed: [String: Date] = [:]
     /// Anti-cheat by catalog namespace (profiles.json "epic.<namespace>").
     private var antiCheat: [String: AntiCheatBlock] = [:]
     private var loadedFromDisk = false
@@ -130,6 +157,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     private static var libraryFile: URL { folder.appendingPathComponent("library.json") }
     private static var wantedFile: URL { folder.appendingPathComponent("downloads.json") }
     private static var playTimeFile: URL { folder.appendingPathComponent("playtime.json") }
+    private static var sizesFile: URL { folder.appendingPathComponent("sizes.json") }
     private static var userFile: URL { Legendary.configDir.appendingPathComponent("user.json") }
     /// The player connected Epic (until they disconnect). Kept apart from legendary's sign-in, which
     /// legendary drops when Epic ends it: the games mustn't go with it.
@@ -165,6 +193,9 @@ final class EpicStore: ObservableObject, StoreProvider {
         if let data = try? Data(contentsOf: Self.playTimeFile), let stored = try? decoder.decode([String: EpicPlayTime].self, from: data) {
             playTimes = stored
         }
+        if let data = try? Data(contentsOf: Self.sizesFile), let stored = try? decoder.decode([String: EpicSize].self, from: data) {
+            sizes = stored
+        }
     }
 
     private func save<T: Encodable>(_ value: T, to file: URL) {
@@ -183,6 +214,7 @@ final class EpicStore: ObservableObject, StoreProvider {
             (EpicInstall.all(fromJSON: (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data()),
              EpicInstall.latestVersions(fromAssets: (try? Data(contentsOf: config.appendingPathComponent("assets.json"))) ?? Data()))
         }
+        self.latest = latest
         let running = await Engine.offMain { Self.runningDownloads() }
         resumeDownloads(installed: installed, running: running)
         let wanted = self.wanted
@@ -206,9 +238,12 @@ final class EpicStore: ObservableObject, StoreProvider {
 
     private func game(_ entry: EpicGame, install: EpicInstall?, latest: String?, downloading: Legendary.Progress?) -> Game {
         let folder = install?.path ?? Legendary.gamesDir.appendingPathComponent(entry.folder, isDirectory: true)
-        // While it downloads: what the download comes to, which its progress is a share of.
+        // While it downloads: what the download comes to, which its progress is a share of. Before:
+        // what it takes on disk (the space check), once Epic has said.
         let isDownloading = downloading != nil && (install == nil || downloads[entry.appName] != nil)
-        let size = isDownloading ? downloading?.downloadSize ?? install?.size ?? 0 : install?.size ?? 0
+        let known = install == nil ? knownSize(entry.appName) : nil
+        let size = isDownloading ? downloading?.downloadSize ?? known?.download ?? install?.size ?? 0
+            : install?.size ?? known?.install ?? 0
         var game = Game(gameID: .epic(entry.appName), name: entry.title, bottle: Engine.bottle, steamRoot: Engine.steamRoot,
                         steamExeWindowsPath: "", installDir: folder, sizeOnDisk: size,
                         lastPlayed: playTimes[entry.appName]?.lastPlayed, playtimeMinutes: playTimes[entry.appName]?.minutes)
@@ -221,6 +256,7 @@ final class EpicStore: ObservableObject, StoreProvider {
             if let latest, !install.version.isEmpty, latest != install.version { game.pendingUpdate = 0 }
         } else {
             game.install = .notInstalled
+            game.downloadSize = known?.download
         }
         if let block = antiCheat[entry.namespace], !block.onlineOnly { game.antiCheatBlock = block }
         game.art = StoreArt(cover: entry.cover, hero: entry.hero, logo: entry.logo)
@@ -252,6 +288,41 @@ final class EpicStore: ObservableObject, StoreProvider {
             sync = StoreSync(state: isSignedIn ? .failed(L10n.t("Couldn't reach Epic Games")) : .signedOut, lastSuccess: catalog.loaded)
         }
         changed()
+    }
+
+    // MARK: - Sizes
+
+    /// The size known for the game's newest build, without asking.
+    private func knownSize(_ appName: String) -> EpicSize? {
+        guard let size = sizes[appName] else { return nil }
+        if let build = latest[appName], build != size.version { return nil }
+        return size
+    }
+
+    /// What a game not on the Mac yet comes to: asked from Epic once per build, in the background,
+    /// and kept. nil when Epic can't be asked (offline, signed out).
+    func size(of game: Game) async -> EpicSize? {
+        loadFromDisk()
+        let appName = game.gameID.id
+        if let known = knownSize(appName) { return known }
+        guard isSignedIn, Date().timeIntervalSince(sizeFailed[appName] ?? .distantPast) > 5 * 60 else { return nil }
+        if let asking = sizing[appName] { return await asking.value }
+        let asking = Task { () -> EpicSize? in
+            guard let result = try? await Legendary.run(["info", appName, "--json", "--platform", "Windows"], timeout: 90),
+                  result.status == 0 else { return nil }
+            return EpicSize.from(info: result.output)
+        }
+        sizing[appName] = asking
+        let size = await asking.value
+        sizing[appName] = nil
+        guard let size else {
+            sizeFailed[appName] = Date()
+            return nil
+        }
+        sizes[appName] = size
+        save(sizes, to: Self.sizesFile)
+        changed()
+        return size
     }
 
     private static func reachError(_ log: String) -> String {

@@ -492,7 +492,7 @@ struct SpaceSheet: View {
     private var enough: Bool { freed >= request.shortfall }
 
     var body: some View {
-        GlassDialog(L10n.t("%@ needs up to %@", request.game.name, Format.bytes(request.game.sizeOnDisk)), id: "space", width: 540) {
+        GlassDialog(L10n.t("%@ needs up to %@", request.game.name, Format.bytes(request.needed)), id: "space", width: 540) {
             DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
                                  Format.bytes(request.free), Format.bytes(request.shortfall)),
                           symbol: "externaldrive.badge.exclamationmark")
@@ -503,7 +503,9 @@ struct SpaceSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept."))
+                    Text(request.candidates.allSatisfy { $0.provider == .steam }
+                         ? L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept.")
+                         : L10n.t("Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept."))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -877,8 +879,13 @@ private struct GameDetail: View {
                 case .notInstalled where game.playsInCloud:
                     Stat(label: L10n.t("Plays on"), value: "GeForce Now")
                 case .notInstalled:
-                    Stat(label: L10n.t("Download"), value: game.sizeOnDisk > 0
-                         ? L10n.t("up to %@", Format.bytes(game.sizeOnDisk)) : "–")
+                    if let download = game.downloadSize {
+                        Stat(label: L10n.t("Download"), value: Format.bytes(download))
+                        Stat(label: L10n.t("On your Mac"), value: Format.bytes(game.sizeOnDisk))
+                    } else {
+                        Stat(label: L10n.t("Download"), value: game.sizeOnDisk > 0
+                             ? L10n.t("up to %@", Format.bytes(game.sizeOnDisk)) : "–")
+                    }
                 case .downloading:
                     Stat(label: L10n.t("Download"), value: Format.bytes(game.sizeOnDisk))
                 }
@@ -963,11 +970,11 @@ private struct GameDetail: View {
             }
 
             HStack(spacing: 14) {
-                PlayButton(install: game.install, isLaunching: model.launchingID == game.id,
+                PlayButton(install: game.install, isLaunching: model.launchingID == game.id || model.sizingID == game.id,
                            isUninstalling: model.uninstallingID == game.id,
                            isRunning: model.isRunning(game),
                            needsConfirmation: model.launchNeedsConfirmation,
-                           status: model.launchPhase?.title,
+                           status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchPhase?.title,
                            unavailable: unavailable, cloud: game.playsInCloud,
                            noSpace: game.downloadNeedsSpace != nil,
                            demo: game.demoOf != nil,

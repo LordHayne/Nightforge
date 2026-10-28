@@ -10,6 +10,7 @@ final class LibraryModel: ObservableObject {
     @Published var selectedIndex = 0 {
         didSet {
             loadStoreDetailsIfNeeded()
+            loadEpicSizeIfNeeded()
             if let game = selected { Task { _ = await insight(of: game) } }
         }
     }
@@ -116,6 +117,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var downloadRates: [GameID: DownloadRate] = [:]
     /// A download that wouldn't fit: which games could make room (SpaceCheck).
     @Published var pendingSpace: SpaceRequest?
+    /// An Epic game whose download waits for Epic to say how big it is.
+    @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
     /// A demo about to get its free licence in Steam's install window: what that takes is said first.
@@ -857,16 +860,43 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Download, unless it wouldn't fit: then the player picks games to make room first.
+    /// An Epic game not on the Mac yet: how big it is, asked from Epic once its page has been looked
+    /// at for a moment (not for every cover scrolled past).
+    private func loadEpicSizeIfNeeded() {
+        guard let game = selected, game.provider == .epic, game.install == .notInstalled, game.sizeOnDisk == 0,
+              game.antiCheatBlock == nil, epic.isSignedIn else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard selected?.id == game.id else { return }
+            _ = await epic.size(of: game)
+        }
+    }
+
+    /// Download, unless it wouldn't fit: then the player picks games to make room first. An Epic
+    /// game whose size isn't known yet asks Epic first; without an answer legendary checks for itself.
     private func downloadIfRoom(_ game: Game) {
+        guard sizingID == nil else { return }  // a second press while Epic is asked
+        guard game.provider == .epic, game.sizeOnDisk == 0, epic.isSignedIn else {
+            downloadIfRoom(game, needed: game.sizeOnDisk)
+            return
+        }
+        sizingID = game.id
+        Task {
+            let size = await epic.size(of: game)
+            sizingID = nil
+            downloadIfRoom(game, needed: size?.install ?? 0)
+        }
+    }
+
+    private func downloadIfRoom(_ game: Game, needed: Int64) {
         let folder = game.installDir
         let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: folder))
-        guard let shortfall = SpaceCheck.shortfall(needed: game.sizeOnDisk, free: free) else {
+        guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free) else {
             download(game)
             return
         }
         let removable = allGames.filter { canUninstall($0) && !isRunning($0) && SpaceCheck.sameVolume($0.installDir, folder) }
-        pendingSpace = SpaceRequest(game: game, free: free, shortfall: shortfall,
+        pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: shortfall,
                                     candidates: SpaceCheck.candidates(removable, except: game))
     }
 
@@ -881,11 +911,11 @@ final class LibraryModel: ObservableObject {
             }
             reload(quiet: true)
             let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: request.game.installDir))
-            if SpaceCheck.shortfall(needed: request.game.sizeOnDisk, free: free) == nil {
+            if SpaceCheck.shortfall(needed: request.needed, free: free) == nil {
                 download(request.game)
             } else {
-                errorMessage = L10n.t("There's still not enough space: Steam needs %@ for %@, your Mac has %@ free.",
-                                      Format.bytes(request.game.sizeOnDisk + SpaceCheck.margin), request.game.name, Format.bytes(free))
+                errorMessage = L10n.t("There's still not enough space: %@ needs %@, your Mac has %@ free.",
+                                      request.game.name, Format.bytes(request.needed + SpaceCheck.margin), Format.bytes(free))
             }
         }
     }

@@ -39,6 +39,9 @@ struct Game: Identifiable, Hashable {
     /// Installed in a Steam library on a drive that isn't connected (its name, "T7"): plays once
     /// it's plugged in, and must not be downloaded again meanwhile.
     var missingDrive: String?
+    /// Not on the Mac yet: what the download comes to, when that's less than `sizeOnDisk` (Epic's
+    /// files come compressed). Steam's games say only the one size.
+    var downloadSize: Int64?
     /// Installed, with an update Steam has to download before it starts: what's left of it
     /// (0 while Steam hasn't worked the size out).
     var pendingUpdate: Int64?

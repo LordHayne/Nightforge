@@ -243,7 +243,8 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   (Abgleich vor/nach dem Spielen, Zeile im „Willkommen zurück“), Deinstallieren, Abbrechen eines größeren Downloads,
   Weiterladen nach einem Neustart von Nightforge, Offline-Start, ein Spiel mit Ownership-Token (`requires_ot`),
   „Mit Google/Apple anmelden“ (öffnet im selben Fenster), Tempo/Restzeit im Download-Panel bei einem großen Spiel,
-  „Update & Play“ bei einem Spiel mit wartendem Update (Fortschritt im Play-Knopf, offline startet die alte Version).
+  „Update & Play“ bei einem Spiel mit wartendem Update (Fortschritt im Play-Knopf, offline startet die alte Version),
+  Größe vor dem Download (`legendary info` auf der Spielseite, Platz-Sheet bei vollem Mac).
 - **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
@@ -252,9 +253,6 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   solange auf dem Mac ein echtes Windows-Spiel läuft (das Skript sucht systemweit nach `\steamapps\common\` und
   `\Epic Games\`). Tests nicht laufen lassen, während ein Spiel läuft – oder das Skript im Test auf einen eigenen
   Prozess-Filter umstellen.
-- **Größe vor dem Download.** Epic-Spiele kennen ihre Größe erst beim Laden, deshalb prüft `SpaceCheck` nichts;
-  legendary bricht selbst mit „Not enough available disk space“ ab (Meldung mit Grund). Besser: `legendary info <app>
-  --json` vorher fragen und das Platz-Sheet zeigen.
 - **Voraussetzungen der Spiele** (VC++-Pakete usw., `prereq_info` in `installed.json`) überspringt legendary mit `-y`.
   Fehlt etwas, lernt Nightforge es aus `wine.log` (winetricks) – oder den Installer des Spiels einmal unter Wine starten.
 - **Nicht dabei:** Spiele, die über EA app oder Ubisoft Connect laufen (ausgelassen), DLCs (`--skip-dlcs`), Mac-Versionen

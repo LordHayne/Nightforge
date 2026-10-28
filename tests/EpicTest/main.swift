@@ -23,6 +23,7 @@ struct EpicTest {
         installs()
         progress()
         updates()
+        sizes()
         launch()
         signIn()
         packed()
@@ -128,6 +129,23 @@ struct EpicTest {
         let halfway = Legendary.progress(inLog: start + "[DLManager] INFO: = Progress: 40.00% (400/996), Running for 00:00:10, ETA: 00:00:15")
         check(EpicStore.updateOutcome(halfway, status: 15) == .failed(L10n.t("legendary stopped (code %d)", 15)),
               "stopped halfway: the game waits for the rest")
+    }
+
+    /// `legendary info --json`: what a game comes to before it's downloaded.
+    static func sizes() {
+        let info = #"""
+        {"game": {"app_name": "Sugar", "title": "Rocket League", "version": "++Prime+Update51-CL-2", "is_dlc": false,
+                  "owned_dlc": [{"app_name": "SugarDLC", "title": "Season Pass", "installable": [{"appId": "SugarDLC"}], "id": "d1"}]},
+         "install": null,
+         "manifest": {"size": 1234, "type": "binary", "version": 21, "build_version": "++Prime+Update51-CL-2",
+                      "disk_size": 26843545600, "download_size": 12884901888, "install_tags": [""]}}
+        """#
+        let size = EpicSize.from(info: Data(info.utf8))
+        check(size == EpicSize(version: "++Prime+Update51-CL-2", download: 12_884_901_888, install: 26_843_545_600),
+              "download and disk size of the newest build: \(String(describing: size))")
+        check(EpicSize.from(info: Data(#"{"game": {"app_name": "Ubi"}, "install": null, "manifest": null}"#.utf8)) == nil,
+              "no manifest (no Windows build): no size")
+        check(EpicSize.from(info: Data("Log in failed!".utf8)) == nil, "no answer: no size")
     }
 
     static func launch() {
@@ -250,7 +268,12 @@ struct EpicTest {
         let installPath = Legendary.gamesDir.appendingPathComponent("rocketleague").path
         let installed = #"{"Sugar": {"app_name": "Sugar", "install_path": "\#(installPath)", "executable": "RL.exe", "install_size": 1000, "version": "1"}}"#
         try? Data(installed.utf8).write(to: Legendary.configDir.appendingPathComponent("installed.json"))
-        try? Data(#"{"Windows": [{"app_name": "Sugar", "build_version": "2"}]}"#.utf8).write(to: Legendary.configDir.appendingPathComponent("assets.json"))
+        try? Data(#"{"Windows": [{"app_name": "Sugar", "build_version": "2"}, {"app_name": "Odd", "build_version": "7"}, {"app_name": "fn", "build_version": "new"}]}"#.utf8)
+            .write(to: Legendary.configDir.appendingPathComponent("assets.json"))
+        // Sizes Epic gave earlier: Odd's for its newest build, Fortnite's for an older one.
+        try? JSONEncoder().encode(["Odd": EpicSize(version: "7", download: 2_000_000_000, install: 5_000_000_000),
+                                   "fn": EpicSize(version: "old", download: 1, install: 2)])
+            .write(to: epicFolder.appendingPathComponent("sizes.json"))
         try? Data(#"{"formatVersion": 1, "games": {"epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#.utf8)
             .write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
 
@@ -275,6 +298,13 @@ struct EpicTest {
         let odd = games.first { $0.gameID == .epic("Odd") }
         check(odd?.install == .notInstalled && odd?.installDir.deletingLastPathComponent().path == Legendary.gamesDir.path,
               "a game not downloaded goes into Epic's folder in the Windows environment")
+        check(odd?.sizeOnDisk == 5_000_000_000 && odd?.downloadSize == 2_000_000_000,
+              "its size is known before the download: what it takes on disk (the space check) and the download")
+        check(SpaceCheck.shortfall(needed: odd?.sizeOnDisk ?? 0, free: 1_000_000_000) != nil, "so a download that won't fit is caught")
+        let fortnite = games.first { $0.gameID == .epic("fn") }
+        check(fortnite?.sizeOnDisk == 0 && fortnite?.downloadSize == nil, "a size from an older build isn't shown")
+        check(await store.size(of: odd!) == EpicSize(version: "7", download: 2_000_000_000, install: 5_000_000_000),
+              "a known size is answered without asking Epic")
         check(games.first { $0.gameID == .epic("fn") }?.antiCheatBlock?.antiCheat == ["Easy Anti-Cheat"],
               "anti-cheat games are marked like Steam's")
 
@@ -287,6 +317,7 @@ struct EpicTest {
         // Epic ended the sign-in (legendary drops it): the games stay, and signing in again is the way out.
         try? fm.removeItem(at: Legendary.configDir.appendingPathComponent("user.json"))
         check(store.isConnected && !store.isSignedIn, "still connected, no longer signed in")
+        check(await store.size(of: fortnite!) == nil, "signed out: Epic isn't asked for a size")
         await store.refresh()
         check(store.sync.state == .signedOut && store.sync.failed, "says Epic signed the player out")
         check(StoreSyncBanner.text(provider: .epic, sync: store.sync)?.contains("Epic Games") == true, "the library's banner says so")
