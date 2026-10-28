@@ -139,7 +139,7 @@ struct DownloadsPanel: View {
         let done = game.sizeOnDisk > 0
             ? L10n.t("%ld %% of %@", Int(fraction * 100), Format.bytes(game.sizeOnDisk))
             : "\(Int(fraction * 100)) %"
-        guard let speed = model.downloadRates[game.appID]?.label(total: Double(game.sizeOnDisk)) else { return done }
+        guard let speed = model.downloadRates[game.gameID]?.label(total: Double(game.sizeOnDisk)) else { return done }
         return done + " · " + speed
     }
 }

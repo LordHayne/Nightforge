@@ -1,21 +1,25 @@
 import AppKit
 
-/// Games outside Nightforge: `nightforge://play/<app ID>` (and `show`), and a small app per game in
+/// Games outside Nightforge: `nightforge://play/<id>` (and `show`), and a small app per game in
 /// ~/Applications/Nightforge Games that opens it – so Spotlight and Launchpad find the game.
 enum GameShortcut {
     enum Action: Equatable {
-        case play(Int)
-        case show(Int)
+        case play(GameID)
+        case show(GameID)
     }
 
-    static func url(play appID: Int) -> URL { URL(string: "nightforge://play/\(appID)")! }
+    /// A Steam game's link carries its bare app ID, as before there were other stores – the apps
+    /// already in Applications keep working; other stores' games their key ("epic.Fortnite").
+    static func linkID(_ game: GameID) -> String { game.steamAppID.map(String.init) ?? game.key }
 
-    /// nightforge://play/570 or nightforge://show/570.
+    static func url(play game: GameID) -> URL { URL(string: "nightforge://play/\(linkID(game))")! }
+
+    /// nightforge://play/570, nightforge://show/570 or nightforge://play/epic.Fortnite.
     static func action(from url: URL) -> Action? {
-        guard url.scheme == "nightforge", let appID = Int(url.lastPathComponent) else { return nil }
+        guard url.scheme == "nightforge", let game = GameID(key: url.lastPathComponent) else { return nil }
         switch url.host {
-        case "play": return .play(appID)
-        case "show": return .show(appID)
+        case "play": return .play(game)
+        case "show": return .show(game)
         default: return nil
         }
     }
@@ -29,7 +33,7 @@ enum GameShortcut {
     static func appURL(for game: Game, in folder: URL = folder) -> URL {
         let name = game.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: " –")
             .trimmingCharacters(in: .whitespaces)
-        return folder.appendingPathComponent(name.isEmpty ? "Game \(game.appID)" : name).appendingPathExtension("app")
+        return folder.appendingPathComponent(name.isEmpty ? "Game \(linkID(game.gameID))" : name).appendingPathExtension("app")
     }
 
     static func exists(for game: Game) -> Bool {
@@ -48,7 +52,7 @@ enum GameShortcut {
 
         let plist: [String: Any] = [
             "CFBundleExecutable": "play",
-            "CFBundleIdentifier": "io.github.lordhayne.nightforge.game.\(game.appID)",
+            "CFBundleIdentifier": "io.github.lordhayne.nightforge.game.\(linkID(game.gameID))",
             "CFBundleName": game.name,
             "CFBundleDisplayName": game.name,
             "CFBundlePackageType": "APPL",
@@ -60,7 +64,7 @@ enum GameShortcut {
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: contents.appendingPathComponent("Info.plist"))
         let script = macOS.appendingPathComponent("play")
-        try "#!/bin/sh\nexec /usr/bin/open \"\(url(play: game.appID).absoluteString)\"\n".write(to: script, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nexec /usr/bin/open \"\(url(play: game.gameID).absoluteString)\"\n".write(to: script, atomically: true, encoding: .utf8)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         if let icon { NSWorkspace.shared.setIcon(square(icon), forFile: app.path, options: []) }
         return app

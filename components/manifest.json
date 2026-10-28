@@ -101,6 +101,16 @@
       "size": 85622,
       "license": "GPL-3.0-or-later",
       "source": "https://github.com/LordHayne/Nightforge"
+    },
+    {
+      "id": "legendary",
+      "kind": "tool",
+      "version": "0.21.1",
+      "url": "https://github.com/legendary-gl/legendary/releases/download/0.21.1/legendary_macOS_arm64",
+      "sha256": "d87978321dba9cb731fab40c72f0a30bed55baca8b5341ab21024c5733cd837e",
+      "size": 15275984,
+      "license": "GPL-3.0-or-later",
+      "source": "https://github.com/legendary-gl/legendary"
     }
   ]
 }

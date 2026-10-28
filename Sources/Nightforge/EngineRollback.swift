@@ -51,7 +51,7 @@ struct EngineHistory: Codable, Equatable {
     var current: EngineBuild?
     var currentSetUp: Date?
     var held: [HeldBuild] = []
-    /// Per game (Steam app ID): the build and way (`LaunchAttempt.id`) it last started well with.
+    /// Per game (`GameID.key`, "steam.570"): the build and way (`LaunchAttempt.id`) it last started well with.
     var lastGood: [String: GoodStart] = [:]
     /// Per game: the held build it starts with, because the newest crashed it.
     var pinned: [String: String] = [:]
@@ -59,6 +59,17 @@ struct EngineHistory: Codable, Equatable {
     struct GoodStart: Codable, Equatable {
         var build: String
         var way: String
+    }
+}
+
+extension EngineHistory {
+    /// Written before games had store and ID (0.2), games were Steam app IDs ("570"): those read as "steam.570".
+    mutating func useGameKeys() {
+        func rekeyed<V>(_ entries: [String: V]) -> [String: V] {
+            Dictionary(entries.map { (GameID(key: $0.key)?.key ?? $0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        }
+        lastGood = rekeyed(lastGood)
+        pinned = rekeyed(pinned)
     }
 }
 
@@ -94,8 +105,9 @@ struct EngineRollback {
     private func load() -> EngineHistory {
         let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         if let cached = Self.cache[file.path], cached.modified == modified { return cached.history }
-        let history = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(EngineHistory.self, from: $0) }
+        var history = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(EngineHistory.self, from: $0) }
             ?? EngineHistory()
+        history.useGameKeys()
         Self.cache[file.path] = (modified, history)
         return history
     }
@@ -174,12 +186,12 @@ struct EngineRollback {
     /// `build` is the one set up now. A new one ends every game's pin – the newest gets another try –
     /// and copies no game needs any more go. The first time, games whose way is already confirmed
     /// (`seed`: app ID → way) count as running well on it. `inUse`: a folder something still runs from.
-    func settle(_ build: EngineBuild, seed: [Int: String] = [:], inUse: (URL) -> Bool = { _ in false },
+    func settle(_ build: EngineBuild, seed: [GameID: String] = [:], inUse: (URL) -> Bool = { _ in false },
                 now: Date = Date()) {
         let removed: [HeldBuild] = change { history in
             if history.current == nil {
-                for (appID, way) in seed where history.lastGood[String(appID)] == nil {
-                    history.lastGood[String(appID)] = .init(build: build.id, way: way)
+                for (game, way) in seed where history.lastGood[game.key] == nil {
+                    history.lastGood[game.key] = .init(build: build.id, way: way)
                 }
             }
             if history.current != build {
@@ -227,9 +239,9 @@ struct EngineRollback {
     // MARK: - Starts
 
     /// The held build the game starts with because the newest crashed it, while its copy is there.
-    func pinnedBuild(_ appID: Int) -> HeldBuild? {
+    func pinnedBuild(_ game: GameID) -> HeldBuild? {
         let history = history()
-        guard let id = history.pinned[String(appID)], let held = history.held.first(where: { $0.build.id == id }),
+        guard let id = history.pinned[game.key], let held = history.held.first(where: { $0.build.id == id }),
               FileManager.default.fileExists(atPath: folder(of: held, part: held.build.engineID).path)
         else { return nil }
         return held
@@ -237,13 +249,13 @@ struct EngineRollback {
 
     /// The first seconds of this start are watched: the game hasn't started well with this build
     /// and way yet (a new engine, another way, or never watched).
-    func needsWatch(_ appID: Int, build: EngineBuild, way: String) -> Bool {
-        history().lastGood[String(appID)] != .init(build: build.id, way: way)
+    func needsWatch(_ game: GameID, build: EngineBuild, way: String) -> Bool {
+        history().lastGood[game.key] != .init(build: build.id, way: way)
     }
 
     /// The game kept running past its first seconds with this build and way.
-    func recordGood(_ appID: Int, build: EngineBuild, way: String) {
-        change { $0.lastGood[String(appID)] = .init(build: build.id, way: way) }
+    func recordGood(_ game: GameID, build: EngineBuild, way: String) {
+        change { $0.lastGood[game.key] = .init(build: build.id, way: way) }
     }
 
     enum Verdict: Equatable {
@@ -256,8 +268,8 @@ struct EngineRollback {
     }
 
     /// The game ended within its first seconds on `build` with `way`.
-    func afterFailedStart(_ appID: Int, build: EngineBuild, way: String) -> Verdict {
-        let key = String(appID)
+    func afterFailedStart(_ game: GameID, build: EngineBuild, way: String) -> Verdict {
+        let key = game.key
         return change { history in
             if history.pinned[key] == build.id {
                 history.pinned[key] = nil
@@ -278,8 +290,8 @@ struct EngineRollback {
 
     /// "Try the newest now": the next start uses the newest build. Should it crash again,
     /// `afterFailedStart` brings the held one back by itself.
-    func tryNewest(_ appID: Int) {
-        change { $0.pinned[String(appID)] = nil }
+    func tryNewest(_ game: GameID) {
+        change { $0.pinned[game.key] = nil }
     }
 
     // MARK: - Labels

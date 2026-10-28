@@ -14,12 +14,15 @@ struct GameShortcutTest {
     }
 
     static func main() {
-        check(GameShortcut.action(from: URL(string: "nightforge://play/1086940")!) == .play(1086940), "play link")
-        check(GameShortcut.action(from: URL(string: "nightforge://show/570")!) == .show(570), "show link")
+        check(GameShortcut.action(from: URL(string: "nightforge://play/1086940")!) == .play(.steam(1086940)), "play link")
+        check(GameShortcut.action(from: URL(string: "nightforge://show/570")!) == .show(.steam(570)), "show link")
         check(GameShortcut.action(from: URL(string: "nightforge://delete/570")!) == nil, "nothing else")
-        check(GameShortcut.action(from: URL(string: "nightforge://play/abc")!) == nil, "an app ID is a number")
+        check(GameShortcut.action(from: URL(string: "nightforge://play/abc")!) == nil, "a bare ID is a Steam app ID, a number")
+        check(GameShortcut.action(from: URL(string: "nightforge://play/epic.Fortnite")!) == .play(.epic("Fortnite")), "other stores carry their key")
+        check(GameShortcut.action(from: URL(string: "nightforge://play/epic.a%20b")!) == nil, "only plain IDs")
         check(GameShortcut.action(from: URL(string: "https://play/570")!) == nil, "only Nightforge's own links")
-        check(GameShortcut.url(play: 570).absoluteString == "nightforge://play/570", "the link a game's app opens")
+        check(GameShortcut.url(play: .steam(570)).absoluteString == "nightforge://play/570", "the link a game's app opens, as before")
+        check(GameShortcut.url(play: .epic("Fortnite")).absoluteString == "nightforge://play/epic.Fortnite", "an Epic game's link")
 
         var game = Game(appID: 1086940, name: "Baldur's Gate 3: Deluxe/Edition", bottle: Engine.bottle, steamRoot: Engine.bottle.url,
                         steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: 0)

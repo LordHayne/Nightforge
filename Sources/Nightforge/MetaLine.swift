@@ -42,8 +42,7 @@ struct MetaLine: View {
     }
 }
 
-/// The store a game is from, small: "STEAM". Epic Games and GOG get theirs with the store
-/// abstraction (roadmap 7.1).
+/// The store a game is from, small: "STEAM", "EPIC GAMES".
 struct StoreBadge: View {
     let store: String
 

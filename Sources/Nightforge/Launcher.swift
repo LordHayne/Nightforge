@@ -208,20 +208,20 @@ struct GameOptions: Codable, Equatable {
 }
 
 enum GameOptionsStore {
-    private static func key(_ appID: Int) -> String { "options.\(appID)" }
+    private static func key(_ game: GameID) -> String { "options.\(game.key)" }
 
-    static func load(_ appID: Int) -> GameOptions {
-        guard let data = UserDefaults.standard.data(forKey: key(appID)),
+    static func load(_ game: GameID) -> GameOptions {
+        guard let data = UserDefaults.standard.data(forKey: key(game)),
               let options = try? JSONDecoder().decode(GameOptions.self, from: data)
         else { return GameOptions() }
         return options
     }
 
-    static func save(_ options: GameOptions, for appID: Int) {
+    static func save(_ options: GameOptions, for game: GameID) {
         if options == GameOptions() {
-            UserDefaults.standard.removeObject(forKey: key(appID))
+            UserDefaults.standard.removeObject(forKey: key(game))
         } else if let data = try? JSONEncoder().encode(options) {
-            UserDefaults.standard.set(data, forKey: key(appID))
+            UserDefaults.standard.set(data, forKey: key(game))
         }
     }
 }
@@ -398,6 +398,45 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+    }
+
+    /// A game from another store (Epic), started straight with Nightforge's engine: the game's
+    /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
+    /// the game log. `environment`: `Engine.directLaunchEnvironment`.
+    static func launchDirect(_ game: Game, command: Legendary.LaunchCommand, runnerPath: String, options: GameOptions,
+                             profile: GameProfile?, frameLimit: Int, extraArguments: [String],
+                             environment gameEnvironment: [String: String]) throws -> Process {
+        guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
+            throw LaunchError.runnerMissing(runnerPath)
+        }
+        let runner = URL(fileURLWithPath: runnerPath)
+        Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
+                                upscaling: options.effectiveUpscaling(profile: profile),
+                                vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
+        Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir)
+        Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+
+        var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
+        // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
+        // choice is in the registry (AppDefaults), which an override here would beat.
+        environment["WINEDLLOVERRIDES"] = nil
+        environment["WINEDEBUG"] = GameLog.wineDebug
+        if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
+        environment.merge(command.environment) { _, store in store }
+        let process = Process()
+        let loader = Engine.loader(for: runner)
+        process.executableURL = loader
+        if loader != runner { environment["WINELOADER"] = loader.path }
+        process.arguments = [Engine.windowsPath(of: command.executable)] + command.arguments + (profile?.arguments ?? [])
+            + extraArguments + splitArguments(options.extraArgs)
+        process.currentDirectoryURL = command.workingDirectory
+        process.environment = environment
+        process.standardInput = FileHandle.nullDevice
+        let log = GameLog.handleForSteam()
+        process.standardOutput = log ?? FileHandle.nullDevice
+        process.standardError = log ?? FileHandle.nullDevice
+        try process.run()
+        return process
     }
 
     /// Splits `-foo "bar baz" -x` into ["-foo", "bar baz", "-x"].

@@ -14,12 +14,19 @@ enum OfflineReadiness: Equatable {
     case launcher(String)
     /// Steam doesn't remember the account, so it can't start offline at all.
     case signInRemembered
+    /// Epic Games doesn't approve it for offline play.
+    case epicOnline
+    /// Epic Games signed the player out: without the account, no start at all.
+    case epicSignedOut
 
+    /// `accountRemembered`: for Epic games, that Nightforge is signed in to Epic.
     static func of(_ game: Game, analysis: GameAnalysis?, accountRemembered: Bool) -> OfflineReadiness {
-        if !accountRemembered { return .signInRemembered }
-        if game.onlineOnly { return .onlineOnly }
+        let epic = game.provider == .epic
+        if !accountRemembered { return epic ? .epicSignedOut : .signInRemembered }
+        if game.onlineOnly { return epic ? .epicOnline : .onlineOnly }
         if let launcher = analysis?.launcher { return .launcher(launcher) }
-        if game.pendingUpdate != nil { return .updateFirst }
+        // An Epic game starts offline with the version it has (legendary doesn't check then).
+        if game.pendingUpdate != nil && !epic { return .updateFirst }
         if game.lastPlayed == nil { return .startOnlineOnce }
         return .ready
     }
@@ -29,8 +36,8 @@ enum OfflineReadiness: Equatable {
         case .ready: return L10n.t("Ready")
         case .startOnlineOnce: return L10n.t("Start online once")
         case .updateFirst: return L10n.t("Update first")
-        case .onlineOnly, .launcher: return L10n.t("Needs internet")
-        case .signInRemembered: return L10n.t("Not yet")
+        case .onlineOnly, .launcher, .epicOnline: return L10n.t("Needs internet")
+        case .signInRemembered, .epicSignedOut: return L10n.t("Not yet")
         }
     }
 
@@ -42,6 +49,8 @@ enum OfflineReadiness: Equatable {
         case .onlineOnly: return L10n.t("Steam lists no single-player mode for it – it needs internet.")
         case .launcher(let name): return L10n.t("It starts through %@, which signs in online.", name)
         case .signInRemembered: return L10n.t("Steam doesn't remember your account: sign in once with “Remember me” so it can start offline.")
+        case .epicOnline: return L10n.t("Epic Games doesn't approve it for offline play – it needs internet.")
+        case .epicSignedOut: return L10n.t("Epic Games signed you out: sign in again in Settings › Stores, then it starts offline too.")
         }
     }
 

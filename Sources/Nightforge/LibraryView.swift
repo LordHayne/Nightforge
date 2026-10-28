@@ -71,7 +71,7 @@ struct LibraryView: View {
         // A changed version moves the game to another Steam: scan again.
         .sheet(isPresented: $model.showingOptions, onDismiss: { model.reload(quiet: true) }) {
             if let game = model.selected {
-                GameOptionsSheet(game: game, insight: model.insights[game.appID]) { model.reportProblem(for: game) }
+                GameOptionsSheet(game: game, insight: model.insights[game.gameID]) { model.reportProblem(for: game) }
             }
         }
         .sheet(item: $model.pendingSpace) { request in
@@ -126,10 +126,12 @@ struct LibraryView: View {
         }
         .sheet(item: $model.pendingUninstall) { game in
             GlassQuestion(game.isInstalled ? L10n.t("Uninstall %@?", game.name) : L10n.t("Cancel the download of %@?", game.name),
-                          message: game.isInstalled
-                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk))
-                              : game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
-                              : L10n.t("The part downloaded so far is deleted. You can start the download again any time."),
+                          message: game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
+                              : !game.isInstalled
+                              ? L10n.t("The part downloaded so far is deleted. You can start the download again any time.")
+                              : game.provider == .epic
+                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", Format.bytes(game.sizeOnDisk))
+                              : L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk)),
                           id: "uninstall") {
                 // Return (and A) keeps the game; uninstalling takes a deliberate click or a pad move first.
                 Button(L10n.t("Keep")) { model.pendingUninstall = nil }
@@ -389,7 +391,7 @@ struct FailedLaunchSheet: View {
     /// Vulkan, OpenGL and DirectX 12 have one way each: nothing to pick by hand.
     private var hasLayers: Bool {
         guard failed.game.bottle.isBuiltIn, failed.game.platform == .windows else { return false }
-        guard let analysis = model.insights[failed.game.appID]?.analysis else { return true }
+        guard let analysis = model.insights[failed.game.gameID]?.analysis else { return true }
         return analysis.usesD3D11 || analysis.usesD3D9 || analysis.apis.isEmpty
     }
 
@@ -825,7 +827,7 @@ private struct GameDetail: View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                MetaLine(compatibility: model.compatibility(of: game), facts: facts)
+                MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: [game.provider.label])
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -893,8 +895,9 @@ private struct GameDetail: View {
                     Stat(label: L10n.t("Bottle"), value: game.bottle.name)
                 }
                 if !compact && game.isInstalled {
-                    let offline = OfflineReadiness.of(game, analysis: model.insights[game.appID]?.analysis,
-                                                      accountRemembered: OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
+                    let offline = OfflineReadiness.of(game, analysis: model.insights[game.gameID]?.analysis,
+                                                      accountRemembered: game.provider == .epic ? model.epic.isSignedIn
+                                                          : OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
                     Stat(label: L10n.t("Offline"), value: offline.label)
                         .help(offline.help)
                         .accessibilityElement(children: .combine)
@@ -924,7 +927,7 @@ private struct GameDetail: View {
             if game.downloadRefused {
                 RefusedDownloadNote()
             }
-            if !compact, let insight = model.insights[game.appID] {
+            if !compact, let insight = model.insights[game.gameID] {
                 GameInsightNotes(game: game, insight: insight)
             }
             // Not while it's being started: "Runs with …" only once it did.
@@ -1038,19 +1041,19 @@ private struct GameDetail: View {
             logo = await ArtworkStore.shared.image(for: game, kind: .logo)
         }
         .task(id: game.id) {
-            guard !compact, game.install != .inStore, facts?.metascore == nil else { return }
+            guard !compact, game.provider == .steam, game.install != .inStore, facts?.metascore == nil else { return }
             askedScore = await Metascores.score(for: game.appID)
         }
     }
 
-    /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it).
+    /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it; other stores' games neither).
     private var facts: StoreFacts? {
-        SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot)
+        game.provider == .steam ? SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot) : nil
     }
 
     /// Steam's catalog first; else what the store said, now or before (offline).
     private var metascore: Int? {
-        facts?.metascore ?? askedScore ?? Metascores.cached(game.appID)
+        facts?.metascore ?? askedScore ?? (game.provider == .steam ? Metascores.cached(game.appID) : nil)
     }
 
     /// Nothing a Mac can run (VR only, anti-cheat): the button says why instead.
@@ -1451,6 +1454,17 @@ struct CoverCard: View {
         .saturation(game.install == .notInstalled || game.install == .inStore ? 0.15 : 1)
         .overlay(alignment: .bottom) { installBadge }
         .overlay(alignment: .topTrailing) {
+            // Another store than Steam: which one (Steam is where most games come from).
+            if game.provider != .steam {
+                Text(game.provider.short)
+                    .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Theme.night.opacity(0.78), in: Capsule())
+                    .padding(7)
+                    .help(L10n.t("From %@", game.provider.label))
+            }
             // The version in use; in the store, that Steam has one.
             if game.platform == .mac || (game.install == .inStore && game.macNative) {
                 Text("MAC")
@@ -1529,6 +1543,7 @@ struct CoverCard: View {
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }
+        if game.provider != .steam { parts.append(L10n.t("From %@", game.provider.label)) }
         if isPinned { parts.append(L10n.t("Pinned to Home")) }
         if game.controller != .none { parts.append(game.controller.help) }
         if isRunning { parts.append(L10n.t("Running")) }
@@ -1856,8 +1871,8 @@ private struct GameInsightNotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if GameOptionsStore.load(game.appID).graphics == .automatic,
-               let healed = LaunchHealth.note(game.appID, insight.attempts) {
+            if GameOptionsStore.load(game.gameID).graphics == .automatic,
+               let healed = LaunchHealth.note(game.gameID, insight.attempts) {
                 note(healed, systemImage: "wand.and.stars")
             }
             if insight.analysis.onlyD3D12, !insight.attempts.contains(where: { $0.graphics == .d3dmetal }) {
