@@ -165,8 +165,9 @@ enum SaveTransfer {
     }
 
     /// A Windows root inside the Wine prefix. Folders that still lead out of it (a user folder
-    /// linked to the Mac's own) are left alone: macOS would ask for access to them.
-    private static func windowsRoot(_ root: String, _ places: Places) -> URL? {
+    /// linked to the Mac's own) are left alone: macOS would ask for access to them. Profiles'
+    /// settings files use the same roots (Engine.applyFileEdits, Engine.applyIniSettings).
+    static func windowsRoot(_ root: String, _ places: Places) -> URL? {
         let user = places.prefix.appendingPathComponent("drive_c/users/\(places.windowsUser)", isDirectory: true)
         let folder: URL
         switch root.lowercased() {

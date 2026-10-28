@@ -103,7 +103,12 @@ enum Engine {
     static var steamConfigSignature: String {
         "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
             + launchEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            + (launchRetina ? "-retina" : "")
     }
+
+    /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
+    /// resolution rather than half of it. Wine takes it for a whole session, like the environment.
+    static var launchRetina = false
 
     /// What the game about to start needs on top of `gameEnvironment` ("" takes a variable away).
     /// A game gets the environment of the Steam that starts it, as it was when that Steam started –
@@ -120,8 +125,10 @@ enum Engine {
     /// Sets what a game needs from Steam's environment: Rosetta's AVX hint, and D3DMetal's
     /// settings, which it only takes from there (Apple's readme): D3DM_MAX_FPS caps the frame rate,
     /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
-    /// are, so going back and forth costs no restart. True when the running Steam has to restart.
-    static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool) -> Bool {
+    /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
+    /// session has to start with as well. True when the running Steam has to restart.
+    static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
+                                         retina: Bool = false) -> Bool {
         var wanted = launchEnvironment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
         if d3dMetal {
@@ -129,8 +136,25 @@ enum Engine {
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
-        defer { launchEnvironment = wanted }
-        return wanted != launchEnvironment
+        defer {
+            launchEnvironment = wanted
+            launchRetina = retina
+        }
+        return wanted != launchEnvironment || retina != launchRetina
+    }
+
+    /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
+    /// the screen the way it was when the session began, so the one regedit opens ends as well.
+    static func applyRetinaMode(_ wine: URL, defaults: UserDefaults = .standard) {
+        let key = "retinaMode"
+        // Never under a running game: ending the session would end it too.
+        guard defaults.bool(forKey: key) != launchRetina,
+              !ownProcesses().contains(where: { $0.command.lowercased().contains(#"\steamapps\common\"#) })
+        else { return }
+        importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
+                       wine: wine)
+        stopAll(wine)
+        defaults.set(launchRetina, forKey: key)
     }
 
     /// Wine's builtin crypto avoids TLS failures in Steam's browser; the overlay DLL deadlocks games.
@@ -508,20 +532,27 @@ enum Engine {
         try? text.write(to: file, atomically: true, encoding: .utf8)
     }
 
-    /// The engine's wine binary without async work (for app shutdown): the newest installed copy.
-    static func installedWineNow() -> URL? {
-        let versions = [winecxEngineID, engineID].flatMap { id in
-            (try? FileManager.default.contentsOfDirectory(
-                at: ComponentStore.shared.root.appendingPathComponent(id, isDirectory: true),
+    /// The engine's wine binary without async work (for app shutdown, `d3dMetalReady`): the newest
+    /// installed copy of the engine the component list names (`engineComponent`), winecx when there
+    /// is no list. Gcenx's engine stays on disk after the switch to winecx, and its folder may well be
+    /// the younger one – going by dates alone took it, and D3DMetal looked missing.
+    static func installedWineNow(root: URL = ComponentStore.shared.root,
+                                 manifest: ComponentManifest? = ComponentStore.localManifest()) -> URL? {
+        let preferred = manifest.flatMap(engineComponent(in:))?.id ?? winecxEngineID
+        for id in [preferred] + [winecxEngineID, engineID].filter({ $0 != preferred }) {
+            let versions = (try? FileManager.default.contentsOfDirectory(
+                at: root.appendingPathComponent(id, isDirectory: true),
                 includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+            let newest = versions
+                .sorted { a, b in
+                    let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    return da > db
+                }
+                .lazy.compactMap(wineBinary(in:)).first
+            if let newest { return newest }
         }
-        return versions
-            .sorted { a, b in
-                let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return da > db
-            }
-            .lazy.compactMap(wineBinary(in:)).first
+        return nil
     }
 
     /// An installed component's folder without async work: the newest unpacked version of `id`.
@@ -1551,6 +1582,7 @@ enum Engine {
             guard !current, !busy else { return }
             try await restartSteamInBackground(wine)
         } else {
+            if !busy { applyRetinaMode(wine) }
             try startSteam(wine, arguments: ["-silent"])
         }
         UserDefaults.standard.set(steamConfigSignature, forKey: key)
@@ -1589,21 +1621,92 @@ enum Engine {
 
     /// A profile's changes to the game's own settings files (GameProfile.fileEdits). A file the game
     /// writes at its first start isn't there before it; true when anything changed, so a start
-    /// that crashed on such a setting can be tried again right away.
+    /// that crashed on such a setting can be tried again right away. An edit marked `once` counts
+    /// as done at the first start that finds its file, matched or not: from then on the player decides.
     @discardableResult
-    static func applyFileEdits(_ edits: [GameProfile.FileEdit], installDir: URL) -> Bool {
+    static func applyFileEdits(_ edits: [GameProfile.FileEdit], installDir: URL, appID: Int = 0,
+                               places: SaveTransfer.Places = SaveTransfer.Places(),
+                               defaults: UserDefaults = .standard) -> Bool {
         var changed = false
-        let root = installDir.standardizedFileURL.path
+        var places = places
+        places.windowsInstall = installDir
         for edit in edits {
-            let file = installDir.appendingPathComponent(edit.path).standardizedFileURL
-            guard file.path.hasPrefix(root + "/"), !edit.find.isEmpty,
-                  let text = try? String(contentsOf: file, encoding: .utf8), text.contains(edit.find)
+            let done = "fileEdit.done.\(appID).\(edit.root ?? "GameInstall")/\(edit.path)#\(edit.find)"
+            guard edit.once != true || !defaults.bool(forKey: done),
+                  let base = edit.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir
             else { continue }
+            let file = base.appendingPathComponent(edit.path).standardizedFileURL
+            guard file.path.hasPrefix(base.standardizedFileURL.path + "/"), !edit.find.isEmpty,
+                  let text = try? String(contentsOf: file, encoding: .utf8)
+            else { continue }
+            if edit.once == true { defaults.set(true, forKey: done) }
+            guard text.contains(edit.find) else { continue }
             if (try? text.replacingOccurrences(of: edit.find, with: edit.replace).write(to: file, atomically: true, encoding: .utf8)) != nil {
                 changed = true
             }
         }
         return changed
+    }
+
+    /// A profile's values for the game's own .ini files (GameProfile.iniSettings), set in their
+    /// section before every start; the file and its folders are made when the game hasn't yet.
+    static func applyIniSettings(_ settings: [GameProfile.IniSetting], places: SaveTransfer.Places = SaveTransfer.Places()) {
+        for setting in settings where !setting.values.isEmpty {
+            guard let base = SaveTransfer.windowsRoot(setting.root, places) else { continue }
+            let file = base.appendingPathComponent(setting.path).standardizedFileURL
+            guard file.path.hasPrefix(base.standardizedFileURL.path + "/") else { continue }
+            let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let merged = mergingIni(text, section: setting.section, values: setting.values)
+            guard merged != text else { continue }
+            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? merged.write(to: file, atomically: true, encoding: .utf8)
+        }
+    }
+
+    /// `text` with `values` set in `[section]`: keys already there get the new value, the others
+    /// go at the end of the section (sorted, so the file stays the same from start to start), and
+    /// a missing section is added at the end. Everything else stays as the game wrote it.
+    static func mergingIni(_ text: String, section: String, values: [String: String]) -> String {
+        var lines = text.isEmpty ? [] : text.components(separatedBy: "\n")
+        if lines.last == "" { lines.removeLast() }
+        let crlf = lines.first?.hasSuffix("\r") == true
+        var pending = values
+        var out: [String] = []
+        var inSection = false
+        var found = false
+        func flush() {
+            // Before the blank lines that end the section.
+            var tail: [String] = []
+            while let last = out.last, last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { tail.insert(out.removeLast(), at: 0) }
+            out += pending.keys.sorted().map { "\($0)=\(pending[$0]!)" + (crlf ? "\r" : "") }
+            out += tail
+            pending = [:]
+        }
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                if inSection { flush() }
+                inSection = trimmed.dropFirst().dropLast().caseInsensitiveCompare(section) == .orderedSame
+                found = found || inSection
+                out.append(line)
+                continue
+            }
+            if inSection, let equals = trimmed.firstIndex(of: "=") {
+                let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
+                if let value = pending.removeValue(forKey: key) {
+                    out.append("\(key)=\(value)" + (crlf ? "\r" : ""))
+                    continue
+                }
+            }
+            out.append(line)
+        }
+        if inSection { flush() }
+        if !found, !pending.isEmpty {
+            if let last = out.last, !last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(crlf ? "\r" : "") }
+            out.append("[\(section)]" + (crlf ? "\r" : ""))
+            flush()
+        }
+        return out.isEmpty ? "" : out.joined(separator: "\n") + "\n"
     }
 
     private static func writeConfig(_ file: URL, lines: [String], keepWhenEmpty: Bool = true) {
@@ -1637,6 +1740,7 @@ enum Engine {
     /// Quits Steam politely (so it saves its state) and starts it again hidden.
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
+        applyRetinaMode(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }

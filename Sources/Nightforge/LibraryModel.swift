@@ -1604,7 +1604,8 @@ final class LibraryModel: ObservableObject {
                 if let build, EngineRollback.shared.needsWatch(game.appID, build: build, way: way) { watchFirstSeconds = true }
                 if game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.appID, profile: profile), d3dMetal: layer == .d3dmetal,
-                                                   frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile)),
+                                                   frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
+                                                   retina: profile?.retina == true),
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
@@ -1645,7 +1646,7 @@ final class LibraryModel: ObservableObject {
                     LearnedFixes.addWinetricks(needed, for: game.appID)
                     continue
                 }
-                if game.bottle.isBuiltIn, Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir) {
+                if game.bottle.isBuiltIn, Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, appID: game.appID) {
                     // The game wrote its settings file at its first start, with a setting its
                     // profile turns off: the same way again, with the file fixed.
                     continue
