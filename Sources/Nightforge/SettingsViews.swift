@@ -10,119 +10,58 @@ struct GameOptionsSheet: View {
     @State private var options: GameOptions
     /// Known fixes for the game, so "Automatic" shows what it will really do.
     @State private var profile: GameProfile?
+    /// The expert options are open – from the start when they're what counts (Custom).
+    @State private var expertOpen: Bool
+    /// How tall the options are: they scroll only when the window leaves less room.
+    @State private var contentHeight: CGFloat = 0
+    @ObservedObject private var padFocus = PadFocus.shared
 
     init(game: Game, insight: GameInsight?, report: @escaping () -> Void) {
         self.game = game
         self.insight = insight
         self.report = report
-        _options = State(initialValue: GameOptionsStore.load(game.gameID))
+        let stored = GameOptionsStore.load(game.gameID)
+        _options = State(initialValue: stored)
+        _expertOpen = State(initialValue: stored.preset == .custom)
     }
 
     var body: some View {
-        GlassDialog(game.name, id: "options", spacing: 22) {
-            if profileOrigin != nil || options != GameOptions() {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let origin = profileOrigin {
-                            Label(origin.text, systemImage: origin.symbol)
-                                .font(.system(size: 13.5, weight: .medium))
-                                .help(profile?.note ?? origin.text)
-                        }
-                        if options != GameOptions() {
-                            Text(L10n.t("Your own settings."))
-                                .font(.system(size: 12.5))
-                                .foregroundStyle(Theme.muted)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    if options != GameOptions() {
-                        Button(profileOrigin == nil ? L10n.t("Back to Automatic") : L10n.t("Back to the Profile")) { options = GameOptions() }
-                            .buttonStyle(GlassTextButtonStyle(small: true))
-                            .padFocus("options.reset", cornerRadius: 15, activate: { options = GameOptions() })
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .glassWell()
-            }
-
-            if game.switchable {
-                VStack(alignment: .leading, spacing: 6) {
-                    Picker(L10n.t("Version"), selection: $options.version) {
-                        Text(automaticLabel(automaticVersion == .mac ? "Mac" : "Windows")).tag(GameVersion.automatic)
-                        Text("Mac").tag(GameVersion.mac)
-                        Text("Windows").tag(GameVersion.windows)
-                    }
-                    .padFocus("options.version", selection: $options.version, values: [.automatic, .mac, .windows])
-                    caption(game.platform == .mac
-                            ? L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation; its graphics settings are in the game itself. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs.")
-                            : L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs."))
-                }
-            }
-
-            if !game.bottle.isBuiltIn && game.platform == .windows {
-                Toggle(isOn: $options.metalHUD) {
-                    switchLabel(L10n.t("Performance HUD in game"),
-                                L10n.t("Shows frames per second, frame times and GPU load in the top left corner of the game."))
-                }
-                .toggleStyle(GlassSwitchStyle())
-                .padFocus("options.hud", toggle: $options.metalHUD)
-            }
-
-            if game.bottle.isBuiltIn {
-                VStack(alignment: .leading, spacing: 6) {
-                    if layers.isEmpty {
-                        Text(L10n.t("Graphics"))
-                            .font(.system(size: 14, weight: .medium))
-                    } else {
-                        Picker(L10n.t("Graphics"), selection: $options.graphics) {
-                            ForEach(layers) { layer in
-                                Text(layer == .automatic ? automaticLabel(automaticWay.shortLabel) : layer.label).tag(layer)
+        GlassDialog(game.name, id: "options", width: 520, spacing: 20) {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 22) {
+                        profileLine
+                        if game.switchable { versionChoice }
+                        if game.bottle.isBuiltIn { presets }
+                        if !game.bottle.isBuiltIn && game.platform == .windows {
+                            Toggle(isOn: $options.metalHUD) {
+                                switchLabel(L10n.t("Performance HUD in game"),
+                                            L10n.t("Shows frames per second, frame times and GPU load in the top left corner of the game."))
                             }
+                            .toggleStyle(GlassSwitchStyle())
+                            .padFocus("options.hud", toggle: $options.metalHUD)
+                            .id("options.hud")
                         }
-                        .padFocus("options.graphics", selection: $options.graphics, values: layers)
+                        if game.bottle.isBuiltIn { expertSection }
+                        launchOptions
                     }
-                    caption(graphicsCaption)
+                    // Room for the pad's highlight, which reaches a little past each control.
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                 }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Picker(L10n.t("Frame limit"), selection: $options.frameLimit) {
-                        // What the next start uses, including what Nightforge learned (FramePacing).
-                        Text(automaticLabel(FramePacing.automaticLimit(
-                            game: game.gameID, options: { var o = options; o.frameLimit = nil; return o }(),
-                            profile: profile, refreshRate: refreshRate).limit.fpsLabel))
-                            .tag(Int?.none)
-                        ForEach(GameOptions.frameLimits, id: \.self) { limit in
-                            Text(limit.fpsLabel).tag(Int?.some(limit))
-                        }
-                    }
-                    .padFocus("options.frameLimit", selection: $options.frameLimit,
-                              values: [Int?.none] + GameOptions.frameLimits.map { Int?.some($0) })
-                    Picker(L10n.t("MetalFX upscaling"), selection: $options.upscaling) {
-                        Text(automaticLabel(GameOptions().effectiveUpscaling(profile: profile) ? L10n.t("On") : L10n.t("Off"))).tag(Choice.automatic)
-                        Text(L10n.t("On")).tag(Choice.on)
-                        Text(L10n.t("Off")).tag(Choice.off)
-                    }
-                    .disabled(!drawsWith.upscales || layers.isEmpty)
-                    .padFocus("options.upscaling", enabled: drawsWith.upscales && !layers.isEmpty,
-                              selection: $options.upscaling, values: [.automatic, .on, .off])
-                    caption(L10n.t("Automatic follows “Sharp & smooth” in Settings. The frame limit keeps frames even; MetalFX upscales the picture to full Retina sharpness (not with WineD3D) – set a lower resolution in the game for more FPS."))
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: min(contentHeight, maxScrollHeight))
+                .padding(.horizontal, -8)
+                .onChange(of: padFocus.focused) { _, id in
+                    // The pad's highlight stays in view, so what's further down comes up as it moves on.
+                    guard let id, let section = Self.sections.first(where: { id.hasPrefix($0) }) else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(section, anchor: .center) }
                 }
-
-                Toggle(isOn: $options.hdr) {
-                    switchLabel("HDR", L10n.t("For games that draw through Vulkan, on the XDR display. Off by default: under Wine HDR mostly looks washed out."))
+                .onChange(of: expertOpen) { _, open in
+                    guard open else { return }
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("options.expert", anchor: .top) }
                 }
-                .toggleStyle(GlassSwitchStyle())
-                .disabled(drawsWith == .dxmt && insight?.analysis.apis.contains(.vulkan) != true)
-                .padFocus("options.hdr", enabled: !(drawsWith == .dxmt && insight?.analysis.apis.contains(.vulkan) != true),
-                          toggle: $options.hdr)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L10n.t("Launch Options"))
-                    .font(.system(size: 14, weight: .medium))
-                GlassTextField(prompt: L10n.t("e.g. -dx11 -skipintro"), text: $options.extraArgs, id: "options.args", monospaced: true)
-                caption(L10n.t("Passed straight to the game at launch."))
             }
 
             HStack(spacing: 8) {
@@ -147,9 +86,198 @@ struct GameOptionsSheet: View {
             if game.bottle.isBuiltIn || game.switchable { profile = await ProfileStore.shared.profile(for: game.appID) }
         }
     }
+
+    /// The parts that scroll into view with the pad, by the start of their controls' ids.
+    private static let sections = ["options.reset", "options.version", "options.preset", "options.hud", "options.expert",
+                                   "options.graphics", "options.frameLimit", "options.upscaling", "options.hdr", "options.args"]
 }
 
+// MARK: - Parts
+
 private extension GameOptionsSheet {
+    /// Where the game's fixes come from, and the way back to them once something is changed.
+    @ViewBuilder var profileLine: some View {
+        let origin = ProfileOrigin(profile)
+        if origin != nil || options != GameOptions() {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    if let origin {
+                        Label(origin.text, systemImage: origin.symbol)
+                            .font(.system(size: 13.5, weight: .medium))
+                            .help(origin.note ?? origin.text)
+                    }
+                    if options != GameOptions() {
+                        Text(L10n.t("Your own settings."))
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+                Spacer(minLength: 0)
+                if options != GameOptions() {
+                    Button(origin == nil ? L10n.t("Back to Automatic") : L10n.t("Back to the Profile")) { options = GameOptions() }
+                        .buttonStyle(GlassTextButtonStyle(small: true))
+                        .fixedSize()
+                        .padFocus("options.reset", cornerRadius: 15, activate: { options = GameOptions() })
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .glassWell()
+            .id("options.reset")
+        }
+    }
+
+    var versionChoice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            title(L10n.t("Version"))
+            Segmented(options: [(GameVersion.automatic, automaticLabel(automaticVersion == .mac ? "Mac" : "Windows"), nil),
+                                (.mac, "Mac", nil), (.windows, "Windows", nil)],
+                      selection: options.version, id: "options.version") { options.version = $0 }
+            caption(game.platform == .mac
+                    ? L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation; its graphics settings are in the game itself. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs.")
+                    : L10n.t("Mac runs Steam's native Mac version through Steam for Mac, without any Windows translation. Windows runs the Windows version through Wine. Automatic takes the Mac version when it runs on current Macs."))
+        }
+        .id("options.version")
+    }
+
+    /// The four presets as cards, two by two; none is lit while the expert options say otherwise.
+    var presets: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            title(L10n.t("Graphics"))
+            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    presetCard(.automatic)
+                    presetCard(.balanced)
+                }
+                GridRow {
+                    presetCard(.fastest)
+                    presetCard(.compatible)
+                }
+            }
+            if options.preset == .custom {
+                Label(GraphicsPreset.custom.help, systemImage: "slider.horizontal.3")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Theme.ink.opacity(0.85))
+            }
+        }
+        .id("options.preset")
+    }
+
+    func presetCard(_ preset: GraphicsPreset) -> some View {
+        let on = options.preset == preset
+        return Button { options.choose(preset) } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(preset.label)
+                        .font(.system(size: 13.5, weight: .semibold))
+                    if preset == .automatic {
+                        Text(L10n.t("recommended"))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(on ? Theme.night.opacity(0.6) : Theme.muted)
+                    }
+                }
+                Text(preset.help)
+                    .font(.system(size: 12))
+                    .lineSpacing(1)
+                    .foregroundStyle(on ? Theme.night.opacity(0.75) : Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(on ? Theme.night : Theme.ink)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+        }
+        .buttonStyle(PresetCardStyle(on: on))
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .padFocus("options.preset.\(preset.rawValue)", cornerRadius: 16, preferred: on, activate: { options.choose(preset) })
+    }
+
+    /// The single switches the presets stand for, folded away: changing one makes it "Custom".
+    var expertSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Button(action: toggleExpert) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .rotationEffect(.degrees(expertOpen ? 90 : 0))
+                    Text(L10n.t("Expert options"))
+                        .font(.system(size: 14, weight: .medium))
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(Theme.ink.opacity(0.9))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(expertOpen ? L10n.t("Expanded") : L10n.t("Collapsed"))
+            .padFocus("options.expert", cornerRadius: 8, activate: toggleExpert)
+            .id("options.expert")
+
+            if expertOpen {
+                expertOptions
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    @ViewBuilder var expertOptions: some View {
+        let shown = expert
+        VStack(alignment: .leading, spacing: 8) {
+            title(L10n.t("Graphics layer"))
+            if !layers.isEmpty {
+                Segmented(options: layers.map { ($0, $0 == .automatic ? automaticLabel(automaticWay.shortLabel) : $0.shortLabel, nil) },
+                          selection: shown.graphics, id: "options.graphics") { layer in change { $0.graphics = layer } }
+            }
+            caption(graphicsCaption)
+        }
+        .id("options.graphics")
+
+        VStack(alignment: .leading, spacing: 8) {
+            title(L10n.t("Frame limit"))
+            Segmented(options: [(Int?.none, automaticLabel(automaticLimit.fpsLabel), nil)]
+                        + GameOptions.frameLimits.map { (Int?.some($0), $0 == 0 ? L10n.t("Off") : "\($0)", nil) },
+                      selection: shown.frameLimit, id: "options.frameLimit") { limit in change { $0.frameLimit = limit } }
+        }
+        .id("options.frameLimit")
+
+        VStack(alignment: .leading, spacing: 8) {
+            // WineD3D draws through OpenGL, which MetalFX can't reach: nothing to choose there.
+            if canChooseUpscaling {
+                title(L10n.t("MetalFX upscaling"))
+                Segmented(options: [(Choice.automatic, automaticLabel(GameOptions().effectiveUpscaling(profile: profile) ? L10n.t("On") : L10n.t("Off")), nil),
+                                    (.on, L10n.t("On"), nil), (.off, L10n.t("Off"), nil)],
+                          selection: shown.upscaling, id: "options.upscaling") { choice in change { $0.upscaling = choice } }
+            }
+            caption(L10n.t("Automatic follows “Sharp & smooth” in Settings. The frame limit keeps frames even; MetalFX upscales the picture to full Retina sharpness (not with WineD3D) – set a lower resolution in the game for more FPS."))
+        }
+        .id("options.upscaling")
+
+        // Not part of any preset: it doesn't make them "Custom".
+        Toggle(isOn: $options.hdr) {
+            switchLabel("HDR", L10n.t("For games that draw through Vulkan, on the XDR display. Off by default: under Wine HDR mostly looks washed out."))
+        }
+        .toggleStyle(GlassSwitchStyle())
+        .disabled(!canUseHDR)
+        .padFocus("options.hdr", enabled: canUseHDR, toggle: $options.hdr)
+        .id("options.hdr")
+    }
+
+    var launchOptions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            title(L10n.t("Launch Options"))
+            GlassTextField(prompt: L10n.t("e.g. -dx11 -skipintro"), text: $options.extraArgs, id: "options.args", monospaced: true)
+            caption(L10n.t("Passed straight to the game at launch."))
+        }
+        .id("options.args")
+    }
+}
+
+// MARK: - What it means
+
+private extension GameOptionsSheet {
+    func title(_ text: String) -> some View {
+        Text(text).font(.system(size: 14, weight: .medium))
+    }
+
     /// What an option means, under it.
     func caption(_ text: String) -> some View {
         Text(text)
@@ -169,6 +297,10 @@ private extension GameOptionsSheet {
         }
     }
 
+    func toggleExpert() {
+        withAnimation(.easeOut(duration: 0.2)) { expertOpen.toggle() }
+    }
+
     func reportProblem() {
         report()
         dismiss()
@@ -182,18 +314,38 @@ private extension GameOptionsSheet {
         dismiss()
     }
 
+    /// The expert options as the preset sets them – what they show, and where "Custom" starts from.
+    var expert: GameOptions {
+        var shown = options.resolved(refreshRate: refreshRate, profile: profile)
+        // "Most compatible" turned "Custom" keeps the layer it draws with, rather than Automatic's.
+        if options.preset == .compatible, choosableLayers.contains(way(for: .compatible).graphics) {
+            shown.graphics = way(for: .compatible).graphics
+        }
+        return shown
+    }
+
+    /// One expert option changed: from now on the expert options count, unless all are automatic again.
+    func change(_ edit: (inout GameOptions) -> Void) {
+        var next = expert
+        edit(&next)
+        next.preset = next.graphics == .automatic && next.frameLimit == nil && next.upscaling == .automatic ? .automatic : .custom
+        options = next
+    }
+
     var refreshRate: Int { GameDisplay.screen?.maximumFramesPerSecond ?? 60 }
 
-    /// Where the game's known fixes come from: Nightforge's own test, or umu-protonfixes.
-    var profileOrigin: (text: String, symbol: String)? {
-        guard let profile else { return nil }
-        if profile.fromNightforge {
-            let chips = Compatibility.chips(in: profile.note)
-            return (chips.isEmpty ? L10n.t("Tested by Nightforge") : L10n.t("Tested by Nightforge on %@", chips.joined(separator: ", ")),
-                    "checkmark.seal")
-        }
-        if profile.hasFixes { return (L10n.t("Community fix · from umu-protonfixes"), "person.2") }
-        return nil
+    /// Leaves room for the title, the buttons and the sheet's edges in the main window.
+    var maxScrollHeight: CGFloat {
+        let window = NSApp.windows.first { $0.title == "Nightforge" }?.contentLayoutRect.height
+            ?? NSScreen.main?.visibleFrame.height ?? 800
+        return max(260, window - 230)
+    }
+
+    /// What the next start uses for "Automatic", including what Nightforge learned (FramePacing).
+    var automaticLimit: Int {
+        var automatic = expert
+        automatic.frameLimit = nil
+        return FramePacing.automaticLimit(game: game.gameID, options: automatic, profile: profile, refreshRate: refreshRate).limit
     }
 
     func automaticLabel(_ value: String) -> String { L10n.t("Automatic (%@)", value) }
@@ -209,24 +361,36 @@ private extension GameOptionsSheet {
     }
 
     /// The layers that fit what the game draws with; none for Vulkan, OpenGL and DirectX 12.
-    var layers: [GraphicsLayer] {
-        var list: [GraphicsLayer]
+    var choosableLayers: [GraphicsLayer] {
         if let analysis = insight?.analysis, !analysis.usesD3D11, !analysis.apis.isEmpty {
-            list = analysis.usesD3D9 ? [.automatic, .dxvk, .wined3d] : []
-        } else {
-            list = [.automatic, .dxmt, .dxvk]
+            return analysis.usesD3D9 ? [.automatic, .dxvk, .wined3d] : []
         }
-        if !list.isEmpty, !list.contains(options.graphics) { list.append(options.graphics) }
+        return [.automatic, .dxmt, .dxvk]
+    }
+
+    /// The choosable layers, plus one picked before that no longer fits (D3DMetal, say).
+    var layers: [GraphicsLayer] {
+        var list = choosableLayers
+        let picked = expert.graphics
+        if !list.isEmpty, !list.contains(picked) { list.append(picked) }
         return list
     }
 
-    /// The way "Automatic" takes right now (LaunchHealth).
-    var automaticWay: LaunchAttempt {
-        guard let attempts = insight?.attempts, !attempts.isEmpty else { return LaunchAttempt(graphics: Engine.defaultGraphics) }
+    /// The way a preset's list takes right now (LaunchHealth).
+    func way(for preset: GraphicsPreset) -> LaunchAttempt {
+        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: preset, profile: profile)
+        guard !attempts.isEmpty else { return LaunchAttempt(graphics: Engine.defaultGraphics) }
         return attempts[LaunchHealth.current(game.gameID, attempts).index]
     }
 
-    var drawsWith: GraphicsLayer { options.graphics == .automatic ? automaticWay.graphics : options.graphics }
+    /// The way "Automatic" takes in the graphics layer row: in "Most compatible"'s order there.
+    var automaticWay: LaunchAttempt { way(for: options.preset) }
+
+    var drawsWith: GraphicsLayer { expert.graphics == .automatic ? automaticWay.graphics : expert.graphics }
+
+    var canChooseUpscaling: Bool { drawsWith.upscales && !layers.isEmpty }
+
+    var canUseHDR: Bool { !(drawsWith == .dxmt && insight?.analysis.apis.contains(.vulkan) != true) }
 
     var graphicsCaption: String {
         guard let analysis = insight?.analysis, !analysis.apis.isEmpty else {
@@ -239,6 +403,37 @@ private extension GameOptionsSheet {
             return L10n.t("This game uses %@. DXVK is usually faster; WineD3D runs some older games DXVK can't. Automatic switches by itself if a game doesn't start.", analysis.summary)
         }
         return L10n.t("This game uses %@ and draws without a DirectX layer, so there's nothing to choose here.", analysis.summary)
+    }
+}
+
+/// A preset's card: ink while it's the one chosen, a dark well that lightens under the pointer otherwise.
+private struct PresetCardStyle: ButtonStyle {
+    let on: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        PresetCard(label: configuration.label, on: on, pressed: configuration.isPressed)
+    }
+
+    private struct PresetCard<Label: View>: View {
+        let label: Label
+        let on: Bool
+        let pressed: Bool
+        @State private var hovering = false
+        @Environment(\.reduceMotion) private var reduceMotion
+
+        var body: some View {
+            let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+            label
+                .background(on ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Color.white.opacity(hovering ? 0.1 : 0)), in: shape)
+                .background(on ? .clear : .black.opacity(0.2), in: shape)
+                .overlay(shape.strokeBorder(.white.opacity(on ? 0 : 0.1)))
+                .shadow(color: .black.opacity(on ? 0.3 : 0), radius: 6, y: 3)
+                .contentShape(shape)
+                .scaleEffect(pressed && !reduceMotion ? 0.98 : 1)
+                .onHover { hovering = $0 }
+                .animation(.easeOut(duration: 0.15), value: hovering)
+                .animation(.easeOut(duration: 0.15), value: on)
+        }
     }
 }
 

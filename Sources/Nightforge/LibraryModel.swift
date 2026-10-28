@@ -1744,11 +1744,12 @@ final class LibraryModel: ObservableObject {
             let profile = viaSteam && game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
             let insight = await insight(of: game)
             let analysis = insight?.analysis
-            var options = GameOptionsStore.load(game.gameID)
-            let automatic = game.bottle.isBuiltIn && options.graphics == .automatic
-            let attempts = insight?.attempts ?? []
-            if automatic { LaunchHealth.review(game.gameID, attempts, steamRoot: game.steamRoot) }
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
+            // A preset fixes frame limit and MetalFX; "Most compatible" tries the safest way first.
+            var options = GameOptionsStore.load(game.gameID).resolved(refreshRate: refreshRate, profile: profile)
+            let automatic = game.bottle.isBuiltIn && options.graphics == .automatic
+            let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile)
+            if automatic { LaunchHealth.review(game.gameID, attempts, steamRoot: game.steamRoot) }
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
                 await Task.detached(priority: .utility) {
@@ -1797,7 +1798,9 @@ final class LibraryModel: ObservableObject {
                     frameLimit = capped
                     learning = false
                 }
-                if game.bottle.isBuiltIn {
+                // A limit set by a preset, by hand or by the battery says nothing about what the game
+                // holds, and mustn't wipe what was learned for Automatic.
+                if game.bottle.isBuiltIn, learning {
                     FramePacing.recordStart(game: game.gameID, options: options, profile: profile, refreshRate: refreshRate,
                                             logMark: logMark, limit: frameLimit, learning: learning)
                 }
@@ -2080,7 +2083,7 @@ final class LibraryModel: ObservableObject {
         guard !Task.isCancelled else { return false }
         let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile))
-        let process: Process
+        let process: DetachedProcess
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
@@ -2203,6 +2206,14 @@ final class LibraryModel: ObservableObject {
         play(failed.game)
     }
 
+    /// After a failed start: "Most compatible" from now on, starting again with its safest way.
+    func startMostCompatible(_ failed: FailedLaunch) {
+        failedLaunch = nil
+        GameOptionsStore.choose(.compatible, for: failed.game.gameID)
+        LaunchHealth.reset(failed.game.gameID)
+        play(failed.game)
+    }
+
     func openSettings() {
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
         showingSettings = true
@@ -2229,7 +2240,10 @@ final class LibraryModel: ObservableObject {
 
     /// Opens a pre-filled problem report for the game in the browser.
     func reportProblem(for game: Game, tried: [String] = []) {
-        Task { ProblemReport.open(game: game, insight: await insight(of: game), tried: tried) }
+        Task {
+            ProblemReport.open(game: game, insight: await insight(of: game),
+                               profile: await ProfileStore.shared.profile(for: game.appID), tried: tried)
+        }
     }
 
     /// Steam starts the game in the background, and since macOS 14 an app can't push itself to

@@ -112,13 +112,14 @@ enum Legendary {
         }.value
     }
 
-    /// Starts legendary without waiting (a download), its output into `log`.
-    static func start(_ arguments: [String], log: URL) async throws -> Process {
+    /// Starts legendary without waiting (a download, which carries on after Nightforge quits), its
+    /// output into `log`.
+    static func start(_ arguments: [String], log: URL) async throws -> DetachedProcess {
         let binary = try await program()
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
-        let process = Process()
+        let process = DetachedProcess()
         process.executableURL = binary
         process.arguments = arguments
         process.environment = environment(program: binary)

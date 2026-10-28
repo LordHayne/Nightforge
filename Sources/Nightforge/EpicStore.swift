@@ -164,7 +164,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// whether it was an add-on (its game is on the Mac then).
     var downloadFailed: (String, String, Bool) -> Void = { _, _, _ in }
 
-    private var downloads: [String: Process] = [:]
+    private var downloads: [String: DetachedProcess] = [:]
     /// Downloads whose legendary is starting up: a look at the library meanwhile mustn't start it twice.
     private var starting: Set<String> = []
     /// Downloads asked for, in line: games and their add-ons. legendary installs one thing at a time
@@ -676,7 +676,7 @@ final class EpicStore: ObservableObject, StoreProvider {
 
     /// Updates running before a start, by app name, and the game being brought up to date (its
     /// parts take turns, and no download may slip in between).
-    private var updates: [String: Process] = [:]
+    private var updates: [String: DetachedProcess] = [:]
     private var updatingGame: String?
 
     /// What brings an installed game up to date, in order: the game when Epic has a newer build,
@@ -744,7 +744,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// One part of an update: the game or an add-on, fetched by legendary (a missing add-on in full).
     private func updatePart(_ appName: String, installed: Bool, following: Bool,
                             progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
-        var process: Process?
+        var process: DetachedProcess?
         if !following {
             let arguments = installed ? ["install", appName, "--update-only", "--skip-sdl", "--skip-dlcs", "-y"]
                 : ["install", appName, "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y"]

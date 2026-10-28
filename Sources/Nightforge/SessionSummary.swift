@@ -53,6 +53,8 @@ struct SessionSummarySheet: View {
     @State private var rating: Bool?
     @State private var issues: Set<GameRating.Issue> = []
     @State private var saved = false
+    /// "Use “Most compatible” next time" was pressed.
+    @State private var compatibleNext = false
     @State private var cloud: CloudSaves.State?
     /// Steam took longer than a minute to confirm the upload: say it carries on by itself.
     @State private var cloudTookLong = false
@@ -93,16 +95,26 @@ struct SessionSummarySheet: View {
                 if saved {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.runsGreat)
-                        Text(L10n.t("Thanks – noted on this Mac. It shapes how Nightforge rates the game for you."))
+                        Text(compatibleNext
+                             ? L10n.t("Thanks – noted on this Mac. Next time it starts with “Most compatible”; change it any time in its options.")
+                             : L10n.t("Thanks – noted on this Mac. It shapes how Nightforge rates the game for you."))
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .font(.system(size: 13))
                 } else if rating == false {
                     issueButtons
-                    Button(L10n.t("Save")) { save(good: false) }
-                        .buttonStyle(GlassTextButtonStyle(prominent: true))
-                        .padFocus("session.saveIssues", cornerRadius: 21, activate: { save(good: false) })
+                    HStack(spacing: 8) {
+                        Button(L10n.t("Save")) { save(good: false) }
+                            .buttonStyle(GlassTextButtonStyle(prominent: true))
+                            .padFocus("session.saveIssues", cornerRadius: 21, activate: { save(good: false) })
+                        if suggestsCompatible {
+                            Button(L10n.t("Use “Most compatible” next time"), action: useCompatible)
+                                .buttonStyle(GlassTextButtonStyle())
+                                .help(GraphicsPreset.compatible.help)
+                                .padFocus("session.compatible", cornerRadius: 21, activate: useCompatible)
+                        }
+                    }
                 } else {
                     HStack(spacing: 10) {
                         ratingButton(L10n.t("Well"), symbol: "hand.thumbsup", id: "session.good") { save(good: true) }
@@ -211,6 +223,19 @@ struct SessionSummarySheet: View {
         GameRatings.save(GameRating(good: good, issues: good ? [] : GameRating.Issue.allCases.filter(issues.contains)), for: summary.game.gameID)
         rating = good
         saved = true
+    }
+
+    /// Crashes, glitches and stutters are what "Most compatible" is for – in Nightforge's own Windows games.
+    private var suggestsCompatible: Bool {
+        let game = summary.game
+        return game.bottle.isBuiltIn && game.platform == .windows && !issues.isDisjoint(with: [.crashed, .glitches, .stutters])
+            && GameOptionsStore.load(game.gameID).preset != .compatible
+    }
+
+    private func useCompatible() {
+        GameOptionsStore.choose(.compatible, for: summary.game.gameID)
+        compatibleNext = true
+        save(good: false)
     }
 
     private func playAgain() {
