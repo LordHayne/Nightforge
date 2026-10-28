@@ -4668,6 +4668,107 @@
    "note": "Tested 2026-10-24 on M5: ~75 FPS with DXMT vs 45-50 with DXVK on Extreme.",
    "source": "mac"
   },
+  "3916150": {
+   "name": "The Last Caretaker Demo",
+   "graphics": "d3dmetal",
+   "avx": false,
+   "retina": true,
+   "iniSettings": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/Engine.ini",
+     "section": "SystemSettings",
+     "values": {
+      "r.Nanite": "0",
+      "r.Shadow.Virtual.Enable": "0",
+      "r.Tonemapper.Sharpen": "0.6"
+     }
+    }
+   ],
+   "fileEdits": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTracing=True",
+     "replace": "bUseRayTracing=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTraceReflections=True",
+     "replace": "bUseRayTraceReflections=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTraceShadows=True",
+     "replace": "bUseRayTraceShadows=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTraceLumen=True",
+     "replace": "bUseRayTraceLumen=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseMegaLights=True",
+     "replace": "bUseMegaLights=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "UpscalingMethod=TSR",
+     "replace": "UpscalingMethod=FSR",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FrameGenerationMethod=Off",
+     "replace": "FrameGenerationMethod=FSR",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FrameGenerationModeFSR=0",
+     "replace": "FrameGenerationModeFSR=1",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FSRQuality=1",
+     "replace": "FSRQuality=3",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FSRSharpness=0.000000",
+     "replace": "FSRSharpness=0.500000",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "MotionBlurAmount=0.500000",
+     "replace": "MotionBlurAmount=0.000000",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "UserQualityPreset=2,UserViewDistanceQuality=2,UserAntiAliasingQuality=2,UserShadowQuality=2,UserGlobalIlluminationQuality=2,UserReflectionQuality=2,UserPostProcessQuality=2,UserTextureQuality=2,UserEffectsQuality=2,UserFoliageQuality=2,UserShadingQuality=2,UserLandscapeQuality=2",
+     "replace": "UserQualityPreset=0,UserViewDistanceQuality=0,UserAntiAliasingQuality=0,UserShadowQuality=0,UserGlobalIlluminationQuality=0,UserReflectionQuality=0,UserPostProcessQuality=0,UserTextureQuality=0,UserEffectsQuality=0,UserFoliageQuality=0,UserShadingQuality=0,UserLandscapeQuality=0",
+     "once": true
+    }
+   ],
+   "note": "Tested 2026-10-28 on M5 (Unreal 5.7.4). DirectX 11 fails on every layer: DXMT stays black while its graphics memory grows by ~400 MB/s, DXVK 3 on KosmicKrisp and D3DMetal crash. DirectX 12 through D3DMetal plays; with Rosetta's AVX hint it crashes after ~2 min (illegal instruction while precompiling shaders). Nanite and virtual shadow maps cost D3DMetal half the frame rate (30 -> 64 FPS without them, Engine.ini). With full Retina output (3024x1964), Low, FSR Performance and FSR frame generation: 50-55 FPS, sharp. Ray tracing and MegaLights stay off. The menu's background video stays black.",
+   "source": "mac"
+  },
   "3932890": {
    "name": "Escape From Tarkov\nInstall BattlEye Service - does not permit online play",
    "winetricks": [

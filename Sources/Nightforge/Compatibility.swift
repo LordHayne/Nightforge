@@ -142,7 +142,7 @@ extension GameProfile {
         graphics != nil || arguments?.isEmpty == false || dllOverrides?.isEmpty == false
             || registry?.isEmpty == false || windowsVersion != nil || winetricks?.isEmpty == false
             || metalFX == false || frameLimit != nil || vulkanSamplers != nil || avx == false
-            || fileEdits?.isEmpty == false
+            || fileEdits?.isEmpty == false || iniSettings?.isEmpty == false || retina == true
     }
 }
 

@@ -44,11 +44,30 @@ struct GameProfile: Decodable, Equatable {
     /// Changes to the game's own settings files before it starts, for settings that crash it on a
     /// Mac: in `path` (relative to the game folder) `find` becomes `replace`.
     var fileEdits: [FileEdit]?
+    /// Values for the game's own .ini files, set before every start (Unreal deletes a user
+    /// Engine.ini it didn't write itself when it quits).
+    var iniSettings: [IniSetting]?
+    /// true: the game sees the screen's full Retina resolution instead of half of it. Wine sets that
+    /// for a whole session, so Steam starts afresh when it changes from one game to the next.
+    var retina: Bool?
 
     struct FileEdit: Decodable, Equatable {
         let path: String
         let find: String
         let replace: String
+        /// Where `path` starts: a Windows root as in `saves` ("WinAppDataLocal", …); nil, the game folder.
+        var root: String?
+        /// A starting value: applied a single time, so what the player picks in the game afterwards stays.
+        var once: Bool?
+    }
+
+    /// {"root": "WinAppDataLocal", "path": "Voyage/Saved/Config/Windows/Engine.ini",
+    ///  "section": "SystemSettings", "values": {"r.Nanite": "0"}}
+    struct IniSetting: Decodable, Equatable {
+        let root: String
+        let path: String
+        let section: String
+        let values: [String: String]
     }
 
     struct RegistryEntry: Decodable, Equatable {
@@ -62,6 +81,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, avx, fileEdits
+        case iniSettings, retina
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -99,6 +119,8 @@ struct GameProfile: Decodable, Equatable {
         geforceNow = try? container.decodeIfPresent(String.self, forKey: .geforceNow)
         avx = try? container.decodeIfPresent(Bool.self, forKey: .avx)
         fileEdits = try? container.decodeIfPresent([FileEdit].self, forKey: .fileEdits)
+        iniSettings = try? container.decodeIfPresent([IniSetting].self, forKey: .iniSettings)
+        retina = try? container.decodeIfPresent(Bool.self, forKey: .retina)
     }
 }
 
