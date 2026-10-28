@@ -657,6 +657,14 @@ enum L10n {
         "%@ (automatic)": "%@ (automatisch)",
         "In the game": "Im Spiel",
 
+        // "Most compatible" after a failed start and in "Welcome back"
+        "Try “Most compatible”": "„Am verträglichsten“ versuchen",
+        "Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options.":
+            "Startet es auf dem langsameren, sichersten Weg – ohne MetalFX, mit 60 FPS, die sicherste Grafik zuerst – und bleibt dabei für dieses Spiel. Ändern kannst du das jederzeit in seinen Optionen.",
+        "Use “Most compatible” next time": "Nächstes Mal „Am verträglichsten“",
+        "Thanks – noted on this Mac. Next time it starts with “Most compatible”; change it any time in its options.":
+            "Danke – auf diesem Mac notiert. Nächstes Mal startet es mit „Am verträglichsten“; ändern kannst du das jederzeit in seinen Optionen.",
+
         // Library filters
         "Sort": "Sortieren",
         "Recently played": "Zuletzt gespielt",
