@@ -138,6 +138,9 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var updating = false
     /// Plugged in or on battery (for the top bar and "Save battery when unplugged").
     @Published private(set) var power = PowerSource.current()
+    /// Plugged in, but the charger is too weak for games (3.5).
+    @Published private(set) var chargerWarning: ChargerCheck.Warning?
+    private var chargerCheck = ChargerCheck()
     /// macOS Low Power Mode: CPU and graphics run much slower, and so do games.
     @Published private(set) var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
@@ -308,8 +311,10 @@ final class LibraryModel: ObservableObject {
                 // otherwise less often: nothing waits on it then, and the Mac stays quieter. A game
                 // that just ended is looked after quickest: the player waits to be back in Nightforge.
                 if controllerConnected && NSApp.isActive { input.refreshBattery() }
-                let source = PowerSource.current()
-                if source != power { power = source }
+                let reading = PowerSource.reading()
+                if reading.source != power { power = reading.source }
+                let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
+                if warning != chargerWarning { chargerWarning = warning }
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 try? await Task.sleep(for: .seconds(goneFor > 0 ? 2 : busy ? 3 : 10))
             }
