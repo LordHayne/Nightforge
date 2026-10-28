@@ -638,7 +638,12 @@ enum L10n {
         "The highest frame rate: MetalFX upscaling, no frame limit.": "Die höchste Bildrate: MetalFX-Hochskalierung, kein FPS-Limit.",
         "The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.":
             "Der langsamere, sicherste Grafikweg: ohne MetalFX, 60 FPS. Für Spiele, die abstürzen oder schwarz bleiben.",
-        "Your own choice in the expert options.": "Deine eigene Wahl in den Expertenoptionen.",
+        "Custom: your own choice in the expert options below.": "Eigene: deine eigene Wahl in den Expertenoptionen darunter.",
+        "recommended": "empfohlen",
+        "Expert options": "Expertenoptionen",
+        "Expanded": "Aufgeklappt",
+        "Collapsed": "Zugeklappt",
+        "Graphics layer": "Grafikweg",
 
         // Library filters
         "Sort": "Sortieren",
