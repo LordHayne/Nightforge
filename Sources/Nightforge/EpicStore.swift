@@ -386,12 +386,13 @@ final class EpicStore: ObservableObject, StoreProvider {
             let result = try await Legendary.run(["uninstall", appName, "-y", "--skip-uninstaller"], timeout: 600)
             guard result.status == 0 else { throw EpicError.failed(result.error ?? L10n.t("legendary stopped (code %d)", result.status)) }
         } else {
-            // What a cancelled download left: its folder (only inside the games folder) and where it would resume.
-            let folder = game.installDir.standardizedFileURL
-            if folder.deletingLastPathComponent().path == Legendary.gamesDir.standardizedFileURL.path {
-                try? FileManager.default.removeItem(at: folder)
-            }
             try? FileManager.default.removeItem(at: Legendary.configDir.appendingPathComponent("tmp/\(appName).resume"))
+        }
+        // legendary removes the game's own files; what's left is a cancelled download, or the settings
+        // files Nightforge writes beside the game (dxmt.conf …). Only inside the games folder.
+        let folder = game.installDir.standardizedFileURL
+        if folder.deletingLastPathComponent().path == Legendary.gamesDir.standardizedFileURL.path {
+            try? FileManager.default.removeItem(at: folder)
         }
         try? FileManager.default.removeItem(at: Legendary.log(for: appName))
     }
