@@ -348,6 +348,36 @@ struct LaunchHealthTest {
         let power = PowerSource.current()
         check(power.level.map { (0...1).contains($0) } ?? true, "battery level reads as 0…1: \(String(describing: power.level))")
 
+        // A too weak charger (3.5), with the values of the real case from 27.10.: 18 W, −1236 mA while "charging".
+        let weak = PowerSource(onBattery: false, level: 0.41, adapterWatts: 18)
+        var charger = ChargerCheck()
+        check(charger.add(weak, batteryCurrent: -1236) == .weak(watts: 18), "an 18 W charger warns at once")
+        charger = ChargerCheck()
+        check(charger.add(weak, batteryCurrent: 0) == .weak(watts: 18), "also when nothing flows yet: 18 W is too little for games")
+        let strong = PowerSource(onBattery: false, level: 0.8, adapterWatts: 96)
+        charger = ChargerCheck()
+        check(charger.add(strong, batteryCurrent: 0) == nil, "96 W at the charge limit: no warning")
+        check(charger.add(strong, batteryCurrent: 2400) == nil, "96 W charging: no warning")
+        check((0..<5).map { _ in charger.add(strong, batteryCurrent: -40) }.allSatisfy { $0 == nil }, "a trickle around 0 is no drain")
+        charger = ChargerCheck()
+        check(charger.add(strong, batteryCurrent: -1500) == nil && charger.add(strong, batteryCurrent: -1500) == nil,
+              "one or two draining readings are no warning yet (a short peak)")
+        check(charger.add(strong, batteryCurrent: -1500) == .draining, "three in a row: the charger can't keep up")
+        check(charger.add(strong, batteryCurrent: 300) == .draining && charger.add(strong, batteryCurrent: 300) == .draining,
+              "the warning stays over a short charge (no flicker)")
+        check(charger.add(strong, batteryCurrent: 300) == nil, "three good readings: gone again")
+        let unknown = PowerSource(onBattery: false, level: 0.5, adapterWatts: nil)
+        charger = ChargerCheck()
+        _ = charger.add(unknown, batteryCurrent: -900); _ = charger.add(unknown, batteryCurrent: -900)
+        check(charger.add(unknown, batteryCurrent: -900) == .draining, "without the watts the drain alone warns")
+        check(charger.add(PowerSource(onBattery: true, level: 0.5), batteryCurrent: -900) == nil, "on battery: that's the battery pill's job")
+        check(charger.add(unknown, batteryCurrent: -900) == nil, "plugged in again: counting starts over")
+        charger = ChargerCheck()
+        check(charger.add(PowerSource(onBattery: false, level: nil, adapterWatts: 18), batteryCurrent: nil) == nil,
+              "no battery (desktop Mac): nothing to warn about")
+        let live = PowerSource.reading()
+        check(live.source.adapterWatts.map { $0 > 0 } ?? true, "adapter watts read as a positive number: \(String(describing: live.source.adapterWatts))")
+
         print(failures == 0 ? "✓ all checks passed" : "\(failures) checks failed")
         exit(failures == 0 ? 0 : 1)
     }

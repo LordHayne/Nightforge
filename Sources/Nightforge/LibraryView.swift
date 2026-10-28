@@ -711,6 +711,8 @@ private struct TopBar: View {
                     .background(GlassBackground(glass: .regular, shape: Capsule()))
                     .help(Prefs.saveBattery ? L10n.t("On battery – games are capped at 30 FPS to last longer")
                           : L10n.t("On battery – “Save battery when unplugged” in Settings caps games at 30 FPS"))
+            } else if let warning = model.chargerWarning {
+                ChargerPill(warning: warning, power: model.power)
             }
             // Downloads, rescan and settings share one piece of glass.
             HStack(spacing: 2) {
@@ -954,6 +956,11 @@ private struct GameDetail: View {
                 Label(L10n.t("On battery: games are capped at 30 FPS to last longer."), systemImage: "battery.50percent")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
+            }
+            if let warning = model.chargerWarning, game.install != .inStore {
+                Label(ChargerPill.note(warning), systemImage: "bolt.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.warning)
             }
             if model.lowPowerMode && game.install != .inStore {
                 HStack(spacing: 10) {
