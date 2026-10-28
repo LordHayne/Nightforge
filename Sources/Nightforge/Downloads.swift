@@ -107,9 +107,15 @@ struct DownloadsPanel: View {
         HStack(spacing: 12) {
             DownloadCover(game: game)
             VStack(alignment: .leading, spacing: 6) {
-                Text(game.name)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(game.name)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .lineLimit(1)
+                    // A game the player has in several stores: which one this download comes from.
+                    if model.card(holding: game.id)?.others.isEmpty == false {
+                        StoreBadge(store: game.provider.label)
+                    }
+                }
                 DownloadBar(fraction: fraction(game))
                 Text(line(game))
                     .font(.system(size: 11.5).monospacedDigit())

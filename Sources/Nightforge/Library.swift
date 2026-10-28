@@ -92,6 +92,10 @@ struct Game: Identifiable, Hashable {
     /// Steam took the download request but won't fetch it – the account doesn't own the game – so it
     /// shows as a store entry, not as a download that never starts. Cancelling removes the request.
     var downloadRefused = false
+    /// The same game from the player's other stores (DuplicateGames): one card for all of them. This
+    /// entry is the store it starts, downloads and uninstalls through; the others follow in the
+    /// order they'd take over.
+    var others: [Game] = []
 
     init(gameID: GameID, name: String, bottle: Bottle, steamRoot: URL, steamExeWindowsPath: String,
          installDir: URL, sizeOnDisk: Int64, lastPlayed: Date? = nil, playtimeMinutes: Int? = nil) {
@@ -132,6 +136,21 @@ struct Game: Identifiable, Hashable {
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
         antiCheatBlock?.geforceNowURL != nil && (install == .notInstalled || install == .installed)
+    }
+
+    /// The stores the player has it in, the one it starts through first.
+    var providers: [Provider] { [provider] + others.map(\.provider) }
+    /// Each store's entry of the game, the one it starts through first.
+    var entries: [Game] { [self] + others }
+    /// What Nightforge keeps per store for it: options, marks, what a start taught it.
+    var gameIDs: [GameID] { [gameID] + others.map(\.gameID) }
+    /// `id` is the entry of one of its stores.
+    func holds(_ id: String?) -> Bool { self.id == id || others.contains { $0.id == id } }
+    /// What its cover and the library show: a download under way in one of its stores, else the
+    /// store it starts through.
+    var shown: Game {
+        if case .downloading = install { return self }
+        return others.first { if case .downloading = $0.install { return true } else { return false } } ?? self
     }
 }
 
