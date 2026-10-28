@@ -857,7 +857,9 @@ private struct GameDetail: View {
                         .shadow(color: .black.opacity(0.5), radius: 16, y: 6)
                 }
             }
-            .frame(height: compact ? 150 : 170, alignment: .bottomLeading)
+            // On Home the logo gives way first when the window is short: the page has to fit, or it
+            // grows past the window and the top bar jumps between Home and the library.
+            .frame(minHeight: compact ? 80 : 170, maxHeight: compact ? 150 : 170, alignment: .bottomLeading)
             .accessibilityLabel(game.name)
             }
 

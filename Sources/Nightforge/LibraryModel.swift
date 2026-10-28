@@ -854,7 +854,7 @@ final class LibraryModel: ObservableObject {
         }
         Task {
             do {
-                let context = StoreContext(busy: !running.isEmpty || launchingID != nil) { [weak self] in self?.reload(quiet: true) }
+                let context = StoreContext(busy: !running.isEmpty || launchingID != nil) { self.reload(quiet: true) }
                 try await store(for: game).install(game, context: context)
             } catch {
                 errorMessage = error.localizedDescription
