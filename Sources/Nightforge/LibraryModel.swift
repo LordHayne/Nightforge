@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -101,12 +102,11 @@ final class LibraryModel: ObservableObject {
     @Published var pendingLeftoverRemoval: Game?
     /// Steam for Mac being set up for a game whose Mac version is wanted.
     @Published var macSetup: MacSteamSetup?
-    /// How the library runs on this Mac, shown once after the first start (and from About).
-    @Published var libraryReveal: LibraryReveal?
-    private var revealAfterScan = false
-
-    func showLibraryReveal() {
-        libraryReveal = LibraryReveal(allGames.map { ($0, compatibility(of: $0).level) })
+    /// Settings › About: the first start once more on Home – the welcome, the library check and
+    /// how many of the games run here.
+    func showFirstStartAgain() {
+        goHome()
+        setup.replay()
     }
 
     /// The downloads panel under the top bar's ring (D).
@@ -141,8 +141,9 @@ final class LibraryModel: ObservableObject {
     /// macOS Low Power Mode: CPU and graphics run much slower, and so do games.
     @Published private(set) var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
-    /// First-run "Connect Steam" flow for Nightforge's own engine.
+    /// The first start: the setup of Nightforge's own Steam, the library check and the reveal.
     let setup = SetupModel()
+    private var setupChanges: AnyCancellable?
 
     /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
     let steam = SteamStore()
@@ -157,10 +158,10 @@ final class LibraryModel: ObservableObject {
     private var inputStarted = false
 
     init() {
-        setup.onFinished = { [weak self] in
-            self?.revealAfterScan = true  // the first start ends with how the library runs here
-            self?.reload()
-        }
+        // The first start ends with how the library runs here, on Home in place of the games.
+        setup.onFinished = { [weak self] in self?.checkLibrary() }
+        setup.onAddEpic = { [weak self] in self?.connectEpic() }
+        setupChanges = setup.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         epic.changed = { [weak self] in self?.reload(quiet: true) }
         epic.downloadFailed = { [weak self] name, reason, addOn in
             self?.errorMessage = addOn
@@ -171,6 +172,8 @@ final class LibraryModel: ObservableObject {
 
     /// Nothing to show and Nightforge's own Steam isn't ready yet.
     var needsSetup: Bool { allGames.isEmpty && !SetupModel.isComplete }
+    /// Home shows the first start (SetupView): until the setup is done, then until "Let's Play".
+    var showsFirstStart: Bool { setup.isActive || needsSetup }
 
     var selected: Game? {
         games.indices.contains(selectedIndex) ? games[selectedIndex] : nil
@@ -503,10 +506,6 @@ final class LibraryModel: ObservableObject {
         KeepAwake.update(downloading: found.filter { Self.isDownloading($0.install) && $0.downloadNeedsSpace == nil }.map(\.name))
         if downloads.isEmpty { showingDownloads = false }
         MacIntegration.libraryLoaded()
-        if revealAfterScan, !found.isEmpty {
-            revealAfterScan = false
-            showLibraryReveal()
-        }
         if let game = finished.first {
             Toasts.shared.show(finished.count == 1 ? L10n.t("%@ is ready to play", game.name) : L10n.t("%ld games are ready to play", finished.count),
                                action: .init(label: L10n.t("Play")) { [weak self] in self?.play(game) })
@@ -1339,9 +1338,9 @@ final class LibraryModel: ObservableObject {
 
     var showingLibrary: Bool { route == .library }
 
-    /// The game shown big: on Home nil while the "All games" tile is selected.
+    /// The game shown big: on Home nil while the "All games" tile is selected, or the first start shows.
     var heroGame: Game? {
-        route == .home && homeOnAllGames ? nil : selected
+        route == .home && (homeOnAllGames || setup.isActive) ? nil : selected
     }
 
     /// Stands for the "All games" tile in `homeGameID`.
@@ -1415,7 +1414,7 @@ final class LibraryModel: ObservableObject {
                 goHome()
             }
         case .home:
-            return false
+            return showsFirstStart && setup.back()
         }
         return true
     }
@@ -1424,7 +1423,7 @@ final class LibraryModel: ObservableObject {
     /// game's page, and the page plays it.
     func activate() {
         switch route {
-        case .home: homeOnAllGames ? goLibrary() : primaryAction()
+        case .home: showsFirstStart ? setup.primary() : homeOnAllGames ? goLibrary() : primaryAction()
         case .library: openDetail()
         case .detail: primaryAction()
         }

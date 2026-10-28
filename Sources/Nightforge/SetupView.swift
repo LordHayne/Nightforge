@@ -1,56 +1,209 @@
 import SwiftUI
 
-/// First-run screen: one button, then a short checklist that fills itself in.
+/// The first start on Home: a welcome, the setup's checklist that fills itself in, the library
+/// check, and how many of the games run here.
 struct SetupView: View {
     @ObservedObject var setup: SetupModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 26) {
+        Group {
+            switch setup.stage {
+            case .welcome:
+                WelcomePage(setup: setup)
+            case .checklist:
+                ChecklistPage(setup: setup)
+            case .checking(let check):
+                CheckingPage(check: check) { setup.close() }
+            case .reveal(let reveal, let offersEpic):
+                RevealPage(reveal: reveal, play: { setup.close() }, addEpic: offersEpic ? addEpic : nil)
+            }
+        }
+        .transition(.opacity.combined(with: .offset(y: 10)))
+        .animation(.easeOut(duration: 0.3), value: setup.stage)
+    }
+
+    private func addEpic() { setup.addEpic() }
+}
+
+private struct WelcomePage: View {
+    @ObservedObject var setup: SetupModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 28) {
             VStack(alignment: .leading, spacing: 14) {
-                Text(setup.phase == .idle ? L10n.t("Welcome to Nightforge") : L10n.t("Connecting Steam"))
-                    .font(Theme.display(40))
+                Text(L10n.t("Welcome to Nightforge"))
+                    .font(Theme.display(48))
                     .foregroundStyle(Theme.ink)
-                Text(L10n.t("Nightforge sets up everything your Windows games need – free, in the background, in a few minutes. You only sign in to Steam."))
-                    .font(.system(size: 15))
+                    .accessibilityAddTraits(.isHeader)
+                Text(L10n.t("Nightforge plays your Windows games on this Mac – next, it sets up everything they need by itself in a few minutes, and you only sign in to Steam."))
+                    .font(.system(size: 16))
                     .foregroundStyle(Theme.muted)
                     .frame(maxWidth: 560, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            HStack(spacing: 14) {
+                SetupButton(title: L10n.t("Let's Go"), symbol: "arrow.right", preferred: true) { setup.begin() }
+                if setup.isReplay {
+                    SkipButton { setup.close() }
+                }
+            }
+        }
+    }
+}
 
-            if setup.phase != .idle {
-                StepList(setup: setup)
+private struct ChecklistPage: View {
+    @ObservedObject var setup: SetupModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            Text(L10n.t("Connecting Steam"))
+                .font(Theme.display(40))
+                .foregroundStyle(Theme.ink)
+                .accessibilityAddTraits(.isHeader)
+
+            StepList(setup: setup)
+
+            if let note = SetupModel.signInNote(phase: setup.phase, steamStarting: setup.steamStarting) {
+                QRNote(text: note)
+                    .transition(.opacity)
             }
 
             actions
         }
         .animation(.easeOut(duration: 0.25), value: setup.phase)
+        .animation(.easeOut(duration: 0.25), value: setup.steamStarting)
     }
 
     @ViewBuilder private var actions: some View {
         switch setup.phase {
-        case .idle:
-            SetupButton(title: L10n.t("Connect Steam"), symbol: "link") { setup.start() }
-
-        case .running:
+        case .idle, .running, .done:
             EmptyView()
 
         case .needsRosetta:
             Note(L10n.t("Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license."))
-            SetupButton(title: L10n.t("Install Rosetta"), symbol: "arrow.down.circle") { setup.installRosetta() }
+            SetupButton(title: L10n.t("Install Rosetta"), symbol: "arrow.down.circle", preferred: true) { setup.installRosetta() }
 
         case .waitingForSignIn:
-            Note(L10n.t("Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login."))
             Button(L10n.t("Show Steam window again")) { setup.reopenSteam() }
                 .buttonStyle(GlassTextButtonStyle())
-                .padFocus("setup.showSteam", activate: { setup.reopenSteam() })
+                .padFocus("setup.showSteam", cornerRadius: 21, preferred: true, activate: { setup.reopenSteam() })
 
         case .failed(_, let message):
             Note(message, isError: true)
-            SetupButton(title: L10n.t("Try again"), symbol: "arrow.clockwise") { setup.start() }
-
-        case .done:
-            EmptyView()
+            SetupButton(title: L10n.t("Try again"), symbol: "arrow.clockwise", preferred: true) { setup.start() }
         }
+    }
+}
+
+/// Steam's sign-in window and its QR code for the Steam app on the phone.
+private struct QRNote: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "qrcode")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.ink.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .frame(maxWidth: 560, alignment: .leading)
+        .background(GlassBackground(glass: .regular, shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// "Checking your library … N of M games", while Steam sends the library and each game is looked up.
+private struct CheckingPage: View {
+    let check: LibraryCheck
+    let skip: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SectionTitle(L10n.t("Checking your library"))
+            Text(count)
+                .font(Theme.display(48).monospacedDigit())
+                .foregroundStyle(Theme.ink)
+                .contentTransition(.numericText())
+                .accessibilityAddTraits(.isHeader)
+            Group {
+                if let fraction = check.fraction {
+                    GlassProgressBar(value: fraction, height: 6)
+                } else {
+                    HStack(spacing: 10) {
+                        GlassSpinner()
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .frame(width: 420)
+            Text(check.total == nil ? L10n.t("Steam sends your library a moment after you sign in.")
+                                    : L10n.t("Looking up how each one runs on this Mac …"))
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.muted)
+            SkipButton(action: skip)
+                .padding(.top, 8)
+        }
+    }
+
+    private var count: String {
+        switch check.total {
+        case nil: return L10n.t("Asking Steam for your games …")
+        case 1: return L10n.t("%ld of 1 game", check.checked)
+        case let total?: return L10n.t("%ld of %ld games", check.checked, total)
+        }
+    }
+}
+
+/// How many of the games run here, then "Let's Play" – and Epic Games' sign-in while it isn't connected.
+private struct RevealPage: View {
+    let reveal: LibraryReveal
+    let play: () -> Void
+    let addEpic: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SectionTitle(L10n.t("Your library on this Mac"))
+            Text(reveal.headline)
+                .font(Theme.display(48))
+                .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            if reveal.total > 0 {
+                LibraryRevealView(reveal: reveal)
+                    .frame(maxWidth: 760, alignment: .leading)
+            } else {
+                Text(L10n.t("Your Steam library has no games yet – the ones you get in Steam show up here by themselves."))
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: 560, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 14) {
+                SetupButton(title: L10n.t("Let's Play"), symbol: "play.fill", preferred: true, action: play)
+                if let addEpic {
+                    Button(L10n.t("Also add Epic Games"), action: addEpic)
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("setup.epic", cornerRadius: 21, activate: addEpic)
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+}
+
+private struct SkipButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(L10n.t("Skip"), action: action)
+            .buttonStyle(GlassTextButtonStyle())
+            .padFocus("setup.skip", cornerRadius: 21, activate: action)
     }
 }
 

@@ -1,10 +1,38 @@
 import AppKit
 import Foundation
 
-/// The one-button "Connect Steam" flow: every step checks whether it's already done, so pressing
-/// the button again after a failure (or on a second Mac start) just carries on where it stopped.
+/// The first start, end to end: a welcome, the one-button setup – every step checks whether it's
+/// already done, so pressing the button again after a failure (or on a second Mac start) just
+/// carries on where it stopped – then the library check and what it found.
 @MainActor
 final class SetupModel: ObservableObject {
+    /// The page the first start shows.
+    enum Stage: Equatable {
+        case welcome
+        /// The setup's own steps; `phase` says where it is.
+        case checklist
+        /// After the sign-in: Steam sends the library, and every game is looked up.
+        case checking(LibraryCheck)
+        /// How many of the games run here; "Also add Epic Games" while Epic isn't signed in.
+        case reveal(LibraryReveal, offersEpic: Bool)
+    }
+
+    /// What Return or A, and Esc or B, do on the page now.
+    enum Action: Equatable {
+        case begin, installRosetta, showSteam, retry, skip, play
+
+        var label: String {
+            switch self {
+            case .begin: return L10n.t("Let's Go")
+            case .installRosetta: return L10n.t("Install Rosetta")
+            case .showSteam: return L10n.t("Show Steam window again")
+            case .retry: return L10n.t("Try again")
+            case .skip: return L10n.t("Skip")
+            case .play: return L10n.t("Let's Play")
+            }
+        }
+    }
+
     enum Step: Int, CaseIterable, Identifiable {
         case rosetta, engine, environment, steam, signIn
 
@@ -33,12 +61,133 @@ final class SetupModel: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     /// Download progress of the current step, when it has one.
     @Published private(set) var progress: Double?
+    /// Steam's first start, before its sign-in window: it updates itself, then the window comes.
+    @Published private(set) var steamStarting = false
 
+    @Published private(set) var stage = Stage.welcome
+    /// From "Let's Go" until "Let's Play": the first start stays on Home while the games come in.
+    @Published private(set) var isActive = false
+    /// "Show the First Start Again": the welcome, the check and what it found – the setup is done.
+    @Published private(set) var isReplay = false
+
+    /// After the setup (and "Let's Go" in the replay): the library check starts (LibraryModel).
     var onFinished: (() -> Void)?
+    /// "Also add Epic Games": Epic's sign-in window.
+    var onAddEpic: (() -> Void)?
+    /// The library check under way; "Skip" stops it.
+    var checkTask: Task<Void, Never>?
     private var signInWatcher: Task<Void, Never>?
 
     /// Nothing left to do: Steam is installed and someone has signed in.
     static var isComplete: Bool { Engine.isSteamInstalled && Engine.isSteamSignedIn }
+
+    // MARK: - The pages
+
+    /// "Let's Go": the setup's checklist, or in the replay straight to the library check.
+    func begin() {
+        guard stage == .welcome else { return }
+        isActive = true
+        if isReplay {
+            stage = .checking(LibraryCheck())
+            onFinished?()
+        } else {
+            stage = .checklist
+            start()
+        }
+    }
+
+    /// From Settings › About, once the setup is done.
+    func replay(setupDone: Bool? = nil) {
+        guard setupDone ?? Self.isComplete, !isActive else { return }
+        isReplay = true
+        isActive = true
+        stage = .welcome
+    }
+
+    func checking(_ check: LibraryCheck) {
+        guard isActive else { return }
+        stage = .checking(check)
+    }
+
+    func reveal(_ reveal: LibraryReveal, offersEpic: Bool) {
+        guard isActive else { return }
+        stage = .reveal(reveal, offersEpic: offersEpic)
+    }
+
+    /// "Let's Play" and "Skip": the library takes over.
+    func close() {
+        checkTask?.cancel()
+        checkTask = nil
+        isActive = false
+        isReplay = false
+        stage = .welcome
+    }
+
+    func addEpic() {
+        close()
+        onAddEpic?()
+    }
+
+    /// Return and A.
+    func primary() {
+        Self.confirmAction(stage: stage, phase: phase).map(perform)
+    }
+
+    /// Esc and B; false when there's nothing to leave (the setup itself can't be skipped).
+    func back() -> Bool {
+        guard let action = Self.backAction(stage: stage, replay: isReplay) else { return false }
+        perform(action)
+        return true
+    }
+
+    private func perform(_ action: Action) {
+        switch action {
+        case .begin: begin()
+        case .installRosetta: installRosetta()
+        case .showSteam: reopenSteam()
+        case .retry: start()
+        case .skip, .play: close()
+        }
+    }
+
+    nonisolated static func confirmAction(stage: Stage, phase: Phase) -> Action? {
+        switch stage {
+        case .welcome: return .begin
+        case .checklist:
+            switch phase {
+            case .needsRosetta: return .installRosetta
+            case .waitingForSignIn: return .showSteam
+            case .failed: return .retry
+            case .idle, .running, .done: return nil
+            }
+        case .checking: return nil
+        case .reveal: return .play
+        }
+    }
+
+    nonisolated static func backAction(stage: Stage, replay: Bool) -> Action? {
+        switch stage {
+        case .welcome: return replay ? .skip : nil
+        case .checklist: return nil
+        case .checking: return .skip
+        case .reveal: return .play
+        }
+    }
+
+    /// The line under the checklist about Steam's sign-in window: said before it opens, so the phone
+    /// is at hand for its QR code, and again while it's open.
+    nonisolated static func signInNote(phase: Phase, steamStarting: Bool) -> String? {
+        switch phase {
+        case .running(.steam) where steamStarting:
+            return L10n.t("Steam's sign-in window opens next: scan its QR code with the Steam app on your phone – no typing.")
+        case .waitingForSignIn:
+            return L10n.t("Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login.")
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - The setup
 
     func currentStep() -> Step? {
         switch phase {
@@ -160,6 +309,8 @@ final class SetupModel: ObservableObject {
         var restarts = 0
         var lastRestart = Date()
         phase = .running(.steam)
+        steamStarting = true
+        defer { steamStarting = false }
         try Engine.startSteam(wine)
 
         while true {
@@ -216,6 +367,7 @@ final class SetupModel: ObservableObject {
     private func finish() {
         signInWatcher?.cancel()
         phase = .done
+        if isActive { stage = .checking(LibraryCheck()) }
         onFinished?()
         // Steam opens its big main window after sign-in; from now on it only works in the background.
         Task {
