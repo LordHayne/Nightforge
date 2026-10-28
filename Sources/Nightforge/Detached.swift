@@ -67,17 +67,12 @@ final class DetachedProcess: @unchecked Sendable {
         open.standardInput = FileHandle.nullDevice
         open.standardOutput = FileHandle.nullDevice
         open.standardError = FileHandle.nullDevice
-        guard (try? open.run()) != nil else {
-            try? FileManager.default.removeItem(at: folder)
-            return try runAttached()
-        }
+        guard (try? open.run()) != nil else { return try withdraw(folder) }
         open.waitUntilExit()
-        guard open.terminationStatus == 0 else {
-            try? FileManager.default.removeItem(at: folder)
-            return try runAttached()
-        }
+        guard open.terminationStatus == 0 else { return try withdraw(folder) }
 
-        // The helper says which process runs (usually within a few milliseconds), or why none does.
+        // The helper says which process runs (usually within a few milliseconds; the first start of a
+        // new helper waits for macOS to look at it), or why none does.
         let deadline = Date().addingTimeInterval(10)
         while true {
             if let pids = Self.read("pid", in: folder)?.split(separator: " ").compactMap({ pid_t($0) }), pids.count == 2 {
@@ -89,9 +84,16 @@ final class DetachedProcess: @unchecked Sendable {
                 try? FileManager.default.removeItem(at: folder)
                 throw POSIXError(POSIXErrorCode(rawValue: Int32(failure.dropFirst(6)) ?? EIO) ?? .EIO)
             }
-            guard Date() < deadline else {
-                try? FileManager.default.removeItem(at: folder)
-                throw POSIXError(.ETIMEDOUT)
+            if Date() > deadline {
+                // A helper that never took the request won't: the program starts here instead.
+                if rename(folder.appendingPathComponent("request").path, folder.appendingPathComponent("withdrawn").path) == 0 {
+                    return try withdraw(folder)
+                }
+                // Taken but not reported: it's starting the program, so no second start here.
+                guard Date() < deadline.addingTimeInterval(10) else {
+                    try? FileManager.default.removeItem(at: folder)
+                    throw POSIXError(.ETIMEDOUT)
+                }
             }
             usleep(2_000)
         }
@@ -138,6 +140,13 @@ final class DetachedProcess: @unchecked Sendable {
         done.handler?(self)
     }
 
+    /// The helper didn't start: this program, and the ones after it, run as plain child processes.
+    private func withdraw(_ folder: URL) throws {
+        try? FileManager.default.removeItem(at: folder)
+        Self.appLock.withLock { Self.helperFailed = true }
+        try runAttached()
+    }
+
     private func runAttached() throws {
         let process = Process()
         process.executableURL = executableURL
@@ -163,16 +172,20 @@ final class DetachedProcess: @unchecked Sendable {
     static let helperName = "Nightforge Helper.app"
     private static let runs = FileManager.default.temporaryDirectory.appendingPathComponent("Nightforge-runs", isDirectory: true)
     private static let appLock = NSLock()
-    private static var preparedApp: URL?
+    /// The helper app made from `helperProgram`: once per run of Nightforge, whether it worked or
+    /// not, so one that can't be made isn't tried again for every start.
+    private static var prepared: (program: URL?, app: URL?)?
+    /// Set when the helper didn't start a program; the rest of this run does without it.
+    private static var helperFailed = false
 
     /// The helper as an app of its own in Nightforge's data folder, made here rather than shipped
     /// inside Nightforge.app: a copy from the download would carry its quarantine flag, and macOS
     /// would ask for "Open Anyway" all over again. Rebuilt when the helper or its Info.plist change.
     static func helperApp() -> URL? {
         appLock.withLock {
-            if let preparedApp { return preparedApp }
-            preparedApp = makeHelperApp()
-            return preparedApp
+            guard !helperFailed else { return nil }
+            if prepared == nil || prepared?.program != helperProgram { prepared = (helperProgram, makeHelperApp()) }
+            return prepared?.app
         }
     }
 

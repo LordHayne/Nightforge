@@ -90,10 +90,12 @@ enum Updater {
 
         // Swap in one step; the running copy keeps working from memory until the restart.
         _ = try fm.replaceItemAt(app, withItemAt: fresh)
-        // Detached, or this Nightforge would stay in the Dock beside the new one while it waits.
+        // Detached, or this Nightforge would stay in the Dock beside the new one while it waits; it
+        // opens the new one once this one is gone (opened before, it would only bring this one up).
         let relaunch = DetachedProcess()
         relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
-        relaunch.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", app.path]
+        relaunch.arguments = ["-c", #"for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || break; sleep 0.2; done; /usr/bin/open "$0""#,
+                              app.path, String(getpid())]
         try relaunch.run()
         await MainActor.run { NSApp.terminate(nil) }
     }
