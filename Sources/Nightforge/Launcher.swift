@@ -390,7 +390,7 @@ enum Launcher {
         }
         arguments += splitArguments(options.extraArgs)
 
-        let process = Process()
+        let process = DetachedProcess()
         process.executableURL = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner
         if process.executableURL != runner { environment["WINELOADER"] = process.executableURL?.path }
         process.arguments = arguments
@@ -408,7 +408,7 @@ enum Launcher {
     /// the game log. `environment`: `Engine.directLaunchEnvironment`.
     static func launchDirect(_ game: Game, command: Legendary.LaunchCommand, runnerPath: String, options: GameOptions,
                              profile: GameProfile?, frameLimit: Int, extraArguments: [String],
-                             environment gameEnvironment: [String: String]) throws -> Process {
+                             environment gameEnvironment: [String: String]) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -427,7 +427,7 @@ enum Launcher {
         environment["WINEDEBUG"] = GameLog.wineDebug
         if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
         environment.merge(command.environment) { _, store in store }
-        let process = Process()
+        let process = DetachedProcess()
         let loader = Engine.loader(for: runner)
         process.executableURL = loader
         if loader != runner { environment["WINELOADER"] = loader.path }

@@ -1918,7 +1918,7 @@ final class LibraryModel: ObservableObject {
         guard !Task.isCancelled else { return false }
         let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile))
-        let process: Process
+        let process: DetachedProcess
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,

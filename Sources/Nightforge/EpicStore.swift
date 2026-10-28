@@ -116,7 +116,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// A download that stopped by itself, with legendary's reason.
     var downloadFailed: (String, String) -> Void = { _, _ in }
 
-    private var downloads: [String: Process] = [:]
+    private var downloads: [String: DetachedProcess] = [:]
     /// Downloads whose legendary is starting up: a look at the library meanwhile mustn't start it twice.
     private var starting: Set<String> = []
     /// Downloads asked for: they carry on after Nightforge was quit or the Mac restarted.
