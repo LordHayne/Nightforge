@@ -487,7 +487,8 @@ struct MacVersionTest {
 
         // MARK: Quit script: back to Nightforge when the game ends
         // A stand-in game (a process whose path lies in the Mac library), `open` and `pgrep` replaced
-        // so nothing real is opened and no running Nightforge counts as "opened again".
+        // so nothing real is opened and no running Nightforge counts as "opened again", and `ps` only
+        // lists the sandbox's processes, so a real game running on this Mac doesn't count either.
         let sandbox = steam.appendingPathComponent("quit-script", isDirectory: true)
         let shims = sandbox.appendingPathComponent("bin", isDirectory: true)
         let library = sandbox.appendingPathComponent("Steam/steamapps", isDirectory: true)
@@ -496,7 +497,8 @@ struct MacVersionTest {
         let script = sandbox.appendingPathComponent("steam-shutdown.sh")
         try? Engine.steamShutdownScript.write(to: script, atomically: true, encoding: .utf8)
         for (name, body) in [("open", "echo \"$@\" > '\(opened.path)'"),
-                             ("pgrep", "case \"$*\" in *Nightforge.app*) exit 1;; esac; exec /usr/bin/pgrep \"$@\"")] {
+                             ("pgrep", "case \"$*\" in *Nightforge.app*) exit 1;; esac; exec /usr/bin/pgrep \"$@\""),
+                             ("ps", "/bin/ps \"$@\" | /usr/bin/grep -F -- '\(sandbox.path)'")] {
             let shim = shims.appendingPathComponent(name)
             try? "#!/bin/bash\n\(body)\n".write(to: shim, atomically: true, encoding: .utf8)
             try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shim.path)
