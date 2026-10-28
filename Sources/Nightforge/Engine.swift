@@ -253,7 +253,8 @@ enum Engine {
     }
 
     /// Processes started from Nightforge's engine (executable inside its folder), with the command
-    /// line ps shows – Wine rewrites that to the Windows program.
+    /// line ps shows – Wine rewrites that to the Windows program. Not Nightforge Helper, which only
+    /// waits for the program it started (and ending it would look as if that program had failed).
     static func ownProcesses(under folder: URL = supportDir) -> [(pid: pid_t, command: String)] {
         let ps = Process()
         let pipe = Pipe()
@@ -264,11 +265,12 @@ enum Engine {
         let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         ps.waitUntilExit()
         let root = folder.resolvingSymlinksInPath().path
+        let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
         return output.split(separator: "\n").compactMap { line in
             let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
             // Inside the folder, not merely a sibling with the same start (engine 4.7.3 vs 4.7.3-3).
             guard parts.count == 2, let pid = pid_t(parts[0]), let path = executablePath(pid),
-                  path == root || path.hasPrefix(root + "/") else { return nil }
+                  path == root || path.hasPrefix(root + "/"), !path.hasPrefix(helper) else { return nil }
             return (pid, String(parts[1]))
         }
     }
