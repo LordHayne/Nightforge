@@ -140,6 +140,10 @@ enum L10n {
         "Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options.":
             "Jedes Spiel bekommt Apples MetalFX-Hochskalierung auf volle Retina-Schärfe und eine gleichmäßige Bildrate passend zum Bildschirm (60 FPS auf einem 120-Hz-Display). Pro Spiel in dessen Optionen änderbar.",
         "Low Power Mode is on – games run much slower with it.": "Der Stromsparmodus ist an – Spiele laufen damit deutlich langsamer.",
+        "The charger gives only %@ W – too little for games: the battery drains while you play. A stronger one helps.":
+            "Das Netzteil liefert nur %@ W – zu wenig für Spiele: Beim Spielen entlädt sich der Akku. Ein stärkeres hilft.",
+        "The battery drains although the Mac is plugged in – the charger is too weak for games.":
+            "Der Akku entlädt sich, obwohl der Mac am Netzteil hängt – das Netzteil ist zu schwach für Spiele.",
         "Battery Settings": "Batterie-Einstellungen",
         "Steam also has a Mac version": "Steam hat auch eine Mac-Version",
         "Steam also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
