@@ -10,6 +10,7 @@ final class LibraryModel: ObservableObject {
     @Published var selectedIndex = 0 {
         didSet {
             loadStoreDetailsIfNeeded()
+            loadEpicSizeIfNeeded()
             if let game = selected { Task { _ = await insight(of: game) } }
         }
     }
@@ -72,6 +73,9 @@ final class LibraryModel: ObservableObject {
     var launchHint: String? {
         guard launchingID != nil else { return nil }
         if launchNeedsConfirmation { return LaunchPhase.confirmHint }
+        if case .updating? = launchPhase, allGames.first(where: { $0.id == launchingID })?.provider == .epic {
+            return LaunchPhase.epicUpdateHint
+        }
         if let launchPhase { return launchPhase.hint }
         return launchBuildsShaders ? LaunchPhase.shaderHint : nil
     }
@@ -118,6 +122,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var downloadRates: [GameID: DownloadRate] = [:]
     /// A download that wouldn't fit: which games could make room (SpaceCheck).
     @Published var pendingSpace: SpaceRequest?
+    /// An Epic game whose download waits for Epic to say how big it is.
+    @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
     /// A demo about to get its free licence in Steam's install window: what that takes is said first.
@@ -161,8 +167,10 @@ final class LibraryModel: ObservableObject {
             self?.reload()
         }
         epic.changed = { [weak self] in self?.reload(quiet: true) }
-        epic.downloadFailed = { [weak self] name, reason in
-            self?.errorMessage = L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
+        epic.downloadFailed = { [weak self] name, reason, addOn in
+            self?.errorMessage = addOn
+                ? L10n.t("The add-on %@ didn't download: %@. Its game is ready – the add-on follows with its next Update & Play.", name, reason)
+                : L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
         }
     }
 
@@ -859,16 +867,43 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Download, unless it wouldn't fit: then the player picks games to make room first.
+    /// An Epic game not on the Mac yet: how big it is, asked from Epic once its page has been looked
+    /// at for a moment (not for every cover scrolled past).
+    private func loadEpicSizeIfNeeded() {
+        guard let game = selected, game.provider == .epic, game.install == .notInstalled, game.sizeOnDisk == 0,
+              game.antiCheatBlock == nil, epic.isSignedIn else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard selected?.id == game.id else { return }
+            _ = await epic.size(of: game)
+        }
+    }
+
+    /// Download, unless it wouldn't fit: then the player picks games to make room first. An Epic
+    /// game whose size isn't known yet asks Epic first; without an answer legendary checks for itself.
     private func downloadIfRoom(_ game: Game) {
+        guard sizingID == nil else { return }  // a second press while Epic is asked
+        guard game.provider == .epic, game.sizeOnDisk == 0, epic.isSignedIn else {
+            downloadIfRoom(game, needed: game.sizeOnDisk)
+            return
+        }
+        sizingID = game.id
+        Task {
+            let size = await epic.size(of: game)
+            sizingID = nil
+            downloadIfRoom(game, needed: size?.install ?? 0)
+        }
+    }
+
+    private func downloadIfRoom(_ game: Game, needed: Int64) {
         let folder = game.installDir
         let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: folder))
-        guard let shortfall = SpaceCheck.shortfall(needed: game.sizeOnDisk, free: free) else {
+        guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free) else {
             download(game)
             return
         }
         let removable = allGames.filter { canUninstall($0) && !isRunning($0) && SpaceCheck.sameVolume($0.installDir, folder) }
-        pendingSpace = SpaceRequest(game: game, free: free, shortfall: shortfall,
+        pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: shortfall,
                                     candidates: SpaceCheck.candidates(removable, except: game))
     }
 
@@ -883,11 +918,11 @@ final class LibraryModel: ObservableObject {
             }
             reload(quiet: true)
             let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: request.game.installDir))
-            if SpaceCheck.shortfall(needed: request.game.sizeOnDisk, free: free) == nil {
+            if SpaceCheck.shortfall(needed: request.needed, free: free) == nil {
                 download(request.game)
             } else {
-                errorMessage = L10n.t("There's still not enough space: Steam needs %@ for %@, your Mac has %@ free.",
-                                      Format.bytes(request.game.sizeOnDisk + SpaceCheck.margin), request.game.name, Format.bytes(free))
+                errorMessage = L10n.t("There's still not enough space: %@ needs %@, your Mac has %@ free.",
+                                      request.game.name, Format.bytes(request.needed + SpaceCheck.margin), Format.bytes(free))
             }
         }
     }
@@ -1647,6 +1682,10 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            // Epic: a waiting update comes first, like Steam's "Update & Play".
+            if game.provider == .epic, game.pendingUpdate != nil {
+                guard await updateEpic(game) else { return }
+            }
             // Epic: the newest save comes down from Epic before the game reads it.
             if game.provider == .epic, epic.catalog.games.contains(where: { $0.appName == game.gameID.id && $0.cloudSaves }) {
                 launchPhase = .syncingSaves
@@ -1939,6 +1978,36 @@ final class LibraryModel: ObservableObject {
         // No sign of life for two minutes: say so instead of quietly turning back into Play.
         errorMessage = L10n.t("Steam didn't respond, so %@ didn't start. Please try again.", game.name)
         return false
+    }
+
+    /// Brings an Epic game up to date before it starts, its progress on the Play button. Without
+    /// Epic, or while another Epic download runs, the version on the Mac starts (Epic allows that).
+    /// False when the start is off: called off, or the update stopped halfway (Play carries on with it).
+    private func updateEpic(_ game: Game) async -> Bool {
+        launchPhase = .updating(nil)
+        awaitingSteam = true
+        let outcome = await epic.update(game) { [weak self] fraction in self?.launchPhase = .updating(fraction) }
+        awaitingSteam = false
+        launchPhase = nil
+        if Task.isCancelled { return false }
+        switch outcome {
+        case .updated:
+            analyses[game.gameID] = nil  // its files changed
+            reload(quiet: true)
+        case .skipped(.offline):
+            Toasts.shared.show(L10n.t("Epic Games can't be reached – %@ starts without its update.", game.name))
+        case .skipped(.busy):
+            Toasts.shared.show(L10n.t("Another Epic download is running – %@ starts now and updates next time.", game.name))
+        case .failed(let reason):
+            errorMessage = L10n.t("The update of %@ stopped: %@. Press Play again to carry on where it stopped.", game.name, reason)
+            reload(quiet: true)
+            return false
+        case .addOnFailed(let addOn, let reason):
+            Toasts.shared.show(L10n.t("The add-on %@ didn't update (%@) – %@ starts without it and tries again next time.",
+                                      addOn, reason, game.name))
+            reload(quiet: true)
+        }
+        return true
     }
 
     /// A game from another store starts straight with Nightforge's engine, no Steam in between: the

@@ -64,6 +64,8 @@ enum LaunchPhase: Equatable {
 
     /// While Steam starts the game itself, the first time with new graphics: shaders are built then.
     static var shaderHint: String { L10n.t("First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.") }
+    /// `updating` for an Epic game: legendary fetches the update, not Steam.
+    static var epicUpdateHint: String { L10n.t("The update comes from Epic Games first – the game starts by itself when it's done.") }
     static var confirmHint: String { L10n.t("Steam asks something before the game starts – answer it in its window.") }
 
     // MARK: - First start with new graphics
