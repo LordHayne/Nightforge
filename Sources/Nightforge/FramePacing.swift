@@ -61,7 +61,7 @@ enum FramePacing {
     static func learn(game: GameID, installDir: URL) {
         guard var state = load(game), let mark = state.mark else { return }
         let rates = rates(in: GameLog.text(since: mark), programs: Set(Engine.executables(in: installDir)))
-        state = next(state, rates: rates, standard: standardLimit(state.context.refreshRate))
+        state = next(state, rates: rates, standard: GameOptions.evenLimit(state.context.refreshRate))
         state.mark = nil
         save(game, state)
     }
@@ -101,11 +101,6 @@ enum FramePacing {
             .filter { $0 >= 30 && $0 <= standard }
         if !limits.contains(standard) { limits.insert(standard, at: 0) }
         return limits.sorted(by: >)
-    }
-
-    /// "Sharp & smooth" without a profile (GameOptions.effectiveFrameLimit).
-    private static func standardLimit(_ refreshRate: Int) -> Int {
-        refreshRate >= 100 ? refreshRate / 2 : refreshRate
     }
 
     /// Frame rates of full-minute periods from the given programs' lines:

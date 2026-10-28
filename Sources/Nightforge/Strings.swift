@@ -626,6 +626,20 @@ enum L10n {
         "Tested by Nightforge on %@": "Von Nightforge getestet auf %@",
         "Community fix · from umu-protonfixes": "Community-Fix · aus umu-protonfixes",
 
+        // Graphics presets
+        "Balanced": "Ausgewogen",
+        "Fastest": "Am schnellsten",
+        "Most compatible": "Am verträglichsten",
+        "Custom": "Eigene",
+        "What the profile for this game says and what Nightforge learns while you play – the best choice for most games.":
+            "Was das Profil für dieses Spiel sagt und was Nightforge beim Spielen lernt – für die meisten Spiele das Beste.",
+        "MetalFX sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen).":
+            "MetalFX-Schärfe und eine gleichmäßige Bildrate passend zum Display (60 FPS auf einem 120-Hz-Bildschirm).",
+        "The highest frame rate: MetalFX upscaling, no frame limit.": "Die höchste Bildrate: MetalFX-Hochskalierung, kein FPS-Limit.",
+        "The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.":
+            "Der langsamere, sicherste Grafikweg: ohne MetalFX, 60 FPS. Für Spiele, die abstürzen oder schwarz bleiben.",
+        "Your own choice in the expert options.": "Deine eigene Wahl in den Expertenoptionen.",
+
         // Library filters
         "Sort": "Sortieren",
         "Recently played": "Zuletzt gespielt",

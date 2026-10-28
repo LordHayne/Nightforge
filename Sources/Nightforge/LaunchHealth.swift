@@ -53,6 +53,19 @@ enum LaunchHealth {
         return [LaunchAttempt(graphics: Engine.defaultGraphics)]
     }
 
+    /// The ways in the order a preset tries them. "Most compatible" starts with the safest: the
+    /// layer a profile names (tested on a Mac), then Wine's own Direct3D, DXVK, DXMT, D3DMetal.
+    /// A list in another order is a list of its own: switching starts it over.
+    static func ladder(_ attempts: [LaunchAttempt], preset: GraphicsPreset, profile: GameProfile?) -> [LaunchAttempt] {
+        guard preset == .compatible else { return attempts }
+        let safest: [GraphicsLayer] = [.wined3d, .dxvk, .dxmt, .d3dmetal]
+        let tested = attempts.firstIndex { $0.graphics == profile?.graphics }
+        func rank(_ index: Int) -> Int {
+            index == tested ? -1 : safest.firstIndex(of: attempts[index].graphics) ?? safest.count
+        }
+        return attempts.indices.sorted { (rank($0), $0) < (rank($1), $1) }.map { attempts[$0] }
+    }
+
     private struct State: Codable {
         /// The attempts' ids when this was saved; a different list starts over.
         var ladder: [String]
