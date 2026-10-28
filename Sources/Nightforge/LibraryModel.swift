@@ -3,9 +3,13 @@ import SwiftUI
 
 @MainActor
 final class LibraryModel: ObservableObject {
-    /// Everything the scan found.
-    @Published private(set) var allGames: [Game] = []
-    /// What's shown and navigated: `allGames` narrowed by the search.
+    /// Everything the scan found: each store's entry of a game on its own.
+    @Published private(set) var allGames: [Game] = [] {
+        didSet { mergeCards() }
+    }
+    /// One card per game: `allGames` with a game from several stores merged (DuplicateGames).
+    @Published private(set) var cards: [Game] = []
+    /// What's shown and navigated: `cards` narrowed by the search.
     @Published private(set) var games: [Game] = []
     @Published var selectedIndex = 0 {
         didSet {
@@ -111,7 +115,7 @@ final class LibraryModel: ObservableObject {
     private var revealAfterScan = false
 
     func showLibraryReveal() {
-        libraryReveal = LibraryReveal(allGames.map { ($0, compatibility(of: $0).level) })
+        libraryReveal = LibraryReveal(cards.map { ($0, compatibility(of: $0).level) })
     }
 
     /// The downloads panel under the top bar's ring (D).
@@ -443,7 +447,8 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    func isRunning(_ game: Game) -> Bool { running[game.id] != nil }
+    /// From any of its stores: a card plays one copy at a time.
+    func isRunning(_ game: Game) -> Bool { game.entries.contains { running[$0.id] != nil } }
 
     /// A game of this platform is running – Windows games depend on Nightforge's Wine Steam,
     /// Mac versions on Steam for Mac.
@@ -471,7 +476,7 @@ final class LibraryModel: ObservableObject {
 
     /// Brings the running game's window to the front.
     func switchToGame(_ game: Game) {
-        guard let pid = running[game.id] else { return }
+        guard let pid = game.entries.lazy.compactMap({ self.running[$0.id] }).first else { return }
         NSRunningApplication(processIdentifier: pid)?.activate(options: [.activateAllWindows])
     }
 
@@ -1300,7 +1305,7 @@ final class LibraryModel: ObservableObject {
         let previous = selected?.id
         let words = Search.key(searchText).split(separator: " ")
         // Hidden games only show where they're brought back from; the filters only in the library.
-        var shelf = allGames.filter { hiddenGames.contains($0.gameID) == showingHidden }
+        var shelf = cards.filter { isHidden($0) == showingHidden }
         if route.level == .library {
             shelf = shelf.filter { filters.admits($0) { compatibility(of: $0).level } }
             shelf = showingHidden ? LibraryFilters(sort: .name).sorted(shelf) : filters.sorted(shelf)
@@ -1310,7 +1315,10 @@ final class LibraryModel: ObservableObject {
         } else {
             // Word starts first ("ark" → ARK, Arkham), then initials ("rdr2"), then mid-word hits
             // (Amnesia: The Dark Descent); within each, the order above.
-            let ranked = shelf.compactMap { game in Search.rank(name: game.name, query: searchText).map { (game, $0) } }
+            // A game from several stores by the best of its names ("Rocket League®", "Rocket League").
+            let ranked = shelf.compactMap { game in
+                game.entries.compactMap { Search.rank(name: $0.name, query: searchText) }.min().map { (game, $0) }
+            }
             let owned = Set(allGames.map(\.gameID))
             // Store hits are games you don't own: only without filters that ask about your copy.
             let storeHits = showingHidden || filters.status != .all || filters.controller || filters.mac ? []
@@ -1318,10 +1326,10 @@ final class LibraryModel: ObservableObject {
             games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + storeHits
         }
         let first = route.level == .library ? gridLayout.order.first ?? 0 : 0
-        selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.id == previous }) ?? first
+        selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.holds(previous) }) ?? first
         homeRail = words.isEmpty && !showingHidden ? HomeRail.pick(games, pinned: pinnedGames) : []
         switch route {
-        case .detail(let id, let from) where !games.contains(where: { $0.id == id }):
+        case .detail(let id, let from) where !games.contains(where: { $0.holds(id) }):
             route = from == .home ? .home : .library  // its game is gone (another scan, another version)
             if route == .home { selectOnHome() }
         case .home where !homeOnAllGames && !homeRail.contains(selectedIndex):
@@ -1369,7 +1377,7 @@ final class LibraryModel: ObservableObject {
     private func selectOnHome() {
         if homeGameID == Self.allGamesTile || homeRail.isEmpty {
             homeOnAllGames = true
-        } else if let index = homeRail.first(where: { games[$0].id == homeGameID }) ?? homeRail.first {
+        } else if let index = homeRail.first(where: { games[$0].holds(homeGameID) }) ?? homeRail.first {
             homeOnAllGames = false
             selectedIndex = index
         }
@@ -1390,7 +1398,7 @@ final class LibraryModel: ObservableObject {
         rememberSelection()
         route = .library
         applyFilter()  // with its filters
-        if let id = libraryGameID, let index = games.firstIndex(where: { $0.id == id }) {
+        if let id = libraryGameID, let index = games.firstIndex(where: { $0.holds(id) }) {
             selectedIndex = index
         }
     }
@@ -1445,7 +1453,7 @@ final class LibraryModel: ObservableObject {
     var forwardTarget: Route? {
         guard let next = history.next(from: route) else { return nil }
         if case .detail(let id, let from) = next {
-            guard let index = games.firstIndex(where: { $0.id == id }) else { return nil }
+            guard let index = games.firstIndex(where: { $0.holds(id) }) else { return nil }
             if from == .home, !homeRail.contains(index) { return nil }
         }
         return next
@@ -1464,12 +1472,13 @@ final class LibraryModel: ObservableObject {
         case .library:
             goLibrary()
         case .detail(let id, _):
-            guard let index = games.firstIndex(where: { $0.id == id }) else { return false }
+            guard let index = games.firstIndex(where: { $0.holds(id) }) else { return false }
             if route == .home { homeOnAllGames = false }
             selectedIndex = index
             openDetail()
         }
-        return route == next
+        // A game from several stores may start through another store than when its page was left.
+        return next.isDetail ? route.isDetail : route == next
     }
 
     /// Return and A: Home plays the game (its last tile opens the library), the library opens the
@@ -1497,8 +1506,13 @@ final class LibraryModel: ObservableObject {
         homeOnAllGames ? homeRail.count : homeRail.firstIndex(of: selectedIndex) ?? 0
     }
 
-    /// Play from somewhere else (a message's button, the Dock menu): shows the game, then plays it.
+    /// Play from somewhere else (a message's button, the Dock menu, a link): shows the game, then
+    /// plays it. A game from several stores plays through the one picked – unless that one isn't
+    /// installed and this store's copy is (it just finished downloading): then this one, from now on.
     func play(_ game: Game) {
+        if let card = card(holding: game.id), card.id != game.id, !card.isInstalled, game.isInstalled {
+            chooseStore(game.provider, for: card)
+        }
         guard reveal(game) else { return }
         primaryAction()
     }
@@ -1506,10 +1520,32 @@ final class LibraryModel: ObservableObject {
     /// Selects the game where it's shown – on Home when a search or filter hides it in the library.
     @discardableResult
     func reveal(_ game: Game) -> Bool {
-        if !games.contains(where: { $0.id == game.id }) { goHome() }
-        guard let index = games.firstIndex(where: { $0.id == game.id }) else { return false }
+        if !games.contains(where: { $0.holds(game.id) }) { goHome() }
+        guard let index = games.firstIndex(where: { $0.holds(game.id) }) else { return false }
         select(index)
         return true
+    }
+
+    // MARK: - One card for a game from several stores
+
+    /// The card a store's entry is on (`id` from `allGames`).
+    func card(holding id: String) -> Game? {
+        cards.first { $0.holds(id) }
+    }
+
+    private func mergeCards() {
+        cards = LibraryScanner.sorted(DuplicateGames.merge(allGames))
+    }
+
+    /// "Start through" on a game's page: the store it plays, downloads and uninstalls through from
+    /// now on. Its options and what Nightforge learned stay with each store.
+    func chooseStore(_ provider: Provider, for game: Game) {
+        // Not while it starts or is being uninstalled through the store picked so far.
+        guard provider != game.provider, game.providers.contains(provider), !game.holds(launchingID), !game.holds(uninstallingID)
+        else { return }
+        StoreChoice.save(provider, for: game.gameIDs)
+        mergeCards()
+        applyFilter()  // keeps the selection and the page: the card holds the old entry too
     }
 
     /// A game picked directly (a right-click on its cover).
@@ -1520,21 +1556,25 @@ final class LibraryModel: ObservableObject {
 
     // MARK: - Hide & pin
 
-    /// The games in the library, without the hidden ones.
-    var visibleCount: Int { allGames.lazy.filter { !self.hiddenGames.contains($0.gameID) && $0.inLibrary }.count }
+    /// The games in the library, without the hidden ones; a game from several stores once.
+    var visibleCount: Int { DuplicateGames.count(cards, hidden: hiddenGames) }
 
-    /// … of one store.
+    /// … of one store (a game from several stores counts in each).
     func visibleCount(of provider: Provider) -> Int {
-        allGames.lazy.filter { $0.provider == provider && !self.hiddenGames.contains($0.gameID) && $0.inLibrary }.count
+        DuplicateGames.count(cards, hidden: hiddenGames, in: provider)
     }
 
-    func isHidden(_ game: Game) -> Bool { hiddenGames.contains(game.gameID) }
-    func isPinned(_ game: Game) -> Bool { pinnedGames.contains(game.gameID) }
+    /// The hidden games, each once.
+    var hiddenCount: Int { cards.lazy.filter { self.isHidden($0) && $0.install != .inStore }.count }
+
+    /// Marked in any of its stores: a game from several stores shares its marks.
+    func isHidden(_ game: Game) -> Bool { game.isMarked(in: hiddenGames) }
+    func isPinned(_ game: Game) -> Bool { game.isMarked(in: pinnedGames) }
 
     /// Pinning keeps a game on Home's rail; only games on this Mac are there.
     func canPin(_ game: Game) -> Bool {
         guard !isHidden(game) else { return false }
-        switch game.install {
+        switch game.shown.install {
         case .installed, .downloading: return true
         case .notInstalled, .inStore: return false
         }
@@ -1544,10 +1584,10 @@ final class LibraryModel: ObservableObject {
     func toggleHidden(_ game: Game) {
         guard game.install != .inStore else { return }
         let hide = !isHidden(game), wasPinned = isPinned(game)
-        mark(game.gameID, hidden: hide, pinned: hide ? false : nil)
+        mark(game.gameIDs, hidden: hide, pinned: hide ? false : nil)
         Toasts.shared.show(hide ? L10n.t("%@ is hidden from your library", game.name) : L10n.t("%@ is back in your library", game.name),
                            action: .init(label: L10n.t("Undo")) { [weak self] in
-                               self?.mark(game.gameID, hidden: !hide, pinned: hide && wasPinned ? true : nil)
+                               self?.mark(game.gameIDs, hidden: !hide, pinned: hide && wasPinned ? true : nil)
                            })
     }
 
@@ -1555,19 +1595,20 @@ final class LibraryModel: ObservableObject {
     func togglePinned(_ game: Game) {
         guard canPin(game) || isPinned(game) else { return }
         let pin = !isPinned(game)
-        mark(game.gameID, pinned: pin)
+        mark(game.gameIDs, pinned: pin)
         Toasts.shared.show(pin ? L10n.t("%@ stays on Home – even when you haven't played it for a while", game.name)
                                : L10n.t("%@ is no longer pinned", game.name))
     }
 
-    private func mark(_ game: GameID, hidden: Bool? = nil, pinned: Bool? = nil) {
+    /// All of a game's stores at once, so it's marked or not wherever it's looked up.
+    private func mark(_ games: [GameID], hidden: Bool? = nil, pinned: Bool? = nil) {
         if let hidden {
-            if hidden { hiddenGames.insert(game) } else { hiddenGames.remove(game) }
+            if hidden { hiddenGames.formUnion(games) } else { hiddenGames.subtract(games) }
             GameMarks.save(hiddenGames, .hidden)
             if hiddenGames.isEmpty { showingHidden = false }
         }
         if let pinned {
-            if pinned { pinnedGames.insert(game) } else { pinnedGames.remove(game) }
+            if pinned { pinnedGames.formUnion(games) } else { pinnedGames.subtract(games) }
             GameMarks.save(pinnedGames, .pinned)
         }
         applyFilter()
@@ -2294,6 +2335,10 @@ final class LibraryModel: ObservableObject {
         defer { uninstallingID = nil }
         do {
             try await store(for: game).uninstall(game)
+            // Its copy from the store picked is gone: the card goes back to the store it's still installed in.
+            if let card = card(holding: game.id), card.id == game.id, card.others.contains(where: \.isInstalled) {
+                StoreChoice.forget(card.gameIDs)
+            }
         } catch {
             errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
         }

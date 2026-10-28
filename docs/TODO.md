@@ -297,7 +297,10 @@ von „Epic Games“ unten:
   in der App selbst (28.10. nur ohne Fenster geprüft, siehe Roadmap 7.2): „Wird aktualisiert … 42 %“ im Play-Knopf, offline
   startet die alte Version, „Download 12 GB · Auf dem Mac 25 GB“ und „Größe wird geprüft …“, Platz-Sheet bei vollem Mac,
   „Deine Zusatzinhalte: …“ auf der Spielseite, zwei Epic-Downloads hintereinander (der zweite wartet, läuft dann an).
-- **ARK & Co. doppelt:** Spiele, die man auf Steam und Epic besitzt, stehen zweimal da (Roadmap 7.4).
+- **Doppelt gekaufte Spiele (7.4, Branch `claude/merge-dupes-7-4-b22892`) in der App ansehen:** ARK: Survival Evolved
+  ist jetzt eine Karte. Prüfen: Spielseite mit „Starten über Steam | Epic Games“ (Maus und Pad), Wechsel des Stores
+  (Play/Größe/Optionen folgen), Cover „STEAM + EPIC“, ein Download im nicht gewählten Store (Fortschritt auf Cover und
+  Spielseite), Ausblenden/Anheften, Zähler. ARC Raiders stand am 28.10. in keiner der beiden Bibliotheken auf dem Mac.
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
   vermutlich ein Fehlklick, als das Fenster gerade nach vorne kam. Nicht nachvollzogen – im Auge behalten.
@@ -329,7 +332,7 @@ von „Epic Games“ unten:
 - **Alte Schlüssel aufräumen:** `GameIDMigration` lässt „options.570“, „library.hidden“ usw. für ältere Builds stehen.
   In einer späteren Version löschen.
 - **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Also add
-  Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ (1.2/7.4).
+  Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da).
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 

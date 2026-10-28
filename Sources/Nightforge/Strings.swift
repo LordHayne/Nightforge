@@ -839,6 +839,12 @@ enum L10n {
         "Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept.":
             "Platz schaffen – diese wurden länger nicht gespielt. Sie bleiben in der Bibliothek ihres Stores, Spielstände in dessen Cloud bleiben erhalten.",
         "There's still not enough space: %@ needs %@, your Mac has %@ free.": "Noch immer zu wenig Platz: %@ braucht %@, dein Mac hat %@ frei.",
+        // A game from several stores, one card
+        "Start through": "Starten über",
+        "Saves stay with each store.": "Spielstände bleiben beim jeweiligen Store.",
+        "Downloading from %@ … %ld %%": "Wird von %@ geladen … %ld %%",
+        "Preparing the download from %@ …": "Download von %@ wird vorbereitet …",
+        "%@ and %@": "%@ und %@",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

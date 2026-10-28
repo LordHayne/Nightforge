@@ -864,7 +864,7 @@ private struct GameDetail: View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: [game.provider.label])
+                MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: game.providers.map(\.label))
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -1004,6 +1004,10 @@ private struct GameDetail: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if !compact && game.providers.count > 1 && game.install != .inStore {
+                StoreChoiceRow(game: game)
+            }
+
             HStack(spacing: 14) {
                 PlayButton(install: game.install, isLaunching: model.launchingID == game.id || model.sizingID == game.id,
                            isUninstalling: model.uninstallingID == game.id,
@@ -1083,19 +1087,22 @@ private struct GameDetail: View {
             logo = await ArtworkStore.shared.image(for: game, kind: .logo)
         }
         .task(id: game.id) {
-            guard !compact, game.provider == .steam, game.install != .inStore, facts?.metascore == nil else { return }
-            askedScore = await Metascores.score(for: game.appID)
+            guard !compact, let steam, game.install != .inStore, facts?.metascore == nil else { return }
+            askedScore = await Metascores.score(for: steam.appID)
         }
     }
 
-    /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it; other stores' games neither).
+    /// Its Steam entry – also when it starts through another store – for what only Steam knows.
+    private var steam: Game? { game.entries.first { $0.provider == .steam } }
+
+    /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it; games only other stores have neither).
     private var facts: StoreFacts? {
-        game.provider == .steam ? SteamCatalog.storeFacts(appID: game.appID, steamRoot: game.steamRoot) : nil
+        steam.flatMap { SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot) }
     }
 
     /// Steam's catalog first; else what the store said, now or before (offline).
     private var metascore: Int? {
-        facts?.metascore ?? askedScore ?? (game.provider == .steam ? Metascores.cached(game.appID) : nil)
+        facts?.metascore ?? askedScore ?? steam.flatMap { Metascores.cached($0.appID) }
     }
 
     /// Nothing a Mac can run (VR only, anti-cheat): the button says why instead.
@@ -1109,6 +1116,37 @@ private struct GameDetail: View {
             return .init(title: L10n.t("Doesn't run on a Mac"), symbol: "shield.slash")
         }
         return nil
+    }
+}
+
+/// A game the player owns in several stores (one card for all): the store it starts, downloads and
+/// uninstalls through, and – while another of its stores downloads it – how far that is.
+private struct StoreChoiceRow: View {
+    let game: Game
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Text(L10n.t("Start through"))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                // In the stores' own order, so the choice doesn't move the segments.
+                Segmented(options: Provider.allCases.filter(game.providers.contains).map { ($0, $0.label, nil) },
+                          selection: game.provider, id: "detail.store") { model.chooseStore($0, for: game) }
+            }
+            Label(L10n.t("Saves stay with each store."), systemImage: "externaldrive.badge.icloud")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.muted)
+            if game.shown.id != game.id, case .downloading(let fraction) = game.shown.install {
+                Label(fraction.map { L10n.t("Downloading from %@ … %ld %%", game.shown.provider.label, Int($0 * 100)) }
+                      ?? L10n.t("Preparing the download from %@ …", game.shown.provider.label),
+                      systemImage: "arrow.down.circle")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
     }
 }
 
@@ -1497,30 +1535,36 @@ struct CoverCard: View {
             }
         }
         .frame(width: width, height: width * 1.5)
-        .saturation(game.install == .notInstalled || game.install == .inStore ? 0.15 : 1)
+        .saturation(shown.install == .notInstalled || shown.install == .inStore ? 0.15 : 1)
         .overlay(alignment: .bottom) { installBadge }
         .overlay(alignment: .topTrailing) {
-            // Another store than Steam: which one (Steam is where most games come from).
-            if game.provider != .steam {
-                Text(game.provider.short)
-                    .font(.system(size: 9.5, weight: .heavy).width(.expanded))
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Theme.night.opacity(0.78), in: Capsule())
-                    .padding(7)
-                    .help(L10n.t("From %@", game.provider.label))
-            }
-            // The version in use; in the store, that Steam has one.
-            if game.platform == .mac || (game.install == .inStore && game.macNative) {
-                Text("MAC")
-                    .font(.system(size: 9.5, weight: .heavy).width(.expanded))
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Theme.night.opacity(0.78), in: Capsule())
-                    .padding(7)
-                    .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
+            // Side by side: a game from several stores can use its Mac version from Steam.
+            HStack(spacing: -7) {
+                // Another store than Steam: which one (Steam is where most games come from); a game from
+                // several stores names them all.
+                if game.providers != [.steam] {
+                    Text(game.providers.map(\.short).joined(separator: " + "))
+                        .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)  // small covers (a pinch) with two stores
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Theme.night.opacity(0.78), in: Capsule())
+                        .padding(7)
+                        .help(L10n.t("From %@", Self.stores(game)))
+                }
+                // The version in use; in the store, that Steam has one.
+                if game.platform == .mac || (game.install == .inStore && game.macNative) {
+                    Text("MAC")
+                        .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Theme.night.opacity(0.78), in: Capsule())
+                        .padding(7)
+                        .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
+                }
             }
         }
         .overlay(alignment: .topTrailing) { DemoTag(game: game) }
@@ -1580,16 +1624,25 @@ struct CoverCard: View {
         }
     }
 
+    /// A game from several stores shows what one of them is doing (a download), else the one it starts through.
+    private var shown: Game { game.shown }
+
+    /// "Steam and Epic Games".
+    static func stores(_ game: Game) -> String {
+        let labels = game.providers.map(\.label)
+        return labels.count < 2 ? labels.joined() : L10n.t("%@ and %@", labels.dropLast().joined(separator: ", "), labels.last!)
+    }
+
     private var spokenDescription: String {
         var parts = [game.name]
-        switch game.install {
+        switch shown.install {
         case .installed: parts.append(game.pendingUpdate != nil ? L10n.t("Installed, update waiting") : L10n.t("Installed"))
         case .downloading: parts.append(L10n.t("Downloading"))
         case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }
-        if game.provider != .steam { parts.append(L10n.t("From %@", game.provider.label)) }
+        if game.providers != [.steam] { parts.append(L10n.t("From %@", Self.stores(game))) }
         if isPinned { parts.append(L10n.t("Pinned to Home")) }
         if game.controller != .none { parts.append(game.controller.help) }
         if isRunning { parts.append(L10n.t("Running")) }
@@ -1597,7 +1650,7 @@ struct CoverCard: View {
     }
 
     @ViewBuilder private var installBadge: some View {
-        switch game.install {
+        switch shown.install {
         case .installed where game.pendingUpdate != nil:
             HStack {
                 Spacer()

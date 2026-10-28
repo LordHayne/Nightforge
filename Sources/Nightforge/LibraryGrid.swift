@@ -213,7 +213,7 @@ struct LibraryToolbar: View {
                 .fixedSize()
                 HStack(spacing: 12) {
                     if !model.hiddenGames.isEmpty {
-                        FilterToggle(title: L10n.t("Hidden"), symbol: "eye.slash", count: model.hiddenGames.count,
+                        FilterToggle(title: L10n.t("Hidden"), symbol: "eye.slash", count: model.hiddenCount,
                                      on: model.showingHidden, id: "library.hidden",
                                      help: L10n.t("Games you hid from your library")) { model.toggleShowingHidden() }
                             .padding(.trailing, model.showingHidden ? 0 : 8)
