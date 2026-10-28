@@ -250,9 +250,11 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   starten über `Nightforge Helper.app` (Datenordner, `Detached.swift`), damit eine beendete Nightforge nicht im Dock
   stehen bleibt. Geprüft: ⌘Q mit Steam, ⌘Q während eines Spiels, Neustart, Spielende. Noch nicht gesehen:
   - **Berechtigungen** gehören für macOS jetzt dem Helfer: Abfragen (Spiele/Bibliotheken auf externen Laufwerken,
-    „Steam steuern“ für das Beenden von Steam für Mac) kommen unter „Nightforge Helper“, vielleicht einmal neu.
+    lokales Netzwerk, „Steam steuern“ für das Beenden von Steam für Mac) kommen unter „Nightforge Helper“,
+    vielleicht einmal neu.
   - **DMG-Installation** (mit Quarantäne-Flag): Der Helfer wird von Nightforge selbst geschrieben und trägt keins.
-    Weist macOS ihn trotzdem ab, startet Nightforge wie früher als Kindprozess (dann wieder zwei Symbole).
+    Weist macOS ihn trotzdem ab, startet Nightforge nach höchstens 10 s wie früher als Kindprozess und bleibt für
+    den Rest des Laufs dabei (dann wieder zwei Symbole).
   - **Mitteilungen und Dock-Menü** nicht eigens geprüft (es gibt nur noch einen Eintrag, also sollten sie treffen).
 - **`reopened()` im Beenden-Skript** (`pgrep -f "Nightforge.app/Contents/MacOS/Nightforge"`) zählt jede Befehlszeile,
   die den Pfad nur erwähnt – im Test hielt es eine Shell dafür und beendete sich, ohne Steam zu beenden. Robuster:
