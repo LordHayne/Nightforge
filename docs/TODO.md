@@ -325,6 +325,20 @@ von „Epic Games“ unten:
 - **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Also add
   Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ (1.2/7.4).
 
+### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
+
+Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
+
+- **Vor und Cover-Größe gibt es nur am Trackpad.** Die Roadmap-Regel will für jede Aktion einen Tasten- und einen
+  Controller-Weg. Möglich wären ⌘[ / ⌘] wie in Safari und ⌘+ / ⌘− für die Cover (`InputRouter.handleKey`,
+  `CoverSize.current`), am Pad vielleicht R3 für die Größe.
+- **Drei Finger** (`swipe(with:)`) sind nicht ausprobiert, weil beim Nutzer drei Finger zwischen Vollbild-Apps wechseln.
+  Die Richtung (`deltaX > 0` = zurück, wie WebKit) ist ungeprüft.
+- **macOS 14:** Die Leiste meldet ihre Ränder erst ab macOS 15 (`onScrollGeometryChange`). Unter 14 geht über der Leiste
+  nie vor, daneben schon. Nicht auf 14 ausprobiert.
+- **Zurück zur Startseite:** Beim Mitgleiten scheint nur die Bibliothek durch (sie liegt schon hinter einer Spielseite).
+  Die Startseite erscheint erst am Ende mit dem Überblenden. Sie dahinter vorzurendern wäre schöner.
+
 ## Aus dem Code-Audit
 
 Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #11, #12, #14–#19).

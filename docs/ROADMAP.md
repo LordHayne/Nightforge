@@ -387,6 +387,18 @@
   - **Tastensymbole:** „Like my controller / Xbox / PlayStation“ (`InputRouter.PadSymbols`).
   - **Design:** `Dialogs.tsx` → Tab „Controller“; HintBar zeigt „DualSense · 80 %“.
   - **Stand:** Verbundene Controller mit Akkustand (alle 30 s und bei An-/Abmelden aktualisiert), „Pair a Controller …“ öffnet die Bluetooth-Einstellungen und zeigt die Tasten je Hersteller, „Button labels: Like my controller / Xbox / PlayStation“ (`Prefs.padGlyphs`, `PadSymbols(style:)`). Akku in der HintBar: links unten „DualSense · 80 %“ mit Akku-Symbol (unter 20 % in der Akzentfarbe, wie im Entwurf), aktualisiert bei An-/Abmelden und alle paar Sekunden, solange Nightforge vorne ist.
+- [x] **5.5 Trackpad-Gesten** · `S` · `claude/musing-haslett-71514d`
+  - **Warum:** Am MacBook ist das Trackpad die Maus. Zurück über Esc oder die Pille ist dort ein Umweg (Wunsch vom 28.10.).
+  - **Was:** Zwei Finger seitwärts gehen zurück und wieder vor wie in Safari, die Seite folgt dem Finger. Zusammenziehen und Spreizen in der Bibliothek ändert die Cover-Größe.
+  - **Stand:**
+    - **Erkennen:** `InputRouter` prüft `scrollWheel`-Ereignisse mit `SwipeRecognizer` (`Trackpad.swift`). Eine Geste muss seitwärts anfangen und 15 pt seitwärts weitergehen, wie in Safari. Bis das klar ist, hält er die Ereignisse zurück und gibt sie weiter, wenn doch gescrollt wird. Dann übernimmt `NSEvent.trackSwipeEvent`.
+    - **Bedingungen:** Das geht nur mit „Zwischen Seiten blättern“ in den Systemeinstellungen. Die Richtung ist wie in Safari die des Inhalts und folgt damit „Natürliches Scrollen“. Drei Finger (`swipe(with:)`) wechseln ohne Mitgleiten, wenn das so eingestellt ist.
+    - **Vor:** Vor gibt es nur direkt nach einem Zurück (`NavigationHistory` in `Navigation.swift`, `LibraryModel.forward()`). Jeder andere Schritt vergisst es. Ein Zurück, das nur die Suche leert oder die ausgeblendeten Spiele verlässt, bleibt auf der Ebene.
+    - **Mitgleiten:** Die verlassene Ebene folgt dem Finger und schnappt zurück, wenn man abbricht (`SwipeLevel`). Hinter einer Spielseite scheint die Bibliothek durch, das Abdunkeln der Bibliothek blendet mit. Mit „Bewegung reduzieren“ wird nur überblendet.
+    - **Kein Konflikt:** Über der Cover-Leiste scrollt die Leiste. Vor greift dort erst, wenn sie ganz rechts steht. Ihre Ränder kommen ab macOS 15 aus `onScrollGeometryChange`; davor behält die Leiste jede Geste. Sheets, Dialoge, das Download-Panel und das Suchfeld unter dem Zeiger bekommen keine Geste. Was unter dem Zeiger liegt, kommt aus den Rahmen der Views (`SwipeArea`), nicht aus Hover. So stimmt es auch nach einem Ebenenwechsel ohne Mausbewegung.
+    - **Pinch:** Die Cover-Größe hat vier Stufen (116, 154, 196, 240 pt) und bleibt gemerkt (`CoverSize`). Das Raster rechnet die Spalten neu, das gewählte Spiel bleibt im Blick.
+    - **Geprüft:** Test `tests/TrackpadTest/` prüft Richtung, wann die Geste übernimmt, die Zurück/Vor-Historie, die Ränder der Leiste und die Pinch-Stufen. Am 28.10. mit dem Nutzer am echten Trackpad ausprobiert. Erster Fund: Über dem Suchfeld ließ sich zurückwischen, behoben.
+    - **Offen:** siehe `docs/TODO.md`, „Trackpad-Gesten“.
 
 ---
 

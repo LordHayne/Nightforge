@@ -1,12 +1,17 @@
 import AppKit
 import GameController
 
-/// Keyboard and gamepad navigation. GameController only delivers input while the
+/// Keyboard, trackpad and gamepad navigation. GameController only delivers input while the
 /// launcher is the active app, so it never reacts while you're in a game.
 @MainActor
 final class InputRouter {
     private weak var model: LibraryModel?
     private var keyMonitor: Any?
+    private var gestureMonitor: Any?
+    private var swipe = SwipeRecognizer()
+    /// A scroll's events while it isn't clear yet whether it's a swipe (SwipeRecognizer).
+    private var heldScroll: [NSEvent] = []
+    private var pinch = PinchSteps()
     private var observers: [NSObjectProtocol] = []
     private var repeatTimer: Timer?
     private var held = Step()
@@ -33,6 +38,11 @@ final class InputRouter {
                 }
                 return self?.handleKey(code: code, chars: chars, plain: plain) ?? false
             }
+            return handled ? nil : event
+        }
+
+        gestureMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .swipe, .magnify]) { [weak self] event in
+            let handled = MainActor.assumeIsolated { self?.handleGesture(event) ?? false }
             return handled ? nil : event
         }
 
@@ -109,6 +119,136 @@ final class InputRouter {
         default:
             return false
         }
+    }
+
+    // MARK: - Trackpad
+
+    /// Two fingers sideways go back and forward like in Safari (when System Settings › Trackpad
+    /// has "Swipe between pages" on), three fingers too if it's set to them, and pinching in the
+    /// library changes the cover size. True for an event it took.
+    private func handleGesture(_ event: NSEvent) -> Bool {
+        switch event.type {
+        case .scrollWheel: return scrollWheel(event)
+        case .swipe: return threeFingerSwipe(event)
+        case .magnify: magnify(event); return false
+        default: return false
+        }
+    }
+
+    private func scrollWheel(_ event: NSEvent) -> Bool {
+        let phase: SwipeRecognizer.Phase
+        switch event.phase {
+        case .began: phase = .began
+        case .changed: phase = .changed
+        case .ended, .cancelled: phase = .ended
+        default: return false  // momentum after the fingers left, a resting finger, a mouse wheel
+        }
+        if phase == .began {
+            heldScroll = []
+            guard event.hasPreciseScrollingDeltas, NSEvent.isSwipeTrackingFromScrollEventsEnabled, mayGesture(event) else {
+                swipe = SwipeRecognizer()
+                return false
+            }
+        }
+        let verdict = swipe.feed(phase, dx: event.scrollingDeltaX, dy: event.scrollingDeltaY) { [weak self] direction in
+            self?.swipeAllows(direction, event) ?? false
+        }
+        switch verdict {
+        case .wait:
+            heldScroll.append(event)
+            return true
+        case .scroll:
+            guard !heldScroll.isEmpty else { return false }
+            // Scrolling after all: what was held back goes on, in order, to what scrolls.
+            let held = heldScroll + [event]
+            heldScroll = []
+            held.forEach { $0.window?.sendEvent($0) }
+            return true
+        case .swipe(let direction):
+            heldScroll = []
+            trackSwipe(event, direction)
+            return true
+        }
+    }
+
+    /// Whether a swipe that way may go anywhere now (TrackpadSwipe.allows), Home's rail included.
+    private func swipeAllows(_ direction: TrackpadSwipe.Direction, _ event: NSEvent) -> Bool {
+        guard let model, mayGesture(event) else { return false }
+        let stage = SwipeStage.shared
+        let onRail = model.route == .home && stage.pointer(Self.topLeft(event), isOn: .rail)
+        return TrackpadSwipe.allows(direction, canGoBack: model.route != .home, canGoForward: model.forwardTarget != nil,
+                                    rail: onRail ? stage.railEdges : nil)
+    }
+
+    /// Gestures belong to the main window's levels: never to a sheet, a dialog or the downloads
+    /// panel, nor to the library's search field under the pointer.
+    private func mayGesture(_ event: NSEvent) -> Bool {
+        guard let model, let main = Self.mainWindow, event.window === main, dialog == nil,
+              !model.showingDownloads, !model.showingOptions, model.macSetup == nil else { return false }
+        return !(model.route == .library && SwipeStage.shared.pointer(Self.topLeft(event), isOn: .search))
+    }
+
+    /// Where the pointer is, in SwiftUI's global coordinates (from the window content's top left).
+    private static func topLeft(_ event: NSEvent) -> CGPoint {
+        guard let content = event.window?.contentView else { return .zero }
+        let point = content.convert(event.locationInWindow, from: nil)
+        return content.isFlipped ? point : CGPoint(x: point.x, y: content.bounds.height - point.y)
+    }
+
+    /// The page follows the fingers until they let go; then the system decides (by how far and
+    /// how fast) whether it goes on out and the level changes, or snaps back.
+    private func trackSwipe(_ event: NSEvent, _ direction: TrackpadSwipe.Direction) {
+        guard let model else { return }
+        let from = model.route
+        let stage = SwipeStage.shared
+        let id = stage.begin(from: from, to: direction == .back ? model.backTarget : model.forwardTarget, direction: direction)
+        var completes = false
+        // The way is already decided and locked; only how far counts (either sign).
+        event.trackSwipeEvent(options: [.lockDirection, .clampGestureAmount],
+                              dampenAmountThresholdMin: -1, max: 1) { [weak self] amount, phase, isComplete, stop in
+            MainActor.assumeIsolated {
+                // Esc, the pad or a dialog got there first: the swipe lets go.
+                guard let self, let model = self.model, model.route == from, self.dialog == nil else {
+                    stop.pointee = true
+                    stage.end(id)
+                    return
+                }
+                stage.move(id, to: abs(amount))
+                if phase == .ended { completes = true } else if phase == .cancelled { completes = false }
+                guard isComplete else { return }
+                if completes { self.finishSwipe(id, direction, from: from) } else { stage.end(id) }
+            }
+        }
+    }
+
+    private func finishSwipe(_ id: Int, _ direction: TrackpadSwipe.Direction, from: Route) {
+        guard let model else { return }
+        let stage = SwipeStage.shared
+        let moved = direction == .back ? model.back() : model.forward()
+        if !moved || model.route == from {
+            // Back stayed on this level (it dropped the search): the page slides back in.
+            stage.slideBack(id)
+        }
+        // The page left is out of sight; it lets go of the swipe once its fade-out is over.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            stage.end(id)
+        }
+    }
+
+    /// Three fingers, when System Settings has swiping between pages on them: straight to the
+    /// level, without following the fingers.
+    private func threeFingerSwipe(_ event: NSEvent) -> Bool {
+        guard let model, event.deltaX != 0, mayGesture(event) else { return false }
+        return event.deltaX > 0 ? model.back() : model.forward()
+    }
+
+    /// Pinching in the library: the covers a size bigger or smaller per step, and it's remembered.
+    private func magnify(_ event: NSEvent) {
+        guard let model, model.route == .library, mayGesture(event) else { return }
+        if event.phase == .began { pinch.begin() }
+        let step = pinch.add(event.magnification)
+        if step != 0 { CoverSize.current = CoverSize.current.stepped(step) }
     }
 
     // MARK: - Gamepad

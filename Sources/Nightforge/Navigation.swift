@@ -21,6 +21,46 @@ enum Route: Equatable {
         if case .detail = self { return true }
         return false
     }
+
+    /// The level a step back leads to; nil on Home, where there's nothing behind.
+    var parent: Route? {
+        switch self {
+        case .home: return nil
+        case .library, .detail(_, .home): return .home
+        case .detail(_, .library): return .library
+        }
+    }
+}
+
+/// Where a step back can be retraced: two fingers the other way on the trackpad go forward again,
+/// like Safari – but only right after going back. Any other step forgets it.
+struct NavigationHistory: Equatable {
+    enum Step { case back, forward, other }
+
+    /// The levels gone back from, the latest last.
+    private(set) var forward: [Route] = []
+
+    /// The window went from `old` to `new`.
+    mutating func moved(from old: Route, to new: Route, by step: Step) {
+        switch step {
+        case .back:
+            forward.append(old)
+        case .forward where forward.last == new:
+            forward.removeLast()
+        case .forward, .other:
+            forward.removeAll()
+        }
+    }
+
+    /// Something changed without leaving the level (back dropped the search): nothing to retrace.
+    mutating func forget() { forward.removeAll() }
+
+    /// The level forward leads to from `current`: the one last gone back from, if it lies right
+    /// ahead of where the window is now.
+    func next(from current: Route) -> Route? {
+        guard let next = forward.last, next.parent == current else { return nil }
+        return next
+    }
 }
 
 /// Home's rail, "Continue playing": only what you're likely to play next, so it stays short with
