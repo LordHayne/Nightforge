@@ -104,7 +104,9 @@ enum Legendary {
             async let output = Task.detached { out.fileHandleForReading.readDataToEndOfFile() }.value
             async let log = Task.detached { err.fileHandleForReading.readDataToEndOfFile() }.value
             let (data, logData) = await (output, log)
-            process.waitUntilExit()
+            // Not `waitUntilExit`: from a task it can miss legendary ending a moment after it closed
+            // its output and never return (1 in ~400 calls; a size check then waited for ever).
+            while process.isRunning { try? await Task.sleep(for: .milliseconds(20)) }
             killer.cancel()
             return Output(status: process.terminationStatus, output: data, log: String(decoding: logData, as: UTF8.self))
         }.value
@@ -127,6 +129,48 @@ enum Legendary {
         process.standardInput = FileHandle.nullDevice
         try process.run()
         return process
+    }
+
+    /// Ends a legendary and the processes it started: its downloader and their helpers run apart
+    /// and go on without it (18 of them, for good), so they're gathered first and ended with it.
+    /// legendary keeps what it has downloaded and carries on from there next time.
+    static func stop(_ pid: pid_t) {
+        let family = descendants(of: pid, in: processTable())
+        kill(pid, SIGTERM)
+        for child in family { kill(child, SIGTERM) }
+    }
+
+    /// `ps -axo pid=,ppid=`: each process and its parent.
+    private static func processTable() -> String {
+        let ps = Process()
+        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
+        ps.arguments = ["-axo", "pid=,ppid="]
+        let pipe = Pipe()
+        ps.standardOutput = pipe
+        ps.standardError = FileHandle.nullDevice
+        guard (try? ps.run()) != nil else { return "" }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        while ps.isRunning { usleep(10_000) }  // see run
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// The processes below `pid`, children and theirs, from a `pid ppid` table.
+    static func descendants(of pid: pid_t, in table: String) -> [pid_t] {
+        var children: [pid_t: [pid_t]] = [:]
+        for line in table.split(whereSeparator: \.isNewline) {
+            let fields = line.split(separator: " ")
+            guard fields.count == 2, let child = pid_t(fields[0]), let parent = pid_t(fields[1]) else { continue }
+            children[parent, default: []].append(child)
+        }
+        var found: [pid_t] = []
+        var open = [pid]
+        while let next = open.popLast() {
+            for child in children[next] ?? [] where !found.contains(child) && child != pid {
+                found.append(child)
+                open.append(child)
+            }
+        }
+        return found
     }
 
     // MARK: - What legendary says

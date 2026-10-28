@@ -60,6 +60,8 @@ enum SpaceCheck {
 /// A download waiting for room: shown as a sheet with games to remove.
 struct SpaceRequest: Identifiable {
     let game: Game
+    /// What the download needs on disk.
+    let needed: Int64
     let free: Int64
     let shortfall: Int64
     let candidates: [Game]

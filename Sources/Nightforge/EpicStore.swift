@@ -14,6 +14,15 @@ struct EpicGame: Codable, Equatable {
     var logo: URL?
     /// Epic keeps its saves in the cloud.
     var cloudSaves = false
+    /// Add-ons (DLCs) the player owns for it that come as files – they download with the game.
+    /// Missing in a library.json from before add-ons were kept.
+    var dlcs: [EpicDLC]?
+}
+
+/// An add-on the player owns for a game; legendary installs it into the game's folder.
+struct EpicDLC: Codable, Equatable {
+    let appName: String
+    let title: String
 }
 
 /// What Nightforge knows about the library between starts.
@@ -24,7 +33,9 @@ struct EpicLibrary: Codable, Equatable {
 
     /// `legendary list --json`: one object per game with its catalog data under "metadata". Games
     /// another launcher runs (EA app, Ubisoft Connect), programs (Discord: "software", no "games")
-    /// and extras that aren't a game of their own ("digitalextras") are left out.
+    /// and extras that aren't a game of their own ("digitalextras") are left out. Each game's "dlcs"
+    /// are the add-ons the player owns that have files (legendary lists only those); extras like
+    /// soundtracks and art books aren't part of the game and stay out there too.
     static func games(fromList json: Data) -> [EpicGame]? {
         guard let items = try? JSONSerialization.jsonObject(with: json) as? [[String: Any]] else { return nil }
         return items.compactMap { item in
@@ -50,6 +61,13 @@ struct EpicLibrary: Codable, Equatable {
             game.hero = images["DieselGameBox"] ?? images["OfferImageWide"]
             game.logo = images["DieselGameBoxLogo"]
             game.cloudSaves = attribute("CloudSaveFolder") != nil
+            game.dlcs = (item["dlcs"] as? [[String: Any]] ?? []).compactMap { dlc in
+                guard let appName = dlc["app_name"] as? String, GameID.isPlain(appName),
+                      let title = dlc["app_title"] as? String, !title.isEmpty else { return nil }
+                let metadata = dlc["metadata"] as? [String: Any] ?? [:]
+                let categories = (metadata["categories"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }
+                return categories.contains("digitalextras") ? nil : EpicDLC(appName: appName, title: title)
+            }
             return game
         }
     }
@@ -84,6 +102,12 @@ struct EpicInstall: Equatable {
         return result
     }
 
+    /// The version of everything installed, add-ons included.
+    static func versions(fromJSON json: Data) -> [String: String] {
+        guard let items = try? JSONSerialization.jsonObject(with: json) as? [String: [String: Any]] else { return [:] }
+        return items.reduce(into: [:]) { versions, item in versions[item.key] = item.value["version"] as? String ?? "" }
+    }
+
     /// The newest build Epic has for each game, from legendary's assets.json (updated with the library).
     static func latestVersions(fromAssets json: Data) -> [String: String] {
         guard let platforms = try? JSONSerialization.jsonObject(with: json) as? [String: [[String: Any]]] else { return [:] }
@@ -92,6 +116,27 @@ struct EpicInstall: Equatable {
             if let app = asset["app_name"] as? String, let build = asset["build_version"] as? String { versions[app] = build }
         }
         return versions
+    }
+}
+
+/// What a game comes to before it's downloaded, from `legendary info --json` (legendary reads the
+/// game's manifest from Epic): kept per build in sizes.json, so the game page and the space check
+/// know it before the download starts.
+struct EpicSize: Codable, Equatable {
+    /// The build it was read for: a newer one is asked again.
+    var version: String
+    /// What legendary downloads (compressed), and what the game takes on disk.
+    var download: Int64
+    var install: Int64
+
+    static func from(info json: Data) -> EpicSize? {
+        guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
+              let manifest = object["manifest"] as? [String: Any],
+              let install = (manifest["disk_size"] as? NSNumber)?.int64Value, install >= 0
+        else { return nil }
+        let download = (manifest["download_size"] as? NSNumber)?.int64Value ?? install
+        let version = manifest["build_version"] as? String ?? (object["game"] as? [String: Any])?["version"] as? String ?? ""
+        return EpicSize(version: version, download: download, install: install)
     }
 }
 
@@ -110,18 +155,32 @@ final class EpicStore: ObservableObject, StoreProvider {
     @Published private(set) var sync = StoreSync()
     /// The sign-in page is open: the Stores tab says what to do there.
     @Published var connecting = false
-    @Published private(set) var catalog = EpicLibrary()
+    @Published private(set) var catalog = EpicLibrary() {
+        didSet { gameOfAddOn = Self.addOnGames(catalog) }
+    }
     /// Something to tell the library (a download is done or failed, the list changed).
     var changed: () -> Void = {}
-    /// A download that stopped by itself, with legendary's reason.
-    var downloadFailed: (String, String) -> Void = { _, _ in }
+    /// A download that stopped by itself: the game's or add-on's name, legendary's reason, and
+    /// whether it was an add-on (its game is on the Mac then).
+    var downloadFailed: (String, String, Bool) -> Void = { _, _, _ in }
 
     private var downloads: [String: DetachedProcess] = [:]
     /// Downloads whose legendary is starting up: a look at the library meanwhile mustn't start it twice.
     private var starting: Set<String> = []
-    /// Downloads asked for: they carry on after Nightforge was quit or the Mac restarted.
-    private var wanted: Set<String> = []
+    /// Downloads asked for, in line: games and their add-ons. legendary installs one thing at a time
+    /// (it locks its list of what's installed), so they take turns, an add-on after its game. A part
+    /// that's done stays until its game's whole download is, which shows as one. They carry on after
+    /// Nightforge was quit or the Mac restarted.
+    private var wanted: [String] = []
+    /// Each add-on's game, by app name.
+    private var gameOfAddOn: [String: String] = [:]
     private var playTimes: [String: EpicPlayTime] = [:]
+    /// Sizes of games not on the Mac yet, by app name, and the newest build of each (assets.json).
+    private var sizes: [String: EpicSize] = [:]
+    private var latest: [String: String] = [:]
+    /// Sizes being asked for, and when asking last failed (offline): not again for a few minutes.
+    private var sizing: [String: Task<EpicSize?, Never>] = [:]
+    private var sizeFailed: [String: Date] = [:]
     /// Anti-cheat by catalog namespace (profiles.json "epic.<namespace>").
     private var antiCheat: [String: AntiCheatBlock] = [:]
     private var loadedFromDisk = false
@@ -130,6 +189,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     private static var libraryFile: URL { folder.appendingPathComponent("library.json") }
     private static var wantedFile: URL { folder.appendingPathComponent("downloads.json") }
     private static var playTimeFile: URL { folder.appendingPathComponent("playtime.json") }
+    private static var sizesFile: URL { folder.appendingPathComponent("sizes.json") }
     private static var userFile: URL { Legendary.configDir.appendingPathComponent("user.json") }
     /// The player connected Epic (until they disconnect). Kept apart from legendary's sign-in, which
     /// legendary drops when Epic ends it: the games mustn't go with it.
@@ -160,10 +220,13 @@ final class EpicStore: ObservableObject, StoreProvider {
             sync.lastSuccess = stored.loaded
         }
         if let data = try? Data(contentsOf: Self.wantedFile), let stored = try? decoder.decode([String].self, from: data) {
-            wanted = Set(stored)
+            wanted = stored.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
         }
         if let data = try? Data(contentsOf: Self.playTimeFile), let stored = try? decoder.decode([String: EpicPlayTime].self, from: data) {
             playTimes = stored
+        }
+        if let data = try? Data(contentsOf: Self.sizesFile), let stored = try? decoder.decode([String: EpicSize].self, from: data) {
+            sizes = stored
         }
     }
 
@@ -179,52 +242,122 @@ final class EpicStore: ObservableObject, StoreProvider {
         guard isConnected else { return [] }
         antiCheat = await ProfileStore.shared.epicAntiCheatBlocks()
         let config = Legendary.configDir
-        let (installed, latest) = await Engine.offMain {
-            (EpicInstall.all(fromJSON: (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data()),
-             EpicInstall.latestVersions(fromAssets: (try? Data(contentsOf: config.appendingPathComponent("assets.json"))) ?? Data()))
+        let (installed, versions, latest) = await Engine.offMain {
+            let installedJSON = (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data()
+            return (EpicInstall.all(fromJSON: installedJSON), EpicInstall.versions(fromJSON: installedJSON),
+                    EpicInstall.latestVersions(fromAssets: (try? Data(contentsOf: config.appendingPathComponent("assets.json"))) ?? Data()))
         }
+        self.latest = latest
         let running = await Engine.offMain { Self.runningDownloads() }
-        resumeDownloads(installed: installed, running: running)
+        carryOn(versions: versions, running: running)
         let wanted = self.wanted
         let progress = await Engine.offMain {
-            Dictionary(uniqueKeysWithValues: wanted.map { ($0, Legendary.progress(inLog: Self.logText(for: $0))) })
+            Dictionary(wanted.map { ($0, Legendary.progress(inLog: Self.logText(for: $0))) }, uniquingKeysWith: { first, _ in first })
         }
         var games: [Game] = []
         var listed = Set<String>()
         for entry in catalog.games {
             listed.insert(entry.appName)
-            games.append(game(entry, install: installed[entry.appName], latest: latest[entry.appName],
-                              downloading: wanted.contains(entry.appName) ? progress[entry.appName] : nil))
+            games.append(game(entry, install: installed[entry.appName], versions: versions, progress: progress))
         }
         // Installed but not in the list Nightforge has (it was never loaded here): still there.
         for (appName, install) in installed where !listed.contains(appName) {
             games.append(game(EpicGame(appName: appName, title: install.path.lastPathComponent, folder: install.path.lastPathComponent),
-                              install: install, latest: latest[appName], downloading: nil))
+                              install: install, versions: versions, progress: progress))
         }
         return games
     }
 
-    private func game(_ entry: EpicGame, install: EpicInstall?, latest: String?, downloading: Legendary.Progress?) -> Game {
+    private func game(_ entry: EpicGame, install: EpicInstall?, versions: [String: String],
+                      progress: [String: Legendary.Progress]) -> Game {
         let folder = install?.path ?? Legendary.gamesDir.appendingPathComponent(entry.folder, isDirectory: true)
-        // While it downloads: what the download comes to, which its progress is a share of.
-        let isDownloading = downloading != nil && (install == nil || downloads[entry.appName] != nil)
-        let size = isDownloading ? downloading?.downloadSize ?? install?.size ?? 0 : install?.size ?? 0
+        let addOns = entry.dlcs ?? []
+        // The game and its add-ons download as one, one part after the other.
+        let parts = ([entry.appName] + addOns.map(\.appName)).filter(wanted.contains).map { part in
+            JobPart(done: versions[part] != nil || progress[part]?.finished == true || isEmptyAddOn(part),
+                    progress: progress[part], size: knownSize(part)?.download)
+        }
+        let isDownloading = parts.contains { !$0.done }
+        let job = Self.jobProgress(parts)
+        // While it downloads: what the download comes to, which its progress is a share of. Before:
+        // what it takes on disk (the space check), once Epic has said.
+        let known = install == nil ? knownSize(of: entry) : nil
+        let size = isDownloading ? (job.size > 0 ? job.size : known?.download ?? 0) : install?.size ?? known?.install ?? 0
         var game = Game(gameID: .epic(entry.appName), name: entry.title, bottle: Engine.bottle, steamRoot: Engine.steamRoot,
                         steamExeWindowsPath: "", installDir: folder, sizeOnDisk: size,
                         lastPlayed: playTimes[entry.appName]?.lastPlayed, playtimeMinutes: playTimes[entry.appName]?.minutes)
         game.installDirName = folder.lastPathComponent
-        if isDownloading, let downloading {
-            game.install = .downloading(downloading.fraction)
+        game.addOns = addOns.map(\.title)
+        if isDownloading {
+            game.install = .downloading(job.fraction)
         } else if let install {
             game.install = .installed
             game.onlineOnly = !install.canRunOffline  // Epic's own say on offline play
-            if let latest, !install.version.isEmpty, latest != install.version { game.pendingUpdate = 0 }
+            if !Self.updateParts(entry.appName, addOns: addOns.map(\.appName), versions: versions, latest: latest,
+                                 empty: Set(addOns.map(\.appName).filter(isEmptyAddOn))).isEmpty {
+                game.pendingUpdate = 0
+            }
         } else {
             game.install = .notInstalled
+            game.downloadSize = known?.download
         }
         if let block = antiCheat[entry.namespace], !block.onlineOnly { game.antiCheatBlock = block }
         game.art = StoreArt(cover: entry.cover, hero: entry.hero, logo: entry.logo)
         return game
+    }
+
+    /// One part of a game's download: the game itself or one of its add-ons.
+    struct JobPart {
+        /// On the Mac (or nothing to download).
+        var done: Bool
+        var progress: Legendary.Progress?
+        /// What Epic said it comes to before it started.
+        var size: Int64?
+    }
+
+    /// A game and its add-ons download one after the other and show as one download: how far all of
+    /// it is, weighed by size – a part's size from its log once it started, before that what Epic
+    /// said. With no size known, the part that's under way says.
+    nonisolated static func jobProgress(_ parts: [JobPart]) -> (fraction: Double?, size: Int64) {
+        var total: Int64 = 0
+        var done = 0.0
+        var started = false
+        for part in parts {
+            let size = part.progress?.downloadSize ?? part.size ?? 0
+            total += size
+            if part.done {
+                done += Double(size)
+                started = true
+            } else if let fraction = part.progress?.fraction {
+                done += fraction * Double(size)
+                started = true
+            }
+        }
+        guard total > 0 else { return (parts.first { !$0.done }?.progress?.fraction, 0) }
+        return (started ? min(done / Double(total), 1) : nil, total)
+    }
+
+    /// An add-on's game, when it is one.
+    private func game(ofAddOn appName: String) -> String? { gameOfAddOn[appName] }
+
+    private func addOns(of appName: String) -> [String] {
+        catalog.games.first { $0.appName == appName }?.dlcs?.map(\.appName) ?? []
+    }
+
+    private static func addOnGames(_ catalog: EpicLibrary) -> [String: String] {
+        catalog.games.reduce(into: [:]) { found, game in
+            for dlc in game.dlcs ?? [] { found[dlc.appName] = game.appName }
+        }
+    }
+
+    /// An add-on with nothing to download (legendary then never lists it as installed).
+    private func isEmptyAddOn(_ appName: String) -> Bool {
+        game(ofAddOn: appName) != nil && knownSize(appName)?.download == 0
+    }
+
+    private func markEmpty(_ appName: String) {
+        sizes[appName] = EpicSize(version: latest[appName] ?? "", download: 0, install: 0)
+        save(sizes, to: Self.sizesFile)
     }
 
     /// Asks Epic for the library (signed in through legendary). On failure the games from last
@@ -254,6 +387,64 @@ final class EpicStore: ObservableObject, StoreProvider {
         changed()
     }
 
+    // MARK: - Sizes
+
+    /// The size known for the game's newest build, without asking.
+    private func knownSize(_ appName: String) -> EpicSize? {
+        guard let size = sizes[appName] else { return nil }
+        if let build = latest[appName], build != size.version { return nil }
+        return size
+    }
+
+    /// What the game and its add-ons come to, once Epic has said what the game itself does.
+    private func knownSize(of entry: EpicGame) -> EpicSize? {
+        guard var total = knownSize(entry.appName) else { return nil }
+        for dlc in entry.dlcs ?? [] {
+            guard let size = knownSize(dlc.appName) else { continue }
+            total.download += size.download
+            total.install += size.install
+        }
+        return total
+    }
+
+    /// What a game not on the Mac yet comes to with its add-ons: asked from Epic once per build, in
+    /// the background, and kept. nil when Epic can't be asked (offline, signed out).
+    func size(of game: Game) async -> EpicSize? {
+        loadFromDisk()
+        let appName = game.gameID.id
+        guard await askSize(appName) != nil else { return nil }
+        // The add-ons a few at a time: each is a legendary of its own.
+        let addOns = addOns(of: appName)
+        for start in stride(from: 0, to: addOns.count, by: 4) {
+            await withTaskGroup(of: Void.self) { group in
+                for dlc in addOns[start..<min(start + 4, addOns.count)] { group.addTask { _ = await self.askSize(dlc) } }
+            }
+        }
+        return catalog.games.first { $0.appName == appName }.flatMap(knownSize(of:)) ?? knownSize(appName)
+    }
+
+    private func askSize(_ appName: String) async -> EpicSize? {
+        if let known = knownSize(appName) { return known }
+        guard isSignedIn, Date().timeIntervalSince(sizeFailed[appName] ?? .distantPast) > 5 * 60 else { return nil }
+        if let asking = sizing[appName] { return await asking.value }
+        let asking = Task { () -> EpicSize? in
+            guard let result = try? await Legendary.run(["info", appName, "--json", "--platform", "Windows"], timeout: 90),
+                  result.status == 0 else { return nil }
+            return EpicSize.from(info: result.output)
+        }
+        sizing[appName] = asking
+        let size = await asking.value
+        sizing[appName] = nil
+        guard let size else {
+            sizeFailed[appName] = Date()
+            return nil
+        }
+        sizes[appName] = size
+        save(sizes, to: Self.sizesFile)
+        changed()
+        return size
+    }
+
     private static func reachError(_ log: String) -> String {
         log.split(whereSeparator: \.isNewline).last { $0.contains("ERROR") }.map(String.init) ?? "no answer"
     }
@@ -274,7 +465,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// Signs out (legendary forgets the tokens). Installed games stay on the Mac and come back
     /// with the next sign-in.
     func disconnect() async {
-        for process in downloads.values where process.isRunning { process.interrupt() }
+        for process in downloads.values.map({ $0 }) + updates.values where process.isRunning { Legendary.stop(process.processIdentifier) }
         _ = try? await Legendary.run(["auth", "--delete"], timeout: 30)
         try? FileManager.default.removeItem(at: Self.userFile)
         try? FileManager.default.removeItem(at: Self.accountFile)
@@ -288,19 +479,29 @@ final class EpicStore: ObservableObject, StoreProvider {
     func install(_ game: Game, context: StoreContext) async throws {
         loadFromDisk()
         let appName = game.gameID.id
-        guard downloads[appName] == nil, !starting.contains(appName) else { return }
+        guard !wanted.contains(appName) else { return }
         try FileManager.default.createDirectory(at: Legendary.gamesDir, withIntermediateDirectories: true)
-        wanted.insert(appName)
-        save(wanted.sorted(), to: Self.wantedFile)
-        do {
-            try await startDownload(appName)
-        } catch {
-            // Didn't start (legendary not at hand): nothing to carry on with later.
-            wanted.remove(appName)
-            save(wanted.sorted(), to: Self.wantedFile)
-            throw error
+        // Its add-ons come along, each after the game (they go into its folder).
+        let job = [appName] + addOns(of: appName).filter { !wanted.contains($0) }
+        wanted += job
+        save(wanted, to: Self.wantedFile)
+        let running = await Engine.offMain { Self.runningDownloads() }
+        if isFree(running: running) {
+            do {
+                try await startDownload(appName)
+            } catch {
+                // Didn't start (legendary not at hand): nothing to carry on with later.
+                wanted.removeAll(where: job.contains)
+                save(wanted, to: Self.wantedFile)
+                throw error
+            }
         }
         context.requested()
+    }
+
+    /// Nothing of this Nightforge's – nor of an earlier one's – has legendary installing.
+    private func isFree(running: Set<String>) -> Bool {
+        downloads.isEmpty && starting.isEmpty && updates.isEmpty && updatingGame == nil && running.isEmpty
     }
 
     private func startDownload(_ appName: String) async throws {
@@ -316,17 +517,45 @@ final class EpicStore: ObservableObject, StoreProvider {
         }
     }
 
+    /// Starts the next download in line once legendary is free; an add-on waits for its game.
+    private func startNext() async {
+        guard isFree(running: []), !wanted.isEmpty else { return }
+        let config = Legendary.configDir
+        let (versions, running) = await Engine.offMain {
+            (EpicInstall.versions(fromJSON: (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data()),
+             Self.runningDownloads())
+        }
+        guard isFree(running: running),
+              let next = wanted.first(where: { part in
+                  versions[part] == nil && !isEmptyAddOn(part) && game(ofAddOn: part).map { versions[$0] != nil } ?? true
+              })
+        else { return }
+        try? await startDownload(next)
+    }
+
     private func downloadEnded(_ appName: String, status: Int32) {
         downloads[appName] = nil
+        defer { Task { await startNext() } }
         guard wanted.contains(appName) else { return }  // cancelled
         let progress = Legendary.progress(inLog: Self.logText(for: appName))
-        wanted.remove(appName)
-        save(wanted.sorted(), to: Self.wantedFile)
-        if !progress.finished || status != 0 {
-            let title = catalog.games.first { $0.appName == appName }?.title ?? appName
-            downloadFailed(title, progress.failure ?? L10n.t("legendary stopped (code %d)", status))
+        let base = game(ofAddOn: appName)
+        if !progress.finished {
+            // The rest of that game's download goes too. A game that's on the Mac gets a missing
+            // add-on with its next "Update & Play".
+            let job = [base ?? appName] + addOns(of: base ?? appName)
+            wanted.removeAll(where: job.contains)
+            save(wanted, to: Self.wantedFile)
+            let title = base.flatMap { addOnTitle($0, appName) } ?? catalog.games.first { $0.appName == appName }?.title ?? appName
+            downloadFailed(title, progress.failure ?? L10n.t("legendary stopped (code %d)", status), base != nil)
+        } else if base != nil, EpicInstall.versions(fromJSON: (try? Data(contentsOf: Legendary.configDir
+            .appendingPathComponent("installed.json"))) ?? Data())[appName] == nil {
+            markEmpty(appName)  // "up to date" without being installed: nothing to download
         }
         changed()
+    }
+
+    private func addOnTitle(_ game: String, _ appName: String) -> String? {
+        catalog.games.first { $0.appName == game }?.dlcs?.first { $0.appName == appName }?.title
     }
 
     /// legendary downloads still running from an earlier Nightforge, by app name.
@@ -339,18 +568,21 @@ final class EpicStore: ObservableObject, StoreProvider {
         })
     }
 
-    /// A download asked for that isn't running (Nightforge or the Mac were restarted) carries on:
-    /// legendary picks it up where it stopped.
-    private func resumeDownloads(installed: [String: EpicInstall], running: Set<String>) {
-        for appName in wanted where downloads[appName] == nil && !starting.contains(appName) {
-            if installed[appName] != nil && !running.contains(appName) {
-                wanted.remove(appName)  // done meanwhile
-                save(wanted.sorted(), to: Self.wantedFile)
-            } else if !running.contains(appName) {
-                starting.insert(appName)
-                Task { try? await startDownload(appName) }
-            }
+    /// Keeps the line of downloads in order: a game's download leaves it once the game and all its
+    /// add-ons are there (also when that happened while Nightforge was away), add-ons whose game is
+    /// neither here nor coming leave it, and what's next starts – legendary picks a download up
+    /// where it stopped.
+    private func carryOn(versions: [String: String], running: Set<String>) {
+        let before = wanted
+        for base in Set(wanted.map { game(ofAddOn: $0) ?? $0 }) {
+            let job = wanted.filter { $0 == base || game(ofAddOn: $0) == base }
+            let busy = job.contains { downloads[$0] != nil || starting.contains($0) || running.contains($0) }
+            let done = job.allSatisfy { versions[$0] != nil || isEmptyAddOn($0) }
+            let orphaned = versions[base] == nil && !wanted.contains(base)
+            if !busy && (done || orphaned) { wanted.removeAll(where: job.contains) }
         }
+        if wanted != before { save(wanted, to: Self.wantedFile) }
+        Task { await startNext() }
     }
 
     nonisolated static func logText(for appName: String) -> String {
@@ -368,16 +600,18 @@ final class EpicStore: ObservableObject, StoreProvider {
     func uninstall(_ game: Game) async throws {
         loadFromDisk()
         let appName = game.gameID.id
-        if wanted.contains(appName) || downloads[appName] != nil {
-            wanted.remove(appName)
-            save(wanted.sorted(), to: Self.wantedFile)
-            if let process = downloads.removeValue(forKey: appName) {
-                process.terminate()
-                await Engine.offMain { process.waitUntilExit() }
+        let parts = [appName] + addOns(of: appName)
+        if parts.contains(where: { wanted.contains($0) || downloads[$0] != nil }) {
+            wanted.removeAll(where: parts.contains)
+            save(wanted, to: Self.wantedFile)
+            for part in parts {
+                guard let process = downloads.removeValue(forKey: part) else { continue }
+                Legendary.stop(process.processIdentifier)
+                while process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }  // see Legendary.run
             }
             for pid in Engine.ownProcesses(under: ComponentStore.shared.root.appendingPathComponent(Legendary.componentID))
-                .filter({ $0.command.contains(" install \(appName) ") }).map(\.pid) {
-                kill(pid, SIGTERM)
+                .filter({ process in parts.contains { process.command.contains(" install \($0) ") } }).map(\.pid) {
+                Legendary.stop(pid)
             }
         }
         let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
@@ -386,7 +620,9 @@ final class EpicStore: ObservableObject, StoreProvider {
             let result = try await Legendary.run(["uninstall", appName, "-y", "--skip-uninstaller"], timeout: 600)
             guard result.status == 0 else { throw EpicError.failed(result.error ?? L10n.t("legendary stopped (code %d)", result.status)) }
         } else {
-            try? FileManager.default.removeItem(at: Legendary.configDir.appendingPathComponent("tmp/\(appName).resume"))
+            for part in parts {
+                try? FileManager.default.removeItem(at: Legendary.configDir.appendingPathComponent("tmp/\(part).resume"))
+            }
         }
         // legendary removes the game's own files; what's left is a cancelled download, or the settings
         // files Nightforge writes beside the game (dxmt.conf …). Only inside the games folder.
@@ -394,7 +630,8 @@ final class EpicStore: ObservableObject, StoreProvider {
         if folder.deletingLastPathComponent().path == Legendary.gamesDir.standardizedFileURL.path {
             try? FileManager.default.removeItem(at: folder)
         }
-        try? FileManager.default.removeItem(at: Legendary.log(for: appName))
+        for part in parts { try? FileManager.default.removeItem(at: Legendary.log(for: part)) }
+        Task { await startNext() }
     }
 
     // MARK: - Playing
@@ -412,6 +649,148 @@ final class EpicStore: ObservableObject, StoreProvider {
                                               program: program, timeout: 30)
         if offline.status == 0, let command = Legendary.launchCommand(fromJSON: offline.output) { return command }
         throw EpicError.failed(online.error ?? offline.error ?? L10n.t("Epic Games didn't give the launch details for %@.", game.name))
+    }
+
+    // MARK: - Updates
+
+    /// How the update before a start went ("Update & Play").
+    enum UpdateOutcome: Equatable {
+        /// Up to date now, or legendary found nothing to fetch.
+        case updated
+        /// Nothing was fetched, so the version on the Mac starts – as Epic's launcher does offline.
+        case skipped(UpdateSkip)
+        /// It stopped once it had begun, or there's no room for it: the game may be half updated, and
+        /// the next try carries on where this one stopped.
+        case failed(String)
+        /// The game is up to date, one of its add-ons stopped (its name, the reason): the game starts
+        /// without it, and the next update tries again.
+        case addOnFailed(String, String)
+    }
+
+    enum UpdateSkip: Equatable {
+        /// Epic out of reach (offline, no answer).
+        case offline
+        /// Another Epic download has legendary, which installs one thing at a time.
+        case busy
+    }
+
+    /// Updates running before a start, by app name, and the game being brought up to date (its
+    /// parts take turns, and no download may slip in between).
+    private var updates: [String: DetachedProcess] = [:]
+    private var updatingGame: String?
+
+    /// What brings an installed game up to date, in order: the game when Epic has a newer build,
+    /// then its add-ons that are behind or not on the Mac yet (bought later, or a download that
+    /// stopped) – except ones known to have nothing to download.
+    nonisolated static func updateParts(_ appName: String, addOns: [String], versions: [String: String],
+                                        latest: [String: String], empty: Set<String>) -> [String] {
+        func behind(_ app: String) -> Bool {
+            guard let have = versions[app], !have.isEmpty, let newest = latest[app] else { return false }
+            return have != newest
+        }
+        return (behind(appName) ? [appName] : []) + addOns.filter { versions[$0] == nil ? !empty.contains($0) : behind($0) }
+    }
+
+    /// Brings an installed game and its add-ons up to date before it starts, like Steam's "Update &
+    /// Play": legendary fetches only what changed and carries on where an earlier try stopped.
+    /// `progress` hears how far all of it is, from legendary's logs.
+    func update(_ game: Game, progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
+        loadFromDisk()
+        let appName = game.gameID.id
+        let config = Legendary.configDir
+        let (versions, latest) = await Engine.offMain {
+            (EpicInstall.versions(fromJSON: (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data()),
+             EpicInstall.latestVersions(fromAssets: (try? Data(contentsOf: config.appendingPathComponent("assets.json"))) ?? Data()))
+        }
+        self.latest = latest
+        let addOns = addOns(of: appName)
+        let parts = Self.updateParts(appName, addOns: addOns, versions: versions, latest: latest,
+                                     empty: Set(addOns.filter(isEmptyAddOn)))
+        guard !parts.isEmpty else { return .updated }
+        updatingGame = appName
+        defer {
+            updatingGame = nil
+            Task { await startNext() }  // downloads asked for meanwhile
+        }
+        let running = await Engine.offMain { Self.runningDownloads() }
+        // legendary installs one thing at a time: while another Epic download runs, the game starts
+        // as it is. One of its own parts an earlier Nightforge started is followed instead.
+        if !downloads.isEmpty || !starting.isEmpty || !running.isSubset(of: Set(parts)) { return .skipped(.busy) }
+        for (index, part) in parts.enumerated() {
+            let outcome = await updatePart(part, installed: versions[part] != nil, following: running.contains(part)) { fraction in
+                let share = fraction ?? 0
+                progress(fraction == nil && index == 0 ? nil : (Double(index) + share) / Double(parts.count))
+            }
+            switch outcome {
+            case .updated:
+                if part != appName, versions[part] == nil, await Engine.offMain({
+                    EpicInstall.versions(fromJSON: (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data())[part] == nil
+                }) {
+                    markEmpty(part)  // "up to date" without being installed: nothing to download
+                }
+            case .skipped:
+                // Nothing of it fetched: the game starts as it is; after the game's own update, an
+                // add-on waits for the next time.
+                return index == 0 ? outcome : .updated
+            case .failed(let reason) where part != appName:
+                return .addOnFailed(addOnTitle(appName, part) ?? part, reason)
+            case .failed, .addOnFailed:
+                return outcome
+            }
+        }
+        return .updated
+    }
+
+    /// One part of an update: the game or an add-on, fetched by legendary (a missing add-on in full).
+    private func updatePart(_ appName: String, installed: Bool, following: Bool,
+                            progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
+        var process: DetachedProcess?
+        if !following {
+            let arguments = installed ? ["install", appName, "--update-only", "--skip-sdl", "--skip-dlcs", "-y"]
+                : ["install", appName, "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y"]
+            do {
+                process = try await Legendary.start(arguments, log: Legendary.log(for: appName))
+            } catch {
+                return .skipped(.offline)
+            }
+        }
+        updates[appName] = process
+        defer { updates[appName] = nil }
+        var silent = 0
+        while true {
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled {
+                if let process { Legendary.stop(process.processIdentifier) }  // it carries on next time
+                return .skipped(.offline)
+            }
+            let state = await Engine.offMain { Legendary.progress(inLog: Self.logText(for: appName)) }
+            progress(state.fraction)
+            let ended: Bool
+            if let process {
+                ended = !process.isRunning
+            } else {
+                ended = !(await Engine.offMain { Self.runningDownloads() }).contains(appName)
+            }
+            if ended { return Self.updateOutcome(state, status: process?.terminationStatus) }
+            // Not a word from Epic for 90 s (a network that doesn't answer): the game starts as it is.
+            silent = state.fraction == nil ? silent + 1 : 0
+            if silent >= 90 {
+                if let process { Legendary.stop(process.processIdentifier) }
+                return .skipped(.offline)
+            }
+        }
+    }
+
+    /// What an update's log says once legendary has ended.
+    nonisolated static func updateOutcome(_ state: Legendary.Progress, status: Int32?) -> UpdateOutcome {
+        if state.finished { return .updated }
+        let reason = state.failure ?? L10n.t("legendary stopped (code %d)", status ?? -1)
+        // Nothing fetched yet: the game's files are as they were, so it starts with them – unless
+        // there's no room for the update, which the player has to hear about.
+        if state.fraction == nil && !reason.contains("disk space") {
+            return reason.contains("lock") ? .skipped(.busy) : .skipped(.offline)
+        }
+        return .failed(reason)
     }
 
     /// The Mac's language for the game ("de"), as Epic's launcher hands it over (-epiclocale):
@@ -455,5 +834,17 @@ final class EpicStore: ObservableObject, StoreProvider {
     nonisolated static func executable(of appName: String) -> String? {
         let file = Legendary.configDir.appendingPathComponent("installed.json")
         return EpicInstall.all(fromJSON: (try? Data(contentsOf: file)) ?? Data())[appName]?.executable
+    }
+}
+
+/// The line on a game's page about its add-ons: the first few by name, then how many more.
+enum AddOns {
+    static let named = 3
+
+    static func line(_ titles: [String]) -> String {
+        let shown = titles.prefix(named).joined(separator: ", ")
+        let list = titles.count > named ? L10n.t("%@ and %ld more", shown, titles.count - named) : shown
+        return titles.count == 1 ? L10n.t("Your add-on: %@ – it downloads and updates with the game.", list)
+            : L10n.t("Your add-ons: %@ – they download and update with the game.", list)
     }
 }
