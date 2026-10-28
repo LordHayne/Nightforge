@@ -290,10 +290,13 @@ von „Epic Games“ unten:
   in der App selbst (28.10. nur ohne Fenster geprüft, siehe Roadmap 7.2): „Wird aktualisiert … 42 %“ im Play-Knopf, offline
   startet die alte Version, „Download 12 GB · Auf dem Mac 25 GB“ und „Größe wird geprüft …“, Platz-Sheet bei vollem Mac,
   „Deine Zusatzinhalte: …“ auf der Spielseite, zwei Epic-Downloads hintereinander (der zweite wartet, läuft dann an).
-- **Doppelt gekaufte Spiele (7.4, Branch `claude/merge-dupes-7-4-b22892`) in der App ansehen:** ARK: Survival Evolved
-  ist jetzt eine Karte. Prüfen: Spielseite mit „Starten über Steam | Epic Games“ (Maus und Pad), Wechsel des Stores
-  (Play/Größe/Optionen folgen), Cover „STEAM + EPIC“, ein Download im nicht gewählten Store (Fortschritt auf Cover und
-  Spielseite), Ausblenden/Anheften, Zähler. ARC Raiders stand am 28.10. in keiner der beiden Bibliotheken auf dem Mac.
+- **Doppelt gekaufte Spiele (7.4, Branch `claude/merge-dupes-7-4-b22892`):** Am 28.10. in der App mit der Maus gesehen
+  (ARK, Karte, Spielseite, Wechsel Steam ↔ Epic, Größe, Zähler 192). Noch offen: Store-Wahl per Pad, ein Download im nicht
+  gewählten Store (Fortschritt auf Cover und Spielseite), Ausblenden/Anheften einer zusammengeführten Karte. ARC Raiders
+  stand am 28.10. in keiner der beiden Bibliotheken auf dem Mac.
+- **Esc auf der Spielseite, wenn die Suche noch den Fokus hat** (28.10., gefunden beim 7.4-Test, nicht von 7.4): Spielseite
+  aus einer Suche geöffnet, das Suchfeld behält den Tastaturfokus – Esc leert dann die (verdeckte) Suche, statt
+  zurückzugehen. Erst nach einem Klick außerhalb geht Esc zurück. Beim Öffnen der Spielseite den Fokus vom Suchfeld nehmen.
 - **„Spielen“ blendete OxyRail aus** (28.10., Prüfung per Fernsteuerung): Ein Klick auf „Spielen“ startete OxyRail und
   zeigte zugleich „OxyRail ist aus deiner Bibliothek ausgeblendet“. Im Code löst nur der Augen-Knopf oder H das aus;
   vermutlich ein Fehlklick, als das Fenster gerade nach vorne kam. Nicht nachvollzogen – im Auge behalten.
