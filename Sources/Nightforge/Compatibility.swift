@@ -125,7 +125,9 @@ extension Compatibility {
         facts.learnedFixes = !LearnedFixes.winetricks(game.gameID).isEmpty || LearnedFixes.noAVX(game.gameID)
         facts.ownRating = GameRatings.load(game.gameID)
         if let analysis {
-            facts.launch = LaunchHealth.peek(game.gameID, LaunchHealth.attempts(for: analysis, profile: profile))
+            facts.launch = LaunchHealth.peek(game.gameID, LaunchHealth.ladder(LaunchHealth.attempts(for: analysis, profile: profile),
+                                                                              preset: GameOptionsStore.load(game.gameID).preset,
+                                                                              profile: profile))
         }
         return rate(facts)
     }

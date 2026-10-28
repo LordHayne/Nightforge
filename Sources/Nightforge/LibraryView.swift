@@ -262,8 +262,15 @@ private struct DetailLevel: View {
             BackPill(to: model.route.level)
                 .padding(.top, 18)
             Spacer(minLength: 24)
-            GameDetail(game: game, compact: false)
-                .id(game.id)
+            HStack(alignment: .bottom, spacing: 32) {
+                GameDetail(game: game, compact: false)
+                // What's set for it and where that comes from (2.3), beside the title as in the design.
+                if game.install != .inStore {
+                    Spacer(minLength: 0)
+                    ThisGameCard(game: game)
+                }
+            }
+            .id(game.id)
             Spacer(minLength: 28)
         }
         .padding(.horizontal, Theme.gutter)
@@ -337,7 +344,7 @@ private struct AllGamesHero: View {
 // MARK: - Didn't start
 
 /// A game that ended right after starting with every way Nightforge knows: what was tried, and
-/// what's left to do – start over, choose by hand, or report it.
+/// what's left to do – "Most compatible", start over, choose by hand, or report it.
 struct FailedLaunchSheet: View {
     let failed: FailedLaunch
     @EnvironmentObject private var model: LibraryModel
@@ -356,13 +363,28 @@ struct FailedLaunchSheet: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 // A on a controller is Return: the first way out, not a browser.
+                if offersCompatible {
+                    Button(action: mostCompatible) {
+                        Label(L10n.t("Try “Most compatible”"), systemImage: "shield.lefthalf.filled")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("failed.compatible", cornerRadius: 21, preferred: true, activate: mostCompatible)
+                    Text(L10n.t("Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options."))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 4)
+                }
                 Button(action: startOver) {
                     Label(L10n.t("Try Again From the First Way"), systemImage: "arrow.counterclockwise")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(GlassTextButtonStyle(prominent: true))
-                .keyboardShortcut(.defaultAction)
-                .padFocus("failed.again", cornerRadius: 21, preferred: true, activate: startOver)
+                .buttonStyle(GlassTextButtonStyle(prominent: !offersCompatible))
+                .keyboardShortcut(offersCompatible ? nil : .defaultAction)
+                .padFocus("failed.again", cornerRadius: 21, preferred: !offersCompatible, activate: startOver)
                 Text(L10n.t("Helps when something got in the way the first time – Steam updating, a window asking something."))
                     .font(.system(size: 12.5))
                     .foregroundStyle(Theme.muted)
@@ -399,6 +421,13 @@ struct FailedLaunchSheet: View {
         return analysis.usesD3D11 || analysis.usesD3D9 || analysis.apis.isEmpty
     }
 
+    /// Nightforge's own Windows games, not yet on "Most compatible" (1.2, 2.3).
+    private var offersCompatible: Bool {
+        failed.game.bottle.isBuiltIn && failed.game.platform == .windows
+            && GameOptionsStore.load(failed.game.gameID).preset != .compatible
+    }
+
+    private func mostCompatible() { model.startMostCompatible(failed) }
     private func startOver() { model.startOver(failed) }
     private func chooseByHand() { model.chooseGraphicsByHand(failed) }
     private func report() { model.reportProblem(for: failed.game, tried: failed.tried) }
@@ -908,20 +937,6 @@ private struct GameDetail: View {
                 }
                 if !game.bottle.isBuiltIn && game.platform == .windows {  // only means something with several CrossOver bottles
                     Stat(label: L10n.t("Bottle"), value: game.bottle.name)
-                }
-                if !compact && game.isInstalled {
-                    let offline = OfflineReadiness.of(game, analysis: model.insights[game.gameID]?.analysis,
-                                                      accountRemembered: game.provider == .epic ? model.epic.isSignedIn
-                                                          : OfflineReadiness.accountRemembered(steamRoot: game.steamRoot))
-                    Stat(label: L10n.t("Offline"), value: offline.label)
-                        .help(offline.help)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityHint(offline.help)
-                }
-                if !compact, let held = model.heldEngine(of: game) {
-                    Stat(label: L10n.t("Engine"),
-                         value: L10n.t("%@ (held back)", EngineRollback.label(held.build, setUp: held.setUp,
-                                                                               other: EngineRollback.shared.history().current)))
                 }
             }
 

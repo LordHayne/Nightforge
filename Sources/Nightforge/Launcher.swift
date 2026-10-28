@@ -136,7 +136,51 @@ enum Choice: String, Codable, CaseIterable {
     case automatic, on, off
 }
 
+/// A game's graphics in one choice. Automatic is what the profile says and Nightforge learns; the
+/// next three fix the frame limit and MetalFX (decided 27.10.); Custom is what the expert options say.
+enum GraphicsPreset: String, Codable, CaseIterable, Identifiable {
+    case automatic
+    /// "Sharp & smooth" fixed: MetalFX and an even share of the display's rate (60 FPS on 120 Hz).
+    case balanced
+    /// MetalFX without a frame limit.
+    case fastest
+    /// The safest layer first (LaunchHealth.ladder), no MetalFX, 60 FPS.
+    case compatible
+    case custom
+
+    var id: String { rawValue }
+
+    /// The ones to pick; Custom comes from changing an expert option.
+    static let choices: [GraphicsPreset] = [.automatic, .balanced, .fastest, .compatible]
+
+    /// What "Most compatible" holds a game to.
+    static let compatibleLimit = 60
+
+    var label: String {
+        switch self {
+        case .automatic: return L10n.t("Automatic")
+        case .balanced: return L10n.t("Balanced")
+        case .fastest: return L10n.t("Fastest")
+        case .compatible: return L10n.t("Most compatible")
+        case .custom: return L10n.t("Custom")
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .automatic: return L10n.t("What the profile for this game says and what Nightforge learns while you play – the best choice for most games.")
+        case .balanced: return L10n.t("MetalFX sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen).")
+        case .fastest: return L10n.t("The highest frame rate: MetalFX upscaling, no frame limit.")
+        case .compatible: return L10n.t("The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.")
+        case .custom: return L10n.t("Custom: your own choice in the expert options below.")
+        }
+    }
+}
+
 struct GameOptions: Codable, Equatable {
+    /// The graphics in one choice. `graphics`, `frameLimit` and `upscaling` count for Custom; with
+    /// any other preset they stay automatic and the preset decides (`resolved`).
+    var preset = GraphicsPreset.automatic
     var metalHUD = false
     var extraArgs = ""
     var graphics = GraphicsLayer.automatic
@@ -155,7 +199,7 @@ struct GameOptions: Codable, Equatable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case metalHUD, extraArgs, graphics, fps, metalFX, hdr, version
+        case preset, metalHUD, extraArgs, graphics, fps, metalFX, hdr, version
         // 0.1.4 stored these; their defaults (0, false) meant "untouched", so they read as automatic.
         case frameLimit, upscaling
     }
@@ -172,10 +216,14 @@ struct GameOptions: Codable, Equatable {
         upscaling = try c.decodeIfPresent(Choice.self, forKey: .metalFX) ?? (legacyUpscaling ? .on : .automatic)
         hdr = try c.decodeIfPresent(Bool.self, forKey: .hdr) ?? false
         version = (try? c.decodeIfPresent(GameVersion.self, forKey: .version)) ?? .automatic
+        // Before the presets (and a preset from a newer Nightforge): expert options set by hand are Custom.
+        preset = (try? c.decodeIfPresent(GraphicsPreset.self, forKey: .preset))
+            ?? (graphics == .automatic && frameLimit == nil && upscaling == .automatic ? .automatic : .custom)
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(preset, forKey: .preset)
         try c.encode(metalHUD, forKey: .metalHUD)
         try c.encode(extraArgs, forKey: .extraArgs)
         try c.encode(graphics, forKey: .graphics)
@@ -192,9 +240,45 @@ struct GameOptions: Codable, Equatable {
     func effectiveFrameLimit(displayRefreshRate: Int, profile: GameProfile? = nil) -> Int {
         if let frameLimit { return frameLimit }
         guard Prefs.sharpAndSmooth else { return 0 }
-        if let fromProfile = profile?.frameLimit { return fromProfile }
-        guard displayRefreshRate > 0 else { return 0 }
-        return displayRefreshRate >= 100 ? displayRefreshRate / 2 : displayRefreshRate
+        return profile?.frameLimit ?? Self.evenLimit(displayRefreshRate)
+    }
+
+    /// Half the refresh rate on fast displays (60 on 120 Hz), the refresh rate on 60 Hz ones.
+    static func evenLimit(_ refreshRate: Int) -> Int {
+        guard refreshRate > 0 else { return 0 }
+        return refreshRate >= 100 ? refreshRate / 2 : refreshRate
+    }
+
+    /// The options a start goes by: Automatic and Custom as stored, the other presets with their
+    /// frame limit and MetalFX fixed – so FramePacing doesn't learn against them. Their layer stays
+    /// automatic: LaunchHealth tries the ways in the preset's order. A game whose profile rules
+    /// MetalFX out goes without (WineD3D can't upscale anyway); a profile's frame limit stands for Balanced.
+    func resolved(refreshRate: Int, profile: GameProfile?) -> GameOptions {
+        var options = self
+        let metalFX: Choice = profile?.metalFX == false ? .off : .on
+        switch preset {
+        case .automatic, .custom:
+            return self
+        case .balanced:
+            options.upscaling = metalFX
+            options.frameLimit = profile?.frameLimit ?? Self.evenLimit(refreshRate)
+        case .fastest:
+            options.upscaling = metalFX
+            options.frameLimit = 0
+        case .compatible:
+            options.upscaling = .off
+            options.frameLimit = GraphicsPreset.compatibleLimit
+        }
+        options.graphics = .automatic
+        return options
+    }
+
+    /// Picks a preset; the expert options go back to automatic, as they count for Custom only.
+    mutating func choose(_ preset: GraphicsPreset) {
+        self.preset = preset
+        graphics = .automatic
+        frameLimit = nil
+        upscaling = .automatic
     }
 
     /// A game profile can rule MetalFX out for games it doesn't suit.
@@ -223,6 +307,13 @@ enum GameOptionsStore {
         } else if let data = try? JSONEncoder().encode(options) {
             UserDefaults.standard.set(data, forKey: key(game))
         }
+    }
+
+    /// A preset picked outside the options sheet (after a failed start, in "Welcome back").
+    static func choose(_ preset: GraphicsPreset, for game: GameID) {
+        var options = load(game)
+        options.choose(preset)
+        save(options, for: game)
     }
 }
 
