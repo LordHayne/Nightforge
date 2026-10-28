@@ -38,7 +38,12 @@ final class LibraryModel: ObservableObject {
     /// A focus request the field hasn't taken yet: it may only appear with the library.
     private var searchFocusPending = false
     /// Home, the library grid, or a game's page.
-    @Published private(set) var route = Route.home
+    @Published private(set) var route = Route.home {
+        didSet { if route != oldValue { history.moved(from: oldValue, to: route, by: historyStep) } }
+    }
+    /// What forward (the trackpad swipe) can retrace, and what kind of step changes the route now.
+    private var history = NavigationHistory()
+    private var historyStep = NavigationHistory.Step.other
     /// The games on Home's rail, as indices into `games` (HomeRail).
     @Published private(set) var homeRail: [Int] = []
     /// On Home, the "All games" tile after the rail is selected instead of a game.
@@ -1414,6 +1419,8 @@ final class LibraryModel: ObservableObject {
     /// and then goes Home. False when there's nothing to go back from.
     @discardableResult
     func back() -> Bool {
+        historyStep = .back
+        defer { historyStep = .other }
         switch route {
         case .detail(_, .library):
             route = .library
@@ -1421,8 +1428,10 @@ final class LibraryModel: ObservableObject {
             route = .home
         case .library:
             if !searchText.isEmpty {
+                history.forget()
                 searchText = ""
             } else if showingHidden {
+                history.forget()
                 toggleShowingHidden()
             } else {
                 goHome()
@@ -1431,6 +1440,45 @@ final class LibraryModel: ObservableObject {
             return false
         }
         return true
+    }
+
+    /// Where back() leads; nil when it stays on this level (the library drops its search or the
+    /// hidden games first) or on Home.
+    var backTarget: Route? {
+        if route == .library, !searchText.isEmpty || showingHidden { return nil }
+        return route.parent
+    }
+
+    /// Where forward() leads: the level just gone back from, while its game is still there.
+    var forwardTarget: Route? {
+        guard let next = history.next(from: route) else { return nil }
+        if case .detail(let id, let from) = next {
+            guard let index = games.firstIndex(where: { $0.holds(id) }) else { return nil }
+            if from == .home, !homeRail.contains(index) { return nil }
+        }
+        return next
+    }
+
+    /// Two fingers the other way after going back (the trackpad, like Safari): the level just
+    /// left comes back. False when there's nothing to retrace.
+    @discardableResult
+    func forward() -> Bool {
+        guard let next = forwardTarget else { return false }
+        historyStep = .forward
+        defer { historyStep = .other }
+        switch next {
+        case .home:
+            goHome()
+        case .library:
+            goLibrary()
+        case .detail(let id, _):
+            guard let index = games.firstIndex(where: { $0.holds(id) }) else { return false }
+            if route == .home { homeOnAllGames = false }
+            selectedIndex = index
+            openDetail()
+        }
+        // A game from several stores may start through another store than when its page was left.
+        return next.isDetail ? route.isDetail : route == next
     }
 
     /// Return and A: Home plays the game (its last tile opens the library), the library opens the

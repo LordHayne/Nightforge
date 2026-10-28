@@ -13,10 +13,10 @@ struct LibraryView: View {
                     .id(game.id)
                     .transition(.opacity)
             }
-            if model.showingLibrary {
-                Theme.night.opacity(0.86).ignoresSafeArea()
-                    .transition(.opacity)
-            }
+            // The library's darkening; a swipe to or from the library fades it with the fingers.
+            Theme.night.opacity(0.86).ignoresSafeArea()
+                .modifier(SwipeLevel(route: .library, shown: model.showingLibrary, moves: false))
+                .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 0) {
                 TopBar()
@@ -24,19 +24,23 @@ struct LibraryView: View {
                 ZStack(alignment: .topLeading) {
                     // The grid stays behind a game's page opened from it, so going back finds it
                     // scrolled to where it was.
+                    // A trackpad swipe moves them with the fingers (SwipeLevel); a swipe back from
+                    // a game's page shows the grid through.
                     if keepsLibrary {
                         LibraryLevel()
-                            .opacity(model.showingLibrary ? 1 : 0)
+                            .modifier(SwipeLevel(route: .library, shown: model.showingLibrary))
                             .allowsHitTesting(model.showingLibrary)
                             .accessibilityHidden(!model.showingLibrary)
                     }
                     switch model.route {
                     case .home:
                         HomeLevel()
+                            .modifier(SwipeLevel(route: .home))
                             .transition(.opacity)
                     case .detail:
                         if let game = model.selected {
                             DetailLevel(game: game)
+                                .modifier(SwipeLevel(route: model.route))
                                 .transition(.opacity)
                         }
                     case .library:
@@ -1394,6 +1398,8 @@ private struct CoverRail: View {
                 .padding(.vertical, 22)
             }
             .frame(height: 290)
+            // Two fingers sideways scroll the rail; forward (a trackpad swipe) only past its end.
+            .modifier(SwipeArea(kind: .rail))
             .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
             .background(GlassBackground(glass: .regular, shape: RoundedRectangle(cornerRadius: 34, style: .continuous)))
             .padding(.horizontal, Theme.gutter - 22)
@@ -1493,6 +1499,8 @@ struct CoverCard: View {
     let isSelected: Bool
     var isRunning = false
     var isPinned = false
+    /// The library's covers change size with a pinch (CoverSize); the rail's stay as they are.
+    var width = CoverSize.regular.width
     @State private var cover: NSImage?
     @Environment(\.reduceMotion) private var reduceMotion
 
@@ -1511,7 +1519,7 @@ struct CoverCard: View {
                     .padding(14)
             }
         }
-        .frame(width: 154, height: 231)
+        .frame(width: width, height: width * 1.5)
         .saturation(shown.install == .notInstalled || shown.install == .inStore ? 0.15 : 1)
         .overlay(alignment: .bottom) { installBadge }
         .overlay(alignment: .topTrailing) {
@@ -1522,6 +1530,8 @@ struct CoverCard: View {
                 if game.providers != [.steam] {
                     Text(game.providers.map(\.short).joined(separator: " + "))
                         .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)  // small covers (a pinch) with two stores
                         .foregroundStyle(Theme.ink)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)

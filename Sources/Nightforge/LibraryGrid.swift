@@ -73,8 +73,10 @@ struct GridLayout {
 struct LibraryGrid: View {
     @EnvironmentObject private var model: LibraryModel
     @Environment(\.reduceMotion) private var reduceMotion
+    /// Pinching on the trackpad changes it in steps (InputRouter); it's kept for the next start.
+    @AppStorage(CoverSize.defaultsKey) private var coverSize = CoverSize.regular.rawValue
 
-    private static let cardWidth: CGFloat = 154
+    private var cardWidth: CGFloat { CoverSize(stored: coverSize).width }
     private static let spacing: CGFloat = 24
 
     private struct Section: Identifiable {
@@ -91,8 +93,8 @@ struct LibraryGrid: View {
 
     var body: some View {
         GeometryReader { geo in
-            let columnCount = max(1, Int((geo.size.width - 2 * Theme.gutter + Self.spacing) / (Self.cardWidth + Self.spacing)))
-            let columns = Array(repeating: GridItem(.fixed(Self.cardWidth), spacing: Self.spacing), count: columnCount)
+            let columnCount = max(1, Int((geo.size.width - 2 * Theme.gutter + Self.spacing) / (cardWidth + Self.spacing)))
+            let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: Self.spacing), count: columnCount)
 
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
@@ -111,7 +113,7 @@ struct LibraryGrid: View {
                                     ForEach(section.items, id: \.game.id) { item in
                                         GridCard(game: item.game, isSelected: item.index == model.selectedIndex,
                                                  isRunning: model.isRunning(item.game), isPinned: model.isPinned(item.game),
-                                                 compatibility: model.compatibility(of: item.game))
+                                                 compatibility: model.compatibility(of: item.game), width: cardWidth)
                                             .id(item.game.id)
                                             .modifier(GameContextMenu(game: item.game, index: item.index))
                                             .onTapGesture {
@@ -134,6 +136,10 @@ struct LibraryGrid: View {
                     if let id = model.selected?.id { proxy.scrollTo(id, anchor: .center) }
                 }
                 .onChange(of: columnCount) { _, count in model.gridColumns = count }
+                // Another cover size: the selected game stays in sight.
+                .onChange(of: coverSize) { _, _ in
+                    if let id = model.selected?.id { proxy.scrollTo(id, anchor: .center) }
+                }
                 .onChange(of: model.selectedIndex) { _, _ in
                     guard let id = model.selected?.id else { return }
                     withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
@@ -149,10 +155,11 @@ private struct GridCard: View {
     var isRunning = false
     var isPinned = false
     let compatibility: Compatibility
+    var width = CoverSize.regular.width
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned)
+            CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned, width: width)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 // The level's own icon (each has a different one), named for VoiceOver and on hover.
                 Image(systemName: compatibility.level.symbol)
@@ -165,7 +172,7 @@ private struct GridCard: View {
                     .foregroundStyle(isSelected ? Theme.ink : Theme.muted)
                     .lineLimit(2)
             }
-            .frame(width: 154, alignment: .leading)
+            .frame(width: width, alignment: .leading)
         }
         .contentShape(Rectangle())
     }
@@ -358,6 +365,7 @@ private struct LibrarySearchField: View {
         .frame(height: 38)
         .background(GlassBackground(glass: .regular, shape: Capsule()))
         .overlay(Capsule().strokeBorder(Theme.sodium.opacity(focused || !model.searchText.isEmpty ? 0.8 : 0), lineWidth: 1.5))
+        .modifier(SwipeArea(kind: .search))  // two fingers over the field never swipe
         .padFocus("library.search", cornerRadius: 19, activate: { focused = true })
         .onChange(of: model.searchFocusRequest) { _, _ in takeFocus() }
         .onAppear { takeFocus() }
