@@ -374,7 +374,9 @@ struct ExternalDriveTest {
         // The drive refuses to be written to (full, unplugged, locked).
         let common = fixture.driveSteamapps.appendingPathComponent("common")
         try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: common.path)
-        await attempt("drive not writable") { if case DriveError.copyFailed = $0 { return true } else { return false } }
+        await attempt("drive not writable") { if case DriveError.copyFailed(let reason) = $0 { return reason == FolderCopy.reason(EACCES) } else { return false } }
+        check(FolderCopy.reason(EFBIG) != FolderCopy.reason(ENOSPC) && FolderCopy.reason(ENOSPC) == L10n.t("The drive is full."),
+              "a full drive and a file too big for FAT32 say so in words")
         try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: common.path)
         // Something of the same name is there already.
         try? fm.createDirectory(at: target, withIntermediateDirectories: true)

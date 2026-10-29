@@ -526,6 +526,10 @@ enum L10n {
         "The game's folder “%@” isn't there.": "Der Ordner des Spiels „%@“ fehlt.",
         "The copy doesn't match the original (%@).": "Die Kopie stimmt nicht mit dem Original überein (%@).",
         "Cancelled.": "Abgebrochen.",
+        "The drive is full.": "Das Laufwerk ist voll.",
+        "A file is too big for the drive's format.": "Eine Datei ist zu groß für das Format des Laufwerks.",
+        "The drive was unplugged or can't be read.": "Das Laufwerk wurde abgezogen oder ist nicht lesbar.",
+        "Nightforge isn't allowed to write there.": "Nightforge darf dort nicht schreiben.",
         "Steam started again meanwhile.": "Steam wurde inzwischen wieder gestartet.",
 
         // Storage

@@ -90,9 +90,20 @@ enum FolderCopy {
         guard copyfile(source.path, destination.path, state, flags) == 0 else {
             let code = errno
             if progress.cancelled { throw DriveError.cancelled }
-            throw DriveError.copyFailed(String(cString: strerror(code)))
+            throw DriveError.copyFailed(reason(code))
         }
         if progress.cancelled { throw DriveError.cancelled }
+    }
+
+    /// Why a copy stopped, in the player's words for what usually happens on the way to a drive.
+    static func reason(_ code: Int32) -> String {
+        switch code {
+        case ENOSPC: return L10n.t("The drive is full.")
+        case EFBIG: return L10n.t("A file is too big for the drive's format.")
+        case EIO, ENXIO, ENODEV: return L10n.t("The drive was unplugged or can't be read.")
+        case EACCES, EPERM, EROFS: return L10n.t("Nightforge isn't allowed to write there.")
+        default: return String(cString: strerror(code))
+        }
     }
 
     /// The first thing in `source` that `copy` lacks or has differently: each file there with the
