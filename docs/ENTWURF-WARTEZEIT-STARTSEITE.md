@@ -48,7 +48,8 @@ Controller-Test und eine Tipp-Karte.
     L2/R2 als Balken neben den Griffen) und „Gekippt“ (Pad um 16° geneigt, mit sichtbarer Oberseite; hätte ein
     SVG/PDF-Asset gebraucht). Davor schon verworfen: „Bügel“, „Mit Abstand“, „Seitlich“ (Pad von vorn, Schultern
     wie von oben).
-- Offen bei der Startseite: das Urteil zur überarbeiteten 2d · Bühne.
+- Entschieden (29.10.): Die Startseite wird **2d · Bühne** in der überarbeiteten Fassung (Version 5 des Entwurfs,
+  „das ist auch eleganter“), die Schultertasten werden **Tasten-Chips**.
 - **Akku nur einmal:** „Akku 80 %“ steht unter dem Pad. Der Chip „DualSense · 80 %“ unten links fällt im
   ersten Start weg (`HintBar` ohne Controller-Chip), auf der Startseite bleibt er.
 
@@ -191,6 +192,18 @@ Spielen auf, bei null installierten bleibt nur die Kachel „Alle Spiele“.
 das heutige Auffüllen. Der Held ist das zuletzt gespielte Spiel mit den heutigen Werten (Zuletzt gespielt,
 Spielzeit, Belegt, Controller). Den Chip „Empfohlen“ und die Bibliotheks-Karte gibt es dann nicht mehr.
 
+## Für die Umsetzung der Bühne (2d)
+
+- **Echte Steam-Cover statt der gezeichneten:** Die Platzhalter im Entwurf sind dunkel. Echte Cover
+  (`library_600x900`) können hell sein. Prüfen, dass ein helles Cover die Textspalte links und die Glas-Leiste
+  nicht überstrahlt, und wo nötig das Licht dämpfen oder einen Schleier davor legen (z. B. den Verlauf links
+  dunkler und den Farbschein schwächer bei hellen Covern). Dasselbe für die hinteren Cover, die ohnehin
+  abgedunkelt und entsättigt sind.
+- **Der weichgezeichnete Hintergrund ist ein fertiges Bild:** das Hintergrundbild (`library_hero.jpg`) einmal
+  je Spiel weichzeichnen (z. B. Core Image, `CIGaussianBlur`, auf etwa Fenstergröße verkleinert) und im Cache
+  neben den anderen Bildern ablegen. Nie als lebender Blur-Filter über das ganze Fenster, wegen des Akkus. Der
+  langsame Zoom ist nur ein billiges `scaleEffect` auf diesem Bild. Bei „Bewegung reduzieren“ entfällt er.
+
 ## Offene Fragen an den Nutzer
 
 1. Startseite: welche von 2a bis 2e, oder eine Mischung (z. B. das Kino-Bild mit der Wahl aus drei davor)?
@@ -200,7 +213,8 @@ Spielzeit, Belegt, Controller). Den Chip „Empfohlen“ und die Bibliotheks-Kar
 5. Detailzeilen links: so dezent oder auffälliger?
 6. Vorschläge bis drei gespielte Spiele?
 
-Antworten: noch offen.
+Beantwortet: Frage 1 (2d · Bühne). Die Schultertasten sind entschieden (Tasten-Chips). Die übrigen Fragen
+sind noch offen.
 
 ## Quellcode des Entwurfs
 
