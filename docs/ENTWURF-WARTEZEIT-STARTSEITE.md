@@ -216,6 +216,43 @@ Spielzeit, Belegt, Controller). Den Chip „Empfohlen“ und die Bibliotheks-Kar
 Beantwortet: Frage 1 (2d · Bühne). Die Schultertasten sind entschieden (Tasten-Chips). Die übrigen Fragen
 sind noch offen.
 
+## Stand der Umsetzung (29.10., Branch `claude/design-setup-home-df5622`)
+
+Gebaut auf `claude/ux-roadmap-next` 2e296db (6.1 gemerged). Noch nicht in der echten App angesehen, das macht der
+Koordinator. Danach folgt ein Live-Lauf des ersten Starts in `build/fh`.
+
+- **Neu:** `StarterPicks.swift` (Auswahl, Reihenfolge, Warum-Satz, `HomeRail.stage`, `HomeRail.role`),
+  `HomeStage.swift` (Bühne), `PadDrawing.swift` (Umrisse, Lesen des Pads, SVG-Pfade), `ControllerTest.swift`
+  (`PadTester`, Test-Ansicht, Tasten-Chips, Bedeutungszeile), `SetupTips.swift` (11 Tipps, Karussell,
+  `SetupSidePanel`), `tests/StageTest`.
+- **Geändert:** `Navigation.swift` (`HomeRail.pick(fill:)`), `LibraryModel.swift` (`homeStartersFrom`,
+  `homeRole`, `starterFacts`), `LibraryView.swift` (Startseite, Hintergrund der Bühne, Kicker und Warum-Satz in
+  `GameDetail`, kein Akku-Chip während der Checkliste; die alte Leiste `CoverRail` ist weg), `Artwork.swift`
+  (`stageBackdrop`: einmal je Spiel weichgezeichnet und als JPEG im Cache), `InputRouter.swift` (zwei Finger seitlich
+  über der Bühne; keine Navigation während des ersten Starts), `Trackpad.swift` (`StageScroll`, `SwipeArea.stage`),
+  `SetupView.swift` (rechte Hälfte), `Strings.swift`.
+- **Stromsparend** (Regel des Nutzers): kein dauernd laufendes Fenster-Bild, keine Partikel, kein lebender Blur. Der
+  Zoom des Hintergrunds läuft einmal je Spiel (14 s von 1,06 auf 1,0) und bleibt dann stehen. Das Pad wird 30-mal je
+  Sekunde gelesen, und das nur, solange die Checkliste sichtbar, nicht angehalten und ein Controller da ist. Gezeichnet
+  wird nur bei einer Änderung. Der Tipp-Zeitgeber läuft nur, solange die Karte zu sehen ist.
+
+**Abweichungen vom Entwurf**
+
+1. Das vordere Cover schwebt nicht, und kein Lichtstreif zieht darüber: beides wären dauernde Animationen.
+2. Die hinteren Cover sind abgedunkelt und entsättigt, aber nicht weichgezeichnet (kein Blur-Filter). Es sind die
+   echten Steam-Cover, also mit ihrem Titel.
+3. Der Schimmer unter dem Cover ist ein Verlauf, kein weichgezeichneter Fleck.
+4. Der Pad-Test reagiert nur auf den echten Controller, nicht auf Mausklicks. Der Umriss ohne Controller atmet nicht.
+5. Die Pfeile unter der Bühne sind nur für die Maus da; das Pad bewegt die Bühne mit Steuerkreuz und Stick.
+6. Der Knopf ist der vorhandene `PlayButton`: „Herunterladen“ steht dort schon ohne Größe, die Größe steht in den
+   Werten.
+7. Für ein gespieltes Spiel gibt es keinen Satz „dein Spielstand liegt in der Steam Cloud“, denn das stimmt nicht für
+   jedes Spiel. Stattdessen stehen dort der Kicker „Weiterspielen · 1,2 Std.“ und die üblichen Werte.
+8. Titel in der Textspalte: das Steam-Logo des Spiels, wenn es eins gibt (wie bisher in `GameDetail`), sonst der Name.
+9. Während des ersten Starts bewegen Steuerkreuz, Stick und ☰ nichts auf der Startseite. Der Pad-Fokus wandert
+   weiter zwischen den Knöpfen.
+10. Unter 1080 pt Breite zeigt die Einrichtung nur die Checkliste.
+
 ## Quellcode des Entwurfs
 
 Eine Kopie liegt im Notizordner dieser Sitzungsgruppe unter `design-setup-home/`:

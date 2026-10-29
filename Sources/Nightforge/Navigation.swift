@@ -75,7 +75,9 @@ enum HomeRail {
     /// Indices into `games`: pinned games first (by name), then downloads, then installed games
     /// played in the last 90 days, the latest first. Only what's on this Mac. A game from several
     /// stores goes by what its card shows (`Game.shown`) and is pinned when one of them is.
-    static func pick(_ games: [Game], pinned: Set<GameID> = [], now: Date = Date()) -> [Int] {
+    /// `fill`: with fewer than `minimum`, other installed games fill up (Home's stage fills with
+    /// StarterPicks instead).
+    static func pick(_ games: [Game], pinned: Set<GameID> = [], now: Date = Date(), fill: Bool = true) -> [Int] {
         let onMac = games.indices.filter { index in
             switch games[index].shown.install {
             case .installed, .downloading: return true
@@ -104,7 +106,7 @@ enum HomeRail {
         let downloads = rest.filter { downloading(games[$0]) }.sorted(by: byRecency)
         let lately = rest.filter { !downloading(games[$0]) && recent(games[$0]) }.sorted(by: byRecency)
         var rail = pins + downloads + lately
-        if rail.count < minimum {
+        if fill && rail.count < minimum {
             rail += rest.filter { !rail.contains($0) }.sorted(by: byRecency).prefix(minimum - rail.count)
         }
         return Array(rail.prefix(limit))
