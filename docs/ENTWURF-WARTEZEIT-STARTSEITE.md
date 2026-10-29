@@ -3,18 +3,25 @@
 Stand 29.10.2026. Umsetzung erst nach dem OK des Nutzers und nach dem Merge von 6.1
 (`claude/first-start-6-1-18d92f`), denn beide Teile hängen an `SetupView.swift` und `LibraryView.swift`.
 
-- **Entwurf zum Anklicken:** https://claude.ai/artifact/Hg1m1YCMvxdowvHwp8c7rp (privat, beide Bildschirme in
-  1512 × 853 pt, mit Umschaltern für jeden Zustand).
-- **MagicPath:** Der Upload auf den Canvas von Projekt 464423826076372992 scheiterte, weil das Kontingent für
-  externe Agenten aufgebraucht ist (`EXTERNAL_AGENT_API_QUOTA_EXCEEDED`). Der Code ist schon im Format von
-  `code start`/`code submit` angelegt (siehe „Quellcode“) und kann nach einem Upgrade so hochgeladen werden.
+- **Entwurf zum Anklicken:** https://claude.ai/artifact/Hg1m1YCMvxdowvHwp8c7rp (privat, in 1512 × 853 pt, mit
+  Umschaltern für jeden Zustand). Tabs: Einrichtung, Startseite A · Bühne, B · Drei für heute, C · Wand und der
+  erste Entwurf.
+- **MagicPath:** Das Kontingent für externe Agenten war aufgebraucht (`EXTERNAL_AGENT_API_QUOTA_EXCEEDED`).
+  Der Nutzer hat am 29.10. entschieden: kein Upgrade, der Entwurf bleibt auf der Seite oben.
 - Wie bei `solidly-valley-2097` gilt: Der Entwurf ist React/Tailwind und nur Vorlage. In SwiftUI nachbauen,
   mit `GlassBackground`, `GlassTextButtonStyle`, `Theme` und den vorhandenen Bausteinen.
 
 ## 1. Einrichtung: die rechte Hälfte („Steam wird verbunden“)
 
-Links bleibt `ChecklistPage` wie in 6.1, mit QR-Hinweis und „Steam-Fenster wieder zeigen“. Rechts kommen,
-untereinander und mittig, ein Controller-Test und eine Tipp-Karte.
+Ziel des Nutzers: Die Einrichtung soll „lebendiger“ wirken, und „wenn man viel machen kann am Anfang, wird die
+Einrichtung nicht so lange“. Gemessen sind etwa 4 Minuten bis zu Steams Anmeldefenster, bald etwa 2:40.
+
+Links bleibt `ChecklistPage` wie in 6.1, mit QR-Hinweis und „Steam-Fenster wieder zeigen“. Darunter kommt die
+Detailzeile unter dem laufenden Schritt, die die Sitzung first-start-6-1 baut, z. B. „Wine 4.7.3 (CrossOver) ·
+142 von 380 MB · 15 MB/s“ oder „Steam lädt sein Update: 210 von 336 MB“. Fertige Schritte sagen „in 25 s“. Im
+Entwurf ist sie grau, 12,5 pt, eine Zeile unter dem Fortschrittsbalken. Die Texte sind die Beispiele dieser
+Sitzung, für „Windows-Umgebung“ steht ein Platzhalter. Rechts kommen, untereinander und mittig, ein
+Controller-Test und eine Tipp-Karte.
 
 **Views.** In `ChecklistPage` ein `HStack` mit zwei gleich breiten Spalten. Neu ist `SetupSidePanel.swift`:
 
@@ -83,7 +90,32 @@ weglassen und nur die Tipp-Karte unter die Checkliste stellen.
 Controller. Das ist kein Deko-Leuchten wie das gestrichene Lampenlicht aus 6.1: Es zeigt, dass ein Pad da ist.
 Wenn das nicht gewollt ist, einfach weglassen.
 
-## 2. Startseite für Neue
+## 2. Startseite für Neue: drei Richtungen
+
+Das Urteil des Nutzers über die heutige Startseite nach dem ersten Start: „sieht langweilig aus“, „zu leer“.
+Deshalb gibt es drei mutige Richtungen, jede vor und nach dem ersten Spiel. Welche es wird, entscheidet der
+Nutzer. Für alle gelten dieselbe Wahl, dieselben Daten und dieselbe Regel nach dem ersten Spiel (unten unter
+„Erster Entwurf“).
+
+- **A · Bühne** (`HomeStage.tsx`): Die guten Starts als Cover-Flow. Das gewählte Cover steht groß vorn
+  (250 pt breit), schwebt leicht und spiegelt sich im Boden. Ein Lichtstreif zieht über das Glas. Die nächsten
+  Cover drehen sich um 58° weg, abgedunkelt. Das Licht des Spiels füllt den Hintergrund. Links stehen Titel,
+  Warum-Satz, Werte und Knopf. In SwiftUI: ein `ZStack` mit `rotation3DEffect`, `offset` und `zIndex` je Abstand
+  zur Auswahl, die Spiegelung als gespiegelte Kopie mit Verlaufsmaske.
+- **B · Drei für heute** (`HomeThree.tsx`): eine Wahl aus drei großen Covern, jedes mit seinem Grund („Am
+  schnellsten bereit“ = kleinster Download, „Gemacht für den Mac“, „Am besten bewertet“ = Metascore). Das gewählte
+  tritt vor und neigt sich zum Mauszeiger, seine Farbe leuchtet dahinter. Unten steht eine Leiste „Mehr für den
+  Anfang“. Nach dem ersten Spiel steht links „Weiterspielen“. In SwiftUI: `rotation3DEffect` und
+  `onContinuousHover` für das Neigen.
+- **C · Wand** (`HomeWall.tsx`): die ganze Bibliothek als schräge Cover-Wand, sieben Reihen, die langsam
+  gegeneinander gleiten (110–210 s je Durchlauf). Was super läuft, ist hell, der Rest liegt bei 30 % Helligkeit.
+  Davor eine Scheibe aus dickem Glas (`Glass.thick`) mit „22 deiner 100 Spiele laufen hier“ und „Fang hiermit an“.
+  Glas-Schilder an der Wand öffnen die gefilterte Bibliothek. In SwiftUI muss die Wand eine gezeichnete Ebene
+  sein (`Canvas` in `TimelineView` oder `drawingGroup()`), sonst ruckelt sie bei 100 Covern. Bei kleinen
+  Bibliotheken wiederholen sich die Cover.
+- Alle drei halten bei „Bewegung reduzieren“ still (`Accessibility.swift`): kein Schweben, kein Gleiten.
+
+### Erster Entwurf (die ruhige Variante, Grundlage für alle drei)
 
 **Wann.** Wenn die heutige Leiste nichts zum Weiterspielen hätte: keine angehefteten Spiele, keine Downloads und
 kein installiertes Spiel, das in den letzten 90 Tagen gespielt wurde (die ersten drei Teile von
@@ -129,12 +161,12 @@ Spielzeit, Belegt, Controller). Den Chip „Empfohlen“ und die Bibliotheks-Kar
 
 ## Offene Fragen an den Nutzer
 
-1. Controller-Test oben, Tipps darunter: passt die Anordnung?
-2. Während Steams Anmeldefenster: rechte Hälfte blass und angehalten oder ganz ausblenden?
-3. Tipps alle 7 Sekunden?
-4. Bibliotheks-Karte rechts auf der Startseite behalten?
-5. Mac-Versionen vor „Läuft super“?
-6. „Für den Anfang“ bis drei gespielte Spiele?
+1. Startseite: A, B oder C, oder eine Mischung (z. B. die Wand als Hintergrund hinter A)?
+2. Controller-Test oben, Tipps darunter: passt die Anordnung?
+3. Während Steams Anmeldefenster: rechte Hälfte blass und angehalten oder ganz ausblenden?
+4. Tipps alle 7 Sekunden?
+5. Detailzeilen links: so dezent oder auffälliger?
+6. Vorschläge bis drei gespielte Spiele?
 
 Antworten: noch offen.
 
@@ -142,8 +174,9 @@ Antworten: noch offen.
 
 Eine Kopie liegt im Notizordner dieser Sitzungsgruppe unter `design-setup-home/`:
 
-- `mp/setup/src/…` und `mp/home/src/…` sind die beiden MagicPath-Komponenten, fertig für
-  `npx -y magicpath-ai code start --project 464423826076372992 --name "…"` und danach `code submit`.
+- `mp/setup/src/…` ist die Einrichtung. `mp/home/src/…` enthält die Startseite: `HomeStage.tsx`,
+  `HomeThree.tsx`, `HomeWall.tsx`, den ersten Entwurf `NightforgeHome.tsx` und das Gemeinsame in `HomeParts.tsx`
+  und `homeData.ts`.
 - `mp/shared/` enthält Glas-CSS (nach `Glass.swift`), Icons, Top- und Hinweisleiste, Controller-Test und Tipps.
 - `preview/build.sh` und `preview/review.sh` bauen die Seiten (React 18.3.1, Tailwind 4.1.11, esbuild),
   `npm install` vorher in `preview/`.
