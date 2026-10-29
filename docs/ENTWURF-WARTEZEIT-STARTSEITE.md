@@ -39,17 +39,16 @@ Controller-Test und eine Tipp-Karte.
   Kern (`PS_BODY`, `PS_CORE`), dazu das große Touchpad (`PS_TOUCHPAD`) und die Lichtleiste an beiden Seiten.
   Der Xbox Wireless Controller ist rundlicher, mit kürzeren Griffen und versetzten Sticks, einer zur Xbox-Taste
   ansteigenden Oberkante und der Share-Taste in der Mitte (`XB_BODY`). Keine Logos.
-- **Schultertasten** (alle drei bisherigen Varianten störten den Nutzer, weil das Pad von vorn gezeichnet war,
-  die Schultertasten aber wie von oben). Jetzt bleiben alle in derselben Ansicht und sind umschaltbar:
-  - „Lichtkanten“ (Standard, Favorit des Koordinators): L1/R1 sind keine eigenen Formen, sondern ein Stück der
-    oberen Kante innerhalb des Umrisses (`EDGE`), das beim Drücken in Sodium leuchtet. L2/R2 sind schmale
-    Glas-Balken (14 × 96 pt) links und rechts neben den Griffen, die sich mit dem Druck füllen, darunter „L2“/„R2“.
-  - „Tasten-Chips“: vier Glas-Chips „L1 L2 · R1 R2“ direkt über dem Pad, im Stil der Tasten-Chips der Hinweisleiste.
-    Gedrückt leuchten sie, L2/R2 füllen sich vorher mit dem Druck.
-  - „Gekippt“: das ganze Pad um 16° nach hinten geneigt (`perspective(1100px) rotateX(16deg)`), so dass die
-    Oberseite (`TOP_SIDE`) mit Bumper vorn und Trigger dahinter zu sehen ist. **In der App kommt das als
-    fertige Grafik** (SVG/PDF-Asset mit einer Highlight-Ebene je Taste), nicht mit Pfaden gezeichnet.
-  - Welche es wird, sagt der Nutzer.
+- **Schultertasten: Tasten-Chips** (Entscheid des Nutzers, 29.10.: „sieht am besten aus“). Vier Glas-Chips
+  „L1 L2 · R1 R2“ (Xbox: „LB LT · RB RT“) sitzen direkt über der Oberkante des Pads, links und rechts über den
+  Griffen, im Stil der Tasten-Chips der Hinweisleiste (`Key`, 24 pt hoch, Glas). Gedrückt leuchten sie in Sodium.
+  L2/R2 füllen sich vorher von links mit dem Druck (`leftTrigger.value`). Am Pad selbst gibt es dann keine
+  Schulterformen, also braucht die App kein eigenes Grafik-Asset, Pfade für Körper und Tasten reichen.
+  - Verworfen (bleiben im Entwurf nur zum Vergleich): „Lichtkanten“ (L1/R1 als leuchtendes Stück der Oberkante,
+    L2/R2 als Balken neben den Griffen) und „Gekippt“ (Pad um 16° geneigt, mit sichtbarer Oberseite; hätte ein
+    SVG/PDF-Asset gebraucht). Davor schon verworfen: „Bügel“, „Mit Abstand“, „Seitlich“ (Pad von vorn, Schultern
+    wie von oben).
+- Offen bei der Startseite: das Urteil zur überarbeiteten 2d · Bühne.
 - **Akku nur einmal:** „Akku 80 %“ steht unter dem Pad. Der Chip „DualSense · 80 %“ unten links fällt im
   ersten Start weg (`HintBar` ohne Controller-Chip), auf der Startseite bleibt er.
 
