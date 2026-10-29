@@ -323,6 +323,8 @@ final class SetupModel: ObservableObject {
         let start = Date()
         var restarts = 0
         var lastRestart = Date()
+        // When the wrapper went in: a steamwebhelper started before that is Valve's.
+        var swappedAt: Date?
         phase = .running(.steam)
         steamStarting = true
         defer { steamStarting = false }
@@ -335,16 +337,22 @@ final class SetupModel: ObservableObject {
                 finish()
                 return
             }
-            // Steam's first update unpacks its browser, and the new version starts it – still
+            // Steam's first update unpacks its browser, and the new client starts it – Valve's,
             // unwrapped, i.e. black. Once the update is in and the new client runs (never during
-            // the install: that cut it off, and Steam started over every 13 s), wrap it and restart.
+            // the install: that cut it off, and Steam started over every 13 s), the wrapper goes in.
+            // A client that hasn't started its browser yet starts the wrapper itself; Steam is
+            // restarted only when Valve's already runs.
             let bootstrap = SteamBootstrap(steamRoot: Engine.steamRoot)
             let clientInstalled = SteamBootstrap.clientInstalled(steamRoot: Engine.steamRoot)
-            if bootstrap == .idle, clientInstalled, Engine.installWebHelperWrapper() {
-                await Engine.offMain { Engine.stopAll(wine) }
-                try Engine.startSteam(wine)
-                lastRestart = Date()
-                continue
+            if bootstrap == .idle, clientInstalled {
+                if Engine.installWebHelperWrapper() { swappedAt = Date() }
+                if let swappedAt, await Engine.offMain({ Engine.unwrappedWebHelperRunning(swappedAt: swappedAt) }) {
+                    restarts += 1
+                    guard restarts <= 5 else { throw SetupError.steamWontStart }
+                    try await restartSteam(wine)
+                    lastRestart = Date()
+                    continue
+                }
             }
             if Engine.isSteamWaitingForSignIn(since: start) {
                 progress = nil
@@ -357,17 +365,30 @@ final class SetupModel: ObservableObject {
             progress = update.fraction
             let quiet = update.lastChange.map { Date().timeIntervalSince($0) } ?? 0
             let sinceRestart = Date().timeIntervalSince(lastRestart)
-            let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled)
+            let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled,
+                                            clientStarted: SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
             let gone = bootstrap.gone(steamRunning: Engine.isSteamRunning, sinceRestart: sinceRestart, quietFor: quiet)
 
             if stalled || gone {
                 restarts += 1
                 guard restarts <= 5 else { throw SetupError.steamWontStart }
-                if stalled { await Engine.offMain { Engine.stopAll(wine) } }
-                try Engine.startSteam(wine)
+                try await restartSteam(wine)
                 lastRestart = Date()
             }
         }
+    }
+
+    /// Ends everything of Steam's and starts it again – only once all of it is gone (up to 10 s):
+    /// a Steam started while the old one was still going away hung right after its browser came
+    /// up (29.10.2026, 20:57:19, until a restart 90 s later).
+    private func restartSteam(_ wine: URL) async throws {
+        await Engine.offMain { Engine.stopAll(wine) }
+        var waited = 0
+        while waited < 40, await Engine.offMain({ !Engine.ownProcesses().isEmpty }) {
+            try await Task.sleep(for: .milliseconds(250))
+            waited += 1
+        }
+        try Engine.startSteam(wine)
     }
 
     private func watchForSignIn() {

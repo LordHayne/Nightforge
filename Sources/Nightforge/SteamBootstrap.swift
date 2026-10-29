@@ -59,17 +59,23 @@ enum SteamBootstrap: Equatable {
 
     /// Reads the end of Steam's bootstrap log; no log yet is `.idle`.
     init(steamRoot: URL) {
-        let log = steamRoot.appendingPathComponent("logs/bootstrap_log.txt")
-        guard let handle = try? FileHandle(forReadingFrom: log) else {
-            self = .idle
-            return
-        }
+        self.init(log: Self.tail(of: steamRoot.appendingPathComponent("logs/bootstrap_log.txt")))
+    }
+
+    /// The last 128 KB of a log: a bootstrap block with a whole download is ~30 KB (a line per
+    /// package and per progress step). Empty when there's no log.
+    private static func tail(of log: URL) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: log) else { return "" }
         defer { try? handle.close() }
-        // A block with a whole download is ~30 KB (a line per package and per progress step).
         let end = (try? handle.seekToEnd()) ?? 0
         try? handle.seek(toOffset: end > 131_072 ? end - 131_072 : 0)
-        let data = (try? handle.readToEnd()) ?? Data()
-        self.init(log: String(decoding: data, as: UTF8.self))
+        return String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
+    }
+
+    /// "2026-10-29 20:58:53" from "[2026-10-29 20:58:53] …".
+    private static func stamp(_ line: Substring) -> Substring? {
+        guard line.hasPrefix("["), let close = line.firstIndex(of: "]") else { return nil }
+        return line[line.index(after: line.startIndex)..<close]
     }
 
     /// Steam has stopped moving: its log hasn't changed for `quiet` seconds, and it was started at
@@ -77,10 +83,43 @@ enum SteamBootstrap: Equatable {
     /// and is given five minutes before it counts as hung; anything else 90 s, as before. Without a
     /// client yet, a bootstrapper that hasn't asked for one never will: started with -noverifyfiles,
     /// the first start of each bootstrapper skipped its check and sat there until the 90 s were up
-    /// (29.10.2026, twice) – it's started again after 15 s.
-    func stalled(quietFor quiet: TimeInterval, sinceRestart: TimeInterval, clientInstalled: Bool) -> Bool {
+    /// (29.10.2026, twice) – it's started again after 15 s. With the client there, a start whose
+    /// client never came up (`clientStarted`) hung: its browser launched, then nothing for 90 s
+    /// (29.10.2026, 20:57:19) – it's started again after 20 s.
+    func stalled(quietFor quiet: TimeInterval, sinceRestart: TimeInterval, clientInstalled: Bool,
+                 clientStarted: Bool = true) -> Bool {
         if self == .idle, !clientInstalled { return quiet > 15 && sinceRestart > 15 }
+        if self == .idle, !clientStarted { return quiet > 20 && sinceRestart > 20 }
         return quiet > (self == .installing ? 300 : 90) && sinceRestart > 90
+    }
+
+    /// The newest start's client came up: console_log.txt has a "Client version" line from that
+    /// start on (the bootstrap log's last "Startup - updater built"). Both logs stamp their lines
+    /// "[2026-10-29 20:58:53]" from the same clock, so the stamps compare as text. Without a start
+    /// in the log, nothing is known: true.
+    static func clientStarted(bootstrapLog: String, consoleLog: String) -> Bool {
+        guard let start = bootstrapLog.split(whereSeparator: \.isNewline).last(where: { $0.contains("Startup - updater built") }),
+              let since = stamp(start)
+        else { return true }
+        return consoleLog.split(whereSeparator: \.isNewline).contains { line in
+            line.contains("Client version") && (stamp(line).map { $0 >= since } ?? false)
+        }
+    }
+
+    static func clientStarted(steamRoot: URL) -> Bool {
+        clientStarted(bootstrapLog: tail(of: steamRoot.appendingPathComponent("logs/bootstrap_log.txt")),
+                      consoleLog: tail(of: steamRoot.appendingPathComponent("logs/console_log.txt")))
+    }
+
+    /// Valve's own steamwebhelper still runs: one started before the wrapper went in (`swappedAt`)
+    /// came from Valve's file, and Steam's window stays black until Steam is restarted. The
+    /// wrapper's own process has the same name but starts later (and starts
+    /// steamwebhelper_real.exe). A process whose start isn't known doesn't count: restarting for
+    /// it again and again would be worse.
+    static func unwrappedHelperRunning(_ processes: [(command: String, started: Date?)], swappedAt: Date) -> Bool {
+        processes.contains { process in
+            process.command.lowercased().contains("steamwebhelper.exe") && (process.started.map { $0 < swappedAt } ?? false)
+        }
     }
 
     /// Steam's client is in place: its first update has put the 64-bit client there (the

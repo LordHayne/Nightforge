@@ -2,9 +2,10 @@
 // through (win32, win64, then the new client) and the loop of 29.10.2026, where Nightforge swapped
 // in its steamwebhelper wrapper and restarted Steam in the middle of every install – its first four
 // starts and its last four, of 131 – and the first start after the fix the same evening, where the
-// first start of each bootstrapper (with -noverifyfiles) sat still for 90 s. Also that the wrapper
-// isn't swapped in while an update goes in, nor before Steam's client is there, and how Steam is
-// started then: tests/SteamBootstrapTest/run.sh
+// first start of each bootstrapper (with -noverifyfiles) sat still for 90 s – and the second run,
+// where the client Nightforge started after swapping in the wrapper hung for 90 s. Also that the
+// wrapper isn't swapped in while an update goes in, nor before Steam's client is there, how Steam is
+// started then, and when Valve's own helper still runs: tests/SteamBootstrapTest/run.sh
 // The logs are Steam's real lines (German where Steam translates), the repeated package and
 // progress lines cut down to two per block.
 import Foundation
@@ -25,6 +26,8 @@ struct SteamBootstrapTest {
     static let loop = (try? String(contentsOf: folder.appendingPathComponent("loop-2026-10-29-start.txt"), encoding: .utf8)) ?? ""
     static let loopEnd = (try? String(contentsOf: folder.appendingPathComponent("loop-2026-10-29-end.txt"), encoding: .utf8)) ?? ""
     static let fixed = (try? String(contentsOf: folder.appendingPathComponent("fixed-2026-10-29.txt"), encoding: .utf8)) ?? ""
+    static let relaunch = (try? String(contentsOf: folder.appendingPathComponent("relaunch-2026-10-29-bootstrap.txt"), encoding: .utf8)) ?? ""
+    static let relaunchConsole = (try? String(contentsOf: folder.appendingPathComponent("relaunch-2026-10-29-console.txt"), encoding: .utf8)) ?? ""
 
     /// The log as it stood when the `occurrence`-th line containing `marker` had just been written.
     static func log(_ text: String, through marker: String, _ occurrence: Int = 1) -> String {
@@ -50,10 +53,13 @@ struct SteamBootstrapTest {
     static func crlf(_ text: String) -> String { text.replacingOccurrences(of: "\n", with: "\r\n") }
 
     static func main() {
-        check(!good.isEmpty && !loop.isEmpty && !loopEnd.isEmpty && !fixed.isEmpty, "the logs are there")
+        check(!good.isEmpty && !loop.isEmpty && !loopEnd.isEmpty && !fixed.isEmpty && !relaunch.isEmpty && !relaunchConsole.isEmpty,
+              "the logs are there")
         goodRun()
         theLoop()
         afterTheFix()
+        theHungClient()
+        valvesHelper()
         decisions()
         starting()
         wrapperSwap()
@@ -125,6 +131,53 @@ struct SteamBootstrapTest {
         check(state(fixed, through: "BVerifyInstalledFiles") == .idle, "-shutdown without -noverifyfiles finds the wrapper …")
         check(state(fixed, through: "uninstalled manifest found", 3) == .installing, "… and installs Valve's helper again")
         check(SteamBootstrap(log: fixed) == .idle, "the log's end: idle")
+    }
+
+    /// 29.10., second run: win64 in at 20:57:13, the new client (started by the bootstrapper) ran
+    /// Valve's helper; Nightforge swapped in the wrapper and restarted Steam (20:57:18). That start's
+    /// browser launched, then nothing – console_log has no "Client version" until the next restart
+    /// at 20:58:52, which the 90 s rule made.
+    static func theHungClient() {
+        let hung = log(relaunch, through: "20:57:18] Verification skipped")
+        let state = SteamBootstrap(log: hung)
+        check(state == .idle, "the hung start: idle")
+        check(!SteamBootstrap.clientStarted(bootstrapLog: hung, consoleLog: ""), "no Client version: the client didn't come up")
+        check(!SteamBootstrap.clientStarted(bootstrapLog: crlf(hung), consoleLog: ""), "with Windows line ends too")
+        check(state.stalled(quietFor: 21, sinceRestart: 21, clientInstalled: true, clientStarted: false), "restarted after 20 s, not 90")
+        check(!state.stalled(quietFor: 19, sinceRestart: 21, clientInstalled: true, clientStarted: false), "not before")
+        check(!state.stalled(quietFor: 60, sinceRestart: 60, clientInstalled: true, clientStarted: true), "a client that came up isn't hung")
+
+        let good = log(relaunch, through: "20:58:52] Startup - updater built")
+        let console = log(relaunchConsole, through: "Client version")
+        check(SteamBootstrap.clientStarted(bootstrapLog: good, consoleLog: console), "the restart's client came up at 20:58:53")
+        check(SteamBootstrap.clientStarted(bootstrapLog: crlf(good), consoleLog: crlf(console)), "with Windows line ends too")
+        // The background restart after the sign-in (20:59:22): the earlier start's lines don't count.
+        let later = log(relaunch, through: "20:59:22] Startup - updater built")
+        check(!SteamBootstrap.clientStarted(bootstrapLog: later, consoleLog: log(relaunchConsole, through: "Console Log Start")),
+              "an earlier start's Client version doesn't count")
+        check(SteamBootstrap.clientStarted(bootstrapLog: later, consoleLog: relaunchConsole), "its own at 20:59:23 does")
+        check(SteamBootstrap.clientStarted(bootstrapLog: "", consoleLog: ""), "no start in the log: nothing to say")
+    }
+
+    /// Valve's helper started at 20:57:14, the wrapper went in at 20:57:15: that one is Valve's.
+    /// The wrapper's own process has the same name but starts later, with steamwebhelper_real.exe.
+    static func valvesHelper() {
+        let at = { (time: String) -> Date in
+            let format = DateFormatter()
+            format.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            return format.date(from: "2026-10-29 " + time)!
+        }
+        let swapped = at("20:57:15")
+        let valve = #""C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe" -nocrashdialog -lang=de_DE"#
+        let real = #""C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_real.exe" --disable-gpu --single-process"#
+        let steam = #"C:\Program Files (x86)\Steam\steam.exe -no-cef-sandbox"#
+        check(SteamBootstrap.unwrappedHelperRunning([(steam, at("20:57:13")), (valve, at("20:57:14"))], swappedAt: swapped),
+              "Valve's helper from before the swap: restart")
+        check(!SteamBootstrap.unwrappedHelperRunning([(steam, at("20:57:18")), (valve, at("20:57:19")), (real, at("20:57:19"))], swappedAt: swapped),
+              "the wrapper and its real helper after the swap: no restart")
+        check(!SteamBootstrap.unwrappedHelperRunning([(steam, at("20:57:13"))], swappedAt: swapped), "no browser yet: only the file is swapped")
+        check(!SteamBootstrap.unwrappedHelperRunning([(valve, nil)], swappedAt: swapped), "a start that isn't known doesn't count")
+        check(Engine.processStart(getpid()).map { $0 <= Date() && $0 > Date().addingTimeInterval(-600) } ?? false, "this test's own start is known")
     }
 
     /// What the first start's watchdog makes of each state.

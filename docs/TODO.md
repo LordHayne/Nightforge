@@ -440,8 +440,11 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     Nightforge Steam neu startete. Jetzt startet Steam ohne `-noverifyfiles`, bis der Client da ist, und ein solcher
     Stillstand wird nach 15 s beendet. Und das Quit-Skript beendete Steam ohne `-noverifyfiles`, worauf Steam Valves Helper
     über den Wrapper installierte.
-  - Gemessen mit dem Schleifen-Fix (297fc6f, noch mit den 92 s): Anmeldefenster 4:39 nach „Loslegen“. Ohne die 92 s
-    sollten es um die 3 Minuten sein – beim nächsten frischen Durchlauf nachmessen.
+  - Danach hing noch der Neustart nach dem Tausch (93 s): gestartet, während das alte Steam noch beendet wurde. Jetzt
+    startet die Einrichtung Steam nur neu, wenn Valves Helper schon läuft, wartet vorher, bis alles von Steam weg ist,
+    und startet einen Client, der nach 20 s nicht hochgekommen ist („Client version“ in `console_log.txt`), noch einmal.
+  - Gemessen: mit dem Schleifen-Fix 4:39 bis zum Anmeldefenster, im zweiten Lauf (57cb377) 4:13, davon 93 s der hängende
+    Neustart. Ziel um 2:40 – beim nächsten frischen Durchlauf nachmessen.
 
 ### Leistung
 

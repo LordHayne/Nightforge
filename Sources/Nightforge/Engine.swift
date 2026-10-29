@@ -295,6 +295,20 @@ enum Engine {
         return nil
     }
 
+    /// When a process started.
+    static func processStart(_ pid: pid_t) -> Date? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+
+    /// Valve's steamwebhelper, started before the wrapper went in at `swappedAt`, still runs
+    /// (SteamBootstrap.unwrappedHelperRunning).
+    static func unwrappedWebHelperRunning(swappedAt: Date) -> Bool {
+        SteamBootstrap.unwrappedHelperRunning(ownProcesses().map { ($0.command, processStart($0.pid)) }, swappedAt: swappedAt)
+    }
+
     private static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
