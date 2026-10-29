@@ -404,7 +404,7 @@
 
 ## Phase 6 – Ersteinrichtung mit Aha-Moment
 
-- [ ] **6.1 Erster Start** · `M` · braucht 1.3 · teilweise in PR #27
+- [x] **6.1 Erster Start** · `M` · braucht 1.3 · teilweise in PR #27, Rest in `claude/first-start-6-1-18d92f`
   - **Was:** `SetupView` erweitern:
     - **Ablauf:** Welcome → Checkliste (vorhanden) → Steam-Login mit QR-Hinweis → „Checking your library … N of M games“.
     - **Die Enthüllung:** „**87 of your 104 games run here**“ mit Balken (great / tweaks / untested / need Windows) und den Gründen.
@@ -412,7 +412,22 @@
     - **Wiederholbar:** „Show the first start again“ in About.
   - **Wo:** `SetupView.swift`, `Setup.swift`.
   - **Design:** `Overlays.tsx` → `Onboarding`.
-  - **Stand** (teilweise): **Die Enthüllung** – nach dem Abschluss der Ersteinrichtung und dem ersten Scan erscheint „22 of your 105 games run here“ (bei diesem Mac: 21 great, 1 tweaks, 62 untested, 21 no) mit einem Balken in den Kompatibilitätsfarben und je Stufe eine Zeile, was sie heißt; bei „Doesn't run“ getrennt Anti-Cheat (davon n auf GeForce Now) und VR. „Let's Play“ schließt. **Wiederholbar:** „Show the First Start Again“ in Settings › About. Test `tests/LibraryRevealTest/`. Offen: Welcome-Seite und „Checking your library … N of M“ im Ablauf selbst, QR-Hinweis, „Also add Epic Games or GOG“ (Phase 7).
+  - **Stand:** Der ganze erste Start läuft auf Home (`SetupView`, `SetupModel.stage`), ohne eigenes Blatt:
+    - **Welcome:** „Welcome to Nightforge“, ein Satz, was Nightforge ist und was gleich passiert, „Let's Go“.
+    - **Checkliste** wie bisher. Solange Steam sich vor seinem Anmeldefenster aktualisiert, steht darunter: „Steam's sign-in window opens next: scan its QR code with the Steam app on your phone – no typing.“ Ist das Fenster offen, kommt der Satz mit QR-Code oder Passwort und „Show Steam window again“. Das Anmeldefenster holt Nightforge vor sein eigenes (`SteamWindow`, `yieldActivation`); seit macOS 14 kommt es nicht von selbst nach vorn.
+    - **„Checking your library … N of M games“** mit Balken: erst die neueste Profilliste, dann alle 3 s ein Scan, bis zwei gleich viele eigene Spiele finden (höchstens 2 Minuten), dann jedes Spiel einmal nachgeschlagen (bei installierten liest `GameAnalysis` die Dateien). Der Zähler braucht höchstens 2,5 s. „Skip“ führt in die Bibliothek.
+    - **Die Enthüllung** auf derselben Seite: „22 of your 100 games run here“ mit Balken in den Kompatibilitätsfarben und je Stufe einer Zeile, was sie heißt; bei „Doesn't run“ getrennt Anti-Cheat (davon n auf GeForce Now) und VR. Gezählt werden Karten (ein Spiel aus zwei Stores ist eins), ohne Store-Einträge und Demos nicht besessener Spiele.
+    - **Abschluss:** „Let's Play“ und „Also add Epic Games“ (öffnet Epics Anmeldefenster aus 7.2; nur solange Epic nicht verbunden ist).
+    - **Wiederholbar:** „Show the First Start Again“ in Settings › About spielt Welcome, Prüfung und Enthüllung noch einmal ab, mit eigenen Texten und ohne die Einrichtung selbst. „Skip“ oder Esc schließt.
+    - **Bedienung:** ↩/A löst die Hauptaktion der Seite aus (Let's Go, Install Rosetta, Show Steam window again, Try again, Let's Play), Esc/B „Skip“ oder „Let's Play“. Die HintBar zeigt beides, jeder Knopf hat `padFocus`.
+    - **Steams erster Start** (gefunden beim Durchlauf am 29.10.): Die Einrichtung tauschte `steamwebhelper.exe` mitten in Steams Update-Installation und startete Steam neu – 124 Neustarts in 30 Minuten, früher „rund 11 Minuten“. `SteamBootstrap` liest jetzt Steams Update-Log; getauscht und neu gestartet wird erst, wenn der neue Client läuft. Bis der Client da ist, startet Steam ohne `-noverifyfiles` (sonst prüfte der erste Bootstrapper keine Updates und stand 92 s). Ein Bootstrapper ohne Client, der nicht nach Updates fragt, wird nach 15 s neu gestartet. Das Quit-Skript beendet Steam mit `-noverifyfiles`; ohne prüfte Steam beim Beenden seine Dateien und installierte Valves Helper über den Wrapper.
+    - **Gemessen** am 29.10. (Build 297fc6f, frisches `build/fh`, winecx 4.7.3), ab dem Klick auf „Loslegen“: Engine-Ordner 0:36, Prefix 1:11, steam.exe da 1:36, Bootstrapper-Start 1:44, zweiter Start erst 3:16 (die 92 s, inzwischen behoben), Download fertig 3:41, win32 installiert 3:51, win64 installiert 4:28, Anmeldefenster 4:39. Die Enthüllung „22 deiner 100 Spiele laufen hier“ kam etwa 20 s nach der Anmeldung. Der Neustart von Steam 7 s nach der Anmeldung (`finish()`: großes Hauptfenster zu, Hintergrundmodus `-silent`, Spieleinstellungen) läuft parallel zur Prüfung: Steam schreibt seine Lizenzliste etwa 7 s nach der Anmeldung, die Prüfung wartet darauf.
+    - **Tests:** `tests/FirstStartTest/` (Seiten, Tasten, QR-Hinweis, Anmeldefenster, Warten auf Steam, Tempo, Wiederholung und ihre Texte), `tests/LibraryRevealTest/`, `tests/SteamBootstrapTest/` (mit den echten Logs vom 23.10. und 29.10.).
+  - **Abweichungen:**
+    - Nur „Also add Epic Games“: GOG kommt mit 7.3, bis dahin kein toter Knopf. Ob der Epic-Knopf bleibt, entscheidet der Nutzer noch.
+    - Kein Lampenschein hinter dem Ablauf (Entwurf: `ns-lamp`), weil Sodium laut Regeln nie Deko ist.
+    - Die Enthüllung zeigt die Stufen mit ihrer Erklärung im 2×2-Raster statt der kurzen Zeilen des Entwurfs.
+    - „Skip“ gibt es nur bei der Prüfung und in der Wiederholung, nicht oben rechts auf jeder Seite: Die Einrichtung selbst lässt sich nicht überspringen.
 
 ---
 

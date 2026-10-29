@@ -42,6 +42,15 @@ enum Engine {
         "-no-cef-sandbox", "-cef-single-process", "-noverifyfiles",
         "-cef-disable-gpu", "-cef-disable-gpu-compositing",
     ]
+    /// `steamArguments` for a start of Steam. Before its first update has put the client in place,
+    /// without -noverifyfiles: told not to verify, a bootstrapper with nothing installed found
+    /// nothing missing and sat there for 90 s instead of fetching the client (29.10.2026); its
+    /// restarts after an update inherit the arguments. From then on Steam mustn't verify its files:
+    /// it would put Valve's steamwebhelper back over the wrapper.
+    static func startArguments(clientInstalled: Bool) -> [String] {
+        clientInstalled ? steamArguments : steamArguments.filter { $0 != "-noverifyfiles" }
+    }
+
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
     static let steamConfigVersion = 9
@@ -341,13 +350,14 @@ enum Engine {
 
     /// Puts the bundled steamwebhelper wrapper in place of Steam's own (which becomes
     /// steamwebhelper_real.exe). Repeats safely; returns true when it changed anything, e.g. after
-    /// Steam's first update unpacked its browser or a later update replaced it. Never while Steam's
-    /// bootstrapper downloads or installs an update (SteamBootstrap): the install writes Valve's
-    /// helper back, and a swap then cut it off.
+    /// Steam's first update unpacked its browser or a later update replaced it. Only once Steam's
+    /// client is in place, and never while its bootstrapper downloads or installs an update
+    /// (SteamBootstrap): the install writes Valve's helper back, and a swap then cut it off.
     @discardableResult
     static func installWebHelperWrapper(steamRoot: URL = steamRoot,
                                         wrapper: URL? = Bundle.main.url(forResource: "steamwebhelper", withExtension: "exe")) -> Bool {
-        guard let wrapper, SteamBootstrap(steamRoot: steamRoot).allowsHelperSwap else { return false }
+        guard let wrapper, SteamBootstrap.clientInstalled(steamRoot: steamRoot),
+              SteamBootstrap(steamRoot: steamRoot).allowsHelperSwap else { return false }
         let fm = FileManager.default
         let cef = steamRoot.appendingPathComponent("bin/cef", isDirectory: true)
         let wrapperSize = (try? fm.attributesOfItem(atPath: wrapper.path)[.size] as? Int) ?? 0
@@ -685,7 +695,8 @@ enum Engine {
         # away): asked again before each step that would end the session.
         reopened && exit 0
         if steam_running; then
-          "$WINE" 'C:\Program Files (x86)\Steam\steam.exe' -shutdown >/dev/null 2>&1
+          # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
+          "$WINE" 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
           for i in $(seq 1 20); do steam_running || break; reopened && exit 0; sleep 1; done
         fi
         reopened && exit 0
@@ -1893,12 +1904,10 @@ enum Engine {
     }
 
     /// Opens Steam's main window. Questions Steam asks before a launch (licence agreement, which
-    /// version to start) appear in it, and with -silent it stays hidden. Returns the processes
-    /// that draw Steam's windows, so the caller can bring them to the front.
-    @discardableResult
-    static func showSteamWindow(_ wine: URL) -> [pid_t] {
+    /// version to start) appear in it, and with -silent it stays hidden. SteamWindow brings it to
+    /// the front.
+    static func showSteamWindow(_ wine: URL) {
         try? startSteam(wine)
-        return ownProcesses().filter { $0.command.lowercased().contains("steamwebhelper") }.map(\.pid)
     }
 
     /// Starts Steam without waiting; used for signing in and for launching games.
@@ -1907,7 +1916,7 @@ enum Engine {
         let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader
-        process.arguments = [steamExeWindowsPath] + steamArguments + arguments
+        process.arguments = [steamExeWindowsPath] + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments
         var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
         env["WINEDLLOVERRIDES"] = steamDLLOverrides
         if loader != wine { env["WINELOADER"] = loader.path }

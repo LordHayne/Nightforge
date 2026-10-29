@@ -72,11 +72,24 @@ enum SteamBootstrap: Equatable {
         self.init(log: String(decoding: data, as: UTF8.self))
     }
 
-    /// Steam has stopped moving: its log hasn't changed for `quiet` seconds. An install is quiet for
-    /// a while (unpacking several hundred MB under Wine) and is given five minutes before it counts
-    /// as hung; anything else 90 s, as before.
-    func stalled(quietFor quiet: TimeInterval) -> Bool {
-        quiet > (self == .installing ? 300 : 90)
+    /// Steam has stopped moving: its log hasn't changed for `quiet` seconds, and it was started at
+    /// least that long ago. An install is quiet for a while (unpacking several hundred MB under Wine)
+    /// and is given five minutes before it counts as hung; anything else 90 s, as before. Without a
+    /// client yet, a bootstrapper that hasn't asked for one never will: started with -noverifyfiles,
+    /// the first start of each bootstrapper skipped its check and sat there until the 90 s were up
+    /// (29.10.2026, twice) – it's started again after 15 s.
+    func stalled(quietFor quiet: TimeInterval, sinceRestart: TimeInterval, clientInstalled: Bool) -> Bool {
+        if self == .idle, !clientInstalled { return quiet > 15 && sinceRestart > 15 }
+        return quiet > (self == .installing ? 300 : 90) && sinceRestart > 90
+    }
+
+    /// Steam's client is in place: its first update has put the 64-bit client there (the
+    /// bootstrapper first installs steam_client_win32, then steam_client_win64). Any client
+    /// manifest besides the 32-bit step's counts, should Valve name the next one differently.
+    static func clientInstalled(steamRoot: URL) -> Bool {
+        let package = steamRoot.appendingPathComponent("package", isDirectory: true)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: package.path)) ?? []
+        return names.contains { $0.hasPrefix("steam_client_") && $0.hasSuffix(".installed") && $0 != "steam_client_win32.installed" }
     }
 
     /// Steam isn't running any more and should be started again. Right after an update the

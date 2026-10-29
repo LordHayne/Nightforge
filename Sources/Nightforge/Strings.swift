@@ -251,6 +251,8 @@ enum L10n {
         "Nightforge plays your Windows games on this Mac – next, it sets up everything they need by itself in a few minutes, and you only sign in to Steam.":
             "Nightforge spielt deine Windows-Spiele auf diesem Mac – gleich richtet es in wenigen Minuten von selbst alles ein, was sie brauchen, und du meldest dich nur bei Steam an.",
         "Let's Go": "Loslegen",
+        "Nightforge plays your Windows games on this Mac. Here's once more how your library runs on it.":
+            "Nightforge spielt deine Windows-Spiele auf diesem Mac. Hier noch einmal, wie deine Bibliothek darauf läuft.",
         "Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license.":
             "Windows-Spiele brauchen Rosetta von Apple. macOS fragt einmal nach deinem Passwort, um es zu installieren; mit der Installation akzeptierst du Apples Rosetta-Lizenz.",
         "Install Rosetta": "Rosetta installieren",
@@ -579,6 +581,7 @@ enum L10n {
         // First start
         "Checking your library": "Deine Bibliothek wird geprüft",
         "Asking Steam for your games …": "Frage Steam nach deinen Spielen …",
+        "Reading your library …": "Deine Bibliothek wird gelesen …",
         "Steam sends your library a moment after you sign in.": "Steam schickt deine Bibliothek kurz nach der Anmeldung.",
         "Looking up how each one runs on this Mac …": "Nightforge schaut nach, wie jedes davon auf diesem Mac läuft …",
         "Skip": "Überspringen",

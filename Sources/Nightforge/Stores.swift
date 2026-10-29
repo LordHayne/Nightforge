@@ -118,10 +118,7 @@ final class SteamStore: StoreProvider {
         } else {
             guard let wine = await Engine.installedWine() else { return false }
             try Engine.startSteam(wine, arguments: ["steam://install/\(game.appID)"])
-            try? await Task.sleep(for: .seconds(2))  // the window needs a moment to appear
-            for process in Engine.ownProcesses() where process.command.lowercased().contains("steamwebhelper") {
-                NSRunningApplication(processIdentifier: process.pid)?.activate(options: .activateAllWindows)
-            }
+            await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
         let manifest = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("appmanifest_\(game.appID).acf")

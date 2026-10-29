@@ -13,7 +13,7 @@ struct SetupView: View {
             case .checklist:
                 ChecklistPage(setup: setup)
             case .checking(let check):
-                CheckingPage(check: check) { setup.close() }
+                CheckingPage(check: check, replay: setup.isReplay) { setup.close() }
             case .reveal(let reveal, let offersEpic):
                 RevealPage(reveal: reveal, play: { setup.close() }, addEpic: offersEpic ? addEpic : nil)
             }
@@ -35,7 +35,7 @@ private struct WelcomePage: View {
                     .font(Theme.display(48))
                     .foregroundStyle(Theme.ink)
                     .accessibilityAddTraits(.isHeader)
-                Text(L10n.t("Nightforge plays your Windows games on this Mac – next, it sets up everything they need by itself in a few minutes, and you only sign in to Steam."))
+                Text(SetupModel.welcomeText(replay: setup.isReplay))
                     .font(.system(size: 16))
                     .foregroundStyle(Theme.muted)
                     .frame(maxWidth: 560, alignment: .leading)
@@ -121,12 +121,14 @@ private struct QRNote: View {
 /// "Checking your library … N of M games", while Steam sends the library and each game is looked up.
 private struct CheckingPage: View {
     let check: LibraryCheck
+    let replay: Bool
     let skip: () -> Void
 
     var body: some View {
+        let texts = SetupModel.checkingTexts(check, replay: replay)
         VStack(alignment: .leading, spacing: 18) {
             SectionTitle(L10n.t("Checking your library"))
-            Text(count)
+            Text(texts.headline)
                 .font(Theme.display(48).monospacedDigit())
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
@@ -142,20 +144,11 @@ private struct CheckingPage: View {
                 }
             }
             .frame(width: 420)
-            Text(check.total == nil ? L10n.t("Steam sends your library a moment after you sign in.")
-                                    : L10n.t("Looking up how each one runs on this Mac …"))
+            Text(texts.line)
                 .font(.system(size: 15))
                 .foregroundStyle(Theme.muted)
             SkipButton(action: skip)
                 .padding(.top, 8)
-        }
-    }
-
-    private var count: String {
-        switch check.total {
-        case nil: return L10n.t("Asking Steam for your games …")
-        case 1: return L10n.t("%ld of 1 game", check.checked)
-        case let total?: return L10n.t("%ld of %ld games", check.checked, total)
         }
     }
 }

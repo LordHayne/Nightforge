@@ -2270,11 +2270,8 @@ final class LibraryModel: ObservableObject {
     func showSteamWindow() {
         Task {
             guard let wine = await Engine.installedWine() else { return }
-            let windows = Engine.showSteamWindow(wine)
-            try? await Task.sleep(for: .seconds(2))  // the window needs a moment to appear
-            for pid in windows {
-                NSRunningApplication(processIdentifier: pid)?.activate(options: .activateAllWindows)
-            }
+            Engine.showSteamWindow(wine)
+            await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
     }
 

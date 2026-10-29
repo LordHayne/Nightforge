@@ -77,6 +77,7 @@ final class SetupModel: ObservableObject {
     /// The library check under way; "Skip" stops it.
     var checkTask: Task<Void, Never>?
     private var signInWatcher: Task<Void, Never>?
+    private var activationObserver: NSObjectProtocol?
 
     /// Nothing left to do: Steam is installed and someone has signed in.
     static var isComplete: Bool { Engine.isSteamInstalled && Engine.isSteamSignedIn }
@@ -171,6 +172,26 @@ final class SetupModel: ObservableObject {
         case .checklist: return nil
         case .checking: return .skip
         case .reveal: return .play
+        }
+    }
+
+    /// The welcome's line: what Nightforge is and what happens next. In the replay the setup and the
+    /// sign-in are long done, so it says what's shown instead.
+    nonisolated static func welcomeText(replay: Bool) -> String {
+        replay ? L10n.t("Nightforge plays your Windows games on this Mac. Here's once more how your library runs on it.")
+               : L10n.t("Nightforge plays your Windows games on this Mac – next, it sets up everything they need by itself in a few minutes, and you only sign in to Steam.")
+    }
+
+    /// The library check's headline and the line under it. On the first start the library comes
+    /// from Steam right after the sign-in; the replay only reads what's on the Mac.
+    nonisolated static func checkingTexts(_ check: LibraryCheck, replay: Bool) -> (headline: String, line: String) {
+        let lookingUp = L10n.t("Looking up how each one runs on this Mac …")
+        switch check.total {
+        case nil:
+            return replay ? (L10n.t("Reading your library …"), lookingUp)
+                          : (L10n.t("Asking Steam for your games …"), L10n.t("Steam sends your library a moment after you sign in."))
+        case 1?: return (L10n.t("%ld of 1 game", check.checked), lookingUp)
+        case let total?: return (L10n.t("%ld of %ld games", check.checked, total), lookingUp)
         }
     }
 
@@ -287,11 +308,12 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    /// Brings the Steam window back if someone closed it before signing in.
+    /// Brings the Steam window back if someone closed it before signing in, in front of Nightforge.
     func reopenSteam() {
         Task {
             guard let wine = await Engine.installedWine() else { return }
             try? Engine.startSteam(wine)
+            await SteamWindow.bringForward()
         }
     }
 
@@ -321,10 +343,11 @@ final class SetupModel: ObservableObject {
                 return
             }
             // Steam's first update unpacks its browser, and the new version starts it – still
-            // unwrapped, i.e. black. Once the update is in and the new version runs (never during
+            // unwrapped, i.e. black. Once the update is in and the new client runs (never during
             // the install: that cut it off, and Steam started over every 13 s), wrap it and restart.
             let bootstrap = SteamBootstrap(steamRoot: Engine.steamRoot)
-            if bootstrap == .idle, Engine.installWebHelperWrapper() {
+            let clientInstalled = SteamBootstrap.clientInstalled(steamRoot: Engine.steamRoot)
+            if bootstrap == .idle, clientInstalled, Engine.installWebHelperWrapper() {
                 await Engine.offMain { Engine.stopAll(wine) }
                 try Engine.startSteam(wine)
                 lastRestart = Date()
@@ -341,7 +364,7 @@ final class SetupModel: ObservableObject {
             progress = update.fraction
             let quiet = update.lastChange.map { Date().timeIntervalSince($0) } ?? 0
             let sinceRestart = Date().timeIntervalSince(lastRestart)
-            let stalled = bootstrap.stalled(quietFor: quiet) && sinceRestart > 90
+            let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled)
             let gone = bootstrap.gone(steamRunning: Engine.isSteamRunning, sinceRestart: sinceRestart, quietFor: quiet)
 
             if stalled || gone {
@@ -355,6 +378,7 @@ final class SetupModel: ObservableObject {
     }
 
     private func watchForSignIn() {
+        showSignInWindow()
         signInWatcher?.cancel()
         signInWatcher = Task {
             while !Task.isCancelled {
@@ -363,6 +387,30 @@ final class SetupModel: ObservableObject {
                     return
                 }
                 try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    /// Steam's sign-in in front of Nightforge (it opened behind it). When Nightforge wasn't the
+    /// active app just then, the next time it is.
+    private func showSignInWindow() {
+        Task {
+            if await SteamWindow.bringForward() { return }
+            showSignInWindowOnActivation()
+        }
+    }
+
+    private func showSignInWindowOnActivation() {
+        guard phase == .waitingForSignIn, activationObserver == nil else { return }
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let observer = self.activationObserver else { return }
+                NotificationCenter.default.removeObserver(observer)
+                self.activationObserver = nil
+                guard self.phase == .waitingForSignIn else { return }
+                Task { await SteamWindow.bringForward() }
             }
         }
     }

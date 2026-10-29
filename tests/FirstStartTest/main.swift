@@ -1,6 +1,8 @@
 // Checks the first start: its pages from the welcome to the reveal, what Return/A and Esc/B do on
-// each, the note on Steam's QR code before and while its window is open, and how the library check
-// waits for Steam and paces its count: tests/FirstStartTest/run.sh
+// each, the note on Steam's QR code before and while its window is open, which window is Steam's
+// sign-in, how the library check waits for Steam and paces its count, and the replay's own texts:
+// tests/FirstStartTest/run.sh
+import CoreGraphics
 import Foundation
 
 @main
@@ -18,8 +20,10 @@ struct FirstStartTest {
     static func main() {
         actions()
         signInNote()
+        signInWindow()
         libraryCheck()
         replay()
+        replayTexts()
 
         print(failures == 0 ? "✓ FirstStart" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -61,6 +65,22 @@ struct FirstStartTest {
         check(SetupModel.signInNote(phase: .done, steamStarting: false) == nil, "signed in: no note")
     }
 
+    /// Steam's sign-in opened behind Nightforge (29.10.): the window to bring forward is the front
+    /// one of Steam's browser processes, not its tiny menu windows nor another app's.
+    static func signInWindow() {
+        func window(_ pid: Int, _ width: Double, _ height: Double, layer: Int = 0) -> [String: Any] {
+            [kCGWindowOwnerPID as String: pid, kCGWindowLayer as String: layer,
+             kCGWindowBounds as String: ["X": 406.0, "Y": 239.0, "Width": width, "Height": height]]
+        }
+        let helpers: Set<pid_t> = [501, 502]
+        let windows = [window(10, 1512, 853),           // Nightforge, in front
+                       window(501, 1, 1),               // the browser's tiny menu window
+                       window(502, 700, 440, layer: 3), // not a normal window
+                       window(502, 700, 440)]           // "Bei Steam anmelden", behind Nightforge
+        check(SteamWindow.owner(of: windows, helpers: helpers) == 502, "the sign-in's process: \(String(describing: SteamWindow.owner(of: windows, helpers: helpers)))")
+        check(SteamWindow.owner(of: [window(10, 1512, 853), window(501, 1, 1)], helpers: helpers) == nil, "no window of Steam's yet")
+    }
+
     /// Steam sends the library a moment after the sign-in: the check scans until two scans agree.
     static func libraryCheck() {
         check(LibraryCheck.waitsForSteam(previous: nil, now: 0, waited: 0, replay: false), "nothing yet: wait")
@@ -77,6 +97,18 @@ struct FirstStartTest {
         check(LibraryCheck.pause(total: 5) == .milliseconds(90), "a few games: 90 ms each")
         check(LibraryCheck.pause(total: 105) * 105 <= .milliseconds(2500), "a big library is counted within 2.5 s")
         check(LibraryCheck.pause(total: 0) == .zero, "nothing to count, no pause")
+    }
+
+    /// The replay comes long after the setup and the sign-in: its welcome and check say so.
+    static func replayTexts() {
+        check(SetupModel.welcomeText(replay: true) != SetupModel.welcomeText(replay: false), "the replay's welcome has its own line")
+        check(SetupModel.welcomeText(replay: false).contains("Steam"), "the first start's welcome mentions the Steam sign-in")
+        let first = SetupModel.checkingTexts(LibraryCheck(), replay: false)
+        let again = SetupModel.checkingTexts(LibraryCheck(), replay: true)
+        check(first.headline != again.headline && first.line != again.line, "the replay doesn't wait for Steam's sign-in")
+        check(again.line == SetupModel.checkingTexts(LibraryCheck(total: 4, checked: 1), replay: true).line, "the replay only looks things up")
+        check(SetupModel.checkingTexts(LibraryCheck(total: 4, checked: 1), replay: false).headline == L10n.t("%ld of %ld games", 1, 4), "1 of 4 games")
+        check(SetupModel.checkingTexts(LibraryCheck(total: 1, checked: 1), replay: true).headline == L10n.t("%ld of 1 game", 1), "1 of 1 game")
     }
 
     /// Settings › About: the welcome, then straight to the check (the setup is done), the reveal,
