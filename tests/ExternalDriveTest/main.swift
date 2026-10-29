@@ -73,6 +73,7 @@ struct ExternalDriveTest {
         await checkRollback(root)
         await checkEpicMove(root)
         checkChoices()
+        checkShelf(bottle)
         if let drive = ProcessInfo.processInfo.environment["NIGHTFORGE_TEST_DRIVE"] { await checkRealDrive(URL(fileURLWithPath: drive)) }
         if ProcessInfo.processInfo.environment["NIGHTFORGE_TEST_IMAGES"] == "1" { await checkImages(root) }
 
@@ -279,6 +280,32 @@ struct ExternalDriveTest {
         check(choices[0].needed == 20 * gb + SpaceCheck.margin, "with Steam's room besides")
         check(!DriveChoice.options(drives, size: 1, except: URL(fileURLWithPath: "/Volumes/T7")).contains { $0.drive.name == "T7" },
               "not the drive it's on")
+    }
+
+    /// A game on an unplugged drive stays the player's: on Home's rail and with the installed games,
+    /// not among the downloads to make.
+    static func checkShelf(_ bottle: Bottle) {
+        func game(_ id: Int, _ name: String, _ install: InstallState, played: Double?, drive: String? = nil) -> Game {
+            var game = Game(appID: id, name: name, bottle: bottle, steamRoot: bottle.url, steamExeWindowsPath: "",
+                            installDir: bottle.url, sizeOnDisk: 1,
+                            lastPlayed: played.map { Date().addingTimeInterval(-$0 * 86_400) })
+            game.install = install
+            game.missingDrive = drive
+            return game
+        }
+        let games = LibraryScanner.sorted([game(1, "Zeta", .notInstalled, played: nil), game(2, "OxyRail", .notInstalled, played: 1, drive: "Spiele test"),
+                                           game(3, "Hades", .installed, played: 3), game(4, "Alpha", .notInstalled, played: 2)])
+        check(games.map(\.name) == ["OxyRail", "Hades", "Alpha", "Zeta"], "sorted with the installed ones, by last played: \(games.map(\.name))")
+        check(games[0].onUnpluggedDrive && games[0].shelfState == .installed && games[2].shelfState == .notInstalled, "only the one on a drive counts as installed")
+        let rail = HomeRail.pick(games, fill: false).map { games[$0].name }
+        check(rail == ["OxyRail", "Hades"], "on Home's rail while unplugged: \(rail)")
+        let sections = LibrarySection.make(games, sort: .recent, searching: false, hidden: false)
+        check(sections.first { $0.id == "installed" }?.items.map { games[$0].name } == ["OxyRail", "Hades"]
+              && sections.first { $0.id == "library" }?.items.map { games[$0].name } == ["Alpha", "Zeta"],
+              "under Installed, not In your library: \(sections.map { ($0.id, $0.items) })")
+        var filters = LibraryFilters()
+        filters.status = .notDownloaded
+        check(!filters.admits(games[0], level: { _ in .great }), "not among the games to download")
     }
 
     // MARK: - Moving

@@ -45,7 +45,7 @@ struct LibraryFilters: Equatable {
     /// A game from several stores goes by what its card shows (`Game.shown`).
     func admits(_ game: Game, level: (Game) -> Compatibility.Level) -> Bool {
         let onMac: Bool
-        switch game.shown.install {
+        switch game.shown.shelfState {
         case .installed, .downloading: onMac = true
         case .notInstalled, .inStore: onMac = false
         }
@@ -95,7 +95,7 @@ struct LibrarySection: Equatable {
             sections = [LibrarySection(id: "hidden", title: L10n.t("Hidden games"), items: owned)]
         } else if sort == .recent {
             sections = GridGroup.allCases.filter { $0 != .store }.map { group in
-                LibrarySection(id: "\(group)", title: group.title, items: owned.filter { group.contains(games[$0].shown.install) })
+                LibrarySection(id: "\(group)", title: group.title, items: owned.filter { group.contains(games[$0].shown.shelfState) })
             }
         } else {
             sections = [LibrarySection(id: "all", title: sort == .name ? L10n.t("A – Z") : L10n.t("Largest first"), items: owned)]

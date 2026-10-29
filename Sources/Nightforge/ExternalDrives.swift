@@ -71,6 +71,15 @@ struct ExternalDrive: Identifiable, Hashable {
     }
 }
 
+extension Game {
+    /// Installed on a drive that's unplugged: plays once it's plugged in ("Connect … to Play").
+    var onUnpluggedDrive: Bool { install == .notInstalled && missingDrive != nil }
+
+    /// Where Home and the library file it: a game on an unplugged drive stays with the installed
+    /// ones – it's the player's, not a download to make again.
+    var shelfState: InstallState { onUnpluggedDrive ? .installed : install }
+}
+
 /// A drive offered as a game's place – in the space sheet and in "Move to …" – and whether the game
 /// fits there.
 struct DriveChoice: Identifiable, Hashable {

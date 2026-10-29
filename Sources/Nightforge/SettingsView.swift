@@ -557,7 +557,8 @@ private struct StorageSettings: View {
             }
             ForEach(unplugged, id: \.drive) { drive, names in
                 Section {
-                    Text(L10n.t("%@ – plug it in to play or move them.", names.joined(separator: ", ")))
+                    Text(names.count == 1 ? L10n.t("%@ – plug it in to play or move it.", names[0])
+                                          : L10n.t("%@ – plug it in to play or move them.", names.joined(separator: ", ")))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
@@ -647,8 +648,11 @@ private struct StorageSettings: View {
                     .help(L10n.t("Show game folder in Finder"))
                     .accessibilityLabel(L10n.t("Show game folder in Finder"))
                     .padFocus("storage.reveal.\(game.id)", activate: { reveal(game) })
+                // An icon like the folder's: a long name keeps its row on one line.
                 if model.canMove(game) {
-                    Button(L10n.t("Move to …")) { move(game) }
+                    Button { move(game) } label: { Image(systemName: "externaldrive") }
+                        .help(L10n.t("Move to …"))
+                        .accessibilityLabel(L10n.t("Move to …"))
                         .padFocus("storage.move.\(game.id)", activate: { move(game) })
                 }
                 if model.canUninstall(game) {

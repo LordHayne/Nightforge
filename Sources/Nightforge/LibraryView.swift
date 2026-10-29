@@ -1653,6 +1653,7 @@ struct CoverCard: View {
         switch shown.install {
         case .installed: parts.append(game.pendingUpdate != nil ? L10n.t("Installed, update waiting") : L10n.t("Installed"))
         case .downloading: parts.append(L10n.t("Downloading"))
+        case .notInstalled where shown.onUnpluggedDrive: parts.append(L10n.t("Connect %@ to Play", shown.missingDrive ?? ""))
         case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
@@ -1679,6 +1680,20 @@ struct CoverCard: View {
             .frame(maxHeight: .infinity, alignment: .bottom)
         case .installed:
             EmptyView()
+        case .notInstalled where shown.onUnpluggedDrive:
+            // Not a download: it's on a drive that's unplugged.
+            HStack {
+                Spacer()
+                Image(systemName: "externaldrive.badge.xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .background(Theme.night.opacity(0.82), in: Capsule())
+                    .padding(7)
+                    .help(L10n.t("Connect %@ to Play", shown.missingDrive ?? ""))
+            }
+            .frame(maxHeight: .infinity, alignment: .bottom)
         case .notInstalled, .inStore:
             HStack {
                 Spacer()

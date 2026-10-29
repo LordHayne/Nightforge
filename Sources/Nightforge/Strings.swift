@@ -518,6 +518,7 @@ enum L10n {
         "%@ is moving – the download starts once it's done.": "%@ wird gerade verschoben – der Download startet, sobald das fertig ist.",
         "No games on %@ yet.": "Noch keine Spiele auf %@.",
         "%@ – plug it in to play or move them.": "%@ – schließ es an, um sie zu spielen oder zu verschieben.",
+        "%@ – plug it in to play or move it.": "%@ – schließ es an, um es zu spielen oder zu verschieben.",
         "%@ · not connected": "%@ · nicht angeschlossen",
         "Steam's list of libraries (%@) can't be read, so it was left as it is.":
             "Steams Liste der Bibliotheken (%@) ist nicht lesbar, deshalb blieb sie, wie sie ist.",
