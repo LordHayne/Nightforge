@@ -42,6 +42,15 @@ enum Engine {
         "-no-cef-sandbox", "-cef-single-process", "-noverifyfiles",
         "-cef-disable-gpu", "-cef-disable-gpu-compositing",
     ]
+    /// `steamArguments` for a start of Steam. Before its first update has put the client in place,
+    /// without -noverifyfiles: told not to verify, a bootstrapper with nothing installed found
+    /// nothing missing and sat there for 90 s instead of fetching the client (29.10.2026); its
+    /// restarts after an update inherit the arguments. From then on Steam mustn't verify its files:
+    /// it would put Valve's steamwebhelper back over the wrapper.
+    static func startArguments(clientInstalled: Bool) -> [String] {
+        clientInstalled ? steamArguments : steamArguments.filter { $0 != "-noverifyfiles" }
+    }
+
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
     static let steamConfigVersion = 9
@@ -286,6 +295,29 @@ enum Engine {
         return nil
     }
 
+    /// Steam's browser caches in the prefix, one per Windows user (its helper's -cachedir,
+    /// `C:\users\crossover\AppData\Local\Steam\htmlcache`).
+    static func steamBrowserCaches(prefix: URL = prefix) -> [URL] {
+        let users = prefix.appendingPathComponent("drive_c/users", isDirectory: true)
+        return ((try? FileManager.default.contentsOfDirectory(at: users, includingPropertiesForKeys: nil)) ?? [])
+            .map { $0.appendingPathComponent("AppData/Local/Steam/htmlcache", isDirectory: true) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// When a process started.
+    static func processStart(_ pid: pid_t) -> Date? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+
+    /// Valve's steamwebhelper, started before the wrapper went in at `swappedAt`, still runs
+    /// (SteamBootstrap.unwrappedHelperRunning).
+    static func unwrappedWebHelperRunning(swappedAt: Date) -> Bool {
+        SteamBootstrap.unwrappedHelperRunning(ownProcesses().map { ($0.command, processStart($0.pid)) }, swappedAt: swappedAt)
+    }
+
     private static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
@@ -341,10 +373,14 @@ enum Engine {
 
     /// Puts the bundled steamwebhelper wrapper in place of Steam's own (which becomes
     /// steamwebhelper_real.exe). Repeats safely; returns true when it changed anything, e.g. after
-    /// Steam's first update unpacked its browser or a later update replaced it.
+    /// Steam's first update unpacked its browser or a later update replaced it. Only once Steam's
+    /// client is in place, and never while its bootstrapper downloads or installs an update
+    /// (SteamBootstrap): the install writes Valve's helper back, and a swap then cut it off.
     @discardableResult
-    static func installWebHelperWrapper() -> Bool {
-        guard let wrapper = Bundle.main.url(forResource: "steamwebhelper", withExtension: "exe") else { return false }
+    static func installWebHelperWrapper(steamRoot: URL = steamRoot,
+                                        wrapper: URL? = Bundle.main.url(forResource: "steamwebhelper", withExtension: "exe")) -> Bool {
+        guard let wrapper, SteamBootstrap.clientInstalled(steamRoot: steamRoot),
+              SteamBootstrap(steamRoot: steamRoot).allowsHelperSwap else { return false }
         let fm = FileManager.default
         let cef = steamRoot.appendingPathComponent("bin/cef", isDirectory: true)
         let wrapperSize = (try? fm.attributesOfItem(atPath: wrapper.path)[.size] as? Int) ?? 0
@@ -426,8 +462,19 @@ enum Engine {
     /// e.g. after the list moved to a newer engine. Returns the wine binary to use.
     /// `gameRunning`: a game of Nightforge's own Steam runs, so its Wine session must not end –
     /// a new graphics package (which can bring a new wineserver) waits for the next start then.
-    static func ensureEngine(gameRunning: Bool = false) async throws -> URL {
+    /// What ensureEngine is doing, for the first start's checklist (SetupDetail.engine).
+    enum SetupStep: Sendable {
+        /// A component coming down (0…1); at 1 it's being unpacked.
+        case downloading(Component, Double)
+        case graphics
+        case gameEnvironment
+    }
+
+    static func ensureEngine(gameRunning: Bool = false, report: (@Sendable (SetupStep) -> Void)? = nil) async throws -> URL {
         let store = ComponentStore.shared
+        func install(_ component: Component) async throws -> URL {
+            try await store.install(component) { fraction in report?(.downloading(component, fraction)) }
+        }
         let manifest = try await store.manifest()
         guard let engine = engineComponent(in: manifest), let graphics = graphicsComponent(in: manifest) else {
             throw ComponentError.noManifest
@@ -474,12 +521,17 @@ enum Engine {
             }
         }
         if readStamp(graphicsStamp) != graphicsWanted, !gameRunning, !windowsGameRunning {
-            try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             var moltenVKDir: URL?
-            if let moltenVK { moltenVKDir = try await store.install(moltenVK) }
+            if let moltenVK { moltenVKDir = try await install(moltenVK) }
+            var d3dMetalDir: URL?
+            if let d3dMetal { d3dMetalDir = try await install(d3dMetal) }
+            var gamepadDir: URL?
+            if let gamepad { gamepadDir = try await install(gamepad) }
+            report?(.graphics)
+            try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             try installMoltenVK(moltenVKDir, into: wine)
-            if let d3dMetal { try installD3DMetal(try await store.install(d3dMetal), into: wine) }
-            if let gamepad { try installGamepad(try await store.install(gamepad), into: wine) }
+            if let d3dMetalDir { try installD3DMetal(d3dMetalDir, into: wine) }
+            if let gamepadDir { try installGamepad(gamepadDir, into: wine) }
             writeStamp(graphicsStamp, graphicsWanted)
         }
         installGameBundle(wine: wine)  // after the graphics: its links must point at the new files
@@ -488,7 +540,8 @@ enum Engine {
         trimSteamLogs()
         excludeGamesFromBackup()
         var dxvkDir: URL?
-        if let dxvk { dxvkDir = try await store.install(dxvk) }
+        if let dxvk { dxvkDir = try await install(dxvk) }
+        report?(.gameEnvironment)
         try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir)
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
@@ -682,7 +735,8 @@ enum Engine {
         # away): asked again before each step that would end the session.
         reopened && exit 0
         if steam_running; then
-          "$WINE" 'C:\Program Files (x86)\Steam\steam.exe' -shutdown >/dev/null 2>&1
+          # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
+          "$WINE" 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
           for i in $(seq 1 20); do steam_running || break; reopened && exit 0; sleep 1; done
         fi
         reopened && exit 0
@@ -1788,6 +1842,12 @@ enum Engine {
     /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
         guard isSteamRunning else { return }
+        // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
+        var waited = 0
+        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
+            try await Task.sleep(for: .seconds(1))
+            waited += 1
+        }
         try startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
         for _ in 0..<20 {
             guard isSteamRunning else { return }
@@ -1834,6 +1894,8 @@ enum Engine {
             at: logs, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
         let newest = files.compactMap { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }.max()
         guard let newest, Date().timeIntervalSince(newest) >= seconds else { return false }
+        // An update going in is quiet for a while; restarting would cut it off (SteamBootstrap).
+        guard SteamBootstrap(steamRoot: steamRoot) != .installing else { return false }
         // Signed out by Steam for Mac signing in isn't hanging: it waits to be needed again.
         return !steamSignedIn && !sessionReplaced()
     }
@@ -1882,12 +1944,10 @@ enum Engine {
     }
 
     /// Opens Steam's main window. Questions Steam asks before a launch (licence agreement, which
-    /// version to start) appear in it, and with -silent it stays hidden. Returns the processes
-    /// that draw Steam's windows, so the caller can bring them to the front.
-    @discardableResult
-    static func showSteamWindow(_ wine: URL) -> [pid_t] {
+    /// version to start) appear in it, and with -silent it stays hidden. SteamWindow brings it to
+    /// the front.
+    static func showSteamWindow(_ wine: URL) {
         try? startSteam(wine)
-        return ownProcesses().filter { $0.command.lowercased().contains("steamwebhelper") }.map(\.pid)
     }
 
     /// Starts Steam without waiting; used for signing in and for launching games.
@@ -1896,7 +1956,7 @@ enum Engine {
         let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader
-        process.arguments = [steamExeWindowsPath] + steamArguments + arguments
+        process.arguments = [steamExeWindowsPath] + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments
         var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
         env["WINEDLLOVERRIDES"] = steamDLLOverrides
         if loader != wine { env["WINELOADER"] = loader.path }

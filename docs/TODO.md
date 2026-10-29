@@ -347,8 +347,9 @@ von „Epic Games“ unten:
   nach dem Verbinden. In „Über“ erwähnen oder per `config.ini` abschalten (dann fehlen Epics neue Client-Daten).
 - **Alte Schlüssel aufräumen:** `GameIDMigration` lässt „options.570“, „library.hidden“ usw. für ältere Builds stehen.
   In einer späteren Version löschen.
-- **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Also add
-  Epic Games“ in der Ersteinrichtung (6.1), „Start through <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da).
+- **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Start through
+  <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ im ersten Start
+  (6.1) entfällt nach Entscheidung des Nutzers (29.10.): Epic verbindet man in Settings › Stores.
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 
@@ -438,10 +439,30 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Steam und Start
 
-- **Steams erstes Update auf einem frischen winecx-Prefix dauert rund 11 Minuten**: Der alte Bootstrapper startet alle
-  13 s neu (164 Installationsläufe, „Bad NTFS transaction canary“), bis das Update durch ist. Die Einrichtung wartet
-  das ab, aber für neue Nutzer ist es lang. Mit 11.18 vergleichen; vielleicht hilft ein Neustart von Steam durch
-  Nightforge, sobald das Paket geladen ist.
+- **Steams erstes Update auf einem frischen winecx-Prefix** (früher „rund 11 Minuten“) – Ursache gefunden und behoben
+  (29.10., Branch `claude/first-start-6-1-18d92f`, siehe Roadmap 6.1):
+  - Nightforge selbst hat die Schleife ausgelöst. Beim Entpacken schreibt Steam Valves `steamwebhelper.exe` zurück. Die
+    Einrichtung sah das alle 2 s, tauschte den Wrapper ein und startete Steam neu – mitten in der Installation. Der
+    Bootstrapper begann dann wieder mit „installed version 0“, alle 13 s (124-mal in 30 Minuten). Nur wenn die Installation
+    zufällig zwischen zwei Prüfungen fertig wurde, ging es weiter.
+  - Jetzt liest `SteamBootstrap` Steams Update-Log (nur Marker, die Steam nicht übersetzt). Getauscht und neu gestartet
+    wird erst, wenn der neue Client läuft; `stopSteam` und die Hänger-Erkennung warten eine Installation ab.
+  - Dazu zwei kleinere Fehler: Der allererste Start mit `-noverifyfiles` prüfte keine Updates und stand 92 s, bis
+    Nightforge Steam neu startete. Jetzt startet Steam ohne `-noverifyfiles`, bis der Client da ist, und ein solcher
+    Stillstand wird nach 15 s beendet. Und das Quit-Skript beendete Steam ohne `-noverifyfiles`, worauf Steam Valves Helper
+    über den Wrapper installierte.
+  - Danach hing noch der Neustart nach dem Tausch (93 s): gestartet, während das alte Steam noch beendet wurde. Jetzt
+    startet die Einrichtung Steam nur neu, wenn Valves Helper schon läuft, wartet vorher, bis alles von Steam weg ist,
+    und startet einen Client, der nach 20 s nicht hochgekommen ist („Client version“ in `console_log.txt`), noch einmal.
+  - Gemessen: mit dem Schleifen-Fix 4:39 bis zum Anmeldefenster, im zweiten Lauf (57cb377) 4:13, davon 93 s der hängende
+    Neustart, im dritten (a40e22a) 3:09, davon 26 s der hängende Neustart bis zum 20-s-Netz.
+  - Der erste Neustart nach dem Update hing in allen drei Läufen beim Einlesen des Browser-Profils (nach „This is Chrome
+    version“). Verdacht: Valves Browser hatte seinen Cache (`htmlcache`) halb angelegt, als er beendet wurde (im ersten
+    Lauf, 2 s nach dem Client-Start beendet, hing nichts). Seit dem 29.10. leert die Einrichtung den Cache vor dem Neustart
+    (vor der Anmeldung steht nichts darin). Ziel um 2:40 – beim nächsten frischen Durchlauf prüfen.
+  - Nicht gemacht: den Wrapper schon im ~1-s-Fenster zwischen „Shutdown“ und dem Browser-Start tauschen (schnelleres
+    Abfragen). Der neue Client prüft in genau diesem Fenster seine Dateigrößen und lädt einen zu früh getauschten Helper
+    neu herunter.
 
 ### Leistung
 

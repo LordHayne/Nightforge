@@ -1,10 +1,38 @@
 import AppKit
 import Foundation
 
-/// The one-button "Connect Steam" flow: every step checks whether it's already done, so pressing
-/// the button again after a failure (or on a second Mac start) just carries on where it stopped.
+/// The first start, end to end: a welcome, the one-button setup – every step checks whether it's
+/// already done, so pressing the button again after a failure (or on a second Mac start) just
+/// carries on where it stopped – then the library check and what it found.
 @MainActor
 final class SetupModel: ObservableObject {
+    /// The page the first start shows.
+    enum Stage: Equatable {
+        case welcome
+        /// The setup's own steps; `phase` says where it is.
+        case checklist
+        /// After the sign-in: Steam sends the library, and every game is looked up.
+        case checking(LibraryCheck)
+        /// How many of the games run here, then "Let's Play".
+        case reveal(LibraryReveal)
+    }
+
+    /// What Return or A, and Esc or B, do on the page now.
+    enum Action: Equatable {
+        case begin, installRosetta, showSteam, retry, skip, play
+
+        var label: String {
+            switch self {
+            case .begin: return L10n.t("Let's Go")
+            case .installRosetta: return L10n.t("Install Rosetta")
+            case .showSteam: return L10n.t("Show Steam window again")
+            case .retry: return L10n.t("Try again")
+            case .skip: return L10n.t("Skip")
+            case .play: return L10n.t("Let's Play")
+            }
+        }
+    }
+
     enum Step: Int, CaseIterable, Identifiable {
         case rosetta, engine, environment, steam, signIn
 
@@ -30,23 +58,202 @@ final class SetupModel: ObservableObject {
         case failed(Step, String)
     }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet { stepChanged(from: Self.step(of: oldValue)) }
+    }
     /// Download progress of the current step, when it has one.
     @Published private(set) var progress: Double?
+    /// What the running step does right now, from what Nightforge can see (SetupDetail).
+    @Published private(set) var detail: String?
+    /// A finished step's line: how long it took, or what it found.
+    @Published private(set) var summaries: [Step: String] = [:]
+    private var stepStarted: [Step: Date] = [:]
+    /// The download under way, for its speed.
+    private var transfer = DownloadRate()
+    private var transferID: String?
+    /// Steam's first start, before its sign-in window: it updates itself, then the window comes.
+    @Published private(set) var steamStarting = false
 
+    @Published private(set) var stage = Stage.welcome
+    /// From "Let's Go" until "Let's Play": the first start stays on Home while the games come in.
+    @Published private(set) var isActive = false
+    /// "Show the First Start Again": the welcome, the check and what it found – the setup is done.
+    @Published private(set) var isReplay = false
+
+    /// After the setup (and "Let's Go" in the replay): the library check starts (LibraryModel).
     var onFinished: (() -> Void)?
+    /// The library check under way; "Skip" stops it.
+    var checkTask: Task<Void, Never>?
     private var signInWatcher: Task<Void, Never>?
+    private var activationObserver: NSObjectProtocol?
 
     /// Nothing left to do: Steam is installed and someone has signed in.
     static var isComplete: Bool { Engine.isSteamInstalled && Engine.isSteamSignedIn }
 
-    func currentStep() -> Step? {
+    // MARK: - The pages
+
+    /// "Let's Go": the setup's checklist, or in the replay straight to the library check.
+    func begin() {
+        guard stage == .welcome else { return }
+        isActive = true
+        if isReplay {
+            stage = .checking(LibraryCheck())
+            onFinished?()
+        } else {
+            stage = .checklist
+            start()
+        }
+    }
+
+    /// From Settings › About, once the setup is done.
+    func replay(setupDone: Bool? = nil) {
+        guard setupDone ?? Self.isComplete, !isActive else { return }
+        isReplay = true
+        isActive = true
+        stage = .welcome
+    }
+
+    func checking(_ check: LibraryCheck) {
+        guard isActive else { return }
+        stage = .checking(check)
+    }
+
+    func reveal(_ reveal: LibraryReveal) {
+        guard isActive else { return }
+        stage = .reveal(reveal)
+    }
+
+    /// "Let's Play" and "Skip": the library takes over.
+    func close() {
+        checkTask?.cancel()
+        checkTask = nil
+        isActive = false
+        isReplay = false
+        stage = .welcome
+    }
+
+    /// Return and A.
+    func primary() {
+        Self.confirmAction(stage: stage, phase: phase).map(perform)
+    }
+
+    /// Esc and B; false when there's nothing to leave (the setup itself can't be skipped).
+    func back() -> Bool {
+        guard let action = Self.backAction(stage: stage, replay: isReplay) else { return false }
+        perform(action)
+        return true
+    }
+
+    private func perform(_ action: Action) {
+        switch action {
+        case .begin: begin()
+        case .installRosetta: installRosetta()
+        case .showSteam: reopenSteam()
+        case .retry: start()
+        case .skip, .play: close()
+        }
+    }
+
+    nonisolated static func confirmAction(stage: Stage, phase: Phase) -> Action? {
+        switch stage {
+        case .welcome: return .begin
+        case .checklist:
+            switch phase {
+            case .needsRosetta: return .installRosetta
+            case .waitingForSignIn: return .showSteam
+            case .failed: return .retry
+            case .idle, .running, .done: return nil
+            }
+        case .checking: return nil
+        case .reveal: return .play
+        }
+    }
+
+    nonisolated static func backAction(stage: Stage, replay: Bool) -> Action? {
+        switch stage {
+        case .welcome: return replay ? .skip : nil
+        case .checklist: return nil
+        case .checking: return .skip
+        case .reveal: return .play
+        }
+    }
+
+    /// The welcome's line: what Nightforge is and what happens next. In the replay the setup and the
+    /// sign-in are long done, so it says what's shown instead.
+    nonisolated static func welcomeText(replay: Bool) -> String {
+        replay ? L10n.t("Nightforge plays your Windows games on this Mac. Here's once more how your library runs on it.")
+               : L10n.t("Nightforge plays your Windows games on this Mac – next, it sets up everything they need by itself in a few minutes, and you only sign in to Steam.")
+    }
+
+    /// The library check's headline and the line under it. On the first start the library comes
+    /// from Steam right after the sign-in; the replay only reads what's on the Mac.
+    nonisolated static func checkingTexts(_ check: LibraryCheck, replay: Bool) -> (headline: String, line: String) {
+        let lookingUp = L10n.t("Looking up how each one runs on this Mac …")
+        switch check.total {
+        case nil:
+            return replay ? (L10n.t("Reading your library …"), lookingUp)
+                          : (L10n.t("Asking Steam for your games …"), L10n.t("Steam sends your library a moment after you sign in."))
+        case 1?: return (L10n.t("%ld of 1 game", check.checked), lookingUp)
+        case let total?: return (L10n.t("%ld of %ld games", check.checked, total), lookingUp)
+        }
+    }
+
+    /// The line under the checklist about Steam's sign-in window: said before it opens, so the phone
+    /// is at hand for its QR code, and again while it's open.
+    nonisolated static func signInNote(phase: Phase, steamStarting: Bool) -> String? {
+        switch phase {
+        case .running(.steam) where steamStarting:
+            return L10n.t("Steam's sign-in window opens next: scan its QR code with the Steam app on your phone – no typing.")
+        case .waitingForSignIn:
+            return L10n.t("Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login.")
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - The setup
+
+    func currentStep() -> Step? { Self.step(of: phase) }
+
+    private static func step(of phase: Phase) -> Step? {
         switch phase {
         case .running(let step), .failed(let step, _): return step
         case .needsRosetta: return .rosetta
         case .waitingForSignIn: return .signIn
         case .idle, .done: return nil
         }
+    }
+
+    /// A new step: its detail starts empty, and every step before it gets its line – how long it
+    /// took, unless it said something of its own (the Mac's).
+    private func stepChanged(from old: Step?) {
+        let new = currentStep()
+        guard new != old || phase == .done else { return }
+        detail = nil
+        let now = Date()
+        if let new, stepStarted[new] == nil { stepStarted[new] = now }
+        let through = phase == .done ? Step.allCases.count : new?.rawValue ?? 0
+        for step in Step.allCases where step.rawValue < through && summaries[step] == nil {
+            summaries[step] = SetupDetail.duration(now.timeIntervalSince(stepStarted[step] ?? now))
+        }
+    }
+
+    /// A component's download in `step`: how far and how fast, then that it's unpacked. Reports
+    /// that arrive after the step moved on are dropped.
+    private func showDownload(_ component: Component, _ fraction: Double, in step: Step) {
+        guard currentStep() == step else { return }
+        if transferID != component.id {
+            transferID = component.id
+            transfer = DownloadRate()
+        }
+        transfer.add(bytes: fraction * Double(component.size))
+        detail = SetupDetail.component(component, fraction: fraction, bytesPerSecond: transfer.bytesPerSecond)
+    }
+
+    /// The files wineboot lays down in Windows' system folder.
+    nonisolated private static func systemFiles() -> Int {
+        let system32 = Engine.prefix.appendingPathComponent("drive_c/windows/system32").path
+        return (try? FileManager.default.contentsOfDirectory(atPath: system32))?.count ?? 0
     }
 
     func isFinished(_ step: Step) -> Bool {
@@ -68,6 +275,7 @@ final class SetupModel: ObservableObject {
                 phase = .needsRosetta
                 return
             }
+            summaries[.rosetta] = SetupDetail.mac(freeBytes: LibraryModel.freeSpace(at: FileManager.default.homeDirectoryForCurrentUser))
 
             step = .engine
             phase = .running(.engine)
@@ -81,10 +289,16 @@ final class SetupModel: ObservableObject {
             let total = Double(engineComponent.size + graphicsComponent.size)
             let engineShare = Double(engineComponent.size) / total
             let engineDir = try await ComponentStore.shared.install(engineComponent) { value in
-                Task { @MainActor in self.progress = value * engineShare }
+                Task { @MainActor in
+                    self.progress = value * engineShare
+                    self.showDownload(engineComponent, value, in: .engine)
+                }
             }
             _ = try await ComponentStore.shared.install(graphicsComponent) { value in
-                Task { @MainActor in self.progress = engineShare + value * (1 - engineShare) }
+                Task { @MainActor in
+                    self.progress = engineShare + value * (1 - engineShare)
+                    self.showDownload(graphicsComponent, value, in: .engine)
+                }
             }
             progress = nil
             guard let wine = Engine.wineBinary(in: engineDir) else { throw SetupError.engineBroken }
@@ -93,17 +307,39 @@ final class SetupModel: ObservableObject {
             phase = .running(.environment)
             if !FileManager.default.fileExists(atPath: Engine.prefix.appendingPathComponent("drive_c").path) {
                 try FileManager.default.createDirectory(at: Engine.prefix, withIntermediateDirectories: true)
-                guard try await Engine.run(wine, ["wineboot", "--init"]) == 0 else { throw SetupError.environmentFailed }
+                detail = SetupDetail.windows(systemFiles: 0)
+                // Windows' system files, counted as wineboot lays them down.
+                let counting = Task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        let count = await Engine.offMain { Self.systemFiles() }
+                        if !Task.isCancelled, currentStep() == .environment { detail = SetupDetail.windows(systemFiles: count) }
+                    }
+                }
+                let status = try await Engine.run(wine, ["wineboot", "--init"])
+                counting.cancel()
+                guard status == 0 else { throw SetupError.environmentFailed }
             }
             // Graphics layers, D3DMetal, the controller package and the game environment, the same way
             // every later start checks them (off the main thread: it copies files and runs regedit).
-            _ = try await Engine.ensureEngine()
+            _ = try await Engine.ensureEngine { step in
+                Task { @MainActor in
+                    if case .downloading(let component, let fraction) = step {
+                        self.showDownload(component, fraction, in: .environment)
+                    } else if self.currentStep() == .environment {
+                        self.detail = SetupDetail.engine(step)
+                    }
+                }
+            }
 
             step = .steam
             phase = .running(.steam)
             if !Engine.isSteamInstalled {
+                detail = L10n.t("Downloading the Steam installer …")
                 let installer = try await downloadSteamSetup()
                 defer { try? FileManager.default.removeItem(at: installer) }
+                let size = (try? installer.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                detail = L10n.t("The Steam installer (%@) is running …", Format.bytes(Int64(size)))
                 _ = try await Engine.run(wine, [installer.path, "/S"])
                 guard Engine.isSteamInstalled else { throw SetupError.steamInstallFailed }
             }
@@ -138,11 +374,12 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    /// Brings the Steam window back if someone closed it before signing in.
+    /// Brings the Steam window back if someone closed it before signing in, in front of Nightforge.
     func reopenSteam() {
         Task {
             guard let wine = await Engine.installedWine() else { return }
             try? Engine.startSteam(wine)
+            await SteamWindow.bringForward()
         }
     }
 
@@ -159,8 +396,13 @@ final class SetupModel: ObservableObject {
         let start = Date()
         var restarts = 0
         var lastRestart = Date()
+        // When the wrapper went in: a steamwebhelper started before that is Valve's.
+        var swappedAt: Date?
         phase = .running(.steam)
+        steamStarting = true
+        defer { steamStarting = false }
         try Engine.startSteam(wine)
+        detail = L10n.t("Steam is starting …")
 
         while true {
             try await Task.sleep(for: .seconds(2))
@@ -169,13 +411,24 @@ final class SetupModel: ObservableObject {
                 finish()
                 return
             }
-            // Steam unpacks its browser during the first update and starts it right away – still
-            // unwrapped, i.e. black. Wrap it and restart Steam once that happens.
-            if Engine.installWebHelperWrapper() {
-                await Engine.offMain { Engine.stopAll(wine) }
-                try Engine.startSteam(wine)
-                lastRestart = Date()
-                continue
+            // Steam's first update unpacks its browser, and the new client starts it – Valve's,
+            // unwrapped, i.e. black. Once the update is in and the new client runs (never during
+            // the install: that cut it off, and Steam started over every 13 s), the wrapper goes in.
+            // A client that hasn't started its browser yet starts the wrapper itself; Steam is
+            // restarted only when Valve's already runs.
+            let log = SteamBootstrap.log(steamRoot: Engine.steamRoot)
+            let bootstrap = SteamBootstrap(log: log)
+            let clientInstalled = SteamBootstrap.clientInstalled(steamRoot: Engine.steamRoot)
+            detail = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
+            if bootstrap == .idle, clientInstalled {
+                if Engine.installWebHelperWrapper() { swappedAt = Date() }
+                if let swappedAt, await Engine.offMain({ Engine.unwrappedWebHelperRunning(swappedAt: swappedAt) }) {
+                    restarts += 1
+                    guard restarts <= 5 else { throw SetupError.steamWontStart }
+                    try await restartSteam(wine)
+                    lastRestart = Date()
+                    continue
+                }
             }
             if Engine.isSteamWaitingForSignIn(since: start) {
                 progress = nil
@@ -186,21 +439,42 @@ final class SetupModel: ObservableObject {
 
             let update = Engine.steamUpdateStatus()
             progress = update.fraction
-            let stalled = (update.lastChange.map { Date().timeIntervalSince($0) > 90 } ?? false)
-                && Date().timeIntervalSince(lastRestart) > 90
-            let gone = !Engine.isSteamRunning && Date().timeIntervalSince(lastRestart) > 15
+            let quiet = update.lastChange.map { Date().timeIntervalSince($0) } ?? 0
+            let sinceRestart = Date().timeIntervalSince(lastRestart)
+            let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled,
+                                            clientStarted: SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
+            let gone = bootstrap.gone(steamRunning: Engine.isSteamRunning, sinceRestart: sinceRestart, quietFor: quiet)
 
             if stalled || gone {
                 restarts += 1
                 guard restarts <= 5 else { throw SetupError.steamWontStart }
-                if stalled { await Engine.offMain { Engine.stopAll(wine) } }
-                try Engine.startSteam(wine)
+                try await restartSteam(wine)
                 lastRestart = Date()
             }
         }
     }
 
+    /// Ends everything of Steam's and starts it again, once all of it is gone (up to 10 s). Before
+    /// anyone signed in, Steam's browser cache goes too: the first client after the update starts
+    /// Valve's browser, which lays the cache down; ended a few seconds in, it left it so that the
+    /// next browser hung while reading it – after "This is Chrome version", every time (29.10.2026,
+    /// all three runs; the start after that worked). Before the sign-in nothing is in it.
+    private func restartSteam(_ wine: URL) async throws {
+        detail = L10n.t("Restarting Steam …")
+        await Engine.offMain { Engine.stopAll(wine) }
+        var waited = 0
+        while waited < 40, await Engine.offMain({ !Engine.ownProcesses().isEmpty }) {
+            try await Task.sleep(for: .milliseconds(250))
+            waited += 1
+        }
+        if waited < 40, !Engine.isSteamSignedIn {
+            for cache in Engine.steamBrowserCaches() { try? FileManager.default.removeItem(at: cache) }
+        }
+        try Engine.startSteam(wine)
+    }
+
     private func watchForSignIn() {
+        showSignInWindow()
         signInWatcher?.cancel()
         signInWatcher = Task {
             while !Task.isCancelled {
@@ -213,9 +487,34 @@ final class SetupModel: ObservableObject {
         }
     }
 
+    /// Steam's sign-in in front of Nightforge (it opened behind it). When Nightforge wasn't the
+    /// active app just then, the next time it is.
+    private func showSignInWindow() {
+        Task {
+            if await SteamWindow.bringForward() { return }
+            showSignInWindowOnActivation()
+        }
+    }
+
+    private func showSignInWindowOnActivation() {
+        guard phase == .waitingForSignIn, activationObserver == nil else { return }
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let observer = self.activationObserver else { return }
+                NotificationCenter.default.removeObserver(observer)
+                self.activationObserver = nil
+                guard self.phase == .waitingForSignIn else { return }
+                Task { await SteamWindow.bringForward() }
+            }
+        }
+    }
+
     private func finish() {
         signInWatcher?.cancel()
         phase = .done
+        if isActive { stage = .checking(LibraryCheck()) }
         onFinished?()
         // Steam opens its big main window after sign-in; from now on it only works in the background.
         Task {

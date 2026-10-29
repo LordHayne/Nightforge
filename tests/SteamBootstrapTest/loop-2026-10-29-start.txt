@@ -1,0 +1,80 @@
+[2026-10-29 19:32:13] Startup - updater built May 20 2024 14:26:54
+[2026-10-29 19:32:13] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 19:32:13] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 19:32:13] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 19:32:13] 1. https://cdn.steamstatic.com, /client/, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 19:32:13] Installation wird überprüft …
+[2026-10-29 19:32:13] Verification skipped
+[2026-10-29 19:32:13] Verification complete
+
+
+[2026-10-29 19:33:47] Startup - updater built May 20 2024 14:26:54
+[2026-10-29 19:33:47] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 19:33:47] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 19:33:47] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 19:33:47] 1. https://cdn.steamstatic.com, /client/, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 19:33:47] Checking for update on startup
+[2026-10-29 19:33:47] Suche nach verfügbaren Updates …
+[2026-10-29 19:33:47] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 19:33:47] Manifest download: send request
+[2026-10-29 19:33:47] Manifest download: waiting for download to finish
+[2026-10-29 19:33:48] Manifest download: finished
+[2026-10-29 19:33:48] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+[2026-10-29 19:33:48] Package file tenfoot_images_all.zip.vz.193cb8c4eb4446698ea2c0a9e8c4e6b6a623dac7_5572671 missing or incorrect size
+[2026-10-29 19:33:48] Package file steamui_websrc_all.zip.vz.3454fedc48870f10019f5c5707aa34b9445f8fce_25053126 missing or incorrect size
+[2026-10-29 19:33:48] Add pending download: https://cdn.steamstatic.com/client/tenfoot_images_all.zip.vz.193cb8c4eb4446698ea2c0a9e8c4e6b6a623dac7_5572671
+[2026-10-29 19:33:48] Manifest download: send request
+[2026-10-29 19:33:48] Add pending download: https://cdn.steamstatic.com/client/steamui_websrc_all.zip.vz.3454fedc48870f10019f5c5707aa34b9445f8fce_25053126
+[2026-10-29 19:33:49] Update wird heruntergeladen (6,501 von 336,229 KB) …
+[2026-10-29 19:33:49] Update wird heruntergeladen (10,345 von 336,229 KB) …
+[2026-10-29 19:34:12] Download ist abgeschlossen.
+[2026-10-29 19:34:12] Saving metrics to disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-29 19:34:12] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win32 (1).
+[2026-10-29 19:34:12] Found pending update
+[2026-10-29 19:34:12] Update wird installiert …
+[2026-10-29 19:34:12] Paket wird extrahiert …
+[2026-10-29 19:34:20] Update wird installiert …
+
+
+[2026-10-29 19:34:23] Startup - updater built May 20 2024 14:26:54
+[2026-10-29 19:34:23] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 19:34:23] Loading cached metrics from disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-29 19:34:23] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 19:34:23] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 19:34:23] 1. https://cdn.steamstatic.com, /client/, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 19:34:23] Checking for update on startup
+[2026-10-29 19:34:23] Suche nach verfügbaren Updates …
+[2026-10-29 19:34:23] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 19:34:23] Manifest download: send request
+[2026-10-29 19:34:23] Manifest download: waiting for download to finish
+[2026-10-29 19:34:23] Manifest download: finished
+[2026-10-29 19:34:23] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+[2026-10-29 19:34:23] Download ist abgeschlossen.
+[2026-10-29 19:34:23] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win32 (1).
+[2026-10-29 19:34:23] Found pending update
+[2026-10-29 19:34:23] Update wird installiert …
+[2026-10-29 19:34:24] Paket wird extrahiert …
+[2026-10-29 19:34:32] Bad NTFS transaction canary detected, using non-atomic replacement
+[2026-10-29 19:34:32] Update wird installiert …
+
+
+[2026-10-29 19:34:36] Startup - updater built May 20 2024 14:26:54
+[2026-10-29 19:34:36] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 19:34:36] Loading cached metrics from disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-29 19:34:36] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 19:34:36] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 19:34:36] 1. https://cdn.steamstatic.com, /client/, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 19:34:36] Checking for update on startup
+[2026-10-29 19:34:36] Suche nach verfügbaren Updates …
+[2026-10-29 19:34:36] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 19:34:36] Manifest download: send request
+[2026-10-29 19:34:36] Manifest download: waiting for download to finish
+[2026-10-29 19:34:37] Manifest download: finished
+[2026-10-29 19:34:37] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+[2026-10-29 19:34:37] Download ist abgeschlossen.
+[2026-10-29 19:34:37] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win32 (1).
+[2026-10-29 19:34:37] Found pending update
+[2026-10-29 19:34:37] Update wird installiert …
+[2026-10-29 19:34:38] Paket wird extrahiert …
+[2026-10-29 19:34:45] Bad NTFS transaction canary detected, using non-atomic replacement
+[2026-10-29 19:34:45] Update wird installiert …

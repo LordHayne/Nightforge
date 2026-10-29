@@ -823,9 +823,9 @@ private struct AboutSettings: View {
         }
     }
 
-    /// How the library runs here, as after the first start – in the main window.
+    /// The first start once more, in the main window: the welcome, the library check, the reveal.
     private func showReveal() {
-        model.closeSettings { model.showLibraryReveal() }
+        model.closeSettings { model.showFirstStartAgain() }
     }
 
     private func showLicences() {
