@@ -376,6 +376,17 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     Links: „Original: <Projekt>“ und „Unser Build: Nightforge“.
   - D3DMetal ist Apples Game Porting Toolkit, nicht quelloffen: klar sagen („Proprietär, nur auf Apple-Hardware“),
     Apples Lizenztext, kein Quellcode-Knopf.
+- **Startseite direkt nach dem ersten Start** (Nutzer, 29.10., mehrfach: „wirkt sehr karg“, „zu leer“, „sieht
+  langweilig aus“): Nach „Los geht's“ zeigt Home bei einem neuen Nutzer nur „Alle 100 Spiele“, „Bibliothek öffnen“
+  und ein Band mit der einzigen Kachel „Alle Spiele“. Brainstorming läuft in der Session design-setup-home
+  (Entwurfsseite mit mehreren Richtungen, Branch `claude/design-setup-home-df5622`); gebaut wird nach Freigabe und
+  nach dem Merge von 6.1.
+- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): rechts neben der Checkliste ein Controller-Test
+  im Glas-Look und ein Tipp-Karussell (Entwurf in derselben Session); links Live-Details unter dem laufenden Schritt
+  (6.1-Session). Kein Epic in der Ersteinrichtung.
+- **Ersteinrichtung weiter beschleunigen** (optional, je etwa 20–30 s): Steams Client-Pakete selbst laden, während
+  die Windows-Umgebung entsteht; die Windows-Umgebung aus einer Vorlage kopieren statt `wineboot` (heikel bei
+  Wine-Versionswechseln).
 
 ## Aus dem Code-Audit
 
