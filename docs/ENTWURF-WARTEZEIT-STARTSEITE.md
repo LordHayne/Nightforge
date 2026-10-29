@@ -35,11 +35,23 @@ Controller-Test und eine Tipp-Karte.
 - Mit Controller sind Körper und Tasten aus Glas. Gedrückte Teile leuchten in `Theme.sodium` mit Schein.
   L2/R2 füllen sich mit `value`, die Sticks bewegen ihre Kappe um bis zu 10 pt, und L3/R3 färben sie ein.
   Beim DualSense leuchtet die Lichtleiste am Touchpad.
-- **Schultertasten** (der Nutzer fand sie überlappend, 29.10.): Im Entwurf gibt es drei Varianten zum Umschalten.
-  „Bügel“ (Standard) zeigt L1/R1 als Band entlang der Schulter und L2/R2 als Kuppel darüber, mit Abstand.
-  „Mit Abstand“ behält die Kapseln, nur getrennt. „Seitlich“ setzt Glas-Anzeigen links und rechts neben das Pad,
-  bei denen L2/R2 sich mit dem Druck füllen. Die Formen stehen in `SHOULDER_SHAPES` in `ControllerTest.tsx`.
-  Welche es wird, sagt der Nutzer.
+- **Echte Umrisse:** Der DualSense ist zweifarbig, mit einer hellen Schale samt langen Griffen und einem dunklen
+  Kern (`PS_BODY`, `PS_CORE`), dazu das große Touchpad (`PS_TOUCHPAD`) und die Lichtleiste an beiden Seiten.
+  Der Xbox Wireless Controller ist rundlicher, mit kürzeren Griffen und versetzten Sticks, einer zur Xbox-Taste
+  ansteigenden Oberkante und der Share-Taste in der Mitte (`XB_BODY`). Keine Logos.
+- **Schultertasten** (alle drei bisherigen Varianten störten den Nutzer, weil das Pad von vorn gezeichnet war,
+  die Schultertasten aber wie von oben). Jetzt bleiben alle in derselben Ansicht und sind umschaltbar:
+  - „Lichtkanten“ (Standard, Favorit des Koordinators): L1/R1 sind keine eigenen Formen, sondern ein Stück der
+    oberen Kante innerhalb des Umrisses (`EDGE`), das beim Drücken in Sodium leuchtet. L2/R2 sind schmale
+    Glas-Balken (14 × 96 pt) links und rechts neben den Griffen, die sich mit dem Druck füllen, darunter „L2“/„R2“.
+  - „Tasten-Chips“: vier Glas-Chips „L1 L2 · R1 R2“ direkt über dem Pad, im Stil der Tasten-Chips der Hinweisleiste.
+    Gedrückt leuchten sie, L2/R2 füllen sich vorher mit dem Druck.
+  - „Gekippt“: das ganze Pad um 16° nach hinten geneigt (`perspective(1100px) rotateX(16deg)`), so dass die
+    Oberseite (`TOP_SIDE`) mit Bumper vorn und Trigger dahinter zu sehen ist. **In der App kommt das als
+    fertige Grafik** (SVG/PDF-Asset mit einer Highlight-Ebene je Taste), nicht mit Pfaden gezeichnet.
+  - Welche es wird, sagt der Nutzer.
+- **Akku nur einmal:** „Akku 80 %“ steht unter dem Pad. Der Chip „DualSense · 80 %“ unten links fällt im
+  ersten Start weg (`HintBar` ohne Controller-Chip), auf der Startseite bleibt er.
 
 **Daten.**
 
