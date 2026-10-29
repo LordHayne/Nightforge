@@ -15,6 +15,12 @@ enum Provider: String, CaseIterable, Identifiable {
         }
     }
 
+    /// "Steam", "Steam and GOG", "Steam, Epic Games and GOG".
+    static func names(_ providers: [Provider]) -> String {
+        let labels = providers.map(\.label)
+        return labels.count < 2 ? labels.joined() : L10n.t("%@ and %@", labels.dropLast().joined(separator: ", "), labels.last!)
+    }
+
     /// For the cover's badge.
     var short: String {
         switch self {

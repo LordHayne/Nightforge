@@ -453,8 +453,10 @@ private struct StorageSettings: View {
 
     private struct RemovalPlan: Identifiable {
         let id = UUID()
-        let windowsGames: Int
-        let windowsGamesSize: Int64
+        /// The games in Nightforge's folder (Windows games, GOG's Mac versions) and their stores.
+        let games: Int
+        let gamesSize: Int64
+        let stores: Set<Provider>
         let ownSize: Int64
         let savesSize: Int64
     }
@@ -640,8 +642,8 @@ private struct StorageSettings: View {
     private func planRemoval() {
         guard !gameBusy else { return }
         measuringRemoval = true
-        let windows = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
-        let gamesSize = windows.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
+        let games = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
+        let gamesSize = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
         Task {
             let (own, saves) = await Task.detached(priority: .userInitiated) {
                 let total = CompleteRemoval.targets().reduce(Int64(0)) { $0 + LibraryScanner.folderSize($1) }
@@ -649,22 +651,19 @@ private struct StorageSettings: View {
                 return (total, saves)
             }.value
             measuringRemoval = false
-            removal = RemovalPlan(windowsGames: windows.count, windowsGamesSize: gamesSize, ownSize: max(0, own - gamesSize), savesSize: saves)
+            removal = RemovalPlan(games: games.count, gamesSize: gamesSize, stores: Set(games.map(\.provider)),
+                                  ownSize: max(0, own - gamesSize), savesSize: saves)
         }
     }
 
     private func removalMessage(_ plan: RemovalPlan) -> String {
         var parts: [String] = []
-        if plan.windowsGames > 0 {
-            parts.append(plan.windowsGames == 1
-                ? L10n.t("1 Windows game (%@) is deleted – it stays in your Steam library and can be downloaded again.", Format.bytes(plan.windowsGamesSize))
-                : L10n.t("%ld Windows games (%@) are deleted – they stay in your Steam library and can be downloaded again.", plan.windowsGames, Format.bytes(plan.windowsGamesSize)))
-        }
+        if let games = CompleteRemoval.gamesNote(count: plan.games, size: plan.gamesSize, stores: plan.stores) { parts.append(games) }
         parts.append(L10n.t("The game engine, the Windows environment, caches and settings: %@.", Format.bytes(plan.ownSize)))
         if plan.savesSize > 0 {
             parts.append(L10n.t("Saves that are only on this Mac (%@) are copied to Documents › Nightforge Saves first.", Format.bytes(plan.savesSize)))
         }
-        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in the Steam Cloud stay. Then Nightforge moves itself to the Bin and quits."))
+        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in your stores' clouds stay. Then Nightforge moves itself to the Bin and quits."))
         return parts.joined(separator: "\n\n")
     }
 

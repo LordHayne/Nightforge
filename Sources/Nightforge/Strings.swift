@@ -593,15 +593,15 @@ enum L10n {
         "Remove Nightforge completely?": "Nightforge komplett entfernen?",
         "Remove Everything": "Alles entfernen",
         "Nothing was removed": "Nichts wurde entfernt",
-        "1 Windows game (%@) is deleted – it stays in your Steam library and can be downloaded again.":
-            "1 Windows-Spiel (%@) wird gelöscht – es bleibt in deiner Steam-Bibliothek und lässt sich wieder laden.",
-        "%ld Windows games (%@) are deleted – they stay in your Steam library and can be downloaded again.":
-            "%ld Windows-Spiele (%@) werden gelöscht – sie bleiben in deiner Steam-Bibliothek und lassen sich wieder laden.",
+        "1 game (%@) is deleted – it stays in your library on %@ and can be downloaded again.":
+            "1 Spiel (%@) wird gelöscht – es bleibt in deiner Bibliothek bei %@ und lässt sich wieder laden.",
+        "%ld games (%@) are deleted – they stay in your library on %@ and can be downloaded again.":
+            "%ld Spiele (%@) werden gelöscht – sie bleiben in deiner Bibliothek bei %@ und lassen sich wieder laden.",
         "The game engine, the Windows environment, caches and settings: %@.": "Spiel-Engine, Windows-Umgebung, Caches und Einstellungen: %@.",
         "Saves that are only on this Mac (%@) are copied to Documents › Nightforge Saves first.":
             "Spielstände, die nur auf diesem Mac liegen (%@), werden vorher nach Dokumente › Nightforge Saves kopiert.",
-        "Steam for Mac with its Mac games and your saves in the Steam Cloud stay. Then Nightforge moves itself to the Bin and quits.":
-            "Steam für Mac mit seinen Mac-Spielen und deine Spielstände in der Steam Cloud bleiben. Danach legt sich Nightforge in den Papierkorb und beendet sich.",
+        "Steam for Mac with its Mac games and your saves in your stores' clouds stay. Then Nightforge moves itself to the Bin and quits.":
+            "Steam für Mac mit seinen Mac-Spielen und deine Spielstände in der Cloud deiner Stores bleiben. Danach legt sich Nightforge in den Papierkorb und beendet sich.",
         "The saves couldn't be copied to Documents (%@), so everything is still there.":
             "Die Spielstände ließen sich nicht nach „Dokumente“ kopieren (%@), deshalb ist noch alles da.",
 
