@@ -45,9 +45,11 @@ struct DetachedProcessTest {
             exit(2)
         }
         let helper = URL(fileURLWithPath: arguments[1])
-        let home = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("detached-test-\(UUID().uuidString)")
+        // In the worktree's build folder: under /private/var (the temp folder) Engine.ownProcesses finds
+        // nothing at all, as resolvingSymlinksInPath drops the /private.
+        let home = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("build/detached-test-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: home) }
         DetachedProcess.home = home
 
         // Without the helper: a plain child process, same results.
@@ -62,6 +64,7 @@ struct DetachedProcessTest {
         DetachedProcess.helperProgram = helper
         guard let app = DetachedProcess.helperApp() else {
             print("✗ helper app not made")
+            try? FileManager.default.removeItem(at: home)
             exit(1)
         }
         let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
@@ -111,6 +114,8 @@ struct DetachedProcessTest {
         check(executable(of: helperPID).hasSuffix("Nightforge Helper.app/Contents/MacOS/nightforge-helper"),
               "helper runs from its app: \(executable(of: helperPID))")
         check(parent(of: helperPID) == 1, "helper started by launchd (Launch Services)")
+        check(!Engine.ownProcesses(under: home).contains { $0.pid == helperPID },
+              "the helper isn't one of Nightforge's engine processes (stopAll leaves it alone)")
         long.terminate()
         check(ended.wait(timeout: .now() + 10) == .success, "termination handler called")
         long.waitUntilExit()
@@ -141,8 +146,29 @@ struct DetachedProcessTest {
         check(DetachedProcess.helperApp() == app, "same helper app")
         check((try? FileManager.default.attributesOfItem(atPath: app.path)[.modificationDate] as? Date) == modified, "helper app not rebuilt")
 
+        // A helper that starts but never answers (macOS turned it away, say): after the wait the program
+        // runs as a plain child, and the starts after it don't wait at all. Last, as the helper stays
+        // given up for the rest of the run.
+        let silent = home.appendingPathComponent("silent-helper")
+        try? "#!/bin/sh\nexit 0\n".write(to: silent, atomically: true, encoding: .utf8)
+        DetachedProcess.helperProgram = silent
+        let fallback = sh("exit 6")
+        let tried = Date()
+        check((try? fallback.run()) != nil, "runs although the helper doesn't answer")
+        fallback.waitUntilExit()
+        let waited = Date().timeIntervalSince(tried)
+        check(fallback.terminationStatus == 6, "status after falling back: \(fallback.terminationStatus)")
+        check(waited >= 10 && waited < 25, "falls back after the wait: \(Int(waited)) s")
+        let next = sh("exit 7")
+        let again = Date()
+        try? next.run()
+        next.waitUntilExit()
+        check(next.terminationStatus == 7 && Date().timeIntervalSince(again) < 3, "the next start doesn't wait")
+        check(DetachedProcess.helperApp() == nil, "the helper stays given up")
+
         if arguments.contains("--dock") { dockCheck(helper: helper, home: home) }
 
+        try? FileManager.default.removeItem(at: home)
         if failures == 0 {
             print("✓ DetachedProcessTest passed")
         } else {
