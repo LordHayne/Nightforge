@@ -153,42 +153,44 @@ struct SessionSummarySheet: View {
     }
 
     @ViewBuilder private func saveLine(_ state: CloudSaves.State) -> some View {
-        let epic = summary.game.provider == .epic
+        // Epic's and GOG's saves go up through Nightforge; Steam's through Steam.
+        let store = summary.game.provider == .steam ? nil : summary.game.provider.label
         switch state {
         case .synced:
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.icloud").font(.system(size: 18)).foregroundStyle(Theme.runsGreat)
-                Text("\(Text(epic ? L10n.t("Your save is with Epic Games.") : L10n.t("Your save is in the Steam Cloud.")).fontWeight(.semibold)) \(L10n.t("You can close your Mac."))")
+                Text("\(Text(store.map { L10n.t("Your save is with %@.", $0) } ?? L10n.t("Your save is in the Steam Cloud.")).fontWeight(.semibold)) \(L10n.t("You can close your Mac."))")
                     .fixedSize(horizontal: false, vertical: true)
             }
         case .syncing where cloudTookLong:
-            Label(epic ? L10n.t("Your save goes up to Epic Games in the background.") : L10n.t("Steam syncs your save in the background."),
+            Label(store.map { L10n.t("Your save goes up to %@ in the background.", $0) } ?? L10n.t("Steam syncs your save in the background."),
                   systemImage: "icloud")
                 .foregroundStyle(Theme.ink.opacity(0.85))
         case .syncing:
             HStack(spacing: 10) {
                 GlassSpinner()
-                Text(epic ? L10n.t("Uploading your save to Epic Games …") : L10n.t("Steam is syncing your save with the Steam Cloud …"))
+                Text(store.map { L10n.t("Uploading your save to %@ …", $0) } ?? L10n.t("Steam is syncing your save with the Steam Cloud …"))
                     .foregroundStyle(Theme.ink.opacity(0.85))
             }
         case .noCloud:
-            Label(epic ? L10n.t("No Epic cloud saves for this game – its saves are on this Mac.")
-                       : L10n.t("No Steam Cloud for this game – its saves are on this Mac."), systemImage: "internaldrive")
+            Label(store.map { L10n.t("No %@ cloud saves for this game – its saves are on this Mac.", $0) }
+                      ?? L10n.t("No Steam Cloud for this game – its saves are on this Mac."), systemImage: "internaldrive")
                 .foregroundStyle(Theme.ink.opacity(0.85))
         case .failed:
-            Label(L10n.t("Epic Games couldn't take your save just now. It's safe on this Mac and goes up after your next session."),
+            Label(L10n.t("%@ couldn't take your save just now. It's safe on this Mac and goes up after your next session.",
+                         store ?? summary.game.provider.label),
                   systemImage: "exclamationmark.icloud")
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    /// Asks Steam's cloud record every two seconds for a minute, until it confirms. Epic games:
-    /// how the upload Nightforge started after the session is going.
+    /// Asks Steam's cloud record every two seconds for a minute, until it confirms. Epic and GOG
+    /// games: how the upload Nightforge started after the session is going.
     private func followCloud() async {
-        if summary.game.provider == .epic {
+        if summary.game.provider != .steam {
             for _ in 0..<90 {
-                cloud = model.epicSaves[summary.game.gameID] ?? .syncing
+                cloud = model.storeSaves[summary.game.gameID] ?? .syncing
                 if cloud != .syncing { return }
                 try? await Task.sleep(for: .seconds(1))
             }

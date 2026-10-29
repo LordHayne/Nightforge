@@ -16,7 +16,7 @@ enum LaunchPhase: Equatable {
     case updating(Double?)
     /// Epic gives the game a fresh sign-in (legendary).
     case signingInEpic
-    /// The newest save comes down from Epic's cloud first.
+    /// The newest save comes down from the store's cloud first (Epic, GOG).
     case syncingSaves
     /// The newest engine crashed a game that ran well on the one before: it starts again with that one.
     case rollingBack
@@ -64,8 +64,12 @@ enum LaunchPhase: Equatable {
 
     /// While Steam starts the game itself, the first time with new graphics: shaders are built then.
     static var shaderHint: String { L10n.t("First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.") }
-    /// `updating` for an Epic game: legendary fetches the update, not Steam.
-    static var epicUpdateHint: String { L10n.t("The update comes from Epic Games first – the game starts by itself when it's done.") }
+    /// `updating` for an Epic or GOG game: legendary or gogdl fetches the update, not Steam.
+    static func storeUpdateHint(_ provider: Provider) -> String {
+        L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label)
+    }
+    /// `syncingSaves` for a GOG game.
+    static var gogSavesHint: String { L10n.t("Your newest save comes from GOG's cloud first, so you go on where you stopped.") }
     static var confirmHint: String { L10n.t("Steam asks something before the game starts – answer it in its window.") }
 
     // MARK: - First start with new graphics

@@ -351,6 +351,36 @@ von „Epic Games“ unten:
   <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ im ersten Start
   (6.1) entfällt nach Entscheidung des Nutzers (29.10.): Epic verbindet man in Settings › Stores.
 
+### GOG (Branch `claude/gog-7-3-e69c3b`, Roadmap 7.3) – offene Tests mit echtem Konto (Stand 29.10.)
+
+Gebaut und gegen Fixtures geprüft (`tests/GOGTest`), mit echtem Konto und in der App **noch gar nicht**. Am besten im leeren
+Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
+
+- [ ] **Anmeldung:** Einstellungen › Stores › GOG › „Verbinden“ – GOGs Seite im Fenster (deutsch?), Anmelden (auch mit
+      Zwei-Faktor), Fenster schließt von selbst, Toast „GOG ist verbunden“, Kontoname als Tooltip. gogdl wird dabei geholt
+      und entpackt (`Components/gogdl/1.4.0/unpacked`); ein Aufruf aus dem entpackten Ordner sollte ~0,2 s brauchen.
+- [ ] **Bibliothek:** Zahl der Spiele plausibel (keine DLCs/Goodies als Spiele), Cover hochkant, Hero-Bild, Abzeichen „GOG“.
+      Die Felder von galaxy-library/GamesDB sind aus Heroics Typen übernommen – weicht GOG ab, zeigt sich das hier zuerst.
+- [ ] **Kleines Gratis-Spiel mit Mac-Version laden** (z. B. „Beneath a Steel Sky“ oder „Flight of the Amazon Queen“ aus
+      der eigenen Bibliothek): „Größe wird geprüft …“, dann Größe auf der Spielseite, Fortschritt/Tempo/Restzeit im
+      Download-Panel, danach „Spielen“ startet die App ohne Wine, Nightforge erkennt das laufende Spiel und kommt danach
+      zurück („Willkommen zurück“ mit Spielstand-Zeile). Liefert GOG die Mac-Version nicht übers Content-System, muss die
+      Windows-Version kommen (Hinweis-Toast); ist sie 32-Bit, ebenso.
+- [ ] **Ein Windows-Spiel** laden und starten (Grafik-Leiter, Erstsekunden-Prüfung), Prozess-Erkennung über `\GOG Games\`.
+- [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
+      übrig: `pgrep -fl gogdl`), **Weiterladen** nach Beenden/Neustart von Nightforge.
+- [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC), **Cloud-Spielstände** (ein Spiel mit
+      GOG-Cloud: vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
+- [ ] **Doppelt:** ein Spiel, das auch auf Steam/Epic ist, wird eine Karte („STEAM + GOG“), Wahl auf der Spielseite.
+- [ ] **Abgemeldet:** `GOG/gogdl/auth.json` löschen bzw. Token ungültig – Banner „GOG hat dich abgemeldet“, „Erneut anmelden“.
+
+Bekannte Lücken (bewusst, siehe Roadmap 7.3):
+- Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
+  64-Bit, läuft aber schlecht, gibt es noch keinen Weg zur Windows-Version außer Deinstallieren + Datei `GOG/mac-unfit.json`.
+- Galaxys „Common Redistributables“ werden nicht vorab installiert (wie bei Epic: aus `wine.log` gelernt).
+- Der Text in „Nightforge vollständig entfernen“ nennt die Spiele „Windows-Spiele … bleiben in deiner Steam-Bibliothek“ –
+  stimmt für Epic und GOG (und GOGs Mac-Versionen, die jetzt mitzählen) nicht ganz.
+
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 
 Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:

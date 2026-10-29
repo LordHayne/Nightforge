@@ -375,13 +375,13 @@ struct EpicTest {
         check(await store.size(of: fortnite!) == nil, "signed out: Epic isn't asked for a size")
         await store.refresh()
         check(store.sync.state == .signedOut && store.sync.failed, "says Epic signed the player out")
-        check(StoreSyncBanner.text(provider: .epic, sync: store.sync)?.contains("Epic Games") == true, "the library's banner says so")
-        check(StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .ok, lastSuccess: Date())) == nil
-              && StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .syncing)) == nil, "all well: no banner")
-        let away = StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .failed("Couldn't reach Epic Games"), lastSuccess: threeDaysAgo))
+        check(StoreSyncText.text(provider: .epic, sync: store.sync)?.contains("Epic Games") == true, "the library's banner says so")
+        check(StoreSyncText.text(provider: .epic, sync: StoreSync(state: .ok, lastSuccess: Date())) == nil
+              && StoreSyncText.text(provider: .epic, sync: StoreSync(state: .syncing)) == nil, "all well: no banner")
+        let away = StoreSyncText.text(provider: .epic, sync: StoreSync(state: .failed("Couldn't reach Epic Games"), lastSuccess: threeDaysAgo))
         check(away == L10n.t("%@ – your %@ games are from %@ and still play.", "Couldn't reach Epic Games", "Epic Games", Format.relative(threeDaysAgo)),
               "out of reach: how old the games are, and that they still play: \(away ?? "-")")
-        check(StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .failed("x")))
+        check(StoreSyncText.text(provider: .epic, sync: StoreSync(state: .failed("x")))
               == L10n.t("%@ – your %@ games show up as soon as it answers.", "x", "Epic Games"), "never loaded: they come when Epic answers")
         check(await store.library().count == 3, "and the games are still there")
 

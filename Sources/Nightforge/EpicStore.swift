@@ -150,7 +150,7 @@ struct EpicPlayTime: Codable, Equatable {
 /// is brought up to date in the background; Nightforge downloads, updates, starts and removes the
 /// games itself through legendary – no Epic launcher.
 @MainActor
-final class EpicStore: ObservableObject, StoreProvider {
+final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     let provider = Provider.epic
     @Published private(set) var sync = StoreSync()
     /// The sign-in page is open: the Stores tab says what to do there.
@@ -653,26 +653,10 @@ final class EpicStore: ObservableObject, StoreProvider {
 
     // MARK: - Updates
 
-    /// How the update before a start went ("Update & Play").
-    enum UpdateOutcome: Equatable {
-        /// Up to date now, or legendary found nothing to fetch.
-        case updated
-        /// Nothing was fetched, so the version on the Mac starts – as Epic's launcher does offline.
-        case skipped(UpdateSkip)
-        /// It stopped once it had begun, or there's no room for it: the game may be half updated, and
-        /// the next try carries on where this one stopped.
-        case failed(String)
-        /// The game is up to date, one of its add-ons stopped (its name, the reason): the game starts
-        /// without it, and the next update tries again.
-        case addOnFailed(String, String)
-    }
-
-    enum UpdateSkip: Equatable {
-        /// Epic out of reach (offline, no answer).
-        case offline
-        /// Another Epic download has legendary, which installs one thing at a time.
-        case busy
-    }
+    /// How the update before a start went ("Update & Play"). Busy: another Epic download has
+    /// legendary, which installs one thing at a time.
+    typealias UpdateOutcome = StoreUpdate
+    typealias UpdateSkip = StoreUpdate.Skip
 
     /// Updates running before a start, by app name, and the game being brought up to date (its
     /// parts take turns, and no download may slip in between).

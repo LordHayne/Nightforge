@@ -2,7 +2,7 @@ import Foundation
 
 /// The stores Nightforge brings games in from.
 enum Provider: String, CaseIterable, Identifiable {
-    case steam, epic
+    case steam, epic, gog
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum Provider: String, CaseIterable, Identifiable {
         switch self {
         case .steam: return "Steam"
         case .epic: return "Epic Games"
+        case .gog: return "GOG"
         }
     }
 
@@ -19,24 +20,27 @@ enum Provider: String, CaseIterable, Identifiable {
         switch self {
         case .steam: return "STEAM"
         case .epic: return "EPIC"
+        case .gog: return "GOG"
         }
     }
 }
 
-/// Which store a game comes from and its ID there – Steam's app ID, Epic's app name. Everything
-/// Nightforge keeps per game (options, what a start taught it, marks, ratings, art) is filed under
-/// `key`, so a game from another store never mixes with a Steam game that happens to share its ID.
+/// Which store a game comes from and its ID there – Steam's app ID, Epic's app name, GOG's product
+/// ID. Everything Nightforge keeps per game (options, what a start taught it, marks, ratings, art)
+/// is filed under `key`, so a game from another store never mixes with a Steam game that happens to
+/// share its ID.
 struct GameID: Hashable, CustomStringConvertible {
     let provider: Provider
     let id: String
 
     static func steam(_ appID: Int) -> GameID { GameID(provider: .steam, id: String(appID)) }
     static func epic(_ appName: String) -> GameID { GameID(provider: .epic, id: appName) }
+    static func gog(_ productID: String) -> GameID { GameID(provider: .gog, id: productID) }
 
     /// Steam's app ID, for what only Steam knows (its manifests, store pages, the profile list).
     var steamAppID: Int? { provider == .steam ? Int(id) : nil }
 
-    /// "steam.570", "epic.Fortnite": the name settings are kept under, and what links carry.
+    /// "steam.570", "epic.Fortnite", "gog.1207658924": the name settings are kept under, and what links carry.
     var key: String { "\(provider.rawValue).\(id)" }
 
     var description: String { key }

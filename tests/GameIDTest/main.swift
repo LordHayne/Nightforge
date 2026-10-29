@@ -20,7 +20,7 @@ struct GameIDTest {
         check(GameID(key: "steam.570") == .steam(570) && GameID(key: "epic.Fortnite") == .epic("Fortnite"), "keys read back")
         check(GameID(key: "570") == .steam(570), "a bare number is a Steam app ID, as before")
         check(GameID(key: "0") == nil && GameID(key: "-3") == nil && GameID(key: "steam.abc") == nil, "Steam IDs are positive numbers")
-        check(GameID(key: "epic.") == nil && GameID(key: "gog.1") == nil && GameID(key: "epic") == nil, "no ID, no store we know")
+        check(GameID(key: "epic.") == nil && GameID(key: "itch.1") == nil && GameID(key: "epic") == nil, "no ID, no store we know")
         check(GameID(key: "epic.a/b") == nil && GameID(key: "epic...") == nil, "IDs become file names: nothing but plain ones")
         check(GameID.steam(570).steamAppID == 570 && GameID.epic("Sugar").steamAppID == nil, "only Steam games have an app ID")
 

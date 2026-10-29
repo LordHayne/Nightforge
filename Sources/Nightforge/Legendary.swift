@@ -230,12 +230,7 @@ enum Legendary {
     }
 
     /// What `legendary launch <app> --json` hands over, as Nightforge starts it under Wine.
-    struct LaunchCommand: Equatable {
-        var executable: URL
-        var workingDirectory: URL
-        var arguments: [String]
-        var environment: [String: String]
-    }
+    typealias LaunchCommand = StoreLaunchCommand
 
     /// `json`: legendary's launch parameters. Its ownership token file (`-epicovt=/…`) is a Mac
     /// path; Windows games see the Mac's files under Z:.

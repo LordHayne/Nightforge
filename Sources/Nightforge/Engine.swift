@@ -253,11 +253,11 @@ enum Engine {
     }
 
     /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
-    /// Steam's steamapps\common, Epic's Program Files\Epic Games).
+    /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games).
     static var windowsGameRunning: Bool {
         ownProcesses().contains { process in
             let command = process.command.lowercased()
-            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#)
+            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#) || command.contains(#"\gog games\"#)
         }
     }
 
@@ -694,6 +694,7 @@ enum Engine {
         game_running() {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
           has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
+          has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
           return 1
         }

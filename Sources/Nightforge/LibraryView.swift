@@ -130,8 +130,8 @@ struct LibraryView: View {
                           message: game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
                               : !game.isInstalled
                               ? L10n.t("The part downloaded so far is deleted. You can start the download again any time.")
-                              : game.provider == .epic
-                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", Format.bytes(game.sizeOnDisk))
+                              : game.provider != .steam
+                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.", Format.bytes(game.sizeOnDisk), game.provider.label)
                               : L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk)),
                           id: "uninstall") {
                 // Return (and A) keeps the game; uninstalling takes a deliberate click or a pad move first.
@@ -1655,7 +1655,7 @@ struct CoverCard: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Theme.ink, Theme.night.opacity(0.7))
                     .padding(8)
-                    .help(game.provider == .epic ? L10n.t("An update is waiting – it comes from Epic Games before the game starts")
+                    .help(game.provider != .steam ? L10n.t("An update is waiting – it comes from %@ before the game starts", game.provider.label)
                           : L10n.t("An update is waiting – Steam downloads it before the game starts"))
             }
             .frame(maxHeight: .infinity, alignment: .bottom)

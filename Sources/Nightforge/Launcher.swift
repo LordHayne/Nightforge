@@ -494,10 +494,10 @@ enum Launcher {
         try process.run()
     }
 
-    /// A game from another store (Epic), started straight with Nightforge's engine: the game's
+    /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
     /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
     /// the game log. `environment`: `Engine.directLaunchEnvironment`.
-    static func launchDirect(_ game: Game, command: Legendary.LaunchCommand, runnerPath: String, options: GameOptions,
+    static func launchDirect(_ game: Game, command: StoreLaunchCommand, runnerPath: String, options: GameOptions,
                              profile: GameProfile?, frameLimit: Int, extraArguments: [String],
                              environment gameEnvironment: [String: String]) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
