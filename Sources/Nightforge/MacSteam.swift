@@ -238,7 +238,7 @@ enum MacSteam {
             show(keepFor: 600)
             return
         }
-        if !isRunning { startedByNightforge = true }
+        if !isRunning { willStart() }
         if visible { allowVisible(for: 600) }
         if isTestHome { return launchDirectly(app, arguments: visible ? [] : ["-silent"]) }
         let configuration = NSWorkspace.OpenConfiguration()
@@ -256,6 +256,13 @@ enum MacSteam {
         process.executableURL = Bundle(url: app)?.executableURL ?? app.appendingPathComponent("Contents/MacOS/steam_osx")
         process.arguments = arguments
         try? process.run()
+    }
+
+    /// Nightforge is about to start Steam: it quits it again later (scheduleSteamShutdown), and the
+    /// PS button doesn't call up Big Picture meanwhile – Steam for Mac does that too (SteamGuideButton).
+    private static func willStart() {
+        startedByNightforge = true
+        SteamGuideButton.turnOff(steamRoot: root)
     }
 
     /// Steam's main window in front, for something the player does there (a question, the
@@ -375,7 +382,7 @@ enum MacSteam {
     /// Hands Steam a steam:// command ("run/275850"), which starts it if it isn't running.
     static func open(_ command: String, activate: Bool = false) {
         guard let app, let url = URL(string: "steam://" + command) else { return }
-        if !isRunning { startedByNightforge = true }
+        if !isRunning { willStart() }
         if isTestHome { return launchDirectly(app, arguments: [url.absoluteString]) }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activate

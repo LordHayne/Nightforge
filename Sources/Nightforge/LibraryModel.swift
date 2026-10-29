@@ -700,6 +700,23 @@ final class LibraryModel: ObservableObject {
             if MacSteam.startedByNightforge, MacSteam.isRunning, !steamFacts.macDownload { await MacSteam.quit() }
             try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
             Task { await self.watchSteamStart(wine) }
+            Task { await self.watchDockHider(wine) }
+        }
+    }
+
+    /// A Steam that another Nightforge started may load hide-steam-dock.dylib from that one's app
+    /// bundle, which can go any time – and with it every program Steam starts (DockHider). Moved over
+    /// to the data folder's library with one restart, once nothing needs Steam: no game, no
+    /// download, no launch. A game started meanwhile restarts it first if the file is already gone.
+    private func watchDockHider(_ wine: URL) async {
+        while await Engine.offMain({ DockHider.runningSteamState() }) != .current {
+            let downloading = allGames.contains { Self.isDownloading($0.install) || Self.isDownloading($0.macPending) }
+            if launchingID == nil, running.isEmpty, !downloading, !launchNeedsConfirmation,
+               !(await Engine.offMain { Engine.windowsGameRunning }) {
+                _ = await restartStuckSteam(wine, freshSession: true)
+                return
+            }
+            try? await Task.sleep(for: .seconds(60))
         }
     }
 
@@ -719,13 +736,17 @@ final class LibraryModel: ObservableObject {
     /// Restarts a hung Steam, queued like any other Steam start so a launch waits for it.
     /// True once it has signed in again (up to 90 s). It signs in by itself; when it asks instead
     /// (its remembered sign-in ran out) while a game waits to start, its window comes to the front
-    /// and the player gets ten minutes for it.
-    private func restartStuckSteam(_ wine: URL) async -> Bool {
+    /// and the player gets ten minutes for it. `freshSession`: with a new Wine session (DockHider).
+    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
             await previous?.value
-            try? await Engine.restartSteamInBackground(wine)
+            if freshSession {
+                try? await DockHider.restartSteam(wine)
+            } else {
+                try? await Engine.restartSteamInBackground(wine)
+            }
         }
         steamStartup = restart
         await restart.value
@@ -1893,6 +1914,13 @@ final class LibraryModel: ObservableObject {
                 if game.bottle.isBuiltIn, learning {
                     FramePacing.recordStart(game: game.gameID, options: options, profile: profile, refreshRate: refreshRate,
                                             logMark: logMark, limit: frameLimit, learning: learning)
+                }
+                // A Steam that loads hide-steam-dock.dylib from a file that's gone can't start the game (DockHider).
+                if viaSteam, game.bottle.isBuiltIn, !anyRunning(.windows), let runner,
+                   await Engine.offMain({ DockHider.runningSteamState() }) == .missing {
+                    launchPhase = .startingSteam
+                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: true)
+                    launchPhase = nil
                 }
                 // Settings a game only takes from the environment come with the Steam that starts it.
                 let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
