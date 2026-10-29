@@ -72,20 +72,8 @@ struct HomeStage: View {
     @ViewBuilder private func cover(_ item: Item, at distance: Int, width: CGFloat, height: CGFloat) -> some View {
         let step = min(abs(distance), 3)
         let front = distance == 0
-        Group {
-            if item.place < model.homeRail.count {
-                let game = model.games[model.homeRail[item.place]]
-                StageCover(game: game, front: front, width: width, shade: Self.shades[step],
-                           progress: { if case .downloading(let fraction) = game.shown.install { return fraction ?? 0 } else { return nil } }())
-            } else {
-                AllGamesStageTile(count: model.visibleCount, front: front, width: width)
-            }
-        }
-        .rotation3DEffect(.degrees(front ? 0 : Double(-distance.signum()) * 56), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-        .scaleEffect(Self.scales[step])
-        .opacity(Self.seen[step])
-        .contentShape(Rectangle())
-        .onTapGesture {
+        // A cover behind is picked; the front one opens its page, the last tile the library.
+        let press = {
             if !front {
                 model.selectOnHome(place: item.place)
             } else if item.place == model.homeRail.count {
@@ -94,6 +82,25 @@ struct HomeStage: View {
                 model.openDetail()
             }
         }
+        Group {
+            if item.place < model.homeRail.count {
+                let index = model.homeRail[item.place]
+                let game = model.games[index]
+                StageCover(game: game, front: front, width: width, shade: Self.shades[step],
+                           progress: { if case .downloading(let fraction) = game.shown.install { return fraction ?? 0 } else { return nil } }())
+                    // Right-click: the same actions as the big view, without selecting first.
+                    .modifier(GameContextMenu(game: game, index: index))
+            } else {
+                AllGamesStageTile(count: model.visibleCount, front: front, width: width)
+            }
+        }
+        .rotation3DEffect(.degrees(front ? 0 : Double(-distance.signum()) * 56), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+        .scaleEffect(Self.scales[step])
+        .opacity(Self.seen[step])
+        .contentShape(Rectangle())
+        .onTapGesture(perform: press)
+        // VoiceOver and AXPress do what a click does.
+        .accessibilityAction(.default, press)
     }
 
     /// The cover's colour pools on the floor under it – a soft shimmer, no mirror image – and a

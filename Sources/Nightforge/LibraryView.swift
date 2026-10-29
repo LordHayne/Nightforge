@@ -203,7 +203,9 @@ private struct HomeLevel: View {
                                 .transition(.opacity)
                         }
                     }
-                    .frame(width: max(360, min(620, geo.size.width * 0.41)), alignment: .leading)
+                    // Up to where the stage begins (its covers fade in from there): nothing in the column
+                    // runs over a cover.
+                    .frame(width: max(360, min(600, geo.size.width * 0.36 + 24 - Theme.gutter)), alignment: .leading)
                     .padding(.leading, Theme.gutter)
                     .padding(.bottom, 40)
                 }

@@ -236,6 +236,11 @@ Koordinator. Danach folgt ein Live-Lauf des ersten Starts in `build/fh`.
   Sekunde gelesen, und das nur, solange die Checkliste sichtbar, nicht angehalten und ein Controller da ist. Gezeichnet
   wird nur bei einer Änderung. Der Tipp-Zeitgeber läuft nur, solange die Karte zu sehen ist.
 
+- **Nach dem ersten Live-Check des Koordinators:** Die Cover der Bühne haben wieder das Kontextmenü
+  (`GameContextMenu`), vorn wie hinten. VoiceOver und AXPress tun dasselbe wie ein Klick: ein hinteres Cover
+  auswählen, das vordere öffnen, die letzte Kachel öffnet die Bibliothek. Die Textspalte endet, wo die Bühne beginnt
+  (36 % der Breite + 24 pt), und die Demo-Zeile setzt ihren Knopf unter den Text, wenn daneben kein Platz ist.
+
 **Abweichungen vom Entwurf**
 
 1. Das vordere Cover schwebt nicht, und kein Lichtstreif zieht darüber: beides wären dauernde Animationen.
