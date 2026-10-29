@@ -385,9 +385,35 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 - **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): rechts neben der Checkliste ein Controller-Test
   im Glas-Look und ein Tipp-Karussell (Entwurf in derselben Session); links Live-Details unter dem laufenden Schritt
   (6.1-Session). Kein Epic in der Ersteinrichtung.
-- **Ersteinrichtung weiter beschleunigen** (optional, je etwa 20–30 s): Steams Client-Pakete selbst laden, während
-  die Windows-Umgebung entsteht; die Windows-Umgebung aus einer Vorlage kopieren statt `wineboot` (heikel bei
-  Wine-Versionswechseln).
+- **Ersteinrichtung weiter beschleunigen** (29.10., Session setup-speed, Branch `claude/setup-speed-ec0a53`; Lauf 5:
+  Anmeldefenster nach 2:57). Gebaut, der Live-Lauf mit Zeitmessung steht aus:
+  - **Steams Update vorab laden** (`SteamPackages.swift`): Installer, 32-Bit-Schritt (19 Pakete, 247 MB) und 64-Bit-Client
+    laufen parallel zu `wineboot`, jede Datei per SHA-256 geprüft. Die 32-Bit-Pakete liegen vor Steams erstem Start in
+    `package/`. Die 64-Bit-Pakete kommen erst nach dem „Shutdown“ des 32-Bit-Schritts dazu, denn dessen Aufräumen löscht alle
+    Paketdateien. Im Probe-Präfix lud danach keiner der beiden Schritte etwas, vorher waren es 13–24 s je Schritt.
+    Erwartet: −25 s.
+  - **Wrapper im richtigen Moment**: direkt nach „Verification complete“ von Steams eigenem Neustart; nur in dieser Phase
+    schaut Nightforge alle 50 ms nach. Davor legt Steams Prüfung Valves Helper zurück, auch bei gleicher Größe und gleichem
+    Datum. Danach startet der Client den Wrapper selbst, und es braucht keinen Neustart mehr. Probe-Präfix: Steam-Start bis
+    Anmeldefenster 37 s statt 83 s (Lauf 5). Erwartet: −25…30 s.
+  - **Wenn der Moment verpasst wird**: Ein hängender Browser (Chrome begonnen, 5 s keine Message-Loop) wird sofort neu
+    gestartet statt nach 20 s (`SteamBrowser`); das 20-s-Netz bleibt. Erwartet dann: −15 s.
+  - **Verworfen**: Den htmlcache zu leeren half nicht (Lauf 5). Die Ursache des Hängers bleibt offen. In fünf nachgestellten
+    Varianten trat er nie auf (kalte/warme Engine, früh/spät beendet, SIGKILL wie `stopAll`, Game-Mode-Loader). Der erste
+    Browserstart in einem frischen Präfix hängt nicht.
+  - **Windows-Umgebung aus einer Vorlage**: empfohlen, aber nicht gebaut, denn das braucht CI und Hosting (Entscheidung
+    Nutzer/Koordinator).
+    - Messwerte: `wineboot` 45 s plus 7 s bis der wineserver weg ist. Ein frisches Präfix hat 567 MB, davon 518 MB
+      byte-gleiche Kopien der Engine-DLLs. Mit zstd -19 sind es 94 MB, das Entpacken dauert 2,7 s. Der erste Wine-Aufruf
+      danach ist nicht langsamer, solange `.update-timestamp` der mtime von `wine.inf` der Engine entspricht (tar erhält sie).
+      Sonst läuft `wineboot --update`, nicht schneller als heute, aber auch nicht langsamer.
+    - Lizenz: nur Wines eigene Dateien (LGPL wie die Engine), keine Schriften, kein Mono/Gecko.
+    - Beim Bauen entfernen: `dosdevices` außer c:/z: (Volumes des Build-Macs), die Benutzerordner-Links und
+      „Desktop/My Mac Desktop“ (Home des Build-Macs).
+    - Beim Entpacken `MachineGuid` in system.reg neu würfeln, sonst haben alle Nutzer dieselbe. Schlägt etwas fehl: `wineboot`.
+    - Weg: CI baut pro winecx-Version ein Archiv als Komponente, geladen parallel zur Engine. Erwartet: −40…45 s. Dann
+      bleibt weniger Zeit fürs Vorabladen; der 32-Bit-Schritt (~12 s) passt noch.
+    - Eine lokale Vorlage pro Engine hilft nur bei einer zweiten Einrichtung: verworfen.
 
 ## Aus dem Code-Audit
 
