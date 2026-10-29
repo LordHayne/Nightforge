@@ -5,15 +5,30 @@ struct DemoNote: View {
     let game: Game
     @EnvironmentObject private var model: LibraryModel
 
+    /// Side by side where there's room (a game's page); the button under the line in Home's column.
     var body: some View {
-        HStack(spacing: 10) {
-            Label(L10n.t("Free demo – the full game isn't in your Steam library."), systemImage: "gift")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Theme.muted)
-            Button(L10n.t("Full Game in Steam Store")) { model.openStorePage(game) }
-                .buttonStyle(GlassTextButtonStyle(small: true))
-                .padFocus("detail.fullGame", activate: { model.openStorePage(game) })
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                line
+                button
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                line.fixedSize(horizontal: false, vertical: true)
+                button
+            }
         }
+    }
+
+    private var line: some View {
+        Label(L10n.t("Free demo – the full game isn't in your Steam library."), systemImage: "gift")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Theme.muted)
+    }
+
+    private var button: some View {
+        Button(L10n.t("Full Game in Steam Store")) { model.openStorePage(game) }
+            .buttonStyle(GlassTextButtonStyle(small: true))
+            .padFocus("detail.fullGame", activate: { model.openStorePage(game) })
     }
 }
 

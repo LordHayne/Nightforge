@@ -52,7 +52,24 @@ private struct WelcomePage: View {
 private struct ChecklistPage: View {
     @ObservedObject var setup: SetupModel
 
+    /// A narrow window keeps only the checklist.
+    @State private var wide = true
+
+    /// Beside the checklist, while Steam installs and updates itself: something to do – the
+    /// controller test and the tips (SetupSidePanel).
     var body: some View {
+        HStack(alignment: .center, spacing: 40) {
+            checklist
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if wide {
+                SetupSidePanel(paused: setup.phase == .waitingForSignIn)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 1080 } action: { wide = $0 }
+    }
+
+    private var checklist: some View {
         VStack(alignment: .leading, spacing: 26) {
             Text(L10n.t("Connecting Steam"))
                 .font(Theme.display(40))

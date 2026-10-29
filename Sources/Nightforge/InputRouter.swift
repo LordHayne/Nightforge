@@ -9,6 +9,8 @@ final class InputRouter {
     private var keyMonitor: Any?
     private var gestureMonitor: Any?
     private var swipe = SwipeRecognizer()
+    /// Two fingers sideways over Home's stage, counted in games.
+    private var stageScroll = StageScroll()
     /// A scroll's events while it isn't clear yet whether it's a swipe (SwipeRecognizer).
     private var heldScroll: [NSEvent] = []
     private var pinch = PinchSteps()
@@ -136,6 +138,17 @@ final class InputRouter {
     }
 
     private func scrollWheel(_ event: NSEvent) -> Bool {
+        // Over Home's stage two fingers sideways go through its covers, one game per step; the
+        // momentum after them stays there too.
+        if let model, model.route == .home, !model.showsFirstStart, event.hasPreciseScrollingDeltas,
+           SwipeStage.shared.pointer(Self.topLeft(event), isOn: .stage), mayGesture(event) {
+            if event.phase == .began { stageScroll.begin() }
+            if event.phase == .began || event.phase == .changed, abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) {
+                let step = stageScroll.add(event.scrollingDeltaX)
+                if step != 0 { model.move(step) }
+            }
+            return true
+        }
         let phase: SwipeRecognizer.Phase
         switch event.phase {
         case .began: phase = .began
@@ -342,7 +355,7 @@ final class InputRouter {
         pad.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.dialog == nil else { return }
+                guard self?.dialog == nil, self?.model?.showsFirstStart == false else { return }
                 self?.model?.toggleLibrary()
             }
         }
@@ -478,6 +491,8 @@ final class InputRouter {
             }
         }
         if model.route.isDetail { return false }
+        // The first start has nothing to move through (its controller test reads the pad itself).
+        if model.showsFirstStart { return false }
         if step.dx != 0 { model.move(step.dx) }
         if step.dy > 0, model.route == .home {
             model.goLibrary()
@@ -575,9 +590,13 @@ struct ControllerStatus: Equatable {
     /// "DualSense · 80 %" – the name shortened to its last word for the long ones Apple reports
     /// ("DualSense Wireless Controller" → "DualSense").
     var label: String {
-        let short = name.replacingOccurrences(of: " Wireless Controller", with: "").replacingOccurrences(of: " Controller", with: "")
+        let short = Self.shortName(name)
         guard let battery else { return short }
         return "\(short) · \(Int((battery * 100).rounded())) %"
+    }
+
+    static func shortName(_ name: String) -> String {
+        name.replacingOccurrences(of: " Wireless Controller", with: "").replacingOccurrences(of: " Controller", with: "")
     }
 
     var symbol: String {

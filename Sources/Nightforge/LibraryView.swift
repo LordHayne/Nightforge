@@ -9,8 +9,8 @@ struct LibraryView: View {
             Theme.night.ignoresSafeArea()
 
             if let game = model.heroGame {
-                Backdrop(game: game)
-                    .id(game.id)
+                Backdrop(game: game, stage: model.route == .home)
+                    .id("\(game.id)\(model.route == .home)")
                     .transition(.opacity)
             }
             // The library's darkening; a swipe to or from the library fades it with the fingers.
@@ -173,36 +173,45 @@ struct LibraryView: View {
 
 // MARK: - The three levels
 
-/// Level 1 – what you play: the selected game big, the rail of what's next, and the way to the rest.
+/// Level 1 – what you play: the selected game big on the stage, its words beside it, and the way to
+/// the rest at the stage's end (design 2d).
 private struct HomeLevel: View {
     @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer(minLength: 24)
-
-            if let game = model.heroGame {
-                GameDetail(game: game, compact: true)
-                    .id(game.id)
-                    .transition(.opacity)
-                    .padding(.horizontal, Theme.gutter)
-            } else if model.showsFirstStart {
-                SetupView(setup: model.setup)
-                    .padding(.horizontal, Theme.gutter)
-            } else if !model.allGames.isEmpty {
-                AllGamesHero()
-                    .transition(.opacity)
-                    .padding(.horizontal, Theme.gutter)
-            } else if !model.isScanning {
-                EmptyLibrary()
-                    .padding(.horizontal, Theme.gutter)
+        if model.showsFirstStart || model.allGames.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Spacer(minLength: 24)
+                if model.showsFirstStart {
+                    SetupView(setup: model.setup)
+                        .padding(.horizontal, Theme.gutter)
+                } else if !model.isScanning {
+                    EmptyLibrary()
+                        .padding(.horizontal, Theme.gutter)
+                }
+                Spacer(minLength: 28)
             }
-
-            Spacer(minLength: 28)
-
-            if !model.allGames.isEmpty && !model.showsFirstStart {
-                CoverRail()
-                    .padding(.bottom, 10)  // air between the rail's glass and the hints
+        } else {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    HomeStage()
+                        .padding(.leading, geo.size.width * 0.36)
+                    Group {
+                        if let game = model.heroGame {
+                            GameDetail(game: game, compact: true, role: model.homeRole(place: model.homePlace))
+                                .id(game.id)
+                                .transition(.opacity)
+                        } else {
+                            AllGamesHero()
+                                .transition(.opacity)
+                        }
+                    }
+                    // Up to where the stage begins (its covers fade in from there): nothing in the column
+                    // runs over a cover.
+                    .frame(width: max(360, min(600, geo.size.width * 0.36 + 24 - Theme.gutter)), alignment: .leading)
+                    .padding(.leading, Theme.gutter)
+                    .padding(.bottom, 40)
+                }
             }
         }
     }
@@ -629,10 +638,64 @@ private struct DialogWarning: View {
 
 private struct Backdrop: View {
     let game: Game
+    /// Home's stage: the key art blurred (made once, ArtworkStore.stageBackdrop) with the cover's
+    /// light; a game's page shows it sharp.
+    var stage = false
     @State private var hero: NSImage?
     @State private var cover: NSImage?
+    @State private var light: StageBackdrop?
+    /// The blurred art settles from a little closer in, once per game – then nothing moves.
+    @State private var settled = false
+    @Environment(\.reduceMotion) private var reduceMotion
 
     var body: some View {
+        if stage { stageBody } else { pageBody }
+    }
+
+    private var stageBody: some View {
+        GeometryReader { geo in
+            ZStack {
+                if let light {
+                    Image(nsImage: light.image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .scaleEffect(settled || reduceMotion ? 1 : 1.06)
+                        .opacity(0.72)
+                        .clipped()
+                    // The cover's colour, weaker for a bright cover so the words beside it stay readable.
+                    RadialGradient(colors: [Color(nsColor: light.glow).opacity(light.brightness > 0.55 ? 0.16 : 0.3), .clear],
+                                   center: UnitPoint(x: 0.64, y: 0.42), startRadius: 0, endRadius: geo.size.width * 0.5)
+                }
+                LinearGradient(
+                    stops: [
+                        .init(color: Theme.night.opacity(0.86), location: 0),
+                        .init(color: Theme.night.opacity(light.map { $0.brightness > 0.55 ? 0.62 : 0.5 } ?? 0.5), location: 0.34),
+                        .init(color: Theme.night.opacity(0.1), location: 0.6),
+                        .init(color: Theme.night.opacity(0.35), location: 1),
+                    ],
+                    startPoint: .leading, endPoint: .trailing
+                )
+                LinearGradient(
+                    stops: [
+                        .init(color: Theme.night.opacity(0.5), location: 0),
+                        .init(color: Theme.night.opacity(0.05), location: 0.3),
+                        .init(color: Theme.night.opacity(0.35), location: 0.7),
+                        .init(color: Theme.night.opacity(0.92), location: 1),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+        }
+        .ignoresSafeArea()
+        .task(id: game.id) {
+            light = await ArtworkStore.shared.stageBackdrop(for: game)
+            guard !reduceMotion else { return }
+            withAnimation(.easeOut(duration: 14)) { settled = true }
+        }
+    }
+
+    private var pageBody: some View {
         GeometryReader { geo in
             ZStack {
                 if let hero {
@@ -852,6 +915,8 @@ private struct NoResults: View {
 private struct GameDetail: View {
     let game: Game
     var compact = false
+    /// On Home's stage: what the game is there (StarterPicks, HomeRail.stage).
+    var role: LibraryModel.HomeRole?
     @EnvironmentObject private var model: LibraryModel
     @State private var logo: NSImage?
     /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
@@ -865,6 +930,9 @@ private struct GameDetail: View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
+                if let role, let kicker = StageKicker(role: role, game: game) {
+                    kicker
+                }
                 MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: game.providers.map(\.label))
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
@@ -897,10 +965,19 @@ private struct GameDetail: View {
             // grows past the window and the top bar jumps between Home and the library.
             .frame(minHeight: compact ? 80 : 170, maxHeight: compact ? 150 : 170, alignment: .bottomLeading)
             .accessibilityLabel(game.name)
+
+            // Why it's a good start, in one sentence – only for a game nobody has played here yet.
+            if let starter {
+                Text(StarterPicks.reason(starter))
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.ink.opacity(0.82))
+                    .frame(minWidth: 320, maxWidth: 600, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             }
 
             HStack(alignment: .top, spacing: 34) {
-                if game.install != .inStore {
+                if game.install != .inStore && !(starter != nil && game.lastPlayed == nil) {
                     Stat(label: L10n.t("Last played"), value: game.lastPlayed.map(Format.relative) ?? L10n.t("Never"))
                 }
                 if let minutes = game.playtimeMinutes, minutes > 0 {
@@ -927,11 +1004,13 @@ private struct GameDetail: View {
                 case .downloading:
                     Stat(label: L10n.t("Download"), value: Format.bytes(game.sizeOnDisk))
                 }
-                if !compact && game.install != .inStore, let score = metascore {
+                if (!compact || starter != nil) && game.install != .inStore, let score = metascore {
                     Stat(label: "Metascore", value: "\(score)")
                 }
                 if game.switchable {
                     Stat(label: L10n.t("Version"), value: game.platform == .mac ? "Mac" : "Windows")
+                } else if let starter {
+                    Stat(label: L10n.t("Version"), value: starter.mac ? "Mac" : "Windows")
                 }
                 if game.install != .inStore || game.controller != .none {
                     Stat(label: L10n.t("Controller"), value: game.controller.label)
@@ -1074,6 +1153,15 @@ private struct GameDetail: View {
                     }
                 }
             }
+            if let starter, game.install == .notInstalled, model.launchingID != game.id {
+                Text(starter.mac && game.platform != .mac
+                     ? L10n.t("Comes as its Mac version – the first time, Nightforge sets up Steam for Mac for it, once, in a few minutes.")
+                     : L10n.t("Downloads in the background – you can browse on, and your Mac stays awake."))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if model.launchingID == game.id, let hint = model.launchHint {
                 Text(hint)
                     .font(.system(size: 13, weight: .medium))
@@ -1096,6 +1184,12 @@ private struct GameDetail: View {
     /// Its Steam entry – also when it starts through another store – for what only Steam knows.
     private var steam: Game? { game.entries.first { $0.provider == .steam } }
 
+    /// What StarterPicks knows of it, on Home's stage among "To start with".
+    private var starter: StarterFacts? {
+        guard compact, let role, role != .played, role != .next else { return nil }
+        return model.starterFacts(game)
+    }
+
     /// Genre, year and score from Steam's catalog on the Mac (store hits aren't in it; games only other stores have neither).
     private var facts: StoreFacts? {
         steam.flatMap { SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot) }
@@ -1117,6 +1211,43 @@ private struct GameDetail: View {
             return .init(title: L10n.t("Doesn't run on a Mac"), symbol: "shield.slash")
         }
         return nil
+    }
+}
+
+/// Before the meta line on Home's stage: "Recommended to start" in sodium for the first pick, and
+/// on glass "Continue playing · 1.2 hrs" or "Up next" once a game was played.
+private struct StageKicker: View {
+    let text: String
+    let prominent: Bool
+
+    init?(role: LibraryModel.HomeRole, game: Game) {
+        switch role {
+        case .recommended:
+            text = L10n.t("Recommended to start")
+            prominent = true
+        case .played:
+            text = game.playtimeMinutes.map { $0 > 0 ? L10n.t("Continue playing · %@", Format.playtime($0)) : L10n.t("Continue playing") }
+                ?? L10n.t("Continue playing")
+            prominent = false
+        case .upNext:
+            text = L10n.t("Up next")
+            prominent = false
+        case .starter, .next:
+            return nil
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if prominent { Image(systemName: "sparkle").font(.system(size: 10, weight: .bold)) }
+            Text(text).font(.system(size: 11.5, weight: .bold))
+        }
+        .foregroundStyle(prominent ? Theme.night : Theme.ink)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(prominent ? AnyShapeStyle(Theme.sodium) : AnyShapeStyle(Color.white.opacity(0.12)), in: Capsule())
+        .shadow(color: prominent ? Theme.sodium.opacity(0.4) : .clear, radius: 8)
+        .fixedSize()
     }
 }
 
@@ -1347,127 +1478,6 @@ struct RoundIconButton: View {
         // Spoken without the shortcut in brackets ("Rescan library", not "arrow.clockwise").
         .accessibilityLabel(help.replacingOccurrences(of: #" \(.*\)$"#, with: "", options: .regularExpression))
         .padFocus(focusID ?? "round.\(symbol)", cornerRadius: size / 2, activate: action)
-    }
-}
-
-// MARK: - Cover rail
-
-/// Home's rail, "Continue playing": pinned games, downloads and what you played lately, then a tile
-/// to all the others. A click selects, a second one opens the game's page – it never starts or
-/// downloads anything.
-private struct CoverRail: View {
-    @EnvironmentObject private var model: LibraryModel
-    @Environment(\.reduceMotion) private var reduceMotion
-
-    private static let allGamesID = "rail.allGames"
-
-    private var railItems: [(place: Int, index: Int, game: Game)] {
-        model.homeRail.enumerated().map { (place: $0.offset, index: $0.element, game: model.games[$0.element]) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(L10n.t("Continue playing"))
-                    .font(Theme.display(15))
-                    .foregroundStyle(Theme.ink)
-                Text(L10n.t("Pinned, then what you played lately"))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-            }
-            .padding(.horizontal, Theme.gutter)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-            rail
-        }
-    }
-
-    private var rail: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 18) {
-                    ForEach(railItems, id: \.game.id) { place, index, game in
-                        let isSelected = !model.homeOnAllGames && index == model.selectedIndex
-                        CoverCard(game: game, isSelected: isSelected, isRunning: model.isRunning(game), isPinned: model.isPinned(game))
-                            .id(game.id)
-                            .modifier(GameContextMenu(game: game, index: index))
-                            .onTapGesture {
-                                if isSelected {
-                                    model.openDetail()
-                                } else {
-                                    model.selectOnHome(place: place)
-                                }
-                            }
-                            .help(isSelected ? L10n.t("%@ – click again for details", game.name) : game.name)
-                    }
-                    AllGamesTile(count: model.visibleCount, isSelected: model.homeOnAllGames)
-                        .id(Self.allGamesID)
-                        .onTapGesture {
-                            if model.homeOnAllGames {
-                                model.goLibrary()
-                            } else {
-                                model.selectOnHome(place: model.homeRail.count)
-                            }
-                        }
-                }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 22)
-            }
-            .frame(height: 290)
-            // Two fingers sideways scroll the rail; forward (a trackpad swipe) only past its end.
-            .modifier(SwipeArea(kind: .rail))
-            .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-            .background(GlassBackground(glass: .regular, shape: RoundedRectangle(cornerRadius: 34, style: .continuous)))
-            .padding(.horizontal, Theme.gutter - 22)
-            .onChange(of: model.homePlace) { _, _ in
-                let id = model.homeOnAllGames ? Self.allGamesID : model.selected?.id
-                guard let id else { return }
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
-                    proxy.scrollTo(id, anchor: UnitPoint(x: 0.3, y: 0.5))
-                }
-            }
-        }
-    }
-}
-
-/// The rail's last tile: every game, one step away.
-private struct AllGamesTile: View {
-    let count: Int
-    let isSelected: Bool
-    @Environment(\.reduceMotion) private var reduceMotion
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(Theme.ink.opacity(0.85))
-            Spacer()
-            Text(L10n.t("All games"))
-                .font(Theme.display(19))
-                .foregroundStyle(Theme.ink)
-            HStack(spacing: 4) {
-                Text(count == 1 ? L10n.t("1 in your library") : L10n.t("%ld in your library", count))
-                Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
-            }
-            .font(.system(size: 13, weight: .medium).monospacedDigit())
-            .foregroundStyle(Theme.muted)
-            .padding(.top, 4)
-        }
-        .padding(16)
-        .frame(width: 154, height: 231, alignment: .leading)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(isSelected ? Theme.sodium : Color.white.opacity(0.15), lineWidth: isSelected ? 3 : 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .scaleEffect(isSelected && !reduceMotion ? 1.08 : 1)
-        .opacity(isSelected ? 1 : 0.6)
-        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
-        .help(L10n.t("Whole library (L)"))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L10n.t("All games, %ld in your library", count))
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -1711,7 +1721,9 @@ private struct HintBar: View {
 
     var body: some View {
         HStack(spacing: 22) {
-            if model.controllerConnected, let status = model.controllerStatus {
+            // During the first start's checklist the controller test shows the battery itself.
+            if model.controllerConnected, let status = model.controllerStatus,
+               !(model.showsFirstStart && model.setup.stage == .checklist) {
                 Label(status.label, systemImage: status.symbol)
                     .font(.system(size: 12, weight: .medium).monospacedDigit())
                     .foregroundStyle(status.isLow ? Theme.sodium : Theme.ink.opacity(0.8))

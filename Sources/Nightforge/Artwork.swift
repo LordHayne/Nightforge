@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import ImageIO
 
 /// A store's own addresses for a game's art, as its library lists them.
@@ -34,12 +35,21 @@ enum ArtKind: String {
     var maxPixelSize: Int? { self == .cover ? 640 : nil }
 }
 
+/// Home's stage backdrop, made once per game (ArtworkStore.stageBackdrop).
+struct StageBackdrop {
+    let image: NSImage
+    let glow: NSColor
+    let brightness: CGFloat
+}
+
 /// Loads game art in this order: memory → own disk cache → Steam's cache inside the bottle → Steam CDN.
 /// After the first run everything comes from disk, so the launcher works offline.
 actor ArtworkStore {
     static let shared = ArtworkStore()
 
     private let memory = NSCache<NSString, NSImage>()
+    private let backdrops = NSCache<NSString, Box>()
+    private var backdropTasks: [String: Task<StageBackdrop?, Never>] = [:]
     private var inflight: [String: Task<NSImage?, Never>] = [:]
     private let cacheDir: URL
 
@@ -55,6 +65,7 @@ actor ArtworkStore {
         memory.countLimit = 400
         // Decoded pixels, not files: a whole library of covers stays well within this.
         memory.totalCostLimit = 300 * 1024 * 1024
+        backdrops.countLimit = 30  // about 2 MB each
     }
 
     func image(for game: Game, kind: ArtKind) async -> NSImage? {
@@ -71,6 +82,85 @@ actor ArtworkStore {
         inflight[key] = nil
         if let image { memory.setObject(image, forKey: key as NSString, cost: Self.cost(of: image)) }
         return image
+    }
+
+    /// Home's stage behind its covers: the game's key art (else its cover) blurred once, at about
+    /// window size, and kept in the cache – never blurred live over the window, which would cost the
+    /// battery and the graphics power games need. With it the colour the cover gives off, for the
+    /// light under it, and how bright the cover is, so a bright one is dimmed beside the text.
+    func stageBackdrop(for game: Game) async -> StageBackdrop? {
+        let key = "\(game.gameID.key)_stage"
+        if let cached = backdrops.object(forKey: key as NSString) { return cached.value }
+        // The stage and the backdrop ask at once: one of them makes it.
+        if let running = backdropTasks[key] { return await running.value }
+        let task = Task<StageBackdrop?, Never> { await makeStageBackdrop(for: game, key: key) }
+        backdropTasks[key] = task
+        let backdrop = await task.value
+        backdropTasks[key] = nil
+        return backdrop
+    }
+
+    private func makeStageBackdrop(for game: Game, key: String) async -> StageBackdrop? {
+        let file = cacheDir.appendingPathComponent(key + ".jpg")
+        var blurred = (try? Data(contentsOf: file)).flatMap(Self.cgImage)
+        if blurred == nil {
+            var art = await image(for: game, kind: .hero)
+            if art == nil { art = await image(for: game, kind: .cover) }
+            guard let source = art?.cgImage(forProposedRect: nil, context: nil, hints: nil),
+                  let made = Self.blurred(source) else { return nil }
+            Self.writeJPEG(made, to: file)
+            blurred = made
+        }
+        guard let blurred else { return nil }
+        let cover = await image(for: game, kind: .cover)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        let light = Self.light(of: cover ?? blurred)
+        let backdrop = StageBackdrop(image: NSImage(cgImage: blurred, size: NSSize(width: blurred.width, height: blurred.height)),
+                                     glow: light.glow, brightness: light.brightness)
+        backdrops.setObject(Box(backdrop), forKey: key as NSString)
+        return backdrop
+    }
+
+    private final class Box: NSObject {
+        let value: StageBackdrop
+        init(_ value: StageBackdrop) { self.value = value }
+    }
+
+    /// Core Image on the GPU, made once; only used to make backdrops.
+    private static let images = CIContext(options: [.cacheIntermediates: false])
+
+    /// About 30 pt of blur on the window, at a width that's plenty for something this soft.
+    static func blurred(_ source: CGImage, width: CGFloat = 1024, sigma: Double = 20) -> CGImage? {
+        var image = CIImage(cgImage: source)
+        let scale = min(1, width / max(image.extent.width, 1))
+        image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let extent = image.extent.integral
+        let soft = image.clampedToExtent().applyingGaussianBlur(sigma: sigma).cropped(to: extent)
+        return images.createCGImage(soft, from: extent)
+    }
+
+    /// The cover's average colour, saturated a little for the light, and its brightness (0…1).
+    static func light(of image: CGImage) -> (glow: NSColor, brightness: CGFloat) {
+        let input = CIImage(cgImage: image)
+        var pixel = [UInt8](repeating: 0, count: 4)
+        if let average = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: input, kCIInputExtentKey: CIVector(cgRect: input.extent)])?.outputImage {
+            images.render(average, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                          format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
+        }
+        let (r, g, b) = (CGFloat(pixel[0]) / 255, CGFloat(pixel[1]) / 255, CGFloat(pixel[2]) / 255)
+        let average = NSColor(srgbRed: r, green: g, blue: b, alpha: 1)
+        let glow = NSColor(hue: average.hueComponent, saturation: min(1, average.saturationComponent * 1.4 + 0.1),
+                           brightness: 0.9, alpha: 1)
+        return (glow, 0.2126 * r + 0.7152 * g + 0.0722 * b)
+    }
+
+    private static func cgImage(_ data: Data) -> CGImage? {
+        CGImageSourceCreateWithData(data as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+    }
+
+    private static func writeJPEG(_ image: CGImage, to url: URL) {
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.jpeg" as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
+        CGImageDestinationFinalize(destination)
     }
 
     private static func cost(of image: NSImage) -> Int {
