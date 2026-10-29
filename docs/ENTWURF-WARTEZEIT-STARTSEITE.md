@@ -4,8 +4,8 @@ Stand 29.10.2026. Umsetzung erst nach dem OK des Nutzers und nach dem Merge von 
 (`claude/first-start-6-1-18d92f`), denn beide Teile hängen an `SetupView.swift` und `LibraryView.swift`.
 
 - **Entwurf zum Anklicken:** https://claude.ai/artifact/Hg1m1YCMvxdowvHwp8c7rp (privat, in 1512 × 853 pt, mit
-  Umschaltern für jeden Zustand). Tabs: Einrichtung, Startseite A · Bühne, B · Drei für heute, C · Wand und der
-  erste Entwurf.
+  Umschaltern für jeden Zustand). Tabs: 1 · Einrichtung, 2a · Ruhig (der erste Entwurf), 2b · Wand, 2c · Kino,
+  2d · Bühne, 2e · Drei für heute.
 - **MagicPath:** Das Kontingent für externe Agenten war aufgebraucht (`EXTERNAL_AGENT_API_QUOTA_EXCEEDED`).
   Der Nutzer hat am 29.10. entschieden: kein Upgrade, der Entwurf bleibt auf der Seite oben.
 - Wie bei `solidly-valley-2097` gilt: Der Entwurf ist React/Tailwind und nur Vorlage. In SwiftUI nachbauen,
@@ -90,30 +90,39 @@ weglassen und nur die Tipp-Karte unter die Checkliste stellen.
 Controller. Das ist kein Deko-Leuchten wie das gestrichene Lampenlicht aus 6.1: Es zeigt, dass ein Pad da ist.
 Wenn das nicht gewollt ist, einfach weglassen.
 
-## 2. Startseite für Neue: drei Richtungen
+## 2. Startseite für Neue: fünf Richtungen
 
 Das Urteil des Nutzers über die heutige Startseite nach dem ersten Start: „sieht langweilig aus“, „zu leer“.
-Deshalb gibt es drei mutige Richtungen, jede vor und nach dem ersten Spiel. Welche es wird, entscheidet der
+Deshalb gibt es neben der ruhigen Variante (2a) vier mutige Richtungen, jede vor und nach dem ersten Spiel. Welche es wird, entscheidet der
 Nutzer. Für alle gelten dieselbe Wahl, dieselben Daten und dieselbe Regel nach dem ersten Spiel (unten unter
 „Erster Entwurf“).
 
-- **A · Bühne** (`HomeStage.tsx`): Die guten Starts als Cover-Flow. Das gewählte Cover steht groß vorn
+- **2c · Kino** (`HomeKino.tsx`): Das ganze Fenster ist das Bild des Spiels und bewegt sich langsam wie die
+  erste Einstellung eines Films. Dazu gehören eine Kamerafahrt (Ken Burns, 26 s), Horizonte, die gegeneinander
+  gleiten, Staub, Lichtstrahlen und Filmkorn. Der Titel steht groß in 86 pt, darunter ein Band aus breiten
+  Standbildern (220 × 124 pt). Die guten Starts wechseln sich alle 9 s als Hauptbild ab, eine Linie im gewählten
+  Bild zeigt die Zeit, und eine Berührung hält es 15 s an. Nach dem ersten Spiel bleibt das gespielte Spiel stehen.
+  In der App wird die gezeichnete Landschaft zu Steams `library_hero.jpg` und der Titel zu `logo.png`. Beides
+  lädt `Artwork.swift` schon (`ArtworkKind.hero`, `.logo`). Die Kamerafahrt ist dann ein langsames
+  `scaleEffect`/`offset` auf dem Bild, ohne Hero-Bild braucht es einen Ersatz (z. B. das Cover groß und
+  weichgezeichnet).
+- **2d · Bühne** (`HomeStage.tsx`): Die guten Starts als Cover-Flow. Das gewählte Cover steht groß vorn
   (250 pt breit), schwebt leicht und spiegelt sich im Boden. Ein Lichtstreif zieht über das Glas. Die nächsten
   Cover drehen sich um 58° weg, abgedunkelt. Das Licht des Spiels füllt den Hintergrund. Links stehen Titel,
   Warum-Satz, Werte und Knopf. In SwiftUI: ein `ZStack` mit `rotation3DEffect`, `offset` und `zIndex` je Abstand
   zur Auswahl, die Spiegelung als gespiegelte Kopie mit Verlaufsmaske.
-- **B · Drei für heute** (`HomeThree.tsx`): eine Wahl aus drei großen Covern, jedes mit seinem Grund („Am
+- **2e · Drei für heute** (`HomeThree.tsx`): eine Wahl aus drei großen Covern, jedes mit seinem Grund („Am
   schnellsten bereit“ = kleinster Download, „Gemacht für den Mac“, „Am besten bewertet“ = Metascore). Das gewählte
   tritt vor und neigt sich zum Mauszeiger, seine Farbe leuchtet dahinter. Unten steht eine Leiste „Mehr für den
   Anfang“. Nach dem ersten Spiel steht links „Weiterspielen“. In SwiftUI: `rotation3DEffect` und
   `onContinuousHover` für das Neigen.
-- **C · Wand** (`HomeWall.tsx`): die ganze Bibliothek als schräge Cover-Wand, sieben Reihen, die langsam
+- **2b · Wand** (`HomeWall.tsx`): die ganze Bibliothek als schräge Cover-Wand, sieben Reihen, die langsam
   gegeneinander gleiten (110–210 s je Durchlauf). Was super läuft, ist hell, der Rest liegt bei 30 % Helligkeit.
   Davor eine Scheibe aus dickem Glas (`Glass.thick`) mit „22 deiner 100 Spiele laufen hier“ und „Fang hiermit an“.
   Glas-Schilder an der Wand öffnen die gefilterte Bibliothek. In SwiftUI muss die Wand eine gezeichnete Ebene
   sein (`Canvas` in `TimelineView` oder `drawingGroup()`), sonst ruckelt sie bei 100 Covern. Bei kleinen
   Bibliotheken wiederholen sich die Cover.
-- Alle drei halten bei „Bewegung reduzieren“ still (`Accessibility.swift`): kein Schweben, kein Gleiten.
+- Alle halten bei „Bewegung reduzieren“ still (`Accessibility.swift`): kein Schweben, kein Gleiten.
 
 ### Erster Entwurf (die ruhige Variante, Grundlage für alle drei)
 
@@ -161,7 +170,7 @@ Spielzeit, Belegt, Controller). Den Chip „Empfohlen“ und die Bibliotheks-Kar
 
 ## Offene Fragen an den Nutzer
 
-1. Startseite: A, B oder C, oder eine Mischung (z. B. die Wand als Hintergrund hinter A)?
+1. Startseite: welche von 2a bis 2e, oder eine Mischung (z. B. das Kino-Bild mit der Wahl aus drei davor)?
 2. Controller-Test oben, Tipps darunter: passt die Anordnung?
 3. Während Steams Anmeldefenster: rechte Hälfte blass und angehalten oder ganz ausblenden?
 4. Tipps alle 7 Sekunden?
@@ -175,7 +184,7 @@ Antworten: noch offen.
 Eine Kopie liegt im Notizordner dieser Sitzungsgruppe unter `design-setup-home/`:
 
 - `mp/setup/src/…` ist die Einrichtung. `mp/home/src/…` enthält die Startseite: `HomeStage.tsx`,
-  `HomeThree.tsx`, `HomeWall.tsx`, den ersten Entwurf `NightforgeHome.tsx` und das Gemeinsame in `HomeParts.tsx`
+  `HomeThree.tsx`, `HomeWall.tsx`, `HomeKino.tsx`, den ersten Entwurf `NightforgeHome.tsx` und das Gemeinsame in `HomeParts.tsx`
   und `homeData.ts`.
 - `mp/shared/` enthält Glas-CSS (nach `Glass.swift`), Icons, Top- und Hinweisleiste, Controller-Test und Tipps.
 - `preview/build.sh` und `preview/review.sh` bauen die Seiten (React 18.3.1, Tailwind 4.1.11, esbuild),
