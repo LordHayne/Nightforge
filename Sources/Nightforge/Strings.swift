@@ -206,6 +206,7 @@ enum L10n {
         "Signed in with another account – left as it is": "Mit einem anderen Konto angemeldet – bleibt, wie es ist",
         "Not needed – none of your games has a Mac version": "Nicht nötig – keins deiner Spiele hat eine Mac-Version",
         "Later – the first time you play a Mac version": "Später – wenn du zum ersten Mal eine Mac-Version spielst",
+        "Later": "Später",
         "If your games have Mac versions, a second code for Steam for Mac follows right after.":
             "Haben deine Spiele Mac-Versionen, kommt gleich danach ein zweiter Code für Steam für Mac.",
         "One more: this window is Steam for Mac. It gets the Mac version of 1 of your games – it runs without any Windows translation. Scan its QR code too.":

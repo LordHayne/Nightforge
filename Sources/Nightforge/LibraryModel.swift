@@ -159,6 +159,8 @@ final class LibraryModel: ObservableObject {
 
     /// The first start: the setup of Nightforge's own Steam, the library check and the reveal.
     let setup = SetupModel()
+    /// Steam for Mac in the first start, alongside the setup (MacSteamPrep).
+    let macSteamPrep = MacSteamPrep()
     private var setupChanges: AnyCancellable?
 
     /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
@@ -1495,7 +1497,7 @@ final class LibraryModel: ObservableObject {
                 goHome()
             }
         case .home:
-            return showsFirstStart && setup.back()
+            return showsFirstStart && (macSteamPrep.back() || setup.back())
         }
         return true
     }
@@ -1543,7 +1545,12 @@ final class LibraryModel: ObservableObject {
     /// game's page, and the page plays it.
     func activate() {
         switch route {
-        case .home: showsFirstStart ? setup.primary() : homeOnAllGames ? goLibrary() : primaryAction()
+        case .home:
+            if showsFirstStart {
+                if !macSteamPrep.primary() { setup.primary() }
+            } else {
+                homeOnAllGames ? goLibrary() : primaryAction()
+            }
         case .library: openDetail()
         case .detail: primaryAction()
         }

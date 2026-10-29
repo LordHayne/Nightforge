@@ -225,11 +225,19 @@ muss nicht neu starten. A′ bleibt die Alternative, wenn die Mehrzeit von A st�
 - `restartStuckSteam`: R5 für die Windows-Steam.
 - `LaunchPhase`: `.savingToCloud` und `.signInAgain`.
 - `SetupDetail.macSteam`, `LibraryReveal.mac`/`macLine`. Alle Texte auf Deutsch.
+- **Anzeige** (auf `claude/ux-roadmap-next` a5103ef):
+  - Checkliste: eine eigene Zeile „Setting up Steam for Mac“ unter den Windows-Schritten, mit eigenem Zustand
+    (läuft nebenher → bereit → angemeldet / nicht nötig).
+  - Der QR-Hinweis der Windows-Anmeldung sagt, dass ein zweiter Code folgen kann.
+  - „Checking your library“: Sobald die Zahl steht und es Mac-Versionen gibt, ersetzt die Karte „Steam für Mac“ (Zeile,
+    QR-Hinweis mit Anzahl, „Show Steam window again“, „Later“) den Skip-Knopf. ↩/A zeigt das Fenster, Esc/B ist „Later“.
+  - Enthüllung: eine Zeile zu den Mac-Versionen, bei „Later“ mit dem Hinweis, dass sie beim ersten Spielen kommen.
+  - `LibraryReveal.checkLibrary` ruft `MacSteamPrep.finish` vor der Enthüllung auf, aber nur, wenn die Vorbereitung lief.
+    Ohne den Haken in `Setup.swift` ändert sich am Erststart also nichts.
 
 **Noch offen:**
-- Haken in `Setup.swift` (`Step.macSteam`, `MacSteamPrep.start()` nach dem Engine-Schritt, `finish(windowsAccount:macVersions:)`
-  vor `finish()`). Wartet auf setup-speed.
-- Anzeige in `SetupView`. Wartet auf design-setup-home.
+- Haken in `Setup.swift`: nur noch der Start, `LibraryModel.macSteamPrep.start()` nach dem Engine-Schritt, etwa über einen
+  Rückruf wie `onFinished`. Entscheidung und zweiter Code laufen schon über `checkLibrary`. Wartet auf setup-speed.
 - **Nicht angefasst:** Der Vorwärm-Start von Steam für Mac für Mac-Downloads beim App-Start (`afterScan`) wirft die
   Windows-Steam weiterhin raus. `takeTurnsDownloading` räumt danach auf.
 

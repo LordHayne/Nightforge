@@ -128,7 +128,15 @@ extension LibraryModel {
             }
             try? await Task.sleep(for: .milliseconds(500))  // the full count, for a moment
             guard !Task.isCancelled else { return }
-            setup.reveal(LibraryReveal(games.map { ($0, compatibility(of: $0).level) }))
+            let reveal = LibraryReveal(games.map { ($0, compatibility(of: $0).level) })
+            // Steam for Mac got ready alongside the setup: now that the games are known, the second
+            // code – for the Mac versions – or not (MacSteamPrep). Not in the replay.
+            if !replay, macSteamPrep.state != .idle {
+                await macSteamPrep.finish(windowsAccount: SteamLogin.rememberedAccount(steamRoot: Engine.steamRoot),
+                                          macVersions: reveal.mac)
+                guard !Task.isCancelled else { return }
+            }
+            setup.reveal(reveal)
         }
     }
 

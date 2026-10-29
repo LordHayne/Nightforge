@@ -55,6 +55,16 @@ final class MacSteamPrep: ObservableObject {
         L10n.t("If your games have Mac versions, a second code for Steam for Mac follows right after.")
     }
 
+    /// Steam for Mac is on its way or ready for a code of its own: the Windows code's note says a
+    /// second one may follow (it does when the library has Mac versions).
+    var secondCodeFollows: Bool {
+        switch state {
+        case .preparing(.remembered), .ready(.remembered): return false
+        case .preparing, .ready: return true
+        default: return false
+        }
+    }
+
     /// The note while its sign-in window is up.
     nonisolated static func signInNote(macVersions: Int) -> String {
         macVersions == 1

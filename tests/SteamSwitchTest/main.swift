@@ -194,6 +194,9 @@ struct SteamSwitchTest {
         check(SetupDetail.macSteam(.done(.notNeeded), log: "") == L10n.t("Not needed – none of your games has a Mac version"), "not needed")
         check(SetupDetail.macSteam(.idle, log: "") == nil, "nothing before it starts")
         check(MacSteamPrep.signInNote(macVersions: 12).contains("12"), "the second code says how many games it is for")
+        let prep = MacSteamPrep()
+        check(!prep.primary() && !prep.back(), "Return and Esc are the setup's until its code is up")
+        check(!prep.secondCodeFollows && prep.detail == nil, "nothing said before it starts")
 
         // MARK: The reveal's Mac versions
         func card(_ id: Int, mac: Bool = false, pending: Bool = false) -> Game {

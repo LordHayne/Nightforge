@@ -180,7 +180,7 @@ private struct HomeLevel: View {
             VStack(alignment: .leading, spacing: 0) {
                 Spacer(minLength: 24)
                 if model.showsFirstStart {
-                    SetupView(setup: model.setup)
+                    SetupView(setup: model.setup, macSteam: model.macSteamPrep)
                         .padding(.horizontal, Theme.gutter)
                 } else if !model.isScanning {
                     EmptyLibrary()
