@@ -172,6 +172,8 @@ final class EpicStore: ObservableObject, StoreProvider {
     /// that's done stays until its game's whole download is, which shows as one. They carry on after
     /// Nightforge was quit or the Mac restarted.
     private var wanted: [String] = []
+    /// Where a download goes when it isn't the Mac: the "Epic Games" folder on a drive, by app name.
+    private var destinations: [String: String] = [:]
     /// Each add-on's game, by app name.
     private var gameOfAddOn: [String: String] = [:]
     private var playTimes: [String: EpicPlayTime] = [:]
@@ -190,6 +192,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     private static var wantedFile: URL { folder.appendingPathComponent("downloads.json") }
     private static var playTimeFile: URL { folder.appendingPathComponent("playtime.json") }
     private static var sizesFile: URL { folder.appendingPathComponent("sizes.json") }
+    private static var destinationsFile: URL { folder.appendingPathComponent("destinations.json") }
     private static var userFile: URL { Legendary.configDir.appendingPathComponent("user.json") }
     /// The player connected Epic (until they disconnect). Kept apart from legendary's sign-in, which
     /// legendary drops when Epic ends it: the games mustn't go with it.
@@ -228,7 +231,19 @@ final class EpicStore: ObservableObject, StoreProvider {
         if let data = try? Data(contentsOf: Self.sizesFile), let stored = try? decoder.decode([String: EpicSize].self, from: data) {
             sizes = stored
         }
+        if let data = try? Data(contentsOf: Self.destinationsFile), let stored = try? decoder.decode([String: String].self, from: data) {
+            destinations = stored
+        }
     }
+
+    /// The folder a game (or its add-on) downloads into: the Mac's, or one on a drive.
+    private func base(for appName: String) -> URL {
+        destinations[game(ofAddOn: appName) ?? appName].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Legendary.gamesDir
+    }
+
+    /// legendary has something to do or in line: it installs one thing at a time, and moving a game
+    /// (legendary notes the new place) waits for it.
+    var isBusy: Bool { !downloads.isEmpty || !starting.isEmpty || !updates.isEmpty || updatingGame != nil || !wanted.isEmpty }
 
     private func save<T: Encodable>(_ value: T, to file: URL) {
         try? FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
@@ -270,7 +285,7 @@ final class EpicStore: ObservableObject, StoreProvider {
 
     private func game(_ entry: EpicGame, install: EpicInstall?, versions: [String: String],
                       progress: [String: Legendary.Progress]) -> Game {
-        let folder = install?.path ?? Legendary.gamesDir.appendingPathComponent(entry.folder, isDirectory: true)
+        let folder = install?.path ?? base(for: entry.appName).appendingPathComponent(entry.folder, isDirectory: true)
         let addOns = entry.dlcs ?? []
         // The game and its add-ons download as one, one part after the other.
         let parts = ([entry.appName] + addOns.map(\.appName)).filter(wanted.contains).map { part in
@@ -302,6 +317,11 @@ final class EpicStore: ObservableObject, StoreProvider {
             game.downloadSize = known?.download
         }
         if let block = antiCheat[entry.namespace], !block.onlineOnly { game.antiCheatBlock = block }
+        // On a drive that's unplugged: "Connect <drive> to Play" until it's back.
+        if game.isInstalled, let drive = LibraryScanner.missingVolume(forLibrary: folder.path, in: Engine.bottle) {
+            game.install = .notInstalled
+            game.missingDrive = drive
+        }
         game.art = StoreArt(cover: entry.cover, hero: entry.hero, logo: entry.logo)
         return game
     }
@@ -480,7 +500,9 @@ final class EpicStore: ObservableObject, StoreProvider {
         loadFromDisk()
         let appName = game.gameID.id
         guard !wanted.contains(appName) else { return }
-        try FileManager.default.createDirectory(at: Legendary.gamesDir, withIntermediateDirectories: true)
+        destinations[appName] = context.drive.map { DriveLibrary.epic(on: $0).path }
+        save(destinations, to: Self.destinationsFile)
+        try FileManager.default.createDirectory(at: base(for: appName), withIntermediateDirectories: true)
         // Its add-ons come along, each after the game (they go into its folder).
         let job = [appName] + addOns(of: appName).filter { !wanted.contains($0) }
         wanted += job
@@ -507,7 +529,7 @@ final class EpicStore: ObservableObject, StoreProvider {
     private func startDownload(_ appName: String) async throws {
         starting.insert(appName)
         defer { starting.remove(appName) }
-        let process = try await Legendary.start(["install", appName, "--base-path", Legendary.gamesDir.path,
+        let process = try await Legendary.start(["install", appName, "--base-path", base(for: appName).path,
                                                  "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y"],
                                                 log: Legendary.log(for: appName))
         downloads[appName] = process
@@ -625,12 +647,15 @@ final class EpicStore: ObservableObject, StoreProvider {
             }
         }
         // legendary removes the game's own files; what's left is a cancelled download, or the settings
-        // files Nightforge writes beside the game (dxmt.conf …). Only inside the games folder.
+        // files Nightforge writes beside the game (dxmt.conf …). Only inside a games folder, the Mac's
+        // or a drive's.
         let folder = game.installDir.standardizedFileURL
-        if folder.deletingLastPathComponent().path == Legendary.gamesDir.standardizedFileURL.path {
+        let gamesFolders = [Legendary.gamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.epic(on: $0)] } ?? [])
+        if gamesFolders.contains(where: { folder.deletingLastPathComponent().path == $0.standardizedFileURL.path }) {
             try? FileManager.default.removeItem(at: folder)
         }
         for part in parts { try? FileManager.default.removeItem(at: Legendary.log(for: part)) }
+        if destinations.removeValue(forKey: appName) != nil { save(destinations, to: Self.destinationsFile) }
         Task { await startNext() }
     }
 

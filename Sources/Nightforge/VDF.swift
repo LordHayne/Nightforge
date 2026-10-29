@@ -30,6 +30,56 @@ indirect enum VDF {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return parse(String(decoding: data, as: UTF8.self))
     }
+
+    /// The file as written – keys in their order and case – for a file Nightforge changes and
+    /// writes back (libraryfolders.vdf). nil when it can't be read as KeyValues.
+    static func nodes(_ text: String) -> [VDFNode]? {
+        var parser = VDFParser(Array(text.unicodeScalars))
+        return parser.parseNodes(topLevel: true)
+    }
+
+    /// Steam's own layout: tabs, keys and values quoted, backslashes and quotes escaped.
+    static func text(_ nodes: [VDFNode], depth: Int = 0) -> String {
+        func quoted(_ text: String) -> String {
+            "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }
+        let indent = String(repeating: "\t", count: depth)
+        return nodes.map { node in
+            switch node.value {
+            case .string(let value):
+                return indent + quoted(node.key) + "\t\t" + quoted(value) + "\n"
+            case .object(let children):
+                return indent + quoted(node.key) + "\n" + indent + "{\n" + text(children, depth: depth + 1) + indent + "}\n"
+            }
+        }.joined()
+    }
+}
+
+/// One key of a KeyValues file as written (`VDF.nodes`): a string or the keys under it.
+struct VDFNode: Equatable {
+    enum Value: Equatable {
+        case string(String)
+        case object([VDFNode])
+    }
+
+    var key: String
+    var value: Value
+
+    /// The first key of that name under this one, whatever its case.
+    subscript(key: String) -> VDFNode? {
+        guard case .object(let children) = value else { return nil }
+        return children.first { $0.key.lowercased() == key.lowercased() }
+    }
+
+    var string: String? {
+        if case .string(let text) = value { return text }
+        return nil
+    }
+
+    var children: [VDFNode] {
+        get { if case .object(let children) = value { return children } else { return [] } }
+        set { value = .object(newValue) }
+    }
 }
 
 private enum VDFToken {
@@ -43,6 +93,31 @@ private struct VDFParser {
     private var i = 0
 
     init(_ scalars: [Unicode.Scalar]) { s = scalars }
+
+    /// Like `parseObjectBody`, keeping order and case; at the top level a stray closing brace is a fault.
+    mutating func parseNodes(topLevel: Bool = false) -> [VDFNode]? {
+        var nodes: [VDFNode] = []
+        while let token = next() {
+            switch token {
+            case .close:
+                return topLevel ? nil : nodes
+            case .open:
+                return nil
+            case .str(let key):
+                guard let valueToken = next() else { return nil }
+                switch valueToken {
+                case .str(let value):
+                    nodes.append(VDFNode(key: key, value: .string(value)))
+                case .open:
+                    guard let nested = parseNodes() else { return nil }
+                    nodes.append(VDFNode(key: key, value: .object(nested)))
+                case .close:
+                    return nil
+                }
+            }
+        }
+        return topLevel ? nodes : nil
+    }
 
     /// Reads `key value` / `key { ... }` pairs until a closing brace or end of input.
     mutating func parseObjectBody() -> VDF? {

@@ -79,7 +79,10 @@ struct LibraryView: View {
             }
         }
         .sheet(item: $model.pendingSpace) { request in
-            SpaceSheet(request: request)
+            if request.shortfall > 0 { SpaceSheet(request: request) } else { DestinationSheet(request: request) }
+        }
+        .sheet(item: $model.pendingMove) { game in
+            MoveSheet(game: game, targets: model.moveTargets(for: game))
         }
         // Esc closes it like Cancel: the setup stops.
         .sheet(item: Binding(get: { model.macSetup }, set: { if $0 == nil { model.closeMacSetup() } })) { setup in
@@ -570,6 +573,7 @@ struct SpaceSheet: View {
                     .glassWell()
                 }
             }
+            DriveInstallChoices(request: request)
             HStack(spacing: 8) {
                 if !request.candidates.isEmpty {
                     Text(enough ? L10n.t("Frees %@ – enough", Format.bytes(freed)) : L10n.t("Frees %@ of %@", Format.bytes(freed), Format.bytes(request.shortfall)))
@@ -746,7 +750,7 @@ private struct TopBar: View {
             }
             // Downloads, rescan and settings share one piece of glass.
             HStack(spacing: 2) {
-                if !model.downloads.isEmpty {
+                if !model.downloads.isEmpty || model.move != nil {
                     DownloadsButton()
                     GlassDivider()
                 }
