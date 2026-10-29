@@ -111,11 +111,18 @@ Nutzer. Für alle gelten dieselbe Wahl, dieselben Daten und dieselbe Regel nach 
   lädt `Artwork.swift` schon (`ArtworkKind.hero`, `.logo`). Die Kamerafahrt ist dann ein langsames
   `scaleEffect`/`offset` auf dem Bild, ohne Hero-Bild braucht es einen Ersatz (z. B. das Cover groß und
   weichgezeichnet).
-- **2d · Bühne** (`HomeStage.tsx`): Die guten Starts als Cover-Flow. Das gewählte Cover steht groß vorn
-  (250 pt breit), schwebt leicht und spiegelt sich im Boden. Ein Lichtstreif zieht über das Glas. Die nächsten
-  Cover drehen sich um 58° weg, abgedunkelt. Das Licht des Spiels füllt den Hintergrund. Links stehen Titel,
-  Warum-Satz, Werte und Knopf. In SwiftUI: ein `ZStack` mit `rotation3DEffect`, `offset` und `zIndex` je Abstand
-  zur Auswahl, die Spiegelung als gespiegelte Kopie mit Verlaufsmaske.
+- **2d · Bühne** (`HomeStage.tsx`), **die Favoritin des Nutzers** („was modernes, was einen nicht erschlägt,
+  trotzdem einladend, und etwas, was nicht jede x-beliebige App hat“, 29.10.). Die guten Starts stehen als
+  Cover-Flow. Das gewählte Cover steht groß vorn (320 × 480 pt, bei 44 % der Bühnenbreite, also nah an der
+  Fenstermitte). Es schwebt leicht, ein Lichtstreif zieht über das Glas, und darunter liegt ein weicher Schimmer
+  in der Farbe des Spiels, kein Spiegelbild. Die anderen Cover drehen sich um 56° weg: links bis zu zwei, rechts
+  bis zu drei, mit 252/372/492 pt Abstand, Helligkeit 0,40/0,32/0,26, leicht weichgezeichnet und ohne Titel.
+  An den Rändern blendet eine Maske sie aus, statt sie abzuschneiden. Hinter allem liegt das Hintergrundbild des
+  Spiels (`library_hero.jpg`), 30 pt weichgezeichnet, mit einem kaum merklichen Zoom über 60 s. Darüber kommt das
+  Farblicht des Covers. Links stehen Titel, Abzeichen, Warum-Satz, Werte und der Knopf („Herunterladen“ oder
+  „Spielen“, ohne Größe, die steht in den Werten). Unter der Bühne steht „Für den Anfang · 2 von 11“ mit
+  Pfeilen. In SwiftUI: ein `ZStack` mit `rotation3DEffect`, `offset`, `zIndex` und `blur` je Abstand zur
+  Auswahl, der Hintergrund als `Image` mit `.blur(radius: 30)`.
 - **2e · Drei für heute** (`HomeThree.tsx`): eine Wahl aus drei großen Covern, jedes mit seinem Grund („Am
   schnellsten bereit“ = kleinster Download, „Gemacht für den Mac“, „Am besten bewertet“ = Metascore). Das gewählte
   tritt vor und neigt sich zum Mauszeiger, seine Farbe leuchtet dahinter. Unten steht eine Leiste „Mehr für den
