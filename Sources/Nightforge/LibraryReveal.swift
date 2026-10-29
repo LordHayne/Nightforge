@@ -112,7 +112,7 @@ extension LibraryModel {
             }
             try? await Task.sleep(for: .milliseconds(500))  // the full count, for a moment
             guard !Task.isCancelled else { return }
-            setup.reveal(LibraryReveal(games.map { ($0, compatibility(of: $0).level) }), offersEpic: !epic.isSignedIn)
+            setup.reveal(LibraryReveal(games.map { ($0, compatibility(of: $0).level) }))
         }
     }
 

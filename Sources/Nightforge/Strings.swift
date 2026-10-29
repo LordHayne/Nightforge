@@ -597,7 +597,6 @@ enum L10n {
         "1 needs a VR headset.": "1 braucht eine VR-Brille.",
         "%ld need a VR headset.": "%ld brauchen eine VR-Brille.",
         "Let's Play": "Los geht's",
-        "Also add Epic Games": "Auch Epic Games hinzufügen",
         "Your Steam library has no games yet – the ones you get in Steam show up here by themselves.":
             "In deiner Steam-Bibliothek sind noch keine Spiele – die du in Steam bekommst, erscheinen hier von selbst.",
         "Show the First Start Again": "Ersten Start noch einmal zeigen",

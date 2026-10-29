@@ -172,7 +172,6 @@ final class LibraryModel: ObservableObject {
     init() {
         // The first start ends with how the library runs here, on Home in place of the games.
         setup.onFinished = { [weak self] in self?.checkLibrary() }
-        setup.onAddEpic = { [weak self] in self?.connectEpic() }
         setupChanges = setup.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         epic.changed = { [weak self] in self?.reload(quiet: true) }
         epic.downloadFailed = { [weak self] name, reason, addOn in

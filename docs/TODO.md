@@ -348,8 +348,8 @@ von „Epic Games“ unten:
 - **Alte Schlüssel aufräumen:** `GameIDMigration` lässt „options.570“, „library.hidden“ usw. für ältere Builds stehen.
   In einer späteren Version löschen.
 - **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Start through
-  <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ ist mit 6.1 da;
-  ob der Knopf im ersten Start bleibt, entscheidet der Nutzer noch.
+  <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ im ersten Start
+  (6.1) entfällt nach Entscheidung des Nutzers (29.10.): Epic verbindet man in Settings › Stores.
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 

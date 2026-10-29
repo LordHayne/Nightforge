@@ -14,15 +14,13 @@ struct SetupView: View {
                 ChecklistPage(setup: setup)
             case .checking(let check):
                 CheckingPage(check: check, replay: setup.isReplay) { setup.close() }
-            case .reveal(let reveal, let offersEpic):
-                RevealPage(reveal: reveal, play: { setup.close() }, addEpic: offersEpic ? addEpic : nil)
+            case .reveal(let reveal):
+                RevealPage(reveal: reveal) { setup.close() }
             }
         }
         .transition(.opacity.combined(with: .offset(y: 10)))
         .animation(.easeOut(duration: 0.3), value: setup.stage)
     }
-
-    private func addEpic() { setup.addEpic() }
 }
 
 private struct WelcomePage: View {
@@ -153,11 +151,10 @@ private struct CheckingPage: View {
     }
 }
 
-/// How many of the games run here, then "Let's Play" – and Epic Games' sign-in while it isn't connected.
+/// How many of the games run here, then "Let's Play". Epic Games is added in Settings › Stores.
 private struct RevealPage: View {
     let reveal: LibraryReveal
     let play: () -> Void
-    let addEpic: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -177,15 +174,8 @@ private struct RevealPage: View {
                     .frame(maxWidth: 560, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 14) {
-                SetupButton(title: L10n.t("Let's Play"), symbol: "play.fill", preferred: true, action: play)
-                if let addEpic {
-                    Button(L10n.t("Also add Epic Games"), action: addEpic)
-                        .buttonStyle(GlassTextButtonStyle())
-                        .padFocus("setup.epic", cornerRadius: 21, activate: addEpic)
-                }
-            }
-            .padding(.top, 6)
+            SetupButton(title: L10n.t("Let's Play"), symbol: "play.fill", preferred: true, action: play)
+                .padding(.top, 6)
         }
     }
 }

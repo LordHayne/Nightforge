@@ -46,7 +46,7 @@ struct FirstStartTest {
         check(S.confirmAction(stage: checking, phase: .done) == nil, "checking: nothing to press")
         check(S.backAction(stage: checking, replay: false) == .skip, "checking: Esc skips")
 
-        let reveal = SetupModel.Stage.reveal(LibraryReveal(great: 3), offersEpic: true)
+        let reveal = SetupModel.Stage.reveal(LibraryReveal(great: 3))
         check(S.confirmAction(stage: reveal, phase: .done) == .play, "reveal: Return is Let's Play")
         check(S.backAction(stage: reveal, replay: false) == .play, "reveal: Esc is Let's Play too")
         check(SetupModel.Action.play.label == L10n.t("Let's Play"), "the hint says what the button says")
@@ -112,13 +112,12 @@ struct FirstStartTest {
     }
 
     /// Settings › About: the welcome, then straight to the check (the setup is done), the reveal,
-    /// Let's Play – and "Also add Epic Games", which leaves the first start for Epic's sign-in.
+    /// Let's Play.
     @MainActor
     static func replay() {
         let setup = SetupModel()
-        var checks = 0, epic = 0
+        var checks = 0
         setup.onFinished = { checks += 1 }
-        setup.onAddEpic = { epic += 1 }
 
         setup.replay(setupDone: false)
         check(!setup.isActive, "no replay before the setup is done")
@@ -133,8 +132,8 @@ struct FirstStartTest {
 
         setup.checking(LibraryCheck(total: 3, checked: 2))
         check(setup.stage == .checking(LibraryCheck(total: 3, checked: 2)), "the count goes up")
-        setup.reveal(LibraryReveal(great: 2, no: 1), offersEpic: true)
-        check(setup.stage == .reveal(LibraryReveal(great: 2, no: 1), offersEpic: true), "then the reveal")
+        setup.reveal(LibraryReveal(great: 2, no: 1))
+        check(setup.stage == .reveal(LibraryReveal(great: 2, no: 1)), "then the reveal")
         setup.primary()
         check(!setup.isActive && !setup.isReplay && setup.stage == .welcome, "Let's Play closes it")
 
@@ -143,9 +142,8 @@ struct FirstStartTest {
 
         setup.replay(setupDone: true)
         setup.begin()
-        setup.reveal(LibraryReveal(great: 1), offersEpic: true)
-        setup.addEpic()
-        check(!setup.isActive && epic == 1, "Also add Epic Games: the library, and Epic's sign-in")
+        setup.reveal(LibraryReveal(great: 1))
+        check(setup.back() && !setup.isActive, "Esc on the reveal is Let's Play")
         check(!setup.back(), "closed: Esc is the library's again")
     }
 }

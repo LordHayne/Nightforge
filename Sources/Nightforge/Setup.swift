@@ -13,8 +13,8 @@ final class SetupModel: ObservableObject {
         case checklist
         /// After the sign-in: Steam sends the library, and every game is looked up.
         case checking(LibraryCheck)
-        /// How many of the games run here; "Also add Epic Games" while Epic isn't signed in.
-        case reveal(LibraryReveal, offersEpic: Bool)
+        /// How many of the games run here, then "Let's Play".
+        case reveal(LibraryReveal)
     }
 
     /// What Return or A, and Esc or B, do on the page now.
@@ -72,8 +72,6 @@ final class SetupModel: ObservableObject {
 
     /// After the setup (and "Let's Go" in the replay): the library check starts (LibraryModel).
     var onFinished: (() -> Void)?
-    /// "Also add Epic Games": Epic's sign-in window.
-    var onAddEpic: (() -> Void)?
     /// The library check under way; "Skip" stops it.
     var checkTask: Task<Void, Never>?
     private var signInWatcher: Task<Void, Never>?
@@ -110,9 +108,9 @@ final class SetupModel: ObservableObject {
         stage = .checking(check)
     }
 
-    func reveal(_ reveal: LibraryReveal, offersEpic: Bool) {
+    func reveal(_ reveal: LibraryReveal) {
         guard isActive else { return }
-        stage = .reveal(reveal, offersEpic: offersEpic)
+        stage = .reveal(reveal)
     }
 
     /// "Let's Play" and "Skip": the library takes over.
@@ -122,11 +120,6 @@ final class SetupModel: ObservableObject {
         isActive = false
         isReplay = false
         stage = .welcome
-    }
-
-    func addEpic() {
-        close()
-        onAddEpic?()
     }
 
     /// Return and A.
