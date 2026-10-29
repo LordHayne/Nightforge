@@ -455,7 +455,9 @@ final class SetupModel: ObservableObject {
             let verified = clientInstalled && SteamBootstrap.verified(log: log)
             if verified, Engine.installWebHelperWrapper() { swappedAt = Date() }
             quick = !verified && (bootstrap == .installing || bootstrap == .updated || clientInstalled)
-            detail = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
+            // Only a new line redraws the checklist: in the quick phase the log is read up to 20 times a second.
+            let line = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
+            if line != detail { detail = line }
             guard Date().timeIntervalSince(lastLook) >= 2 else { continue }
             lastLook = Date()
 
