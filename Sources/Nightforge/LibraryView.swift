@@ -97,9 +97,6 @@ struct LibraryView: View {
                     .padFocus("error.ok", cornerRadius: 21, preferred: true, activate: { model.errorMessage = nil })
             }
         }
-        .sheet(item: $model.libraryReveal) { reveal in
-            LibraryRevealSheet(reveal: reveal)
-        }
         .sheet(isPresented: $model.showingSettings) {
             SettingsView()
         }
@@ -186,7 +183,7 @@ private struct HomeLevel: View {
                     .id(game.id)
                     .transition(.opacity)
                     .padding(.horizontal, Theme.gutter)
-            } else if model.needsSetup {
+            } else if model.showsFirstStart {
                 SetupView(setup: model.setup)
                     .padding(.horizontal, Theme.gutter)
             } else if !model.allGames.isEmpty {
@@ -200,7 +197,7 @@ private struct HomeLevel: View {
 
             Spacer(minLength: 28)
 
-            if !model.allGames.isEmpty {
+            if !model.allGames.isEmpty && !model.showsFirstStart {
                 CoverRail()
                     .padding(.bottom, 10)  // air between the rail's glass and the hints
             }
@@ -1731,6 +1728,14 @@ private struct HintBar: View {
                 Hint(.pad(pad.back), text: L10n.t("Back"))
             } else {
                 switch model.route {
+                case .home where model.showsFirstStart:
+                    // The first start's page: what Return and Esc do there.
+                    if let action = SetupModel.confirmAction(stage: model.setup.stage, phase: model.setup.phase) {
+                        Hint(controller ? .pad(pad.confirm) : .key("↵"), text: action.label)
+                    }
+                    if let action = SetupModel.backAction(stage: model.setup.stage, replay: model.setup.isReplay) {
+                        Hint(controller ? .pad(pad.back) : .key("esc"), text: action.label)
+                    }
                 case .home:
                     if model.heroGame != nil {
                         Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Play"))
@@ -1763,7 +1768,7 @@ private struct HintBar: View {
                 }
             }
         }
-        .opacity(model.games.isEmpty ? 0 : 1)
+        .opacity(model.games.isEmpty && !model.showsFirstStart ? 0 : 1)
     }
 }
 

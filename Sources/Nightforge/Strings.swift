@@ -248,15 +248,46 @@ enum L10n {
         "Signing in to Steam": "Bei Steam anmelden",
         "Welcome to Nightforge": "Willkommen bei Nightforge",
         "Connecting Steam": "Steam wird verbunden",
-        "Nightforge sets up everything your Windows games need – free, in the background, in a few minutes. You only sign in to Steam.":
-            "Nightforge richtet alles ein, was deine Windows-Spiele brauchen – kostenlos, im Hintergrund, in wenigen Minuten. Du meldest dich nur bei Steam an.",
-        "Connect Steam": "Mit Steam verbinden",
+        "Nightforge plays your Windows games on this Mac – next, it sets up everything they need by itself in a few minutes, and you only sign in to Steam.":
+            "Nightforge spielt deine Windows-Spiele auf diesem Mac – gleich richtet es in wenigen Minuten von selbst alles ein, was sie brauchen, und du meldest dich nur bei Steam an.",
+        "Let's Go": "Loslegen",
+        "Nightforge plays your Windows games on this Mac. Here's once more how your library runs on it.":
+            "Nightforge spielt deine Windows-Spiele auf diesem Mac. Hier noch einmal, wie deine Bibliothek darauf läuft.",
         "Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license.":
             "Windows-Spiele brauchen Rosetta von Apple. macOS fragt einmal nach deinem Passwort, um es zu installieren; mit der Installation akzeptierst du Apples Rosetta-Lizenz.",
         "Install Rosetta": "Rosetta installieren",
         "Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login.":
             "Melde dich im Steam-Fenster an – mit dem QR-Code aus der Steam-App auf deinem Handy oder mit deinem Passwort. Nightforge sieht deine Anmeldedaten nie.",
         "Show Steam window again": "Steam-Fenster wieder zeigen",
+        // The checklist's live lines (SetupDetail)
+        "was already there": "war schon da",
+        "in %ld s": "in %ld s",
+        "in %ld min %ld s": "in %ld Min. %ld s",
+        "Rosetta is there · %@ free": "Rosetta ist da · %@ frei",
+        "%@ of %@": "%@ von %@",
+        "Unpacking %@ …": "%@ wird entpackt …",
+        "%@: %@": "%@: %@",
+        "Wine %@ (CrossOver)": "Wine %@ (CrossOver)",
+        "Graphics layers": "Grafik-Schichten",
+        "Controller support": "Controller-Unterstützung",
+        "Creating Windows · %ld system files": "Windows wird angelegt · %ld Systemdateien",
+        "Creating Windows …": "Windows wird angelegt …",
+        "Setting up the graphics layers …": "Grafik-Schichten werden eingerichtet …",
+        "Setting up the game environment …": "Spielumgebung wird eingerichtet …",
+        "Downloading the Steam installer …": "Steam-Installer wird geladen …",
+        "Installing Steam (installer: %@) …": "Steam wird installiert (Installer: %@) …",
+        "Steam is starting …": "Steam startet …",
+        "Steam looks for its update …": "Steam sucht nach seinem Update …",
+        "Steam downloads update 1 of 2: %@": "Steam lädt Update 1 von 2: %@",
+        "Steam downloads update 2 of 2, the 64-bit version: %@": "Steam lädt Update 2 von 2, die 64-Bit-Version: %@",
+        "Steam downloads its update: %@": "Steam lädt sein Update: %@",
+        "Steam installs update 1 of 2 …": "Steam installiert Update 1 von 2 …",
+        "Steam installs update 2 of 2, the 64-bit version …": "Steam installiert Update 2 von 2, die 64-Bit-Version …",
+        "Steam installs its update …": "Steam installiert sein Update …",
+        "Update installed – Steam starts again …": "Update installiert – Steam startet neu …",
+        "Steam starts for the first time …": "Steam startet zum ersten Mal …",
+        "Steam's sign-in window opens next: scan its QR code with the Steam app on your phone – no typing.":
+            "Gleich öffnet sich Steams Anmeldefenster: Scanne seinen QR-Code mit der Steam-App auf deinem Handy – ganz ohne Tippen.",
         "Try again": "Erneut versuchen",
         "Steam is connected": "Steam ist verbunden",
         "Install a game in Steam – it shows up here as soon as it's on your Mac.":
@@ -575,6 +606,12 @@ enum L10n {
             "Die Spielstände ließen sich nicht nach „Dokumente“ kopieren (%@), deshalb ist noch alles da.",
 
         // First start
+        "Checking your library": "Deine Bibliothek wird geprüft",
+        "Asking Steam for your games …": "Frage Steam nach deinen Spielen …",
+        "Reading your library …": "Deine Bibliothek wird gelesen …",
+        "Steam sends your library a moment after you sign in.": "Steam schickt deine Bibliothek kurz nach der Anmeldung.",
+        "Looking up how each one runs on this Mac …": "Nightforge schaut nach, wie jedes davon auf diesem Mac läuft …",
+        "Skip": "Überspringen",
         "Your library on this Mac": "Deine Bibliothek auf diesem Mac",
         "%ld of your 1 game runs here": "%ld von deinem 1 Spiel läuft hier",
         "%ld of your %ld games run here": "%ld deiner %ld Spiele laufen hier",
@@ -587,6 +624,8 @@ enum L10n {
         "1 needs a VR headset.": "1 braucht eine VR-Brille.",
         "%ld need a VR headset.": "%ld brauchen eine VR-Brille.",
         "Let's Play": "Los geht's",
+        "Your Steam library has no games yet – the ones you get in Steam show up here by themselves.":
+            "In deiner Steam-Bibliothek sind noch keine Spiele – die du in Steam bekommst, erscheinen hier von selbst.",
         "Show the First Start Again": "Ersten Start noch einmal zeigen",
 
         // Battery

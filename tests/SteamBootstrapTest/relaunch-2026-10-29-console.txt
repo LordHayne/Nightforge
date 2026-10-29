@@ -1,0 +1,9 @@
+[2026-10-29 20:58:53] Client version: 1792618285
+[2026-10-29 20:58:53] Loaded SDL version 3.4.0-1576-gab5541ec5
+[2026-10-29 20:58:53] CDeviceChangeNotification: CM_Register_Notification failed for filter type 2 (CONFIGRET 52)
+[2026-10-29 20:58:53] CDeviceChangeNotification: CM_Register_Notification failed for filter type 2 (CONFIGRET 52)
+[2026-10-29 20:58:53] WARNING: unable to link protobuf_parse_stats and protobuf_parse_stats because one or more is a ConCommand.
+[2026-10-29 20:58:53] Failed to init SteamVR because it isn't installed
+[2026-10-29 20:58:54] Console Log Start
+[2026-10-29 20:58:57] STARTUP SlowJSMethodCall User.RegisterForCurrentUserChanges took 1.8ms
+[2026-10-29 20:59:23] Client version: 1792618285

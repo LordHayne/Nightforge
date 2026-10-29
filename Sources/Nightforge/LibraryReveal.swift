@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// After the first start (and from Settings › About): how many of your games run on this Mac,
-/// in one bar, with what each part means.
+/// At the end of the first start (and its replay from Settings › About): how many of your games
+/// run on this Mac, in one bar, with what each part means.
 struct LibraryReveal: Identifiable, Equatable {
     var great = 0, tweaks = 0, untested = 0, no = 0
     /// Of the games that don't run, the ones GeForce Now streams, and the VR-only ones.
@@ -17,9 +17,9 @@ struct LibraryReveal: Identifiable, Equatable {
         (self.great, self.tweaks, self.untested, self.no, self.cloud, self.vr) = (great, tweaks, untested, no, cloud, vr)
     }
 
-    /// The owned games' levels (store hits aren't yours).
+    /// The player's own games' levels (store hits and demos of games they don't own aren't theirs).
     init(_ rated: [(game: Game, level: Compatibility.Level)]) {
-        for (game, level) in rated where game.install != .inStore {
+        for (game, level) in rated where game.inLibrary {
             switch level {
             case .great: great += 1
             case .tweaks: tweaks += 1
@@ -34,29 +34,104 @@ struct LibraryReveal: Identifiable, Equatable {
     static func == (a: LibraryReveal, b: LibraryReveal) -> Bool {
         (a.great, a.tweaks, a.untested, a.no, a.cloud, a.vr) == (b.great, b.tweaks, b.untested, b.no, b.cloud, b.vr)
     }
+
+    var headline: String {
+        switch total {
+        case 0: return L10n.t("Steam is connected")
+        case 1: return L10n.t("%ld of your 1 game runs here", running)
+        default: return L10n.t("%ld of your %ld games run here", running, total)
+        }
+    }
 }
 
-struct LibraryRevealSheet: View {
-    let reveal: LibraryReveal
-    @Environment(\.dismiss) private var dismiss
+/// The first start's look at the library, "Checking your library … N of M games". Steam sends the
+/// account's games a moment after the sign-in – its licence list and app info land in its caches,
+/// and a scan finds more while that goes on – so the check scans until two scans in a row find the
+/// same games. Then every game is looked up once.
+struct LibraryCheck: Equatable {
+    /// The games found; nil while Steam is still sending them.
+    var total: Int?
+    var checked = 0
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top, spacing: 24) {
-                VStack(alignment: .leading, spacing: 10) {
-                    SectionTitle(L10n.t("Your library on this Mac"))
-                    Text(reveal.total == 1 ? L10n.t("%ld of your 1 game runs here", reveal.running)
-                         : L10n.t("%ld of your %ld games run here", reveal.running, reveal.total))
-                        .font(Theme.display(28))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                Spacer(minLength: 0)
-                GlassCloseButton(id: "reveal.close") { dismiss() }
-                    .padding(.top, -4)
-                    .padding(.trailing, -8)
+    /// Up to how long the check waits for Steam's library after the sign-in.
+    static let patience: TimeInterval = 120
+    /// Between two scans while it waits.
+    static let interval = Duration.seconds(3)
+
+    var fraction: Double? {
+        total.map { $0 == 0 ? 1 : min(Double(checked) / Double($0), 1) }
+    }
+
+    /// Whether to scan once more: nothing found yet, or not as many as the scan before (Steam is
+    /// still writing). The replay counts what's there; after `patience` the check goes on with
+    /// what it has.
+    static func waitsForSteam(previous: Int?, now: Int, waited: TimeInterval, replay: Bool) -> Bool {
+        guard !replay, waited < patience else { return false }
+        return now == 0 || previous != now
+    }
+
+    /// The pause after each game, so the count can be read: 90 ms a game, all of them within 2.5 s.
+    static func pause(total: Int) -> Duration {
+        total > 0 ? .milliseconds(min(90, 2500 / total)) : .zero
+    }
+}
+
+extension LibraryModel {
+    /// The first start's last step, after the sign-in (and the replay's): Steam's library, every
+    /// game looked up – the newest list of what runs, and what the files of the ones on the Mac
+    /// say – then how many of them run here.
+    func checkLibrary() {
+        guard setup.isActive else {
+            reload()
+            return
+        }
+        let replay = setup.isReplay
+        setup.checkTask?.cancel()
+        setup.checkTask = Task {
+            if !replay { await ProfileStore.shared.refresh() }
+            let start = Date()
+            var previous: Int?
+            var games = await ownGamesAfterScan()
+            while LibraryCheck.waitsForSteam(previous: previous, now: games.count,
+                                             waited: Date().timeIntervalSince(start), replay: replay) {
+                try? await Task.sleep(for: LibraryCheck.interval)
+                guard !Task.isCancelled else { return }
+                previous = games.count
+                games = await ownGamesAfterScan()
             }
 
+            var check = LibraryCheck(total: games.count)
+            setup.checking(check)
+            let pause = LibraryCheck.pause(total: games.count)
+            for game in games {
+                guard !Task.isCancelled else { return }
+                _ = await insight(of: game)
+                check.checked += 1
+                setup.checking(check)
+                try? await Task.sleep(for: pause)
+            }
+            try? await Task.sleep(for: .milliseconds(500))  // the full count, for a moment
+            guard !Task.isCancelled else { return }
+            setup.reveal(LibraryReveal(games.map { ($0, compatibility(of: $0).level) }))
+        }
+    }
+
+    private func ownGamesAfterScan() async -> [Game] {
+        let before = lastScan
+        reload(quiet: true)
+        while lastScan == before, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return cards.filter(\.inLibrary)  // a game from two stores is one game (DuplicateGames)
+    }
+}
+
+/// The bar in the compatibility colours and a line for each part: what it means.
+struct LibraryRevealView: View {
+    let reveal: LibraryReveal
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
             GeometryReader { geo in
                 HStack(spacing: 2) {
                     ForEach(parts, id: \.level) { part in
@@ -71,28 +146,17 @@ struct LibraryRevealSheet: View {
             .frame(height: 12)
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 12) {
-                row(.great, reveal.great, L10n.t("Tested by Nightforge, a Mac version, or it started fine here."))
-                if reveal.tweaks > 0 {
+            Grid(alignment: .topLeading, horizontalSpacing: 36, verticalSpacing: 16) {
+                GridRow {
+                    row(.great, reveal.great, L10n.t("Tested by Nightforge, a Mac version, or it started fine here."))
                     row(.tweaks, reveal.tweaks, L10n.t("Nightforge applies what they need by itself, at every start."))
                 }
-                if reveal.untested > 0 {
+                GridRow {
                     row(.untested, reveal.untested, L10n.t("Nobody has tried them on a Mac with Nightforge yet – most still run. The first start tells, and Nightforge remembers what works."))
-                }
-                if reveal.no > 0 {
                     row(.no, reveal.no, notRunning)
                 }
             }
-
-            HStack {
-                Spacer()
-                SetupButton(title: L10n.t("Let's Play"), symbol: "play.fill", preferred: true) { dismiss() }
-            }
-            .padding(.top, 4)
         }
-        .padding(28)
-        .frame(width: 520)
-        .glassDialogBackground()
     }
 
     /// Why: anti-cheat (some on GeForce Now instead) and VR headsets.
@@ -106,7 +170,7 @@ struct LibraryRevealSheet: View {
         if reveal.vr > 0 {
             reasons.append(reveal.vr == 1 ? L10n.t("1 needs a VR headset.") : L10n.t("%ld need a VR headset.", reveal.vr))
         }
-        return reasons.joined(separator: " ")
+        return reasons.isEmpty ? L10n.t("Their anti-cheat needs Windows itself.") : reasons.joined(separator: " ")
     }
 
     private var parts: [(level: Compatibility.Level, count: Int)] {
@@ -118,14 +182,16 @@ struct LibraryRevealSheet: View {
             Image(systemName: level.symbol)
                 .foregroundStyle(level.color)
                 .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(count) · \(level.label)").font(.system(size: 14, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(count) · \(level.label)").font(.system(size: 15, weight: .semibold).monospacedDigit())
                 Text(text)
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .frame(maxWidth: 360, alignment: .leading)
+        .opacity(count > 0 ? 1 : 0.45)
         .accessibilityElement(children: .combine)
     }
 }
