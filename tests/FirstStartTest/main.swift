@@ -24,6 +24,7 @@ struct FirstStartTest {
         libraryCheck()
         replay()
         replayTexts()
+        details()
 
         print(failures == 0 ? "✓ FirstStart" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -97,6 +98,41 @@ struct FirstStartTest {
         check(LibraryCheck.pause(total: 5) == .milliseconds(90), "a few games: 90 ms each")
         check(LibraryCheck.pause(total: 105) * 105 <= .milliseconds(2500), "a big library is counted within 2.5 s")
         check(LibraryCheck.pause(total: 0) == .zero, "nothing to count, no pause")
+    }
+
+    /// The checklist's lines (SetupDetail): finished steps, downloads, the components' names, Windows.
+    static func details() {
+        check(SetupDetail.duration(0.3) == L10n.t("was already there"), "a step that was done before")
+        check(SetupDetail.duration(25) == L10n.t("in %ld s", 25), "25 s")
+        check(SetupDetail.duration(72) == L10n.t("in %ld min %ld s", 1, 12), "1 min 12 s")
+        check(SetupDetail.mac(freeBytes: 120_000_000_000) == L10n.t("Rosetta is there · %@ free", Format.bytes(120_000_000_000)), "the Mac")
+
+        let amount = L10n.t("%@ of %@", Format.bytes(142_000_000), Format.bytes(461_131_598))
+        check(SetupDetail.transfer(done: 142_000_000, total: 461_131_598, bytesPerSecond: nil) == amount, "no speed yet: \(amount)")
+        check(SetupDetail.transfer(done: 142_000_000, total: 461_131_598, bytesPerSecond: 15_000_000) == amount + " · " + Format.bytes(15_000_000) + "/s",
+              "with its speed")
+
+        func component(_ id: String, _ version: String, size: Int64 = 1_000_000) -> Component {
+            Component(id: id, kind: .tool, version: version, url: URL(string: "https://example.invalid/\(id).tar.xz")!, sha256: "",
+                      size: size, license: "", source: URL(string: "https://example.invalid")!)
+        }
+        let wine = component("winecx", "4.7.3", size: 461_131_598)
+        check(SetupDetail.name(of: wine) == L10n.t("Wine %@ (CrossOver)", "4.7.3"), "winecx")
+        check(SetupDetail.name(of: component("wine", "11.18")) == "Wine 11.18", "Wine")
+        check(SetupDetail.name(of: component("graphics", "11.18-dxmt0.80-13")) == "DXMT 0.80", "the graphics package: DXMT's version")
+        check(SetupDetail.name(of: component("d3dmetal", "4.0b3")) == "D3DMetal 4.0b3", "D3DMetal")
+        check(SetupDetail.name(of: component("dxvk-macos", "1.10.3-20230507")) == "DXVK 1.10.3", "DXVK")
+        check(SetupDetail.name(of: component("moltenvk", "1.4.2")) == "MoltenVK 1.4.2", "MoltenVK")
+        check(SetupDetail.name(of: component("gamepad", "4.7.3-7")) == L10n.t("Controller support"), "the controller package")
+        check(SetupDetail.component(wine, fraction: 0.5, bytesPerSecond: nil)
+              == L10n.t("%@: %@", L10n.t("Wine %@ (CrossOver)", "4.7.3"), SetupDetail.transfer(done: 230_565_799, total: 461_131_598, bytesPerSecond: nil)),
+              "halfway: \(SetupDetail.component(wine, fraction: 0.5, bytesPerSecond: nil))")
+        check(SetupDetail.component(wine, fraction: 1, bytesPerSecond: 1) == L10n.t("Unpacking %@ …", L10n.t("Wine %@ (CrossOver)", "4.7.3")),
+              "all there: unpacking")
+        check(SetupDetail.engine(.graphics) == L10n.t("Setting up the graphics layers …"), "the graphics layers")
+        check(SetupDetail.engine(.gameEnvironment) == L10n.t("Setting up the game environment …"), "the game environment")
+        check(SetupDetail.windows(systemFiles: 0) == L10n.t("Creating Windows …"), "Windows, before its files")
+        check(SetupDetail.windows(systemFiles: 412) == L10n.t("Creating Windows · %ld system files", 412), "Windows, 412 files")
     }
 
     /// The replay comes long after the setup and the sign-in: its welcome and check say so.

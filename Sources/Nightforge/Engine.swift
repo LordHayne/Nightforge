@@ -453,8 +453,19 @@ enum Engine {
     /// e.g. after the list moved to a newer engine. Returns the wine binary to use.
     /// `gameRunning`: a game of Nightforge's own Steam runs, so its Wine session must not end –
     /// a new graphics package (which can bring a new wineserver) waits for the next start then.
-    static func ensureEngine(gameRunning: Bool = false) async throws -> URL {
+    /// What ensureEngine is doing, for the first start's checklist (SetupDetail.engine).
+    enum SetupStep: Sendable {
+        /// A component coming down (0…1); at 1 it's being unpacked.
+        case downloading(Component, Double)
+        case graphics
+        case gameEnvironment
+    }
+
+    static func ensureEngine(gameRunning: Bool = false, report: (@Sendable (SetupStep) -> Void)? = nil) async throws -> URL {
         let store = ComponentStore.shared
+        func install(_ component: Component) async throws -> URL {
+            try await store.install(component) { fraction in report?(.downloading(component, fraction)) }
+        }
         let manifest = try await store.manifest()
         guard let engine = engineComponent(in: manifest), let graphics = graphicsComponent(in: manifest) else {
             throw ComponentError.noManifest
@@ -501,12 +512,17 @@ enum Engine {
             }
         }
         if readStamp(graphicsStamp) != graphicsWanted, !gameRunning, !windowsGameRunning {
-            try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             var moltenVKDir: URL?
-            if let moltenVK { moltenVKDir = try await store.install(moltenVK) }
+            if let moltenVK { moltenVKDir = try await install(moltenVK) }
+            var d3dMetalDir: URL?
+            if let d3dMetal { d3dMetalDir = try await install(d3dMetal) }
+            var gamepadDir: URL?
+            if let gamepad { gamepadDir = try await install(gamepad) }
+            report?(.graphics)
+            try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             try installMoltenVK(moltenVKDir, into: wine)
-            if let d3dMetal { try installD3DMetal(try await store.install(d3dMetal), into: wine) }
-            if let gamepad { try installGamepad(try await store.install(gamepad), into: wine) }
+            if let d3dMetalDir { try installD3DMetal(d3dMetalDir, into: wine) }
+            if let gamepadDir { try installGamepad(gamepadDir, into: wine) }
             writeStamp(graphicsStamp, graphicsWanted)
         }
         installGameBundle(wine: wine)  // after the graphics: its links must point at the new files
@@ -515,7 +531,8 @@ enum Engine {
         trimSteamLogs()
         excludeGamesFromBackup()
         var dxvkDir: URL?
-        if let dxvk { dxvkDir = try await store.install(dxvk) }
+        if let dxvk { dxvkDir = try await install(dxvk) }
+        report?(.gameEnvironment)
         try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir)
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.

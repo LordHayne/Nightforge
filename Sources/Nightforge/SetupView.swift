@@ -196,10 +196,12 @@ private struct StepList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(SetupModel.Step.allCases) { step in
+                let state = state(of: step)
                 StepRow(
                     title: step.title,
-                    state: state(of: step),
-                    progress: setup.currentStep() == step ? setup.progress : nil
+                    state: state,
+                    progress: setup.currentStep() == step ? setup.progress : nil,
+                    detail: state == .done ? setup.summaries[step] : state == .active ? setup.detail : nil
                 )
             }
         }
@@ -223,6 +225,8 @@ struct StepRow: View {
     let title: String
     let state: State
     let progress: Double?
+    /// What it's doing right now, or (done) how long it took – the first start's checklist.
+    var detail: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -250,11 +254,23 @@ struct StepRow: View {
                 if let progress {
                     GlassProgressBar(value: progress)
                         .frame(width: 320)
-                    Text("\(Int(progress * 100)) %")
-                        .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    if detail == nil {
+                        Text("\(Int(progress * 100)) %")
+                            .font(.system(size: 12, weight: .medium).monospacedDigit())
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+                if let detail {
+                    Text(detail)
+                        .font(.system(size: state == .done ? 12.5 : 13).monospacedDigit())
                         .foregroundStyle(Theme.muted)
+                        .contentTransition(.numericText())
+                        .frame(maxWidth: 560, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.25), value: detail)
         }
     }
 }

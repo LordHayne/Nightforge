@@ -59,7 +59,12 @@ enum SteamBootstrap: Equatable {
 
     /// Reads the end of Steam's bootstrap log; no log yet is `.idle`.
     init(steamRoot: URL) {
-        self.init(log: Self.tail(of: steamRoot.appendingPathComponent("logs/bootstrap_log.txt")))
+        self.init(log: Self.log(steamRoot: steamRoot))
+    }
+
+    /// The end of Steam's bootstrap log (empty without one).
+    static func log(steamRoot: URL) -> String {
+        tail(of: steamRoot.appendingPathComponent("logs/bootstrap_log.txt"))
     }
 
     /// The last 128 KB of a log: a bootstrap block with a whole download is ~30 KB (a line per

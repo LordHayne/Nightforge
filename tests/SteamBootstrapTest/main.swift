@@ -60,6 +60,7 @@ struct SteamBootstrapTest {
         afterTheFix()
         theHungClient()
         valvesHelper()
+        steamDetails()
         decisions()
         starting()
         wrapperSwap()
@@ -178,6 +179,38 @@ struct SteamBootstrapTest {
         check(!SteamBootstrap.unwrappedHelperRunning([(steam, at("20:57:13"))], swappedAt: swapped), "no browser yet: only the file is swapped")
         check(!SteamBootstrap.unwrappedHelperRunning([(valve, nil)], swappedAt: swapped), "a start that isn't known doesn't count")
         check(Engine.processStart(getpid()).map { $0 <= Date() && $0 > Date().addingTimeInterval(-600) } ?? false, "this test's own start is known")
+    }
+
+    /// The checklist's line under "Installing Steam" (SetupDetail.steam), from the same logs: which of
+    /// Steam's two packages, how far, how fast (from the log's own stamps), installing, restarting.
+    static func steamDetails() {
+        func detail(_ text: String, client: Bool = false) -> String { SetupDetail.steam(log: text, clientInstalled: client) }
+        func kb(_ value: Double) -> Int64 { Int64(value * 1024) }
+
+        check(detail(log(good, through: "Downloading manifest")) == L10n.t("Steam looks for its update …"), "asking for the update")
+        check(detail(log(good, through: " KB) ")) == L10n.t("Steam downloads update 1 of 2: %@",
+              SetupDetail.transfer(done: kb(7991), total: kb(336_229), bytesPerSecond: nil)), "update 1 of 2, no speed yet: \(detail(log(good, through: " KB) ")))")
+        // Real lines in a row (23.10.): the speed from 19:55:04 to 19:55:07.
+        let progress = """
+            [2026-10-23 19:55:01] Startup - updater built May 20 2024 14:26:54
+            [2026-10-23 19:55:03] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+            [2026-10-23 19:55:04] Update wird heruntergeladen (7,991 von 336,229 KB) …
+            [2026-10-23 19:55:04] Update wird heruntergeladen (22,650 von 336,229 KB) …
+            [2026-10-23 19:55:07] Update wird heruntergeladen (73,629 von 336,229 KB) …
+            [2026-10-23 19:55:07] Update wird heruntergeladen (78,791 von 336,229 KB) …
+            """
+        let speed = Double(78_791 - 22_650) * 1024 / 3
+        check(detail(crlf(progress)) == L10n.t("Steam downloads update 1 of 2: %@",
+              SetupDetail.transfer(done: kb(78_791), total: kb(336_229), bytesPerSecond: speed)), "with its speed: \(detail(progress))")
+        check(detail(log(good, through: "uninstalled manifest found")) == L10n.t("Steam installs update 1 of 2 …"), "installing update 1")
+        check(detail(log(good, through: "] Shutdown")) == L10n.t("Update installed – Steam starts again …"), "update 1 in, restarting")
+        check(detail(log(good, through: " KB) ", 3)).hasPrefix(L10n.t("Steam downloads update 2 of 2, the 64-bit version: %@", "")),
+              "update 2 of 2: \(detail(log(good, through: " KB) ", 3)))")
+        check(detail(log(good, through: "uninstalled manifest found", 2)) == L10n.t("Steam installs update 2 of 2, the 64-bit version …"), "installing update 2")
+        check(detail(log(good, through: "Verification complete", 3), client: true) == L10n.t("Steam starts for the first time …"), "the new client")
+        check(detail(log(fixed, through: "Verification complete")) == L10n.t("Steam is starting …"), "a start without a client yet")
+        check(detail(log(loop, through: "Bad NTFS transaction canary")) == L10n.t("Steam installs update 1 of 2 …"), "the loop's install, non-atomic")
+        check(detail(loopEnd) == L10n.t("Steam installs update 2 of 2, the 64-bit version …"), "the loop's end: win64")
     }
 
     /// What the first start's watchdog makes of each state.

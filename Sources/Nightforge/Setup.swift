@@ -58,9 +58,19 @@ final class SetupModel: ObservableObject {
         case failed(Step, String)
     }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet { stepChanged(from: Self.step(of: oldValue)) }
+    }
     /// Download progress of the current step, when it has one.
     @Published private(set) var progress: Double?
+    /// What the running step does right now, from what Nightforge can see (SetupDetail).
+    @Published private(set) var detail: String?
+    /// A finished step's line: how long it took, or what it found.
+    @Published private(set) var summaries: [Step: String] = [:]
+    private var stepStarted: [Step: Date] = [:]
+    /// The download under way, for its speed.
+    private var transfer = DownloadRate()
+    private var transferID: String?
     /// Steam's first start, before its sign-in window: it updates itself, then the window comes.
     @Published private(set) var steamStarting = false
 
@@ -203,13 +213,47 @@ final class SetupModel: ObservableObject {
 
     // MARK: - The setup
 
-    func currentStep() -> Step? {
+    func currentStep() -> Step? { Self.step(of: phase) }
+
+    private static func step(of phase: Phase) -> Step? {
         switch phase {
         case .running(let step), .failed(let step, _): return step
         case .needsRosetta: return .rosetta
         case .waitingForSignIn: return .signIn
         case .idle, .done: return nil
         }
+    }
+
+    /// A new step: its detail starts empty, and every step before it gets its line – how long it
+    /// took, unless it said something of its own (the Mac's).
+    private func stepChanged(from old: Step?) {
+        let new = currentStep()
+        guard new != old || phase == .done else { return }
+        detail = nil
+        let now = Date()
+        if let new, stepStarted[new] == nil { stepStarted[new] = now }
+        let through = phase == .done ? Step.allCases.count : new?.rawValue ?? 0
+        for step in Step.allCases where step.rawValue < through && summaries[step] == nil {
+            summaries[step] = SetupDetail.duration(now.timeIntervalSince(stepStarted[step] ?? now))
+        }
+    }
+
+    /// A component's download in `step`: how far and how fast, then that it's unpacked. Reports
+    /// that arrive after the step moved on are dropped.
+    private func showDownload(_ component: Component, _ fraction: Double, in step: Step) {
+        guard currentStep() == step else { return }
+        if transferID != component.id {
+            transferID = component.id
+            transfer = DownloadRate()
+        }
+        transfer.add(bytes: fraction * Double(component.size))
+        detail = SetupDetail.component(component, fraction: fraction, bytesPerSecond: transfer.bytesPerSecond)
+    }
+
+    /// The files wineboot lays down in Windows' system folder.
+    nonisolated private static func systemFiles() -> Int {
+        let system32 = Engine.prefix.appendingPathComponent("drive_c/windows/system32").path
+        return (try? FileManager.default.contentsOfDirectory(atPath: system32))?.count ?? 0
     }
 
     func isFinished(_ step: Step) -> Bool {
@@ -231,6 +275,7 @@ final class SetupModel: ObservableObject {
                 phase = .needsRosetta
                 return
             }
+            summaries[.rosetta] = SetupDetail.mac(freeBytes: LibraryModel.freeSpace(at: FileManager.default.homeDirectoryForCurrentUser))
 
             step = .engine
             phase = .running(.engine)
@@ -244,10 +289,16 @@ final class SetupModel: ObservableObject {
             let total = Double(engineComponent.size + graphicsComponent.size)
             let engineShare = Double(engineComponent.size) / total
             let engineDir = try await ComponentStore.shared.install(engineComponent) { value in
-                Task { @MainActor in self.progress = value * engineShare }
+                Task { @MainActor in
+                    self.progress = value * engineShare
+                    self.showDownload(engineComponent, value, in: .engine)
+                }
             }
             _ = try await ComponentStore.shared.install(graphicsComponent) { value in
-                Task { @MainActor in self.progress = engineShare + value * (1 - engineShare) }
+                Task { @MainActor in
+                    self.progress = engineShare + value * (1 - engineShare)
+                    self.showDownload(graphicsComponent, value, in: .engine)
+                }
             }
             progress = nil
             guard let wine = Engine.wineBinary(in: engineDir) else { throw SetupError.engineBroken }
@@ -256,17 +307,39 @@ final class SetupModel: ObservableObject {
             phase = .running(.environment)
             if !FileManager.default.fileExists(atPath: Engine.prefix.appendingPathComponent("drive_c").path) {
                 try FileManager.default.createDirectory(at: Engine.prefix, withIntermediateDirectories: true)
-                guard try await Engine.run(wine, ["wineboot", "--init"]) == 0 else { throw SetupError.environmentFailed }
+                detail = SetupDetail.windows(systemFiles: 0)
+                // Windows' system files, counted as wineboot lays them down.
+                let counting = Task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        let count = await Engine.offMain { Self.systemFiles() }
+                        if !Task.isCancelled, currentStep() == .environment { detail = SetupDetail.windows(systemFiles: count) }
+                    }
+                }
+                let status = try await Engine.run(wine, ["wineboot", "--init"])
+                counting.cancel()
+                guard status == 0 else { throw SetupError.environmentFailed }
             }
             // Graphics layers, D3DMetal, the controller package and the game environment, the same way
             // every later start checks them (off the main thread: it copies files and runs regedit).
-            _ = try await Engine.ensureEngine()
+            _ = try await Engine.ensureEngine { step in
+                Task { @MainActor in
+                    if case .downloading(let component, let fraction) = step {
+                        self.showDownload(component, fraction, in: .environment)
+                    } else if self.currentStep() == .environment {
+                        self.detail = SetupDetail.engine(step)
+                    }
+                }
+            }
 
             step = .steam
             phase = .running(.steam)
             if !Engine.isSteamInstalled {
+                detail = L10n.t("Downloading the Steam installer …")
                 let installer = try await downloadSteamSetup()
                 defer { try? FileManager.default.removeItem(at: installer) }
+                let size = (try? installer.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                detail = L10n.t("Installing Steam (installer: %@) …", Format.bytes(Int64(size)))
                 _ = try await Engine.run(wine, [installer.path, "/S"])
                 guard Engine.isSteamInstalled else { throw SetupError.steamInstallFailed }
             }
@@ -329,6 +402,7 @@ final class SetupModel: ObservableObject {
         steamStarting = true
         defer { steamStarting = false }
         try Engine.startSteam(wine)
+        detail = L10n.t("Steam is starting …")
 
         while true {
             try await Task.sleep(for: .seconds(2))
@@ -342,8 +416,10 @@ final class SetupModel: ObservableObject {
             // the install: that cut it off, and Steam started over every 13 s), the wrapper goes in.
             // A client that hasn't started its browser yet starts the wrapper itself; Steam is
             // restarted only when Valve's already runs.
-            let bootstrap = SteamBootstrap(steamRoot: Engine.steamRoot)
+            let log = SteamBootstrap.log(steamRoot: Engine.steamRoot)
+            let bootstrap = SteamBootstrap(log: log)
             let clientInstalled = SteamBootstrap.clientInstalled(steamRoot: Engine.steamRoot)
+            detail = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
             if bootstrap == .idle, clientInstalled {
                 if Engine.installWebHelperWrapper() { swappedAt = Date() }
                 if let swappedAt, await Engine.offMain({ Engine.unwrappedWebHelperRunning(swappedAt: swappedAt) }) {
@@ -382,6 +458,7 @@ final class SetupModel: ObservableObject {
     /// a Steam started while the old one was still going away hung right after its browser came
     /// up (29.10.2026, 20:57:19, until a restart 90 s later).
     private func restartSteam(_ wine: URL) async throws {
+        detail = L10n.t("Restarting Steam …")
         await Engine.offMain { Engine.stopAll(wine) }
         var waited = 0
         while waited < 40, await Engine.offMain({ !Engine.ownProcesses().isEmpty }) {
