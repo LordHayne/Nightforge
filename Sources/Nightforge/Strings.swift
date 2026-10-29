@@ -916,6 +916,100 @@ enum L10n {
         "Preparing the download from %@ …": "Download von %@ wird vorbereitet …",
         "%@ and %@": "%@ und %@",
 
+        // Home's stage (2d) and "To start with"
+        "To start with": "Für den Anfang",
+        "Continue playing, then to start with": "Weiterspielen, dann für den Anfang",
+        "%@ · %ld of %ld": "%@ · %ld von %ld",
+        "Previous game": "Vorheriges Spiel",
+        "Next game": "Nächstes Spiel",
+        "Recommended to start": "Empfohlen zum Start",
+        "Continue playing · %@": "Weiterspielen · %@",
+        "Up next": "Als Nächstes",
+        "The Mac version runs without any Windows translation": "Die Mac-Version läuft ganz ohne Windows-Übersetzung",
+        "Runs great on this Mac": "Läuft auf diesem Mac super",
+        "Runs on this Mac with tweaks Nightforge applies by itself": "Läuft auf diesem Mac mit Anpassungen, die Nightforge selbst vornimmt",
+        "Not tested yet – most games like it run anyway": "Noch nicht getestet – die meisten solcher Spiele laufen trotzdem",
+        "%@, and you play it fully with a controller.": "%@, und du spielst es voll mit dem Controller.",
+        "%@. A controller does most of it; some menus want a mouse or keyboard.": "%@. Mit dem Controller geht das meiste, manche Menüs brauchen Maus oder Tastatur.",
+        "%@. It's played with mouse and keyboard.": "%@. Gespielt wird mit Maus und Tastatur.",
+        "Already on your Mac. %@": "Schon auf deinem Mac. %@",
+        "Comes as its Mac version – the first time, Nightforge sets up Steam for Mac for it, once, in a few minutes.":
+            "Kommt als Mac-Version – beim ersten Mal richtet Nightforge dafür Steam für Mac ein, einmalig in wenigen Minuten.",
+        "Downloads in the background – you can browse on, and your Mac stays awake.": "Lädt im Hintergrund – du kannst weiter stöbern, und dein Mac bleibt wach.",
+
+        // First start: the controller test beside the checklist
+        "Controller detected: %@": "Controller erkannt: %@",
+        "Press a few buttons – they light up.": "Drück ein paar Tasten – sie leuchten auf.",
+        "Connect your controller": "Schließ deinen Controller an",
+        "By Bluetooth or USB cable – Nightforge recognises PlayStation and Xbox controllers by itself.":
+            "Per Bluetooth oder USB-Kabel – PlayStation- und Xbox-Controller erkennt Nightforge von selbst.",
+        "Press a button – here it says what it does in Nightforge.": "Drück eine Taste – hier steht, was sie in Nightforge macht.",
+        "Everything works": "Alles funktioniert",
+        "%ld of %ld tried": "%ld von %ld ausprobiert",
+        "Battery %ld %%": "Akku %ld %%",
+        "In Nightforge:": "In Nightforge:",
+        "Outline of a controller": "Umriss eines Controllers",
+        "Your controller – pressed buttons light up": "Dein Controller – gedrückte Tasten leuchten auf",
+        "View": "Ansicht",
+        "Menu": "Menü",
+        "D-pad": "Steuerkreuz",
+        "Left stick": "Linker Stick",
+        "Right stick": "Rechter Stick",
+        "Selects – on Home it starts the game": "Auswählen – auf der Startseite startet es das Spiel",
+        "Back, one level up – like Esc": "Zurück, eine Ebene hoch – wie Esc",
+        "Opens the selected game's page": "Öffnet die Seite des gewählten Spiels",
+        "Options for the selected game": "Optionen für das gewählte Spiel",
+        "Switches between Home and the library": "Wechselt zwischen Startseite und Bibliothek",
+        "Five games back": "Fünf Spiele zurück",
+        "Five games on": "Fünf Spiele weiter",
+        "Jumps to the first game": "Springt zum ersten Spiel",
+        "Jumps to the last game": "Springt zum letzten Spiel",
+        "Moves the selection": "Bewegt die Auswahl",
+        "Moves the selection – on Home, down goes into the library": "Bewegt die Auswahl – auf der Startseite geht’s nach unten in die Bibliothek",
+        "Moves the selection, like the d-pad": "Bewegt die Auswahl, wie das Steuerkreuz",
+        "Works – in games it's mostly the camera": "Funktioniert – in Spielen meist die Kamera",
+        "Works – Nightforge doesn't need this button, games do": "Funktioniert – Nightforge braucht diese Taste nicht, Spiele schon",
+        "Works – it belongs to macOS, Nightforge leaves it alone": "Funktioniert – sie gehört macOS, Nightforge lässt sie in Ruhe",
+        "Works – Nightforge doesn't need the touchpad, games do": "Funktioniert – Nightforge braucht das Touchpad nicht, Spiele schon",
+        "Paused while Steam waits for you to sign in": "Pausiert, solange Steam auf deine Anmeldung wartet",
+
+        // First start: the tips while Steam installs
+        "Good to know": "Gut zu wissen",
+        "Mac versions first": "Mac-Versionen zuerst",
+        "When a game also comes for the Mac, Nightforge takes the Mac version – without any Windows translation.":
+            "Gibt es ein Spiel auch für den Mac, nimmt Nightforge die Mac-Version – ganz ohne Windows-Übersetzung.",
+        "Sharp and smooth by itself": "Schön & flüssig, von selbst",
+        "Every game gets MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.":
+            "Jedes Spiel bekommt MetalFX-Schärfe und eine gleichmäßige Bildrate – 60 FPS auf einem 120-Hz-Display.",
+        "Anti-cheat? Then through GeForce Now": "Anti-Cheat? Dann über GeForce Now",
+        "Games whose anti-cheat needs Windows itself stream through GeForce Now – with your copy from Steam.":
+            "Spiele, deren Anti-Cheat Windows selbst braucht, streamt Nightforge über GeForce Now – mit deinem Steam-Spiel.",
+        "The menu button switches the view": "Die Menütaste wechselt die Ansicht",
+        "Options goes between Home and the library, △ opens a game's options, ○ goes back.":
+            "Options springt zwischen Startseite und Bibliothek, △ öffnet die Optionen eines Spiels, ○ geht zurück.",
+        "Menu goes between Home and the library, Y opens a game's options, B goes back.":
+            "Menü springt zwischen Startseite und Bibliothek, Y öffnet die Optionen eines Spiels, B geht zurück.",
+        "Swipe and pinch": "Wischen und Zoomen",
+        "Two fingers sideways go back. In the library, two fingers apart or together make the covers bigger or smaller.":
+            "Zwei Finger zur Seite wischen geht zurück. In der Bibliothek machst du die Cover mit zwei Fingern größer oder kleiner.",
+        "After every game Nightforge shows how long you played – and asks how it ran. It remembers that for the next start.":
+            "Nach jedem Spiel zeigt Nightforge, wie lange du gespielt hast – und fragt kurz, wie es lief. Das merkt es sich für den nächsten Start.",
+        "Downloads keep the Mac awake": "Downloads halten den Mac wach",
+        "While games download, your Mac doesn't go to sleep. The display may still turn off.":
+            "Solange Spiele laden, schläft dein Mac nicht ein. Der Bildschirm darf trotzdem ausgehen.",
+        "Off to the big screen": "Ab auf den großen Bildschirm",
+        "Plug in a monitor or TV: Nightforge and your games move over to it by themselves.":
+            "Steck einen Monitor oder Fernseher an: Nightforge und deine Spiele ziehen von selbst mit hinüber.",
+        "Charger too weak?": "Zu schwaches Netzteil?",
+        "If your charger gives too few watts for games, you see it at the top of the window – before the battery runs low.":
+            "Liefert dein Netzteil zu wenig Watt fürs Spielen, siehst du es oben in der Leiste – bevor der Akku leer ist.",
+        "Nightforge catches crashes": "Abstürze fängt Nightforge ab",
+        "When a game crashes with the newest engine, Nightforge starts it with the one before by itself.":
+            "Stürzt ein Spiel mit der neuesten Engine ab, startet Nightforge es von selbst mit der vorigen.",
+        "Your games in the Dock": "Deine Spiele im Dock",
+        "Right-click Nightforge in the Dock: your last five games are there to start right away.":
+            "Klick mit rechts auf Nightforge im Dock: Dort stehen deine letzten fünf Spiele zum Direktstart.",
+
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",
         "No component list available. Check your internet connection.": "Keine Komponentenliste verfügbar. Prüfe deine Internetverbindung.",

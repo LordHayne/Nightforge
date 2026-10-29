@@ -104,6 +104,23 @@ struct SwipeRecognizer {
     }
 }
 
+/// Two fingers sideways over Home's stage: one game per step, the way the covers move under them
+/// (content moving right – fingers right with natural scrolling – goes to the previous game).
+struct StageScroll {
+    static let step: CGFloat = 60
+    private var sum: CGFloat = 0
+
+    mutating func begin() { sum = 0 }
+
+    /// `dx`: the scroll's sideways movement as NSEvent reports it. -1, 0 or +1 games.
+    mutating func add(_ dx: CGFloat) -> Int {
+        sum += dx
+        if sum >= Self.step { sum -= Self.step; return -1 }
+        if sum <= -Self.step { sum += Self.step; return 1 }
+        return 0
+    }
+}
+
 /// The library's cover size, chosen by pinching on the trackpad (fingers apart: bigger), in
 /// steps and remembered.
 enum CoverSize: Int, CaseIterable {
@@ -233,11 +250,11 @@ struct SwipeLevel: ViewModifier {
     }
 }
 
-/// Marks where a swipe has to leave the scrolling to the view: Home's rail (only past its end)
-/// and the library's search field (never). Read by position when the fingers start, so it holds
+/// Marks where a swipe has to leave the scrolling to the view: Home's rail (only past its end),
+/// the library's search field (never) and Home's stage (sideways moves through its covers). Read by position when the fingers start, so it holds
 /// whether the pointer moved there or the view came to the pointer.
 struct SwipeArea: ViewModifier {
-    enum Kind { case rail, search }
+    enum Kind { case rail, search, stage }
 
     let kind: Kind
 
