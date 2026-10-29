@@ -1,0 +1,61 @@
+
+
+[2026-10-29 22:36:17] Startup - updater built May 20 2024 14:26:54
+[2026-10-29 22:36:17] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 22:36:17] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 22:36:17] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 22:36:17] 1. https://cdn.steamstatic.com, /client/, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 22:36:17] Installation wird überprüft …
+[2026-10-29 22:36:17] Unable to read and verify install manifest C:\Program Files (x86)\Steam\package\steam_client_win32.installed
+[2026-10-29 22:36:17] Verification complete
+[2026-10-29 22:36:17] Update wird heruntergeladen …
+[2026-10-29 22:36:17] Suche nach verfügbaren Updates …
+[2026-10-29 22:36:17] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 22:36:18] Manifest download: waiting for download to finish
+[2026-10-29 22:36:19] Manifest download: finished
+[2026-10-29 22:36:19] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+[2026-10-29 22:36:19] Download ist abgeschlossen.
+[2026-10-29 22:36:19] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win32 (1).
+[2026-10-29 22:36:20] Paket wird extrahiert …
+[2026-10-29 22:36:34] Update wird installiert …
+[2026-10-29 22:36:37] Committing NTFS transaction (0 non-transactional backup files)
+[2026-10-29 22:36:37] Bereinigen …
+[2026-10-29 22:36:37] Aktualisierung abgeschlossen, Steam wird geladen …
+[2026-10-29 22:36:37] Shutdown
+
+
+[2026-10-29 22:36:37] Startup - updater built Jan 29 2026 14:35:32
+[2026-10-29 22:36:37] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\Steam.exe" -no-cef-sandbox -cef-single-process -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 22:36:37] Windows 10.0.19045.0, 0, 2, 0, 1, 28 
+[2026-10-29 22:36:37] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 22:36:37] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 22:36:37] 1. https://client-update.steamstatic.com, /, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 22:36:37] Installation wird überprüft …
+[2026-10-29 22:36:37] Verifying file sizes only
+[2026-10-29 22:36:37] Unable to read and verify install manifest C:\Program Files (x86)\Steam\package\steam_client_win64.installed
+[2026-10-29 22:36:37] Verification complete
+[2026-10-29 22:36:37] Update wird heruntergeladen …
+[2026-10-29 22:36:37] Suche nach verfügbaren Updates …
+[2026-10-29 22:36:37] Downloading manifest: https://client-update.steamstatic.com/steam_client_win64
+[2026-10-29 22:36:37] Manifest download: waiting for download to finish
+[2026-10-29 22:36:38] Manifest download: finished
+[2026-10-29 22:36:38] Downloaded new manifest: /steam_client_win64 version 1792618285, installed version 0, existing pending version 0
+[2026-10-29 22:36:38] Download ist abgeschlossen.
+[2026-10-29 22:36:38] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win64 (1).
+[2026-10-29 22:36:38] Paket wird extrahiert …
+[2026-10-29 22:36:45] Update wird installiert …
+[2026-10-29 22:36:49] Committing NTFS transaction (0 non-transactional backup files)
+[2026-10-29 22:36:49] Bereinigen …
+[2026-10-29 22:36:49] Aktualisierung abgeschlossen, Steam wird geladen …
+[2026-10-29 22:36:49] Shutdown
+
+
+[2026-10-29 22:36:49] Startup - updater built Oct 21 2026 14:10:53
+[2026-10-29 22:36:49] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-29 22:36:49] Windows 10.0.19045.0, 0, 2, 0, 1, 28 
+[2026-10-29 22:36:49] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-29 22:36:49] Using the following download hosts for Public, Realm steamglobal
+[2026-10-29 22:36:49] 1. https://client-update.steamstatic.com, /, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-29 22:36:49] Installation wird überprüft …
+[2026-10-29 22:36:49] Verifying file sizes only
+[2026-10-29 22:36:49] Verification complete

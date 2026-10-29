@@ -277,6 +277,7 @@ enum L10n {
         "Downloading the Steam installer …": "Steam-Installer wird geladen …",
         "The Steam installer (%@) is running …": "Der Steam-Installer (%@) läuft …",
         "Steam is starting …": "Steam startet …",
+        "Downloading Steam's update: %@": "Steams Update wird geladen: %@",
         "Steam looks for its update …": "Steam sucht nach seinem Update …",
         "Steam downloads update 1 of 2: %@": "Steam lädt Update 1 von 2: %@",
         "Steam downloads update 2 of 2, the 64-bit version: %@": "Steam lädt Update 2 von 2, die 64-Bit-Version: %@",

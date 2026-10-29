@@ -5,7 +5,10 @@
 // first start of each bootstrapper (with -noverifyfiles) sat still for 90 s – and the second run,
 // where the client Nightforge started after swapping in the wrapper hung for 90 s. Also that the
 // wrapper isn't swapped in while an update goes in, nor before Steam's client is there, how Steam is
-// started then, and when Valve's own helper still runs: tests/SteamBootstrapTest/run.sh
+// started then, and when Valve's own helper still runs. And from the last live run (29.10.2026,
+// 21:35) and a scratch prefix with Steam's packages fetched ahead (same evening): the moment the
+// wrapper goes in and stays, the moment for the 64-bit packages, and Steam's browser hanging on
+// its way up: tests/SteamBootstrapTest/run.sh
 // The logs are Steam's real lines (German where Steam translates), the repeated package and
 // progress lines cut down to two per block.
 import Foundation
@@ -28,6 +31,10 @@ struct SteamBootstrapTest {
     static let fixed = (try? String(contentsOf: folder.appendingPathComponent("fixed-2026-10-29.txt"), encoding: .utf8)) ?? ""
     static let relaunch = (try? String(contentsOf: folder.appendingPathComponent("relaunch-2026-10-29-bootstrap.txt"), encoding: .utf8)) ?? ""
     static let relaunchConsole = (try? String(contentsOf: folder.appendingPathComponent("relaunch-2026-10-29-console.txt"), encoding: .utf8)) ?? ""
+    static let run5 = (try? String(contentsOf: folder.appendingPathComponent("run5-2026-10-29-bootstrap.txt"), encoding: .utf8)) ?? ""
+    static let run5Webhelper = (try? String(contentsOf: folder.appendingPathComponent("run5-2026-10-29-webhelper.txt"), encoding: .utf8)) ?? ""
+    static let run5Cef = (try? String(contentsOf: folder.appendingPathComponent("run5-2026-10-29-cef.txt"), encoding: .utf8)) ?? ""
+    static let prefetched = (try? String(contentsOf: folder.appendingPathComponent("prefetched-2026-10-29-bootstrap.txt"), encoding: .utf8)) ?? ""
 
     /// The log as it stood when the `occurrence`-th line containing `marker` had just been written.
     static func log(_ text: String, through marker: String, _ occurrence: Int = 1) -> String {
@@ -53,8 +60,8 @@ struct SteamBootstrapTest {
     static func crlf(_ text: String) -> String { text.replacingOccurrences(of: "\n", with: "\r\n") }
 
     static func main() {
-        check(!good.isEmpty && !loop.isEmpty && !loopEnd.isEmpty && !fixed.isEmpty && !relaunch.isEmpty && !relaunchConsole.isEmpty,
-              "the logs are there")
+        check(!good.isEmpty && !loop.isEmpty && !loopEnd.isEmpty && !fixed.isEmpty && !relaunch.isEmpty && !relaunchConsole.isEmpty
+              && !run5.isEmpty && !run5Webhelper.isEmpty && !run5Cef.isEmpty && !prefetched.isEmpty, "the logs are there")
         goodRun()
         theLoop()
         afterTheFix()
@@ -65,6 +72,9 @@ struct SteamBootstrapTest {
         decisions()
         starting()
         wrapperSwap()
+        swapMoment()
+        clientPackagesMoment()
+        browserHang()
         print(failures == 0 ? "✓ SteamBootstrap" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -307,5 +317,81 @@ struct SteamBootstrapTest {
         check(size(helper) == 150_000 && size(cef.appendingPathComponent("steamwebhelper_real.exe")) == 1_200_000,
               "the wrapper in place, Valve's helper beside it")
         check(!Engine.installWebHelperWrapper(steamRoot: root, wrapper: wrapper), "once only")
+    }
+
+    /// Run 5 (29.10.2026, live): win64 went in at 21:36:34, and Steam's own restart checked its
+    /// files ("Verifying file sizes only") – in a scratch prefix that check put Valve's helper back
+    /// over a wrapper swapped in before it. Right after "Verification complete" it stays.
+    static func swapMoment() {
+        check(!SteamBootstrap.verified(log: log(run5, through: "Verifying file sizes only", 2)), "Steam's restart checks its files: not yet")
+        check(SteamBootstrap.verified(log: log(run5, through: "Verification complete", 3)), "its check is through: now")
+        check(SteamBootstrap.verified(log: crlf(log(run5, through: "Verification complete", 3))), "with Windows line ends too")
+        check(SteamBootstrap.verified(log: log(run5, through: "Verification skipped")), "a start told not to check: now")
+        check(!SteamBootstrap.verified(log: log(run5, through: "Paket wird extrahiert", 2)), "while win64 goes in: no")
+        check(!SteamBootstrap.verified(log: log(run5, through: "] Shutdown", 2)), "win64 in, before the restart: no")
+        check(!SteamBootstrap.verified(log: log(run5, through: "Downloaded new manifest")), "while it downloads: no")
+        // The win64 step checks too, before its download – with no client yet, which the setup asks for as well.
+        check(SteamBootstrap.verified(log: log(run5, through: "Verification complete", 2)), "the win64 step's own check")
+        check(SteamBootstrap.verified(log: log(good, through: "Verification complete", 3)), "23.10.: the new client's check")
+        check(!SteamBootstrap.verified(log: ""), "no log: nothing checked")
+    }
+
+    /// The 32-bit step's clean-up deletes every package file (a scratch prefix, 29.10.2026), and
+    /// the next bootstrapper looks for its own a second after its "Shutdown": in between, the
+    /// 64-bit client's packages go in. With them there, it fetched nothing (`prefetched`).
+    static func clientPackagesMoment() {
+        check(!SteamBootstrap.clientPackagesDue(log: log(run5, through: "Downloaded new manifest")), "the 32-bit step downloading: not yet")
+        check(!SteamBootstrap.clientPackagesDue(log: log(run5, through: "Committing NTFS transaction")), "committed, the clean-up still to come: not yet")
+        check(SteamBootstrap.clientPackagesDue(log: log(run5, through: "] Shutdown")), "its Shutdown: now")
+        check(SteamBootstrap.clientPackagesDue(log: crlf(log(run5, through: "] Shutdown"))), "with Windows line ends too")
+        check(SteamBootstrap.clientPackagesDue(log: log(run5, through: "Startup - updater built", 2)), "the next bootstrapper has begun: still")
+        check(SteamBootstrap.clientPackagesDue(log: log(run5, through: "Verification complete", 2)), "it checked its files: still")
+        check(!SteamBootstrap.clientPackagesDue(log: log(run5, through: "Downloaded new manifest", 2)), "it has its manifest: too late")
+        check(!SteamBootstrap.clientPackagesDue(log: run5), "the log's end: over")
+        check(SteamBootstrap.clientPackagesDue(log: log(good, through: "] Shutdown")), "23.10. as well")
+        check(!SteamBootstrap.clientPackagesDue(log: ""), "no log: no")
+
+        check(SteamBootstrap.clientPackagesDue(log: log(prefetched, through: "] Shutdown")), "fetched ahead: the same moment")
+        check(!prefetched.contains("missing or incorrect size"), "fetched ahead, neither step had a package to fetch")
+        check(SteamBootstrap.verified(log: log(prefetched, through: "Verification complete", 3)), "and the wrapper's moment came as before")
+    }
+
+    /// Run 5's browsers (webhelper.txt, cef_log.txt): Valve's (604, ended at once), the first
+    /// wrapped one (404, 21:36:40), hung after Chrome began, and the next (404 again, 21:37:05),
+    /// through in under a second. The pid comes back after every restart; the stamps tell them apart.
+    static func browserHang() {
+        let valve = SteamBrowser(webhelperLog: log(run5Webhelper, through: "Disabling GPU"), cefLog: "")
+        check(valve.launch?.contains("pid: 604") == true && !valve.chromeStarted && !valve.running, "Valve's: launched, nothing more")
+        check(!valve.hung(sinceLaunch: 10, sinceChrome: nil), "not hung after 10 s without Chrome")
+        check(valve.hung(sinceLaunch: 16, sinceChrome: nil), "hung after 15 s")
+
+        let hung = SteamBrowser(webhelperLog: log(run5Webhelper, through: "NVIDIA AA"), cefLog: log(run5Cef, through: "WSALookupServiceBegin"))
+        check(hung.launch?.contains("pid: 404") == true && hung.chromeStarted && !hung.running, "21:36:40: Chrome began, no message loop")
+        check(!hung.hung(sinceLaunch: 6, sinceChrome: 4), "not hung 4 s after Chrome began")
+        check(hung.hung(sinceLaunch: 7, sinceChrome: 6), "hung 6 s after")
+        let crlfHung = SteamBrowser(webhelperLog: crlf(log(run5Webhelper, through: "NVIDIA AA")), cefLog: crlf(log(run5Cef, through: "WSALookupServiceBegin")))
+        check(crlfHung == hung, "with Windows line ends too")
+
+        let next = SteamBrowser(webhelperLog: log(run5Webhelper, through: "NVIDIA AA", 2), cefLog: log(run5Cef, through: "WSALookupServiceBegin"))
+        check(next.launch?.contains("21:37:05") == true && !next.chromeStarted, "21:37:05, same pid: the hung start's Chrome isn't its")
+        let up = SteamBrowser(webhelperLog: run5Webhelper, cefLog: run5Cef)
+        check(up.chromeStarted && up.running, "21:37:05: through to its message loop")
+        check(!up.hung(sinceLaunch: 60, sinceChrome: 60), "a browser that's up isn't hung")
+        check(SteamBrowser(webhelperLog: "", cefLog: "") == SteamBrowser(webhelperLog: "", cefLog: run5Cef), "no launch: nothing")
+
+        // The setup's view: from when it saw each, and not the launch from before its own (re)start.
+        let at = Date()
+        var watch = SteamBrowser.Watch()
+        watch.ignore(hung.launch)
+        check(!watch.hung(hung, now: at.addingTimeInterval(60)), "the launch from before the restart doesn't count")
+        watch = SteamBrowser.Watch()
+        check(!watch.hung(hung, now: at), "first seen: not hung")
+        check(!watch.hung(hung, now: at.addingTimeInterval(4)), "4 s later: not yet")
+        check(watch.hung(hung, now: at.addingTimeInterval(6)), "6 s later: hung")
+        check(!watch.hung(next, now: at.addingTimeInterval(7)), "a new launch starts over")
+        check(!watch.hung(up, now: at.addingTimeInterval(30)), "up: never hung")
+        var slow = SteamBrowser.Watch()
+        check(!slow.hung(valve, now: at) && !slow.hung(valve, now: at.addingTimeInterval(14)), "no Chrome yet: 15 s")
+        check(slow.hung(valve, now: at.addingTimeInterval(16)), "then hung")
     }
 }
