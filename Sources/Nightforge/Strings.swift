@@ -275,7 +275,7 @@ enum L10n {
         "Setting up the graphics layers …": "Grafik-Schichten werden eingerichtet …",
         "Setting up the game environment …": "Spielumgebung wird eingerichtet …",
         "Downloading the Steam installer …": "Steam-Installer wird geladen …",
-        "Installing Steam (installer: %@) …": "Steam wird installiert (Installer: %@) …",
+        "The Steam installer (%@) is running …": "Der Steam-Installer (%@) läuft …",
         "Steam is starting …": "Steam startet …",
         "Steam looks for its update …": "Steam sucht nach seinem Update …",
         "Steam downloads update 1 of 2: %@": "Steam lädt Update 1 von 2: %@",

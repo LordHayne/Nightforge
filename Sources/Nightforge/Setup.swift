@@ -339,7 +339,7 @@ final class SetupModel: ObservableObject {
                 let installer = try await downloadSteamSetup()
                 defer { try? FileManager.default.removeItem(at: installer) }
                 let size = (try? installer.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                detail = L10n.t("Installing Steam (installer: %@) …", Format.bytes(Int64(size)))
+                detail = L10n.t("The Steam installer (%@) is running …", Format.bytes(Int64(size)))
                 _ = try await Engine.run(wine, [installer.path, "/S"])
                 guard Engine.isSteamInstalled else { throw SetupError.steamInstallFailed }
             }
