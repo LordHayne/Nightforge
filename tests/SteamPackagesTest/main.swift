@@ -1,8 +1,9 @@
 // Checks Steam's update as Nightforge fetches it ahead (SteamPackages, SteamPrefetch): the packages
 // Valve's two client manifests name (fetched 29.10.2026) against the ones Steam's bootstrapper
-// asked for in the live run the same evening ("Package file … missing or incorrect size",
-// tests/SteamBootstrapTest/run5-2026-10-29-bootstrap.txt), a manifest that names anything but a
-// file, and how finished downloads go into Steam's package folder: tests/SteamPackagesTest/run.sh
+// asked for in the live runs the same evening ("Package file … missing or incorrect size": run 5,
+// tests/SteamBootstrapTest/run5-2026-10-29-bootstrap.txt, all of them; run 6, with the packages
+// fetched ahead, the two that weren't), a manifest that names anything but a file, and how
+// finished downloads go into Steam's package folder: tests/SteamPackagesTest/run.sh
 import Foundation
 
 @main
@@ -21,9 +22,10 @@ struct SteamPackagesTest {
     static let win64 = (try? String(contentsOf: folder.appendingPathComponent("steam_client_win64-2026-10-29.vdf"), encoding: .utf8)) ?? ""
     static let run5 = (try? String(contentsOf: folder.deletingLastPathComponent()
         .appendingPathComponent("SteamBootstrapTest/run5-2026-10-29-bootstrap.txt"), encoding: .utf8)) ?? ""
+    static let run6 = (try? String(contentsOf: folder.appendingPathComponent("run6-2026-10-29-bootstrap.txt"), encoding: .utf8)) ?? ""
 
     static func main() {
-        check(!win32.isEmpty && !win64.isEmpty && !run5.isEmpty, "the manifests and the log are there")
+        check(!win32.isEmpty && !win64.isEmpty && !run5.isEmpty && !run6.isEmpty, "the manifests and the logs are there")
         asSteamAsked()
         notAFile()
         placing()
@@ -32,10 +34,10 @@ struct SteamPackagesTest {
         exit(failures == 0 ? 0 : 1)
     }
 
-    /// The names Steam asked for in each of its two update steps, in the live run.
-    static func asked() -> [[String]] {
+    /// The names Steam asked for in each of its update steps that asked for any, in a live run.
+    static func asked(_ log: String) -> [[String]] {
         var steps: [[String]] = []
-        for line in run5.split(whereSeparator: \.isNewline) {
+        for line in log.split(whereSeparator: \.isNewline) {
             if line.contains("Downloaded new manifest") { steps.append([]) }
             guard let range = line.range(of: "Package file "), let end = line.range(of: " missing or incorrect size") else { continue }
             steps[steps.count - 1].append(String(line[range.upperBound..<end.lowerBound]))
@@ -43,16 +45,22 @@ struct SteamPackagesTest {
         return steps.filter { !$0.isEmpty }
     }
 
-    /// The 32-bit step asked for exactly what its manifest names; the 64-bit step for all of its
-    /// own but the four the 32-bit step had brought already (the same files).
+    /// Run 5's 32-bit step asked for 19 packages, the 64-bit variants of CEF among them; run 6's,
+    /// with those 19 fetched ahead, for the 32-bit variants of the same two besides – so both
+    /// variants come down. The 64-bit step asked for all of its own but the four the 32-bit step
+    /// had brought already (the same files); in run 6, with them fetched ahead, for none.
     static func asSteamAsked() {
-        let steps = asked()
-        check(steps.count == 2, "two steps asked for packages: \(steps.count)")
-        guard steps.count == 2 else { return }
+        let steps = asked(run5)
+        let later = asked(run6)
+        check(steps.count == 2 && later.count == 1, "run 5: two steps asked, run 6: one – \(steps.count), \(later.count)")
+        guard steps.count == 2, later.count == 1 else { return }
         let first = SteamPackages.packages(manifest: win32)
         let second = SteamPackages.packages(manifest: win64)
-        check(Set(first.map(\.name)) == Set(steps[0]), "win32: as asked – \(Set(first.map(\.name)).symmetricDifference(steps[0]))")
-        check(first.count == 19, "win32: 19 packages, \(first.count)")
+        let both = Set(steps[0]).union(later[0])
+        check(Set(first.map(\.name)) == both, "win32: what either run asked for – \(Set(first.map(\.name)).symmetricDifference(both))")
+        check(first.count == 21 && later[0].allSatisfy { !steps[0].contains($0) }, "win32: 21 packages, \(first.count)")
+        check(later[0].allSatisfy { $0.hasPrefix("bins_cef_win32.zip") || $0.hasPrefix("bins_webhelpers_win32.zip") },
+              "run 6 missed only the 32-bit variants: \(later[0])")
         let kept = Set(second.map(\.name)).intersection(first.map(\.name))
         check(Set(second.map(\.name)) == Set(steps[1]).union(kept), "win64: as asked, plus what win32 brought – \(Set(second.map(\.name)).symmetricDifference(Set(steps[1]).union(kept)))")
         check(kept.count == 4 && steps[1].count == 14, "win64: 14 asked for, 4 already there")
@@ -65,10 +73,10 @@ struct SteamPackagesTest {
             }
             check(package.sha256?.count == 64, "\(package.name): a SHA-256")
         }
-        let cef = first.first { $0.name.hasPrefix("bins_cef_win32") }
-        check(cef?.name.hasPrefix("bins_cef_win32_win7-64.zip.vz.") == true && cef?.size == 105_972_111, "the 64-bit Windows variant: \(cef?.name ?? "none")")
-        let steamrow = first.first { $0.name.hasPrefix("steam_win32") }
-        check(steamrow?.name.hasPrefix("steam_win32_steamrow.zip.vz.") == true, "the global realm's: \(steamrow?.name ?? "none")")
+        let cef = first.filter { $0.name.hasPrefix("bins_cef_win32") }.map(\.size).sorted()
+        check(cef == [94_381_050, 105_972_111], "CEF in both variants: \(cef)")
+        let steam = first.filter { $0.name.hasPrefix("steam_win32") }.map(\.name)
+        check(steam.count == 1 && steam[0].hasPrefix("steam_win32_steamrow.zip.vz."), "the global realm's alone: \(steam)")
         let movies = first.first { $0.name.hasPrefix("steamui_websrc_movies_all") }
         check(movies == SteamPackages.Package(name: "steamui_websrc_movies_all.zip.f556f4b9c7e087e07c0fef2da2b1d9f27f734cff", size: 9_210_097,
               sha256: movies?.sha256), "no compressed file: the zip itself, its size from the manifest")

@@ -32,30 +32,35 @@ enum SteamPackages {
         var manifest: URL { server.appendingPathComponent("steam_client_" + rawValue) }
     }
 
-    /// The packages a client manifest names, as the bootstrapper picked them under Nightforge's
-    /// Wine (both live runs of 29.10.2026): the 64-bit Windows variant ("win7-64") or the global
-    /// realm's ("steamrow") where a package has variants, its compressed file ("zipvz", its size
+    /// The packages a client manifest names, as the bootstrapper picks them under Nightforge's
+    /// Wine: of a package with a variant for 64-bit Windows ("win7-64") both – it asked for that
+    /// one alone in one live run and for both in the next (29.10.2026, 21:35 and 23:27) – of one
+    /// with variants by realm the global one ("steamrow"); its compressed file ("zipvz", its size
     /// after the last "_") where there is one. Nothing usable: empty.
     static func packages(manifest text: String) -> [Package] {
         guard let root = VDF.parse(text)?.object,
               let client = root.first(where: { $0.key.hasPrefix("win") })?.value.object
         else { return [] }
-        return client.keys.sorted().compactMap { key -> Package? in
-            guard let entry = client[key]?.object else { return nil }  // "version", "ostype"
-            let chosen = entry["win7-64"]?.object ?? entry["steamrow"]?.object ?? entry
-            let package: Package
-            if let vz = chosen["zipvz"]?.string, let size = vz.split(separator: "_").last.flatMap({ Int64($0) }) {
-                package = Package(name: vz, size: size, sha256: chosen["sha2vz"]?.string)
-            } else if let file = chosen["file"]?.string, let size = chosen["size"]?.string.flatMap({ Int64($0) }) {
-                package = Package(name: file, size: size, sha256: chosen["sha2"]?.string)
-            } else {
-                return nil
-            }
-            // A file name, nothing that leads out of the folder it goes into.
-            guard !package.name.isEmpty, !package.name.contains("/"), !package.name.contains("\\"),
-                  !package.name.hasPrefix("."), package.size > 0 else { return nil }
-            return package
+        return client.keys.sorted().flatMap { key -> [Package] in
+            guard let entry = client[key]?.object else { return [] }  // "version", "ostype"
+            if let realm = entry["steamrow"]?.object { return package(realm).map { [$0] } ?? [] }
+            return ([entry] + (entry["win7-64"]?.object.map { [$0] } ?? [])).compactMap(package)
         }
+    }
+
+    private static func package(_ fields: [String: VDF]) -> Package? {
+        let package: Package
+        if let vz = fields["zipvz"]?.string, let size = vz.split(separator: "_").last.flatMap({ Int64($0) }) {
+            package = Package(name: vz, size: size, sha256: fields["sha2vz"]?.string)
+        } else if let file = fields["file"]?.string, let size = fields["size"]?.string.flatMap({ Int64($0) }) {
+            package = Package(name: file, size: size, sha256: fields["sha2"]?.string)
+        } else {
+            return nil
+        }
+        // A file name, nothing that leads out of the folder it goes into.
+        guard !package.name.isEmpty, !package.name.contains("/"), !package.name.contains("\\"),
+              !package.name.hasPrefix("."), package.size > 0 else { return nil }
+        return package
     }
 }
 
