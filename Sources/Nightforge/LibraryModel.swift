@@ -47,6 +47,8 @@ final class LibraryModel: ObservableObject {
     private var historyStep = NavigationHistory.Step.other
     /// The games on Home's rail, as indices into `games` (HomeRail).
     @Published private(set) var homeRail: [Int] = []
+    /// Where "To start with" begins on Home's rail (StarterPicks); nil once three games were played.
+    @Published private(set) var homeStartersFrom: Int?
     /// On Home, the "All games" tile after the rail is selected instead of a game.
     @Published private(set) var homeOnAllGames = false
     /// Games hidden from the library and pinned to Home (GameMarks).
@@ -1346,7 +1348,15 @@ final class LibraryModel: ObservableObject {
         }
         let first = route.level == .library ? gridLayout.order.first ?? 0 : 0
         selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.holds(previous) }) ?? first
-        homeRail = words.isEmpty && !showingHidden ? HomeRail.pick(games, pinned: pinnedGames) : []
+        if words.isEmpty && !showingHidden {
+            let shown = games
+            let stage = HomeRail.stage(shown, pinned: pinnedGames) { StarterPicks.order(shown, facts: starterFacts) }
+            homeRail = stage.rail
+            homeStartersFrom = stage.startersFrom
+        } else {
+            homeRail = []
+            homeStartersFrom = nil
+        }
         switch route {
         case .detail(let id, let from) where !games.contains(where: { $0.holds(id) }):
             route = from == .home ? .home : .library  // its game is gone (another scan, another version)
@@ -1523,6 +1533,26 @@ final class LibraryModel: ObservableObject {
     /// The place of Home's selection on its rail (the tile after the games for "All games").
     var homePlace: Int {
         homeOnAllGames ? homeRail.count : homeRail.firstIndex(of: selectedIndex) ?? 0
+    }
+
+    /// What a place on Home's stage is: played lately; the first start Nightforge recommends and
+    /// the other starts (nothing played yet); a start after what was played ("Up next"); or, in a
+    /// library with three games played lately, just the next game.
+    enum HomeRole: Equatable { case played, recommended, starter, upNext, next }
+
+    func homeRole(place: Int) -> HomeRole {
+        HomeRail.role(place: place, startersFrom: homeStartersFrom, count: homeRail.count)
+    }
+
+    /// What StarterPicks weighs, from what this Mac knows about the game.
+    func starterFacts(_ game: Game) -> StarterFacts {
+        let steam = game.entries.first { $0.provider == .steam }
+        let score = game.metascore ?? steam.flatMap {
+            SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot)?.metascore ?? Metascores.cached($0.appID)
+        }
+        return StarterFacts(installed: game.isInstalled, level: compatibility(of: game).level, controller: game.controller,
+                            mac: game.platform == .mac || (game.macNative && game.mac64), metascore: score,
+                            size: game.downloadSize ?? game.sizeOnDisk)
     }
 
     /// Play from somewhere else (a message's button, the Dock menu, a link): shows the game, then
