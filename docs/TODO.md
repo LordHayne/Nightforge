@@ -378,8 +378,9 @@ Bekannte Lücken (bewusst, siehe Roadmap 7.3):
 - Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
   64-Bit, läuft aber schlecht, gibt es noch keinen Weg zur Windows-Version außer Deinstallieren + Datei `GOG/mac-unfit.json`.
 - Galaxys „Common Redistributables“ werden nicht vorab installiert (wie bei Epic: aus `wine.log` gelernt).
-- Der Text in „Nightforge vollständig entfernen“ nennt die Spiele „Windows-Spiele … bleiben in deiner Steam-Bibliothek“ –
-  stimmt für Epic und GOG (und GOGs Mac-Versionen, die jetzt mitzählen) nicht ganz.
+- Controller-Unterstützung kennt nur Steam: Ein Spiel nur von GOG (oder Epic) hat keine Angabe – auf der Bühne sagt
+  „Für den Anfang“ dann nichts über den Controller (statt „Gespielt wird mit Maus und Tastatur“), und der Controller-Filter
+  findet es nicht. GOGs `api.gog.com/v2/games/<id>` nennt `controller_support` unter den Features – ein Abruf pro Spiel.
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 

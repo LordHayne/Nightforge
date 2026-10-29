@@ -21,7 +21,7 @@ struct StageTest {
         return game
     }
 
-    static func facts(_ installed: Bool = false, _ level: Compatibility.Level = .great, _ controller: ControllerSupport = .full,
+    static func facts(_ installed: Bool = false, _ level: Compatibility.Level = .great, _ controller: ControllerSupport? = .full,
                       mac: Bool = false, score: Int? = nil, gb: Int64 = 10) -> StarterFacts {
         StarterFacts(installed: installed, level: level, controller: controller, mac: mac, metascore: score, size: gb << 30)
     }
@@ -93,6 +93,13 @@ struct StageTest {
 
         // The sentence says what it knows.
         check(StarterPicks.reason(facts(true)) != StarterPicks.reason(facts()), "an installed start says so")
+        // A game only Epic or GOG has: nobody said how it plays with a controller.
+        let unknown = facts(false, .great, nil, mac: true)
+        check(([.full, .partial, .none] as [ControllerSupport]).allSatisfy { StarterPicks.reason(unknown) != StarterPicks.reason(facts(false, .great, $0, mac: true)) },
+              "controller support not known: the sentence claims none")
+        check(StarterPicks.rank(facts(false, .great, .full)).lexicographicallyPrecedes(StarterPicks.rank(facts(false, .great, nil)))
+              && StarterPicks.rank(facts(false, .great, nil)).lexicographicallyPrecedes(StarterPicks.rank(facts(false, .great, ControllerSupport.none))),
+              "and it ranks between a game with full support and one without")
         check(!StarterPicks.reason(facts(mac: true)).isEmpty && StarterPicks.reason(facts(mac: true)) != StarterPicks.reason(facts()),
               "a Mac version says so")
 

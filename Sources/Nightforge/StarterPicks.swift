@@ -4,7 +4,8 @@ import Foundation
 struct StarterFacts: Equatable {
     var installed: Bool
     var level: Compatibility.Level
-    var controller: ControllerSupport
+    /// nil: not known – only Steam says (a game only from Epic or GOG).
+    var controller: ControllerSupport?
     /// Nightforge would run its Mac version (it has one that runs on current Macs, or uses it already).
     var mac: Bool
     var metascore: Int?
@@ -35,7 +36,8 @@ enum StarterPicks {
     /// Smaller is better, place by place.
     static func rank(_ f: StarterFacts) -> [Int64] {
         let level: Int64 = f.level == .great ? 0 : f.level == .tweaks ? 1 : 2
-        let controller: Int64 = f.controller == .full ? 0 : f.controller == .partial ? 1 : 2
+        // Not known sits with "most of it": better than a game that says it has none.
+        let controller: Int64 = f.controller == .full ? 0 : f.controller == ControllerSupport.none ? 2 : 1
         return [f.installed ? 0 : 1, level, controller, f.mac ? 0 : 1, -Int64(f.metascore ?? 0), f.size > 0 ? f.size : .max]
     }
 
@@ -49,7 +51,8 @@ enum StarterPicks {
         switch f.controller {
         case .full: sentence = L10n.t("%@, and you play it fully with a controller.", runs)
         case .partial: sentence = L10n.t("%@. A controller does most of it; some menus want a mouse or keyboard.", runs)
-        case .none: sentence = L10n.t("%@. It's played with mouse and keyboard.", runs)
+        case .some(.none): sentence = L10n.t("%@. It's played with mouse and keyboard.", runs)
+        case nil: sentence = runs + "."  // nothing claimed that isn't known
         }
         return f.installed ? L10n.t("Already on your Mac. %@", sentence) : sentence
     }

@@ -1668,7 +1668,9 @@ final class LibraryModel: ObservableObject {
         let score = game.metascore ?? steam.flatMap {
             SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot)?.metascore ?? Metascores.cached($0.appID)
         }
-        return StarterFacts(installed: game.isInstalled, level: compatibility(of: game).level, controller: game.controller,
+        // Controller support only Steam knows; Epic and GOG don't say.
+        return StarterFacts(installed: game.isInstalled, level: compatibility(of: game).level,
+                            controller: steam == nil ? nil : game.controller,
                             mac: game.platform == .mac || (game.macNative && game.mac64), metascore: score,
                             size: game.downloadSize ?? game.sizeOnDisk)
     }
@@ -2528,8 +2530,9 @@ final class LibraryModel: ObservableObject {
     func revealSelected() {
         guard let game = selected else { return }
         let fm = FileManager.default
+        // Not downloaded yet from another store: the nearest folder there is on the way to it.
         let target = fm.fileExists(atPath: game.installDir.path) ? game.installDir
-            : game.provider == .steam ? game.steamRoot : game.installDir.deletingLastPathComponent()
+            : game.provider == .steam ? game.steamRoot : SpaceCheck.existingFolder(for: game.installDir)
         NSWorkspace.shared.activateFileViewerSelecting([target])
     }
 
