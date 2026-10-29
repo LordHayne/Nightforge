@@ -93,6 +93,17 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
   in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
   Mac-Spielen damit noch aufgeht.
+- **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
+  - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
+  - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
+  - Offen ist, ob macOS bei alten Mac-Ports mit dem synthetischen Xbox-Pad (`ControllerCompatibility`) mehr als einen Pad nachbildet.
+  - Nightforge selbst hängt sich an jeden Pad (`InputRouter`), beide steuern die Oberfläche.
+
+  Testen mit zwei Pads (DualSense + Xbox oder zwei DualSense):
+  - je ein Windows- und ein Mac-Spiel mit lokalem Koop aus der Bibliothek;
+  - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
+  - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
+  - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
 
 ## Darstellung und Leistung
 
@@ -385,12 +396,21 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     Apples Lizenztext, kein Quellcode-Knopf.
 - **Startseite direkt nach dem ersten Start** (Nutzer, 29.10., mehrfach: „wirkt sehr karg“, „zu leer“, „sieht
   langweilig aus“): Nach „Los geht's“ zeigt Home bei einem neuen Nutzer nur „Alle 100 Spiele“, „Bibliothek öffnen“
-  und ein Band mit der einzigen Kachel „Alle Spiele“. Brainstorming läuft in der Session design-setup-home
-  (Entwurfsseite mit mehreren Richtungen, Branch `claude/design-setup-home-df5622`); gebaut wird nach Freigabe und
-  nach dem Merge von 6.1.
-- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): rechts neben der Checkliste ein Controller-Test
-  im Glas-Look und ein Tipp-Karussell (Entwurf in derselben Session); links Live-Details unter dem laufenden Schritt
-  (6.1-Session). Kein Epic in der Ersteinrichtung.
+  und ein Band mit der einzigen Kachel „Alle Spiele“. **Gebaut und gemergt am 29.10. (a5103ef):** Home ist die
+  Bühne (Entwurf 2d, `HomeStage.swift`) mit „Für den Anfang“ (`StarterPicks.swift`). Offen: mit einem wirklich neuen
+  Konto ansehen (weniger als drei gespielte Spiele).
+- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): **gebaut und gemergt am 29.10. (a5103ef).**
+  Rechts neben der Checkliste stehen der Controller-Test mit Tasten-Chips und 11 Tipps; live mit DualSense geprüft.
+  Kein Epic in der Ersteinrichtung.
+- **Emulation** (Nutzer, 29.10., „was wäre, wenn Nightforge emulation machen könnte“; nur Brainstorming):
+  - Idee: Konsolenspiele in derselben Bibliothek, mit Covern und Controller-Bedienung wie alles andere.
+  - Emulatoren wären Komponenten wie legendary oder gogdl, z. B. RetroArch-Kerne, Dolphin, DuckStation, PPSSPP
+    oder PCSX2. Lizenzen (meist GPL) und Apple-Silicon-Versionen sind je Emulator zu prüfen.
+  - Grenzen: Nightforge liefert keine ROMs oder BIOS und lädt keine herunter, nur eigene Dumps des Spielers. Keine
+    Switch-Emulatoren: Nintendo hat 2024 Yuzu verklagt, Ryujinx wurde danach eingestellt.
+  - Vorbild und Konkurrenz auf dem Mac: OpenEmu. Nightforges Vorteil wäre eine einzige Bibliothek für Steam, Epic, GOG
+    und Konsolen.
+  - Erst besprechen: Umfang (welche Konsolen), Ordner für ROMs, Cover-Quelle, Speicherstände.
 - **Ersteinrichtung weiter beschleunigen** (optional, je etwa 20–30 s): Steams Client-Pakete selbst laden, während
   die Windows-Umgebung entsteht; die Windows-Umgebung aus einer Vorlage kopieren statt `wineboot` (heikel bei
   Wine-Versionswechseln).
