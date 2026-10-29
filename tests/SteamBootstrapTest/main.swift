@@ -1,8 +1,9 @@
 // Checks SteamBootstrap against Steam's own bootstrap logs: the first update on 23.10.2026 that went
 // through (win32, win64, then the new client) and the loop of 29.10.2026, where Nightforge swapped
-// in its steamwebhelper wrapper and restarted Steam in the middle of every install. Also that the
-// wrapper isn't swapped in while an update goes in: tests/SteamBootstrapTest/run.sh
-// The two logs are Steam's real lines (German where Steam translates), the repeated package and
+// in its steamwebhelper wrapper and restarted Steam in the middle of every install – its first four
+// starts and its last four, of 131. Also that the wrapper isn't swapped in while an update goes in:
+// tests/SteamBootstrapTest/run.sh
+// The logs are Steam's real lines (German where Steam translates), the repeated package and
 // progress lines cut down to two per block.
 import Foundation
 
@@ -19,7 +20,8 @@ struct SteamBootstrapTest {
 
     static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     static let good = (try? String(contentsOf: folder.appendingPathComponent("good-2026-10-23.txt"), encoding: .utf8)) ?? ""
-    static let loop = (try? String(contentsOf: folder.appendingPathComponent("loop-2026-10-29.txt"), encoding: .utf8)) ?? ""
+    static let loop = (try? String(contentsOf: folder.appendingPathComponent("loop-2026-10-29-start.txt"), encoding: .utf8)) ?? ""
+    static let loopEnd = (try? String(contentsOf: folder.appendingPathComponent("loop-2026-10-29-end.txt"), encoding: .utf8)) ?? ""
 
     /// The log as it stood when the `occurrence`-th line containing `marker` had just been written.
     static func log(_ text: String, through marker: String, _ occurrence: Int = 1) -> String {
@@ -45,7 +47,7 @@ struct SteamBootstrapTest {
     static func crlf(_ text: String) -> String { text.replacingOccurrences(of: "\n", with: "\r\n") }
 
     static func main() {
-        check(!good.isEmpty && !loop.isEmpty, "the two logs are there")
+        check(!good.isEmpty && !loop.isEmpty && !loopEnd.isEmpty, "the logs are there")
         goodRun()
         theLoop()
         decisions()
@@ -76,19 +78,27 @@ struct SteamBootstrapTest {
     }
 
     /// 29.10.: every start finds the downloaded update and starts installing it – until Nightforge
-    /// swapped the helper and restarted Steam, before "Committing"/"Shutdown" ever came.
+    /// swapped the helper and restarted Steam, before "Shutdown" ever came. The last starts were
+    /// Nightforge's "-shutdown" on its way out: that one got through, without "Committing" (the
+    /// non-atomic replacement doesn't commit), and the win64 update began.
     static func theLoop() {
         check(state(loop, through: "Verification complete") == .idle, "the old bootstrapper with -noverifyfiles: idle")
         check(state(loop, through: "Found pending update") == .installing, "pending update: installing")
         check(state(loop, through: "Paket wird extrahiert", 2) == .installing, "unpacking again: installing")
         check(state(loop, through: "Bad NTFS transaction canary") == .installing, "non-atomic replacement: installing")
-        let end = SteamBootstrap(log: loop)
-        check(end == .installing, "the log as the loop left it: installing")
-        check(!end.allowsHelperSwap, "no helper swap while it installs")
+        let cutOff = SteamBootstrap(log: loop)
+        check(cutOff == .installing, "the fourth start, cut off: installing")
+        check(!cutOff.allowsHelperSwap, "no helper swap while it installs")
         check(SteamBootstrap(log: crlf(loop)) == .installing, "with Windows line ends too")
-        // "-shutdown" on Steam's command line isn't the bootstrapper's "Shutdown".
-        let shutdownArgument = loop + #"[2026-10-29 19:34:46] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -shutdown"#
-        check(SteamBootstrap(log: shutdownArgument) == .installing, "-shutdown on the command line doesn't end the install")
+
+        check(state(loopEnd, through: "Paket wird extrahiert", 2) == .installing, "start 129: installing")
+        // Start 130 was "steam.exe -shutdown": its command line isn't the bootstrapper's "Shutdown".
+        check(state(loopEnd, through: "Found pending update", 3) == .installing, "start 130 with -shutdown: installing")
+        check(state(loopEnd, through: "Could not remove backup file") == .installing, "cleaning up: still installing")
+        check(state(loopEnd, through: "] Shutdown") == .updated, "done without Committing: updated")
+        check(SteamBootstrap(log: crlf(log(loopEnd, through: "] Shutdown"))) == .updated, "with Windows line ends too")
+        check(state(loopEnd, through: "Downloaded new manifest", 4) == .downloading, "then win64: downloading")
+        check(SteamBootstrap(log: loopEnd) == .installing, "the log's end, win64 going in: installing")
     }
 
     /// What the first start's watchdog makes of each state.

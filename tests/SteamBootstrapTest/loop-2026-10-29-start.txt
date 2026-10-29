@@ -16,9 +16,17 @@
 [2026-10-29 19:33:47] Checking for update on startup
 [2026-10-29 19:33:47] Suche nach verfügbaren Updates …
 [2026-10-29 19:33:47] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 19:33:47] Manifest download: send request
 [2026-10-29 19:33:47] Manifest download: waiting for download to finish
 [2026-10-29 19:33:48] Manifest download: finished
 [2026-10-29 19:33:48] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+[2026-10-29 19:33:48] Package file tenfoot_images_all.zip.vz.193cb8c4eb4446698ea2c0a9e8c4e6b6a623dac7_5572671 missing or incorrect size
+[2026-10-29 19:33:48] Package file steamui_websrc_all.zip.vz.3454fedc48870f10019f5c5707aa34b9445f8fce_25053126 missing or incorrect size
+[2026-10-29 19:33:48] Add pending download: https://cdn.steamstatic.com/client/tenfoot_images_all.zip.vz.193cb8c4eb4446698ea2c0a9e8c4e6b6a623dac7_5572671
+[2026-10-29 19:33:48] Manifest download: send request
+[2026-10-29 19:33:48] Add pending download: https://cdn.steamstatic.com/client/steamui_websrc_all.zip.vz.3454fedc48870f10019f5c5707aa34b9445f8fce_25053126
+[2026-10-29 19:33:49] Update wird heruntergeladen (6,501 von 336,229 KB) …
+[2026-10-29 19:33:49] Update wird heruntergeladen (10,345 von 336,229 KB) …
 [2026-10-29 19:34:12] Download ist abgeschlossen.
 [2026-10-29 19:34:12] Saving metrics to disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
 [2026-10-29 19:34:12] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win32 (1).
@@ -37,6 +45,7 @@
 [2026-10-29 19:34:23] Checking for update on startup
 [2026-10-29 19:34:23] Suche nach verfügbaren Updates …
 [2026-10-29 19:34:23] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 19:34:23] Manifest download: send request
 [2026-10-29 19:34:23] Manifest download: waiting for download to finish
 [2026-10-29 19:34:23] Manifest download: finished
 [2026-10-29 19:34:23] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
@@ -58,6 +67,7 @@
 [2026-10-29 19:34:36] Checking for update on startup
 [2026-10-29 19:34:36] Suche nach verfügbaren Updates …
 [2026-10-29 19:34:36] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-29 19:34:36] Manifest download: send request
 [2026-10-29 19:34:36] Manifest download: waiting for download to finish
 [2026-10-29 19:34:37] Manifest download: finished
 [2026-10-29 19:34:37] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
