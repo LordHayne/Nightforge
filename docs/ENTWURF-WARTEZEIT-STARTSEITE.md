@@ -35,6 +35,11 @@ Controller-Test und eine Tipp-Karte.
 - Mit Controller sind Körper und Tasten aus Glas. Gedrückte Teile leuchten in `Theme.sodium` mit Schein.
   L2/R2 füllen sich mit `value`, die Sticks bewegen ihre Kappe um bis zu 10 pt, und L3/R3 färben sie ein.
   Beim DualSense leuchtet die Lichtleiste am Touchpad.
+- **Schultertasten** (der Nutzer fand sie überlappend, 29.10.): Im Entwurf gibt es drei Varianten zum Umschalten.
+  „Bügel“ (Standard) zeigt L1/R1 als Band entlang der Schulter und L2/R2 als Kuppel darüber, mit Abstand.
+  „Mit Abstand“ behält die Kapseln, nur getrennt. „Seitlich“ setzt Glas-Anzeigen links und rechts neben das Pad,
+  bei denen L2/R2 sich mit dem Druck füllen. Die Formen stehen in `SHOULDER_SHAPES` in `ControllerTest.tsx`.
+  Welche es wird, sagt der Nutzer.
 
 **Daten.**
 
