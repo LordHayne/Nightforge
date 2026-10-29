@@ -21,16 +21,28 @@ enum MacSteam {
 
     static var bottle: Bottle { Bottle(name: "Steam for Mac", url: root) }
 
+    /// A first-start test with a home of its own (HOME and CFFIXED_USER_HOME set to an empty
+    /// folder, e.g. build/fh): Steam for Mac goes into that home too, and starts straight from its
+    /// program with Nightforge's environment. Through Launch Services it would get the real home,
+    /// sign in to the player's own Steam for Mac and sign their Windows Steam out.
+    static let isTestHome: Bool = {
+        guard let entry = getpwuid(getuid()), let real = entry.pointee.pw_dir else { return false }
+        let path = { (path: String) in URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+        return path(NSHomeDirectory()) != path(String(cString: real))
+    }()
+
     /// Steam.app – in Applications, where Valve's installer and Nightforge put it, or wherever
-    /// the player moved it (but not the client inside Steam's own folder).
+    /// the player moved it (but not the client inside Steam's own folder). A test home only has
+    /// its own.
     static var app: URL? {
         let fm = FileManager.default
-        let candidates = ["/Applications/Steam.app", NSHomeDirectory() + "/Applications/Steam.app"]
+        let own = NSHomeDirectory() + "/Applications/Steam.app"
+        let candidates = (isTestHome ? [own] : ["/Applications/Steam.app", own])
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
         if let found = candidates.first(where: { fm.fileExists(atPath: $0.appendingPathComponent("Contents/Info.plist").path) }) {
             return found
         }
-        guard let registered = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+        guard !isTestHome, let registered = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
               !registered.path.hasPrefix(root.path), !registered.path.hasPrefix("/Volumes/")
         else { return nil }
         return registered
@@ -42,6 +54,16 @@ enum MacSteam {
     static var hasSignedIn: Bool {
         let users = VDF.parse(contentsOf: root.appendingPathComponent("config/loginusers.vdf"))?["users"]?.object
         return !(users ?? [:]).isEmpty
+    }
+
+    /// The account Steam for Mac remembers, by its SteamID – the same as the Windows Steam's, or
+    /// the player uses it with another one (then Nightforge leaves it alone).
+    static var account: String? { SteamLogin.rememberedAccount(steamRoot: root) }
+
+    /// Its sign-in window waits, logged since `since`: its first start, or a remembered sign-in
+    /// that has run out.
+    static func waitingForCredentials(since: Date) -> Bool {
+        SteamLogin.waitingForCredentials(steamRoot: root, since: since)
     }
 
     /// Games can go through it: installed, and signed in once – or right now: Steam writes its
@@ -57,7 +79,13 @@ enum MacSteam {
     /// Signed out because the Wine Steam signed in with the same account (Engine.sessionReplaced).
     static var sessionReplaced: Bool { Engine.sessionReplaced(steamRoot: root) }
 
-    static var running: [NSRunningApplication] { NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) }
+    /// In a test home only its own Steam for Mac counts, not the player's.
+    static var running: [NSRunningApplication] {
+        let all = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        guard isTestHome else { return all }
+        let home = URL(fileURLWithPath: NSHomeDirectory()).resolvingSymlinksInPath().path + "/"
+        return all.filter { ($0.executableURL ?? $0.bundleURL)?.resolvingSymlinksInPath().path.hasPrefix(home) == true }
+    }
 
     /// The Steam client's process. NSRunningApplication doesn't always say (its pid can read -1),
     /// so it's looked up by its program: Steam.AppBundle/…/MacOS/steam_osx in Steam's folder.
@@ -91,12 +119,18 @@ enum MacSteam {
 
     // MARK: - Setup
 
+    /// Where Nightforge put Steam.app when it installed it into a Mac that had no Steam for Mac at
+    /// all – nothing of the player's in it, so the first start may take it back (removeFreshInstall).
+    private static let freshInstallKey = "macSteamFreshInstall"
+
     /// Downloads Valve's installer (a few MB), checks it's signed by Valve and puts Steam.app into
-    /// Applications – the player's own when the shared one isn't writable. Steam fetches the rest
-    /// of itself on its first start.
+    /// Applications – the player's own when the shared one isn't writable, or a test home's.
+    /// Steam fetches the rest of itself on its first start.
     static func install() async throws {
         guard !isInstalled else { return }
         let fm = FileManager.default
+        let untouched = !fm.fileExists(atPath: root.path)
+        let testHome = isTestHome
         let work = fm.temporaryDirectory.appendingPathComponent("nightforge-steam-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: work) }
@@ -112,7 +146,7 @@ enum MacSteam {
 
         let volume = work.appendingPathComponent("volume", isDirectory: true)
         try fm.createDirectory(at: volume, withIntermediateDirectories: true)
-        try await Task.detached(priority: .userInitiated) {
+        let installed = try await Task.detached(priority: .userInitiated) { () throws -> URL in
             let fm = FileManager.default
             guard run("/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", volume.path, image.path) == 0
             else { throw MacSteamError.installFailed }
@@ -121,12 +155,77 @@ enum MacSteam {
             guard run("/usr/bin/codesign", "--verify", "--deep", "--strict", "-R=" + codeRequirement, source.path) == 0
             else { throw MacSteamError.notFromValve }
             let shared = URL(fileURLWithPath: "/Applications", isDirectory: true)
-            let folder = fm.isWritableFile(atPath: shared.path)
-                ? shared : fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
+            let own = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).appendingPathComponent("Applications", isDirectory: true)
+            let folder = !testHome && fm.isWritableFile(atPath: shared.path) ? shared : own
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-            guard run("/usr/bin/ditto", source.path, folder.appendingPathComponent("Steam.app").path) == 0
+            let target = folder.appendingPathComponent("Steam.app", isDirectory: true)
+            guard run("/usr/bin/ditto", source.path, target.path) == 0
             else { throw MacSteamError.installFailed }
+            return target
         }.value
+        if untouched { UserDefaults.standard.set(installed.path, forKey: freshInstallKey) }
+    }
+
+    /// Takes back a Steam for Mac that Nightforge installed in the first start for an account with
+    /// no Mac version (it takes 1.2 GB once it has updated itself): only the one it put on a Mac
+    /// without any, while nobody has signed in to it and no game is in it. A later Mac version sets
+    /// it up again (MacSteamSetup).
+    static func removeFreshInstall() async {
+        let defaults = UserDefaults.standard
+        guard let path = defaults.string(forKey: freshInstallKey) else { return }
+        let fm = FileManager.default
+        let games = (try? fm.contentsOfDirectory(atPath: steamapps.appendingPathComponent("common").path)) ?? []
+        guard !hasSignedIn, games.filter({ !$0.hasPrefix(".") }).isEmpty, app?.path == path else { return }
+        if isRunning { await quit() }
+        guard !isRunning else { return }
+        try? fm.removeItem(at: URL(fileURLWithPath: path, isDirectory: true))
+        try? fm.removeItem(at: root)
+        defaults.removeObject(forKey: freshInstallKey)
+        startedByNightforge = false
+    }
+
+    /// Keeps the record of a fresh install only while it is one: once someone signs in, it's theirs.
+    static func keepFreshInstall() {
+        UserDefaults.standard.removeObject(forKey: freshInstallKey)
+    }
+
+    // MARK: - The first start
+
+    /// How far the first start has got Steam for Mac ready (prepare).
+    enum Preparation: Equatable {
+        case installing
+        /// Its update on its first start: how far, when its log says.
+        case updating(Double?)
+        /// Its sign-in window waits, hidden until the player's turn.
+        case waitingForSignIn
+        /// It remembers an account already (the player had Steam for Mac): nothing to start.
+        case remembered
+    }
+
+    /// The first start gets Steam for Mac ready while the Windows side sets itself up: Valve's
+    /// installer, then Steam's own update on its first start (289 MB, 53 s on 26.10.2026), up to
+    /// its sign-in window – which stays hidden (`hold`) until the player's turn. One that remembers
+    /// an account isn't started: signing in, it would sign the Windows Steam out.
+    @MainActor
+    static func prepare(report: (Preparation) -> Void) async throws {
+        report(.installing)
+        try await install()
+        if hasSignedIn {
+            report(.remembered)
+            return
+        }
+        hold(true)
+        let started = Date()
+        if !isRunning { start() }
+        while !Task.isCancelled {
+            if waitingForCredentials(since: started) {
+                report(.waitingForSignIn)
+                return
+            }
+            let update = Engine.steamUpdateStatus(steamRoot: root)
+            report(.updating((update.lastChange ?? .distantPast) >= started ? update.fraction : nil))
+            try await Task.sleep(for: .seconds(1))
+        }
     }
 
     // MARK: - Running it
@@ -141,11 +240,22 @@ enum MacSteam {
         }
         if !isRunning { startedByNightforge = true }
         if visible { allowVisible(for: 600) }
+        if isTestHome { return launchDirectly(app, arguments: visible ? [] : ["-silent"]) }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = visible
         configuration.hides = !visible
         configuration.arguments = visible ? [] : ["-silent"]
         NSWorkspace.shared.openApplication(at: app, configuration: configuration)
+    }
+
+    /// A test home's Steam for Mac: its program with Nightforge's environment (the test home), apart
+    /// from Nightforge like Steam (DetachedProcess). A steam:// command goes along as an argument,
+    /// which Steam's launcher hands to a client that already runs.
+    private static func launchDirectly(_ app: URL, arguments: [String]) {
+        let process = DetachedProcess()
+        process.executableURL = Bundle(url: app)?.executableURL ?? app.appendingPathComponent("Contents/MacOS/steam_osx")
+        process.arguments = arguments
+        try? process.run()
     }
 
     /// Steam's main window in front, for something the player does there (a question, the
@@ -180,6 +290,24 @@ enum MacSteam {
         return Date() < visibleUntil
     }
 
+    /// The first start holds Steam for Mac's sign-in window back while it gets it ready, so it
+    /// doesn't come up in the middle of the Windows setup (prepare); the window guard hides it
+    /// although nobody has signed in yet. Released when the player's turn comes.
+    private static var held = false
+
+    static func hold(_ on: Bool) {
+        visibleLock.lock()
+        held = on
+        visibleLock.unlock()
+        if on { hide() }
+    }
+
+    private static var isHeld: Bool {
+        visibleLock.lock()
+        defer { visibleLock.unlock() }
+        return held
+    }
+
     /// Back to the background after the player has dealt with it.
     static func hide() {
         for app in clientApps { app.hide() }
@@ -188,11 +316,12 @@ enum MacSteam {
     /// Keeps Steam for Mac out of sight while Nightforge runs. Its window comes up when it starts,
     /// after signing in, when it starts a game and when a game ends (macOS hands it the focus),
     /// and it doesn't even know the games Nightforge plays through Wine. It stays up only while
-    /// Steam waits for the player – a question before a start, a cloud conflict, its sign-in.
+    /// Steam waits for the player – a question before a start, a cloud conflict, its sign-in – and
+    /// not even then while the first start holds it back.
     @MainActor
     static func guardWindows() async {
         while !Task.isCancelled {
-            if clientApps.contains(where: { !$0.isHidden }), !allowedVisible, hasSignedIn, !waitingForPlayer {
+            if clientApps.contains(where: { !$0.isHidden }), !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
                 hide()
             }
             try? await Task.sleep(for: .seconds(1))
@@ -247,6 +376,7 @@ enum MacSteam {
     static func open(_ command: String, activate: Bool = false) {
         guard let app, let url = URL(string: "steam://" + command) else { return }
         if !isRunning { startedByNightforge = true }
+        if isTestHome { return launchDirectly(app, arguments: [url.absoluteString]) }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activate
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: configuration)
@@ -260,6 +390,36 @@ enum MacSteam {
             try? await Task.sleep(for: .seconds(1))
         }
         for app in running { app.forceTerminate() }
+    }
+
+    /// Quits once the save of the game that ended at `endedAt` is in the Steam Cloud (CloudSaves),
+    /// or after `limit` – quit earlier, the upload is lost. False when `keepWaiting` turns false
+    /// first (Steam for Mac is needed again); then it keeps running.
+    @MainActor
+    static func quitWhenSynced(appID: Int, endedAt: Date, limit: TimeInterval, while keepWaiting: () -> Bool) async -> Bool {
+        let start = Date()
+        while Date().timeIntervalSince(start) < limit {
+            guard keepWaiting(), !Task.isCancelled else { return false }
+            let state = await Task.detached(priority: .utility) {
+                CloudSaves.state(appID: appID, steamRoot: root, endedAt: endedAt)
+            }.value
+            if state != .syncing { break }
+            try? await Task.sleep(for: .seconds(2))
+        }
+        guard keepWaiting(), !Task.isCancelled else { return false }
+        // Not cut off once it quits: cancelled, the quit would end Steam the hard way.
+        await Task { await quit() }.value
+        return true
+    }
+
+    /// Nightforge quits: whether the shutdown script ends Steam for Mac too, once nothing needs it
+    /// (Engine.scheduleSteamShutdown) – the one Nightforge started. A test home's is asked to quit
+    /// right away instead: the script quits by bundle ID, which could reach the player's own.
+    static func endsWithNightforge() -> Bool {
+        guard startedByNightforge, isRunning else { return false }
+        guard isTestHome else { return true }
+        for app in running { app.terminate() }
+        return false
     }
 
     // MARK: - Games

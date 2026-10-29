@@ -133,6 +133,8 @@ final class LibraryModel: ObservableObject {
     /// A demo about to get its free licence in Steam's install window: what that takes is said first.
     @Published var pendingDemoLicense: Game?
     private var macSteamPrewarmed = false
+    /// Which of the two Steams runs: the one the next game needs (SteamSwitch).
+    let steamSwitch = SteamSwitch()
     @Published private(set) var uninstallingID: String?
     /// Games whose Windows process is running right now, with that process's pid.
     @Published private(set) var running: [String: pid_t] = [:]
@@ -363,14 +365,21 @@ final class LibraryModel: ObservableObject {
         let ended = playing
         playing = []
         goneFor = 0
+        // The processes were gone a few looks ago (~4–7 s), with a little margin.
+        let endedAt = Date().addingTimeInterval(-10)
+        let endedGames = allGames.filter { ended.contains($0.id) }
+        for game in endedGames { steamSwitch.ended(game, at: endedAt) }
+        if endedGames.contains(where: { $0.platform == .mac }) {
+            steamSwitch.afterMacGame(facts: { [weak self] in self?.steamFacts ?? SteamSwitch.Facts() },
+                                     restartWindows: { [weak self] in await self?.restartWindowsSteam() })
+        }
         let sessions = ended.compactMap { id -> SessionSummary? in
             guard let start = sessionStarts.removeValue(forKey: id), let game = allGames.first(where: { $0.id == id }) else { return nil }
             let minutes = Int(Date().timeIntervalSince(start.date) / 60)
             // Shorter is a start that didn't take (LaunchHealth deals with those).
-            // The processes were gone a few looks ago (~4–7 s), with a little margin.
             if game.provider == .epic { afterEpicSession(game, minutes: minutes) }
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
-                                                 endedAt: Date().addingTimeInterval(-10)) : nil
+                                                 endedAt: endedAt) : nil
         }
         comeBack()
         sessionSummary = sessions.max { $0.minutes < $1.minutes }
@@ -466,6 +475,23 @@ final class LibraryModel: ObservableObject {
     private func runningGame(_ platform: Platform) -> Game? {
         let ids = Set(running.keys)
         return allGames.first { ids.contains($0.id) && $0.platform == platform }
+    }
+
+    /// What the Steam switch goes by, now.
+    private var steamFacts: SteamSwitch.Facts {
+        SteamSwitch.Facts(
+            macSteamRunning: MacSteam.isRunning, macSteamOurs: MacSteam.startedByNightforge, macGameBusy: macSteamBusy,
+            macDownload: allGames.contains { game in
+                (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
+            },
+            windowsSteamRunning: Engine.isSteamRunning,
+            windowsGameBusy: anyRunning(.windows) || allGames.contains { $0.id == launchingID && $0.platform == .windows })
+    }
+
+    /// The Windows Steam starts again in the background, queued like any of its starts, and signs in.
+    private func restartWindowsSteam() async {
+        guard let wine = await Engine.installedWine() else { return }
+        _ = await restartStuckSteam(wine)
     }
 
     /// Steam can be signed in on one client at a time, so starting the other Steam would sign out
@@ -579,15 +605,17 @@ final class LibraryModel: ObservableObject {
         if macDownload, MacSteam.isReady, !MacSteam.signedIn, !(windowsDownload && Engine.steamSignedIn), !macStalled {
             lastSignInSwitch = Date()
             lastMacTurnProgress = macProgress
+            steamSwitch.stopWindowsForMacDownload()
             Task {
                 if MacSteam.isRunning { await MacSteam.quit() }
                 MacSteam.start()
             }
-        } else if windowsDownload, Engine.isSteamRunning, Engine.sessionReplaced(), !(macDownload && MacSteam.signedIn) {
+        } else if windowsDownload, Engine.isSteamRunning ? Engine.sessionReplaced() : steamSwitch.windowsStopped,
+                  !(macDownload && MacSteam.signedIn) {
             lastSignInSwitch = Date()
             Task {
-                guard let wine = await Engine.installedWine() else { return }
-                try? await Engine.restartSteamInBackground(wine)
+                await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { _ in }, restartWindows: { await self.restartWindowsSteam() })
+                if Engine.isSteamRunning, Engine.sessionReplaced() { await restartWindowsSteam() }
             }
         }
     }
@@ -662,6 +690,10 @@ final class LibraryModel: ObservableObject {
             guard let wine = ensured else { return }
             // Signing in would sign out the Steam for Mac a running Mac game uses; Play starts it later.
             guard !macSteamBusy else { return }
+            // A Steam for Mac Nightforge left running – it quit after starting a Mac version and came
+            // back when that ended – goes first (SteamSwitch): quit, it finishes its cloud sync;
+            // signed out by the Windows Steam, it wouldn't.
+            if MacSteam.startedByNightforge, MacSteam.isRunning, !steamFacts.macDownload { await MacSteam.quit() }
             try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
             Task { await self.watchSteamStart(wine) }
         }
@@ -681,18 +713,29 @@ final class LibraryModel: ObservableObject {
     }
 
     /// Restarts a hung Steam, queued like any other Steam start so a launch waits for it.
-    /// True once it has signed in again (up to 90 s).
+    /// True once it has signed in again (up to 90 s). It signs in by itself; when it asks instead
+    /// (its remembered sign-in ran out) while a game waits to start, its window comes to the front
+    /// and the player gets ten minutes for it.
     private func restartStuckSteam(_ wine: URL) async -> Bool {
         let previous = steamStartup
+        let began = Date()
         let restart = Task {
             await previous?.value
             try? await Engine.restartSteamInBackground(wine)
         }
         steamStartup = restart
         await restart.value
-        for _ in 0..<90 {
+        var asked = false
+        for second in 0..<600 {
             if Engine.steamSignedIn { return true }
+            if !asked, launchingID != nil, SteamLogin.waitingForCredentials(steamRoot: Engine.steamRoot, since: began) {
+                asked = true
+                launchPhase = .signInAgain
+                showSteamWindow()
+            }
+            if second >= 90 && !asked { return false }
             try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return false }
         }
         return false
     }
@@ -1066,12 +1109,9 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
                 launchBuildsShaders = false
             }
-            // A Wine Steam that is still starting would sign in after Steam for Mac and sign it out.
-            if Engine.isSteamRunning, !Engine.steamSignedIn, !Engine.sessionReplaced(),
-               let wine = await Engine.installedWine() {
-                launchPhase = .startingSteamForMac
-                try? await Engine.stopSteam(wine)
-            }
+            // The Windows Steam goes (one sign-in per account on a Mac), once its last game's save is up.
+            await steamSwitch.makeWayForMac(facts: steamFacts, phase: { self.launchPhase = $0 })
+            let steamStarted = Date()
             if !MacSteam.isRunning {
                 launchPhase = .startingSteamForMac
                 MacSteam.start()
@@ -1082,16 +1122,26 @@ final class LibraryModel: ObservableObject {
                 await MacSteam.quit()
                 MacSteam.start()
             }
-            // Steam turns commands away until it has signed in and finished starting.
+            // Steam turns commands away until it has signed in and finished starting. It signs in by
+            // itself; when it asks instead (its remembered sign-in ran out), its window comes at once,
+            // and the player gets ten minutes for it – B or Esc calls the start off.
             var waited = 0
-            while !(MacSteam.signedIn && MacSteam.startupFinished) && waited < 90 {
-                if waited == 25 {
-                    launchPhase = .signInInSteamWindow
+            var asked = false
+            while !(MacSteam.signedIn && MacSteam.startupFinished) && (waited < 90 || asked && !MacSteam.signedIn && waited < 600) {
+                if !asked, waited == 25 || waited >= 2 && MacSteam.waitingForCredentials(since: steamStarted) {
+                    asked = true
+                    awaitingSteam = true
+                    launchPhase = MacSteam.hasSignedIn && waited < 25 ? .signInAgain : .signInInSteamWindow
                     MacSteam.show()
                 }
                 try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled {
+                    awaitingSteam = false
+                    return
+                }
                 waited += 1
             }
+            awaitingSteam = false
             launchPhase = nil
             // steam://run/<id>//<arguments>: the extra part goes to the game.
             let extra = arguments.isEmpty ? ""
@@ -1700,6 +1750,11 @@ final class LibraryModel: ObservableObject {
                 launchNeedsConfirmation = false
                 launchPhase = nil
                 launchBuildsShaders = false
+            }
+            if viaSteam, game.bottle.isBuiltIn {
+                await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
+                                                    restartWindows: { await self.restartWindowsSteam() })
+                launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }

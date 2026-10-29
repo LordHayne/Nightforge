@@ -1,7 +1,8 @@
-# Steam für Mac in der Ersteinrichtung – Plan (Phase 1)
+# Steam für Mac in der Ersteinrichtung – Plan
 
-Stand 29.10.2026, Sitzung „mac-steam-setup“, Branch `claude/mac-steam-setup-db5892`. Nur Recherche und Plan, kein Code.
+Stand 29.10.2026, Sitzung „mac-steam-setup“, Branch `claude/mac-steam-setup-db5892`. Phase 1: Recherche und Plan.
 Grundlage: die echten Logs beider Steams auf diesem Mac (nur gelesen, 23.–29.10.), der Code auf `2e296db` und die Quellen unten.
+Phase 2 ist teilweise gebaut (Abschnitt „Stand Phase 2“ am Ende).
 
 ## Kurz
 
@@ -185,19 +186,52 @@ muss nicht neu starten. A′ bleibt die Alternative, wenn die Mehrzeit von A st�
 | `Setup.swift` | **setup-speed** ändert Interna | Von mir nur Haken (~30 Zeilen): neuer `Step.macSteam`, ein paralleler `Task` nach dem Engine-Schritt, Scan 2 vor `finish()`. Vorschlag: Ich setze sie auf den Stand von setup-speed, nachdem der zusammengeführt ist, oder setup-speed lässt dafür eine Stelle frei. Die Logik liegt in `MacSteam`/`MacSteamPrep`, nicht in `Setup.swift`. |
 | `SetupDetail.swift`, `LibraryReveal.swift` (`mac`-Zähler), `L10n` | diese Sitzung | Texte und Live-Zeilen. |
 | `SetupView.swift`, Home in `LibraryView.swift` | **design-setup-home** | Anzeige des neuen Schritts, zweiter QR-Hinweis, Zeile in der Enthüllung (Abschnitt 4). |
-| `Engine.swift` | setup-speed | Von mir nichts; die vorhandenen Helfer (`signedIn`, `sessionReplaced`, `startupFinished`) reichen. |
-| Tests | diese Sitzung | `tests/SteamSwitchTest/` mit echten Log-Auszügen: Rauswurf in derselben Sekunde, stilles Anmelden, `Failed sync … login=false`, Fremd-Rauswurf. |
+| `Engine.swift` | setup-speed | Von mir nur eine Zeile in `scheduleSteamShutdown` (`MacSteam.endsWithNightforge()`, für den Testmodus). |
+| Tests | diese Sitzung | `tests/SteamSwitchTest/` mit echten Log-Auszügen: Anmeldezustand, gemerktes Konto, die Regeln, Spielstand unterwegs, Erststart-Entscheidung, Testmodus. |
 
-## Offene Entscheidungen (Nutzer / Koordinator)
+## Entscheidungen (Nutzer, 29.10.2026)
 
-1. **Reihenfolge:** A (zweiter QR direkt nach dem ersten, +20–30 s, *empfohlen*) oder A′ (Mac-QR zuerst in der Wartezeit, ±0 s,
-   dafür zweimal hinsehen)?
-2. **Konto ohne Mac-Version:** Soll Nightforge das eben installierte Steam für Mac wieder entfernen? *Empfohlen: ja* – 1,2 GB, und
-   `MacSteamSetup` installiert es bei Bedarf in einer Minute neu.
-3. **Steam für Mac mit einem anderen Konto:** in Ruhe lassen (*empfohlen*) oder fragen?
-4. **Ruhezustand:** Steam für Mac nach jedem Mac-Spiel beenden (*empfohlen*, R2/R3)? Dafür startet dasselbe Mac-Spiel beim
-   nächsten Mal ~5 s später.
-5. **„Beide gleichzeitig online“** über eine andere Login-ID: *nein* (Abschnitt 1).
+1. **Reihenfolge A:** Der zweite QR kommt direkt nach dem ersten, nur wenn die Bibliothek Mac-Versionen hat.
+2. **Konto ohne Mac-Version:** Das eben installierte Steam für Mac wird wieder entfernt.
+3. **Steam für Mac mit einem anderen Konto** bleibt in Ruhe (Rückfall B).
+4. **Ruhezustand:** Steam für Mac wird nach jedem Mac-Spiel beendet (R2/R3).
+5. **Kein „beide gleichzeitig online“.**
+
+## Stand Phase 2
+
+**Gebaut** (nur lokal committet, nicht live getestet):
+- `SteamSwitch.swift`
+  - `SteamLogin`: Anmeldezustand aus `steamui_login.txt`, gemerktes Konto aus `loginusers.vdf`.
+  - `SteamSwitch`: R1–R6.
+    - Nach einem Mac-Spiel wartet Nightforge auf den Cloud-Upload (höchstens 3 min), dann beendet es Steam für Mac und
+      startet die Windows-Steam versteckt.
+    - Vor einem Mac-Spiel geht die Windows-Steam, nachdem ihr letzter Spielstand oben ist (höchstens 60 s).
+    - Vor einem Windows-Spiel geht Steam für Mac auf dieselbe Weise, und eine beendete Windows-Steam startet wieder.
+    - Die Download-Züge beenden die andere Steam, statt sie rauswerfen zu lassen.
+- `MacSteam.swift`
+  - `prepare()`, `account`, `waitingForCredentials`, `hold()` (der Fenster-Wächter versteckt das Anmeldefenster),
+    `quitWhenSynced()`, `removeFreshInstall()` (nur ein von Nightforge auf einen Mac ohne Steam für Mac gelegtes).
+  - **Testmodus** (`isTestHome`: `HOME`/`CFFIXED_USER_HOME` ≠ echtes Home): `Steam.app` nur in `<Test-Home>/Applications`,
+    Start direkt über `DetachedProcess` mit der Umgebung, `running` nur Prozesse unter dem Test-Home, kein Beenden per
+    Bundle-ID im Shutdown-Skript.
+- `MacSteamPrep.swift`: der Erststart-Schritt (vorbereiten → entscheiden → zweiter QR / bereits angemeldet / anderes Konto /
+  nicht nötig → entfernen, „Later“) mit Texten. Noch nicht in `Setup.swift` eingehängt.
+- `LibraryModel.swift`, Haken an fünf Stellen:
+  - Spielende
+  - Mac-Start (R5: das Fenster kommt sofort, wenn Steam nach Anmeldedaten fragt; bis zu 10 min, B/Esc bricht ab)
+  - Windows-Start
+  - Download-Züge
+  - App-Start: Ein übrig gebliebenes eigenes Steam für Mac wird höflich beendet, bevor die Windows-Steam startet.
+- `restartStuckSteam`: R5 für die Windows-Steam.
+- `LaunchPhase`: `.savingToCloud` und `.signInAgain`.
+- `SetupDetail.macSteam`, `LibraryReveal.mac`/`macLine`. Alle Texte auf Deutsch.
+
+**Noch offen:**
+- Haken in `Setup.swift` (`Step.macSteam`, `MacSteamPrep.start()` nach dem Engine-Schritt, `finish(windowsAccount:macVersions:)`
+  vor `finish()`). Wartet auf setup-speed.
+- Anzeige in `SetupView`. Wartet auf design-setup-home.
+- **Nicht angefasst:** Der Vorwärm-Start von Steam für Mac für Mac-Downloads beim App-Start (`afterScan`) wirft die
+  Windows-Steam weiterhin raus. `takeTurnsDownloading` räumt danach auf.
 
 ## Quellen
 

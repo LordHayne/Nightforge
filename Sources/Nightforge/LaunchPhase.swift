@@ -7,6 +7,10 @@ enum LaunchPhase: Equatable {
     case startingSteamForMac
     case signingIn
     case signInInSteamWindow
+    /// A Steam that signed in by itself before asks for a fresh sign-in (its remembered one ran out).
+    case signInAgain
+    /// The other Steam is still putting the last game's save into the Steam Cloud (SteamSwitch).
+    case savingToCloud
     case settingUp
     case settingUpDotNet
     case restartingSteam
@@ -28,7 +32,8 @@ enum LaunchPhase: Equatable {
         case .startingSteam: return L10n.t("Starting Steam …")
         case .startingSteamForMac: return L10n.t("Starting Steam for Mac …")
         case .signingIn: return L10n.t("Signing in to Steam …")
-        case .signInInSteamWindow: return L10n.t("Sign in in the Steam window")
+        case .signInInSteamWindow, .signInAgain: return L10n.t("Sign in in the Steam window")
+        case .savingToCloud: return L10n.t("Saving to Steam Cloud …")
         case .settingUp: return L10n.t("Setting up the game …")
         case .settingUpDotNet: return L10n.t("Setting up .NET for the game …")
         case .restartingSteam: return L10n.t("Restarting Steam …")
@@ -48,6 +53,8 @@ enum LaunchPhase: Equatable {
         case .startingSteamForMac: return L10n.t("The Mac version starts through Steam for Mac, which runs in the background.")
         case .signingIn: return L10n.t("Steam signs in again, so your cloud saves come along.")
         case .signInInSteamWindow: return L10n.t("Steam needs you to sign in – its window is open.")
+        case .signInAgain: return L10n.t("Steam asks you to sign in again – it does that every few months. Its window is open.")
+        case .savingToCloud: return L10n.t("The last game's save goes up to Steam Cloud first, so it's there wherever you play next.")
         case .settingUp: return L10n.t("Installing what the game needs from Windows. Only the first time.")
         case .settingUpDotNet: return L10n.t("Installing .NET, which this game needs. Only the first time.")
         case .restartingSteam: return L10n.t("Steam got stuck while starting – a fresh start fixes that.")

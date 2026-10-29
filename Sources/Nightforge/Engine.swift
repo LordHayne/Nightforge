@@ -660,7 +660,7 @@ enum Engine {
     /// back when it ends, so the player lands in the launcher again, controller in hand.
     static func scheduleSteamShutdown() {
         let wine = isSteamInstalled ? sessionWine() ?? installedWineNow() : nil
-        let macSteam = MacSteam.startedByNightforge && MacSteam.isRunning
+        let macSteam = MacSteam.endsWithNightforge()
         let macLibrary = FileManager.default.fileExists(atPath: MacSteam.steamapps.path) ? MacSteam.steamapps.path : ""
         let script = supportDir.appendingPathComponent("steam-shutdown.sh")
         let text = steamShutdownScript

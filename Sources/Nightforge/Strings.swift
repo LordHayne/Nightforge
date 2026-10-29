@@ -189,6 +189,37 @@ enum L10n {
         "Use the Windows Version": "Windows-Version verwenden",
         "Set Up Steam for Mac": "Steam für Mac einrichten",
         "Starting Steam for Mac …": "Steam für Mac startet …",
+        // Which Steam runs, and Steam for Mac in the first start (SteamSwitch, MacSteamPrep)
+        "Saving to Steam Cloud …": "Spielstand geht in die Steam Cloud …",
+        "The last game's save goes up to Steam Cloud first, so it's there wherever you play next.":
+            "Der Spielstand des letzten Spiels geht zuerst in die Steam Cloud – so ist er da, egal wo du als Nächstes spielst.",
+        "Steam asks you to sign in again – it does that every few months. Its window is open.":
+            "Steam möchte, dass du dich neu anmeldest – das kommt alle paar Monate vor. Sein Fenster ist offen.",
+        "Setting up Steam for Mac": "Steam für Mac wird eingerichtet",
+        "Downloading Steam for Mac …": "Steam für Mac wird geladen …",
+        "Steam for Mac updates itself …": "Steam für Mac aktualisiert sich …",
+        "Steam for Mac updates itself: %@": "Steam für Mac aktualisiert sich: %@",
+        "Ready – you sign in right after Steam": "Bereit – du meldest dich gleich nach Steam an",
+        "Already signed in on this Mac": "Auf diesem Mac schon angemeldet",
+        "Its sign-in window is open": "Sein Anmeldefenster ist offen",
+        "Signed in": "Angemeldet",
+        "Signed in with another account – left as it is": "Mit einem anderen Konto angemeldet – bleibt, wie es ist",
+        "Not needed – none of your games has a Mac version": "Nicht nötig – keins deiner Spiele hat eine Mac-Version",
+        "Later – the first time you play a Mac version": "Später – wenn du zum ersten Mal eine Mac-Version spielst",
+        "If your games have Mac versions, a second code for Steam for Mac follows right after.":
+            "Haben deine Spiele Mac-Versionen, kommt gleich danach ein zweiter Code für Steam für Mac.",
+        "One more: this window is Steam for Mac. It gets the Mac version of 1 of your games – it runs without any Windows translation. Scan its QR code too.":
+            "Noch einer: Dieses Fenster ist Steam für Mac. Es holt die Mac-Version von 1 deiner Spiele – sie läuft ganz ohne Windows-Übersetzung. Scanne auch diesen QR-Code.",
+        "One more: this window is Steam for Mac. It gets the Mac versions of %ld of your games – they run without any Windows translation. Scan its QR code too.":
+            "Noch einer: Dieses Fenster ist Steam für Mac. Es holt die Mac-Versionen von %ld deiner Spiele – sie laufen ganz ohne Windows-Übersetzung. Scanne auch diesen QR-Code.",
+        "1 of them plays as its Mac version – without any Windows translation.":
+            "1 davon läuft als Mac-Version – ganz ohne Windows-Übersetzung.",
+        "%ld of them play as their Mac version – without any Windows translation.":
+            "%ld davon laufen als Mac-Version – ganz ohne Windows-Übersetzung.",
+        "1 has a Mac version – Nightforge sets it up the first time you play it.":
+            "1 hat eine Mac-Version – Nightforge richtet sie ein, wenn du es zum ersten Mal spielst.",
+        "%ld have a Mac version – Nightforge sets it up the first time you play one.":
+            "%ld haben eine Mac-Version – Nightforge richtet sie ein, wenn du zum ersten Mal eins davon spielst.",
         "Controller": "Controller",
         "Full": "Voll",
         "Partial": "Teilweise",
