@@ -61,6 +61,7 @@ struct SteamBootstrapTest {
         theHungClient()
         valvesHelper()
         steamDetails()
+        browserCaches()
         decisions()
         starting()
         wrapperSwap()
@@ -211,6 +212,22 @@ struct SteamBootstrapTest {
         check(detail(log(fixed, through: "Verification complete")) == L10n.t("Steam is starting …"), "a start without a client yet")
         check(detail(log(loop, through: "Bad NTFS transaction canary")) == L10n.t("Steam installs update 1 of 2 …"), "the loop's install, non-atomic")
         check(detail(loopEnd) == L10n.t("Steam installs update 2 of 2, the 64-bit version …"), "the loop's end: win64")
+    }
+
+    /// The browser caches the setup's restart clears before the sign-in: Steam's -cachedir under
+    /// each Windows user of the prefix, nothing else.
+    static func browserCaches() {
+        let fm = FileManager.default
+        let prefix = fm.temporaryDirectory.appendingPathComponent("steam-cache-test-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: prefix) }
+        let users = prefix.appendingPathComponent("drive_c/users")
+        let cache = users.appendingPathComponent("crossover/AppData/Local/Steam/htmlcache")
+        try? fm.createDirectory(at: cache, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: users.appendingPathComponent("Public/AppData/Local"), withIntermediateDirectories: true)
+        try? fm.createDirectory(at: users.appendingPathComponent("crossover/AppData/Local/Steam/config"), withIntermediateDirectories: true)
+        let found = Engine.steamBrowserCaches(prefix: prefix).map(\.standardizedFileURL)
+        check(found == [cache.standardizedFileURL], "the crossover user's htmlcache only: \(found)")
+        check(Engine.steamBrowserCaches(prefix: prefix.appendingPathComponent("nothing")).isEmpty, "no prefix: nothing")
     }
 
     /// What the first start's watchdog makes of each state.

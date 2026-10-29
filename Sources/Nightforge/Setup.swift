@@ -454,9 +454,11 @@ final class SetupModel: ObservableObject {
         }
     }
 
-    /// Ends everything of Steam's and starts it again – only once all of it is gone (up to 10 s):
-    /// a Steam started while the old one was still going away hung right after its browser came
-    /// up (29.10.2026, 20:57:19, until a restart 90 s later).
+    /// Ends everything of Steam's and starts it again, once all of it is gone (up to 10 s). Before
+    /// anyone signed in, Steam's browser cache goes too: the first client after the update starts
+    /// Valve's browser, which lays the cache down; ended a few seconds in, it left it so that the
+    /// next browser hung while reading it – after "This is Chrome version", every time (29.10.2026,
+    /// all three runs; the start after that worked). Before the sign-in nothing is in it.
     private func restartSteam(_ wine: URL) async throws {
         detail = L10n.t("Restarting Steam …")
         await Engine.offMain { Engine.stopAll(wine) }
@@ -464,6 +466,9 @@ final class SetupModel: ObservableObject {
         while waited < 40, await Engine.offMain({ !Engine.ownProcesses().isEmpty }) {
             try await Task.sleep(for: .milliseconds(250))
             waited += 1
+        }
+        if waited < 40, !Engine.isSteamSignedIn {
+            for cache in Engine.steamBrowserCaches() { try? FileManager.default.removeItem(at: cache) }
         }
         try Engine.startSteam(wine)
     }

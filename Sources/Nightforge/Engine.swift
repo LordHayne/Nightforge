@@ -295,6 +295,15 @@ enum Engine {
         return nil
     }
 
+    /// Steam's browser caches in the prefix, one per Windows user (its helper's -cachedir,
+    /// `C:\users\crossover\AppData\Local\Steam\htmlcache`).
+    static func steamBrowserCaches(prefix: URL = prefix) -> [URL] {
+        let users = prefix.appendingPathComponent("drive_c/users", isDirectory: true)
+        return ((try? FileManager.default.contentsOfDirectory(at: users, includingPropertiesForKeys: nil)) ?? [])
+            .map { $0.appendingPathComponent("AppData/Local/Steam/htmlcache", isDirectory: true) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
     /// When a process started.
     static func processStart(_ pid: pid_t) -> Date? {
         var info = proc_bsdinfo()
