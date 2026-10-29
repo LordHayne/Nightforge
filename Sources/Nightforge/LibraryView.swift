@@ -1506,6 +1506,10 @@ struct GameContextMenu: ViewModifier {
             if game.install != .inStore {
                 Button(L10n.t("Show game folder in Finder")) { select(); model.revealSelected() }
             }
+            // Onto a drive plugged in, or back to the Mac (DriveMoves).
+            if model.canMove(game) {
+                Button(L10n.t("Move to …")) { model.requestMove(game) }
+            }
             if model.canUninstall(game) {
                 Divider()
                 Button(game.isInstalled ? L10n.t("Uninstall …") : L10n.t("Cancel Download"), role: .destructive) {
