@@ -247,7 +247,7 @@ private struct MeaningPill: View {
                     .frame(minWidth: 28, minHeight: 28)
                     .background(Theme.sodium, in: Capsule())
             }
-            (Text(L10n.t("In Nightforge:") + " ").foregroundColor(Theme.muted) + Text(part.meaning).foregroundColor(Theme.ink))
+            Text("\(Text(L10n.t("In Nightforge:")).foregroundColor(Theme.muted)) \(Text(part.meaning).foregroundColor(Theme.ink))")
                 .font(.system(size: 14, weight: .medium))
                 .lineLimit(1)
         }
