@@ -1,0 +1,110 @@
+
+
+[2026-10-23 19:55:01] Startup - updater built May 20 2024 14:26:54
+[2026-10-23 19:55:01] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" 
+[2026-10-23 19:55:02] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-23 19:55:02] Using the following download hosts for Public, Realm steamglobal
+[2026-10-23 19:55:02] 1. https://cdn.steamstatic.com, /client/, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-23 19:55:02] Installation wird überprüft …
+[2026-10-23 19:55:02] Unable to read and verify install manifest C:\Program Files (x86)\Steam\package\steam_client_win32.installed
+[2026-10-23 19:55:02] Verification complete
+[2026-10-23 19:55:02] Update wird heruntergeladen …
+[2026-10-23 19:55:02] Suche nach verfügbaren Updates …
+[2026-10-23 19:55:02] Downloading manifest: https://cdn.steamstatic.com/client/steam_client_win32
+[2026-10-23 19:55:02] Manifest download: send request
+[2026-10-23 19:55:02] Manifest download: waiting for download to finish
+[2026-10-23 19:55:03] Manifest download: finished
+[2026-10-23 19:55:03] Downloaded new manifest: /client/steam_client_win32 version 1769731672, installed version 0, existing pending version 0
+[2026-10-23 19:55:03] Package file tenfoot_images_all.zip.vz.193cb8c4eb4446698ea2c0a9e8c4e6b6a623dac7_5572671 missing or incorrect size
+[2026-10-23 19:55:03] Package file steamui_websrc_all.zip.vz.3454fedc48870f10019f5c5707aa34b9445f8fce_25053126 missing or incorrect size
+[2026-10-23 19:55:03] Add pending download: https://cdn.steamstatic.com/client/tenfoot_images_all.zip.vz.193cb8c4eb4446698ea2c0a9e8c4e6b6a623dac7_5572671
+[2026-10-23 19:55:03] Manifest download: send request
+[2026-10-23 19:55:03] Add pending download: https://cdn.steamstatic.com/client/steamui_websrc_all.zip.vz.3454fedc48870f10019f5c5707aa34b9445f8fce_25053126
+[2026-10-23 19:55:04] Update wird heruntergeladen (7,991 von 336,229 KB) …
+[2026-10-23 19:55:04] Update wird heruntergeladen (11,996 von 336,229 KB) …
+[2026-10-23 19:55:29] Download ist abgeschlossen.
+[2026-10-23 19:55:29] Saving metrics to disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-23 19:55:29] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win32 (1).
+[2026-10-23 19:55:29] Paket wird extrahiert …
+[2026-10-23 19:55:40] Update wird installiert …
+[2026-10-23 19:55:41] Committing NTFS transaction (0 non-transactional backup files)
+[2026-10-23 19:55:41] Bereinigen …
+[2026-10-23 19:55:41] Aktualisierung abgeschlossen, Steam wird geladen …
+[2026-10-23 19:55:41] Shutdown
+
+
+[2026-10-23 19:56:06] Startup - updater built Jan 29 2026 14:35:32
+[2026-10-23 19:56:06] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" 
+[2026-10-23 19:56:06] Windows 10.0.19045.0, 0, 2, 0, 1, 28 
+[2026-10-23 19:56:06] Loading cached metrics from disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-23 19:56:06] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-23 19:56:06] Using the following download hosts for Public, Realm steamglobal
+[2026-10-23 19:56:06] 1. https://client-update.steamstatic.com, /, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-23 19:56:06] Installation wird überprüft …
+[2026-10-23 19:56:06] Verifying file sizes only
+[2026-10-23 19:56:06] Unable to read and verify install manifest C:\Program Files (x86)\Steam\package\steam_client_win64.installed
+[2026-10-23 19:56:06] Verification complete
+[2026-10-23 19:56:06] Update wird heruntergeladen …
+[2026-10-23 19:56:06] Suche nach verfügbaren Updates …
+[2026-10-23 19:56:06] Downloading manifest: https://client-update.steamstatic.com/steam_client_win64
+[2026-10-23 19:56:06] Manifest download: send request
+[2026-10-23 19:56:06] Manifest download: waiting for download to finish
+[2026-10-23 19:56:07] Manifest download: finished
+[2026-10-23 19:56:07] Downloaded new manifest: /steam_client_win64 version 1792618285, installed version 0, existing pending version 0
+[2026-10-23 19:56:07] Package file steamui_websrc_all.zip.vz.3dcd2f1c6a5e8a1f3bd080203b3c0fd48c324a25_28679233 missing or incorrect size
+[2026-10-23 19:56:07] Package file resources_all.zip.vz.ef4c575e0ebeda2c391b9e56182d51ce688f222e_3488108 missing or incorrect size
+[2026-10-23 19:56:07] Add pending download: https://client-update.steamstatic.com/steamui_websrc_all.zip.vz.3dcd2f1c6a5e8a1f3bd080203b3c0fd48c324a25_28679233
+[2026-10-23 19:56:07] Manifest download: send request
+[2026-10-23 19:56:07] Add pending download: https://client-update.steamstatic.com/resources_all.zip.vz.ef4c575e0ebeda2c391b9e56182d51ce688f222e_3488108
+[2026-10-23 19:56:07] Update wird heruntergeladen (3,874 von 239,614 KB) …
+[2026-10-23 19:56:08] Update wird heruntergeladen (9,832 von 239,614 KB) …
+[2026-10-23 19:56:26] Download ist abgeschlossen.
+[2026-10-23 19:56:26] Saving metrics to disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-23 19:56:26] uninstalled manifest found in C:\Program Files (x86)\Steam\package\steam_client_win64 (1).
+[2026-10-23 19:56:26] Paket wird extrahiert …
+[2026-10-23 19:56:31] Update wird installiert …
+[2026-10-23 19:56:35] Committing NTFS transaction (0 non-transactional backup files)
+[2026-10-23 19:56:35] Bereinigen …
+[2026-10-23 19:56:35] Aktualisierung abgeschlossen, Steam wird geladen …
+[2026-10-23 19:56:35] Shutdown
+
+
+[2026-10-23 19:56:37] Startup - updater built Oct 21 2026 14:10:53
+[2026-10-23 19:56:37] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe"
+[2026-10-23 19:56:37] Windows 10.0.19045.0, 0, 2, 0, 1, 28 
+[2026-10-23 19:56:38] Loading cached metrics from disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-23 19:56:38] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-23 19:56:38] Using the following download hosts for Public, Realm steamglobal
+[2026-10-23 19:56:38] 1. https://client-update.steamstatic.com, /, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-23 19:56:38] Installation wird überprüft …
+[2026-10-23 19:56:38] Verifying file sizes only
+[2026-10-23 19:56:38] Verification complete
+[2026-10-23 19:58:46] Background update loop checking for update. . .
+[2026-10-23 19:58:46] Suche nach verfügbaren Updates …
+[2026-10-23 19:58:46] Downloading manifest: https://client-update.steamstatic.com/steam_client_win64
+[2026-10-23 19:58:46] Manifest download: send request
+[2026-10-23 19:58:46] Manifest download: waiting for download to finish
+[2026-10-23 19:58:47] Manifest download: finished
+[2026-10-23 19:58:47] Download skipped: /steam_client_win64 version 1792618285, installed version 1792618285, existing pending version 0
+[2026-10-23 19:58:47] Nothing to do
+
+
+[2026-10-23 19:59:04] Startup - updater built Oct 21 2026 14:10:53
+[2026-10-23 19:59:04] Startup - Steam Client launched with: "C:\Program Files (x86)\Steam\steam.exe" -cef-disable-gpu -cef-disable-gpu-compositing
+[2026-10-23 19:59:04] Windows 10.0.19045.0, 0, 2, 0, 1, 28 
+[2026-10-23 19:59:05] Loading cached metrics from disk (C:\Program Files (x86)\Steam\package\steam_client_metrics.bin)
+[2026-10-23 19:59:05] Failed to load cached hosts file (File 'update_hosts_cached.vdf' not found), using defaults
+[2026-10-23 19:59:05] Using the following download hosts for Public, Realm steamglobal
+[2026-10-23 19:59:05] 1. https://client-update.steamstatic.com, /, Realm 'steamglobal', weight was 1, source = 'baked in'
+[2026-10-23 19:59:05] Checking for update on startup
+[2026-10-23 19:59:05] Suche nach verfügbaren Updates …
+[2026-10-23 19:59:05] Downloading manifest: https://client-update.steamstatic.com/steam_client_win64
+[2026-10-23 19:59:05] Manifest download: send request
+[2026-10-23 19:59:05] Manifest download: waiting for download to finish
+[2026-10-23 19:59:05] Manifest download: finished
+[2026-10-23 19:59:05] Download skipped: /steam_client_win64 version 1792618285, installed version 1792618285, existing pending version 0
+[2026-10-23 19:59:05] Nothing to do
+[2026-10-23 19:59:05] Installation wird überprüft …
+[2026-10-23 19:59:05] Verifying all executable checksums
+[2026-10-23 19:59:06] Verification complete
+[2026-10-23 19:59:35] Shutdown

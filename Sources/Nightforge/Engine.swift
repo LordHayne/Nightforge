@@ -341,10 +341,13 @@ enum Engine {
 
     /// Puts the bundled steamwebhelper wrapper in place of Steam's own (which becomes
     /// steamwebhelper_real.exe). Repeats safely; returns true when it changed anything, e.g. after
-    /// Steam's first update unpacked its browser or a later update replaced it.
+    /// Steam's first update unpacked its browser or a later update replaced it. Never while Steam's
+    /// bootstrapper downloads or installs an update (SteamBootstrap): the install writes Valve's
+    /// helper back, and a swap then cut it off.
     @discardableResult
-    static func installWebHelperWrapper() -> Bool {
-        guard let wrapper = Bundle.main.url(forResource: "steamwebhelper", withExtension: "exe") else { return false }
+    static func installWebHelperWrapper(steamRoot: URL = steamRoot,
+                                        wrapper: URL? = Bundle.main.url(forResource: "steamwebhelper", withExtension: "exe")) -> Bool {
+        guard let wrapper, SteamBootstrap(steamRoot: steamRoot).allowsHelperSwap else { return false }
         let fm = FileManager.default
         let cef = steamRoot.appendingPathComponent("bin/cef", isDirectory: true)
         let wrapperSize = (try? fm.attributesOfItem(atPath: wrapper.path)[.size] as? Int) ?? 0
@@ -1788,6 +1791,12 @@ enum Engine {
     /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
         guard isSteamRunning else { return }
+        // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
+        var waited = 0
+        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
+            try await Task.sleep(for: .seconds(1))
+            waited += 1
+        }
         try startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
         for _ in 0..<20 {
             guard isSteamRunning else { return }
@@ -1834,6 +1843,8 @@ enum Engine {
             at: logs, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
         let newest = files.compactMap { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }.max()
         guard let newest, Date().timeIntervalSince(newest) >= seconds else { return false }
+        // An update going in is quiet for a while; restarting would cut it off (SteamBootstrap).
+        guard SteamBootstrap(steamRoot: steamRoot) != .installing else { return false }
         // Signed out by Steam for Mac signing in isn't hanging: it waits to be needed again.
         return !steamSignedIn && !sessionReplaced()
     }

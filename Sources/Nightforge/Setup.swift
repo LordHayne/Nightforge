@@ -320,9 +320,11 @@ final class SetupModel: ObservableObject {
                 finish()
                 return
             }
-            // Steam unpacks its browser during the first update and starts it right away – still
-            // unwrapped, i.e. black. Wrap it and restart Steam once that happens.
-            if Engine.installWebHelperWrapper() {
+            // Steam's first update unpacks its browser, and the new version starts it – still
+            // unwrapped, i.e. black. Once the update is in and the new version runs (never during
+            // the install: that cut it off, and Steam started over every 13 s), wrap it and restart.
+            let bootstrap = SteamBootstrap(steamRoot: Engine.steamRoot)
+            if bootstrap == .idle, Engine.installWebHelperWrapper() {
                 await Engine.offMain { Engine.stopAll(wine) }
                 try Engine.startSteam(wine)
                 lastRestart = Date()
@@ -337,9 +339,10 @@ final class SetupModel: ObservableObject {
 
             let update = Engine.steamUpdateStatus()
             progress = update.fraction
-            let stalled = (update.lastChange.map { Date().timeIntervalSince($0) > 90 } ?? false)
-                && Date().timeIntervalSince(lastRestart) > 90
-            let gone = !Engine.isSteamRunning && Date().timeIntervalSince(lastRestart) > 15
+            let quiet = update.lastChange.map { Date().timeIntervalSince($0) } ?? 0
+            let sinceRestart = Date().timeIntervalSince(lastRestart)
+            let stalled = bootstrap.stalled(quietFor: quiet) && sinceRestart > 90
+            let gone = bootstrap.gone(steamRunning: Engine.isSteamRunning, sinceRestart: sinceRestart, quietFor: quiet)
 
             if stalled || gone {
                 restarts += 1
