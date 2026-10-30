@@ -534,8 +534,8 @@ enum L10n {
         "Steam started again meanwhile.": "Steam wurde inzwischen wieder gestartet.",
         "This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.":
             "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Steam-Bibliothek, du kannst es jederzeit wieder herunterladen. Spielstände in der Steam Cloud bleiben erhalten.",
-        "This removes the game from %@ and frees %@ there. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
-            "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
+        "This removes the game from %@ and frees %@ there. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.":
+            "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Bibliothek bei %@, du kannst es jederzeit wieder laden. Spielstände in dessen Cloud bleiben erhalten.",
 
         // Storage
         "Storage": "Speicher",

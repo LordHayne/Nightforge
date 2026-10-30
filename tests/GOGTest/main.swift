@@ -35,6 +35,7 @@ struct GOGTest {
         merging()
         await store()
         await refresh()
+        await drives()
 
         print(failures == 0 ? "✓ GOG" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -531,6 +532,55 @@ struct GOGTest {
         await weekLater.refresh()
         check(await asked.urls.filter { $0.contains("gamesdb") }.count == 5, "a week later every product is asked again")
         check(weekLater.catalog.games.count == 2 && weekLater.sync.state == .ok, "with the same library")
+    }
+
+    // MARK: - External drives
+
+    @MainActor
+    static func drives() async {
+        let fm = FileManager.default
+        let drive = URL(fileURLWithPath: "/Volumes/T7", isDirectory: true)
+        let onDrive = DriveLibrary.gog(on: drive)
+        check(onDrive.path == "/Volumes/T7/Nightforge Games/GOG Games", "GOG's games on a drive: Nightforge Games/GOG Games")
+        check(GOGStore.gamesFolders(of: onDrive.appendingPathComponent("Game")).map(\.path).contains(onDrive.path)
+              && GOGStore.gamesFolders(of: GOGDL.windowsGamesDir.appendingPathComponent("Game")).count == 2,
+              "a game on a drive may be removed from that drive's GOG folder, one on the Mac only from the Mac's")
+        let store = GOGStore()
+        check(store.downloadArguments(GOGJob(id: "1207664663", platform: .windows, base: onDrive.path), folder: nil)
+              .contains(onDrive.path), "Install on T7: gogdl downloads into the drive's GOG folder")
+        let old = try? JSONDecoder().decode([GOGJob].self, from: Data(#"[{"id": "1", "platform": "windows", "update": false}]"#.utf8))
+        check(old?.first?.base == nil && old?.first?.folder == GOGDL.windowsGamesDir, "a download from before drives goes to the Mac")
+
+        // The game page's question, on the Mac and on a drive.
+        var witcher = Game(gameID: .gog("1207664663"), name: "The Witcher 3", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                           steamExeWindowsPath: "", installDir: GOGDL.windowsGamesDir.appendingPathComponent("W"), sizeOnDisk: 2_000_000)
+        check(witcher.uninstallMessage == L10n.t("This removes the game from your Mac and frees %@. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.", Format.bytes(2_000_000), "GOG"),
+              "uninstalling names GOG, not Steam: \(witcher.uninstallMessage)")
+        witcher = Game(gameID: witcher.gameID, name: witcher.name, bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                       steamExeWindowsPath: "", installDir: onDrive.appendingPathComponent("W"), sizeOnDisk: 2_000_000)
+        check(witcher.uninstallMessage == L10n.t("This removes the game from %@ and frees %@ there. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.", "T7", Format.bytes(2_000_000), "GOG"),
+              "and the drive it's on: \(witcher.uninstallMessage)")
+        check(!witcher.inNightforgeFolder, "a game on a drive stays when Nightforge is removed")
+
+        // On a drive that's unplugged: still the player's, "Connect … to Play".
+        let gone = "NightforgeGone-\(UUID().uuidString.prefix(8))"
+        let goneFolder = URL(fileURLWithPath: "/Volumes/\(gone)/Nightforge Games/GOG Games/The Witcher 3 Wild Hunt GOTY", isDirectory: true)
+        let installedFile = gogFolder.appendingPathComponent("installed.json")
+        let before = try? Data(contentsOf: installedFile)
+        defer { if let before { try? before.write(to: installedFile) } }
+        try? JSONEncoder().encode(["1207664663": GOGInstall(id: "1207664663", path: goneFolder, platform: .windows, build: "1",
+                                                            language: "en-US", size: 50_000)]).write(to: installedFile)
+        let unplugged = await GOGStore().library().first { $0.gameID == .gog("1207664663") }
+        check(unplugged?.install == .notInstalled && unplugged?.missingDrive == gone, "unplugged: not playable, and which drive to connect")
+        check(unplugged?.installDir == goneFolder && unplugged?.pendingUpdate == nil, "its place is kept, nothing to update meanwhile")
+
+        // Moved: the record follows, the game plays from its new place.
+        let moved = GOGStore()
+        let here = GOGDL.windowsGamesDir.appendingPathComponent("The Witcher 3 Wild Hunt GOTY", isDirectory: true)
+        if let unplugged { moved.recordMove(unplugged, to: here) }
+        let back = await moved.library().first { $0.gameID == .gog("1207664663") }
+        check(back?.install == .installed && back?.installDir == here && back?.missingDrive == nil, "after a move it's installed where it went")
+        check(!fm.fileExists(atPath: goneFolder.path), "(the drive really isn't there)")
     }
 }
 

@@ -5,6 +5,11 @@ struct GOGJob: Codable, Equatable {
     let id: String
     var platform: Platform
     var update = false
+    /// The games folder on an external drive it goes to ("Nightforge Games/GOG Games"); nil: the Mac.
+    var base: String?
+
+    /// The folder gogdl puts the game's own folder in.
+    var folder: URL { base.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? GOGDL.gamesDir(for: platform) }
 }
 
 /// GOG (7.3), without GOG Galaxy: signed in once in GOG's own sign-in page, its library stays on
@@ -143,7 +148,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         let job = wanted.first { $0.id == entry.id }
         let platform = job?.platform ?? install?.platform ?? version(of: entry)
         let size = knownSize(entry.id, platform)
-        let folder = install?.path ?? GOGDL.gamesDir(for: platform)
+        let folder = install?.path ?? (job?.folder ?? GOGDL.gamesDir(for: platform))
             .appendingPathComponent(size?.folder.isEmpty == false ? size!.folder : Self.folderName(entry.title), isDirectory: true)
         let isDownloading = job != nil
         let onDisk = isDownloading ? progress?.total ?? size?.install ?? 0 : install?.size ?? size?.install ?? 0
@@ -166,6 +171,12 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         } else {
             game.install = .notInstalled
             game.downloadSize = size?.download
+        }
+        // On a drive that's unplugged: "Connect <drive> to Play" until it's back.
+        if game.isInstalled, let drive = LibraryScanner.missingVolume(forLibrary: folder.path, in: Engine.bottle) {
+            game.install = .notInstalled
+            game.pendingUpdate = nil
+            game.missingDrive = drive
         }
         return game
     }
@@ -402,7 +413,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         _ = await size(of: game)
         let entry = catalog.games.first { $0.id == id } ?? GOGGame(id: id, title: game.name)
         try? FileManager.default.removeItem(at: GOGDL.log(for: id))  // how an earlier try ended isn't this one's
-        wanted.append(GOGJob(id: id, platform: version(of: entry)))
+        wanted.append(GOGJob(id: id, platform: version(of: entry), base: context.drive.map { DriveLibrary.gog(on: $0).path }))
         save(wanted, to: Self.wantedFile)
         context.requested()
         await startNext()
@@ -410,6 +421,9 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     /// Nothing of this Nightforge's – nor of an earlier one's – has gogdl downloading.
     private var isFree: Bool { downloads.isEmpty && starting.isEmpty && updatingGame == nil }
+
+    /// gogdl has something to do or in line: a move waits, so no game changes place under it.
+    var isBusy: Bool { !isFree || !wanted.isEmpty }
 
     /// Starts the next download in line once nothing else downloads from GOG.
     private func startNext() async {
@@ -430,7 +444,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     func downloadArguments(_ job: GOGJob, folder: URL?) -> [String] {
         let size = knownSize(job.id, job.platform)
         let language = size?.language ?? installs[job.id]?.language ?? "en-US"
-        let target = job.update ? (folder ?? installs[job.id]?.path)?.path ?? "" : GOGDL.gamesDir(for: job.platform).path
+        let target = job.update ? (folder ?? installs[job.id]?.path)?.path ?? "" : job.folder.path
         return [job.update ? "update" : "download", job.id, "--platform", Self.system(job.platform), "--path", target,
                 "--support", GOGDL.supportDir(for: job.id).path, "--with-dlcs", "--lang", language]
     }
@@ -440,7 +454,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         defer { starting.remove(job.id) }
         // The language and folder come from GOG's size (asked again for a version that took over).
         if knownSize(job.id, job.platform) == nil { _ = await askSize(job.id, job.platform) }
-        try FileManager.default.createDirectory(at: GOGDL.gamesDir(for: job.platform), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: job.folder, withIntermediateDirectories: true)
         let process = try await GOGDL.start(downloadArguments(job, folder: nil), log: GOGDL.log(for: job.id))
         downloads[job.id] = process
         process.terminationHandler = { [weak self] _ in
@@ -467,7 +481,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
             return
         }
         let size = knownSize(job.id, job.platform)
-        let base = GOGDL.gamesDir(for: job.platform)
+        let base = job.folder
         guard let folder = Self.installFolder(id: job.id, preferred: size?.folder, in: base) else {
             save(wanted, to: Self.wantedFile)
             downloadFailed(title(of: job.id), L10n.t("GOG's files for it aren't where gogdl put them"))
@@ -478,7 +492,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         if job.platform == .mac, let info, MachO.runsHere(file: folder.pathExtension == "app" ? folder : folder.appendingPathComponent(info.path)) == false {
             removeFiles(of: job.id, folder: folder, platform: .mac)
             markMacUnfit(job.id)
-            wanted.insert(GOGJob(id: job.id, platform: .windows), at: 0)
+            wanted.insert(GOGJob(id: job.id, platform: .windows, base: job.base), at: 0)
             save(wanted, to: Self.wantedFile)
             tookWindowsVersion(title(of: job.id))
             return
@@ -547,11 +561,29 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// The game's folder (only inside GOG's games folders), gogdl's manifest and its support files.
     private func removeFiles(of id: String, folder: URL, platform: Platform) {
         let parent = folder.standardizedFileURL.deletingLastPathComponent().path
-        if [GOGDL.windowsGamesDir, GOGDL.macGamesDir].contains(where: { $0.standardizedFileURL.path == parent }) {
+        if Self.gamesFolders(of: folder).contains(where: { $0.standardizedFileURL.path == parent }) {
             try? FileManager.default.removeItem(at: folder)
         }
         try? FileManager.default.removeItem(at: GOGDL.manifest(for: id))
         try? FileManager.default.removeItem(at: GOGDL.supportDir(for: id))
+    }
+
+    /// The folders GOG games may lie in: the Mac's two, and the one on the drive `folder` is on.
+    nonisolated static func gamesFolders(of folder: URL) -> [URL] {
+        [GOGDL.windowsGamesDir, GOGDL.macGamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.gog(on: $0)] } ?? [])
+    }
+
+    // MARK: - Moving
+
+    /// A game "Move to …" brought to another drive (or back to the Mac): from now on it's there.
+    /// Its build, language and add-ons stay; gogdl updates it in its new folder.
+    func recordMove(_ game: Game, to folder: URL) {
+        loadFromDisk()
+        guard var install = installs[game.gameID.id] else { return }
+        install.path = folder
+        installs[game.gameID.id] = install
+        save(installs, to: Self.installedFile)
+        objectWillChange.send()
     }
 
     // MARK: - Updates

@@ -396,6 +396,9 @@ Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
 - [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC), **Cloud-Spielstände** (ein Spiel mit
       GOG-Cloud: vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
 - [ ] **Doppelt:** ein Spiel, das auch auf Steam/Epic ist, wird eine Karte („STEAM + GOG“), Wahl auf der Spielseite.
+- [ ] **Laufwerk:** ein GOG-Spiel „Auf <Laufwerk> installieren“ (landet in `Nightforge Games/GOG Games/`), von dort
+      spielen (Windows- und Mac-Version), „Verschieben nach …“ zurück auf den Mac und wieder hin, Laufwerk abziehen
+      („Schließe … an“, bleibt unter „Installiert“), Deinstallieren-Frage nennt Laufwerk und GOG.
 - [ ] **Abgemeldet:** `GOG/gogdl/auth.json` löschen bzw. Token ungültig – Banner „GOG hat dich abgemeldet“, „Erneut anmelden“.
 
 Bekannte Lücken (bewusst, siehe Roadmap 7.3):
