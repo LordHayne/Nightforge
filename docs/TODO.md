@@ -87,6 +87,23 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   für solche Spiele und einen XInput-Pad für den Rest (`engine/patches/winebus-*-xbox360-ids.patch`).
 - **Mac-Ports mit dem synthetischen Xbox-Pad** (`ControllerCompatibility`): bisher nur mit Batman geprüft.
   Andere alte Ports (Feral, Aspyr) wären gute Kandidaten.
+- **PS-Taste im Spiel** (`SteamGuideButton`, 29.10.): Vor jedem Steam-Start schaltet Nightforge „Guide-Taste
+  fokussiert Steam“ ab (`Controller_CheckGuideButton` in `userdata/<id>/config/localconfig.vdf`), bei Windows-Steam
+  und Steam für Mac. So öffnet die PS-Taste außerhalb von Spielen kein Big Picture mehr. Laut steamui (Stand Oktober 2026)
+  fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
+  in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
+  Mac-Spielen damit noch aufgeht.
+- **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
+  - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
+  - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
+  - Offen ist, ob macOS bei alten Mac-Ports mit dem synthetischen Xbox-Pad (`ControllerCompatibility`) mehr als einen Pad nachbildet.
+  - Nightforge selbst hängt sich an jeden Pad (`InputRouter`), beide steuern die Oberfläche.
+
+  Testen mit zwei Pads (DualSense + Xbox oder zwei DualSense):
+  - je ein Windows- und ein Mac-Spiel mit lokalem Koop aus der Bibliothek;
+  - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
+  - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
+  - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
 
 ## Darstellung und Leistung
 
@@ -379,12 +396,21 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     Apples Lizenztext, kein Quellcode-Knopf.
 - **Startseite direkt nach dem ersten Start** (Nutzer, 29.10., mehrfach: „wirkt sehr karg“, „zu leer“, „sieht
   langweilig aus“): Nach „Los geht's“ zeigt Home bei einem neuen Nutzer nur „Alle 100 Spiele“, „Bibliothek öffnen“
-  und ein Band mit der einzigen Kachel „Alle Spiele“. Brainstorming läuft in der Session design-setup-home
-  (Entwurfsseite mit mehreren Richtungen, Branch `claude/design-setup-home-df5622`); gebaut wird nach Freigabe und
-  nach dem Merge von 6.1.
-- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): rechts neben der Checkliste ein Controller-Test
-  im Glas-Look und ein Tipp-Karussell (Entwurf in derselben Session); links Live-Details unter dem laufenden Schritt
-  (6.1-Session). Kein Epic in der Ersteinrichtung.
+  und ein Band mit der einzigen Kachel „Alle Spiele“. **Gebaut und gemergt am 29.10. (a5103ef):** Home ist die
+  Bühne (Entwurf 2d, `HomeStage.swift`) mit „Für den Anfang“ (`StarterPicks.swift`). Offen: mit einem wirklich neuen
+  Konto ansehen (weniger als drei gespielte Spiele).
+- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): **gebaut und gemergt am 29.10. (a5103ef).**
+  Rechts neben der Checkliste stehen der Controller-Test mit Tasten-Chips und 11 Tipps; live mit DualSense geprüft.
+  Kein Epic in der Ersteinrichtung.
+- **Emulation** (Nutzer, 29.10., „was wäre, wenn Nightforge emulation machen könnte“; nur Brainstorming):
+  - Idee: Konsolenspiele in derselben Bibliothek, mit Covern und Controller-Bedienung wie alles andere.
+  - Emulatoren wären Komponenten wie legendary oder gogdl, z. B. RetroArch-Kerne, Dolphin, DuckStation, PPSSPP
+    oder PCSX2. Lizenzen (meist GPL) und Apple-Silicon-Versionen sind je Emulator zu prüfen.
+  - Grenzen: Nightforge liefert keine ROMs oder BIOS und lädt keine herunter, nur eigene Dumps des Spielers. Keine
+    Switch-Emulatoren: Nintendo hat 2024 Yuzu verklagt, Ryujinx wurde danach eingestellt.
+  - Vorbild und Konkurrenz auf dem Mac: OpenEmu. Nightforges Vorteil wäre eine einzige Bibliothek für Steam, Epic, GOG
+    und Konsolen.
+  - Erst besprechen: Umfang (welche Konsolen), Ordner für ROMs, Cover-Quelle, Speicherstände.
 - **Ersteinrichtung weiter beschleunigen** (29.10., Session setup-speed, Branch `claude/setup-speed-ec0a53`; Lauf 5:
   Anmeldefenster nach 2:57). Gebaut, der Live-Lauf mit Zeitmessung steht aus:
   - **Steams Update vorab laden** (`SteamPackages.swift`): Installer, 32-Bit-Schritt (19 Pakete, 247 MB) und 64-Bit-Client
@@ -396,8 +422,8 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     schaut Nightforge alle 50 ms nach. Davor legt Steams Prüfung Valves Helper zurück, auch bei gleicher Größe und gleichem
     Datum. Danach startet der Client den Wrapper selbst, und es braucht keinen Neustart mehr. Probe-Präfix: Steam-Start bis
     Anmeldefenster 37 s statt 83 s (Lauf 5). Erwartet: −25…30 s.
-  - **Wenn der Moment verpasst wird**: Ein hängender Browser (Chrome begonnen, 5 s keine Message-Loop) wird sofort neu
-    gestartet statt nach 20 s (`SteamBrowser`); das 20-s-Netz bleibt. Erwartet dann: −15 s.
+  - **Wenn der Moment verpasst wird**: Valves Browser endet, und Steams Client startet den Wrapper (siehe unten);
+    ein hängender Browser (Chrome begonnen, 5 s keine Message-Loop) ebenso. Das 20-s-Netz bleibt.
   - **Lauf 6** (29.10., 23:24; Probe-Merge mit steam-guide-dylib und external-drive): 4:24, davon Windows 3:10. Der
     Steam-Teil lief live wie geplant: Steam-Start bis Anmeldefenster 38 s statt 83 s, kein Neustart, 64-Bit-Schritt ohne
     Download. Der 32-Bit-Schritt lud noch die 32-Bit-Varianten von CEF (96 MB, 6 s); jetzt kommen beide Varianten vorab.
