@@ -417,12 +417,26 @@ final class SetupModel: ObservableObject {
         // When the wrapper went in: a steamwebhelper started before that is Valve's.
         var swappedAt: Date?
         var browser = SteamBrowser.Watch()
+        // Browsers ended since Steam's last (re)start.
+        var browsersEnded = 0
         func restart() async throws {
             restarts += 1
             guard restarts <= 5 else { throw SetupError.steamWontStart }
             browser.ignore(SteamBrowser(steamRoot: Engine.steamRoot).launch)
+            browsersEnded = 0
             try await restartSteam(wine)
             lastRestart = Date()
+        }
+        // Only Steam's browser ends, and its client starts it again: ~8 s, and the client keeps all
+        // it had done. Restarting all of Steam instead, the first browser after it hung in every live
+        // run, and five times in a row in a scratch home (29./30.10.2026). Three browsers that don't
+        // come up, or a client that doesn't start the next: all of Steam after all.
+        func restartBrowser() async throws {
+            browsersEnded += 1
+            guard browsersEnded <= 3 else { return try await restart() }
+            detail = L10n.t("Steam starts its window again …")
+            browser.ended(SteamBrowser(steamRoot: Engine.steamRoot))
+            await Engine.offMain { Engine.endWebHelpers() }
         }
         phase = .running(.steam)
         steamStarting = true
@@ -475,9 +489,11 @@ final class SetupModel: ObservableObject {
                 finish()
                 return
             }
+            // The wrapper came a moment late, and Valve's browser runs: it goes, and the client starts
+            // the wrapper in its place.
             if bootstrap == .idle, clientInstalled, let swappedAt,
                await Engine.offMain({ Engine.unwrappedWebHelperRunning(swappedAt: swappedAt) }) {
-                try await restart()
+                try await restartBrowser()
                 continue
             }
             if Engine.isSteamWaitingForSignIn(since: start) {
@@ -488,7 +504,12 @@ final class SetupModel: ObservableObject {
             }
 
             // Its browser hung on the way up: started again at once rather than after the 20 s below.
-            if browser.hung(SteamBrowser(steamRoot: Engine.steamRoot)) {
+            let current = SteamBrowser(steamRoot: Engine.steamRoot)
+            if browser.hung(current) {
+                try await restartBrowser()
+                continue
+            }
+            if browser.relaunchOverdue(current) {
                 try await restart()
                 continue
             }
@@ -497,8 +518,10 @@ final class SetupModel: ObservableObject {
             progress = update.fraction
             let quiet = update.lastChange.map { Date().timeIntervalSince($0) } ?? 0
             let sinceRestart = Date().timeIntervalSince(lastRestart)
+            // A client that has started a browser is up, whatever console_log says yet (it writes
+            // late); a browser that hangs is SteamBrowser's to handle.
             let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled,
-                                            clientStarted: SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
+                                            clientStarted: browser.seen || SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
             let steamRunning = await Engine.offMain { Engine.isSteamRunning }
             let gone = bootstrap.gone(steamRunning: steamRunning, sinceRestart: sinceRestart, quietFor: quiet)
             if stalled || gone { try await restart() }

@@ -393,5 +393,31 @@ struct SteamBootstrapTest {
         var slow = SteamBrowser.Watch()
         check(!slow.hung(valve, now: at) && !slow.hung(valve, now: at.addingTimeInterval(14)), "no Chrome yet: 15 s")
         check(slow.hung(valve, now: at.addingTimeInterval(16)), "then hung")
+
+        // Only the browser ends, and Steam's client starts the next ~8 s later (a scratch prefix, 30.10.):
+        // the ended one doesn't count any more; 25 s without a next one is a client that won't.
+        var ending = SteamBrowser.Watch()
+        _ = ending.hung(hung, now: at)
+        check(ending.seen, "a browser of this start: its client is up")
+        ending.ended(hung, now: at.addingTimeInterval(6))
+        check(!ending.hung(hung, now: at.addingTimeInterval(60)), "the ended browser doesn't count as hung again")
+        check(!ending.relaunchOverdue(hung, now: at.addingTimeInterval(20)), "14 s after: the next can still come")
+        check(ending.relaunchOverdue(hung, now: at.addingTimeInterval(32)), "26 s after with none: overdue")
+        check(!ending.hung(next, now: at.addingTimeInterval(14)), "the client's next browser: watched from new")
+        check(!ending.relaunchOverdue(next, now: at.addingTimeInterval(60)), "it came: nothing overdue")
+        check(ending.seen, "and the client still counts as up")
+        ending.ignore(next.launch)
+        check(!ending.seen && !ending.relaunchOverdue(next, now: at.addingTimeInterval(90)), "Steam started again: nothing seen yet")
+
+        // Wine shows the Windows command lines: Valve's helper with its children, or the wrapper and its real one.
+        let processes: [(pid: pid_t, command: String)] = [
+            (10, #"C:\Program Files (x86)\Steam\steam.exe -no-cef-sandbox -cef-single-process"#),
+            (11, #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe -nocrashdialog -lang=de_DE"#),
+            (12, #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe --type=gpu-process"#),
+            (13, #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_real.exe --disable-gpu --single-process"#),
+            (14, #"C:\windows\system32\winedevice.exe"#),
+            (15, "/path/to/wineserver"),
+        ]
+        check(SteamBootstrap.webHelperProcesses(processes) == [11, 12, 13], "the browser's processes, not Steam's client: \(SteamBootstrap.webHelperProcesses(processes))")
     }
 }

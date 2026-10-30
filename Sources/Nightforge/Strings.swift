@@ -312,6 +312,7 @@ enum L10n {
         "Confirm in the Steam window": "Bestätige im Steam-Fenster",
         "Setting up the game …": "Spiel wird eingerichtet …",
         "Restarting Steam …": "Steam wird neu gestartet …",
+        "Steam starts its window again …": "Steam startet sein Fenster neu …",
         "Steam couldn't start %@.": "Steam konnte %@ nicht starten.",
         "Steam didn't respond, so %@ didn't start. Please try again.": "Steam hat nicht reagiert, deshalb ist %@ nicht gestartet. Bitte versuch es noch einmal.",
 

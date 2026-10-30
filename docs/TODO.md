@@ -411,6 +411,15 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     spart im Steam-Schritt ~39 s. Es startet jetzt erst, wenn wineboot Dateien anlegt.
   - **Hänger der Schleife**: Einmal stand die Einrichtung 12 min (Time Machine aktiv). Der Wrapper kam dabei zu spät, Valves
     Helper lief, danach ein Neustart. Wrapper-Tausch und `ps`-Abfrage laufen jetzt neben dem Main-Thread.
+  - **Moment verpasst, Browser hängt** (30.10.): Es endet nur Steams Browser (`Engine.endWebHelpers`), und Steams Client startet
+    ihn von selbst neu, nach dem Tausch also den Wrapper. Im Probe-Präfix kam er jedes Mal nach ~8 s wieder (4 von 4,
+    „Restart webhelper process“). Erst nach drei Browsern ohne Erfolg, oder wenn 25 s lang keiner kommt, startet ganz Steam
+    neu wie bisher. Die 20-s-Regel aus console_log greift nicht mehr, sobald dieser Start einen Browser hatte.
+  - **Rosetta**: Der langsame Windows-Schritt kam am 30.10. nachmittags wieder, ohne Time Machine und ohne Vorabladen. Eine
+    Stichprobe zeigt Wines Loader 12 min lang in `open()` der eigenen Datei, noch in dyld (über Rosetta). Ein natives `open()`
+    derselben Datei ging sofort. Rosettas Übersetzungsdienst `oahd` hing also; später erholte er sich von selbst. Abhilfe
+    beim Nutzer: Mac neu starten oder `sudo killall oahd`. Vermutung, nicht belegt: Auch der hängende Browser nach einem
+    Neustart wartet auf eine Übersetzung.
   - **Verworfen**: Den htmlcache zu leeren half nicht (Lauf 5). Die Ursache des Hängers bleibt offen. In fünf nachgestellten
     Varianten trat er nie auf (kalte/warme Engine, früh/spät beendet, SIGKILL wie `stopAll`, Game-Mode-Loader). Der erste
     Browserstart in einem frischen Präfix hängt nicht.

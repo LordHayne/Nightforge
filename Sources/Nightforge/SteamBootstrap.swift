@@ -162,6 +162,13 @@ enum SteamBootstrap: Equatable {
         }
     }
 
+    /// Steam's browser among processes (Wine shows the Windows command line): Valve's
+    /// steamwebhelper.exe with its GPU and renderer processes, or the wrapper and
+    /// steamwebhelper_real.exe – not Steam's client.
+    static func webHelperProcesses(_ processes: [(pid: pid_t, command: String)]) -> [pid_t] {
+        processes.filter { $0.command.lowercased().contains(#"\steamwebhelper"#) }.map(\.pid)
+    }
+
     /// Steam's client is in place: its first update has put the 64-bit client there (the
     /// bootstrapper first installs steam_client_win32, then steam_client_win64). Any client
     /// manifest besides the 32-bit step's counts, should Valve name the next one differently.
@@ -259,12 +266,27 @@ struct SteamBrowser: Equatable {
         private var launchSeen = Date()
         private var chromeSeen: Date?
         private var stale: String?
+        private var endedAt: Date?
+        /// This start of Steam has launched a browser: its client is up.
+        private(set) var seen = false
 
         /// Right before Nightforge starts Steam: the browser launched so far is an earlier one's.
-        mutating func ignore(_ launch: String?) { stale = launch }
+        mutating func ignore(_ launch: String?) {
+            stale = launch
+            endedAt = nil
+            seen = false
+        }
+
+        /// The setup has ended this browser (Engine.endWebHelpers); Steam's client starts the next.
+        mutating func ended(_ browser: SteamBrowser, now: Date = Date()) {
+            stale = browser.launch
+            endedAt = now
+        }
 
         mutating func hung(_ browser: SteamBrowser, now: Date = Date()) -> Bool {
             guard let current = browser.launch, current != stale else { return false }
+            seen = true
+            endedAt = nil
             if current != launch {
                 launch = current
                 launchSeen = now
@@ -272,6 +294,12 @@ struct SteamBrowser: Equatable {
             }
             if browser.chromeStarted, chromeSeen == nil { chromeSeen = now }
             return browser.hung(sinceLaunch: now.timeIntervalSince(launchSeen), sinceChrome: chromeSeen.map { now.timeIntervalSince($0) })
+        }
+
+        /// The client hasn't started a browser again 25 s after the setup ended one (it took 8 s).
+        func relaunchOverdue(_ browser: SteamBrowser, now: Date = Date()) -> Bool {
+            guard let endedAt, browser.launch == stale else { return false }
+            return now.timeIntervalSince(endedAt) > 25
         }
     }
 }
