@@ -319,6 +319,7 @@ enum MacSteam {
         // The game's own library folder: steamapps/common/<folder>.
         let library = installDir.deletingLastPathComponent().deletingLastPathComponent()
         try Engine.removeGameFiles(appID: appID, installDirName: installDir.lastPathComponent, steamapps: library)
+        try? SteamLibraries.forget(appID: appID, steamRoot: root, bottle: bottle)  // while Steam is quit
     }
 
     @discardableResult

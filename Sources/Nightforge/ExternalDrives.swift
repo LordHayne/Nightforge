@@ -281,6 +281,31 @@ enum SteamLibraries {
         }
     }
 
+    /// Takes an uninstalled game out of the libraries it's no longer in (their folder is there, its
+    /// manifest isn't), with that Steam stopped: otherwise a drive pulled out right after still says
+    /// it holds the game until Steam writes its list again. A library whose drive is unplugged keeps it.
+    static func forget(appID: Int, steamRoot: URL, bottle: Bottle) throws {
+        let fm = FileManager.default
+        for file in files(steamRoot: steamRoot) where fm.fileExists(atPath: file.path) {
+            var nodes = try read(file, rootPath: nil, contentID: nil)
+            guard let index = nodes.firstIndex(where: { $0.key.lowercased() == "libraryfolders" }) else { continue }
+            let gone = Set(entries(nodes, bottle: bottle).compactMap { entry -> String? in
+                guard let folder = entry.folder, fm.fileExists(atPath: folder.path) else { return nil }
+                let manifest = folder.appendingPathComponent("steamapps/appmanifest_\(appID).acf")
+                return fm.fileExists(atPath: manifest.path) ? nil : entry.key
+            })
+            var changed = false
+            for place in nodes[index].children.indices where gone.contains(nodes[index].children[place].key) {
+                guard let slot = nodes[index].children[place].children.firstIndex(where: { $0.key.lowercased() == "apps" }),
+                      nodes[index].children[place].children[slot].children.contains(where: { $0.key == String(appID) })
+                else { continue }
+                nodes[index].children[place].children[slot].children.removeAll { $0.key == String(appID) }
+                changed = true
+            }
+            if changed { try write(nodes, to: file) }
+        }
+    }
+
     /// The games installed in a library folder (`steamapps`), from their manifests.
     static func installedApps(in steamapps: URL) -> [(appID: Int, size: Int64)] {
         let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []

@@ -84,6 +84,24 @@ private struct PlaceList<Content: View>: View {
     }
 }
 
+// MARK: - Uninstalling
+
+extension Game {
+    /// The uninstall question's text for an installed game: where it goes from – the Mac or the
+    /// drive it's on – what that frees, and that it stays in its store.
+    var uninstallMessage: String {
+        let size = Format.bytes(sizeOnDisk)
+        if let drive = DriveLibrary.drive(of: installDir)?.lastPathComponent {
+            return provider == .epic
+                ? L10n.t("This removes the game from %@ and frees %@ there. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", drive, size)
+                : L10n.t("This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", drive, size)
+        }
+        return provider == .epic
+            ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", size)
+            : L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", size)
+    }
+}
+
 // MARK: - Install on a drive (the space sheet)
 
 /// In the space sheet: the drives plugged in, to download the game there instead of making room.

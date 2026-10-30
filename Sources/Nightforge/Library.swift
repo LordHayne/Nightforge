@@ -133,6 +133,9 @@ struct Game: Identifiable, Hashable {
     }
     /// One of the player's own games: not a store entry, nor the demo of a game they don't own.
     var inLibrary: Bool { install != .inStore && demoOf == nil }
+    /// What the library's count counts: the player's own games, and a demo that's on the Mac (or
+    /// downloading) – it shows under "Installed" like one of them.
+    var counted: Bool { inLibrary || install != .inStore && shown.shelfState != .notInstalled }
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
         antiCheatBlock?.geforceNowURL != nil && (install == .notInstalled || install == .installed)

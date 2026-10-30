@@ -71,6 +71,7 @@ struct ExternalDriveTest {
         checkDriveCheck()
         await checkSteamMove(root)
         await checkRollback(root)
+        await checkUninstall(root)
         await checkEpicMove(root)
         checkChoices()
         checkShelf(bottle)
@@ -306,6 +307,14 @@ struct ExternalDriveTest {
         var filters = LibraryFilters()
         filters.status = .notDownloaded
         check(!filters.admits(games[0], level: { _ in .great }), "not among the games to download")
+
+        // The count goes by what's shown: an installed demo is under "Installed" too.
+        var demo = game(5, "Caretaker Demo", .installed, played: 1)
+        demo.demoOf = 6
+        var standIn = game(7, "Other Demo", .notInstalled, played: nil)
+        standIn.demoOf = 8
+        check(games[0].counted && demo.counted && !standIn.counted, "counted: the game on a drive and an installed demo, not a demo standing in")
+        check(DuplicateGames.count(games + [demo, standIn], hidden: []) == 5, "the total counts them the same way")
     }
 
     // MARK: - Moving
@@ -361,6 +370,44 @@ struct ExternalDriveTest {
         check(libraryHolding(550, fixture) == "0", "the list says it's on the Mac again")
         let home = LibraryScanner.scan(bottle: fixture.bottle).first { $0.appID == 550 }
         check(home?.installDir.resolvingSymlinksInPath().path == fixture.game.resolvingSymlinksInPath().path, "found on the Mac again")
+    }
+
+    /// Uninstalled from the drive: the list no longer says it's there, so pulling the drive out right
+    /// after doesn't bring back "Connect … to Play". A drive that's unplugged keeps its games.
+    static func checkUninstall(_ root: URL) async {
+        let fixture = steamFixture(root, "uninstall")
+        do {
+            try SteamLibraries.ensure(library: fixture.library, path: DriveLibrary.windowsPath(of: fixture.library), steamRoot: fixture.steamRoot,
+                                      rootPath: #"C:\Program Files (x86)\Steam"#, bottle: fixture.bottle)
+            _ = try await GameMover.moveSteamGame(appID: 550, installDirName: "Left 4 Dead 2", from: fixture.steamapps, to: fixture.driveSteamapps,
+                                                  steamRoot: fixture.steamRoot, bottle: fixture.bottle, progress: CopyProgress()) { false }
+        } catch { check(false, "moved for the uninstall: \(error)") }
+        // A third library on a drive that's unplugged, which holds the game too.
+        for file in SteamLibraries.files(steamRoot: fixture.steamRoot) {
+            let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let gone = "\t\"7\"\n\t{\n\t\t\"path\"\t\t\"Z:\\\\Volumes\\\\Nightforge Test Gone\\\\Nightforge Games\"\n\t\t\"apps\"\n\t\t{\n\t\t\t\"550\"\t\t\"3000\"\n\t\t}\n\t}\n}\n"
+            try? (String(text.dropLast(2)) + gone).write(to: file, atomically: true, encoding: .utf8)
+        }
+        try? Engine.removeGameFiles(appID: 550, installDirName: "Left 4 Dead 2", steamapps: fixture.driveSteamapps)
+        do { try SteamLibraries.forget(appID: 550, steamRoot: fixture.steamRoot, bottle: fixture.bottle) } catch { check(false, "forget: \(error)") }
+        for file in SteamLibraries.files(steamRoot: fixture.steamRoot) {
+            let list = VDF.nodes((try? String(contentsOf: file, encoding: .utf8)) ?? "")?.first
+            check(list?["1"]?["apps"]?["550"] == nil, "\(file.lastPathComponent): no longer on the drive it was uninstalled from")
+            check(list?["7"]?["apps"]?["550"] != nil, "\(file.lastPathComponent): an unplugged drive keeps what's on it")
+            check(list?["0"]?["contentid"]?.string == "8773078355922679615", "\(file.lastPathComponent): the rest as it was")
+        }
+        check(LibraryScanner.missingDrives(steamRoot: fixture.steamRoot, bottle: fixture.bottle)[550] == "Nightforge Test Gone",
+              "only the unplugged drive still says it has the game")
+
+        // The question names the drive it's removed from.
+        var game = Game(appID: 550, name: "Left 4 Dead 2", bottle: fixture.bottle, steamRoot: fixture.steamRoot, steamExeWindowsPath: "",
+                        installDir: URL(fileURLWithPath: "/Volumes/Spiele test/Nightforge Games/steamapps/common/Left 4 Dead 2"), sizeOnDisk: 2_000_000)
+        check(game.uninstallMessage == L10n.t("This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", "Spiele test", Format.bytes(2_000_000)),
+              "uninstall question names the drive: \(game.uninstallMessage)")
+        game = Game(appID: 550, name: "Left 4 Dead 2", bottle: fixture.bottle, steamRoot: fixture.steamRoot, steamExeWindowsPath: "",
+                    installDir: fixture.game, sizeOnDisk: 2_000_000)
+        check(game.uninstallMessage == L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(2_000_000)),
+              "and the Mac for one on the Mac")
     }
 
     static func checkRollback(_ root: URL) async {

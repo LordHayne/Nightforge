@@ -133,9 +133,7 @@ struct LibraryView: View {
                           message: game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
                               : !game.isInstalled
                               ? L10n.t("The part downloaded so far is deleted. You can start the download again any time.")
-                              : game.provider == .epic
-                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", Format.bytes(game.sizeOnDisk))
-                              : L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk)),
+                              : game.uninstallMessage,
                           id: "uninstall") {
                 // Return (and A) keeps the game; uninstalling takes a deliberate click or a pad move first.
                 Button(L10n.t("Keep")) { model.pendingUninstall = nil }
