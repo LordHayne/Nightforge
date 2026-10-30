@@ -1866,6 +1866,7 @@ enum Engine {
         // The game's own library folder (steamapps/common/<folder>), which may be an extra one.
         let library = installDir.deletingLastPathComponent().deletingLastPathComponent()
         try removeGameFiles(appID: appID, installDirName: installDir.lastPathComponent, steamapps: library)
+        try? SteamLibraries.forget(appID: appID, steamRoot: steamRoot, bottle: bottle)  // while Steam is stopped
     }
 
     /// A game's manifest, files, download leftovers and shader cache in one Steam library folder.

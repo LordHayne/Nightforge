@@ -133,6 +133,9 @@ struct Game: Identifiable, Hashable {
     }
     /// One of the player's own games: not a store entry, nor the demo of a game they don't own.
     var inLibrary: Bool { install != .inStore && demoOf == nil }
+    /// What the library's count counts: the player's own games, and a demo that's on the Mac (or
+    /// downloading) – it shows under "Installed" like one of them.
+    var counted: Bool { inLibrary || install != .inStore && shown.shelfState != .notInstalled }
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
         antiCheatBlock?.geforceNowURL != nil && (install == .notInstalled || install == .installed)
@@ -207,7 +210,7 @@ enum LibraryScanner {
         func rank(_ game: Game) -> Int {
             // Switched to its Mac version but still playable (Play fetches it): keeps its place.
             if game.windowsLeftover != nil { return 0 }
-            switch game.install {
+            switch game.shelfState {
             case .installed: return 0
             case .downloading: return 1
             case .notInstalled: return 2
@@ -216,7 +219,7 @@ enum LibraryScanner {
         }
         return games.sorted { a, b in
             if rank(a) != rank(b) { return rank(a) < rank(b) }
-            if a.install == .notInstalled {
+            if a.shelfState == .notInstalled {
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
             switch (a.lastPlayed, b.lastPlayed) {

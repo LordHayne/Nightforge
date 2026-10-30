@@ -116,6 +116,9 @@ struct SteamSwitchTest {
         facts = afterGame
         facts.macSteamRunning = false
         check(!SteamSwitch.switchesBackAfterMac(facts), "nothing to do when it's gone already")
+        facts = afterGame
+        facts.moving = true
+        check(!SteamSwitch.switchesBackAfterMac(facts), "not while a game moves to another drive (it starts its Steam itself)")
 
         check(SteamSwitch.stopsWindowsForMac(Facts(windowsSteamRunning: true)), "a Mac version: the Windows Steam goes")
         check(!SteamSwitch.stopsWindowsForMac(Facts(windowsSteamRunning: true, windowsGameBusy: true)), "not under a Windows game")

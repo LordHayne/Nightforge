@@ -79,7 +79,10 @@ struct LibraryView: View {
             }
         }
         .sheet(item: $model.pendingSpace) { request in
-            SpaceSheet(request: request)
+            if request.shortfall > 0 { SpaceSheet(request: request) } else { DestinationSheet(request: request) }
+        }
+        .sheet(item: $model.pendingMove) { game in
+            MoveSheet(game: game, targets: model.moveTargets(for: game))
         }
         // Esc closes it like Cancel: the setup stops.
         .sheet(item: Binding(get: { model.macSetup }, set: { if $0 == nil { model.closeMacSetup() } })) { setup in
@@ -130,9 +133,7 @@ struct LibraryView: View {
                           message: game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
                               : !game.isInstalled
                               ? L10n.t("The part downloaded so far is deleted. You can start the download again any time.")
-                              : game.provider == .epic
-                              ? L10n.t("This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.", Format.bytes(game.sizeOnDisk))
-                              : L10n.t("This removes the game from your Mac and frees %@. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.", Format.bytes(game.sizeOnDisk)),
+                              : game.uninstallMessage,
                           id: "uninstall") {
                 // Return (and A) keeps the game; uninstalling takes a deliberate click or a pad move first.
                 Button(L10n.t("Keep")) { model.pendingUninstall = nil }
@@ -579,6 +580,7 @@ struct SpaceSheet: View {
                     .glassWell()
                 }
             }
+            DriveInstallChoices(request: request)
             HStack(spacing: 8) {
                 if !request.candidates.isEmpty {
                     Text(enough ? L10n.t("Frees %@ – enough", Format.bytes(freed)) : L10n.t("Frees %@ of %@", Format.bytes(freed), Format.bytes(request.shortfall)))
@@ -809,7 +811,7 @@ private struct TopBar: View {
             }
             // Downloads, rescan and settings share one piece of glass.
             HStack(spacing: 2) {
-                if !model.downloads.isEmpty {
+                if !model.downloads.isEmpty || model.move != nil {
                     DownloadsButton()
                     GlassDivider()
                 }
@@ -1502,6 +1504,10 @@ struct GameContextMenu: ViewModifier {
             if game.install != .inStore {
                 Button(L10n.t("Show game folder in Finder")) { select(); model.revealSelected() }
             }
+            // Onto a drive plugged in, or back to the Mac (DriveMoves).
+            if model.canMove(game) {
+                Button(L10n.t("Move to …")) { model.requestMove(game) }
+            }
             if model.canUninstall(game) {
                 Divider()
                 Button(game.isInstalled ? L10n.t("Uninstall …") : L10n.t("Cancel Download"), role: .destructive) {
@@ -1645,6 +1651,7 @@ struct CoverCard: View {
         switch shown.install {
         case .installed: parts.append(game.pendingUpdate != nil ? L10n.t("Installed, update waiting") : L10n.t("Installed"))
         case .downloading: parts.append(L10n.t("Downloading"))
+        case .notInstalled where shown.onUnpluggedDrive: parts.append(L10n.t("Connect %@ to Play", shown.missingDrive ?? ""))
         case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
         case .inStore: parts.append(L10n.t("In the Steam Store"))
         }
@@ -1671,6 +1678,20 @@ struct CoverCard: View {
             .frame(maxHeight: .infinity, alignment: .bottom)
         case .installed:
             EmptyView()
+        case .notInstalled where shown.onUnpluggedDrive:
+            // Not a download: it's on a drive that's unplugged.
+            HStack {
+                Spacer()
+                Image(systemName: "externaldrive.badge.xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .background(Theme.night.opacity(0.82), in: Capsule())
+                    .padding(7)
+                    .help(L10n.t("Connect %@ to Play", shown.missingDrive ?? ""))
+            }
+            .frame(maxHeight: .infinity, alignment: .bottom)
         case .notInstalled, .inStore:
             HStack {
                 Spacer()

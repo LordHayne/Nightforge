@@ -37,7 +37,7 @@ struct GridLayout {
 
     /// Grouped by install state, in the list's order (the library sorted by "recently played").
     init(games: [Game], columns: Int) {
-        self.init(sections: GridGroup.allCases.map { group in games.indices.filter { group.contains(games[$0].install) } },
+        self.init(sections: GridGroup.allCases.map { group in games.indices.filter { group.contains(games[$0].shelfState) } },
                   columns: columns)
     }
 
@@ -251,7 +251,7 @@ struct LibraryToolbar: View {
     }
 
     private var countText: String {
-        let owned = model.games.filter(\.inLibrary).count
+        let owned = model.games.filter(\.counted).count
         if model.showingHidden { return L10n.t("%ld hidden", owned) }
         let total = model.visibleCount
         if model.filters.narrows || !model.searchText.isEmpty {

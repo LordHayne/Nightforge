@@ -126,8 +126,12 @@ final class LibraryModel: ObservableObject {
     var downloads: [Game] { allGames.filter { Self.isDownloading($0.install) } }
     /// Speed and time left of each download.
     @Published private(set) var downloadRates: [GameID: DownloadRate] = [:]
-    /// A download that wouldn't fit: which games could make room (SpaceCheck).
+    /// A download that wouldn't fit: which games could make room (SpaceCheck) – or a drive to put it on.
     @Published var pendingSpace: SpaceRequest?
+    /// A game moving to another drive (DriveMoves), shown with the downloads.
+    @Published var move: GameMove?
+    /// Settings › Storage's "Move to …": asking where the game goes.
+    @Published var pendingMove: Game?
     /// An Epic game whose download waits for Epic to say how big it is.
     @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
@@ -180,6 +184,7 @@ final class LibraryModel: ObservableObject {
         setup.onFinished = { [weak self] in self?.checkLibrary() }
         setupChanges = setup.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         epic.changed = { [weak self] in self?.reload(quiet: true) }
+        watchDrives()
         epic.downloadFailed = { [weak self] name, reason, addOn in
             self?.errorMessage = addOn
                 ? L10n.t("The add-on %@ didn't download: %@. Its game is ready – the add-on follows with its next Update & Play.", name, reason)
@@ -320,7 +325,7 @@ final class LibraryModel: ObservableObject {
                 watchForGameEnd(found)
                 if found.isEmpty, launchingID == nil, playing.isEmpty { idleLooks += 1 } else { idleLooks = 0 }
                 if idleLooks == 20 { GameDisplay.leaveGame() }  // a start that never got going (~1 min)
-                if steam.restartWhenIdle && found.isEmpty && launchingID == nil {
+                if steam.restartWhenIdle && found.isEmpty && launchingID == nil && move == nil {
                     steam.restartWhenIdle = false
                     if let wine = await Engine.installedWine() { try? await Engine.restartSteamInBackground(wine) }
                 }
@@ -489,7 +494,8 @@ final class LibraryModel: ObservableObject {
                 (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
             },
             windowsSteamRunning: Engine.isSteamRunning,
-            windowsGameBusy: anyRunning(.windows) || allGames.contains { $0.id == launchingID && $0.platform == .windows })
+            windowsGameBusy: anyRunning(.windows) || allGames.contains { $0.id == launchingID && $0.platform == .windows },
+            moving: move != nil)
     }
 
     /// The Windows Steam starts again in the background, queued like any of its starts, and signs in.
@@ -548,7 +554,7 @@ final class LibraryModel: ObservableObject {
         applyFilter()
         MacIntegration.announceFinished(finished)
         KeepAwake.update(downloading: found.filter { Self.isDownloading($0.install) && $0.downloadNeedsSpace == nil }.map(\.name))
-        if downloads.isEmpty { showingDownloads = false }
+        if downloads.isEmpty && move == nil { showingDownloads = false }
         MacIntegration.libraryLoaded()
         if let game = finished.first {
             Toasts.shared.show(finished.count == 1 ? L10n.t("%@ is ready to play", game.name) : L10n.t("%ld games are ready to play", finished.count),
@@ -593,7 +599,8 @@ final class LibraryModel: ObservableObject {
     private var lastMacTurnProgress: Double?
 
     private func takeTurnsDownloading() {
-        guard launchingID == nil, running.isEmpty, Date().timeIntervalSince(lastSignInSwitch) > 120 else { return }
+        // Not while a game moves to another drive: that stops and starts its Steam itself.
+        guard launchingID == nil, running.isEmpty, move == nil, Date().timeIntervalSince(lastSignInSwitch) > 120 else { return }
         let macDownload = allGames.contains { game in
             (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
         }
@@ -784,6 +791,7 @@ final class LibraryModel: ObservableObject {
             playInCloud(game)
             return
         }
+        if waitsForMove(game) { return }
         // On a drive that's unplugged: plugging it in plays it; downloading would make a second copy.
         if game.install == .notInstalled && game.missingDrive != nil { return }
         switch game.install {
@@ -923,19 +931,21 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    private func download(_ game: Game) {
+    /// `drive`: onto that external drive instead of the Mac.
+    func download(_ game: Game, drive: URL? = nil) {
         if needsEpicSignIn(game) { return }
         if game.demoNeedsLicense {
             pendingDemoLicense = game
             return
         }
         if game.platform == .mac {
-            downloadMac(game)
+            downloadMac(game, drive: drive)
             return
         }
         Task {
             do {
-                let context = StoreContext(busy: !running.isEmpty || launchingID != nil) { self.reload(quiet: true) }
+                var context = StoreContext(busy: !running.isEmpty || launchingID != nil) { self.reload(quiet: true) }
+                context.drive = drive
                 try await store(for: game).install(game, context: context)
             } catch {
                 errorMessage = error.localizedDescription
@@ -974,13 +984,19 @@ final class LibraryModel: ObservableObject {
     private func downloadIfRoom(_ game: Game, needed: Int64) {
         let folder = game.installDir
         let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: folder))
+        let drives = driveChoices(for: game, needed: needed)
         guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free) else {
-            download(game)
+            // A drive the player has put games on before: where this one goes is theirs to say.
+            if drives.contains(where: { $0.usable && $0.drive.hasLibrary }) {
+                pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: 0, candidates: [], drives: drives)
+            } else {
+                download(game)
+            }
             return
         }
         let removable = allGames.filter { canUninstall($0) && !isRunning($0) && SpaceCheck.sameVolume($0.installDir, folder) }
         pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: shortfall,
-                                    candidates: SpaceCheck.candidates(removable, except: game))
+                                    candidates: SpaceCheck.candidates(removable, except: game), drives: drives)
     }
 
     /// The space sheet's button: uninstall the picked games one after another, then download.
@@ -1085,13 +1101,18 @@ final class LibraryModel: ObservableObject {
         requestUninstall(entry)
     }
 
-    private func downloadMac(_ game: Game) {
+    private func downloadMac(_ game: Game, drive: URL? = nil) {
         guard !needsMacSteam(game, then: .download) else { return }
         guard MacSteam.signedIn || otherSteamFree(for: .mac) else { return }
         Task {
             do {
-                try await MacSteam.download(appID: game.appID, name: game.name, installDir: game.installDirName,
-                                            macGameRunning: anyRunning(.mac))
+                if let drive {
+                    try await MacSteam.download(appID: game.appID, name: game.name, installDir: game.installDirName,
+                                                onDrive: drive, macGameRunning: anyRunning(.mac))
+                } else {
+                    try await MacSteam.download(appID: game.appID, name: game.name, installDir: game.installDirName,
+                                                macGameRunning: anyRunning(.mac))
+                }
                 reload(quiet: true)
                 await watchMacDownloadStart(game)
             } catch {
@@ -2402,7 +2423,7 @@ final class LibraryModel: ObservableObject {
     func canUninstall(_ game: Game) -> Bool {
         guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
-        guard uninstallingID == nil && launchingID == nil else { return false }
+        guard uninstallingID == nil && launchingID == nil && move == nil else { return false }
         if game.platform == .mac { return !anyRunning(.mac) }
         return game.bottle.isBuiltIn && !anyRunning(.windows)
     }

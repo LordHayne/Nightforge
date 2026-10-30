@@ -82,6 +82,8 @@ final class SteamSwitch {
         var windowsSteamRunning = false
         /// A Windows game runs or starts on Nightforge's Steam.
         var windowsGameBusy = false
+        /// A game moves to another drive (DriveMoves), which stops and starts its Steam itself.
+        var moving = false
     }
 
     /// A game that ended, whose Steam may still be putting its save into the cloud.
@@ -107,9 +109,10 @@ final class SteamSwitch {
     // MARK: - The rules
 
     /// After a Mac version: Steam for Mac goes, unless the player opened it, another Mac version
-    /// runs or starts, or a Mac download has its turn.
+    /// runs or starts, a Mac download has its turn, or a game moves to another drive.
     nonisolated static func switchesBackAfterMac(_ facts: Facts) -> Bool {
         facts.macSteamRunning && facts.macSteamOurs && !facts.macGameBusy && !facts.macDownload && !facts.windowsGameBusy
+            && !facts.moving
     }
 
     /// Before a Mac version starts: the Windows Steam goes, unless a Windows game still needs it
