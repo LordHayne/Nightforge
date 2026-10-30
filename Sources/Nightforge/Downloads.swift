@@ -21,36 +21,38 @@ enum KeepAwake {
     }
 }
 
-/// The top bar's download ring: how far the downloads have got and how many there are (D).
+/// The top bar's download ring: how far the downloads (and a game moving to another drive) have
+/// got and how many there are (D).
 struct DownloadsButton: View {
     @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
         let downloads = model.downloads
+        let count = downloads.count + (model.move == nil ? 0 : 1)
         Button { model.showingDownloads.toggle() } label: {
             ZStack {
                 Circle().stroke(Color.white.opacity(0.15), lineWidth: 2.5)
                 Circle()
-                    .trim(from: 0, to: max(0.03, Self.progress(downloads)))
+                    .trim(from: 0, to: max(0.03, Self.progress(downloads, move: model.move)))
                     .stroke(Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text("\(downloads.count)")
+                Text("\(count)")
                     .font(.system(size: 10, weight: .bold).monospacedDigit())
                     .foregroundStyle(Theme.ink)
             }
             .frame(width: 22, height: 22)
         }
         .buttonStyle(GlassGroupButtonStyle())
-        .help(downloads.count == 1 ? L10n.t("1 download (D)") : L10n.t("%ld downloads (D)", downloads.count))
-        .accessibilityLabel(downloads.count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", downloads.count))
+        .help(count == 1 ? L10n.t("1 download (D)") : L10n.t("%ld downloads (D)", count))
+        .accessibilityLabel(count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", count))
         .padFocus("top.downloads", cornerRadius: 15, activate: { model.showingDownloads.toggle() })
     }
 
-    static func progress(_ downloads: [Game]) -> Double {
+    static func progress(_ downloads: [Game], move: GameMove? = nil) -> Double {
         let fractions = downloads.map { game -> Double in
             if case .downloading(let fraction) = game.install { return fraction ?? 0 }
             return 0
-        }
+        } + (move.map { [$0.phase == .finishing ? 1 : $0.fraction ?? 0] } ?? [])
         return fractions.isEmpty ? 0 : fractions.reduce(0, +) / Double(fractions.count)
     }
 }
@@ -76,11 +78,14 @@ struct DownloadsPanel: View {
                 .help(L10n.t("Close"))
                 .padFocus("downloads.close", cornerRadius: 14, activate: { model.showingDownloads = false })
             }
-            if model.downloads.isEmpty {
+            if model.downloads.isEmpty && model.move == nil {
                 Text(L10n.t("Nothing is downloading."))
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.muted)
                     .padding(.vertical, 6)
+            }
+            if let move = model.move {
+                moveRow(move)
             }
             ForEach(model.downloads) { game in
                 row(game)
@@ -130,6 +135,58 @@ struct DownloadsPanel: View {
         }
         .padding(10)
         .glassWell()
+    }
+
+    /// A game moving to another drive: how far the copy is, and Cancel until it's copied.
+    private func moveRow(_ move: GameMove) -> some View {
+        HStack(spacing: 12) {
+            DownloadCover(game: move.game)
+            VStack(alignment: .leading, spacing: 6) {
+                // "Hades → Spiele test": where it goes stays readable, the name gives way.
+                HStack(spacing: 6) {
+                    Text(move.game.name)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .lineLimit(1)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(Theme.muted)
+                        .accessibilityHidden(true)
+                    Text(move.drive ?? L10n.t("This Mac"))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .accessibilityLabel(move.drive.map { L10n.t("Moving to %@", $0) } ?? L10n.t("Moving back to your Mac"))
+                }
+                DownloadBar(fraction: move.phase == .copying ? move.fraction : move.phase == .finishing ? 1 : nil)
+                Text(moveLine(move))
+                    .font(.system(size: 11.5).monospacedDigit())
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+            }
+            if move.phase != .finishing {
+                Button(L10n.t("Cancel")) { model.cancelMove() }
+                    .buttonStyle(GlassTextButtonStyle(small: true))
+                    .padFocus("downloads.cancelMove", cornerRadius: 15, activate: { model.cancelMove() })
+            }
+        }
+        .padding(10)
+        .glassWell()
+    }
+
+    /// "37 % of 12 GB", then "37 % · 25 MB/s · 8 min left" once the speed is known (the panel is narrow).
+    private func moveLine(_ move: GameMove) -> String {
+        switch move.phase {
+        case .stoppingSteam:
+            return move.game.provider == .steam ? L10n.t("Closing Steam for the move …") : L10n.t("Preparing …")
+        case .copying:
+            guard let fraction = move.fraction else { return L10n.t("Moving …") }
+            let total = move.progress.total
+            if let speed = move.rate.label(total: Double(total)) { return "\(Int(fraction * 100)) % · " + speed }
+            return total > 0 ? L10n.t("%ld %% of %@", Int(fraction * 100), Format.bytes(total)) : "\(Int(fraction * 100)) %"
+        case .finishing:
+            return L10n.t("Checked – finishing the move …")
+        }
     }
 
     private func fraction(_ game: Game) -> Double? {

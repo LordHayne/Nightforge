@@ -303,7 +303,7 @@
   - **Fertig wenn:** Kein Download startet, der mangels Platz abbrechen würde.
   - **Stand:** `SpaceCheck.swift` – vor jedem Download (Windows und Mac) Vergleich Downloadgröße + 1 GB Reserve mit dem freien Platz des Ziel-Volumes (nächster existierender Ordner). Reicht es nicht: Sheet „<Spiel> needs up to …“ mit fehlender Menge und bis zu 8 installierten Spielen auf demselben Volume, die seit 30 Tagen nicht (oder nie) gespielt wurden, größte zuerst, vorausgewählt bis es reicht → „Uninstall n & Download“ deinstalliert nacheinander und lädt dann (prüft vorher noch einmal). Gibt es keine Kandidaten, sagt das Sheet das. „Install on <externe SSD>“ kommt mit 4.2. Test `tests/SpaceCheckTest/`.
 
-- [ ] **4.2 Spiele auf externen Laufwerken** · `L` · Recherche · teilweise in `claude/ux-roadmap-next`
+- [ ] **4.2 Spiele auf externen Laufwerken** · `L` · Recherche · teilweise in `claude/ux-roadmap-next`, Rest gebaut in `claude/external-drive-4-2-710e3d` (Live-Test offen)
   - **Was:** Steam-Bibliotheksordner auf externen Volumes anlegen/erkennen (`libraryfolders.vdf`), Spiele dorthin installieren und zwischen Laufwerken verschieben. Ist das Laufwerk nicht angeschlossen: Spiel ausgegraut mit „Connect Samsung T7 to play“.
   - **Design:** `Detail.tsx` (Stat „On“), `Dialogs.tsx` → Tab „Storage“ (Move to …).
   - **Recherche** (27.10.):
@@ -317,9 +317,20 @@
   - **Stand** (`claude/ux-roadmap-next`, teilweise): **Nicht angeschlossen:** Liegt ein Spiel in einer Steam-Bibliothek auf einem Laufwerk, das gerade fehlt, heißt der Play-Knopf „Connect T7 to Play“ und ist gesperrt. ↩/A lädt dann auch nichts doppelt herunter.
     - Erkannt wird das an `libraryfolders.vdf` (`LibraryScanner.missingDrives`): `/Volumes/<Name>` fehlt. Das gilt für Mac-Pfade, für `Z:\Volumes\…` und für Laufwerksbuchstaben, die Wine dorthin verlinkt hat – in Nightforges Steam und in Steam für Mac.
     - Test `tests/ExternalDriveTest/`.
-    - Offen: Bibliothek anlegen, „Install on <Laufwerk>“ im Platz-Sheet und „Move to …“ – erst mit einem echten Laufwerk ausprobieren.
+  - **Stand** (`claude/external-drive-4-2-710e3d`, 29.10., mit dem USB-Stick „Spiele test“ geprüft, noch nicht mit echtem Steam):
+    - **Bibliothek auf dem Laufwerk** (`ExternalDrives.swift`): Nightforge legt `Nightforge Games` auf dem Laufwerk an – darin `steamapps/` für Nightforges Windows-Steam, `Steam for Mac/steamapps/` für Steam für Mac und `Epic Games/` für legendary, jeder Store für sich, damit keine Steam die Spiele der anderen für ihre hält.
+      - Eingetragen wird sie bei gestopptem Steam in beide `libraryfolders.vdf` (`config/` und `steamapps/`), als `Z:\Volumes\<Name>\Nightforge Games` bzw. als Mac-Pfad, mit `contentid` und Steams Marke `libraryfolder.vdf` im Ordner. Liegen dort schon Spiele (frühere Installation), kommen sie mit in die `apps`-Liste.
+      - Die Liste wird in ihrer Reihenfolge und Schreibweise gelesen und zurückgeschrieben (`VDF.nodes`/`VDF.text`). Ist sie nicht lesbar, bleibt sie unangetastet.
+    - **Dateisystem** (`DriveCheck`, über `statfs`): APFS und Mac OS Extended gehen. exFAT geht mit ruhigem Hinweis (keine Mac-Rechte und Verknüpfungen). FAT32 wird abgelehnt (4 GB pro Datei), ebenso nur lesbare Laufwerke (NTFS). Time-Machine-Volumes und Netzlaufwerke tauchen nicht auf.
+    - **„Install on <Laufwerk>“** (`DriveViews.swift`): Im Platz-Sheet stehen die angeschlossenen Laufwerke mit freiem Platz und Format („Install on Spiele test“). Hat der Mac genug Platz und hängt ein Laufwerk mit `Nightforge Games` daran, fragt Nightforge „Wohin soll <Spiel>?“ (Mac oder Laufwerk, Return = Mac) – wie Steam bei mehreren Bibliotheken. Ohne Laufwerk sagt das Platz-Sheet, dass eines auch geht. Keine neue Einstellung.
+      - Windows: Bibliothek eintragen (Steam dafür gestoppt; beim ersten Mal also nicht während ein Spiel läuft), dann wie sonst `requestDownload` in die Bibliothek auf dem Laufwerk und Neustart.
+      - Mac: Steam für Mac wird beendet, die Bibliothek eingetragen und Steam wieder gestartet wie vorher.
+      - Epic: `legendary install --base-path <Laufwerk>/Nightforge Games/Epic Games`, das Ziel bleibt pro Spiel in `Epic/destinations.json` (Warteschlange über Neustarts).
+    - **Nicht angeschlossen:** Verschobene Spiele stehen in der `apps`-Liste der Laufwerks-Bibliothek, also greift „Connect <Laufwerk> to Play“. Epic-Spiele auf einem fehlenden Laufwerk zeigen das jetzt auch. Solche Spiele bleiben auf der Startseite und unter „Installiert“ (`Game.shelfState`), mit Laufwerks-Zeichen statt Download-Pfeil auf dem Cover. Beim Ein- und Ausstecken liest Nightforge die Bibliothek neu ein. Liegen auf dem eingesteckten Laufwerk Spiele der Windows-Steam, startet Nightforge diese neu, sobald nichts läuft.
+    - Test `tests/ExternalDriveTest/`: vdf lesen/schreiben, Pfade, Bibliothek anlegen und wieder eintragen, Dateisysteme. Mit `NIGHTFORGE_TEST_IMAGES=1` auch auf exFAT- und FAT32-Abbildern, mit `NIGHTFORGE_TEST_DRIVE=/Volumes/<Name>` ein echtes Hin und Zurück (im Ordner `nightforge-session-test`, der danach wieder weg ist).
+    - Offen: der Test mit echtem Steam (docs/TODO.md › „Externes Laufwerk“).
 
-- [ ] **4.3 Speicher-Übersicht & sauber entfernen** · `M` · teilweise in PR #27
+- [ ] **4.3 Speicher-Übersicht & sauber entfernen** · `M` · teilweise in PR #27, „Move to …“ in `claude/external-drive-4-2-710e3d` (Live-Test offen)
   - **Was:** Tab „Storage“:
     - **Balken pro Laufwerk:** Spiele / Nightforge / Rest.
     - **Installierte Spiele:** nach Größe sortiert, jeweils mit „Move to …“.
@@ -332,7 +343,13 @@
     3. Die lokalen Spielstände werden nach `Dokumente/Nightforge Saves/<Datum>` kopiert. Klappt das nicht, wird nichts gelöscht.
     4. Gelöscht werden Nightforges Ordner, die Caches, die Kurzbefehle und die Einstellungen.
     5. Nightforge legt sich selbst in den Papierkorb und beendet sich.
-    Test `tests/CompleteRemovalTest/` auf Test-Ordnern; in echt nie ausgeführt. Offen: „Move to …“ (braucht 4.2).
+    Test `tests/CompleteRemovalTest/` auf Test-Ordnern; in echt nie ausgeführt.
+    - **„Move to …“** (`claude/external-drive-4-2-710e3d`, `GameMove.swift`, `DriveMoves.swift`): Jedes Spiel in Einstellungen › Speicher hat „Verschieben nach …“. Die Abfrage im Hauptfenster zeigt die Laufwerke (zu volle und FAT32 mit Grund ausgegraut) und bei Spielen auf einem Laufwerk „Zurück auf diesen Mac“. Der Fortschritt steht im Download-Panel, mit Abbrechen.
+      - Steam (Windows oder Mac) wird dafür gestoppt und danach wieder gestartet, wie es war. Nie, solange ein Spiel dieser Steam läuft oder startet; Starts und Downloads dieser Steam warten mit einem Hinweis.
+      - Ablauf: kopieren (`copyfile` mit Rechten, Verknüpfungen und erweiterten Attributen, unter verstecktem Namen), prüfen (jede Datei gleich groß, jede Verknüpfung gleich), umbenennen, dann dem Store sagen. Steam: Manifest, Workshop-Inhalte und Shader-Cache mit, `apps` in der Liste umgetragen. Epic: `legendary move --skip-move` für das Spiel und jeden Zusatzinhalt (legendary trägt Zusatzinhalte nicht selbst um). Erst dann wird das Original gelöscht.
+      - Schlägt etwas vorher fehl (Platz, Laufwerk weg, Abbrechen, Steam inzwischen gestartet, legendary lehnt ab), wird die Kopie entfernt und die Liste zurückgeschrieben – das Spiel bleibt, wo es war.
+      - Speicher-Tab: pro angeschlossenem Laufwerk mit Spielen ein Balken (Spiele / Anderes / frei) und seine Spiele. Fehlende Laufwerke stehen mit ihren Spielen darunter. „Remove Nightforge Completely“ zählt Spiele auf Laufwerken nicht mehr mit (sie bleiben dort).
+      - Test `tests/ExternalDriveTest/`: Hin und zurück mit Prüfung, Abbrechen, Laufwerk nicht beschreibbar, Ordner schon da, Steam inzwischen gestartet, Epic mit Zusatzinhalt und abgelehntem Umtragen.
   - **Recherche** (27.10.):
     - **Shader-Caches** liegen an drei Stellen:
       1. `steamapps/shadercache/<App-ID>` jeder Windows-Bibliothek (DXVK-Zustand, Steams Vulkan-Caches).

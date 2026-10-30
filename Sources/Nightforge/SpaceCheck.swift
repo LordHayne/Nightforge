@@ -57,7 +57,9 @@ enum SpaceCheck {
     }
 }
 
-/// A download waiting for room: shown as a sheet with games to remove.
+/// A download waiting for room: shown as a sheet with games to remove and drives to put it on. With
+/// room on the Mac (no shortfall) and a drive with games of Nightforge's on it, the sheet asks where
+/// the game goes.
 struct SpaceRequest: Identifiable {
     let game: Game
     /// What the download needs on disk.
@@ -65,5 +67,7 @@ struct SpaceRequest: Identifiable {
     let free: Int64
     let shortfall: Int64
     let candidates: [Game]
+    /// External drives plugged in, to download onto instead (ExternalDrive).
+    var drives: [DriveChoice] = []
     var id: String { game.id }
 }

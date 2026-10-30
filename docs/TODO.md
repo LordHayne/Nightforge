@@ -87,6 +87,23 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   für solche Spiele und einen XInput-Pad für den Rest (`engine/patches/winebus-*-xbox360-ids.patch`).
 - **Mac-Ports mit dem synthetischen Xbox-Pad** (`ControllerCompatibility`): bisher nur mit Batman geprüft.
   Andere alte Ports (Feral, Aspyr) wären gute Kandidaten.
+- **PS-Taste im Spiel** (`SteamGuideButton`, 29.10.): Vor jedem Steam-Start schaltet Nightforge „Guide-Taste
+  fokussiert Steam“ ab (`Controller_CheckGuideButton` in `userdata/<id>/config/localconfig.vdf`), bei Windows-Steam
+  und Steam für Mac. So öffnet die PS-Taste außerhalb von Spielen kein Big Picture mehr. Laut steamui (Stand Oktober 2026)
+  fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
+  in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
+  Mac-Spielen damit noch aufgeht.
+- **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
+  - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
+  - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
+  - Offen ist, ob macOS bei alten Mac-Ports mit dem synthetischen Xbox-Pad (`ControllerCompatibility`) mehr als einen Pad nachbildet.
+  - Nightforge selbst hängt sich an jeden Pad (`InputRouter`), beide steuern die Oberfläche.
+
+  Testen mit zwei Pads (DualSense + Xbox oder zwei DualSense):
+  - je ein Windows- und ein Mac-Spiel mit lokalem Koop aus der Bibliothek;
+  - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
+  - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
+  - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
 
 ## Darstellung und Leistung
 
@@ -202,7 +219,14 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   - Legt sich die App in den Papierkorb?
 - **Spielstand-Wahl** (3.2): Ein Spiel mit Mac- und Windows-Version auf beiden Seiten spielen und dann wechseln. Kommt die Frage „Mit welchem Spielstand …“, und liegt der ersetzte Stand in `Backups/`?
 - **Grafik-Voreinstellungen und Karte „This game“** (2.3, Branch `claude/presets-2-3-390808`): Nur offscreen gerendert (echte Views, Deutsch und Englisch) – der Blick in die echte App wurde am 28.10. abgelehnt. In der echten App prüfen: Spieloptionen (Karten, „Expert options“ aufklappen, scrollt es bei kleinem Fenster, folgt der Pad-Fokus?), die Karte rechts neben dem Titel (passt sie bei 980 pt Fensterbreite?), „Back to the Profile“ in der Karte, ein Start mit „Most compatible“ (kommt DXVK bzw. WineD3D zuerst, 60 FPS, ohne MetalFX?).
-- **Externes Laufwerk** (4.2): Ein Laufwerk mit einer Steam-Bibliothek abziehen. Zeigt das Spiel „Schließe <Name des Laufwerks> an, um zu spielen“? (Irgendein externes Laufwerk – „T7“ war nur das Beispiel im Entwurf.) Danach Bibliothek anlegen und verschieben ausprobieren (siehe Recherche in der Roadmap).
+- **Externes Laufwerk** (4.2/4.3, Branch `claude/external-drive-4-2-710e3d`): Gebaut und mit Test-Ordnern geprüft (auch auf dem USB-Stick „Spiele test“, HFS+), aber noch nie mit echtem Steam. In der echten App prüfen:
+  - Ein kleines Windows-Spiel über „Install on Spiele test“ laden (Platz-Sheet oder „Wohin soll …?“). Nimmt Steam die Bibliothek `Z:\Volumes\Spiele test\Nightforge Games` an und lädt dorthin?
+  - Dasselbe Spiel in Einstellungen › Speicher mit „Verschieben nach …“ zurück auf den Mac und wieder auf den Stick. Fortschritt im Download-Panel, Steam danach wieder an, findet Steam das Spiel ohne neue Prüfung, startet es?
+  - Stick abziehen: „Schließe Spiele test an, um zu spielen“? Wieder einstecken: spielbar, ohne Nightforge neu zu starten? (Beim Einstecken startet Nightforge die Windows-Steam neu, sobald nichts läuft.)
+  - Ein Spiel vom Stick deinstallieren und den Stick abziehen: Darf **nicht** „Schließe … an“ zeigen (Steam schreibt seine Liste beim Start neu – sonst bleibt der Eintrag in `apps`).
+  - Fragt macOS nach dem Zugriff auf Wechseldatenträger – für Nightforge (Kopieren) und für „Nightforge Helper“ (Steam, Wine)?
+  - Mac-Version (Steam für Mac, Bibliothek `…/Nightforge Games/Steam for Mac`) und Epic-Spiel (`…/Nightforge Games/Epic Games`) einmal hin und zurück.
+  - Noch nicht gebaut: Ein Laufwerk mit Spielen aus einer früheren Nightforge-Installation wird erst beim nächsten Laden oder Verschieben dorthin wieder als Bibliothek eingetragen (dann mit seinen Spielen), nicht schon beim Einstecken.
 
 ### Gefunden beim Test am 27.10.
 
@@ -410,12 +434,21 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     Apples Lizenztext, kein Quellcode-Knopf.
 - **Startseite direkt nach dem ersten Start** (Nutzer, 29.10., mehrfach: „wirkt sehr karg“, „zu leer“, „sieht
   langweilig aus“): Nach „Los geht's“ zeigt Home bei einem neuen Nutzer nur „Alle 100 Spiele“, „Bibliothek öffnen“
-  und ein Band mit der einzigen Kachel „Alle Spiele“. Brainstorming läuft in der Session design-setup-home
-  (Entwurfsseite mit mehreren Richtungen, Branch `claude/design-setup-home-df5622`); gebaut wird nach Freigabe und
-  nach dem Merge von 6.1.
-- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): rechts neben der Checkliste ein Controller-Test
-  im Glas-Look und ein Tipp-Karussell (Entwurf in derselben Session); links Live-Details unter dem laufenden Schritt
-  (6.1-Session). Kein Epic in der Ersteinrichtung.
+  und ein Band mit der einzigen Kachel „Alle Spiele“. **Gebaut und gemergt am 29.10. (a5103ef):** Home ist die
+  Bühne (Entwurf 2d, `HomeStage.swift`) mit „Für den Anfang“ (`StarterPicks.swift`). Offen: mit einem wirklich neuen
+  Konto ansehen (weniger als drei gespielte Spiele).
+- **Wartezeit der Ersteinrichtung lebendig machen** (Nutzer, 29.10.): **gebaut und gemergt am 29.10. (a5103ef).**
+  Rechts neben der Checkliste stehen der Controller-Test mit Tasten-Chips und 11 Tipps; live mit DualSense geprüft.
+  Kein Epic in der Ersteinrichtung.
+- **Emulation** (Nutzer, 29.10., „was wäre, wenn Nightforge emulation machen könnte“; nur Brainstorming):
+  - Idee: Konsolenspiele in derselben Bibliothek, mit Covern und Controller-Bedienung wie alles andere.
+  - Emulatoren wären Komponenten wie legendary oder gogdl, z. B. RetroArch-Kerne, Dolphin, DuckStation, PPSSPP
+    oder PCSX2. Lizenzen (meist GPL) und Apple-Silicon-Versionen sind je Emulator zu prüfen.
+  - Grenzen: Nightforge liefert keine ROMs oder BIOS und lädt keine herunter, nur eigene Dumps des Spielers. Keine
+    Switch-Emulatoren: Nintendo hat 2024 Yuzu verklagt, Ryujinx wurde danach eingestellt.
+  - Vorbild und Konkurrenz auf dem Mac: OpenEmu. Nightforges Vorteil wäre eine einzige Bibliothek für Steam, Epic, GOG
+    und Konsolen.
+  - Erst besprechen: Umfang (welche Konsolen), Ordner für ROMs, Cover-Quelle, Speicherstände.
 - **Ersteinrichtung weiter beschleunigen** (optional, je etwa 20–30 s): Steams Client-Pakete selbst laden, während
   die Windows-Umgebung entsteht; die Windows-Umgebung aus einer Vorlage kopieren statt `wineboot` (heikel bei
   Wine-Versionswechseln).

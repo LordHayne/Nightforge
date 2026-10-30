@@ -471,6 +471,71 @@ enum L10n {
         "Frees %@ – enough": "Macht %@ frei – reicht",
         "Frees %@ of %@": "Macht %@ von %@ frei",
         "Uninstall %ld & Download": "%ld deinstallieren & laden",
+        // Games on external drives (4.2, 4.3)
+        "Or install it on a drive:": "Oder auf einem Laufwerk installieren:",
+        "Install on %@": "Auf %@ installieren",
+        "An external drive works too: plug one in, then press Download again.":
+            "Ein externes Laufwerk geht auch: Schließ eins an und drück dann noch einmal auf Herunterladen.",
+        "Not enough space – %@ needed.": "Zu wenig Platz – %@ nötig.",
+        "Where should %@ go?": "Wohin soll %@?",
+        "It needs up to %@.": "Es braucht bis zu %@.",
+        "This Mac": "Dieser Mac",
+        "Your Mac": "Dein Mac",
+        "%@ is formatted as exFAT, which has no Mac permissions or links. Most games run from it; if one doesn't, move it back to your Mac.":
+            "%@ ist als exFAT formatiert, das keine Mac-Rechte und Verknüpfungen kennt. Die meisten Spiele laufen davon; läuft eins nicht, verschieb es zurück auf deinen Mac.",
+        "%@ is formatted as FAT32, which can't hold files over 4 GB – most games have some. Erase it as APFS in Disk Utility to put games on it.":
+            "%@ ist als FAT32 formatiert und fasst keine Dateien über 4 GB – die haben die meisten Spiele. Formatiere es im Festplattendienstprogramm als APFS, um Spiele darauf zu legen.",
+        "Your Mac can only read from %@, not write to it.": "Dein Mac kann von %@ nur lesen, nicht darauf schreiben.",
+        "%@ isn't plugged in any more.": "%@ ist nicht mehr angeschlossen.",
+        "Steam restarts to set up %@ – quit the game first, then download again.":
+            "Steam startet neu, um %@ einzurichten – beende zuerst das Spiel und lade dann noch einmal.",
+        "Steam for Mac restarts for the download to %@ – quit the game first, then download again.":
+            "Steam für Mac startet für den Download auf %@ neu – beende zuerst das Spiel und lade dann noch einmal.",
+        "Move to …": "Verschieben nach …",
+        "Move %@": "%@ verschieben",
+        "Move to %@": "Auf %@ verschieben",
+        "Move back to this Mac": "Zurück auf diesen Mac",
+        "Plug in an external drive to move the game there.": "Schließ ein externes Laufwerk an, um das Spiel dorthin zu verschieben.",
+        "%@ is copied first and checked, then the old copy goes – if anything fails on the way, the game stays where it is. Steam closes meanwhile and starts again afterwards.":
+            "Zuerst werden %@ kopiert und geprüft, dann kommt die alte Kopie weg – geht unterwegs etwas schief, bleibt das Spiel, wo es ist. Steam wird dafür beendet und danach wieder gestartet.",
+        "%@ is copied first and checked, then the old copy goes – if anything fails on the way, the game stays where it is.":
+            "Zuerst werden %@ kopiert und geprüft, dann kommt die alte Kopie weg – geht unterwegs etwas schief, bleibt das Spiel, wo es ist.",
+        "%@ can't move right now – quit the game first, or wait until the download or the other move is done.":
+            "%@ kann gerade nicht verschoben werden – beende zuerst das Spiel oder warte, bis der Download oder das andere Verschieben fertig ist.",
+        "Moving to %@": "Wird auf %@ verschoben",
+        "Moving back to your Mac": "Zurück auf deinen Mac",
+        "Closing Steam for the move …": "Steam wird fürs Verschieben beendet …",
+        "Checked – finishing the move …": "Geprüft – Verschieben wird abgeschlossen …",
+        "Moving …": "Wird verschoben …",
+        "%@ is on %@ now": "%@ liegt jetzt auf %@",
+        "%@ is back on your Mac": "%@ ist wieder auf deinem Mac",
+        "%@ stays where it was": "%@ bleibt, wo es war",
+        "%@ was moved, but its old folder couldn't be deleted completely: %@": "%@ wurde verschoben, aber der alte Ordner ließ sich nicht ganz löschen: %@",
+        "%@ couldn't be moved: %@ It's still where it was and plays as before.":
+            "%@ konnte nicht verschoben werden: %@ Es liegt noch am alten Platz und läuft wie bisher.",
+        "%@ is moving – it plays once it's in its new place.": "%@ wird gerade verschoben – spielbar, sobald es am neuen Platz ist.",
+        "Steam is closed while %@ moves – a moment, please.": "Steam ist geschlossen, solange %@ verschoben wird – einen Moment bitte.",
+        "%@ is moving – the download starts once it's done.": "%@ wird gerade verschoben – der Download startet, sobald das fertig ist.",
+        "No games on %@ yet.": "Noch keine Spiele auf %@.",
+        "%@ – plug it in to play or move them.": "%@ – schließ es an, um sie zu spielen oder zu verschieben.",
+        "%@ – plug it in to play or move it.": "%@ – schließ es an, um es zu spielen oder zu verschieben.",
+        "%@ · not connected": "%@ · nicht angeschlossen",
+        "Steam's list of libraries (%@) can't be read, so it was left as it is.":
+            "Steams Liste der Bibliotheken (%@) ist nicht lesbar, deshalb blieb sie, wie sie ist.",
+        "%@ has %@ free – %@ is needed.": "%@ hat %@ frei – %@ sind nötig.",
+        "There's already a folder “%@” where it would go.": "Dort liegt schon ein Ordner „%@“.",
+        "The game's folder “%@” isn't there.": "Der Ordner des Spiels „%@“ fehlt.",
+        "The copy doesn't match the original (%@).": "Die Kopie stimmt nicht mit dem Original überein (%@).",
+        "Cancelled.": "Abgebrochen.",
+        "The drive is full.": "Das Laufwerk ist voll.",
+        "A file is too big for the drive's format.": "Eine Datei ist zu groß für das Format des Laufwerks.",
+        "The drive was unplugged or can't be read.": "Das Laufwerk wurde abgezogen oder ist nicht lesbar.",
+        "Nightforge isn't allowed to write there.": "Nightforge darf dort nicht schreiben.",
+        "Steam started again meanwhile.": "Steam wurde inzwischen wieder gestartet.",
+        "This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.":
+            "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Steam-Bibliothek, du kannst es jederzeit wieder herunterladen. Spielstände in der Steam Cloud bleiben erhalten.",
+        "This removes the game from %@ and frees %@ there. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
+            "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
 
         // Storage
         "Storage": "Speicher",

@@ -475,9 +475,26 @@ private struct StorageSettings: View {
                     free: values.volumeAvailableCapacityForImportantUsage ?? 0)
     }
 
-    /// Installed and downloading games, biggest first.
+    /// Installed and downloading games on the Mac itself, biggest first.
     private var games: [Game] {
-        model.allGames.filter { $0.install != .notInstalled && $0.install != .inStore }.sorted { $0.sizeOnDisk > $1.sizeOnDisk }
+        model.allGames.filter { $0.install != .notInstalled && $0.install != .inStore && DriveLibrary.drive(of: $0.installDir) == nil }
+            .sorted { $0.sizeOnDisk > $1.sizeOnDisk }
+    }
+
+    /// External drives plugged in with games on them (or Nightforge's folder), each with its games.
+    private var drives: [(drive: ExternalDrive, games: [Game])] {
+        let installed = model.allGames.filter { $0.install != .notInstalled && $0.install != .inStore }
+        return ExternalDrive.connected().compactMap { drive in
+            let games = installed.filter { DriveLibrary.drive(of: $0.installDir)?.path == drive.url.path }.sorted { $0.sizeOnDisk > $1.sizeOnDisk }
+            return games.isEmpty && !drive.hasLibrary ? nil : (drive, games)
+        }
+    }
+
+    /// Games on drives that aren't plugged in, by drive.
+    private var unplugged: [(drive: String, games: [String])] {
+        Dictionary(grouping: model.allGames.filter { $0.missingDrive != nil }, by: { $0.missingDrive ?? "" })
+            .map { ($0.key, $0.value.map(\.name).sorted()) }
+            .sorted { $0.drive < $1.drive }
     }
 
     var body: some View {
@@ -517,30 +534,45 @@ private struct StorageSettings: View {
                 if games.isEmpty {
                     Text(L10n.t("No games on this Mac yet.")).foregroundStyle(.secondary)
                 }
-                ForEach(games) { game in
-                    LabeledContent {
-                        HStack(spacing: 8) {
-                            Text(Format.bytes(game.sizeOnDisk)).monospacedDigit().foregroundStyle(.secondary)
-                            Button { reveal(game) } label: { Image(systemName: "folder") }
-                                .help(L10n.t("Show game folder in Finder"))
-                                .accessibilityLabel(L10n.t("Show game folder in Finder"))
-                                .padFocus("storage.reveal.\(game.id)", activate: { reveal(game) })
-                            if model.canUninstall(game) {
-                                Button(game.isInstalled ? L10n.t("Uninstall …") : L10n.t("Cancel Download")) { uninstall(game) }
-                                    .padFocus("storage.uninstall.\(game.id)", activate: { uninstall(game) })
-                            }
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(game.name).lineLimit(1)
-                            Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+                ForEach(games) { game in row(game) }
             } header: {
                 SectionTitle(L10n.t("Games on this Mac"))
+            }
+
+            // Each drive plugged in that has games: its bar and its games, which move like the Mac's.
+            ForEach(drives, id: \.drive.id) { drive, games in
+                Section {
+                    let size = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
+                    let other = max(0, drive.total - drive.free - size)
+                    StorageBar(parts: [(size, Theme.sodium), (other, .white.opacity(0.25))], total: drive.total)
+                    HStack(spacing: 16) {
+                        legend(L10n.t("Games"), size, Theme.sodium)
+                        legend(L10n.t("Other"), other, .white.opacity(0.25))
+                        Spacer()
+                        Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    if let note = drive.check.note(drive.name) {
+                        Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if games.isEmpty {
+                        Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
+                    }
+                    ForEach(games) { game in row(game) }
+                } header: {
+                    SectionTitle(drive.name)
+                }
+            }
+            ForEach(unplugged, id: \.drive) { drive, names in
+                Section {
+                    Text(names.count == 1 ? L10n.t("%@ – plug it in to play or move it.", names[0])
+                                          : L10n.t("%@ – plug it in to play or move them.", names.joined(separator: ", ")))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    SectionTitle(L10n.t("%@ · not connected", drive))
+                }
             }
 
             Section {
@@ -615,6 +647,38 @@ private struct StorageSettings: View {
         }
     }
 
+    /// One game: its size, its folder, "Move to …" and "Uninstall …".
+    private func row(_ game: Game) -> some View {
+        LabeledContent {
+            HStack(spacing: 8) {
+                Text(Format.bytes(game.sizeOnDisk)).monospacedDigit().foregroundStyle(.secondary)
+                Button { reveal(game) } label: { Image(systemName: "folder") }
+                    .help(L10n.t("Show game folder in Finder"))
+                    .accessibilityLabel(L10n.t("Show game folder in Finder"))
+                    .padFocus("storage.reveal.\(game.id)", activate: { reveal(game) })
+                // An icon like the folder's: a long name keeps its row on one line.
+                if model.canMove(game) {
+                    Button { move(game) } label: { Image(systemName: "externaldrive") }
+                        .help(L10n.t("Move to …"))
+                        .accessibilityLabel(L10n.t("Move to …"))
+                        .padFocus("storage.move.\(game.id)", activate: { move(game) })
+                }
+                if model.canUninstall(game) {
+                    Button(game.isInstalled ? L10n.t("Uninstall …") : L10n.t("Cancel Download")) { uninstall(game) }
+                        .padFocus("storage.uninstall.\(game.id)", activate: { uninstall(game) })
+                }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(game.name).lineLimit(1)
+                Text(model.move?.game.id == game.id ? L10n.t("Moving …")
+                     : game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     /// A game running or starting has its shaders open.
     private var gameBusy: Bool { !model.running.isEmpty || model.launchingID != nil }
 
@@ -642,6 +706,7 @@ private struct StorageSettings: View {
     private func planRemoval() {
         guard !gameBusy else { return }
         measuringRemoval = true
+        // Games on a drive aren't in Nightforge's folder: they stay there (`inNightforgeFolder`).
         let games = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
         let gamesSize = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
         Task {
@@ -696,6 +761,11 @@ private struct StorageSettings: View {
     /// Asks in the main window, like the game's own Uninstall button.
     private func uninstall(_ game: Game) {
         model.closeSettings { model.requestUninstall(game) }
+    }
+
+    /// Asks where in the main window, where the downloads panel then shows the move.
+    private func move(_ game: Game) {
+        model.closeSettings { model.requestMove(game) }
     }
 }
 

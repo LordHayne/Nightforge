@@ -32,6 +32,8 @@ struct StoreContext {
     /// The store has taken the request: the library can show the download before the slow part
     /// (a restart, a first look at the files) is through.
     var requested: @MainActor () -> Void = {}
+    /// The external drive to install on (/Volumes/<name>, DriveLibrary); nil: the Mac.
+    var drive: URL?
 }
 
 /// How a game from another store starts under Wine, as its store hands it over (Epic through
@@ -136,6 +138,7 @@ final class SteamStore: StoreProvider {
     /// for Mac, whose setup `LibraryModel` leads (`downloadMac`).
     func install(_ game: Game, context: StoreContext) async throws {
         guard let wine = await Engine.installedWine() else { return }
+        if let drive = context.drive { return try await install(game, onDrive: drive, wine: wine, context: context) }
         try Engine.requestDownload(appID: game.appID, name: game.name, installDir: game.installDirName)
         context.requested()
         if context.busy {

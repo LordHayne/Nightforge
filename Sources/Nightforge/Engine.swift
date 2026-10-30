@@ -1579,8 +1579,9 @@ enum Engine {
     static func environment(wine: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         // Keeps Steam's own processes out of the Dock (wrapper/hide-steam-dock.m); games are untouched.
-        if let hider = Bundle.main.url(forResource: "hide-steam-dock", withExtension: "dylib") {
-            env["DYLD_INSERT_LIBRARIES"] = hider.path
+        // From the data folder: Steam passes this on for days, and Nightforge.app may move meanwhile.
+        if let hider = DockHider.path() {
+            env["DYLD_INSERT_LIBRARIES"] = hider
         }
         env["WINEPREFIX"] = prefix.path
         // msync (installMsync); every Wine process of the session, wineserver included, has to agree,
@@ -1866,6 +1867,7 @@ enum Engine {
         // The game's own library folder (steamapps/common/<folder>), which may be an extra one.
         let library = installDir.deletingLastPathComponent().deletingLastPathComponent()
         try removeGameFiles(appID: appID, installDirName: installDir.lastPathComponent, steamapps: library)
+        try? SteamLibraries.forget(appID: appID, steamRoot: steamRoot, bottle: bottle)  // while Steam is stopped
     }
 
     /// A game's manifest, files, download leftovers and shader cache in one Steam library folder.
@@ -1954,6 +1956,7 @@ enum Engine {
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
+        if !isSteamRunning { SteamGuideButton.turnOff(steamRoot: steamRoot) }
         let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader

@@ -462,8 +462,12 @@ enum Launcher {
             Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
             Engine.applyIniSettings(profile?.iniSettings ?? [])
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
-            // This call starts Steam when it isn't running: in the Retina mode the game wants.
-            if !Engine.isSteamRunning { Engine.applyRetinaMode(runner) }
+            // This call starts Steam when it isn't running: in the Retina mode the game wants, and
+            // with the Guide button left to Nightforge (SteamGuideButton).
+            if !Engine.isSteamRunning {
+                Engine.applyRetinaMode(runner)
+                SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
+            }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own
         // games get the HUD from the background Steam instead (Prefs.performanceHUD).

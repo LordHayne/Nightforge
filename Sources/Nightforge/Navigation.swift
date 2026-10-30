@@ -73,13 +73,14 @@ enum HomeRail {
     static let minimum = 3
 
     /// Indices into `games`: pinned games first (by name), then downloads, then installed games
-    /// played in the last 90 days, the latest first. Only what's on this Mac. A game from several
+    /// played in the last 90 days, the latest first. Only what's on this Mac – or on a drive that's
+    /// unplugged, which plays once it's back (`Game.shelfState`). A game from several
     /// stores goes by what its card shows (`Game.shown`) and is pinned when one of them is.
     /// `fill`: with fewer than `minimum`, other installed games fill up (Home's stage fills with
     /// StarterPicks instead).
     static func pick(_ games: [Game], pinned: Set<GameID> = [], now: Date = Date(), fill: Bool = true) -> [Int] {
         let onMac = games.indices.filter { index in
-            switch games[index].shown.install {
+            switch games[index].shown.shelfState {
             case .installed, .downloading: return true
             case .notInstalled, .inStore: return false
             }

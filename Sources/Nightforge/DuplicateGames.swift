@@ -101,7 +101,7 @@ enum DuplicateGames {
     /// from several stores counts in each.
     static func count(_ cards: [Game], hidden: Set<GameID>, in provider: Provider? = nil) -> Int {
         cards.lazy.filter { card in
-            card.inLibrary && !card.isMarked(in: hidden) && provider.map(card.providers.contains) ?? true
+            card.counted && !card.isMarked(in: hidden) && provider.map(card.providers.contains) ?? true
         }.count
     }
 
