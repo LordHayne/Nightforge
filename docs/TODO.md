@@ -398,6 +398,19 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     Anmeldefenster 37 s statt 83 s (Lauf 5). Erwartet: −25…30 s.
   - **Wenn der Moment verpasst wird**: Ein hängender Browser (Chrome begonnen, 5 s keine Message-Loop) wird sofort neu
     gestartet statt nach 20 s (`SteamBrowser`); das 20-s-Netz bleibt. Erwartet dann: −15 s.
+  - **Lauf 6** (29.10., 23:24; Probe-Merge mit steam-guide-dylib und external-drive): 4:24, davon Windows 3:10. Der
+    Steam-Teil lief live wie geplant: Steam-Start bis Anmeldefenster 38 s statt 83 s, kein Neustart, 64-Bit-Schritt ohne
+    Download. Der 32-Bit-Schritt lud noch die 32-Bit-Varianten von CEF (96 MB, 6 s); jetzt kommen beide Varianten vorab.
+  - **Nachmessung** in einem leeren Home (Harness mit dem echten `SetupModel`, echte Downloads, ohne App-Oberfläche):
+    - Dieselbe Mischung wie Lauf 6: 2:03 (Engine 26 s, Windows 52 s, Steam 44 s).
+    - Endstand: 2:05 und 1:50 (Windows 52 s und 41 s, Steam 45 s und 44 s).
+    - a5103ef ohne diesen Branch: Der Neustart nach dem Update hing fünfmal hintereinander, dann gab die Einrichtung auf.
+  - **Langsamer Windows-Schritt**: Einmal nachgestellt (2:12). 87 s lang lief `wine wineboot --init` ohne wineserver,
+    also Wines erster Start der frisch entpackten Engine (Rosetta übersetzt), sonst 5–7 s. Zeitgleich lief Time Machine.
+    Auf das Vorabladen wartet der Schritt nicht. Das Vorabladen kostet dort trotzdem Zeit (ohne 37 s, mit 41–58 s) und
+    spart im Steam-Schritt ~39 s. Es startet jetzt erst, wenn wineboot Dateien anlegt.
+  - **Hänger der Schleife**: Einmal stand die Einrichtung 12 min (Time Machine aktiv). Der Wrapper kam dabei zu spät, Valves
+    Helper lief, danach ein Neustart. Wrapper-Tausch und `ps`-Abfrage laufen jetzt neben dem Main-Thread.
   - **Verworfen**: Den htmlcache zu leeren half nicht (Lauf 5). Die Ursache des Hängers bleibt offen. In fünf nachgestellten
     Varianten trat er nie auf (kalte/warme Engine, früh/spät beendet, SIGKILL wie `stopAll`, Game-Mode-Loader). Der erste
     Browserstart in einem frischen Präfix hängt nicht.

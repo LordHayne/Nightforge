@@ -311,7 +311,11 @@ final class SetupModel: ObservableObject {
 
             step = .environment
             phase = .running(.environment)
-            if !Engine.isSteamInstalled, prefetch == nil { prefetch = SteamPrefetch.start() }
+            // Steam's installer and its first update come down meanwhile (SteamPrefetch) – once wineboot
+            // lays down files. Before that, the first launch of a fresh engine has Rosetta translate
+            // it: 5–7 s, but 87 s once (30.10.2026, Time Machine busy at the time), and nothing of
+            // ours should write meanwhile.
+            let fetchSteam = !Engine.isSteamInstalled && prefetch == nil
             if !FileManager.default.fileExists(atPath: Engine.prefix.appendingPathComponent("drive_c").path) {
                 try FileManager.default.createDirectory(at: Engine.prefix, withIntermediateDirectories: true)
                 detail = SetupDetail.windows(systemFiles: 0)
@@ -320,6 +324,7 @@ final class SetupModel: ObservableObject {
                     while !Task.isCancelled {
                         try? await Task.sleep(for: .seconds(1))
                         let count = await Engine.offMain { Self.systemFiles() }
+                        if count > 0, fetchSteam, prefetch == nil { prefetch = SteamPrefetch.start() }
                         if !Task.isCancelled, currentStep() == .environment { detail = SetupDetail.windows(systemFiles: count) }
                     }
                 }
@@ -327,6 +332,7 @@ final class SetupModel: ObservableObject {
                 counting.cancel()
                 guard status == 0 else { throw SetupError.environmentFailed }
             }
+            if fetchSteam, prefetch == nil { prefetch = SteamPrefetch.start() }
             // Graphics layers, D3DMetal, the controller package and the game environment, the same way
             // every later start checks them (off the main thread: it copies files and runs regedit).
             _ = try await Engine.ensureEngine { step in
@@ -452,8 +458,11 @@ final class SetupModel: ObservableObject {
             // install: that cut it off, and Steam started over every 13 s) and the new start has
             // checked Steam's files (before, the check put Valve's helper back): then the client
             // starts the wrapper itself. Steam is restarted only when Valve's already runs.
+            // Off the main thread like every file copy of the engine's: a copy waiting on a busy disk
+            // doesn't hold the window up (in a scratch home the setup stood still for 12 minutes once,
+            // Time Machine busy at the time; 30.10.2026).
             let verified = clientInstalled && SteamBootstrap.verified(log: log)
-            if verified, Engine.installWebHelperWrapper() { swappedAt = Date() }
+            if verified, await Engine.offMain({ Engine.installWebHelperWrapper() }) { swappedAt = Date() }
             quick = !verified && (bootstrap == .installing || bootstrap == .updated || clientInstalled)
             // Only a new line redraws the checklist: in the quick phase the log is read up to 20 times a second.
             let line = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
@@ -490,7 +499,8 @@ final class SetupModel: ObservableObject {
             let sinceRestart = Date().timeIntervalSince(lastRestart)
             let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled,
                                             clientStarted: SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
-            let gone = bootstrap.gone(steamRunning: Engine.isSteamRunning, sinceRestart: sinceRestart, quietFor: quiet)
+            let steamRunning = await Engine.offMain { Engine.isSteamRunning }
+            let gone = bootstrap.gone(steamRunning: steamRunning, sinceRestart: sinceRestart, quietFor: quiet)
             if stalled || gone { try await restart() }
         }
     }
