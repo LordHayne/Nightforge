@@ -257,58 +257,25 @@ b { font-weight: 650; color: var(--ink); }
   .cta .btn { width: 100%; }
 }
 
-/* ---------- The rebuilt app window (scales like a picture) ---------- */
+/* ---------- Screenshots ---------- */
 
 .shot { margin-top: 56px; }
-.shot figcaption { margin-top: 14px; color: var(--muted); font-size: 13.5px; }
+.shot figcaption, .spot-shot figcaption { margin-top: 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 
-.win {
-  container-type: inline-size;
-  position: relative;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  border-radius: clamp(10px, 1.6vw, 16px);
-  background: linear-gradient(180deg, #121925, var(--night) 60%, #0C1017);
-  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  text-align: left;
-  font-size: 1.15cqw;
-  line-height: 1.35;
+/* A window capture: its corners are already round and transparent; the shadow follows them. */
+.screen {
+  width: 100%; height: auto;
+  border-radius: 0.7% / 1.2%;
+  background: var(--night);
+  box-shadow: 0 34px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09);
 }
-.win .i { width: 1.3cqw; height: 1.3cqw; stroke-width: 2; }
-/* The front cover's own light, blurred behind the stage – as the app does with the hero game. */
-.win-glow {
-  position: absolute; inset: 0;
-  background:
-    radial-gradient(42cqw 28cqw at 70% 58%, rgba(255, 150, 70, 0.32), transparent 70%),
-    radial-gradient(60cqw 30cqw at 25% 10%, rgba(120, 70, 140, 0.18), transparent 70%);
-}
-.win-dots { position: absolute; top: 1.6cqw; left: 1.6cqw; display: flex; gap: 0.7cqw; }
-.win-dots i { width: 1.05cqw; height: 1.05cqw; border-radius: 50%; background: #FF5F57; }
-.win-dots i:nth-child(2) { background: #FEBC2E; }
-.win-dots i:nth-child(3) { background: #28C840; }
+.spot-shot { margin: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.spot-shot .screen { box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.09); }
+.spot-shot-tall .screen { max-width: 440px; }
+.spot-shot figcaption { max-width: 560px; }
 
-.win-top {
-  position: absolute; top: 4.4cqw; left: 3.6cqw; right: 3.6cqw;
-  display: flex; align-items: center; gap: 1.6cqw;
-}
-.win-brand { display: flex; align-items: center; gap: 0.7cqw; font: 800 1.45cqw/1 var(--display); font-stretch: 125%; font-variation-settings: "wdth" 125; }
-.win-brand svg { width: 1.3cqw; height: 1.7cqw; }
-.win-seg, .pill {
-  display: flex; align-items: center; gap: 0.3cqw;
-  padding: 0.35cqw; border-radius: 99cqw;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  font-weight: 600;
-}
-.win-seg > span { padding: 0.55cqw 1.2cqw; border-radius: 99cqw; color: #D5D9DF; }
-.win-seg > span.on { background: var(--ink); color: var(--night); }
-.win-seg b { color: var(--muted); font-weight: 600; }
-.win-pills { margin-left: auto; display: flex; gap: 0.9cqw; }
-.pill { padding: 0.75cqw 1.3cqw; gap: 1cqw; color: #D5D9DF; font-variant-numeric: tabular-nums; }
-
-.win-stage { position: absolute; inset: 9cqw 3.6cqw 5cqw; }
-.stage-text { position: absolute; left: 0; top: 7.5cqw; width: 50%; }
-.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7cqw; }
+/* Bits of the app drawn in HTML: chips and the sodium Play button. */
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .chip {
   display: inline-flex; align-items: center; gap: 0.45em;
   padding: 0.3em 0.8em; border-radius: 999px;
@@ -318,117 +285,16 @@ b { font-weight: 650; color: var(--ink); }
 }
 .chip-great { color: var(--great); background: rgba(126, 226, 160, 0.12); }
 .chip-nope { color: var(--nope); background: rgba(255, 158, 148, 0.12); }
-.kicker { color: var(--muted); font-size: 0.85em; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
-.stage-title { margin: 1.2cqw 0 1cqw; font-size: 4.6cqw; line-height: 1; }
-.stage-desc { color: #C9CED6; font-size: 1.2cqw; }
-.stage-meta { display: flex; gap: 2.6cqw; margin-top: 1.8cqw; }
-.stage-meta > div { display: flex; flex-direction: column; gap: 0.2cqw; }
-.stage-meta .k { color: var(--muted); font-size: 0.92em; }
-.stage-meta .v { font-weight: 650; font-size: 1.1em; }
-.stage-actions { display: flex; align-items: center; gap: 1.2cqw; margin-top: 2.2cqw; }
-
-/* Play, as the app draws it: sodium glass with its glow. */
 .play {
   display: inline-flex; align-items: center; gap: 0.6em;
-  padding: 0.95em 2em; border-radius: 999px;
+  padding: 11px 20px; border-radius: 999px;
   background-color: var(--sodium);
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 50%);
-  box-shadow: 0 0.5cqw 1.6cqw rgba(255, 179, 71, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  color: var(--night); font-weight: 750; font-size: 1.3cqw;
+  box-shadow: 0 5px 16px rgba(255, 179, 71, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  color: var(--night); font-weight: 750; font-size: 15px;
 }
 .play .i { width: 1em; height: 1em; }
-.round {
-  display: grid; place-items: center;
-  width: 3.4cqw; height: 3.4cqw; border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  font: italic 700 1.3cqw/1 Georgia, serif; color: #D5D9DF;
-}
-
-.stage-covers { position: absolute; right: 2cqw; top: 3cqw; width: 42cqw; height: 34cqw; perspective: 80cqw; }
-.cover {
-  position: absolute;
-  border-radius: 1.4cqw;
-  overflow: hidden;
-  box-shadow: 0 1cqw 2.4cqw rgba(0, 0, 0, 0.45);
-}
-.stage-covers .cover { top: 3cqw; width: 18cqw; height: 26cqw; transform: rotateY(-24deg); transform-origin: left center; filter: brightness(0.62) saturate(0.85); }
-.stage-covers .cover-2 { left: 21cqw; }
-.stage-covers .cover-3 { left: 26cqw; width: 16cqw; height: 24cqw; top: 4cqw; filter: brightness(0.5) saturate(0.8); }
-.stage-covers .cover-4 { left: 30.5cqw; width: 14cqw; height: 22cqw; top: 5cqw; filter: brightness(0.4) saturate(0.7); }
-.stage-covers .front {
-  left: 0; top: 0; width: 21cqw; height: 30cqw;
-  transform: none; filter: none;
-  box-shadow: 0 0 0 0.3cqw var(--sodium), 0 2.4cqw 4.4cqw rgba(0, 0, 0, 0.6);
-  -webkit-box-reflect: below 0.8cqw linear-gradient(transparent 72%, rgba(255, 255, 255, 0.16));
-}
-.tag {
-  position: absolute; top: 0.6rem; right: 0.6rem;
-  padding: 0.25em 0.6em; border-radius: 999px;
-  background: rgba(15, 20, 28, 0.82); color: var(--ink);
-  font: 800 0.72rem/1 var(--display); font-stretch: 125%; font-variation-settings: "wdth" 125; letter-spacing: 0.04em;
-}
-.stage-covers .tag { top: 1cqw; right: 1cqw; font-size: 0.85cqw; }
-.cover-title {
-  position: absolute; left: 0; right: 0; bottom: 2.2cqw;
-  text-align: center; font-size: 2.5cqw; line-height: 1; color: #FFF6E8;
-  text-shadow: 0 0.3cqw 1.2cqw rgba(0, 0, 0, 0.5);
-  hyphens: manual;
-}
-
-/* Made-up cover art: gradients only. */
-.cover-1 {
-  background:
-    radial-gradient(circle at 30% 64%, #FFD58A 0 1.1%, transparent 1.6%),
-    radial-gradient(circle at 62% 56%, #FFC86B 0 0.9%, transparent 1.4%),
-    radial-gradient(circle at 46% 74%, #FFE2A6 0 1.3%, transparent 1.9%),
-    radial-gradient(circle at 78% 70%, #FFBE5C 0 0.8%, transparent 1.3%),
-    radial-gradient(circle at 20% 48%, #FFC873 0 0.7%, transparent 1.2%),
-    radial-gradient(120% 60% at 50% 100%, rgba(255, 170, 70, 0.75), transparent 60%),
-    linear-gradient(180deg, #1B1633 0%, #3B2347 38%, #8A3E3A 70%, #D5793A 100%);
-}
-.cover-2 {
-  background:
-    radial-gradient(circle at 70% 26%, #F4F1E4 0 7%, rgba(244, 241, 228, 0.25) 7.5%, transparent 15%),
-    linear-gradient(160deg, transparent 58%, #0B2228 58.5%),
-    linear-gradient(200deg, transparent 52%, #123840 52.5%),
-    linear-gradient(180deg, #0E2B3C 0%, #1E5866 55%, #6FB3A8 100%);
-}
-.cover-3 {
-  background:
-    radial-gradient(circle at 58% 42%, #9DB4FF 0 16%, #4E5FC4 26%, transparent 27%),
-    radial-gradient(circle at 20% 20%, #fff 0 0.6%, transparent 1%),
-    radial-gradient(circle at 80% 76%, #fff 0 0.5%, transparent 0.9%),
-    linear-gradient(180deg, #0A0F2E, #262B68);
-}
-.cover-4 {
-  background:
-    linear-gradient(165deg, transparent 60%, #3A1830 60.5%),
-    radial-gradient(circle at 40% 40%, #FF9AA8 0 10%, transparent 30%),
-    linear-gradient(180deg, #3B1E52, #C2557A 70%, #F2A06B);
-}
-
-.stage-pager {
-  position: absolute; right: 2cqw; bottom: 0; width: 38cqw;
-  display: flex; align-items: center; justify-content: center; gap: 1cqw;
-  color: var(--muted); font-size: 1.05cqw;
-}
-.pg {
-  display: grid; place-items: center; width: 2.5cqw; height: 2.5cqw; border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  color: #D5D9DF; font-size: 1.5cqw;
-}
-.win-hints {
-  position: absolute; right: 3.6cqw; bottom: 2cqw;
-  display: flex; gap: 2cqw; color: #C4C9D0; font-size: 1.05cqw;
-}
-.win-hints > span { display: inline-flex; align-items: center; gap: 0.6cqw; }
-kbd {
-  display: inline-grid; place-items: center;
-  min-width: 2cqw; height: 2cqw; padding: 0 0.5cqw; border-radius: 99cqw;
-  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font: 700 0.95cqw/1 var(--body);
-}
+.notice .chip .i, .chart .chip .i { width: 15px; height: 15px; }
 
 /* ---------- Sections ---------- */
 
@@ -449,7 +315,7 @@ kbd {
 .step h3, .tile h3 { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
 .step p, .tile p { color: #B9C0C9; font-size: 15.5px; line-height: 1.6; }
 
-/* Spotlights: text beside a rebuilt piece of the app, alternating sides. */
+/* Spotlights: text beside a screenshot of the app, alternating sides. */
 .spot { display: grid; gap: 34px; align-items: center; }
 .spot + .spot { margin-top: 88px; }
 .spot-text p + p { margin-top: 14px; }
@@ -458,29 +324,19 @@ kbd {
   .spot { grid-template-columns: 1fr 1fr; gap: 64px; }
   .spot + .spot { margin-top: 120px; }
   .spot-flip .spot-text { order: 2; }
+  .spot-wide { grid-template-columns: 5fr 7fr; gap: 56px; }
+  .spot-wide.spot-flip { grid-template-columns: 7fr 5fr; }
 }
+.spot-text .chart { margin-top: 30px; }
 .spot-visual { position: relative; display: flex; justify-content: center; }
 /* A still pool of light behind each piece of the app – blue for the logo's seam, warm for the lamp. */
 .spot-visual::before {
   content: "";
-  position: absolute; inset: -18% 0; z-index: -1;
+  position: absolute; inset: -14% 0; z-index: -1;
   background: radial-gradient(closest-side, rgba(46, 122, 255, 0.13), transparent);
   pointer-events: none;
 }
 .spot-flip .spot-visual::before { background: radial-gradient(closest-side, rgba(255, 179, 71, 0.1), transparent); }
-
-/* Mac version card */
-.card-game { display: flex; gap: 22px; align-items: center; width: 100%; max-width: 500px; padding: 20px; font-size: 15px; }
-.cover.mini { position: relative; flex: none; width: 128px; height: 180px; border-radius: 14px; }
-.card-game-text { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
-.card-game-title { font-size: 26px; }
-.card-game-text p { color: #B9C0C9; font-size: 14.5px; }
-.card-game .chip .i, .notice .chip .i, .chart .chip .i { width: 15px; height: 15px; }
-.play-sm { font-size: 15px; padding: 11px 20px; box-shadow: 0 5px 16px rgba(255, 179, 71, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
-@media (max-width: 420px) {
-  .card-game { flex-direction: column; align-items: flex-start; }
-  .cover.mini { width: 100%; height: 150px; }
-}
 
 /* Frame-rate chart: two routes, measured numbers from the README. */
 .chart { width: 100%; max-width: 520px; margin: 0; padding: 24px 24px 22px; }
@@ -515,63 +371,18 @@ kbd {
 .bar-val { flex: none; color: #D5D9DF; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .chart-foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; font-size: 15px; }
 
-/* Controller */
-.pad-card { width: 100%; max-width: 500px; padding: 28px 24px 24px; }
-.pad { width: 100%; height: auto; }
-.pad-body { fill: rgba(255, 255, 255, 0.05); stroke: rgba(243, 241, 236, 0.4); stroke-width: 2; }
-.pad-sh { fill: rgba(255, 255, 255, 0.05); stroke: rgba(243, 241, 236, 0.3); stroke-width: 1.5; }
-.pad-sh-t { fill: var(--muted); font: 700 11px var(--body); text-anchor: middle; }
-.pad-stick { fill: rgba(0, 0, 0, 0.25); stroke: rgba(243, 241, 236, 0.32); stroke-width: 1.5; }
-.pad-stick-in { fill: none; stroke: rgba(243, 241, 236, 0.18); stroke-width: 1.5; }
-.pad-dpad { fill: rgba(255, 255, 255, 0.04); stroke: rgba(243, 241, 236, 0.32); stroke-width: 1.5; stroke-linejoin: round; }
-.pad-mini { fill: none; stroke: rgba(243, 241, 236, 0.3); stroke-width: 1.5; }
-.pad-btn { fill: rgba(255, 255, 255, 0.04); stroke: rgba(243, 241, 236, 0.35); stroke-width: 1.5; }
-.pad-lit { fill: var(--sodium); stroke: #FFD9A0; filter: drop-shadow(0 0 8px rgba(255, 179, 71, 0.8)); }
-.pad-t { fill: #D5D9DF; font: 700 13px var(--body); text-anchor: middle; }
-.pad-t-lit { fill: var(--night); }
-.hints { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; margin-top: 18px; color: #C4C9D0; font-size: 14.5px; }
-.hints > span { display: inline-flex; align-items: center; gap: 8px; }
-.key {
-  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-  font-size: 12.5px; font-weight: 800;
-}
-.key-lit { background: var(--sodium); color: var(--night); box-shadow: 0 0 12px rgba(255, 179, 71, 0.5); }
-
-/* Welcome back */
-.welcome { width: 100%; max-width: 460px; padding: 30px 28px 26px; text-align: center; }
-.welcome-title { font-size: 28px; }
-.welcome-time { margin-top: 8px; color: var(--muted); font-size: 14.5px; font-variant-numeric: tabular-nums; }
-.welcome-q { margin-top: 24px; font-weight: 650; font-size: 16px; }
-.welcome-choice { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
-.opt {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font-size: 14.5px; font-weight: 600;
-}
-.opt .i { width: 16px; height: 16px; }
-.opt-on { color: var(--great); background: rgba(126, 226, 160, 0.12); box-shadow: inset 0 0 0 1.5px rgba(126, 226, 160, 0.6); }
-.welcome-note { margin-top: 12px; color: var(--muted); font-size: 13.5px; }
-.welcome-actions { display: flex; justify-content: center; gap: 10px; margin-top: 24px; }
-.btn-mock {
-  display: inline-flex; align-items: center; height: 42px; padding: 0 22px; border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  font-size: 14px; font-weight: 650;
-}
-.btn-mock-gold {
-  background: var(--sodium) linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 50%);
-  color: var(--night);
-  box-shadow: 0 5px 16px rgba(255, 179, 71, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-}
-
 /* Feature tiles */
 .grid { display: grid; gap: 14px; margin-top: 34px; }
 @media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1000px) { .grid { grid-template-columns: repeat(3, 1fr); gap: 18px; } }
 .tile { padding: 24px 24px 26px; }
 .tile-i { width: 26px; height: 26px; margin-bottom: 16px; color: var(--sodium); stroke-width: 1.6; }
+
+/* Settings gallery: two dialogs side by side. */
+.section-tight { padding-top: 24px; }
+.gallery { display: grid; gap: 40px; margin-top: 34px; }
+@media (min-width: 900px) { .gallery { grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; } }
+.gallery .screen { max-width: 540px; }
 
 /* Honest limits */
 .honest { display: grid; gap: 40px; align-items: center; }
