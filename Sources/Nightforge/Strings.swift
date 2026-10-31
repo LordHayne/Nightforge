@@ -996,6 +996,11 @@ enum L10n {
         "Nightforge's GOG helper didn't start, so the sign-in didn't reach GOG. Please try again.":
             "Nightforges GOG-Helfer ist nicht gestartet, deshalb kam die Anmeldung nicht bei GOG an. Bitte versuch es noch einmal.",
         "Nightforge's GOG helper didn't start": "Nightforges GOG-Helfer ist nicht gestartet",
+        "Steam isn't responding – restarting it …": "Steam reagiert nicht – wird neu gestartet …",
+        "Steam stopped taking requests. A fresh start fixes that – the game starts right after.":
+            "Steam nimmt keine Befehle mehr an. Ein Neustart behebt das – das Spiel startet gleich danach.",
+        "Steam isn't responding, and restarting it would end the game that's running. Quit that game and press Play again.":
+            "Steam reagiert nicht, und ein Neustart würde das laufende Spiel beenden. Beende das Spiel und drück noch einmal auf Spielen.",
         "Setting up Windows parts for %@ …": "Windows-Bausteine für %@ werden eingerichtet …",
         "Installing %@, which the game needs from Windows. Only the first time.":
             "%@ wird installiert – das Spiel braucht es aus Windows. Nur beim ersten Mal.",

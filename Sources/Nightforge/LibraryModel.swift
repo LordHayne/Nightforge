@@ -922,12 +922,15 @@ final class LibraryModel: ObservableObject {
     /// True once it has signed in again (up to 90 s). It signs in by itself; when it asks instead
     /// (its remembered sign-in ran out) while a game waits to start, its window comes to the front
     /// and the player gets ten minutes for it. `freshSession`: with a new Wine session (DockHider).
-    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false) async -> Bool {
+    /// `hung`: it stopped taking commands, so it's ended with its Wine session (no game may run).
+    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false, hung: Bool = false) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
             await previous?.value
-            if freshSession {
+            if hung {
+                try? await Engine.restartHungSteam(wine)
+            } else if freshSession {
                 try? await DockHider.restartSteam(wine)
             } else {
                 try? await Engine.restartSteamInBackground(wine)
@@ -2268,10 +2271,15 @@ final class LibraryModel: ObservableObject {
     private func start(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
                        arguments: [String], frameLimit: Int) async -> Bool {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
+        // Running, signed in and done starting: Steam logs the command within a second (SteamCommands).
+        var steamWasReady = game.bottle.isBuiltIn && Engine.isSteamRunning && Engine.steamSignedIn
+            && Engine.startupFinished(steamRoot: Engine.steamRoot)
+        var client: DetachedProcess?
+        var sentAt = Date()
         do {
             // Off the main thread: it reads Steam's app catalog and writes the registry, which
             // would freeze the window for a moment.
-            try await Task.detached(priority: .userInitiated) {
+            client = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                     frameLimit: frameLimit, extraArguments: arguments)
             }.value
@@ -2318,13 +2326,41 @@ final class LibraryModel: ObservableObject {
                 errorMessage = L10n.t("Steam couldn't start %@.", game.name)
                 return false
             case nil:
+                // A Steam that was ready and hasn't taken the command has stopped taking any – also
+                // signed in (SteamCommands). Restarted once, without its "-shutdown" (it wouldn't
+                // take that either), and asked again.
+                if steamWasReady, !retriedAfterRestart, let runner,
+                   SteamCommands.hung(steamWasReady: true, received: watcher.steamReceivedLaunch,
+                                      sentAgo: Date().timeIntervalSince(sentAt)) {
+                    retriedAfterRestart = true
+                    steamWasReady = false  // the fresh Steam may lose a request while starting: resent below
+                    guard running.isEmpty, !(await Engine.offMain { Engine.windowsGameRunning }) else {
+                        errorMessage = L10n.t("Steam isn't responding, and restarting it would end the game that's running. Quit that game and press Play again.")
+                        return false
+                    }
+                    if client?.isRunning == true { client?.terminate() }
+                    launchPhase = .steamNotResponding
+                    if await restartStuckSteam(URL(fileURLWithPath: runner), hung: true) {
+                        watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
+                        signedInSince = nil
+                        sentAt = Date()
+                        client = try? await Task.detached(priority: .userInitiated) {
+                            try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
+                                                frameLimit: frameLimit, extraArguments: arguments)
+                        }.value
+                    }
+                    launchPhase = nil
+                    quietSeconds = 0
+                    continue
+                }
                 // A request that arrives while Steam is still starting can get lost. Once Steam has
                 // signed in and still hasn't logged it, ask once more.
-                if game.bottle.isBuiltIn, !watcher.steamReceivedLaunch, !resent {
+                if game.bottle.isBuiltIn, !steamWasReady, !watcher.steamReceivedLaunch, !resent {
                     if signedInSince == nil, Engine.steamSignedIn { signedInSince = totalSeconds }
                     if let since = signedInSince, totalSeconds - since >= 10 {
                         resent = true
-                        try? await Task.detached(priority: .userInitiated) {
+                        sentAt = Date()
+                        client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                                 frameLimit: frameLimit, extraArguments: arguments)
                         }.value
@@ -2339,7 +2375,8 @@ final class LibraryModel: ObservableObject {
                     launchPhase = .restartingSteam
                     if await restartStuckSteam(URL(fileURLWithPath: runner)) {
                         watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
-                        try? await Task.detached(priority: .userInitiated) {
+                        sentAt = Date()
+                        client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
                                                 frameLimit: frameLimit, extraArguments: arguments)
                         }.value

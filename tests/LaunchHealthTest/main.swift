@@ -115,6 +115,37 @@ struct LaunchHealthTest {
         LaunchHealth.review(app, ladder, steamRoot: steam)
         check(LaunchHealth.current(app, ladder) == (1, true), "a 10 min session confirms")
 
+        // MARK: Steam that stopped taking commands (OxyRail, 31.10.2026, console_log as Steam wrote it)
+        let took = #"[2026-10-31 16:36:11] ExecCommandLine: ""C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing -silent -applaunch 3907790""#
+        check(SteamCommands.isLaunch(took[...], appID: 3907790), "Steam took the start")
+        check(!SteamCommands.isLaunch(took[...], appID: 390779), "not another game's")
+        // Helper runs from macOS's log: the client ran 0.22 s, and Steam logged the start in the same second.
+        check(!SteamCommands.hung(steamWasReady: true, received: true, sentAgo: 0.223), "16:36:10.854–11.077: taken at once")
+        check(!SteamCommands.hung(steamWasReady: true, received: false, sentAgo: 5), "not yet: Steam has its 15 s")
+        // 16:52:32 and 17:21:24: the client ended as quickly, and console_log stayed at
+        // "[16:46:43] STARTUP SlowJSMethodCall Messaging.PostMessage took 3.0ms".
+        check(SteamCommands.hung(steamWasReady: true, received: false, sentAgo: 15), "a ready Steam that took nothing in 15 s: hung, signed in or not")
+        check(!SteamCommands.hung(steamWasReady: false, received: false, sentAgo: 60),
+              "a Steam still starting may lose a request: that's resent, not a hang")
+        let oxyRail = steam.appendingPathComponent("oxyrail", isDirectory: true)
+        try? FileManager.default.createDirectory(at: oxyRail.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        let oxyLog = oxyRail.appendingPathComponent("logs/console_log.txt")
+        try? "[2026-10-31 16:39:34] Game process removed: AppID 3907790 \"\"C:\\Oxygen Train.exe\"\", ProcID 2828 \r\n".write(to: oxyLog, atomically: true, encoding: .utf8)
+        var oxyWatcher = LaunchWatcher(steamRoot: oxyRail, appID: 3907790)
+        func oxyAppend(_ text: String) {
+            let handle = try? FileHandle(forWritingTo: oxyLog)
+            _ = try? handle?.seekToEnd()
+            try? handle?.write(contentsOf: Data((text + "\r\n").utf8))
+            try? handle?.close()
+        }
+        oxyAppend("[2026-10-31 16:46:43] STARTUP SlowJSMethodCall Messaging.PostMessage took 3.0ms")
+        _ = oxyWatcher.poll()
+        check(!oxyWatcher.steamReceivedLaunch, "the hung Steam's last line isn't the start")
+        oxyAppend(took)
+        oxyAppend("[2026-10-31 16:36:11] GameAction [AppID 3907790, ActionID 3] : LaunchApp changed task to CheckShaderDepotManifest with \"\"")
+        _ = oxyWatcher.poll()
+        check(oxyWatcher.steamReceivedLaunch, "a working Steam's ExecCommandLine is")
+
         // MARK: Launch watcher on Steam's log
         let console = steam.appendingPathComponent("logs/console_log.txt")
         func write(_ lines: [String]) {

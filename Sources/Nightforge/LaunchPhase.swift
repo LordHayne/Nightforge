@@ -14,6 +14,8 @@ enum LaunchPhase: Equatable {
     case settingUp
     case settingUpDotNet
     case restartingSteam
+    /// The signed-in Steam stopped taking commands (SteamCommands): it's restarted.
+    case steamNotResponding
     /// It ended at once: the next way, by its name.
     case retrying(String)
     /// Steam updates the game before it starts it: how far, when known.
@@ -40,6 +42,7 @@ enum LaunchPhase: Equatable {
         case .settingUp: return L10n.t("Setting up the game …")
         case .settingUpDotNet: return L10n.t("Setting up .NET for the game …")
         case .restartingSteam: return L10n.t("Restarting Steam …")
+        case .steamNotResponding: return L10n.t("Steam isn't responding – restarting it …")
         case .retrying(let way): return L10n.t("Starting again with %@ …", way)
         case .updating(let fraction?): return L10n.t("Updating … %ld %%", Int(fraction * 100))
         case .updating(nil): return L10n.t("Updating …")
@@ -62,6 +65,7 @@ enum LaunchPhase: Equatable {
         case .settingUp: return L10n.t("Installing what the game needs from Windows. Only the first time.")
         case .settingUpDotNet: return L10n.t("Installing .NET, which this game needs. Only the first time.")
         case .restartingSteam: return L10n.t("Steam got stuck while starting – a fresh start fixes that.")
+        case .steamNotResponding: return L10n.t("Steam stopped taking requests. A fresh start fixes that – the game starts right after.")
         case .retrying: return L10n.t("It closed right away – Nightforge starts it the next way and remembers what works.")
         case .updating: return L10n.t("Steam updates the game first – it starts by itself when the update is done.")
         case .signingInEpic: return L10n.t("The game gets a fresh sign-in from Epic, so it starts online with your account.")

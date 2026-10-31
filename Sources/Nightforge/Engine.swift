@@ -1847,6 +1847,21 @@ enum Engine {
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
 
+    /// A Steam that stopped taking commands (SteamCommands) doesn't take its "-shutdown" either: it
+    /// ends with its Wine session instead – the caller makes sure no game runs in it – and starts
+    /// again in the background. A client update going in finishes first.
+    static func restartHungSteam(_ wine: URL) async throws {
+        var waited = 0
+        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
+            try await Task.sleep(for: .seconds(1))
+            waited += 1
+        }
+        await offMain { stopAll(wine) }
+        applyRetinaMode(wine)
+        try startSteam(wine, arguments: ["-silent"])
+        UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
+    }
+
     /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
     /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
@@ -1897,7 +1912,10 @@ enum Engine {
 
     /// Under Wine, Steam now and then hangs while starting: it never signs in, stops writing its
     /// logs and swallows every launch request. Signed out *and* silent for `seconds` is that state;
-    /// a Steam that is merely slow (first start, client update) keeps logging.
+    /// a Steam that is merely slow (first start, client update) keeps logging – a client update
+    /// only in bootstrap_log, so every log counts here, not console_log alone. A signed-in Steam
+    /// that stops taking commands still writes configstore_log and appinfo_log: that hang is told
+    /// by the command itself (SteamCommands).
     static func steamLooksStuck(quietFor seconds: TimeInterval) -> Bool {
         let logs = steamRoot.appendingPathComponent("logs", isDirectory: true)
         let files = (try? FileManager.default.contentsOfDirectory(

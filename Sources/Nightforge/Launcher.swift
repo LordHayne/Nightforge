@@ -384,9 +384,7 @@ struct LaunchWatcher {
 
         var event: Event?
         for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
-            if line.contains("ExecCommandLine"), line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) ") {
-                steamReceivedLaunch = true
-            }
+            if SteamCommands.isLaunch(line, appID: appID) { steamReceivedLaunch = true }
             if line.contains("ExecuteSteamURL"), line.contains("not allowed yet") {
                 rejectedCommands += 1
             }
@@ -419,6 +417,31 @@ struct LaunchWatcher {
     }
 }
 
+/// Whether the running Steam still takes commands. A "-applaunch" client hands its command to it
+/// and ends, and Steam logs "ExecCommandLine" in the same second: on 31.10.2026 the client ran
+/// 16:36:10.854–11.077 (the helper's start and end in macOS's log) and console_log has
+/// "[16:36:11] ExecCommandLine: … -applaunch 3907790", the same at 16:36:58 and 16:39:11. From
+/// about 16:46 that signed-in Steam took none: the clients at 16:52:32, 16:52:44, 17:21:24 and
+/// 17:21:37 ended as quickly (so how long the client runs tells nothing), but nothing reached
+/// console_log after 16:46:43 – while configstore_log and appinfo_log were still written until
+/// 17:09, so quiet logs are no sign either. A request that arrives while Steam is still starting
+/// can get lost (LibraryModel resends it); this is for a Steam that was done starting.
+enum SteamCommands {
+    /// Far more than the second it takes.
+    static let answerWithin: TimeInterval = 15
+
+    /// Steam was running, signed in and done starting when the command went out, and hasn't
+    /// logged it `sentAgo` seconds later.
+    static func hung(steamWasReady: Bool, received: Bool, sentAgo: TimeInterval) -> Bool {
+        steamWasReady && !received && sentAgo >= answerWithin
+    }
+
+    /// "ExecCommandLine: ""C:\…\steam.exe" … -silent -applaunch 3907790"" – Steam took a start of `appID`.
+    static func isLaunch(_ line: Substring, appID: Int) -> Bool {
+        line.contains("ExecCommandLine") && (line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) "))
+    }
+}
+
 /// Starts a game through the Windows Steam client in its bottle – one process call, nothing kept running.
 enum Launcher {
     static let crossOverCandidates = [
@@ -431,8 +454,11 @@ enum Launcher {
     }
 
     /// `frameLimit`: what the game is held to (FramePacing.automaticLimit or the player's choice).
+    /// The client it starts: it ends once it has handed the command to the running Steam, or is
+    /// that Steam when none ran.
+    @discardableResult
     static func launch(_ game: Game, runnerPath: String, options: GameOptions, profile: GameProfile? = nil,
-                       frameLimit: Int = 0, extraArguments: [String] = []) throws {
+                       frameLimit: Int = 0, extraArguments: [String] = []) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -496,6 +522,7 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        return process
     }
 
     /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
