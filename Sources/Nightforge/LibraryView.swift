@@ -181,7 +181,7 @@ private struct HomeLevel: View {
             VStack(alignment: .leading, spacing: 0) {
                 Spacer(minLength: 24)
                 if model.showsFirstStart {
-                    SetupView(setup: model.setup)
+                    SetupView(setup: model.setup, macSteam: model.macSteamPrep)
                         .padding(.horizontal, Theme.gutter)
                 } else if !model.isScanning {
                     EmptyLibrary()
@@ -927,11 +927,13 @@ private struct GameDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 18 : 24) {
             VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
+            // On a new line rather than cut short when Home's column is too narrow for all of it.
+            FlowRow(spacing: 12, lineSpacing: 8, centered: true) {
                 if let role, let kicker = StageKicker(role: role, game: game) {
                     kicker
                 }
                 MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: game.providers.map(\.label))
+                    .fixedSize()
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
                         .font(.system(size: 12, weight: .semibold))
@@ -974,7 +976,8 @@ private struct GameDetail: View {
             }
             }
 
-            HStack(alignment: .top, spacing: 34) {
+            // Each stat whole, on a second line when Home's column is full – never cut short.
+            FlowRow(spacing: 34, lineSpacing: 14) {
                 if game.install != .inStore && !(starter != nil && game.lastPlayed == nil) {
                     Stat(label: L10n.t("Last played"), value: game.lastPlayed.map(Format.relative) ?? L10n.t("Never"))
                 }
@@ -1356,6 +1359,7 @@ private struct Stat: View {
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
         }
+        .fixedSize()  // its own width: FlowRow moves it to the next line instead of squeezing it
     }
 }
 

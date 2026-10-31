@@ -101,6 +101,32 @@ enum SetupDetail {
         }
     }
 
+    /// Steam for Mac's step (MacSteamPrep), which runs alongside the Windows setup: its download and
+    /// update – from its bootstrap log, like the Windows Steam's – then what became of it.
+    static func macSteam(_ state: MacSteamPrep.State, log: String) -> String? {
+        switch state {
+        case .idle: return nil
+        case .preparing(.installing): return L10n.t("Downloading Steam for Mac …")
+        case .preparing(.updating):
+            var block: [Substring] = []
+            for line in log.split(whereSeparator: \.isNewline) {
+                if line.contains("Startup - updater built") { block = [] }
+                block.append(line)
+            }
+            guard let progress = downloadProgress(block) else { return L10n.t("Steam for Mac updates itself …") }
+            return L10n.t("Steam for Mac updates itself: %@", transfer(done: progress.done, total: progress.total, bytesPerSecond: progress.rate))
+        case .preparing(.waitingForSignIn), .ready(.waitingForSignIn): return L10n.t("Ready – you sign in right after Steam")
+        case .preparing(.remembered), .ready(.remembered), .done(.alreadySignedIn): return L10n.t("Already signed in on this Mac")
+        case .ready: return L10n.t("Ready")
+        case .signingIn: return L10n.t("Its sign-in window is open")
+        case .done(.signIn): return L10n.t("Signed in")
+        case .done(.otherAccount): return L10n.t("Signed in with another account – left as it is")
+        case .done(.notNeeded): return L10n.t("Not needed – none of your games has a Mac version")
+        case .later: return L10n.t("Later – the first time you play a Mac version")
+        case .failed(let message): return message
+        }
+    }
+
     /// The newest "(12,345 von 336,229 KB)" line – the word in the middle is Steam's language – and
     /// the speed from it and one at least 3 s older.
     private static func downloadProgress(_ block: [Substring]) -> (done: Int64, total: Int64, rate: Double?)? {

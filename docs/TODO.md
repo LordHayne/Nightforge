@@ -57,6 +57,9 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Test-Prefixen, und holt Nightforge dann nach vorne.
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
   („Session Replaced“). Beobachtet wurde auch: Steam hängt, beendet sich nicht oder drängt sich nach vorne.
+  Ursache und Plan (Steam für Mac in die Ersteinrichtung, Regeln für den Wechsel): `docs/PLAN-STEAM-FUER-MAC-EINRICHTUNG.md`.
+  Wechselregeln (`SteamSwitch`) und Erststart-Baustein (`MacSteamPrep`) sind gebaut, aber noch nicht live getestet.
+  Offen: die Haken in `Setup.swift` (nach setup-speed) und die Anzeige in `SetupView` (nach design-setup-home).
 
 ### Engine-Rückfall (3.3, Branch `claude/engine-rollback-02a61e`)
 

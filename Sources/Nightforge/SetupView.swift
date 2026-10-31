@@ -4,6 +4,8 @@ import SwiftUI
 /// check, and how many of the games run here.
 struct SetupView: View {
     @ObservedObject var setup: SetupModel
+    /// Steam for Mac, which gets ready alongside and signs in right after the library is known.
+    @ObservedObject var macSteam: MacSteamPrep
 
     var body: some View {
         Group {
@@ -11,11 +13,11 @@ struct SetupView: View {
             case .welcome:
                 WelcomePage(setup: setup)
             case .checklist:
-                ChecklistPage(setup: setup)
+                ChecklistPage(setup: setup, macSteam: macSteam)
             case .checking(let check):
-                CheckingPage(check: check, replay: setup.isReplay) { setup.close() }
+                CheckingPage(check: check, replay: setup.isReplay, macSteam: macSteam) { setup.close() }
             case .reveal(let reveal):
-                RevealPage(reveal: reveal) { setup.close() }
+                RevealPage(reveal: reveal, macLater: macSteam.state == .later) { setup.close() }
             }
         }
         .transition(.opacity.combined(with: .offset(y: 10)))
@@ -51,6 +53,7 @@ private struct WelcomePage: View {
 
 private struct ChecklistPage: View {
     @ObservedObject var setup: SetupModel
+    @ObservedObject var macSteam: MacSteamPrep
 
     /// A narrow window keeps only the checklist.
     @State private var wide = true
@@ -77,9 +80,13 @@ private struct ChecklistPage: View {
                 .accessibilityAddTraits(.isHeader)
 
             StepList(setup: setup)
+            if macSteam.state != .idle {
+                MacSteamStep(prep: macSteam)
+                    .transition(.opacity)
+            }
 
             if let note = SetupModel.signInNote(phase: setup.phase, steamStarting: setup.steamStarting) {
-                QRNote(text: note)
+                QRNote(text: macSteam.secondCodeFollows ? note + " " + MacSteamPrep.secondCodeAhead : note)
                     .transition(.opacity)
             }
 
@@ -87,6 +94,7 @@ private struct ChecklistPage: View {
         }
         .animation(.easeOut(duration: 0.25), value: setup.phase)
         .animation(.easeOut(duration: 0.25), value: setup.steamStarting)
+        .animation(.easeOut(duration: 0.25), value: macSteam.state)
     }
 
     @ViewBuilder private var actions: some View {
@@ -133,10 +141,53 @@ private struct QRNote: View {
     }
 }
 
+/// Steam for Mac's row under the checklist: it gets ready alongside the other steps, so it has a
+/// state of its own.
+private struct MacSteamStep: View {
+    @ObservedObject var prep: MacSteamPrep
+
+    var body: some View {
+        StepRow(title: MacSteamPrep.stepTitle, state: state, progress: prep.progress, detail: prep.detail)
+    }
+
+    private var state: StepRow.State {
+        switch prep.state {
+        case .idle, .ready: return .pending
+        case .preparing: return .active
+        case .signingIn: return .waiting
+        case .done, .later: return .done
+        case .failed: return .failed
+        }
+    }
+}
+
+/// The second code, once the library says which games have a Mac version: Steam for Mac's sign-in
+/// window, with the window again and "Later" (Esc or B).
+private struct MacSignInCard: View {
+    @ObservedObject var prep: MacSteamPrep
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            MacSteamStep(prep: prep)
+            QRNote(text: MacSteamPrep.signInNote(macVersions: prep.macVersions))
+            HStack(spacing: 12) {
+                Button(L10n.t("Show Steam window again")) { prep.showWindow() }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("setup.macSteam.show", cornerRadius: 21, preferred: true, activate: { prep.showWindow() })
+                Button(L10n.t("Later")) { prep.later() }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("setup.macSteam.later", cornerRadius: 21, activate: { prep.later() })
+            }
+        }
+    }
+}
+
 /// "Checking your library … N of M games", while Steam sends the library and each game is looked up.
+/// Then, when the library has Mac versions, Steam for Mac's code (MacSignInCard) in place of "Skip".
 private struct CheckingPage: View {
     let check: LibraryCheck
     let replay: Bool
+    @ObservedObject var macSteam: MacSteamPrep
     let skip: () -> Void
 
     var body: some View {
@@ -162,15 +213,30 @@ private struct CheckingPage: View {
             Text(texts.line)
                 .font(.system(size: 15))
                 .foregroundStyle(Theme.muted)
-            SkipButton(action: skip)
-                .padding(.top, 8)
+            if macSteam.state == .signingIn {
+                MacSignInCard(prep: macSteam)
+                    .padding(.top, 14)
+                    .transition(.opacity)
+            } else {
+                // Steam for Mac still on its way: what it does, so the wait for its code says why.
+                if macSteam.isGettingReady {
+                    MacSteamStep(prep: macSteam)
+                        .padding(.top, 14)
+                        .transition(.opacity)
+                }
+                SkipButton(action: skip)
+                    .padding(.top, 8)
+            }
         }
+        .animation(.easeOut(duration: 0.25), value: macSteam.state)
     }
 }
 
 /// How many of the games run here, then "Let's Play". Epic Games is added in Settings › Stores.
 private struct RevealPage: View {
     let reveal: LibraryReveal
+    /// Steam for Mac's code was put off: the Mac versions come the first time one is played.
+    let macLater: Bool
     let play: () -> Void
 
     var body: some View {
@@ -184,6 +250,13 @@ private struct RevealPage: View {
             if reveal.total > 0 {
                 LibraryRevealView(reveal: reveal)
                     .frame(maxWidth: 760, alignment: .leading)
+                if let line = reveal.macLine(later: macLater) {
+                    Label(line, systemImage: "laptopcomputer")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.ink.opacity(0.9))
+                        .frame(maxWidth: 760, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text(L10n.t("Your Steam library has no games yet – the ones you get in Steam show up here by themselves."))
                     .font(.system(size: 15))

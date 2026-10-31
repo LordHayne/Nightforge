@@ -7,19 +7,23 @@ struct LibraryReveal: Identifiable, Equatable {
     /// Of the games that don't run, the ones GeForce Now streams, and the VR-only ones.
     var cloud = 0
     var vr = 0
+    /// Of all of them, the ones Nightforge plays as their Mac version (through Steam for Mac).
+    var mac = 0
     let id = UUID()
 
     var total: Int { great + tweaks + untested + no }
     /// "Run here": rated great or with tweaks.
     var running: Int { great + tweaks }
 
-    init(great: Int = 0, tweaks: Int = 0, untested: Int = 0, no: Int = 0, cloud: Int = 0, vr: Int = 0) {
+    init(great: Int = 0, tweaks: Int = 0, untested: Int = 0, no: Int = 0, cloud: Int = 0, vr: Int = 0, mac: Int = 0) {
         (self.great, self.tweaks, self.untested, self.no, self.cloud, self.vr) = (great, tweaks, untested, no, cloud, vr)
+        self.mac = mac
     }
 
     /// The player's own games' levels (store hits and demos of games they don't own aren't theirs).
     init(_ rated: [(game: Game, level: Compatibility.Level)]) {
         for (game, level) in rated where game.inLibrary {
+            if game.platform == .mac || game.macPending != nil { mac += 1 }
             switch level {
             case .great: great += 1
             case .tweaks: tweaks += 1
@@ -32,7 +36,19 @@ struct LibraryReveal: Identifiable, Equatable {
     }
 
     static func == (a: LibraryReveal, b: LibraryReveal) -> Bool {
-        (a.great, a.tweaks, a.untested, a.no, a.cloud, a.vr) == (b.great, b.tweaks, b.untested, b.no, b.cloud, b.vr)
+        (a.great, a.tweaks, a.untested, a.no, a.cloud, a.vr) == (b.great, b.tweaks, b.untested, b.no, b.cloud, b.vr) && a.mac == b.mac
+    }
+
+    /// The line about Mac versions under the bar: they play natively once Steam for Mac is signed
+    /// in in the first start, or ("Later") the first time one is played.
+    func macLine(later: Bool) -> String? {
+        switch (mac, later) {
+        case (0, _): return nil
+        case (1, false): return L10n.t("1 of them plays as its Mac version – without any Windows translation.")
+        case (_, false): return L10n.t("%ld of them play as their Mac version – without any Windows translation.", mac)
+        case (1, true): return L10n.t("1 has a Mac version – Nightforge sets it up the first time you play it.")
+        case (_, true): return L10n.t("%ld have a Mac version – Nightforge sets it up the first time you play one.", mac)
+        }
     }
 
     var headline: String {
@@ -112,7 +128,16 @@ extension LibraryModel {
             }
             try? await Task.sleep(for: .milliseconds(500))  // the full count, for a moment
             guard !Task.isCancelled else { return }
-            setup.reveal(LibraryReveal(games.map { ($0, compatibility(of: $0).level) }))
+            let reveal = LibraryReveal(games.map { ($0, compatibility(of: $0).level) })
+            // Steam for Mac got ready alongside the setup: now that the games are known, the second
+            // code – for the Mac versions – or not (MacSteamPrep). Not in the replay.
+            if !replay, macSteamPrep.state != .idle {
+                await macSteamPrep.finish(windowsAccount: SteamLogin.rememberedAccount(steamRoot: Engine.steamRoot),
+                                          macVersions: reveal.mac)
+                guard !Task.isCancelled else { return }
+                comeForward()  // Steam for Mac's window had the front for its sign-in
+            }
+            setup.reveal(reveal)
         }
     }
 

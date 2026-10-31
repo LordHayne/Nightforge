@@ -84,6 +84,13 @@ final class SetupModel: ObservableObject {
 
     /// After the setup (and "Let's Go" in the replay): the library check starts (LibraryModel).
     var onFinished: (() -> Void)?
+    /// Steam's sign-in window is up, or Steam signed in without one: nothing on the Windows side
+    /// waits any more, so Steam for Mac gets ready now (LibraryModel → MacSteamPrep). Before, its
+    /// 289 MB and its first start would share the line and the Mac with Steam's own update, which
+    /// comes down during wineboot.
+    var onSignInReady: (() -> Void)?
+    /// "Let's Play" or "Skip": whatever still runs alongside the first start winds down (MacSteamPrep).
+    var onClosed: (() -> Void)?
     /// The library check under way; "Skip" stops it.
     var checkTask: Task<Void, Never>?
     private var signInWatcher: Task<Void, Never>?
@@ -132,6 +139,7 @@ final class SetupModel: ObservableObject {
         isActive = false
         isReplay = false
         stage = .welcome
+        onClosed?()
     }
 
     /// Return and A.
@@ -408,6 +416,7 @@ final class SetupModel: ObservableObject {
         if Engine.isSteamRunning {
             phase = .waitingForSignIn
             watchForSignIn()
+            onSignInReady?()
             return
         }
 
@@ -500,6 +509,7 @@ final class SetupModel: ObservableObject {
                 progress = nil
                 phase = .waitingForSignIn
                 watchForSignIn()
+                onSignInReady?()
                 return
             }
 
@@ -623,6 +633,7 @@ final class SetupModel: ObservableObject {
         signInWatcher?.cancel()
         phase = .done
         if isActive { stage = .checking(LibraryCheck()) }
+        onSignInReady?()  // a setup that found Steam signed in already
         onFinished?()
         // Steam opens its big main window after sign-in; from now on it only works in the background.
         Task {

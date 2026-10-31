@@ -111,6 +111,15 @@ struct StageTest {
         scroll.begin()
         check(scroll.add(-59) == 0, "less than a step does nothing")
 
+        // The text column's rows (FlowRow): whole items, the next line once one is full. The stats of a
+        // starter at 1512 pt – Home's column about 520 pt wide (31.10.2026).
+        let stats: [CGFloat] = [118, 150, 76, 96, 102]  // Download · up to 12 GB, Metascore, Version, Controller, …
+        let lines = FlowRow.lines(widths: stats, available: 520, spacing: 34)
+        check(lines == [[0, 1, 2], [3, 4]], "a full line goes on below: \(lines)")
+        check(FlowRow.lines(widths: stats, available: 2000, spacing: 34) == [[0, 1, 2, 3, 4]], "a wide column keeps one line")
+        check(FlowRow.lines(widths: [600, 50], available: 520, spacing: 12) == [[0], [1]], "one too wide gets a line of its own")
+        check(FlowRow.lines(widths: [], available: 520, spacing: 12).isEmpty, "nothing, no lines")
+
         if failures > 0 {
             print("\(failures) failed")
             exit(1)
