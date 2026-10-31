@@ -16,7 +16,10 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 - **Vorher fertig (jeweils live getestet, gemergt mit OK des Nutzers):**
   - 2.5 größere Schrift: erledigt (a55040a).
   - GOG 7.3: gemergt (159acfa, Fixes d555778), live geprüft. Offen ist nur der Offline-Start.
-  - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
+  - TV-Modus (live am 31.10./1.11.): L1/R1, Overlay, Ton über den Verstärker und die sofortige Rückkehr funktionieren.
+    Offen: Vollbild beim Anschließen im Spiegelbetrieb (Fix 6eb8030), Overcooked im Fenster (MetalFX und Größe kommen
+    vom eingebauten Display) und ein **Lade-Vorhang** beim Start und Ende, damit kein Desktop und kein Steam-Fenster
+    aufblitzt (Nutzer: „für einen richtigen Big-Picture-Modus“).
   - L1/R1 zwischen Startseite und Bibliothek: baut die TV-Session mit, weil sie `InputRouter` ohnehin ändert (kein Merge-Konflikt).
   - Reichere Spieldaten, Phase 2: Teil A und B gebaut. Das Layout der Spielseite wird nach dem Feedback vom 31.10. überarbeitet.
   - Testabdeckung: gemergt (9becef2). Weitere Tests für TV und Spielinfos nach deren Merge.
