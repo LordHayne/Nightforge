@@ -1,6 +1,19 @@
-// The DE/EN switch and the copy button. The head script has already picked the first language.
+// The DE/EN switch, the copy button and the fade-in. The head script has already picked the first
+// language and decided whether sections may fade in (not with reduced motion).
 (function () {
   var root = document.documentElement;
+
+  // Each section fades up once when it comes into view; nothing moves after that.
+  if (root.classList.contains('reveals')) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('in');
+        observer.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach(function (el) { observer.observe(el); });
+  }
   var titles = {
     de: 'Nightforge – Deine Spiele auf dem Mac',
     en: 'Nightforge – Your games on your Mac'
@@ -18,7 +31,8 @@
     if (meta) meta.setAttribute('content', descriptions[lang]);
     document.querySelectorAll('[data-set-lang]').forEach(function (button) {
       button.setAttribute('aria-pressed', String(button.getAttribute('data-set-lang') === lang));
-    });  }
+    });
+  }
 
   apply(root.getAttribute('data-lang') === 'de' ? 'de' : 'en');
 
