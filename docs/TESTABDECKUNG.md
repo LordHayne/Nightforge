@@ -24,10 +24,11 @@ Tests bleiben, wie sie sind.
 
 ## Ergebnis
 
-Die Logik, die für den Nutzer entscheidet (die 13 Dateien unten), ist von **72,1 % auf 80,1 %** der Zeilen
-gestiegen. Was dort noch fehlt, sind SwiftUI-Ansichten, Netzwerk, echte Steam- und legendary-Prozesse sowie die echten
-Dateien des Nutzers; die Liste unter der Tabelle nennt es pro Datei. Über die ganze App stieg die Abdeckung nur von 27,8 % auf
-28,7 %, weil die großen Ansichten und `LibraryModel` die Summe bestimmen.
+Die Logik, die für den Nutzer entscheidet (die 19 Dateien unten, mit GOG, LaunchHealth und GameLog), ist von
+**72,2 % auf 79,1 %** der Zeilen gestiegen. Was dort noch fehlt, sind SwiftUI-Ansichten, Netzwerk, echte Steam-,
+legendary- und gogdl-Prozesse sowie die echten Dateien des Nutzers; die Liste unter der Tabelle nennt es pro Datei.
+Über die ganze App stieg die Abdeckung nur von 27,8 % auf 29,1 %, weil die großen Ansichten und `LibraryModel` die
+Summe bestimmen.
 
 | Datei | Zeilen | 001a3e0 | vorher (159acfa) | nachher | Δ |
 |---|---|---|---|---|---|
@@ -44,6 +45,12 @@ Dateien des Nutzers; die Liste unter der Tabelle nennt es pro Datei. Über die g
 | `FramePacing.swift` | 105 | 76,0 % | 77,1 % | 91,4 % | +14,3 |
 | `Profiles.swift` | 166 | 63,3 % | 63,3 % | 92,2 % | +28,9 |
 | `GameAnalysis.swift` | 265 | 82,3 % | 82,3 % | 99,2 % | +17,0 |
+| `LaunchHealth.swift` | 256 | 91,5 % | 93,0 % | 99,2 % | +6,2 |
+| `GameLog.swift` | 166 | 82,1 % | 82,5 % | 98,2 % | +15,7 |
+| `GOGDL.swift` | 198 | – | 69,7 % | 78,3 % | +8,6 |
+| `GOGLibrary.swift` | 368 | – | 92,4 % | 92,4 % |  |
+| `GOGRedist.swift` | 328 | – | 79,3 % | 82,9 % | +3,7 |
+| `GOGStore.swift` | 785 | – | 52,4 % | 56,6 % | +4,2 |
 
 Was in diesen Dateien bewusst ungetestet bleibt:
 
@@ -62,6 +69,12 @@ Was in diesen Dateien bewusst ungetestet bleibt:
   Download-Anteil aus `MacSteamProgress` in `scanMac`.
 - `FramePacing.learn` liest Nightforges echtes wine.log. Seine Bausteine (`rates`, `next`) sind getestet.
 - `ProfileStore.refresh` lädt die Liste aus dem Netz. Ohne App-Bundle gibt es keine Adresse, also bleibt es aus.
+- `LaunchHealth`: `proof`, `earlyEnd` und `afterFirstSeconds` waren vom GOG-Zweig schon vollständig geprüft. Jetzt
+  sind auch die gelernten Laufzeiten und die Log-Markierung dabei (`LearnedFixes`).
+- `GameLog`: Es fehlen nur noch drei Zeilen.
+- `GOGDL`, `GOGRedist` und `GOGStore`: Anmelden, Download, Update, Deinstallieren, Mac-Start, Spielstände und das
+  Einrichten der Windows-Teile laufen über das echte gogdl bzw. Wine. Das Einlesen ist abgedeckt; dazu kommen jetzt
+  die Sync-Zustände, die Spielzeit, die Start- und Setup-Infos und das Anmelde-Log. `GOGLibrary` lag schon bei 92 %.
 - `EngineRollback` lag schon bei 95,6 %. Es fehlen `heldEngineFolders()` und der Abbruch, wenn das Kopieren
   scheitert.
 
@@ -96,11 +109,21 @@ Erweiterte Reihen. Jede davon hat ihre Übersetzung ohnehin, die neuen Prüfunge
 - `GameIDTest`: GOG-Schlüssel, was eine ID enthalten darf, Store-Namen und Abzeichen.
 - `EpicTest`: die Umgebung, in der legendary läuft, seine Fehlerzeilen, `EpicError`, installierte Spiele außerhalb
   der Liste und Spiele auf abgesteckten Laufwerken.
+- `GOGTest`: Aktualisierungen, die nicht durchkommen (abgemeldet, gogdl startet nicht, GOG antwortet nicht).
+  Außerdem die Spielzeit, die Setup-Infos für die Windows-Teile, ein Start ohne GOGs Info-Datei oder ohne ihr
+  Programm, installierte Spiele außerhalb der Liste, das Anmelde-Log ohne den Code, `GOGError` und
+  `GOGRedist.Needs`.
+- `LaunchHealthTest`: Laufzeiten, die ein Spiel gebraucht hat, die Log-Markierung des letzten Starts, Namen der
+  Startwege.
+- `EngineLayoutTest`: Die Reihe bekommt ein eigenes Home (siehe Beobachtungen). Dort wird die Datei-Seite von
+  GameLog geprüft: die Markierung, das Lesen ab einem Start, ein frisches Log ab 8 MB und die `since:`-Leser.
 
-Am Produktionscode hat sich nichts geändert.
+Am Produktionscode hat sich nichts geändert. In `scripts/coverage.sh --files` markiert `^0` zusätzlich die Teile
+einer Zeile, die kein Test ausgeführt hat.
 
 Laufzeit des Gesamtlaufs (`ls -d tests/*Test | xargs -P 4 …`), direkt nacheinander gemessen:
 **159acfa 453 s mit 41 Reihen, dieser Zweig 439 s mit 43 Reihen**, alle grün. Der Unterschied liegt im Rauschen.
+Ein späterer Lauf mit allen Ergänzungen, darunter GOG, brauchte 347 s; die Maschine war da weniger belastet.
 
 Alle Tests arbeiten in eigenen temporären Ordnern mit UUID und brauchen kein Netz. Sie lesen keine echte Steam und
 nicht den Prefix des Nutzers. Wo Code UserDefaults braucht, nehmen sie eine Spiel-ID, die kein Store vergibt, und
@@ -110,7 +133,10 @@ Spieldaten-Zweig mergen.
 
 ## Verbleibende Lücken, nach Risiko
 
-1. **`LibraryModel.swift`**: 3431 Zeilen, 0 %. Hier steckt viel Entscheidungslogik, etwa wer gerade herunterladen
+1. **`LibraryModel.swift`**: 3431 Zeilen, 0 %. Das gilt auch für seinen GOG-Teil: `beforeGOGStart`, `setUpGOG`,
+   `launchGOGMac` und `afterGOGSession` sind private Abläufe, die Fenster, Toasts und das Spiel selbst starten.
+   Ohne Umbau am Produktionscode gibt es dort nichts zu prüfen, und `launchGOGMac` liegt dort, wo der TV-Zweig
+   ändert. Hier steckt viel Entscheidungslogik, etwa wer gerade herunterladen
    darf (`takeTurnsDownloading`), ob die andere Steam frei ist (`otherSteamFree`) und der Startablauf. Alles hängt
    an einem `ObservableObject` mit echten Steams. Der TV-Zweig ändert die Datei. Danach sollten die Entscheidungen
    als statische Funktionen über `Facts`-Structs herausgezogen werden, wie bei `SteamSwitch`.
@@ -118,7 +144,8 @@ Spieldaten-Zweig mergen.
    (27 %), `MacSteamPrep` (18 %), `Setup` (17 %), `Downloads` (1 %, Wachhalten und Download-Ansicht) und
    `DriveMoves` (0 %, Spiele auf andere Laufwerke verschieben). Sicher testen lassen sie sich nur, wenn die Aktionen als
    Closures hereinkommen oder Stand-in-Programme im Test-Home laufen.
-3. **Store-Abläufe**: `EpicStore` (52 %), `GOGStore` (52 %), `GOGDL` (70 %). Ein Stand-in für legendary und gogdl
+3. **Store-Abläufe**: `EpicStore` (52 %), `GOGStore` (57 %), `GOGDL` (78 %), `GOGSignIn` (28 %, ein
+   Web-Fenster). Ein Stand-in für legendary und gogdl
    wäre der Weg.
 4. **`InputRouter`** (1 %): die Navigation mit Tastatur, Trackpad und Controller. Ein Teil der Logik steckt schon in
    `PadFocus` und `Navigation`, die beide getestet sind.
@@ -138,6 +165,13 @@ Spieldaten-Zweig mergen.
   Testbinary. Das sind keine Nightforge-Daten, sie liegen aber im echten Home. Abhilfe wäre, dass die Tests ihre
   Suite am Ende entfernen (`removePersistentDomain` und die Datei löschen) oder Speicher übergeben bekommen.
   Meine neuen Prüfungen legen dort nichts an.
+- **`EngineLayoutTest` las Nightforges echtes `wine.log`.** Der Aufruf `GameLog.illegalInstruction(since: UInt64.max, …)`
+  las ohne eigenes Home die letzten 4 MB von `~/Library/Application Support/Nightforge/Logs/wine.log`. Die Prüfung
+  „an older crash report doesn't count“ wäre fehlgeschlagen, sobald dieses Log eine Zeile „illegal instruction“
+  enthält. Behoben in 7a0d6e4: Die Reihe läuft jetzt im eigenen Home und bricht ab, wenn das nicht greift.
+- **`GOGTest` kopiert das installierte gogdl** aus dem echten `Components/gogdl` ins Test-Home und startet es dort
+  mit `--version`. Gelesen wird nur das Programm, keine Nutzerdaten. So hat es der GOG-Zweig angelegt; ich habe es
+  so gelassen.
 - **HOME allein lenkt den FileManager nicht um**: `Application Support` bleibt im echten Home. Erst mit
   `CFFIXED_USER_HOME` landet `Engine.supportDir` im Test-Home. Geprüft habe ich das mit einer kleinen Binary.
 - **`LibraryScanner.libraryFolders`** liefert die zusätzlichen Bibliotheken in Dictionary-Reihenfolge, also bei
@@ -168,20 +202,14 @@ Spieldaten-Zweig mergen.
 | `ExternalDrives.swift` | 309 | 74,7 % | 74,8 % | 74,8 % |  |
 | `FlowRow.swift` | 57 | 28,1 % | 28,1 % | 28,1 % |  |
 | `GameDisplay.swift` | 178 | 7,9 % | 7,9 % | 7,9 % |  |
-| `GameLog.swift` | 166 | 82,1 % | 82,5 % | 82,5 % |  |
 | `GameMarks.swift` | 11 | 100,0 % | 100,0 % | 100,0 % |  |
 | `GameMove.swift` | 326 | 96,0 % | 96,0 % | 96,0 % |  |
 | `GameShortcut.swift` | 74 | 95,9 % | 95,9 % | 95,9 % |  |
 | `Glass.swift` | 472 | 0,0 % | 0,0 % | 0,0 % |  |
-| `GOGDL.swift` | 198 | – | 69,7 % | 69,7 % |  |
-| `GOGLibrary.swift` | 368 | – | 92,4 % | 92,4 % |  |
-| `GOGRedist.swift` | 328 | – | 79,3 % | 79,3 % |  |
 | `GOGSignIn.swift` | 82 | – | 28,0 % | 28,0 % |  |
-| `GOGStore.swift` | 785 | – | 52,4 % | 52,4 % |  |
 | `HomeStage.swift` | 405 | 0,0 % | 0,0 % | 0,0 % |  |
 | `InputRouter.swift` | 813 | 1,4 % | 1,4 % | 1,4 % |  |
-| `Launcher.swift` | 427 | 44,2 % | 49,4 % | 49,4 % |  |
-| `LaunchHealth.swift` | 256 | 91,5 % | 93,0 % | 93,4 % | +0,4 |
+| `Launcher.swift` | 427 | 44,2 % | 49,4 % | 53,6 % | +4,2 |
 | `LaunchPhase.swift` | 67 | 56,1 % | 52,2 % | 52,2 % |  |
 | `LibraryGrid.swift` | 1008 | 5,9 % | 5,9 % | 5,9 % |  |
 | `LibraryModel.swift` | 3431 | 0,0 % | 0,0 % | 0,0 % |  |
@@ -230,4 +258,4 @@ Spieldaten-Zweig mergen.
 | `Toast.swift` | 155 | 0,0 % | 0,0 % | 0,0 % |  |
 | `Trackpad.swift` | 172 | 50,6 % | 50,6 % | 50,6 % |  |
 | `Updater.swift` | 99 | 0,0 % | 0,0 % | 0,0 % |  |
-| **Gesamt** | 32977 | 25,3 % | 27,8 % | 28,7 % | +0,9 |
+| **Gesamt** | 32977 | 25,3 % | 27,8 % | 29,1 % | +1,3 |
