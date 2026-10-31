@@ -220,6 +220,9 @@ final class LibraryModel: ObservableObject {
         // starts later isn't Nightforge's to quit.
         if !MacSteam.isRunning { MacSteam.startedByNightforge = false }
         Task { await MacSteam.guardWindows() }
+        if MacSteam.isTestHome {
+            Task { [weak self] in await TestSteam.guardRealSteam { line in self?.errorMessage = line } }
+        }
         input.start(model: self)
         watchRunningGames()
         NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in

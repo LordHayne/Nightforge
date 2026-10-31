@@ -252,9 +252,40 @@ muss nicht neu starten. A′ bleibt die Alternative, wenn die Mehrzeit von A st�
     Mac-Versionen, die erst die Bibliotheksprüfung kennt. Vorher wartet `MacSteamPrep` (höchstens 60 s), bis die
     Windows-Steam nach ihrem Hintergrund-Neustart wieder angemeldet ist. Sonst würde sie Steam für Mac rauswerfen, bevor
     es sein Konto gespeichert hat.
-- **Testmodus geprüft:** Valves Starter (`/Applications/Steam.app/Contents/MacOS/steam_osx`) liest zuerst `$HOME` und
-  fragt `getpwuid` nur, wenn `HOME` fehlt (statisch nachgesehen, 31.10.). Mit `HOME=build/fh` landet Steam für Mac also in
-  `build/fh/Library/Application Support/Steam`. Kein anderer Code öffnet `steam://` über das System.
+- **Testmodus – Leck am 31.10. und die Lösung:**
+  - **Was passiert ist:** Ein Erststart in `build/f2` startete um 01:19:32 die echte Steam für Mac
+    (`~/Library/Application Support/Steam/Steam.AppBundle/…/steam_osx -silent`). Sie meldete sich mit dem echten Konto an
+    und warf die echte Windows-Steam raus.
+  - **Ursache** (statisch in Valves Starter nachgesehen): Nach der Installation seines Clients beim ersten Start, und nach
+    jedem Update, startet Steam sich selbst neu: über `/bin/sh -c "sleep 1; open -n … --args …"` und über NSWorkspace
+    `launchApplicationAtURL`. Beides geht über die Launch Services, und der neue Prozess bekommt die Umgebung der
+    Anmeldesitzung: echtes `HOME`, echter Steam-Ordner, echte Anmeldung. Valves Steam für Mac lässt sich im selben
+    macOS-Benutzer also nicht in ein Test-Home sperren.
+  - **Lösung:** Ein Test-Home startet nie Valves Steam für Mac. An seine Stelle tritt ein Platzhalter (`TestSteam`,
+    `MacSteamTestHome.swift`) in `<Test-Home>/Applications/Nightforge Test Steam.app`. Er schreibt nur, was Nightforge liest:
+    - das Update in `bootstrap_log` (Dauer über `NIGHTFORGE_TEST_STEAM_SECONDS`, Standard 50 s);
+    - das Anmeldefenster in `steamui_login`;
+    - die Anmeldung in `connection_log` und `loginusers.vdf`, sobald der Tester „scannt“, also
+      `<Test-Home>/Library/Application Support/Steam/sign-in-now` anlegt;
+    - `steam://`-Befehle in `console_log`.
+  - **Sperren (mehrfach):**
+    1. `MacSteam.app` ist im Test-Home nur der Platzhalter. Eine Kopie von Valves Steam.app dort zählt nicht.
+    2. `TestSteam.mayLaunch` erlaubt genau ein Programm, das des Platzhalters.
+    3. Der Platzhalter selbst bricht ohne `HOME` oder im echten Home ab.
+    4. `TestSteam.guardRealSteam` beendet im Test-Home alle 0,25 s jeden Steam-für-Mac-Prozess von Valve (echtes Home,
+       `/Applications`, Kopie im Test-Home), der seit dem Start gestartet ist, und meldet das im Fenster und in
+       `nightforge-test-guard.log`.
+  - **Tests:** `tests/SteamSwitchTest` (Lauf im Test-Home) spielt einen ganzen Erststart mit dem Platzhalter durch und prüft,
+    dass kein Steam-für-Mac-Prozess aus dem echten Home startet und das echte `connection_log` unverändert bleibt. Der
+    Platzhalter läuft dort im echten Home unter `sandbox-exec` mit gesperrtem echtem Steam-Ordner.
+  - **Echter Ende-zu-Ende-Test mit Valves Steam für Mac:** nur in einem eigenen macOS-Benutzerkonto (eigene
+    Anmeldesitzung) oder einer VM.
+- **Spieler mit eigener Steam für Mac (Regel C):** `prepare` lässt eine schon angemeldete in Ruhe (wie bisher). Eine
+  offene, nicht angemeldete wird nicht versteckt und nicht neu gestartet. Nach dem zweiten Code wird nur eine von
+  Nightforge gestartete beendet.
+- **ipcserver:** Ein verwaistes `ipcserver` der echten Steam für Mac läuft seit 27.10. 23:47:25. Es startete in der Sekunde,
+  in der jene Steam-Sitzung endete, das einzige bei über 50 Beendigungen. `MacSteam.quit()` beendet jetzt ein an launchd
+  gefallenes `ipcserver` aus Steams eigenem Ordner, sobald kein Client mehr läuft.
 
 ## Quellen
 

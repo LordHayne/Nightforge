@@ -24,7 +24,7 @@ struct SteamSwitchTest {
     static func main() async {
         let arguments = CommandLine.arguments
         if let index = arguments.firstIndex(of: "--test-home"), arguments.count > index + 1 {
-            testHome(arguments[index + 1])
+            await testHome(arguments[index + 1])
         } else {
             await everything()
         }
@@ -36,15 +36,90 @@ struct SteamSwitchTest {
     }
 
     /// Run in a home of its own (HOME and CFFIXED_USER_HOME): the player's Steam for Mac – in
-    /// /Applications on the dev Mac, maybe running – is none of its business.
-    static func testHome(_ home: String) {
+    /// /Applications on the dev Mac, maybe running – is none of its business, and Valve's never runs
+    /// there: it would start itself again in the real home (TestSteam). The stand-in goes through a
+    /// whole first start, and no Steam for Mac from the real home starts meanwhile.
+    @MainActor
+    static func testHome(_ home: String) async {
+        let fm = FileManager.default
+        let began = Date()
         let path = { (path: String) in URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+        let realHome = TestSteam.realHome ?? ""
+        let realLog = realHome + "/Library/Application Support/Steam/logs/connection_log.txt"
+        let realLogBefore = try? fm.attributesOfItem(atPath: realLog)[.modificationDate] as? Date
         check(MacSteam.isTestHome, "a home of its own is a test home")
         check(path(MacSteam.root.path).hasPrefix(path(home) + "/"), "Steam for Mac's folder is in the test home: \(MacSteam.root.path)")
         check(MacSteam.app == nil, "the player's Steam.app doesn't count there: \(MacSteam.app?.path ?? "none")")
         check(!MacSteam.isInstalled && !MacSteam.isReady, "so Steam for Mac isn't set up there")
-        check(MacSteam.running.isEmpty, "nor does a Steam for Mac running outside it")
+        check(MacSteam.running.isEmpty && !MacSteam.isRunning, "nor does a Steam for Mac running outside it")
         check(!MacSteam.endsWithNightforge(), "the shutdown script never quits one by bundle ID from there")
+
+        // MARK: Valve's never starts there
+        let valve = ["/Applications/Steam.app/Contents/MacOS/steam_osx",
+                     realHome + "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx",
+                     home + "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"]
+        for program in valve {
+            check(!TestSteam.mayLaunch(URL(fileURLWithPath: program)), "never Valve's: \(program)")
+        }
+        // A copy of Valve's Steam.app in the test home (an earlier test left one in build/f2): not Steam for Mac there.
+        let copy = URL(fileURLWithPath: home).appendingPathComponent("Applications/Steam.app/Contents", isDirectory: true)
+        try? fm.createDirectory(at: copy.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        _ = (["CFBundleIdentifier": "com.valvesoftware.steam", "CFBundleExecutable": "steam_osx"] as NSDictionary)
+            .write(to: copy.appendingPathComponent("Info.plist"), atomically: true)
+        check(MacSteam.app == nil && !MacSteam.isInstalled, "a copy of Valve's Steam.app in the test home isn't used")
+        check(!TestSteam.mayLaunch(copy.appendingPathComponent("MacOS/steam_osx")), "nor started")
+
+        // MARK: The stand-in's first start
+        defer { TestSteam.terminate() }
+        do { try await MacSteam.install() } catch { check(false, "the stand-in installs: \(error)") }
+        check(MacSteam.app == TestSteam.app && TestSteam.isStandIn(TestSteam.app), "the stand-in is Steam for Mac there")
+        check(TestSteam.mayLaunch(TestSteam.executable), "and the one program it may start")
+        // The stand-in itself won't run without HOME or in the real home – there under a sandbox that
+        // keeps the real Steam folder read-only, should it ever get past that.
+        func standIn(home: String?, sandboxed: Bool) -> Int32 {
+            let process = Process()
+            let realSteam = realHome + "/Library/Application Support/Steam"
+            let profile = "(version 1)(allow default)(deny file-write* (subpath \"\(realSteam)\"))"
+            process.executableURL = URL(fileURLWithPath: sandboxed ? "/usr/bin/sandbox-exec" : "/bin/bash")
+            process.arguments = (sandboxed ? ["-p", profile, "/bin/bash"] : []) + [TestSteam.executable.path, "-silent"]
+            process.environment = home.map { ["HOME": $0, "PATH": "/usr/bin:/bin"] } ?? ["PATH": "/usr/bin:/bin"]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            guard (try? process.run()) != nil else { return -1 }
+            process.waitUntilExit()
+            return process.terminationStatus
+        }
+        check(standIn(home: nil, sandboxed: false) == 1, "the stand-in won't run without HOME")
+        if fm.isExecutableFile(atPath: "/usr/bin/sandbox-exec") {
+            check(standIn(home: realHome, sandboxed: true) == 1, "nor in the real home")
+            check(!fm.fileExists(atPath: realHome + "/Library/Application Support/Steam/nightforge-test-steam.pid"),
+                  "and leaves nothing there")
+        }
+        var reports: [MacSteam.Preparation] = []
+        let preparing = Task { @MainActor in try? await MacSteam.prepare { reports.append($0) } }
+        let deadline = Date().addingTimeInterval(30)
+        while reports.last != .waitingForSignIn, Date() < deadline { try? await Task.sleep(for: .milliseconds(200)) }
+        preparing.cancel()
+        check(reports.last == .waitingForSignIn, "it updates, then its sign-in waits: \(reports.suffix(3))")
+        check(reports.contains { if case .updating = $0 { return true } else { return false } }, "its update is followed")
+        check(MacSteam.isRunning && !MacSteam.signedIn && !MacSteam.hasSignedIn, "running, signed out")
+        MacSteam.open("run/275850")
+        fm.createFile(atPath: TestSteam.signInTrigger.path, contents: nil)
+        while !(MacSteam.signedIn && MacSteam.hasSignedIn && MacSteam.startupFinished), Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        check(MacSteam.signedIn && MacSteam.hasSignedIn && MacSteam.startupFinished, "the scan signs it in, and it remembers the account")
+        check(MacSteam.account == "76561190000000001", "its account: \(MacSteam.account ?? "none")")
+        let console = (try? String(contentsOf: MacSteam.root.appendingPathComponent("logs/console_log.txt"), encoding: .utf8)) ?? ""
+        check(console.contains("ExecuteSteamURL: \"steam://run/275850\""), "a steam:// command reaches the running one")
+        await MacSteam.quit()
+        check(!MacSteam.isRunning, "it quits")
+
+        // MARK: Nothing of the real Steam for Mac meanwhile
+        let leaked = TestSteam.leaks(TestSteam.processes(), since: began, realHome: TestSteam.realHome, testHome: path(home))
+        check(leaked.isEmpty, "no Steam for Mac from the real home started: \(leaked)")
+        let realLogAfter = try? fm.attributesOfItem(atPath: realLog)[.modificationDate] as? Date
+        check(realLogAfter == realLogBefore, "the real Steam for Mac's connection log is untouched")
     }
 
     @MainActor
@@ -99,6 +174,21 @@ struct SteamSwitchTest {
         check(account(#""users" { }"#) == nil && account("") == nil, "nobody")
         write([#""users" { "76561198118309630" { "AutoLogin" "1" } }"#], to: root.appendingPathComponent("config/loginusers.vdf"))
         check(SteamLogin.rememberedAccount(steamRoot: root) == "76561198118309630", "read from a Steam's folder")
+
+        // MARK: The test home's guard
+        let start = Date()
+        let real = "/Users/player"
+        let found = TestSteam.leaks([
+            (1, real + "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx", start.addingTimeInterval(37)),
+            (2, "/Applications/Steam.app/Contents/MacOS/steam_osx", start.addingTimeInterval(1)),
+            (3, real + "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/ipcserver", start.addingTimeInterval(-3600)),
+            (4, "/tmp/fh/Applications/Nightforge Test Steam.app/Contents/MacOS/nightforge-test-steam", start.addingTimeInterval(2)),
+            (5, "/tmp/fh/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx", start.addingTimeInterval(3)),
+            (6, "/bin/bash", start.addingTimeInterval(4)),
+        ], since: start, realHome: real, testHome: "/tmp/fh")
+        check(found == [1, 2, 5], "Valve's Steam for Mac started since is a leak, from wherever; older ones and the stand-in aren't: \(found)")
+        check(!TestSteam.mayLaunch(URL(fileURLWithPath: "/Applications/Steam.app/Contents/MacOS/steam_osx")),
+              "outside a test home nothing goes through the stand-in")
 
         // MARK: The rules
         typealias Facts = SteamSwitch.Facts

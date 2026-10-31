@@ -235,8 +235,11 @@ final class MacSteamPrep: ObservableObject {
         await task?.value
         guard state == .signingIn else { return }
         MacSteam.keepFreshInstall()
-        MacSteam.hide()
-        await MacSteam.quit()
+        // Back to the Windows Steam – unless this is the player's own Steam for Mac, open before.
+        if MacSteam.startedByNightforge {
+            MacSteam.hide()
+            await MacSteam.quit()
+        }
         state = .done(.signIn)
         await restartWindowsIfSignedOut()
     }

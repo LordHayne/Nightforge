@@ -16,5 +16,6 @@ swiftc -parse-as-library -o "$OUT" $SOURCES tests/SteamSwitchTest/main.swift
 "$OUT"
 # Again in a home of its own, the way a first-start test runs: Steam for Mac must stay inside it.
 mkdir -p "$WORK/fh"
-env HOME="$WORK/fh" CFFIXED_USER_HOME="$WORK/fh" "$OUT" --test-home "$WORK/fh"
+# The stand-in's update takes a second there instead of ~50.
+env HOME="$WORK/fh" CFFIXED_USER_HOME="$WORK/fh" NIGHTFORGE_TEST_STEAM_SECONDS=1 "$OUT" --test-home "$WORK/fh"
 rm -rf "$WORK"
