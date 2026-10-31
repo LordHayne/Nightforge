@@ -21,6 +21,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
   - Reichere Spieldaten, Phase 2, in zwei Teilen.
   - Testabdeckung (Session test-coverage).
+  - Kleines Controller-Overlay: PS gedrückt halten, dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
+    Baut die TV-Session, es wird mit dem TV-Modus gemergt. Das schöne große Overlay kommt nach 0.3.0.
   - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
     APEX/PhysX-Profil, Ton unter Wine.
   - Landingpage und README.
@@ -157,7 +159,7 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     (macOS 11.3+). Kollidiert nicht mit Steams Guide-Taste (siehe `SteamGuideButton` oben); macOS selbst kann die
     Home-Taste für Launchpad oder die Spiele-App belegen, also auf macOS 26/27 prüfen, ob „gedrückt halten“ frei ist.
   - Für den Release 0.3.0 wichtig, weil der TV-Modus ohne Maus und Tastatur auskommen soll.
-- **Nightforge-Overlay für den Controller** (Nutzer, 31.10., Idee; das Beenden oben wäre sein erster Teil):
+- **Nightforge-Overlay für den Controller** (Nutzer, 31.10.; die kleine Version kommt in 0.3.0, gebaut von der TV-Session, das schöne große Overlay danach):
   - PS-/Guide-Taste im Spiel (gedrückt halten, damit Steams kurzer Druck frei bleibt) öffnet ein ruhiges Overlay
     über dem Spiel:
     - Weiterspielen (B oder noch einmal PS)
