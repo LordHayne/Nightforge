@@ -59,6 +59,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
   einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
   „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
+  Der Ausweg ist KosmicKrisp (unten bei „Vulkan-Layer und winecx“): Er meldet `shaderCullDistance` schon lange und
+  `geometryShader` seit Mesa 14f59d06 (29.10.2026).
+  Die D3D9-Leiter in `LaunchHealth.attempts` fragt das Profil nicht. Ein Profil mit `graphics` ändert für D3D9-Spiele nur
+  „Am verträglichsten“ (`ladder`). Für Mafia II reicht das, weil winecx ohnehin mit WineD3D beginnt.
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
   Noch kein einziges getestet.
 - **Unreal-Spiele allgemein.** Bis 26.10. bekam kein Unreal-Spiel DXMT. Die Einstellungen reichten nur drei
@@ -516,6 +520,38 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
       bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
       (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
+- [ ] **Mafia II ruckelt, der Ton klingt doppelt (WineD3D, 31.10.).** Befunde, Belege und Testanleitung in den
+      Notizen der Mafia-II-Sitzung (`mafia-ii.md`).
+      - Bis jetzt bekam kein GOG-Spiel ein Profil: Der Start fragte nur Steam-IDs ab. Jetzt gilt „gog.<Produkt-ID>“ in
+        `profiles.json`. `mac.json` nennt die GOG-Ausgabe beim Steam-Zwilling (`"gog": ["1816059595"]` bei 50130).
+      - Ton: FMOD Ex steckt fest im Programm und gibt unter Windows 10 über WASAPI aus. EAX und OpenAL gibt es nicht im
+        Prefix. Die Lautsprecher kommen vom System (MacBook: Stereo, 48 kHz), der Mixer läuft mit 44,1 kHz.
+      - Live-Test 31.10. 23:00, ohne Compiler daneben:
+        - Das Profil greift, Mafia II startet direkt mit WineD3D.
+        - Das Menü klingt sauber. Das Echo im Spiel ist weg, aber Knacken und Aussetzer bleiben.
+        - CPU: Menü ~120 %, im Spiel 230–440 %, und dabei zwei Threads mit je ~95 %. Kaum GPU-Last.
+        - APEX war schon aus. APEX an ändert nichts, und `windowsVersion: winxp` (DirectSound statt WASAPI) auch nicht.
+        - Ausgabeweg und PhysX sind damit ausgeschieden.
+        - Folgetest 23:15: Schatten Niedrig, Geometrie Niedrig, AO aus. Kein Unterschied beim Knacken, im Spiel
+          weiter 250–460 %, Threads bei 97/88/88/45 %. Die Hebel im Spiel sind damit ausgeschöpft.
+        - Für 0.3.0 bleibt Mafia II auf WineD3D: Das Echo ist weg, das Knacken bleibt. Der Weg ist DXVK auf
+          KosmicKrisp (Session kosmickrisp-dx9).
+      - Ursache, aus winecx gelesen: Mafia II ist ein 32-Bit-Spiel und läuft im neuen WoW64 (winecx hat kein
+        `i386-unix`). Jeder OpenGL-Aufruf von WineD3D wird übersetzt. `opengl32.so` kopiert gemappte Puffer um
+        („Copying %#zx from wow64 buffer“) und schaltet `GL_ARB_buffer_storage` ab („Disabling … on wow64“).
+        Dazu kommt Apples OpenGL unter Rosetta. Das passt zu zwei vollen Threads: Spiel-Thread und WineD3Ds CS-Thread.
+      - Ausweg: DXVK über Vulkan. winevulkan braucht für 32-Bit-Spiele `VK_EXT_map_memory_placed`. KosmicKrisp hat es,
+        bei MoltenVK ist es offen (Karte „DXVK auf KosmicKrisp“).
+      - WineD3D selbst bietet keinen Hebel:
+        - `csmt` bleibt an, aus legt beide Threads auf einen.
+        - `MaxVersionGL`: WoW64 deckelt bei 4.3, Apple liefert 4.1.
+        - `VideoMemorySize` und `strict_shader_math` betreffen die GPU.
+        - `OffscreenRenderingMode` gibt es in winecx' wined3d nicht mehr.
+        - Eine Bildratengrenze hat WineD3D nicht, das Spiel kennt nur VSync. 60 statt 120 Hz hilft nur, wenn das Spiel
+          über 60 FPS kommt.
+      - `profile.dat`: Bitfolge, LSB zuerst, mit 32-Bit-Prüfsumme 8 Bytes vor dem Ende (kein CRC32, Adler oder Summe).
+        - APEX an statt aus setzt die Bits 39337 und 39370, gleich nach den vier Lautstärken (1.0f).
+        - Schreiben kann Nightforge sie nicht. Seit dem Folgetest ist das für Mafia II auch nicht mehr nötig.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [x] **Deinstallieren** (A New Beginning: Ordner weg, Karte, Spielzeit und Bewertung bleiben), **Abbrechen** (Dishonored 2:
       nach 3 s kein gogdl mehr, Ordner weg, `downloads.json` leer) – live 31.10. (159acfa). Danach behoben: kein
@@ -747,6 +783,12 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   transform feedback“), DXVK 3.1.1 kann keine geteilten Ressourcen anlegen (`VK_KHR_external_memory_win32` fehlt) und das
   Spiel stürzt ab. Nächster Versuch: DXVK mit einem Patch, der geteilte Ressourcen ungeteilt anlegt, und ein Spiel ohne
   geteilte Texturen (DirectX 9–11). Nicht als Komponente ausgeliefert; Bau braucht Netz und LLVM (~2 GB).
+  Neu seit 29.10.2026 in Mesa main: Geometry-Shader über „poly“ (9a40f0c6, 5c145789, 531e208d, 14f59d06 „kk: Advertise
+  geometryShader“, MR 44786). `shaderCullDistance`, Tessellation und robustness2 waren schon da. Damit bekäme DXVKs
+  Direct3D 9 sein Gerät, also Mafia II, Left 4 Dead 2 und die Source-Spiele. Unser Bau vom 28.10. (063dfae) ist älter,
+  der nächste muss ≥ 14f59d06 sein. steamac (fxgl/steamac, `host/kosmickrisp/patches`) trägt dieselben vier als 0001–0004
+  und dazu Transform Feedback in der GS-Emulation (0010–0014), was vkd3d-proton fehlte. steamac nutzt KosmicKrisp aber
+  arm64 auf dem Host über Venus. Wir brauchen x86_64 unter winecx, gebaut in CI.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit

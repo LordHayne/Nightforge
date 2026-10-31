@@ -20,6 +20,7 @@ struct GOGTest {
             print("✗ runs only in its own home (tests/GOGTest/run.sh)")
             exit(1)
         }
+        await profiles()
         gameIDs()
         owned()
         releases()
@@ -43,6 +44,24 @@ struct GOGTest {
 
         print(failures == 0 ? "✓ GOG" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// A GOG game starts with the profile the list keeps under its product ID (mac.json's "gog"
+    /// twins); Epic's entries stay out of a start. First, before anything else reads the list.
+    static func profiles() async {
+        let json = #"{"formatVersion": 1, "games": {"50130": {"name": "Mafia II (Classic)", "graphics": "wined3d"},"#
+            + #""gog.1816059595": {"name": "Mafia II (Classic)", "graphics": "wined3d", "source": "mac"},"#
+            + #""epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#
+        try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
+        try? Data(json.utf8).write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
+        let store = ProfileStore.shared
+        check(await store.profile(for: .gog("1816059595"))?.graphics == .wined3d, "a GOG game's profile, by its product ID")
+        check(await store.profile(for: .steam(50130))?.graphics == .wined3d, "the Steam version's, by app ID as before")
+        check(await store.profile(for: .gog("50130")) == nil, "a GOG ID is not a Steam app ID")
+        check(await store.profile(for: .gog("1207658924")) == nil, "a GOG game the list doesn't know has none")
+        check(await store.profile(for: .epic("fn")) == nil, "an Epic game starts without: its entry only blocks it")
+        check(ProfileStore.decodeGOG(Data(json.utf8)).keys.sorted() == ["1816059595"], "only gog.<id> keys are GOG's")
+        try? FileManager.default.removeItem(at: Engine.supportDir.appendingPathComponent("profiles.json"))
     }
 
     // MARK: - Fixtures (formats as gogdl and Heroic read them)

@@ -83,7 +83,7 @@ struct GameOptionsSheet: View {
             .padding(.top, 2)
         }
         .task {
-            if game.bottle.isBuiltIn || game.switchable { profile = await ProfileStore.shared.profile(for: game.appID) }
+            if game.bottle.isBuiltIn || game.switchable { profile = await ProfileStore.shared.profile(for: game.gameID) }
         }
     }
 
