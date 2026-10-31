@@ -248,6 +248,12 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Sitzung hilft. Prüfen: TV anstecken, ein Unity-Spiel mit „Use Native“ starten (20 Minutes Till Dawn) und
       danach in `user.reg` nachsehen, ob 1920×1080 drinsteht.
     - Ein Unreal-Spiel (Palworld) am TV, danach zurück am MacBook: wieder bildschirmfüllend 1512×982?
+    - **Frische Wine-Sitzung bei geänderten Bildschirmen** (1.11., `GameDisplay.wineSessionStale`): Wines Zwischenspeicher
+      hatte im Spiegelbetrieb noch das MacBook als eigene Primär-Quelle (Altlast der Sitzung). Eine frische Sitzung
+      sieht nur den DENON (winecx' `macdrv_get_adapters` überspringt Spiegel). Am TV prüfen: Der erste Start nach dem
+      Anstecken zeigt kurz „Steam startet …“, danach läuft Overcooked 2 randlos in 1920×1080. Mafia II hat sich in der
+      alten Sitzung 3024×1964 gemerkt (`videoconfig.cfg`): Prüfen, ob es nach der frischen Sitzung von selbst auf
+      1920×1080 geht, sonst einmal in seinen Optionen wählen.
     - Spiegeln mit dem MacBook als Master: Spiele laufen in MacBook-Größe, der TV zeigt sie skaliert. Im Spiegelmodus
       wird auch der Launcher nicht von selbst Vollbild, weil `GameDisplay.place` nur beim Verschieben umschaltet.
   - **Zurück aus dem Spiel wie bei einer Konsole** (31.10., gleicher Branch, `GameBackdrop.swift`): Am TV sah man nach

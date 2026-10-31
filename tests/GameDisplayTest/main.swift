@@ -101,6 +101,13 @@ struct GameDisplayTest {
         check(!result.stale && result.store == GameDisplay.WineSession(server: 777, screens: mirrorSet), "a new session: fresh, remembered as such")
         result = GameDisplay.wineSessionCheck(stored: session, server: nil, now: mirrorSet)
         check(!result.stale && result.store == nil, "no session: nothing to restart, nothing kept")
+        result = GameDisplay.wineSessionCheck(stored: nil, server: 600, beganBefore: true, now: mirrorSet)
+        check(result.stale && result.store == GameDisplay.WineSession(server: 600, screens: GameDisplay.unknownScreens),
+              "a session older than Nightforge: what it saw is unknown – a fresh one")
+        result = GameDisplay.wineSessionCheck(stored: result.store, server: 600, beganBefore: true, now: mirrorSet)
+        check(result.stale, "and it stays so until it's replaced")
+        result = GameDisplay.wineSessionCheck(stored: result.store, server: 601, now: mirrorSet)
+        check(!result.stale, "the fresh one, begun after Nightforge, is known")
 
         // Which TV shows Nightforge, for its sound: false = an external display in the mirror set.
         let tv = screen(2, "LG TV SSCR2"), avr = screen(4, "DENON-AVR"), monitor = screen(3, "DELL U2720Q")

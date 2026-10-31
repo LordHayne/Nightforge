@@ -279,10 +279,12 @@ enum GameDisplay {
     // MARK: - Wine's view of the screens
 
     /// A screen as Wine takes it when its session starts: the displays that mirror nothing (a
-    /// mirror set is one), which is main, their size in points and pixels. Wine keeps that for the
-    /// session – on 31.10. a session begun before the TV was mirrored still had the MacBook as a
-    /// primary screen of its own (two sources, both flagged primary), so Overcooked 2 opened at
-    /// 1512×982 with Retina scale in the corner of the 1920×1080 TV.
+    /// mirror set is one), which is main, their size in points and pixels. winecx's mac driver
+    /// lists the online displays and skips those mirroring another (macdrv_get_adapters), so a fresh
+    /// session sees a mirrored TV alone. But it keeps what it saw for the session: on 31.10. one
+    /// begun before the TV was mirrored still had the MacBook as a primary screen of its own (two
+    /// sources, both flagged primary), so Overcooked 2 opened at 1512×982 with Retina scale in the
+    /// corner of the 1920×1080 TV, and Mafia II chose 3024×1964.
     struct WineScreen: Equatable {
         var id: CGDirectDisplayID
         var main: Bool
@@ -305,12 +307,19 @@ enum GameDisplay {
 
     /// Whether the session `server` saw other screens than `now`. A session seen for the first
     /// time is taken to have begun with what's there now – it's looked at every few seconds
-    /// (`observeWineSession`), so before the screens change.
-    nonisolated static func wineSessionCheck(stored: WineSession?, server: pid_t?, now: String) -> (stale: Bool, store: WineSession?) {
+    /// (`observeWineSession`), so before the screens change – unless it began before Nightforge
+    /// did (`beganBefore`): what it saw then is unknown, and it counts as stale until replaced.
+    nonisolated static func wineSessionCheck(stored: WineSession?, server: pid_t?, beganBefore: Bool = false,
+                                             now: String) -> (stale: Bool, store: WineSession?) {
         guard let server else { return (false, nil) }  // no session: the next one starts fresh
-        guard let stored, stored.server == server else { return (false, WineSession(server: server, screens: now)) }
+        guard let stored, stored.server == server else {
+            let seen = WineSession(server: server, screens: beganBefore ? unknownScreens : now)
+            return (seen.screens != now, seen)
+        }
         return (stored.screens != now, stored)
     }
+
+    nonisolated static let unknownScreens = "unknown"
 
     private nonisolated static let wineSessionKey = "wineSessionScreens"
 
@@ -321,7 +330,9 @@ enum GameDisplay {
     nonisolated static func wineSessionStale() -> Bool {
         let defaults = UserDefaults.standard
         let stored = defaults.data(forKey: wineSessionKey).flatMap { try? JSONDecoder().decode(WineSession.self, from: $0) }
-        let (stale, store) = wineSessionCheck(stored: stored, server: wineserver(), now: wineSignature(currentWineScreens()))
+        let server = wineserver()
+        let (stale, store) = wineSessionCheck(stored: stored, server: server, beganBefore: server.map(beganBeforeNightforge) ?? false,
+                                              now: wineSignature(currentWineScreens()))
         if store != stored {
             if let store, let data = try? JSONEncoder().encode(store) { defaults.set(data, forKey: wineSessionKey) }
             else { defaults.removeObject(forKey: wineSessionKey) }
@@ -340,6 +351,18 @@ enum GameDisplay {
                               points: CGSize(width: mode.width, height: mode.height),
                               pixels: CGSize(width: mode.pixelWidth, height: mode.pixelHeight))
         }
+    }
+
+    /// The process started before this Nightforge did.
+    private nonisolated static func beganBeforeNightforge(_ pid: pid_t) -> Bool {
+        func started(_ pid: pid_t) -> Double? {
+            var info = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+            return Double(info.pbi_start_tvsec) + Double(info.pbi_start_tvusec) / 1_000_000
+        }
+        guard let session = started(pid), let us = started(getpid()) else { return false }
+        return session < us
     }
 
     /// The wineserver of Nightforge's engine, found without running ps.
