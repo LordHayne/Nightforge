@@ -1,0 +1,64 @@
+name: Build KosmicKrisp (x86_64)
+
+# KosmicKrisp is Mesa's Vulkan driver on Metal. Under winecx DXVK's Direct3D 9 draws through it
+# instead of MoltenVK, which lacks the geometry shaders and cull distances DXVK needs for it.
+# winecx runs as x86_64 under Rosetta, so the driver and the Khronos loader are cross-built for
+# x86_64 on an Apple-silicon runner by scripts/build-kosmickrisp.sh (pins and Mesa patches in
+# scripts/kosmickrisp/). Published as one release asset that components/manifest.json points to
+# ('kosmickrisp'). Mesa is MIT, the loader and headers Apache-2.0; their texts go in the package.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/kosmickrisp.yml"
+      - "scripts/build-kosmickrisp.sh"
+      - "scripts/kosmickrisp/**"
+
+permissions:
+  contents: write
+
+jobs:
+  kosmickrisp:
+    # KosmicKrisp needs the macOS 26 SDK.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Tools
+        run: |
+          brew install llvm spirv-llvm-translator spirv-tools ninja pkg-config || true
+          for tool in "$(brew --prefix llvm)/bin/llvm-config" ninja pkg-config cmake; do command -v "$tool"; done
+
+      - name: Build
+        run: |
+          JOBS="$(sysctl -n hw.ncpu)" scripts/build-kosmickrisp.sh "$RUNNER_TEMP/kosmickrisp" "$RUNNER_TEMP/out"
+          archive="$(ls "$RUNNER_TEMP"/out/nightforge-kosmickrisp-*.tar.gz)"
+          name="$(basename "$archive" .tar.gz)"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+          echo "VERSION=${name#nightforge-kosmickrisp-}" >> "$GITHUB_ENV"
+          cat "$RUNNER_TEMP/out/$name/SOURCE.txt"
+
+      # The driver itself is checked on a Mac with a GPU (tests/kosmickrisp/probe-d3d9.sh): hosted
+      # runners have no Metal device it can run on. Here: what goes along, and that the manifest's
+      # library path is relative.
+      - name: Check the package
+        run: |
+          stage="$RUNNER_TEMP/out/nightforge-kosmickrisp-$VERSION"
+          for file in libvulkan.1.dylib libvulkan_kosmickrisp.dylib kosmickrisp_icd.json SOURCE.txt licenses/mesa.rst licenses/vulkan-loader.txt; do
+            [ -f "$stage/$file" ] || { echo "::error::$file missing"; exit 1; }
+          done
+          python3 -c 'import json, sys; icd = json.load(open(sys.argv[1]))["ICD"]; assert icd["library_path"] == "./libvulkan_kosmickrisp.dylib", icd' \
+            "$stage/kosmickrisp_icd.json"
+          lipo -archs "$stage"/*.dylib
+          otool -L "$stage"/*.dylib
+
+      # From main only, like graphics.yml: a run on another branch just checks that it builds.
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "kosmickrisp-$VERSION" "$ARCHIVE" --repo "$GITHUB_REPOSITORY" --latest=false \
+            --target "$GITHUB_SHA" --title "KosmicKrisp $VERSION (x86_64)" \
+            --notes "KosmicKrisp (Mesa's Vulkan driver on Metal) for x86_64 with the Khronos Vulkan loader, for DXVK's Direct3D 9 under winecx. Built by scripts/build-kosmickrisp.sh from the pins and patches in scripts/kosmickrisp/ (SOURCE.txt in the package). Licences: Mesa MIT, Vulkan loader and headers Apache-2.0 (texts inside the package)."
