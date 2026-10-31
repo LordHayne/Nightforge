@@ -32,11 +32,11 @@ private struct WelcomePage: View {
         VStack(alignment: .leading, spacing: 28) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(L10n.t("Welcome to Nightforge"))
-                    .font(Theme.display(48))
+                    .displayFont(48)
                     .foregroundStyle(Theme.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text(SetupModel.welcomeText(replay: setup.isReplay))
-                    .font(.system(size: 16))
+                    .font(size: 16)
                     .foregroundStyle(Theme.muted)
                     .frame(maxWidth: 560, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -75,7 +75,7 @@ private struct ChecklistPage: View {
     private var checklist: some View {
         VStack(alignment: .leading, spacing: 26) {
             Text(L10n.t("Connecting Steam"))
-                .font(Theme.display(40))
+                .displayFont(40)
                 .foregroundStyle(Theme.ink)
                 .accessibilityAddTraits(.isHeader)
 
@@ -125,11 +125,11 @@ private struct QRNote: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "qrcode")
-                .font(.system(size: 17, weight: .semibold))
+                .font(size: 17, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.ink)
                 .accessibilityHidden(true)
             Text(text)
-                .font(.system(size: 14))
+                .font(size: 14)
                 .foregroundStyle(Theme.ink.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -195,7 +195,7 @@ private struct CheckingPage: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionTitle(L10n.t("Checking your library"))
             Text(texts.headline)
-                .font(Theme.display(48).monospacedDigit())
+                .displayFont(48).monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
                 .accessibilityAddTraits(.isHeader)
@@ -211,7 +211,7 @@ private struct CheckingPage: View {
             }
             .frame(width: 420)
             Text(texts.line)
-                .font(.system(size: 15))
+                .font(size: 15)
                 .foregroundStyle(Theme.muted)
             if macSteam.state == .signingIn {
                 MacSignInCard(prep: macSteam)
@@ -243,7 +243,7 @@ private struct RevealPage: View {
         VStack(alignment: .leading, spacing: 22) {
             SectionTitle(L10n.t("Your library on this Mac"))
             Text(reveal.headline)
-                .font(Theme.display(48))
+                .displayFont(48)
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
@@ -252,14 +252,14 @@ private struct RevealPage: View {
                     .frame(maxWidth: 760, alignment: .leading)
                 if let line = reveal.macLine(later: macLater) {
                     Label(line, systemImage: "laptopcomputer")
-                        .font(.system(size: 14))
+                        .font(size: 14)
                         .foregroundStyle(Theme.ink.opacity(0.9))
                         .frame(maxWidth: 760, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
                 Text(L10n.t("Your Steam library has no games yet – the ones you get in Steam show up here by themselves."))
-                    .font(.system(size: 15))
+                    .font(size: 15)
                     .foregroundStyle(Theme.muted)
                     .frame(maxWidth: 560, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -334,25 +334,25 @@ struct StepRow: View {
                     Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Theme.danger)
                 }
             }
-            .font(.system(size: 17, weight: .semibold))
+            .font(size: 17, weight: .semibold, scales: false)
             .frame(width: 20, height: 20)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(.system(size: 15, weight: state == .pending ? .regular : .semibold))
+                    .font(size: 15, weight: state == .pending ? .regular : .semibold)
                     .foregroundStyle(state == .pending ? Theme.muted : Theme.ink)
                 if let progress {
                     GlassProgressBar(value: progress)
                         .frame(width: 320)
                     if detail == nil {
                         Text("\(Int(progress * 100)) %")
-                            .font(.system(size: 12, weight: .medium).monospacedDigit())
+                            .font(size: 12, weight: .medium).monospacedDigit()
                             .foregroundStyle(Theme.muted)
                     }
                 }
                 if let detail {
                     Text(detail)
-                        .font(.system(size: state == .done ? 12.5 : 13).monospacedDigit())
+                        .font(size: state == .done ? 12.5 : 13).monospacedDigit()
                         .foregroundStyle(Theme.muted)
                         .contentTransition(.numericText())
                         .frame(maxWidth: 560, alignment: .leading)
@@ -376,7 +376,7 @@ struct Note: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 14))
+            .font(size: 14)
             .foregroundStyle(isError ? Theme.errorText : Theme.ink.opacity(0.85))
             .frame(maxWidth: 560, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -393,8 +393,8 @@ struct SetupButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: symbol).font(.system(size: 15, weight: .bold))
-                Text(title).font(Theme.display(17))
+                Image(systemName: symbol).font(size: 15, weight: .bold)
+                Text(title).displayFont(17)
             }
             .foregroundStyle(Theme.night)
             .padding(.horizontal, 32)

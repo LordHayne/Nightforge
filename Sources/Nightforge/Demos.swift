@@ -21,7 +21,7 @@ struct DemoNote: View {
 
     private var line: some View {
         Label(L10n.t("Free demo – the full game isn't in your Steam library."), systemImage: "gift")
-            .font(.system(size: 13, weight: .medium))
+            .font(size: 13, weight: .medium)
             .foregroundStyle(Theme.muted)
     }
 
@@ -41,7 +41,7 @@ struct DemoTag: View {
         if game.demoOf != nil {
             let mac = game.platform == .mac || (game.install == .inStore && game.macNative)
             Text("DEMO")
-                .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                .displayFont(9.5)
                 .foregroundStyle(Theme.ink)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
@@ -58,7 +58,7 @@ struct RefusedDownloadNote: View {
     var body: some View {
         Label(L10n.t("Steam won't download this game: it isn't in your Steam library. Cancel the download to take the request back."),
               systemImage: "xmark.circle")
-            .font(.system(size: 13, weight: .medium))
+            .font(size: 13, weight: .medium)
             .foregroundStyle(Theme.muted)
             .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)

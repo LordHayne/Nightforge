@@ -115,7 +115,7 @@ struct ControllerTestView: View {
                         .transition(.opacity.combined(with: .offset(y: 6)))
                 } else if tester.layout != nil {
                     Text(L10n.t("Press a button – here it says what it does in Nightforge."))
-                        .font(.system(size: 13.5, weight: .medium))
+                        .font(size: 13.5, weight: .medium)
                         .foregroundStyle(Theme.muted)
                 }
             }
@@ -131,20 +131,20 @@ struct ControllerTestView: View {
         if tester.layout != nil {
             VStack(spacing: 6) {
                 Text(L10n.t("Controller detected: %@", tester.name))
-                    .font(Theme.display(24))
+                    .displayFont(24)
                     .foregroundStyle(Theme.ink)
                 Text(L10n.t("Press a few buttons – they light up."))
-                    .font(.system(size: 14))
+                    .font(size: 14)
                     .foregroundStyle(Theme.muted)
             }
             .multilineTextAlignment(.center)
         } else {
             VStack(spacing: 8) {
                 Text(L10n.t("Connect your controller"))
-                    .font(Theme.display(24))
+                    .displayFont(24)
                     .foregroundStyle(Theme.ink)
                 Text(L10n.t("By Bluetooth or USB cable – Nightforge recognises PlayStation and Xbox controllers by itself."))
-                    .font(.system(size: 14))
+                    .font(size: 14)
                     .foregroundStyle(Theme.muted)
                     .frame(maxWidth: 440)
                     .fixedSize(horizontal: false, vertical: true)
@@ -172,7 +172,7 @@ struct ControllerTestView: View {
                 Text(L10n.t("Battery %ld %%", Int((battery * 100).rounded()))).foregroundStyle(Theme.muted.opacity(0.85))
             }
         }
-        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+        .font(size: 12, weight: .semibold).monospacedDigit()
         .foregroundStyle(done ? Theme.runsGreat : Theme.muted.opacity(0.85))
         .padding(.top, 4)
     }
@@ -204,7 +204,7 @@ private struct ShoulderChips: View {
         let trigger = part == .l2 || part == .r2
         let lit = value > (trigger ? 0.6 : 0.5)
         return Text(part.name(layout ?? .playstation))
-            .font(.system(size: 11, weight: .semibold))
+            .font(size: 11, weight: .semibold)
             .foregroundStyle(lit ? Theme.night : Theme.ink.opacity(0.9))
             .padding(.horizontal, 8)
             .frame(minWidth: 34, minHeight: 24)
@@ -236,19 +236,19 @@ private struct MeaningPill: View {
         HStack(spacing: 12) {
             if let symbol = part.symbol(layout) {
                 Image(systemName: symbol)
-                    .font(.system(size: 26))
+                    .font(size: 26, scales: false)
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(Theme.night, Theme.sodium)
             } else {
                 Text(part.name(layout))
-                    .font(.system(size: 11.5, weight: .bold))
+                    .font(size: 11.5, weight: .bold)
                     .foregroundStyle(Theme.night)
                     .padding(.horizontal, 10)
                     .frame(minWidth: 28, minHeight: 28)
                     .background(Theme.sodium, in: Capsule())
             }
             (Text(L10n.t("In Nightforge:") + " ").foregroundColor(Theme.muted) + Text(part.meaning).foregroundColor(Theme.ink))
-                .font(.system(size: 14, weight: .medium))
+                .font(size: 14, weight: .medium)
                 .lineLimit(1)
         }
         .padding(.leading, 8)

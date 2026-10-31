@@ -71,10 +71,10 @@ struct SessionSummarySheet: View {
                 SessionCover(game: summary.game)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(summary.game.name)
-                        .font(Theme.display(20))
+                        .displayFont(20)
                         .lineLimit(2)
                     Text(L10n.t("%@ this time · %@ in total", Format.playtime(summary.minutes), Format.playtime(total)))
-                        .font(.system(size: 14))
+                        .font(size: 14)
                         .foregroundStyle(Theme.ink.opacity(0.85))
                         .monospacedDigit()
                 }
@@ -82,7 +82,7 @@ struct SessionSummarySheet: View {
 
             if let cloud {
                 saveLine(cloud)
-                    .font(.system(size: 13.5))
+                    .font(size: 13.5)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -91,7 +91,7 @@ struct SessionSummarySheet: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 Text(L10n.t("How did it run?"))
-                    .font(.system(size: 14, weight: .medium))
+                    .font(size: 14, weight: .medium)
                 if saved {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.runsGreat)
@@ -101,7 +101,7 @@ struct SessionSummarySheet: View {
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .font(.system(size: 13))
+                    .font(size: 13)
                 } else if rating == false {
                     issueButtons
                     HStack(spacing: 8) {
@@ -143,7 +143,7 @@ struct SessionSummarySheet: View {
     private func ratingButton(_ title: String, symbol: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(.system(size: 14, weight: .medium))
+                .font(size: 14, weight: .medium)
                 .foregroundStyle(Theme.ink.opacity(0.9))
                 .frame(maxWidth: .infinity)
                 .frame(height: 40)
@@ -157,7 +157,7 @@ struct SessionSummarySheet: View {
         switch state {
         case .synced:
             HStack(spacing: 10) {
-                Image(systemName: "checkmark.icloud").font(.system(size: 18)).foregroundStyle(Theme.runsGreat)
+                Image(systemName: "checkmark.icloud").font(size: 18).foregroundStyle(Theme.runsGreat)
                 Text("\(Text(epic ? L10n.t("Your save is with Epic Games.") : L10n.t("Your save is in the Steam Cloud.")).fontWeight(.semibold)) \(L10n.t("You can close your Mac."))")
                     .fixedSize(horizontal: false, vertical: true)
             }

@@ -491,6 +491,9 @@ enum L10n {
         "Reduce motion": "Bewegung reduzieren",
         "No zoom on covers, no sliding – plain cross-fades. Follows “Reduce motion” in macOS until you change it here.":
             "Kein Zoom auf Covern, kein Gleiten – nur Überblenden. Folgt „Bewegung reduzieren“ in macOS, bis du es hier änderst.",
+        "Larger text": "Größere Schrift",
+        "All of Nightforge's text one step larger, from the library to the dialogs.":
+            "Alle Texte in Nightforge eine Stufe größer, von der Bibliothek bis zu den Dialogen.",
 
         // Not enough space
         "%@ needs up to %@": "%@ braucht bis zu %@",

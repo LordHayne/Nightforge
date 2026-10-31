@@ -105,7 +105,7 @@ struct ChargerPill: View {
             Image(systemName: "bolt.fill").foregroundStyle(Theme.warning)
             Text(label)
         }
-        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+        .font(size: 13, weight: .semibold).monospacedDigit()
         .foregroundStyle(Theme.ink.opacity(0.9))
         .padding(.horizontal, 12)
         .frame(height: 38)

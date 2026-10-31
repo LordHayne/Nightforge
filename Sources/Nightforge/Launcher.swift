@@ -26,6 +26,7 @@ enum Prefs {
         static let padGlyphs = "padGlyphs"
         static let notifyDownloads = "notifyDownloads"
         static let reduceMotion = "reduceMotion"
+        static let largerText = "largerText"
         static let saveBattery = "saveBattery"
     }
 

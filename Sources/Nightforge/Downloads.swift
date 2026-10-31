@@ -37,7 +37,7 @@ struct DownloadsButton: View {
                     .stroke(Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .bold).monospacedDigit())
+                    .font(size: 10, weight: .bold, scales: false).monospacedDigit()
                     .foregroundStyle(Theme.ink)
             }
             .frame(width: 22, height: 22)
@@ -61,16 +61,17 @@ struct DownloadsButton: View {
 /// top bar (LibraryView lays it out).
 struct DownloadsPanel: View {
     @EnvironmentObject private var model: LibraryModel
+    @Environment(\.textScale) private var textScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L10n.t("Downloads"))
-                    .font(Theme.display(16))
+                    .displayFont(16)
                 Spacer()
                 Button { model.showingDownloads = false } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(size: 11, weight: .bold, scales: false)
                         .foregroundStyle(Theme.ink.opacity(0.8))
                         .frame(width: 28, height: 28)
                 }
@@ -80,7 +81,7 @@ struct DownloadsPanel: View {
             }
             if model.downloads.isEmpty && model.move == nil {
                 Text(L10n.t("Nothing is downloading."))
-                    .font(.system(size: 13))
+                    .font(size: 13)
                     .foregroundStyle(Theme.muted)
                     .padding(.vertical, 6)
             }
@@ -97,13 +98,13 @@ struct DownloadsPanel: View {
                     Text(L10n.t("Your Mac stays awake while games download. The display can still turn off."))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.system(size: 12))
+                .font(size: 12)
                 .foregroundStyle(Theme.muted)
             }
         }
         .foregroundStyle(Theme.ink)
         .padding(16)
-        .frame(width: 380)
+        .frame(width: 380 * textScale)  // grows with the text, so the names keep their room
         .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 24, style: .continuous)))
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
@@ -114,7 +115,7 @@ struct DownloadsPanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(game.name)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(size: 13.5, weight: .semibold)
                         .lineLimit(1)
                     // A game the player has in several stores: which one this download comes from.
                     if model.card(holding: game.id)?.others.isEmpty == false {
@@ -123,7 +124,7 @@ struct DownloadsPanel: View {
                 }
                 DownloadBar(fraction: fraction(game))
                 Text(line(game))
-                    .font(.system(size: 11.5).monospacedDigit())
+                    .font(size: 11.5).monospacedDigit()
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
             }
@@ -145,14 +146,14 @@ struct DownloadsPanel: View {
                 // "Hades → Spiele test": where it goes stays readable, the name gives way.
                 HStack(spacing: 6) {
                     Text(move.game.name)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(size: 13.5, weight: .semibold)
                         .lineLimit(1)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 10.5, weight: .bold))
+                        .font(size: 10.5, weight: .bold)
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                     Text(move.drive ?? L10n.t("This Mac"))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(size: 12.5, weight: .medium)
                         .foregroundStyle(Theme.muted)
                         .lineLimit(1)
                         .fixedSize()
@@ -160,7 +161,7 @@ struct DownloadsPanel: View {
                 }
                 DownloadBar(fraction: move.phase == .copying ? move.fraction : move.phase == .finishing ? 1 : nil)
                 Text(moveLine(move))
-                    .font(.system(size: 11.5).monospacedDigit())
+                    .font(size: 11.5).monospacedDigit()
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
             }

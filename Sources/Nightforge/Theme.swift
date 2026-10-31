@@ -24,10 +24,9 @@ enum Theme {
     /// Text that says something failed: paler than `danger`, readable on the night blue.
     static let errorText = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)  // #FF9E94
 
-    /// Wide, heavy display face for titles and the play button.
-    static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .heavy).width(.expanded)
-    }
+    /// Wide, heavy display face for titles and the play button. Views take it through `.displayFont(_:)`,
+    /// which adds "Larger text".
+    static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .heavy).width(.expanded) }
 
     static let gutter: CGFloat = 56
 }

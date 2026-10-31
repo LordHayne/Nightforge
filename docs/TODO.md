@@ -416,6 +416,32 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 - **Zurück zur Startseite:** Beim Mitgleiten scheint nur die Bibliothek durch (sie liegt schon hinter einer Spielseite).
   Die Startseite erscheint erst am Ende mit dem Überblenden. Sie dahinter vorzurendern wäre schöner.
 
+### Größere Schrift (Branch `claude/larger-text-2-5-2d1360`, Roadmap 2.5)
+
+Nur offscreen gerendert (echte Views, Deutsch und Englisch, aus und an, 1512 × 900 und 980 × 640). Ausgeschaltet
+pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
+
+- **Umschalten im laufenden Betrieb:** Werden in Einstellungen › Allgemein sofort alle Texte größer, auch im offenen
+  Sheet und hinter ihm, ohne dass das Sheet zugeht?
+- **Kleines Fenster (980 × 640), Schalter an:** Startseite (runde Knöpfe unter „Spielen“), Spielseite (Logo wird
+  kleiner, Knöpfe in zwei Zeilen), Bibliothek (Suchfeld-Hinweis ganz lesbar), Download-Panel, Hinweisleiste mit
+  verbundenem Controller (Akku-Pille links) – nicht gerendert.
+- **Erster Start unter ~680 pt Fensterhöhe:** Anmeldung (mit QR-Hinweis) und Ergebnis scrollen jetzt, statt die obere
+  Leiste hinauszuschieben (die Anmeldung tat das bei 640 pt schon ohne größere Schrift). Holt der Pad-Fokus den Knopf
+  am Ende ins Bild? Stört der Scrollbereich das Wischen mit zwei Fingern nicht?
+- **Einstellungen und Dialoge im kleinen Fenster** (Nachbesserung nach dem Live-Test, beide Schriftgrößen): Das Sheet
+  ist höchstens Fensterhöhe − 40 pt hoch (bei 980 × 640: 568 statt 727/771), Kopf und Tabs stehen, das Formular scrollt.
+  Scrollt das Trackpad im Sheet das Sheet und nicht die Bibliothek dahinter? Holt der Pad-Fokus in Allgemein „Größere
+  Schrift“ und „Bewegung reduzieren“ ins Bild? Dasselbe im Platz-Dialog (viele Spiele) und in „… ist nicht gestartet“.
+  Bei 1512 × 853 bleibt alles wie vorher (771 < 781). Die Werte der System-Popups (Sprache, Nach dem Start) bleiben
+  13 pt – wirkt das störend?
+- **Bibliothek bei 980 × 640:** Steht das gewählte Spiel in der ersten Reihe, bleibt „Installiert“ mit vollem Abstand
+  unter den Filtern, auch nach Spielseite → Esc und nach Pinch auf eine andere Cover-Größe.
+- **Spielseite mit vielen Hinweisen** (Kompatibilität, Akku, Low Power Mode, Versionen) bei 640 pt Höhe war schon vorher
+  zu hoch und wird mit größerer Schrift höher. Nächster Schritt wäre, dass sie scrollt wie der erste Start.
+- **Nicht gerendert:** Controller-Test mit echtem Pad, Epic-Anmeldehinweis und Sync-Banner, leere Bibliothek,
+  Store-Wahl (7.4), Hinweise aus der Spielanalyse, Steam-für-Mac-Fortschritt, „Willkommen zurück“ mit Cloud-Zuständen.
+
 ## Ideen für später
 
 - **Von steamac lernen** (github.com/fxgl/steamac, Apache-2.0, angeschaut am 31.10.; noch nicht anfangen):

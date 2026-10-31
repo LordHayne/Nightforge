@@ -23,19 +23,19 @@ struct PlaceRow: View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(size: 17, weight: .semibold, scales: false)
                     .foregroundStyle(enabled ? Theme.sodium : Theme.muted)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(size: 13.5, weight: .semibold)
                         .lineLimit(1)
                     Text(detail)
-                        .font(.system(size: 12).monospacedDigit())
+                        .font(size: 12).monospacedDigit()
                         .foregroundStyle(Theme.muted)
                     if let note {
                         Text(note)
-                            .font(.system(size: 12))
+                            .font(size: 12)
                             .foregroundStyle(enabled ? Theme.warning : Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -43,7 +43,7 @@ struct PlaceRow: View {
                 Spacer(minLength: 0)
                 if enabled {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(size: 12, weight: .semibold, scales: false)
                         .foregroundStyle(Theme.muted)
                         .padding(.top, 3)
                 }
@@ -113,12 +113,12 @@ struct DriveInstallChoices: View {
         VStack(alignment: .leading, spacing: 10) {
             if request.drives.isEmpty {
                 Text(L10n.t("An external drive works too: plug one in, then press Download again."))
-                    .font(.system(size: 13))
+                    .font(size: 13)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(L10n.t("Or install it on a drive:"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                 PlaceList {
                     ForEach(Array(request.drives.enumerated()), id: \.element.id) { place, choice in
@@ -144,7 +144,7 @@ struct DestinationSheet: View {
         GlassDialog(L10n.t("Where should %@ go?", request.game.name), id: "destination") {
             if request.needed > 0 {
                 Text(L10n.t("It needs up to %@.", Format.bytes(request.needed)))
-                    .font(.system(size: 14))
+                    .font(size: 14)
                     .foregroundStyle(Theme.ink.opacity(0.85))
             }
             PlaceList {
@@ -174,13 +174,13 @@ struct MoveSheet: View {
             Text(game.provider == .steam
                  ? L10n.t("%@ is copied first and checked, then the old copy goes – if anything fails on the way, the game stays where it is. Steam closes meanwhile and starts again afterwards.", Format.bytes(game.sizeOnDisk))
                  : L10n.t("%@ is copied first and checked, then the old copy goes – if anything fails on the way, the game stays where it is.", Format.bytes(game.sizeOnDisk)))
-                .font(.system(size: 14))
+                .font(size: 14)
                 .lineSpacing(3)
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
             if targets.isEmpty {
                 Text(L10n.t("Plug in an external drive to move the game there."))
-                    .font(.system(size: 13))
+                    .font(size: 13)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             } else {

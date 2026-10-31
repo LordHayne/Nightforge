@@ -208,9 +208,9 @@ struct LibraryRevealView: View {
                 .foregroundStyle(level.color)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(count) · \(level.label)").font(.system(size: 15, weight: .semibold).monospacedDigit())
+                Text("\(count) · \(level.label)").font(size: 15, weight: .semibold).monospacedDigit()
                 Text(text)
-                    .font(.system(size: 13))
+                    .font(size: 13)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
