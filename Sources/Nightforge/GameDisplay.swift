@@ -2,9 +2,10 @@ import AppKit
 import CoreGraphics
 
 /// The screen games are played on: the one Nightforge's window is on. When a TV or another
-/// external screen is connected, the window moves there by itself (full screen on a TV), and for
-/// as long as a game runs that screen is the main one – Wine and Mac games open their full screen
-/// on the main display, and the menu bar would otherwise keep it on a MacBook's own screen.
+/// external screen is connected, the window moves there by itself (full screen on a TV), and from
+/// a game's start until the window leaves it that screen is the main one – Wine and Mac games open
+/// their full screen on the main display, and the menu bar would otherwise keep it on a MacBook's
+/// own screen.
 /// Moving the window back to the Mac's screen is the way to play there; Nightforge remembers it.
 /// Mirrored screens are one screen: nothing moves, and games open in the mirror set's mode.
 @MainActor
@@ -83,6 +84,8 @@ enum GameDisplay {
     private static func windowMoved(_ moved: NSWindow?) {
         guard let moved, moved === window, let now = moved.screen.flatMap(id) else { return }
         defer { lastScreen = now }
+        // Away from the screen a game made main: the main display goes back now (leaveGame).
+        if !running, !placing, !onMain { restoreLeftover() }
         guard !placing, let before = lastScreen, before != now,
               NSScreen.screens.contains(where: { id($0) == before }),
               let picked = pick(candidates())
@@ -138,10 +141,26 @@ enum GameDisplay {
         }
     }
 
-    /// After the game: the main display goes back to what it was.
+    /// After the game. Its screen stays the main one for as long as Nightforge's window is there:
+    /// switching back reconfigures the screens – on a TV the picture can go dark for a moment –
+    /// right as Nightforge comes back, and the next game would switch again. The main display goes
+    /// back when the window leaves that screen (windowMoved) or Nightforge quits.
     static func leaveGame() {
         running = false
-        restoreLeftover()
+        if !onMain { restoreLeftover() }
+    }
+
+    /// Nightforge is in front again after a game: its window comes forward first – on a TV from
+    /// the page behind the game into its own full-screen Space (GameBackdrop) – then the rest.
+    static func backFromGame() {
+        window?.makeKeyAndOrderFront(nil)
+        leaveGame()
+    }
+
+    /// Nightforge's window is on the main display (or in its mirror set).
+    private static var onMain: Bool {
+        guard let display = window?.screen.flatMap(id) else { return true }
+        return newMain(for: display, main: CGMainDisplayID(), primary: CGDisplayPrimaryDisplay) == nil
     }
 
     /// When Nightforge quits with no game running.

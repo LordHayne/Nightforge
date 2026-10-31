@@ -163,6 +163,26 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     - Ein Unreal-Spiel (Palworld) am TV, danach zurück am MacBook: wieder bildschirmfüllend 1512×982?
     - Spiegeln mit dem MacBook als Master: Spiele laufen in MacBook-Größe, der TV zeigt sie skaliert. Im Spiegelmodus
       wird auch der Launcher nicht von selbst Vollbild, weil `GameDisplay.place` nur beim Verschieben umschaltet.
+  - **Zurück aus dem Spiel wie bei einer Konsole** (31.10., gleicher Branch, `GameBackdrop.swift`): Am TV sah man nach
+    dem Spiel den Mac-Schreibtisch, bis Nightforge nach 4–7 s wiederkam. Nightforge blendet sich beim Spiel nicht mehr
+    aus („Launcher ausblenden“ und „Offen lassen“ verhalten sich jetzt gleich). Hinter dem Spiel liegt eine ruhige
+    Seite „<Spiel> läuft …“, unter allen normalen Fenstern und in jedem Schreibtisch-Space des Spielbildschirms. Sie
+    kommt schon beim Übergeben an das Spiel. Das Spielende meldet der Prozess selbst (`DispatchSource`, kqueue); die
+    Seite zeigt sofort „Zurück zu Nightforge …“, und eine Sekunde später ist Nightforge vorn (lief das Spiel unter
+    einer Minute, nach 3 s, falls ein Launcher übergibt). A/Return tun bis dahin nichts. Der Hauptbildschirm bleibt
+    nach dem Spiel der Spielbildschirm, solange Nightforges Fenster dort ist; zurück erst beim Verschieben des Fensters
+    oder Beenden, also kein Umstellen der Bildschirme zwischen zwei Spielen. Am Fernseher prüfen:
+    - Spiel beenden (Windows über Steam und Epic, ein Mac-Spiel): kein Schreibtisch, „Zurück zu Nightforge …“, dann
+      „Willkommen zurück“, Controller steuert sofort. Wie lange dauert es bis Nightforge vorn ist?
+    - Der Wechsel von der Seite in Nightforges Vollbild-Space ist eine kurze Space-Animation. Stört sie, wäre der
+      nächste Schritt ein randloses Fenster über den ganzen TV statt macOS-Vollbild (`GameDisplay.place`), dann liegt
+      Nightforge im selben Space wie das Spiel. Das ist ein größerer Umbau, ungetestet nicht angefangen.
+    - Beim Start: Statt des Schreibtischs die Seite „<Spiel> läuft …“, bis das Spiel zeichnet?
+    - Menüleiste/Dock: Ist der TV Hauptbildschirm, kann nach dem Spiel kurz das Dock über der Seite erscheinen.
+    - Am MacBook allein: Nightforges Fenster liegt hinter dem Spiel, beim Beenden ist es sofort da, die Seite deckt nur
+      den Schreibtisch ab. Ein Spiel im Fenstermodus hat die dunkle Seite drumherum statt des Schreibtischs.
+    - GOG (`claude/gog-7-3-e69c3b`) hat einen eigenen Startweg mit `case .hide: NSApp.hide(nil)`. Beim Zusammenführen
+      auf `stepBack(behind: game, behavior)` umstellen, sonst blendet sich Nightforge bei GOG-Spielen weiter aus.
 
 ## Anti-Cheat und GeForce Now
 

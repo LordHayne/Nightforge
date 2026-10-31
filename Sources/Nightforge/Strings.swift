@@ -631,6 +631,9 @@ enum L10n {
 
         // Welcome back
         "Welcome back": "Willkommen zurück",
+        "%@ is running …": "%@ läuft …",
+        "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
+        "Back to Nightforge …": "Zurück zu Nightforge …",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
         "Well": "Gut",

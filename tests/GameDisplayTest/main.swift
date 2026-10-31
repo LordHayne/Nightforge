@@ -1,4 +1,5 @@
-// Checks which screen GameDisplay picks to play on and which ones count as TVs:
+// Checks which screen GameDisplay picks to play on, which ones count as TVs and when a game
+// counts as ended:
 // tests/GameDisplayTest/run.sh
 import CoreGraphics
 import Foundation
@@ -49,6 +50,15 @@ struct GameDisplayTest {
         check(GameDisplay.newMain(for: 2, main: 1, primary: mirrored) == nil, "mirrored: main is the set either way")
         check(GameDisplay.newMain(for: 3, main: 1, primary: mirrored) == 3, "a monitor beside a mirror set becomes main")
         check(GameDisplay.newMain(for: 1, main: 3, primary: mirrored) == 2, "back to the mirror set: its master becomes main")
+
+        // When a game whose processes are gone counts as ended, and Nightforge comes back.
+        check(!LibraryModel.gameEnded(looksGone: 1, goneFor: 0, ranFor: 1800), "the look its end woke: not yet")
+        check(LibraryModel.gameEnded(looksGone: 2, goneFor: 1, ranFor: 1800), "after a session, a second later")
+        check(LibraryModel.gameEnded(looksGone: 2, goneFor: 1, ranFor: 60), "a minute is a session")
+        check(!LibraryModel.gameEnded(looksGone: 2, goneFor: 1, ranFor: 8), "early on, a launcher may still hand over")
+        check(!LibraryModel.gameEnded(looksGone: 3, goneFor: 2, ranFor: 8), "early on: not before three seconds")
+        check(LibraryModel.gameEnded(looksGone: 4, goneFor: 3, ranFor: 8), "early on: after three seconds")
+        check(!LibraryModel.gameEnded(looksGone: 1, goneFor: 5, ranFor: 8), "one look is never enough")
 
         for name in ["LG TV SSCR2", "SAMSUNG", "SONY TV  *00", "Hisense", "TCL TV", "VIZIO M55", "BRAVIA 4K"] {
             check(screen(9, name).isTV, "\(name) is a TV")

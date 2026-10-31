@@ -83,8 +83,9 @@ enum Prefs {
     }
 
     static var afterLaunch: AfterLaunch {
-        // Hidden, Nightforge keeps Steam out of sight while the game runs and is back the moment
-        // it ends; quitting frees a little memory and comes back too, a few seconds later.
+        // Hidden – behind the game, which no longer hides the app (LibraryModel.stepBack), the same
+        // as kept open – Nightforge is back the moment the game ends; quitting frees a little
+        // memory and comes back too, a few seconds later.
         AfterLaunch(rawValue: UserDefaults.standard.string(forKey: Keys.afterLaunch) ?? "") ?? .hide
     }
 }
