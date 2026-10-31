@@ -24,13 +24,13 @@ enum LaunchHealth {
     /// (Mafia II's "PhysX SDK not initialized" for a minute, 31.10.2026 – confirmed, and the game
     /// page said "Runs great"). A way is confirmed once the game has drawn frames: DXMT and
     /// Nightforge's Vulkan layer (DXVK and Vulkan games) log the frame rate 10 s after the first
-    /// one – the layer only where the engine has a Vulkan loader, not under winecx. Where nothing
-    /// logs frames (Wine's own Direct3D, D3DMetal, DXVK on winecx), a game still running after
-    /// this long counts – once it has shown a picture (`showedPicture`, the curtain sank for its
-    /// window). Without one it's still being watched: Overwatch sat there without a window at 0 %
-    /// CPU on D3DMetal, and three minutes of that confirmed the way (1.11.2026). One that ends
-    /// before, without a frame, stays unconfirmed – on the same way: what stopped it needn't be
-    /// the graphics.
+    /// one – the layer only where a Vulkan loader runs: Gcenx's engine, and under winecx
+    /// KosmicKrisp's (DXVK's Direct3D 9). Where nothing logs frames (Wine's own Direct3D, D3DMetal,
+    /// DXVK on MoltenVK under winecx), a game still running after this long counts – once it has
+    /// shown a picture (`showedPicture`, the curtain sank for its window). Without one it's still
+    /// being watched: Overwatch sat there without a window at 0 % CPU on D3DMetal, and three
+    /// minutes of that confirmed the way (1.11.2026). One that ends before, without a frame, stays
+    /// unconfirmed – on the same way: what stopped it needn't be the graphics.
     static let drawingWindow: TimeInterval = 180
 
     enum Verdict: Equatable {
@@ -60,7 +60,8 @@ enum LaunchHealth {
     /// a graphics error still moves on. Without a picture a way not confirmed yet moves on, a
     /// confirmed one only on evidence: a crash in the log or the second such short start in a row
     /// unconfirms it. One short start alone isn't evidence – Wine's own Direct3D, D3DMetal and DXVK
-    /// on winecx log no frames, and players start a game just to look (OxyRail, 22 s, 31.10.2026).
+    /// on MoltenVK under winecx log no frames, and players start a game just to look (OxyRail, 22 s,
+    /// 31.10.2026).
     static func earlyEnd(trusted: Bool, graphicsFailed: Bool, crashed: Bool, drew: Bool, shortEndsBefore: Int) -> Outcome {
         if graphicsFailed { return .nextWay }
         if drew { return .confirm }
@@ -89,8 +90,10 @@ enum LaunchHealth {
     /// (AppleGamingWiki); it goes first where it fits the game (`hinted`) and the profile names no
     /// layer of its own.
     /// A game with a DirectX 12 program of its own starts that one on D3DMetal (GameProgram, Control_DX12.exe).
+    /// `kosmicKrisp`: under winecx DXVK's Direct3D 9 draws on KosmicKrisp (Engine.vulkanDriver).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint? = nil,
-                         d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
+                         d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads,
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> [LaunchAttempt] {
         let preferred = profile?.graphics ?? hinted(hint, analysis: analysis, d3dMetal: d3dMetal)
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, preferred == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
@@ -118,10 +121,12 @@ enum LaunchHealth {
             return list
         }
         if analysis.usesD3D9 {
-            // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device – MoltenVK lacks
-            // geometryShader and shaderCullDistance: Wine's own Direct3D only, so an early end can't
-            // move on to a way that can't work here (Mafia II, 1.11.2026).
-            return vulkanLayer ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
+            // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device on MoltenVK – it
+            // lacks geometryShader and shaderCullDistance: Wine's own Direct3D only, so an early end
+            // can't move on to a way that can't work here (Mafia II, 1.11.2026). Unless KosmicKrisp
+            // is there: it runs DXVK and takes the CPU load off (Mafia II on WineD3D: two threads at
+            // ~95 %, every OpenGL call thunked in WoW64).
+            return vulkanLayer || kosmicKrisp ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
                 : [LaunchAttempt(graphics: .wined3d)]
         }
         if analysis.onlyD3D12, d3dMetal {
@@ -156,10 +161,12 @@ enum LaunchHealth {
     /// follow one.
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
                          preset: GraphicsPreset, d3dMetal: Bool = Engine.d3dMetalReady,
-                         vulkanLayer: Bool = Engine.vulkanLayerLoads) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
-        let plain = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer)
+                         vulkanLayer: Bool = Engine.vulkanLayerLoads,
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
+        let plain = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
         guard profile?.graphics == nil, let layer = hinted(hint, analysis: analysis, d3dMetal: d3dMetal) else { return (plain, nil) }
-        let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer)
+        let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
+                                kosmicKrisp: kosmicKrisp)
         let before = ladder(plain, preset: preset, profile: profile)
         let after = ladder(followed, preset: preset, profile: profile, hint: layer)
         if after != before, peek(game, before)?.confirmed == true, peek(game, after) == nil { return (plain, nil) }

@@ -305,6 +305,71 @@ struct EngineLayoutTest {
         check(Engine.steamConfigSignature.contains("D3DM_MAX_FPS=60"), "Steam restarts when these change")
         Engine.launchEnvironment = [:]
 
+        // MARK: KosmicKrisp for DXVK's Direct3D 9 (winecx)
+        let kk = URL(fileURLWithPath: "/kk")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk))
+              && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d"
+              && Engine.steamEnvironment["CX_LIBVULKAN"] == "/kk/libvulkan.1.dylib"
+              && Engine.steamEnvironment["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json",
+              "a DirectX 9 game on DXVK brings KosmicKrisp into Steam's environment")
+        check(Engine.steamConfigSignature.contains("CX_LIBVULKAN=/kk/libvulkan.1.dylib"), "Steam restarts for it")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk)),
+              "the next one needs no restart")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 40, upscaling: false)
+              && Engine.steamEnvironment["CX_LIBVULKAN"] != nil, "a game without Vulkan in between (DXMT) leaves it alone")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .moltenVK)
+              && Engine.kosmicKrispVariables.allSatisfy { Engine.steamEnvironment[$0] == nil },
+              "a game on MoltenVK gets a Steam without it")
+        Engine.launchEnvironment = [:]
+        let direct = Engine.directLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk))
+        check(direct["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json" && direct["DXVK_ASYNC"] == "1",
+              "GOG and Epic games get it straight, on top of the game environment")
+        check(Engine.kosmicKrispVariables.allSatisfy {
+            Engine.directLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .moltenVK)[$0] == nil
+        }, "…and on MoltenVK nothing of it")
+
+        let d3d9 = GameAnalysis(apis: [.d3d9])
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: d3d9, winecx: true, kosmicKrisp: kk) == .kosmicKrisp(kk),
+              "winecx: DXVK's Direct3D 9 draws on KosmicKrisp")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: d3d9, winecx: true, kosmicKrisp: nil) == .moltenVK, "without it on MoltenVK")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: d3d9, winecx: false, kosmicKrisp: kk) == nil,
+              "Gcenx: its own loader, never VK_DRIVER_FILES")
+        check(Engine.vulkanDriver(layer: .wined3d, analysis: d3d9, winecx: true, kosmicKrisp: kk) == nil, "WineD3D draws without Vulkan")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: GameAnalysis(apis: [.d3d11]), winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "DXVK for DirectX 11 stays on MoltenVK")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: GameAnalysis(apis: [.d3d9, .d3d11]), winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "so does a game with DirectX 11 as well")
+        check(Engine.vulkanDriver(layer: .dxmt, analysis: GameAnalysis(apis: [.vulkan]), winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "Vulkan games: MoltenVK")
+        check(Engine.vulkanDriver(layer: .dxmt, analysis: GameAnalysis(), winecx: true, kosmicKrisp: kk) == .moltenVK
+              && Engine.vulkanDriver(layer: .dxmt, analysis: nil, winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "nothing known about the game: MoltenVK, to be safe")
+        check(Engine.vulkanDriver(layer: .dxmt, analysis: GameAnalysis(apis: [.d3d11]), winecx: true, kosmicKrisp: kk) == nil
+              && Engine.vulkanDriver(layer: .d3dmetal, analysis: GameAnalysis(apis: [.d3d12]), winecx: true, kosmicKrisp: kk) == nil,
+              "DXMT and D3DMetal: no Vulkan, Steam keeps what it has")
+
+        let unpacked = work.appendingPathComponent("kosmickrisp/27.0.0-devel-44989e5a", isDirectory: true)
+        let staged = unpacked.appendingPathComponent("nightforge-kosmickrisp-27.0.0-devel-44989e5a", isDirectory: true)
+        write(Data("loader".utf8), staged.appendingPathComponent("libvulkan.1.dylib"))
+        write(Data("driver".utf8), staged.appendingPathComponent("libvulkan_kosmickrisp.dylib"))
+        check(Engine.kosmicKrispFolder(in: unpacked) == nil, "without its manifest it's no driver")
+        write(Data("{}".utf8), staged.appendingPathComponent("kosmickrisp_icd.json"))
+        check(Engine.kosmicKrispFolder(in: unpacked)?.lastPathComponent == staged.lastPathComponent, "the archive's folder is found")
+        check(Engine.kosmicKrispFolder(in: staged)?.lastPathComponent == staged.lastPathComponent, "and the folder itself")
+
+        check(GameLog.graphicsFailed(in: "warn:  DXVK: No adapters found. Please check your device filter settings"),
+              "upstream DXVK without a device it can use counts as a graphics failure")
+        check(GameLog.graphicsFailed(in: "err:   Failed to create Vulkan device: VK_ERROR_FEATURE_NOT_PRESENT"), "so does a failed device")
+        check(!GameLog.graphicsFailed(in: "info:  Found device: Apple M5 (KosmicKrisp 27.0.0)"), "a device found doesn't")
+
+        // MARK: Layer configs
+        let configs = work.appendingPathComponent("configs/Game", isDirectory: true)
+        try? fm.createDirectory(at: configs, withIntermediateDirectories: true)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false)
+        let dxvkConf = (try? String(contentsOf: configs.appendingPathComponent("dxvk.conf"), encoding: .utf8)) ?? ""
+        check(dxvkConf.contains("dxgi.maxFrameRate = 60") && dxvkConf.contains("d3d9.maxFrameRate = 60"),
+              "the frame limit reaches DXVK's Direct3D 9 as well as its DirectX 10/11")
+
         // MARK: Settings files
         let settings = game.appendingPathComponent("b1/Saved/Config/Windows/GameUserSettings.ini")
         let edits = (try? JSONDecoder().decode(GameProfile.self, from: Data(#"""

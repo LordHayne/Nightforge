@@ -37,9 +37,11 @@ struct LaunchHealthTest {
     }
 
     /// The ladder on an engine as asked – not the one installed on this Mac.
-    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false, vulkanLayer: Bool = true) -> [String] {
+    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false, vulkanLayer: Bool = true,
+                    kosmicKrisp: Bool = false) -> [String] {
         let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
-        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer).map(\.id)
+        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
+                                     kosmicKrisp: kosmicKrisp).map(\.id)
     }
 
     static func main() {
@@ -160,6 +162,16 @@ struct LaunchHealthTest {
         check(ownLayer.attempts.first?.graphics == .dxvk && ownLayer.hint == nil, "with a profile's layer there's no hint to follow")
         LaunchHealth.reset(fresh)
 
+        // Under winecx DXVK's Direct3D 9 only gets a device on KosmicKrisp (Engine.vulkanDriver).
+        check(ids(GameAnalysis(apis: [.d3d9]), vulkanLayer: false) == ["wined3d"], "winecx without KosmicKrisp: WineD3D only")
+        check(ids(GameAnalysis(apis: [.d3d9]), vulkanLayer: false, kosmicKrisp: true) == ["dxvk", "wined3d"],
+              "winecx with KosmicKrisp: DXVK first, WineD3D behind it")
+        check(ids(GameAnalysis(apis: [.legacy]), vulkanLayer: false, kosmicKrisp: true) == ["dxvk", "wined3d"],
+              "older Direct3D on the same ladder")
+        check(ids(GameAnalysis(apis: [.d3d9, .d3d11]), vulkanLayer: false, kosmicKrisp: true) == ["dxmt", "dxvk"],
+              "a game with DirectX 11 as well stays on its DirectX 11 ladder")
+        check(ids(GameAnalysis(apis: [.vulkan]), vulkanLayer: false, kosmicKrisp: true) == ["dxmt"], "Vulkan games: unchanged")
+
         // MARK: State
         let appID = 990_001
         let app = GameID.steam(appID)
@@ -263,9 +275,10 @@ struct LaunchHealthTest {
 
         // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
         let mafia = GameID.gog("1816059595")
-        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)
+        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true, kosmicKrisp: false)
         check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9 with Nightforge's Vulkan layer: DXVK, then WineD3D")
-        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false).map(\.id) == ["wined3d"],
+        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false, kosmicKrisp: false).map(\.id)
+              == ["wined3d"],
               "under winecx (no layer, DXVK never gets a device – L4D2, Mafia II): WineD3D only, nothing to move on to")
         // Mafia II's WineD3D start, 1.11.2026: two of DXVK's lines in the shared log ended it and moved it on to DXVK.
         let dxvkLines = "Failed to load ADL library\n[mvk-error] VK_ERROR_FEATURE_NOT_PRESENT: vkCreateDevice(): …\nerr:   DxvkAdapter: Failed to create device\n"

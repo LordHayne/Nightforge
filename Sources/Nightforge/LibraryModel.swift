@@ -2934,10 +2934,14 @@ final class LibraryModel: ObservableObject {
                 // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
                 let way = LaunchAttempt(graphics: layer, arguments: arguments).id
                 if let build, EngineRollback.shared.needsWatch(game.gameID, build: build, way: way) { watchFirstSeconds = true }
+                // DXVK's Direct3D 9 draws on KosmicKrisp under winecx – on a held build too: DXVK-macOS's
+                // d3d9 gets its device there as well (31.10.2026).
+                let winecx = game.bottle.isBuiltIn && runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true
+                let vulkan = Engine.vulkanDriver(layer: layer, analysis: analysis, winecx: winecx, kosmicKrisp: Engine.kosmicKrispNow)
                 if viaSteam, game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
-                                                   retina: profile?.retina == true),
+                                                   retina: profile?.retina == true, vulkan: vulkan),
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
@@ -2953,7 +2957,7 @@ final class LibraryModel: ObservableObject {
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, arguments: arguments,
-                                        frameLimit: frameLimit, layer: layer)
+                                        frameLimit: frameLimit, layer: layer, vulkan: vulkan)
                 guard started else { return }
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false
@@ -3276,7 +3280,7 @@ final class LibraryModel: ObservableObject {
     /// info file), and Nightforge waits until its process is there. Whether it keeps running,
     /// `survivesFirstSeconds` sees.
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
-                             arguments: [String], frameLimit: Int, layer: GraphicsLayer) async -> Bool {
+                             arguments: [String], frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?) async -> Bool {
         guard let runner else {
             errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
             return false
@@ -3295,7 +3299,8 @@ final class LibraryModel: ObservableObject {
         launchPhase = nil
         guard !Task.isCancelled else { return false }
         let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
-                                                         frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile))
+                                                         frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
+                                                         vulkan: vulkan)
         let process: DetachedProcess
         do {
             process = try await Task.detached(priority: .userInitiated) {

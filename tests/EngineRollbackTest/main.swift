@@ -27,10 +27,12 @@ struct EngineRollbackTest {
                   sha256: "", size: 0, license: "", source: URL(string: "https://example.com")!)
     }
 
-    /// A build of winecx `engine` with Nightforge's graphics package `graphics` and DXVK `dxvk`.
-    static func build(_ engine: String, _ graphics: String, dxvk: String = "1.10") -> EngineBuild {
+    /// A build of winecx `engine` with Nightforge's graphics package `graphics` and DXVK `dxvk`;
+    /// `kosmicKrisp`: upstream DXVK of that version and KosmicKrisp come along.
+    static func build(_ engine: String, _ graphics: String, dxvk: String = "1.10", kosmicKrisp upstream: String? = nil) -> EngineBuild {
         EngineBuild(engine: component("winecx", engine, .engine),
-                    graphics: [component("graphics", graphics), component("dxvk-macos", dxvk)],
+                    graphics: [component("graphics", graphics), component("dxvk-macos", dxvk)]
+                        + (upstream.map { [component("dxvk", $0), component("kosmickrisp", "27.0.0")] } ?? []),
                     stamp: "graphics \(graphics) engine-match false moltenvk engine d3dmetal - gamepad -")
     }
 
@@ -52,6 +54,9 @@ struct EngineRollbackTest {
         if let dxvk = build.version(of: "dxvk-macos") {
             write("dxvk \(dxvk)", root.appendingPathComponent("dxvk-macos/\(dxvk)/x64/d3d9.dll"))
         }
+        if let upstream = build.version(of: "dxvk") {
+            write("dxvk \(upstream)", root.appendingPathComponent("dxvk/\(upstream)/dxvk-\(upstream)/x64/d3d9.dll"))
+        }
     }
 
     /// What `Engine.ensureEngine` does for an update to `next`: the build so far is held back if a
@@ -59,7 +64,8 @@ struct EngineRollbackTest {
     /// versions are removed, and the new build settles.
     static func update(_ rollback: EngineRollback, to next: EngineBuild, seed: [GameID: String] = [:],
                        inUse: (URL) -> Bool = { _ in false }, now: Date = Date()) {
-        rollback.holdBack(before: next, copying: [Engine.graphicsID, Engine.upstreamGraphicsID, Engine.dxvkID], isIntact: { current, folder in
+        rollback.holdBack(before: next, copying: [Engine.graphicsID, Engine.upstreamGraphicsID, Engine.dxvkID, Engine.dxvkUpstreamID],
+                          isIntact: { current, folder in
             Engine.wineBinary(in: folder).map { read(Engine.graphicsStampFile(wine: $0)) == current.stamp } ?? false
         }, now: now)
         install(next, root: rollback.root)
@@ -336,6 +342,16 @@ struct EngineRollbackTest {
         check(next.build == b && next.held == nil && next.wine == newest, "another game starts with the newest build")
         check(read(system32.appendingPathComponent("d3d11.dll")) == "dxmt 11.18-dxmt0.80-17", "and the prefix gets the newest DXMT back")
         check(!switched, "without a Steam session there's nothing to stop")
+
+        // MARK: DXVK's Direct3D 9 for KosmicKrisp
+        let c = build("4.7.3", "11.18-dxmt0.80-17", kosmicKrisp: "3.1.1")
+        check(Engine.prefixStampText(c, gptk: true).contains(" d3d9 3.1.1 "), "upstream DXVK is part of the prefix stamp")
+        check(Engine.prefixStampText(c, gptk: false) == Engine.prefixStampText(b, gptk: false), "…on winecx only")
+        update(rollback, to: c)
+        let third = await Engine.engineForStart(game: GameID.steam(900), newest: newest) { switched = true }
+        check(third.build == c, "a game starts with the build that has KosmicKrisp")
+        check(read(system32.appendingPathComponent("d3d9.dll")) == "dxvk 3.1.1", "and the prefix's d3d9 is upstream DXVK's")
+        check(read(system32.appendingPathComponent("d3d11.dll")) == "dxmt 11.18-dxmt0.80-17", "DirectX 10/11 stays as it was")
     }
 
     static func finish() {

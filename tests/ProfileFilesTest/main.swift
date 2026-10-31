@@ -197,9 +197,9 @@ struct ProfileFilesTest {
         let mafia = list.flatMap { try? Data(contentsOf: $0) }.map(ProfileStore.decodeGOG)?["1816059595"]
         check(mafia?.graphics == .wined3d && mafia?.fromNightforge == true, "Mafia II on GOG: tested on a Mac, WineD3D")
         let d3d9 = GameAnalysis(apis: [.d3d9])
-        check(LaunchHealth.attempts(for: d3d9, profile: mafia, vulkanLayer: false).first == LaunchAttempt(graphics: .wined3d),
+        check(LaunchHealth.attempts(for: d3d9, profile: mafia, vulkanLayer: false, kosmicKrisp: false).first == LaunchAttempt(graphics: .wined3d),
               "on winecx it starts with WineD3D, which MoltenVK's missing geometry shaders leave as the way")
-        check(LaunchHealth.ladder(LaunchHealth.attempts(for: d3d9, profile: mafia, vulkanLayer: true), preset: .compatible,
+        check(LaunchHealth.ladder(LaunchHealth.attempts(for: d3d9, profile: mafia, vulkanLayer: true, kosmicKrisp: false), preset: .compatible,
                                   profile: mafia).first == LaunchAttempt(graphics: .wined3d),
               "Most compatible starts with the tested way")
 
