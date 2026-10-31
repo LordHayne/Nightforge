@@ -2,8 +2,8 @@ import AppKit
 import GameController
 
 /// Keyboard, trackpad and gamepad navigation. The pad reaches Nightforge in a game too, for the
-/// one thing it does there: holding the PS button opens the overlay (GameOverlay). Everything else
-/// waits until Nightforge or the overlay is in front (`reach`).
+/// one thing it does there: both sticks held open the overlay (GameOverlay). Everything else waits
+/// until Nightforge or the overlay is in front (`reach`).
 @MainActor
 final class InputRouter {
     private weak var model: LibraryModel?
@@ -20,10 +20,8 @@ final class InputRouter {
     private var held = Step()
     private var dpadStep = Step()
     private var stickStep = Step()
-    private var guideHold = GuideHold()
+    private var overlayHold = OverlayHold()
     private var holdTimer: Timer?
-    /// The PS button let go since the overlay opened: the next press closes it.
-    private var homeReleased = false
 
     func start(model: LibraryModel) {
         self.model = model
@@ -74,8 +72,6 @@ final class InputRouter {
             MainActor.assumeIsolated { self?.refreshConnected() }
         })
 
-        // In a game too, for the hold that opens the overlay.
-        GCController.shouldMonitorBackgroundEvents = true
         GCController.controllers().forEach { attach($0) }
         refreshConnected()
     }
@@ -305,6 +301,9 @@ final class InputRouter {
     private func attach(_ controller: GCController?) {
         guard let pad = controller?.extendedGamepad else { return }
         refreshConnected()
+        // In a game too, for the hold that opens the overlay. Only once a controller is there:
+        // SDL saw crashes when it was set before.
+        if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
 
         // D-pad and left stick both move in all four directions, repeating while held.
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
@@ -412,33 +411,23 @@ final class InputRouter {
                 self?.model?.jump(toStart: false)
             }
         }
-        // The PS/Xbox button – or ☰ and ⧉ together – held for two seconds opens the overlay over a
-        // game; a short press stays Steam's and macOS's. Received alongside macOS's own use of it.
-        pad.buttonHome?.preferredSystemGestureState = .alwaysReceive
+        // Both sticks held for two seconds open the overlay over a game, and close it again.
         pad.valueChangedHandler = { [weak self] gamepad, _ in
             MainActor.assumeIsolated { self?.watchHold(gamepad) }
         }
     }
 
     private func watchHold(_ pad: GCExtendedGamepad) {
-        let home = pad.buttonHome?.isPressed ?? false
-        // In the overlay a fresh press of the PS button goes back to the game.
-        if GameOverlay.isOpen {
-            if !home {
-                homeReleased = true
-            } else if homeReleased {
-                homeReleased = false
-                GameOverlay.resume()
-            }
-        }
         let now = ProcessInfo.processInfo.systemUptime
-        if guideHold.update(home: home, menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false, now: now) {
-            openOverlay()
+        let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
+                                        menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
+        if overlayHold.update(pressed: pressed, now: now) {
+            if GameOverlay.isOpen { GameOverlay.resume() } else { openOverlay() }
         }
-        // Nothing changes on the pad while a button is only held: a look when two seconds are up.
+        // Nothing changes on the pad while buttons are only held: a look when two seconds are up.
         holdTimer?.invalidate()
         holdTimer = nil
-        guard let due = guideHold.due else { return }
+        guard let due = overlayHold.due else { return }
         holdTimer = Timer.scheduledTimer(withTimeInterval: max(0, due - now) + 0.01, repeats: false) {
             [weak self, weak pad] _ in
             MainActor.assumeIsolated {
@@ -450,7 +439,6 @@ final class InputRouter {
 
     private func openOverlay() {
         guard !GameOverlay.isOpen else { return }
-        homeReleased = false
         letGo()
         model?.openOverlay()
     }
@@ -619,6 +607,8 @@ struct PadSymbols: Equatable {
     var library = "x.circle.fill"
     var options = "y.circle.fill"
     var stick = "l.joystick.fill"
+    /// The overlay's buttons (GameOverlay): both sticks pressed, or ☰ and ⧉ on a pad without stick buttons.
+    var overlayChord = ["l.joystick.press.down.fill", "r.joystick.press.down.fill"]
 
     init() {}
 
@@ -638,6 +628,12 @@ struct PadSymbols: Equatable {
         library = Self.filled(pad.buttonX.sfSymbolsName) ?? library
         options = Self.filled(pad.buttonY.sfSymbolsName) ?? options
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
+        if let left = pad.leftThumbstickButton, let right = pad.rightThumbstickButton {
+            overlayChord = [Self.filled(left.sfSymbolsName) ?? overlayChord[0], Self.filled(right.sfSymbolsName) ?? overlayChord[1]]
+        } else {
+            overlayChord = [Self.filled(pad.buttonMenu.sfSymbolsName) ?? "line.3.horizontal.circle.fill",
+                            Self.filled(pad.buttonOptions?.sfSymbolsName) ?? "rectangle.on.rectangle.circle.fill"]
+        }
     }
 
     /// The filled variant where one exists (they read better at hint size), else the symbol itself.

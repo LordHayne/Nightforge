@@ -1,10 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// The controller's way out of a game, from the sofa. The PS or Xbox button held for two seconds
-/// in a game – or ☰ and ⧉ together, where macOS keeps the button for its own Game Overlay –
-/// brings a calm panel over it: Continue Playing, Quit Game (one that hangs as well) and Go to
-/// Nightforge. A short press stays Steam's and macOS's.
+/// The controller's way out of a game, from the sofa. Both sticks pressed and held for two seconds
+/// in a game bring a calm panel over it: Continue Playing, Quit Game (one that hangs as well) and
+/// Go to Nightforge. Not the PS/Xbox button: since macOS 26 it opens Apple's Game Overlay (and
+/// Nightforge can't take it from the game in front), and Create/Share carries macOS's screenshot
+/// and recording gestures (System Settings › Game Controllers, macOS 27); the stick buttons carry
+/// none. A pad without them uses ☰ and ⧉ (`OverlayHold.chord`).
 ///
 /// The pad reaches Nightforge in the background (InputRouter); the game gets the same presses,
 /// which macOS can't take from it. So a Windows game is paused while the panel is up (SIGSTOP):
@@ -18,6 +20,7 @@ enum GameOverlay {
         @Published var step = OverlayStep.menu
         @Published var game = ""
         @Published var paused = false
+        @Published var symbols = PadSymbols()
     }
 
     /// What the model does for the choices.
@@ -38,10 +41,11 @@ enum GameOverlay {
     static var window: NSWindow? { isOpen ? panel : nil }
 
     /// Over `game` on `screen`. `pause`: its processes, stopped until the panel goes.
-    static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, actions: Actions) {
+    static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, symbols: PadSymbols, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
         state.game = game
+        state.symbols = symbols
         state.step = .menu
         stop(pause)
         state.paused = !pause.isEmpty
@@ -58,7 +62,7 @@ enum GameOverlay {
 
     /// B: from the question back to the choice, from the choice back to the game.
     static func back() { handle(.back) }
-    /// Continue Playing, or the PS button again: the panel goes, the game runs on.
+    /// Continue Playing, or the sticks held again: the panel goes, the game runs on.
     static func resume() { handle(.resume) }
     static func askQuit() { handle(.askQuit) }
     static func quit() { handle(.quit) }
@@ -87,8 +91,8 @@ enum GameOverlay {
 
     enum Effect: Equatable { case none, close, quit, nightforge }
 
-    /// The overlay's steps: B steps back, the PS button goes back to the game from anywhere but
-    /// the quitting, and a game is only quit from the question.
+    /// The overlay's steps: B steps back, the sticks held again go back to the game from anywhere
+    /// but the quitting, and a game is only quit from the question.
     nonisolated static func transition(_ step: OverlayStep, _ event: OverlayEvent) -> (OverlayStep, Effect) {
         switch (step, event) {
         case (.quitting, _): return (.quitting, .none)
@@ -214,6 +218,20 @@ private struct OverlayView: View {
             choice("overlay.nightforge", L10n.t("Go to Nightforge")) { GameOverlay.toNightforge() }
         }
         .padding(.top, 10)
+        // How it closes, and how it opens next time.
+        HStack(spacing: 18) {
+            HStack(spacing: 6) {
+                Image(systemName: state.symbols.back)
+                Text(L10n.t("Continue Playing"))
+            }
+            HStack(spacing: 6) {
+                OverlayChord(symbols: state.symbols)
+                Text(L10n.t("Hold: this menu"))
+            }
+        }
+        .font(size: 12, weight: .medium)
+        .foregroundStyle(Theme.muted)
+        .padding(.top, 8)
     }
 
     @ViewBuilder private var question: some View {
@@ -253,9 +271,31 @@ private struct OverlayButtonStyle: ButtonStyle {
     }
 }
 
-/// The PS/Xbox button – or ☰ and ⧉ together – held for two seconds, from the pad's state as it changes.
-struct GuideHold {
+/// The buttons that open the overlay, as the pad shows them: both sticks pressed ("L3 + R3").
+struct OverlayChord: View {
+    let symbols: PadSymbols
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbols.overlayChord[0])
+            Text("+")
+            Image(systemName: symbols.overlayChord[1])
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.t("Both sticks pressed"))
+    }
+}
+
+/// The overlay's buttons held for two seconds, from the pad's state as it changes.
+struct OverlayHold {
     static let seconds: TimeInterval = 2
+
+    /// Whether the overlay's buttons are down: both sticks pressed – or, on a pad without stick
+    /// buttons (nil), ☰ and ⧉ together.
+    static func chord(leftStick: Bool?, rightStick: Bool?, menu: Bool, view: Bool) -> Bool {
+        if let leftStick, let rightStick { return leftStick && rightStick }
+        return menu && view
+    }
 
     /// When the hold began; nil while nothing is held.
     private(set) var since: TimeInterval?
@@ -265,8 +305,8 @@ struct GuideHold {
     var due: TimeInterval? { fired ? nil : since.map { $0 + Self.seconds } }
 
     /// True once a hold reaches two seconds, then not again until it's let go.
-    mutating func update(home: Bool, menu: Bool, view: Bool, now: TimeInterval) -> Bool {
-        guard home || (menu && view) else {
+    mutating func update(pressed: Bool, now: TimeInterval) -> Bool {
+        guard pressed else {
             since = nil
             fired = false
             return false

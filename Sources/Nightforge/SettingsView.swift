@@ -398,6 +398,19 @@ private struct ControllerSettings: View {
             Segmented(options: PadSymbols.Style.allCases.map { ($0.rawValue, $0.label, nil) }, selection: padGlyphs,
                       id: "settings.padGlyphs") { padGlyphs = $0 }
                 .onChange(of: padGlyphs) { _, _ in model.refreshPadSymbols() }
+
+            // The overlay's buttons (GameOverlay), so they can be found before they're needed.
+            SectionTitle(L10n.t("In a game"))
+                .padding(.top, 6)
+            HStack(alignment: .top, spacing: 12) {
+                OverlayChord(symbols: model.padSymbols)
+                    .font(size: 16, weight: .semibold, scales: false)
+                    .foregroundStyle(Theme.sodium)
+                Text(L10n.t("Press both sticks and hold them for 2 seconds: Nightforge's menu comes over the game – continue, quit the game (also one that hangs) or go to Nightforge."))
+                    .font(size: 12)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)

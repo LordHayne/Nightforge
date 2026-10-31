@@ -148,16 +148,25 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Mac-Spielen damit noch aufgeht.
 - **Kleines Controller-Overlay** (0.3.0, Branch `claude/tv-fullscreen-61ab1e`, `GameOverlay.swift`; Anlass: Left 4 Dead 2
   hing am 31.10. im Ladebildschirm, „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
-  - **Gebaut:** PS-/Xbox-Taste 2 s halten, oder ☰ und ⧉ zusammen 2 s (falls macOS die Home-Taste nimmt). Dann kommt
-    ein ruhiges Panel über das Spiel: Weiterspielen (B oder noch einmal PS), Spiel beenden (mit Rückfrage) und Zu
-    Nightforge (das Spiel läuft weiter). Alles mit PadFocus bedienbar, abgedunkelt statt weichgezeichnet.
+  - **Gebaut:** Beide Sticks drücken (L3 + R3) und 2 s halten. Dann kommt ein ruhiges Panel über das Spiel:
+    Weiterspielen (B oder die Sticks noch einmal halten), Spiel beenden (mit Rückfrage) und Zu Nightforge (das Spiel
+    läuft weiter). Alles mit PadFocus bedienbar, abgedunkelt statt weichgezeichnet. Die Kombination steht im Panel und
+    in Einstellungen › Controller › „Im Spiel“. Ein Pad ohne Stick-Tasten nimmt ☰ + ⧉.
+  - **Warum die Sticks:**
+    - Die PS-/Xbox-Taste öffnet seit macOS 26 Apples Game Overlay (support.apple.com/105118).
+    - Die „Home-Tasten-Ausnahmen“ gelten nur für die App vorne, und das ist das Spiel. Für Windows-Spiele schaltet
+      auch winebus die Geste nicht ab, denn dessen SDL bindet kein GameController.framework ein, nur IOKit/HIDAPI.
+    - Create/Share trägt auf macOS 27 eigene Gesten: Bildschirmfoto, Aufnahme, „Highlight“ der letzten 15 s
+      (Strings von GameControllerSettingsUI). Auf DualSense ist das `buttonOptions`, also ⧉ in „Share + Options“.
+    - Die Stick-Tasten tragen keine System-Geste. Nightforge fasst die Home-Taste gar nicht mehr an.
   - **Beenden:** Nightforge weckt den ganzen Prozessbaum, bittet um Ende (SIGTERM) und tötet nach 3 s (SIGKILL), auch
     ein hängendes Spiel. Dazu gehören die Programme im Spielordner und alles, was sie gestartet haben, nie aber
     wineserver, `C:\windows\…`, Steam oder Nightforge (`GameProcesses.targets`). Danach räumt der normale Ablauf auf
     (`watchForGameEnd`, Willkommen zurück). `wineserver -k` braucht es dafür nicht.
   - **Technik:**
-    - Den Pad liest Nightforge auch im Hintergrund (`GCController.shouldMonitorBackgroundEvents`). Im Spiel wertet
-      `InputRouter` nur das Halten aus (`reach`), sonst nichts.
+    - Den Pad liest Nightforge auch im Hintergrund (`GCController.shouldMonitorBackgroundEvents`). Das ist erst seit
+      macOS 15.5 verlässlich, und Nightforge setzt es erst beim ersten verbundenen Controller (SDL sah sonst
+      Abstürze). Im Spiel wertet `InputRouter` nur das Halten aus (`reach`), sonst nichts.
     - Das Panel ist nicht aktivierend (`.nonactivatingPanel`, Level `.screenSaver`, `.canJoinAllSpaces` und
       `.fullScreenAuxiliary`), also kein Space-Wechsel. Hat ein Spiel den Bildschirm exklusiv belegt (Schild-Fenster),
       kommt Nightforge zusätzlich nach vorne.
@@ -165,11 +174,9 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       `winedevice.exe`, XInput liefert beim Weiterlaufen den aktuellen Zustand statt der Zwischendrücke, und der Ton
       setzt aus. Mac-Spiele laufen weiter und reagieren mit, weil GameController ihnen die Drücke sonst gesammelt
       nachliefert.
-  - **macOS 27:** In Systemeinstellungen › Game-Controller öffnet die Home-Taste per Druck das Game-Overlay bzw. die
-    Spiele-App. Es gibt „Home-Tasten-Ausnahmen“ und eigene Aktionen für Einfach-, Doppel- und Langdruck. Nightforge
-    hört mit `.alwaysReceive` mit.
   - **Am Fernseher prüfen:**
-    - Kommt das Halten der PS-Taste im Windows- und im Mac-Spiel an, oder nimmt macOS es? Sonst ☰ + ⧉.
+    - Kommt L3 + R3 halten im Windows- und im Mac-Spiel an (DualSense und Xbox)? Löst macOS dabei nichts aus
+      (Game Overlay, Bildschirmfoto)? Was macht das Spiel in den 2 s mit den Stick-Drücken?
     - Liegt das Panel über dem Spiel, ohne Space-Wechsel? Steuert der Pad nur das Panel?
     - Ist ein pausiertes Spiel wirklich still, und läuft es nach Weiterspielen ohne verschluckte oder doppelte
       Eingaben weiter? Was macht Steam (Spielzeit, „läuft“)? Ein Online-Spiel nicht lange pausieren.

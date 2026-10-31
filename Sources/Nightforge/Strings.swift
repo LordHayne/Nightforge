@@ -646,6 +646,11 @@ enum L10n {
         "What wasn't saved is lost. A game that no longer responds ends as well.":
             "Was nicht gespeichert ist, geht verloren. Auch ein Spiel, das nicht mehr reagiert, wird beendet.",
         "Quitting %@ …": "%@ wird beendet …",
+        "Hold: this menu": "Halten: dieses Menü",
+        "Both sticks pressed": "Beide Sticks gedrückt",
+        "In a game": "Im Spiel",
+        "Press both sticks and hold them for 2 seconds: Nightforge's menu comes over the game – continue, quit the game (also one that hangs) or go to Nightforge.":
+            "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
         "Well": "Gut",

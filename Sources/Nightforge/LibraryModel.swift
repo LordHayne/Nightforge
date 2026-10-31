@@ -743,7 +743,7 @@ final class LibraryModel: ObservableObject {
         return false
     }
 
-    /// The PS button held in a game (InputRouter): the overlay over the game being played. A
+    /// Both sticks held in a game (InputRouter): the overlay over the game being played. A
     /// Windows game is paused under it. Quit ends its processes, also when it hangs, and its end
     /// is then seen like any other (watchForGameEnd); Go to Nightforge leaves it running.
     func openOverlay() {
@@ -769,7 +769,7 @@ final class LibraryModel: ObservableObject {
                     self?.comeForward()
                     NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
                 })
-            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.screen, actions: actions)
+            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.screen, symbols: padSymbols, actions: actions)
         }
     }
 

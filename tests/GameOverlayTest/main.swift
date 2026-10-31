@@ -23,34 +23,34 @@ struct GameOverlayTest {
         exit(failures == 0 ? 0 : 1)
     }
 
-    /// The PS button – or ☰ and ⧉ together – held for two seconds, once per hold.
+    /// Both sticks – or ☰ and ⧉ on a pad without stick buttons – held for two seconds, once per hold.
     static func hold() {
-        var hold = GuideHold()
-        check(!hold.update(home: true, menu: false, view: false, now: 100), "pressed: not yet")
+        // Which buttons count: never the PS/Xbox button (Apple's Game Overlay) or Create alone.
+        check(OverlayHold.chord(leftStick: true, rightStick: true, menu: false, view: false), "both sticks pressed")
+        check(!OverlayHold.chord(leftStick: true, rightStick: false, menu: true, view: true), "one stick, even with ☰ and ⧉: no")
+        check(!OverlayHold.chord(leftStick: false, rightStick: false, menu: true, view: true),
+              "☰ and ⧉ don't count on a pad with stick buttons (Create carries macOS's share gestures)")
+        check(OverlayHold.chord(leftStick: nil, rightStick: nil, menu: true, view: true), "a pad without stick buttons: ☰ and ⧉")
+        check(!OverlayHold.chord(leftStick: nil, rightStick: nil, menu: true, view: false), "☰ alone: the game's menu")
+
+        var hold = OverlayHold()
+        check(!hold.update(pressed: true, now: 100), "pressed: not yet")
         check(hold.due == 102, "due two seconds after the press")
-        check(!hold.update(home: true, menu: false, view: false, now: 101.9), "1.9 s: not yet")
-        check(hold.update(home: true, menu: false, view: false, now: 102), "2 s: the overlay")
+        check(!hold.update(pressed: true, now: 101.5), "1.5 s: not yet")
+        check(hold.update(pressed: true, now: 102), "2 s: the overlay")
         check(hold.due == nil, "nothing due once it fired")
-        check(!hold.update(home: true, menu: false, view: false, now: 105), "held on: only once")
-        check(!hold.update(home: false, menu: false, view: false, now: 106), "let go")
+        check(!hold.update(pressed: true, now: 105), "held on: only once")
+        check(!hold.update(pressed: false, now: 106), "let go")
         check(hold.since == nil, "let go: no hold")
+        check(!hold.update(pressed: true, now: 107), "held again: the next hold starts")
+        check(hold.update(pressed: true, now: 109), "and fires again after two seconds (closing the overlay)")
 
-        var short = GuideHold()
-        _ = short.update(home: true, menu: false, view: false, now: 0)
-        _ = short.update(home: false, menu: false, view: false, now: 0.3)
-        check(!short.update(home: true, menu: false, view: false, now: 1.75), "a short press (Steam's) doesn't count towards the next")
-        check(!short.update(home: true, menu: false, view: false, now: 3.5), "the new press counts from its own start")
-        check(short.update(home: true, menu: false, view: false, now: 3.75), "two seconds after the new press")
-
-        var chord = GuideHold()
-        check(!chord.update(home: false, menu: true, view: false, now: 0), "☰ alone: the game's menu")
-        check(!chord.update(home: false, menu: true, view: false, now: 5), "☰ alone, however long")
-        check(!chord.update(home: false, menu: true, view: true, now: 5), "☰ and ⧉: the hold starts")
-        check(chord.update(home: false, menu: true, view: true, now: 7), "☰ and ⧉ for two seconds: the overlay")
-        var broken = GuideHold()
-        _ = broken.update(home: false, menu: true, view: true, now: 0)
-        _ = broken.update(home: false, menu: true, view: false, now: 1)
-        check(!broken.update(home: false, menu: true, view: true, now: 2.5), "⧉ let go in between: starts over")
+        var short = OverlayHold()
+        _ = short.update(pressed: true, now: 0)
+        _ = short.update(pressed: false, now: 0.5)
+        check(!short.update(pressed: true, now: 1.75), "a short press (a game's own use) doesn't count towards the next")
+        check(!short.update(pressed: true, now: 3.5), "the new press counts from its own start")
+        check(short.update(pressed: true, now: 3.75), "two seconds after the new press")
     }
 
     /// B steps back, the PS button goes back to the game, a game is only quit from the question.
@@ -61,12 +61,12 @@ struct GameOverlayTest {
             check(got.0 == result.0 && got.1 == result.1, message + " (\(got))")
         }
         expect(.menu, .back, (.menu, .close), "B in the choice: back to the game")
-        expect(.menu, .resume, (.menu, .close), "Continue Playing or PS: back to the game")
+        expect(.menu, .resume, (.menu, .close), "Continue Playing or the sticks held again: back to the game")
         expect(.menu, .askQuit, (.confirmQuit, .none), "Quit Game asks first")
         expect(.menu, .quit, (.menu, .none), "no quitting without the question")
         expect(.menu, .nightforge, (.menu, .nightforge), "Go to Nightforge")
         expect(.confirmQuit, .back, (.menu, .none), "B in the question: back to the choice")
-        expect(.confirmQuit, .resume, (.confirmQuit, .close), "PS in the question: back to the game")
+        expect(.confirmQuit, .resume, (.confirmQuit, .close), "the sticks held in the question: back to the game")
         expect(.confirmQuit, .quit, (.quitting, .quit), "confirmed: quitting")
         expect(.confirmQuit, .nightforge, (.confirmQuit, .none), "the question first")
         for event in [OverlayEvent.back, .resume, .askQuit, .quit, .nightforge] {
