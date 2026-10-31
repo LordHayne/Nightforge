@@ -7,10 +7,13 @@ import WebKit
 /// Nothing of the visit is kept (no cookies, no cache).
 @MainActor
 enum GOGSignIn {
-    /// GOG's sign-in for GOG Galaxy's client ID (the one gogdl swaps the code with).
+    /// GOG Galaxy's client ID: the one gogdl swaps the code with and keeps its tokens under.
+    nonisolated static let clientID = "46899977096215655"
+
+    /// GOG's sign-in for that client ID.
     nonisolated static let signInURL: URL = {
         var components = URLComponents(string: "https://auth.gog.com/auth")!
-        components.queryItems = [URLQueryItem(name: "client_id", value: "46899977096215655"),
+        components.queryItems = [URLQueryItem(name: "client_id", value: clientID),
                                  URLQueryItem(name: "redirect_uri", value: "https://embed.gog.com/on_login_success?origin=client"),
                                  URLQueryItem(name: "response_type", value: "code"),
                                  URLQueryItem(name: "layout", value: "galaxy")]

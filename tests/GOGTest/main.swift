@@ -36,6 +36,7 @@ struct GOGTest {
         await store()
         await refresh()
         await drives()
+        await realProgram()
 
         print(failures == 0 ? "✓ GOG" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -150,6 +151,16 @@ struct GOGTest {
         check(GOGAuth.from(output: Data(), log: refused, status: 255) == .helperFailed, "gogdl didn't run: not GOG's no")
         check(GOGAuth.from(output: Data(), log: "", status: 0) == .signedOut, "no answer but no error either: signed out")
 
+        // gogdl's auth.json: what `gogdl auth` hands out without asking GOG while it's good.
+        let stored = #"{"46899977096215655": {"access_token": "tok", "expires_in": 3600, "refresh_token": "r", "user_id": "4815", "loginTime": 1000.5}}"#
+        check(GOGAuth.stored(Data(stored.utf8), now: Date(timeIntervalSince1970: 1000.5 + 1800)) == .signedIn(token: "tok", user: "4815"),
+              "a token that's still good is read, without gogdl")
+        check(GOGAuth.stored(Data(stored.utf8), now: Date(timeIntervalSince1970: 1000.5 + 3400)) == nil, "one about to run out goes to gogdl")
+        check(GOGAuth.stored(Data(stored.utf8), now: Date(timeIntervalSince1970: 1000.5 + 7200)) == nil, "and one that ran out")
+        check(GOGAuth.stored(Data(#"{"1234": {"access_token": "game", "expires_in": 3600, "user_id": "4815", "loginTime": 1000}}"#.utf8),
+                             now: Date(timeIntervalSince1970: 1500)) == nil, "a game's own token isn't the account's")
+        check(GOGAuth.stored(Data("{}".utf8)) == nil && GOGAuth.stored(Data("not json".utf8)) == nil, "nothing stored")
+
         let log = """
             [AUTH] INFO: Exchanging code 0a1b2c3d for tokens
             [AUTH] DEBUG: https://auth.gog.com/token?client_id=46899977096215655&code=0a1b2c3d&grant_type=authorization_code
@@ -168,6 +179,24 @@ struct GOGTest {
               "a gogdl that didn't run: its code and message")
         check(GOGDL.authLogText(Legendary.Output(status: 0, output: Data(#"{"error": true}"#.utf8), log: ""), command: "auth --code",
                                 hiding: []).contains("answer: JSON with error"), "GOG's no")
+    }
+
+    /// The real gogdl, when run.sh found it installed on this Mac: started the way Nightforge starts
+    /// it, from an unpacked copy first – gogdl 1.4.0 refuses that and runs as it comes.
+    static func realProgram() async {
+        guard let binary = GOGDL.programNow() else {
+            print("– gogdl isn't installed on this Mac: the check with the real program is skipped")
+            return
+        }
+        _ = try? PackedApp.unpackOnce(binary)
+        let started = Date()
+        let result = try? await GOGDL.run(["--version"], timeout: 120)
+        let seconds = Date().timeIntervalSince(started)
+        check(result?.status == 0, "the real gogdl runs: code \(result.map { String($0.status) } ?? "none"), \(result?.log.suffix(300) ?? "")")
+        check(result.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).first?.isNumber == true } == true,
+              "and says its version: \(result?.text ?? "nothing")")
+        let mode = PackedApp.refusesUnpacked(binary) ? "as it comes (it refuses the unpacked copy)" : "from the unpacked copy"
+        print(String(format: "– the real gogdl %@ ran %@ in %.1f s", result?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? "?", mode, seconds))
     }
 
     static func sizes() {

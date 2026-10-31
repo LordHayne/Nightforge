@@ -32,6 +32,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     /// The account's token for GOG's API, from gogdl (which refreshes it). Tests hand in their own.
     var authenticate: () async -> GOGAuth = {
+        if let json = try? Data(contentsOf: GOGDL.authFile), let stored = GOGAuth.stored(json) { return stored }
         guard let result = try? await GOGDL.run(["auth"], timeout: 60) else { return .offline }
         let auth = GOGAuth.from(output: result.output, log: result.log, status: result.status)
         if auth == .helperFailed { GOGDL.writeAuthLog(result, command: "auth") }
@@ -359,24 +360,29 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// What a game not on the Mac yet comes to with its add-ons, in the Mac's language when GOG has
     /// it: asked from GOG once (gogdl reads the build's manifest) and kept. A Mac version gogdl
     /// can't install is noted, and the Windows version's size comes instead. nil when GOG can't be
-    /// asked (offline, signed out).
-    func size(of game: Game) async -> GOGSize? {
+    /// asked (offline, signed out), or when `stillWanted` says no after waiting its turn.
+    func size(of game: Game, stillWanted: () -> Bool = { true }) async -> GOGSize? {
         loadFromDisk()
         let id = game.gameID.id
         guard let entry = catalog.games.first(where: { $0.id == id }) ?? (installs[id] == nil ? nil : GOGGame(id: id, title: game.name))
         else { return nil }
         let platform = installs[id]?.platform ?? version(of: entry)
-        let size = await askSize(id, platform)
-        if size == nil, platform == .mac, macUnfit.contains(id) { return await askSize(id, .windows) }
+        let size = await askSize(id, platform, stillWanted: stillWanted)
+        if size == nil, platform == .mac, macUnfit.contains(id) { return await askSize(id, .windows, stillWanted: stillWanted) }
         return size
     }
 
-    private func askSize(_ id: String, _ platform: Platform) async -> GOGSize? {
+    private func askSize(_ id: String, _ platform: Platform, stillWanted: () -> Bool = { true }) async -> GOGSize? {
         let key = "\(id).\(platform.rawValue)"
         if let known = sizes[key] { return known }
         guard FileManager.default.fileExists(atPath: GOGDL.authFile.path),
               Date().timeIntervalSince(sizeFailed[key] ?? .distantPast) > 5 * 60 else { return nil }
         if let asking = sizing[key] { return await asking.value }
+        // One gogdl at a time – each takes ~3 s to start: pages looked at one after another don't
+        // pile up, and one passed by meanwhile isn't asked at all.
+        while !sizing.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        if let known = sizes[key] { return known }
+        guard stillWanted(), Date().timeIntervalSince(sizeFailed[key] ?? .distantPast) > 5 * 60 else { return nil }
         let asking = Task { () -> GOGSize? in
             guard let result = try? await GOGDL.run(["info", id, "--platform", Self.system(platform), "--with-dlcs"], timeout: 120)
             else { return nil }

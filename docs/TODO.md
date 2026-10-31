@@ -383,9 +383,11 @@ von „Epic Games“ unten:
 Gebaut und gegen Fixtures geprüft (`tests/GOGTest`), mit echtem Konto und in der App **noch gar nicht**. Am besten im leeren
 Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
 
-- [ ] **Anmeldung:** Einstellungen › Stores › GOG › „Verbinden“ – GOGs Seite im Fenster (deutsch?), Anmelden (auch mit
-      Zwei-Faktor), Fenster schließt von selbst, Toast „GOG ist verbunden“, Kontoname als Tooltip. gogdl wird dabei geholt
-      und entpackt (`Components/gogdl/1.4.0/unpacked`); ein Aufruf aus dem entpackten Ordner sollte ~0,2 s brauchen.
+- [ ] **Anmeldung:** Einstellungen › Stores › GOG › „Verbinden“ – GOGs Seite im Fenster (deutsch ✓), Anmelden (auch mit
+      Zwei-Faktor), Fenster schließt von selbst (✓), Toast „GOG ist verbunden“, Kontoname als Tooltip. Erster Versuch (31.10.,
+      a6a2899) scheiterte: gogdl 1.4.0 läuft nicht aus dem entpackten Ordner (Roadmap 7.3); seit 0e017bd läuft es normal.
+      Danach: `Components/gogdl/1.4.0/.runs-packed` da, `unpacked/` weg, `GOG/Logs/auth.log` mit Code 0 und „answer:
+      credentials“, ohne Code und Token. Vorher `tests/GOGTest/run.sh` – mit installiertem gogdl startet es das echte Programm.
 - [ ] **Bibliothek:** Zahl der Spiele plausibel (keine DLCs/Goodies als Spiele), Cover hochkant, Hero-Bild, Abzeichen „GOG“.
       Die Felder von galaxy-library/GamesDB sind aus Heroics Typen übernommen – weicht GOG ab, zeigt sich das hier zuerst.
 - [ ] **Kleines Gratis-Spiel mit Mac-Version laden** (z. B. „Beneath a Steel Sky“ oder „Flight of the Amazon Queen“ aus

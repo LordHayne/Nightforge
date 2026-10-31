@@ -1121,15 +1121,16 @@ final class LibraryModel: ObservableObject {
         Task {
             try? await Task.sleep(for: .milliseconds(600))
             guard selected?.id == game.id else { return }
-            _ = await storeSize(of: game)
+            _ = await storeSize(of: game) { self.selected?.id == game.id }
         }
     }
 
-    /// What an Epic or GOG game takes on the Mac, asked from its store.
-    private func storeSize(of game: Game) async -> Int64? {
+    /// What an Epic or GOG game takes on the Mac, asked from its store. GOG asks one game at a
+    /// time, and not for a page left meanwhile (`stillWanted`).
+    private func storeSize(of game: Game, stillWanted: () -> Bool = { true }) async -> Int64? {
         switch game.provider {
         case .epic: return await epic.size(of: game)?.install
-        case .gog: return await gog.size(of: game)?.install
+        case .gog: return await gog.size(of: game, stillWanted: stillWanted)?.install
         case .steam: return nil
         }
     }

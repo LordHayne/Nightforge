@@ -139,6 +139,21 @@ enum GOGAuth: Equatable {
         if status != 0, !GOGDL.answered(Legendary.Output(status: status, output: output, log: log)) { return .helperFailed }
         return .signedOut
     }
+
+    /// The tokens gogdl keeps (its auth.json, by client ID), while they're good: what `gogdl auth`
+    /// would hand out without asking GOG – without its ~3 s start. nil once they run out (with a
+    /// few minutes to spare): then gogdl refreshes them.
+    static func stored(_ json: Data, now: Date = Date()) -> GOGAuth? {
+        guard let all = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
+              let credentials = all[GOGSignIn.clientID] as? [String: Any],
+              let token = credentials["access_token"] as? String, !token.isEmpty,
+              let loginTime = (credentials["loginTime"] as? NSNumber)?.doubleValue,
+              let lifetime = (credentials["expires_in"] as? NSNumber)?.doubleValue,
+              now.timeIntervalSince1970 < loginTime + lifetime - 300
+        else { return nil }
+        let user = (credentials["user_id"] as? String) ?? (credentials["user_id"] as? NSNumber)?.stringValue ?? ""
+        return user.isEmpty ? nil : .signedIn(token: token, user: user)
+    }
 }
 
 /// What a game comes to before it's downloaded, from `gogdl info --json` (gogdl reads the build's
