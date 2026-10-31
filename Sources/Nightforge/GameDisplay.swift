@@ -49,6 +49,8 @@ enum GameDisplay {
     private static var known: Set<CGDirectDisplayID> = []
     private static var lastScreen: CGDirectDisplayID?
     private static var placing = false
+    /// Nightforge put the window in full screen for a TV (so it leaves it when the TV goes).
+    private static var madeFullScreen = false
 
     // MARK: - The launcher
 
@@ -70,6 +72,7 @@ enum GameDisplay {
                 let connected = !now.subtracting(known).isEmpty
                 known = now
                 followSound()  // also when a TV goes, or mirroring starts or ends
+                Task { await leaveFullScreenOffTV() }
                 guard connected else { return }
                 UserDefaults.standard.removeObject(forKey: Keys.declined)  // plugged in again: try it
                 Task {
@@ -105,33 +108,74 @@ enum GameDisplay {
         }
     }
 
+    /// What `place` does with the window: move it to the picked screen, and on a TV go full screen –
+    /// also when it's there already, as on a mirrored TV (one screen, nothing to move). Nothing on a
+    /// screen the player moved it away from (`declined`).
+    struct Placement: Equatable {
+        var move: Bool
+        var fullScreen: Bool
+    }
+
+    nonisolated static func placement(picked: Candidate?, windowOn: CGDirectDisplayID?, declined: CGDirectDisplayID?,
+                                      fullScreen: Bool) -> Placement? {
+        guard let picked, declined != picked.id else { return nil }
+        let move = windowOn != picked.id
+        let full = picked.isTV && (move || !fullScreen)
+        return move || full ? Placement(move: move, fullScreen: full) : nil
+    }
+
+    /// Full screen that Nightforge chose for a TV ends when the window is on no TV any more (TV
+    /// unplugged, mirroring off). Full screen the player chose stays.
+    nonisolated static func leavesFullScreen(madeFullScreen: Bool, fullScreen: Bool, windowOn: Candidate?) -> Bool {
+        madeFullScreen && fullScreen && windowOn?.isTV != true
+    }
+
     private static func place() async {
+        let screens = candidates()
+        let declined = (UserDefaults.standard.object(forKey: Keys.declined) as? Int).map { CGDirectDisplayID(truncatingIfNeeded: $0) }
         guard let window, !running,
-              let picked = pick(candidates()),
-              UserDefaults.standard.object(forKey: Keys.declined) as? Int != Int(picked),
-              let target = NSScreen.screens.first(where: { id($0) == picked }),
-              window.screen.flatMap(id) != picked
+              let picked = pick(screens).flatMap({ display in screens.first { $0.id == display } }),
+              let plan = placement(picked: picked, windowOn: window.screen.flatMap(id), declined: declined,
+                                   fullScreen: window.styleMask.contains(.fullScreen)),
+              let target = NSScreen.screens.first(where: { id($0) == picked.id })
         else { return }
         placing = true
         defer { placing = false }
-        if window.styleMask.contains(.fullScreen) {
-            window.toggleFullScreen(nil)
-            for _ in 0..<30 where window.styleMask.contains(.fullScreen) {
-                try? await Task.sleep(for: .milliseconds(100))
+        if plan.move {
+            if window.styleMask.contains(.fullScreen) {
+                window.toggleFullScreen(nil)
+                for _ in 0..<30 where window.styleMask.contains(.fullScreen) {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
             }
-        }
-        let area = target.visibleFrame
-        var frame = window.frame
-        frame.size.width = min(frame.width, area.width)
-        frame.size.height = min(frame.height, area.height)
-        frame.origin = CGPoint(x: area.midX - frame.width / 2, y: area.midY - frame.height / 2)
-        window.setFrame(frame, display: true)
-        lastScreen = picked
-        if candidates().first(where: { $0.id == picked })?.isTV == true {
+            let area = target.visibleFrame
+            var frame = window.frame
+            frame.size.width = min(frame.width, area.width)
+            frame.size.height = min(frame.height, area.height)
+            frame.origin = CGPoint(x: area.midX - frame.width / 2, y: area.midY - frame.height / 2)
+            window.setFrame(frame, display: true)
+            lastScreen = picked.id
             try? await Task.sleep(for: .milliseconds(300))  // let the move land first
-            if !window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
+        }
+        if plan.fullScreen, !window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+            madeFullScreen = true
         }
         window.makeKeyAndOrderFront(nil)
+    }
+
+    private static func leaveFullScreenOffTV() async {
+        guard let window, !running,
+              leavesFullScreen(madeFullScreen: madeFullScreen, fullScreen: window.styleMask.contains(.fullScreen),
+                               windowOn: candidates().first { $0.id == window.screen.flatMap(id) })
+        else { return }
+        madeFullScreen = false
+        placing = true
+        defer { placing = false }
+        window.toggleFullScreen(nil)
+        for _ in 0..<30 where window.styleMask.contains(.fullScreen) {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     // MARK: - While a game runs

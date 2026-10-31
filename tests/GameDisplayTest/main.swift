@@ -51,6 +51,31 @@ struct GameDisplayTest {
         check(GameDisplay.newMain(for: 3, main: 1, primary: mirrored) == 3, "a monitor beside a mirror set becomes main")
         check(GameDisplay.newMain(for: 1, main: 3, primary: mirrored) == 2, "back to the mirror set: its master becomes main")
 
+        // Where the window goes and when it's full screen. The live test on 31.10.: a mirrored DENON-AVR
+        // was the only screen, the window already on it – and it stayed a window.
+        let denon = screen(4, "DENON-AVR")
+        check(GameDisplay.placement(picked: denon, windowOn: 4, declined: nil, fullScreen: false)
+              == GameDisplay.Placement(move: false, fullScreen: true), "a mirrored TV: full screen where the window is")
+        check(GameDisplay.placement(picked: denon, windowOn: 4, declined: nil, fullScreen: true) == nil, "full screen already: nothing")
+        check(GameDisplay.placement(picked: screen(2, "LG TV SSCR2"), windowOn: 1, declined: nil, fullScreen: false)
+              == GameDisplay.Placement(move: true, fullScreen: true), "a TV beside the MacBook: over there, full screen")
+        check(GameDisplay.placement(picked: screen(2, "LG TV SSCR2"), windowOn: 1, declined: nil, fullScreen: true)
+              == GameDisplay.Placement(move: true, fullScreen: true), "full screen on the MacBook: out, over, in again")
+        check(GameDisplay.placement(picked: screen(3, "DELL U2720Q"), windowOn: 1, declined: nil, fullScreen: false)
+              == GameDisplay.Placement(move: true, fullScreen: false), "a monitor: moved, as a window")
+        check(GameDisplay.placement(picked: screen(3, "DELL U2720Q"), windowOn: 3, declined: nil, fullScreen: false) == nil,
+              "on the monitor already: nothing")
+        check(GameDisplay.placement(picked: denon, windowOn: 4, declined: 4, fullScreen: false) == nil,
+              "the player moved it away from the TV before: left alone")
+        check(GameDisplay.placement(picked: denon, windowOn: 1, declined: 4, fullScreen: false) == nil, "declined, from elsewhere too")
+        check(GameDisplay.placement(picked: nil, windowOn: 1, declined: nil, fullScreen: false) == nil, "no screen to play on")
+        // And back out when the TV goes.
+        check(GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: macBook), "TV unplugged: a window again")
+        check(GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: nil), "TV going, no screen yet: a window again")
+        check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: denon), "still on the TV: stays")
+        check(!GameDisplay.leavesFullScreen(madeFullScreen: false, fullScreen: true, windowOn: macBook), "the player's own full screen stays")
+        check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: false, windowOn: macBook), "not full screen: nothing")
+
         // Which TV shows Nightforge, for its sound: false = an external display in the mirror set.
         let tv = screen(2, "LG TV SSCR2"), avr = screen(4, "DENON-AVR"), monitor = screen(3, "DELL U2720Q")
         check(GameDisplay.soundScreen(tv, mirroredWith: []) == "LG TV SSCR2", "on a TV: its sound")
