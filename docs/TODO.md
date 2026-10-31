@@ -1606,6 +1606,11 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     Khronos-Loader Nightforges Vulkan-Layer, der dann die Bildrate loggt (LaunchHealth bekommt echte Belege). DXVK-macOS
     1.10.3 zeichnet dort auch. Gegenprobe auf MoltenVK: 1.10.3 lehnt das 5. und 39. Feature ab, 3.1.1 meldet
     „required feature 'geometryShader'“.
+  - 32-Bit-Spiele (Mafia II, L4D2) laufen im neuen WoW64, und dort braucht winevulkan `VK_EXT_map_memory_placed`. Mit
+    `WINEDEBUG=+vulkan` ist das in der 32-Bit-Probe belegt: „Using placed map with alignment 4096“, dann „Using placed
+    mapping 0x1b80000“. Die Adresse liegt unter 4 GB, und das zurückgelesene Bild stimmt. Die Warnung „Extension
+    VK_EXT_map_memory_placed is not supported“ gilt nur für DXVKs eigene Anfrage, Wine behält die Erweiterung für sich.
+    Im 64-Bit-Lauf steht dieselbe Warnung.
   - In winecx 4.7.3 liest nur `win32u.so` die CX-Variablen: `vulkan_init_once` lädt `CX_LIBVULKAN` statt MoltenVK, wenn
     `CX_ACTIVE_GRAPHICS_BACKEND` „wined3d“ ist. Sonst ändert der Wert nur eine Adapter-Abfrage, die für „d3dmetal“
     antwortet, und den setzt Nightforge nie.
