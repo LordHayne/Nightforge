@@ -21,6 +21,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
   - Reichere Spieldaten, Phase 2, in zwei Teilen.
   - Testabdeckung (Session test-coverage).
+  - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
+    APEX/PhysX-Profil, Ton unter Wine.
   - Landingpage und README.
 - **Release-Stand einfrieren:**
   - Alle Testreihen grün.
