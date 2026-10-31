@@ -424,6 +424,24 @@ final class LibraryModel: ObservableObject {
         return !Task.isCancelled
     }
 
+    /// A GOG game's Windows parts – GOG Galaxy's redistributables its manifest names, and its
+    /// install script – right after its download and before a start, until they're there
+    /// (GOGRedist; nothing to do costs nothing). Something that fails is said, and the game starts anyway.
+    private func setUpGOG(_ game: Game, wine: URL, showStatus: Bool) async {
+        guard game.platform == .windows, let facts = gog.setupFacts(of: game),
+              await Engine.offMain({ GOGRedist.hasWork(facts.install) }) else { return }
+        if showStatus { launchPhase = .settingUpWindowsParts(game.name, nil) }
+        let outcome = await GOGRedist.setUp(facts.install, versionName: facts.versionName, wine: wine) { part in
+            if showStatus { self.launchPhase = .settingUpWindowsParts(game.name, part) }
+        }
+        if showStatus { launchPhase = nil }
+        guard showStatus, !outcome.failed.isEmpty else { return }
+        let parts = outcome.failed.joined(separator: ", ")
+        errorMessage = outcome.retried
+            ? L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.", game.name, parts)
+            : L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.", game.name, parts)
+    }
+
     /// A GOG game's Mac version: no Steam and no Wine – its update and save first, then the app
     /// itself; Nightforge follows it like any game it started.
     private func launchGOGMac(_ game: Game) {
@@ -2087,6 +2105,7 @@ final class LibraryModel: ObservableObject {
                 if let runner {
                     await installRuntimes(for: game, profile: profile, analysis: analysis,
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
+                    if game.provider == .gog { await setUpGOG(game, wine: URL(fileURLWithPath: runner), showStatus: true) }
                 }
                 var arguments = analysis?.preferD3D11Arguments ?? []
                 var watchFirstSeconds = false
@@ -2240,6 +2259,7 @@ final class LibraryModel: ObservableObject {
             let profile = await ProfileStore.shared.profile(for: game.appID)
             let analysis = await insight(of: game)?.analysis
             await installRuntimes(for: game, profile: profile, analysis: analysis, wine: wine, showStatus: false)
+            if game.provider == .gog { await setUpGOG(game, wine: wine, showStatus: false) }
         }
     }
 

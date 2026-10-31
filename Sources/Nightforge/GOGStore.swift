@@ -666,6 +666,14 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     // MARK: - Playing
 
+    /// A Windows version's install record and GOG's name for its build, for its setup (GOGRedist).
+    func setupFacts(of game: Game) -> (install: GOGInstall, versionName: String?)? {
+        loadFromDisk()
+        guard let install = installs[game.gameID.id], install.platform == .windows else { return nil }
+        let build = latest[install.id]
+        return (install, build?.matches(install.build) == true ? build?.version : nil)
+    }
+
     /// How the Windows version starts under Wine, from the game's own info file.
     func launchCommand(for game: Game) throws -> StoreLaunchCommand {
         loadFromDisk()

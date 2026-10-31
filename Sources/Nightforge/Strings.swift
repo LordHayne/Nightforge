@@ -996,6 +996,16 @@ enum L10n {
         "Nightforge's GOG helper didn't start, so the sign-in didn't reach GOG. Please try again.":
             "Nightforges GOG-Helfer ist nicht gestartet, deshalb kam die Anmeldung nicht bei GOG an. Bitte versuch es noch einmal.",
         "Nightforge's GOG helper didn't start": "Nightforges GOG-Helfer ist nicht gestartet",
+        "Setting up Windows parts for %@ …": "Windows-Bausteine für %@ werden eingerichtet …",
+        "Installing %@, which the game needs from Windows. Only the first time.":
+            "%@ wird installiert – das Spiel braucht es aus Windows. Nur beim ersten Mal.",
+        "Getting what the game needs from Windows from GOG. Only the first time.":
+            "Was das Spiel aus Windows braucht, kommt von GOG. Nur beim ersten Mal.",
+        "GOG's install script": "GOGs Installationsskript",
+        "Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.":
+            "Nicht alle Windows-Bausteine für %@ ließen sich einrichten (%@). Es startet trotzdem; beim nächsten Start versucht Nightforge es noch einmal.",
+        "Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.":
+            "Nicht alle Windows-Bausteine für %@ ließen sich einrichten (%@). Es startet trotzdem – läuft es nicht richtig, kann es daran liegen.",
         "there isn't enough space on the Mac": "auf dem Mac ist nicht genug Platz",
         "gogdl stopped (code %d)": "gogdl hat aufgehört (Code %d)",
         "GOG's files for it aren't where gogdl put them": "GOGs Dateien dafür liegen nicht dort, wo gogdl sie hingelegt hat",

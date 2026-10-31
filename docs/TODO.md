@@ -393,13 +393,20 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
 - [ ] **Nachgebessert, nachprüfen:** „Zuletzt gespielt gerade eben“ statt „in 0 Sekunden“; die Cloud-Zeile in „Willkommen
       zurück“ bricht um (bis 2 Zeilen); im Download-Panel Fortschritt und Tempo/Restzeit in zwei Zeilen; eine GOG-Größe
       „Herunterladen“ vor und während des Downloads und im Panel (die Download-Größe, nicht gogdls Installations-Bytes).
+- [x] **Weiterladen** nach Beenden und Neustart von Nightforge (Mafia II, 8,4 GB, deutsch).
+- [x] **Doppelt:** Control und The Evil Within 2 als eine Karte EPIC + GOG.
+- [ ] **Ein Windows-Spiel – Mafia II (Classic), 1816059595:** Der erste Start (0e017bd) scheiterte an „PhysX SDK not
+      initialized“ – Galaxys Abhängigkeiten fehlten. Seit dem Fix (Roadmap 7.3, `GOGRedist`) prüfen: vor dem ersten Start
+      „Windows-Bausteine für Mafia II werden eingerichtet …“ mit „Visual C++ Redist 2017“, „NVIDIA PhysX Legacy“,
+      „NVIDIA PhysX“ darunter, **kein** Installer-Fenster; `GOG/Redist/__redist/` mit MSVC2017, PHYSXLEGACY, PHYSX, ISI
+      (kein DirectX); `Prefix/gog-redist.json` mit den drei und `products` 1816059595; `GOG/Logs/redist.log` mit Exit 0
+      je Installer und dem Installationsskript. Dann startet das Spiel ohne PhysX-Fenster (Grafik-Leiter,
+      Erstsekunden-Prüfung, Prozess über `\GOG Games\`). Ein zweiter Start richtet nichts mehr ein.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
-- [ ] **Ein Windows-Spiel** laden und starten (Grafik-Leiter, Erstsekunden-Prüfung), Prozess-Erkennung über `\GOG Games\`.
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
-      übrig: `pgrep -fl gogdl`), **Weiterladen** nach Beenden/Neustart von Nightforge.
-- [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC), **Cloud-Spielstände** (ein Spiel mit
-      GOG-Cloud: vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
-- [ ] **Doppelt:** ein Spiel, das auch auf Steam/Epic ist, wird eine Karte („STEAM + GOG“), Wahl auf der Spielseite.
+      übrig: `pgrep -fl gogdl`).
+- [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC; danach läuft das Installationsskript neu),
+      **Cloud-Spielstände** (vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
 - [ ] **Laufwerk:** ein GOG-Spiel „Auf <Laufwerk> installieren“ (landet in `Nightforge Games/GOG Games/`), von dort
       spielen (Windows- und Mac-Version), „Verschieben nach …“ zurück auf den Mac und wieder hin, Laufwerk abziehen
       („Schließe … an“, bleibt unter „Installiert“), Deinstallieren-Frage nennt Laufwerk und GOG.
@@ -410,7 +417,8 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
 Bekannte Lücken (bewusst, siehe Roadmap 7.3):
 - Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
   64-Bit, läuft aber schlecht, gibt es noch keinen Weg zur Windows-Version außer Deinstallieren + Datei `GOG/mac-unfit.json`.
-- Galaxys „Common Redistributables“ werden nicht vorab installiert (wie bei Epic: aus `wine.log` gelernt).
+- Galaxys Abhängigkeiten: DirectX (June 2010) und .NET Framework 3.5–4.7.2 laufen bewusst nicht (winecx hat DirectX
+  eingebaut; für .NET Framework kommt Wine Mono). Alte v1-Builds: ihre `support_commands` laufen nicht, nur ihre Redists.
 - Controller-Unterstützung kennt nur Steam: Ein Spiel nur von GOG (oder Epic) hat keine Angabe – auf der Bühne sagt
   „Für den Anfang“ dann nichts über den Controller (statt „Gespielt wird mit Maus und Tastatur“), und der Controller-Filter
   findet es nicht. GOGs `api.gog.com/v2/games/<id>` nennt `controller_support` unter den Features – ein Abruf pro Spiel.

@@ -221,13 +221,16 @@ struct GOGSize: Codable, Equatable {
 struct GOGBuild: Codable, Equatable {
     var id: String
     var legacy: String?
+    /// GOG's name for it ("update5A"), which the install script is given.
+    var version: String?
 
     static func latest(fromJSON json: Data) -> GOGBuild? {
         guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
               let items = object["items"] as? [[String: Any]], !items.isEmpty else { return nil }
         let item = items.first { $0["branch"] == nil || $0["branch"] is NSNull } ?? items[0]
         guard let id = (item["build_id"] as? String) ?? (item["build_id"] as? NSNumber)?.stringValue else { return nil }
-        return GOGBuild(id: id, legacy: (item["legacy_build_id"] as? String) ?? (item["legacy_build_id"] as? NSNumber)?.stringValue)
+        return GOGBuild(id: id, legacy: (item["legacy_build_id"] as? String) ?? (item["legacy_build_id"] as? NSNumber)?.stringValue,
+                        version: item["version_name"] as? String)
     }
 
     /// An installed build is this one.

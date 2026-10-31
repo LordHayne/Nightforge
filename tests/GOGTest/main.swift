@@ -36,6 +36,8 @@ struct GOGTest {
         await store()
         await refresh()
         await drives()
+        redistFormats()
+        await redistSetUp()
         await realProgram()
 
         print(failures == 0 ? "✓ GOG" : "\(failures) failed")
@@ -43,6 +45,32 @@ struct GOGTest {
     }
 
     // MARK: - Fixtures (formats as gogdl and Heroic read them)
+
+    /// GOG's dependencies repository as gogdl keeps it (.gogdl-redist-manifest), entries as GOG
+    /// serves them (content-system.gog.com/dependencies/repository, 31.10.2026), cut down.
+    static let redistRepository = #"""
+    {"depots": [
+      {"dependencyId": "ISI", "readableName": "Install Script Interpreter", "executable": {"arguments": "", "path": "__redist/ISI/scriptinterpreter.exe"}},
+      {"dependencyId": "DirectX", "readableName": "DirectX 9.0c", "executable": {"arguments": "/silent", "path": "__redist/DirectX/DXSETUP.exe"}},
+      {"dependencyId": "MSVC2005", "readableName": "Visual C++ Redist 2005", "executable": {"arguments": "/q:a /c:\"VCREDI~3.EXE /q:a /c:\"\"msiexec /i vcredist.msi /qb\"\" \"", "path": "__redist/MSVC2005/vcredist_x86.exe"}},
+      {"dependencyId": "MSVC2017", "readableName": "Visual C++ Redist 2017", "executable": {"arguments": "/install /quiet /norestart", "path": "__redist/MSVC2017/VC_redist.x86.exe"}},
+      {"dependencyId": "PHYSX", "readableName": "NVIDIA PhysX (9.17.0524)", "executable": {"arguments": "-s", "path": "__redist/PHYSX/PhysX-9.17.0524-SystemSoftware.exe"}},
+      {"dependencyId": "PHYSXLEGACY", "readableName": "NVIDIA PhysX Legacy (9.13.0604)", "executable": {"arguments": "/passive /norestart", "path": "__redist/PHYSXLEGACY/PhysX-9.13.0604-SystemSoftware-Legacy.msi"}},
+      {"dependencyId": "UE4REDIST", "readableName": "UE4 Prerequisites (x64)", "executable": {"arguments": "/passive /norestart", "path": "__redist/UE4REDIST/UE4PrereqSetup_x64.exe"}},
+      {"dependencyId": "ScummVM", "readableName": "Scumm VM", "executable": {"arguments": "", "path": ""}},
+      {"dependencyId": "dotNet4", "readableName": ".NET 4.0", "executable": {"arguments": "/q /norestart", "path": "__redist/dotNet4/dotNetFx40_Full_x86_x64.exe"}}],
+     "build_id": "60163282911088704", "HGLInstalled": ["MSVC2010"]}
+    """#
+
+    /// Mafia II (Classic)'s build manifest as gogdl keeps it (GOG's, cut down, without its client secret).
+    static let mafiaManifest = #"""
+    {"baseProductId": "1816059595", "buildId": "51277443195366142", "clientId": "51014162722881154",
+     "dependencies": ["DirectX", "MSVC2017", "PHYSXLEGACY", "PHYSX"], "installDirectory": "Mafia II", "platform": "windows",
+     "products": [{"name": "Mafia II", "productId": "1816059595", "temp_arguments": "", "temp_executable": ""}],
+     "scriptInterpreter": true, "tags": ["csb_10_4_0_w_28", "galaxy"], "version": 2,
+     "depots": [{"compressedSize": 10490560, "languages": ["*"], "productId": "1816059595", "size": 10630200, "manifest": "x"}],
+     "HGLInstallLanguage": "de-DE", "HGLdlcs": []}
+    """#
 
     /// Two pages of galaxy-library: GOG's own products, a game linked from Steam, one not owned.
     static let ownedPage1 = #"""
@@ -179,6 +207,113 @@ struct GOGTest {
               "a gogdl that didn't run: its code and message")
         check(GOGDL.authLogText(Legendary.Output(status: 0, output: Data(#"{"error": true}"#.utf8), log: ""), command: "auth --code",
                                 hiding: []).contains("answer: JSON with error"), "GOG's no")
+    }
+
+    /// GOG Galaxy's redistributables: what a manifest asks for, what runs and how, what's left out.
+    static func redistFormats() {
+        let needs = GOGRedist.Needs.from(manifest: Data(mafiaManifest.utf8))
+        check(needs?.dependencies == ["DirectX", "MSVC2017", "PHYSXLEGACY", "PHYSX"] && needs?.scriptInterpreter == true
+              && needs?.products.map(\.id) == ["1816059595"] && needs?.build == "51277443195366142", "Mafia II's needs from its manifest")
+        let v1 = GOGRedist.Needs.from(manifest: Data(#"{"version": 1, "product": {"depots": [{"redist": "DirectX"}, {"size": "1"}, {"redist": "MSVC2008"}, {"redist": "DirectX"}]}}"#.utf8))
+        check(v1?.dependencies == ["DirectX", "MSVC2008"] && v1?.scriptInterpreter == false, "an old (v1) build: its redist depots")
+        let repository = GOGRedist.Repository.from(json: Data(redistRepository.utf8))
+        check(repository?.depots.count == 9 && repository?.fetched == ["MSVC2010"], "the repository as gogdl keeps it")
+        guard let needs, let repository else { return }
+
+        let record = GOGRedist.Record()
+        check(GOGRedist.wanted(needs, record: record) == ["MSVC2017", "PHYSXLEGACY", "PHYSX"],
+              "DirectX is left out (winecx has it built in): \(GOGRedist.wanted(needs, record: record))")
+        check(GOGRedist.idsToFetch(wanted: ["MSVC2017", "PHYSXLEGACY", "PHYSX"], script: true, repository: repository)
+              == ["ISI", "MSVC2010", "MSVC2017", "PHYSX", "PHYSXLEGACY"], "fetched: what's wanted, the interpreter, and what was there (gogdl would delete it)")
+        let dotNet = GOGRedist.Needs(dependencies: ["dotNet4", "MSVC2010"])
+        check(GOGRedist.wanted(dotNet, record: record) == ["MSVC2010"] && GOGRedist.needsWineMono(dotNet), ".NET Framework: Wine Mono instead")
+
+        let folder = GOGRedist.folder
+        let legacy = GOGRedist.command(for: repository.depots["PHYSXLEGACY"]!, in: folder)
+        check(legacy == ["msiexec", "/i", Engine.windowsPath(of: folder.appendingPathComponent("__redist/PHYSXLEGACY/PhysX-9.13.0604-SystemSoftware-Legacy.msi")),
+                         "/norestart", "/qn"], "an .msi: through msiexec, without a window: \(legacy)")
+        check(GOGRedist.command(for: repository.depots["MSVC2017"]!, in: folder).dropFirst() == ["/install", "/quiet", "/norestart"],
+              "an installer with GOG's arguments")
+        check(GOGRedist.command(for: repository.depots["UE4REDIST"]!, in: folder).dropFirst() == ["/quiet", "/norestart"], "/passive becomes /quiet")
+        check(GOGRedist.split(repository.depots["MSVC2005"]!.arguments) == ["/q:a", "/c:VCREDI~3.EXE /q:a /c:msiexec /i vcredist.msi /qb "],
+              "quotes group, as shlex splits them: \(GOGRedist.split(repository.depots["MSVC2005"]!.arguments))")
+        check(GOGRedist.split("") == [] && GOGRedist.split("-s") == ["-s"] && GOGRedist.split(#"a "" b"#) == ["a", "", "b"], "and the plain cases")
+        check(GOGRedist.succeeded(0) && GOGRedist.succeeded(3010 & 0xFF) && GOGRedist.succeeded(1638 & 0xFF) && !GOGRedist.succeeded(1),
+              "done, done with a restart wanted, a newer one there – not an error")
+
+        let install = GOGInstall(id: "1816059595", path: GOGDL.windowsGamesDir.appendingPathComponent("Mafia II", isDirectory: true),
+                                 platform: .windows, build: "51277443195366142", language: "de-DE", size: 1)
+        let script = GOGRedist.productCommand(needs.products[0], needs: needs, install: install, versionName: "update5A")
+        check(script.first == Engine.windowsPath(of: GOGRedist.interpreter) && script.contains("/VERYSILENT")
+              && script.contains(#"/DIR=C:\Program Files\GOG Games\Mafia II"#) && script.contains("/Language=German")
+              && script.contains("/ProductId=1816059595") && script.contains("/buildId=51277443195366142")
+              && script.contains("/versionName=update5A") && script.contains("/lang-code=de-DE") && script.contains("/nodesktopshorctut"),
+              "GOG's install script, started as Galaxy starts it: \(script)")
+        check(GOGRedist.productsDue(needs, install: install, record: record) == ["1816059595"], "the install script is due")
+        var ran = record
+        ran.products["1816059595"] = "51277443195366142"
+        check(GOGRedist.productsDue(needs, install: install, record: ran).isEmpty, "once per build")
+        var updated = needs
+        updated.build = "99"
+        check(GOGRedist.productsDue(updated, install: install, record: ran) == ["1816059595"], "and again after an update")
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var failing = GOGRedist.Record()
+        failing.failed("PHYSX", now: now)
+        check(failing.gaveUp("PHYSX", now: now.addingTimeInterval(60)), "not again within the same start")
+        check(!failing.gaveUp("PHYSX", now: now.addingTimeInterval(11 * 60)), "but at a later one")
+        failing.failed("PHYSX", now: now.addingTimeInterval(11 * 60))
+        check(failing.gaveUp("PHYSX", now: now.addingTimeInterval(3600)), "and not after twice: each start would wait for it")
+    }
+
+    /// The whole setup, with a stand-in for Wine that notes what it's asked to run.
+    static func redistSetUp() async {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: Engine.prefix, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: GOGDL.manifest(for: "1816059595").deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(mafiaManifest.utf8).write(to: GOGDL.manifest(for: "1816059595"))
+        try? fm.createDirectory(at: GOGRedist.folder, withIntermediateDirectories: true)
+        try? Data(redistRepository.utf8).write(to: GOGRedist.repositoryFile)
+        for path in ["__redist/ISI/scriptinterpreter.exe", "__redist/MSVC2017/VC_redist.x86.exe", "__redist/PHYSX/PhysX-9.17.0524-SystemSoftware.exe",
+                     "__redist/PHYSXLEGACY/PhysX-9.13.0604-SystemSoftware-Legacy.msi"] {
+            let file = GOGRedist.folder.appendingPathComponent(path)
+            try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            fm.createFile(atPath: file.path, contents: Data("MZ".utf8))
+        }
+        let calls = fm.temporaryDirectory.appendingPathComponent("wine-calls-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: calls) }
+        let wine = fm.temporaryDirectory.appendingPathComponent("fake-wine-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: wine) }
+        // PhysX 9.17 fails; everything else is done.
+        try? Data("#!/bin/sh\necho \"$*\" >> \"\(calls.path)\"\ncase \"$*\" in *PhysX-9.17*) exit 1;; esac\nexit 0\n".utf8).write(to: wine)
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wine.path)
+
+        let install = GOGInstall(id: "1816059595", path: GOGDL.windowsGamesDir.appendingPathComponent("Mafia II", isDirectory: true),
+                                 platform: .windows, build: "51277443195366142", language: "de-DE", size: 1)
+        try? fm.createDirectory(at: install.path, withIntermediateDirectories: true)
+        check(GOGRedist.hasWork(install), "a game installed before: its setup is still to do")
+        var parts: [String?] = []
+        let outcome = await GOGRedist.setUp(install, versionName: "update5A", wine: wine) { parts.append($0) }
+        let lines = ((try? String(contentsOf: calls, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        check(lines.count == 4 && lines[0].contains("VC_redist.x86.exe /install /quiet /norestart")
+              && lines[1].hasPrefix("msiexec /i ") && lines[1].hasSuffix("/norestart /qn") && lines[2].contains("PhysX-9.17.0524")
+              && lines[3].contains("scriptinterpreter.exe /VERYSILENT"), "three installers in the manifest's order, then the script: \(lines)")
+        check(!lines.contains { $0.contains("DXSETUP") }, "not DirectX")
+        check(parts.contains("Visual C++ Redist 2017") && parts.contains("NVIDIA PhysX Legacy (9.13.0604)"), "each part is named as it goes: \(parts)")
+        check(outcome.failed == ["NVIDIA PhysX (9.17.0524)"] && outcome.retried, "what failed is said, and tried again later: \(outcome)")
+        let record = GOGRedist.loadRecord()
+        check(record.installed == ["MSVC2017", "PHYSXLEGACY"] && record.products["1816059595"] == "51277443195366142",
+              "noted in the environment: \(record)")
+        check(!GOGRedist.hasWork(install), "right after: nothing to do (PhysX waits for a later start)")
+
+        // A second game with the same needs costs nothing.
+        try? fm.removeItem(at: calls)
+        let other = GOGInstall(id: "42", path: install.path, platform: .windows, build: "1", language: "en-US", size: 1)
+        try? Data(#"{"version": 2, "buildId": "1", "dependencies": ["MSVC2017", "DirectX"], "products": [{"productId": "42"}]}"#.utf8)
+            .write(to: GOGDL.manifest(for: "42"))
+        check(!GOGRedist.hasWork(other), "another game with the same parts: nothing to do")
+        _ = await GOGRedist.setUp(other, versionName: nil, wine: wine) { _ in }
+        check(!fm.fileExists(atPath: calls.path), "and nothing runs")
     }
 
     /// The real gogdl, when run.sh found it installed on this Mac: started the way Nightforge starts
