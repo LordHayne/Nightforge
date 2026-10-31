@@ -15,13 +15,12 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 
 - **Vorher fertig (jeweils live getestet, gemergt mit OK des Nutzers):**
   - 2.5 größere Schrift: erledigt (a55040a).
-  - GOG 7.3: offen ist der Live-Test von Mafia II auf „Automatisch“. Danach mergen, mit 4 Schrift-Konflikten
-    gegen 2.5.
+  - GOG 7.3: gemergt (159acfa, Fixes d555778), live geprüft. Offen ist nur der Offline-Start.
   - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
   - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
-  - Reichere Spieldaten, Phase 2, in zwei Teilen.
-  - Testabdeckung (Session test-coverage).
-  - Kleines Controller-Overlay: PS gedrückt halten, dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
+  - Reichere Spieldaten, Phase 2: Teil A und B gebaut. Das Layout der Spielseite wird nach dem Feedback vom 31.10. überarbeitet.
+  - Testabdeckung: gemergt (9becef2). Weitere Tests für TV und Spielinfos nach deren Merge.
+  - Kleines Controller-Overlay: beide Sticks 2 s drücken (L3 + R3, weil macOS 26 die PS-Taste fürs Game Overlay nutzt), dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
     Baut die TV-Session, es wird mit dem TV-Modus gemergt. Das schöne große Overlay kommt nach 0.3.0.
   - GOG-Spiele bekommen Spielprofile, dazu das Mafia-II-Profil (Session mafia-ii, Zweig `claude/reverent-goldberg-46e548`,
     95305e4 + 78997a3): mergen. Mafia II startet damit gleich mit WineD3D, ohne Echo.
