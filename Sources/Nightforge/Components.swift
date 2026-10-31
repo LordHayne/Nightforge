@@ -269,12 +269,16 @@ actor ComponentStore {
     }
 }
 
-/// URLSession download with progress, written to a fixed destination.
-private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+/// URLSession download with progress, written to a fixed destination. Cancelling the task that
+/// awaits it ends the download (SteamPrefetch hands what's left to Steam that way).
+final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let destination: URL
     private let expectedSize: Int64
     private let progress: @Sendable (Double) -> Void
     private var continuation: CheckedContinuation<Void, Error>?
+    private let lock = NSLock()
+    private var task: URLSessionDownloadTask?
+    private var cancelled = false
 
     private init(destination: URL, expectedSize: Int64, progress: @escaping @Sendable (Double) -> Void) {
         self.destination = destination
@@ -290,9 +294,27 @@ private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked
         let delegate = Downloader(destination: destination, expectedSize: expectedSize, progress: progress)
         let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
-        try await withCheckedThrowingContinuation { continuation in
-            delegate.continuation = continuation
-            session.downloadTask(with: url).resume()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                delegate.continuation = continuation
+                let task = session.downloadTask(with: url)
+                let go = delegate.lock.withLock { () -> Bool in
+                    guard !delegate.cancelled else { return false }
+                    delegate.task = task
+                    return true
+                }
+                if go {
+                    task.resume()
+                } else {
+                    delegate.continuation = nil
+                    continuation.resume(throwing: CancellationError())
+                }
+            }
+        } onCancel: {
+            delegate.lock.withLock { () -> URLSessionDownloadTask? in
+                delegate.cancelled = true
+                return delegate.task
+            }?.cancel()
         }
     }
 

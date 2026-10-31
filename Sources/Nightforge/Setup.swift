@@ -73,6 +73,8 @@ final class SetupModel: ObservableObject {
     private var transferID: String?
     /// Steam's first start, before its sign-in window: it updates itself, then the window comes.
     @Published private(set) var steamStarting = false
+    /// Steam's installer and its first update, coming down while Windows is set up.
+    private var prefetch: SteamPrefetch?
 
     @Published private(set) var stage = Stage.welcome
     /// From "Let's Go" until "Let's Play": the first start stays on Home while the games come in.
@@ -269,6 +271,10 @@ final class SetupModel: ObservableObject {
 
     private func run() async {
         var step = Step.rosetta
+        defer {
+            prefetch?.discard()
+            prefetch = nil
+        }
         do {
             phase = .running(.rosetta)
             guard Engine.isRosettaInstalled else {
@@ -305,6 +311,11 @@ final class SetupModel: ObservableObject {
 
             step = .environment
             phase = .running(.environment)
+            // Steam's installer and its first update come down meanwhile (SteamPrefetch) – once wineboot
+            // lays down files. Before that, the first launch of a fresh engine has Rosetta translate
+            // it: 5–7 s, but 87 s once (30.10.2026, Time Machine busy at the time), and nothing of
+            // ours should write meanwhile.
+            let fetchSteam = !Engine.isSteamInstalled && prefetch == nil
             if !FileManager.default.fileExists(atPath: Engine.prefix.appendingPathComponent("drive_c").path) {
                 try FileManager.default.createDirectory(at: Engine.prefix, withIntermediateDirectories: true)
                 detail = SetupDetail.windows(systemFiles: 0)
@@ -313,6 +324,7 @@ final class SetupModel: ObservableObject {
                     while !Task.isCancelled {
                         try? await Task.sleep(for: .seconds(1))
                         let count = await Engine.offMain { Self.systemFiles() }
+                        if count > 0, fetchSteam, prefetch == nil { prefetch = SteamPrefetch.start() }
                         if !Task.isCancelled, currentStep() == .environment { detail = SetupDetail.windows(systemFiles: count) }
                     }
                 }
@@ -320,6 +332,7 @@ final class SetupModel: ObservableObject {
                 counting.cancel()
                 guard status == 0 else { throw SetupError.environmentFailed }
             }
+            if fetchSteam, prefetch == nil { prefetch = SteamPrefetch.start() }
             // Graphics layers, D3DMetal, the controller package and the game environment, the same way
             // every later start checks them (off the main thread: it copies files and runs regedit).
             _ = try await Engine.ensureEngine { step in
@@ -336,7 +349,12 @@ final class SetupModel: ObservableObject {
             phase = .running(.steam)
             if !Engine.isSteamInstalled {
                 detail = L10n.t("Downloading the Steam installer …")
-                let installer = try await downloadSteamSetup()
+                let installer: URL
+                if let fetched = await prefetch?.installer() {
+                    installer = fetched
+                } else {
+                    installer = try await downloadSteamSetup()
+                }
                 defer { try? FileManager.default.removeItem(at: installer) }
                 let size = (try? installer.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
                 detail = L10n.t("The Steam installer (%@) is running …", Format.bytes(Int64(size)))
@@ -398,37 +416,85 @@ final class SetupModel: ObservableObject {
         var lastRestart = Date()
         // When the wrapper went in: a steamwebhelper started before that is Valve's.
         var swappedAt: Date?
+        var browser = SteamBrowser.Watch()
+        // Browsers ended since Steam's last (re)start.
+        var browsersEnded = 0
+        func restart() async throws {
+            restarts += 1
+            guard restarts <= 5 else { throw SetupError.steamWontStart }
+            browser.ignore(SteamBrowser(steamRoot: Engine.steamRoot).launch)
+            browsersEnded = 0
+            try await restartSteam(wine)
+            lastRestart = Date()
+        }
+        // Only Steam's browser ends, and its client starts it again: ~8 s, and the client keeps all
+        // it had done. Restarting all of Steam instead, the first browser after it hung in every live
+        // run, and five times in a row in a scratch home (29./30.10.2026). Three browsers that don't
+        // come up, or a client that doesn't start the next: all of Steam after all.
+        func restartBrowser() async throws {
+            browsersEnded += 1
+            guard browsersEnded <= 3 else { return try await restart() }
+            detail = L10n.t("Steam starts its window again …")
+            browser.ended(SteamBrowser(steamRoot: Engine.steamRoot))
+            await Engine.offMain { Engine.endWebHelpers() }
+        }
         phase = .running(.steam)
         steamStarting = true
         defer { steamStarting = false }
+        if let prefetch { await placeSteamUpdate(prefetch) }
+        browser.ignore(SteamBrowser(steamRoot: Engine.steamRoot).launch)
         try Engine.startSteam(wine)
         detail = L10n.t("Steam is starting …")
 
+        // Two moments last about a second, and are watched every 50 ms while they're near (the log
+        // is read again only when it grew); everything else every 2 s, as before.
+        var quick = false
+        var logSize: Int64 = -1
+        var lastLook = Date.distantPast
+        var clientPackagesPlaced = false
         while true {
-            try await Task.sleep(for: .seconds(2))
+            try await Task.sleep(for: quick ? .milliseconds(50) : .seconds(2))
+            let size = Self.bootstrapLogSize()
+            if quick, size == logSize, Date().timeIntervalSince(lastLook) < 2 { continue }
+            logSize = size
+            let log = SteamBootstrap.log(steamRoot: Engine.steamRoot)
+            let bootstrap = SteamBootstrap(log: log)
+            let clientInstalled = SteamBootstrap.clientInstalled(steamRoot: Engine.steamRoot)
+            // The 64-bit client's packages, fetched ahead: between the 32-bit step's clean-up and
+            // the next bootstrapper looking for them.
+            if let prefetch, !clientPackagesPlaced, SteamBootstrap.clientPackagesDue(log: log) {
+                clientPackagesPlaced = true
+                prefetch.stop()
+                prefetch.place(.win64, into: Engine.steamRoot.appendingPathComponent("package", isDirectory: true))
+            }
+            // Steam's first update unpacks its browser, and the new client starts it – Valve's,
+            // unwrapped, i.e. black. The wrapper goes in once the update is in (never during the
+            // install: that cut it off, and Steam started over every 13 s) and the new start has
+            // checked Steam's files (before, the check put Valve's helper back): then the client
+            // starts the wrapper itself. Steam is restarted only when Valve's already runs.
+            // Off the main thread like every file copy of the engine's: a copy waiting on a busy disk
+            // doesn't hold the window up (in a scratch home the setup stood still for 12 minutes once,
+            // Time Machine busy at the time; 30.10.2026).
+            let verified = clientInstalled && SteamBootstrap.verified(log: log)
+            if verified, await Engine.offMain({ Engine.installWebHelperWrapper() }) { swappedAt = Date() }
+            quick = !verified && (bootstrap == .installing || bootstrap == .updated || clientInstalled)
+            // Only a new line redraws the checklist: in the quick phase the log is read up to 20 times a second.
+            let line = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
+            if line != detail { detail = line }
+            guard Date().timeIntervalSince(lastLook) >= 2 else { continue }
+            lastLook = Date()
+
             if Engine.isSteamSignedIn {
                 progress = nil
                 finish()
                 return
             }
-            // Steam's first update unpacks its browser, and the new client starts it – Valve's,
-            // unwrapped, i.e. black. Once the update is in and the new client runs (never during
-            // the install: that cut it off, and Steam started over every 13 s), the wrapper goes in.
-            // A client that hasn't started its browser yet starts the wrapper itself; Steam is
-            // restarted only when Valve's already runs.
-            let log = SteamBootstrap.log(steamRoot: Engine.steamRoot)
-            let bootstrap = SteamBootstrap(log: log)
-            let clientInstalled = SteamBootstrap.clientInstalled(steamRoot: Engine.steamRoot)
-            detail = SetupDetail.steam(log: log, clientInstalled: clientInstalled)
-            if bootstrap == .idle, clientInstalled {
-                if Engine.installWebHelperWrapper() { swappedAt = Date() }
-                if let swappedAt, await Engine.offMain({ Engine.unwrappedWebHelperRunning(swappedAt: swappedAt) }) {
-                    restarts += 1
-                    guard restarts <= 5 else { throw SetupError.steamWontStart }
-                    try await restartSteam(wine)
-                    lastRestart = Date()
-                    continue
-                }
+            // The wrapper came a moment late, and Valve's browser runs: it goes, and the client starts
+            // the wrapper in its place.
+            if bootstrap == .idle, clientInstalled, let swappedAt,
+               await Engine.offMain({ Engine.unwrappedWebHelperRunning(swappedAt: swappedAt) }) {
+                try await restartBrowser()
+                continue
             }
             if Engine.isSteamWaitingForSignIn(since: start) {
                 progress = nil
@@ -437,28 +503,70 @@ final class SetupModel: ObservableObject {
                 return
             }
 
+            // Its browser hung on the way up: started again at once rather than after the 20 s below.
+            let current = SteamBrowser(steamRoot: Engine.steamRoot)
+            if browser.hung(current) {
+                try await restartBrowser()
+                continue
+            }
+            if browser.relaunchOverdue(current) {
+                try await restart()
+                continue
+            }
+
             let update = Engine.steamUpdateStatus()
             progress = update.fraction
             let quiet = update.lastChange.map { Date().timeIntervalSince($0) } ?? 0
             let sinceRestart = Date().timeIntervalSince(lastRestart)
+            // A client that has started a browser is up, whatever console_log says yet (it writes
+            // late); a browser that hangs is SteamBrowser's to handle.
             let stalled = bootstrap.stalled(quietFor: quiet, sinceRestart: sinceRestart, clientInstalled: clientInstalled,
-                                            clientStarted: SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
-            let gone = bootstrap.gone(steamRunning: Engine.isSteamRunning, sinceRestart: sinceRestart, quietFor: quiet)
-
-            if stalled || gone {
-                restarts += 1
-                guard restarts <= 5 else { throw SetupError.steamWontStart }
-                try await restartSteam(wine)
-                lastRestart = Date()
-            }
+                                            clientStarted: browser.seen || SteamBootstrap.clientStarted(steamRoot: Engine.steamRoot))
+            let steamRunning = await Engine.offMain { Engine.isSteamRunning }
+            let gone = bootstrap.gone(steamRunning: steamRunning, sinceRestart: sinceRestart, quietFor: quiet)
+            if stalled || gone { try await restart() }
         }
     }
 
+    /// Steam's update, fetched while Windows was set up (SteamPrefetch): the 32-bit step's packages
+    /// go into Steam's package folder before its first start. Still coming down, they're waited
+    /// for – Steam would fetch the same itself – unless nothing has moved for 20 s; Steam fetches
+    /// whatever isn't there.
+    private func placeSteamUpdate(_ prefetch: SteamPrefetch) async {
+        var rate = DownloadRate()
+        var lastDone: Int64 = -1
+        var lastMove = Date()
+        while !Task.isCancelled {
+            let state = prefetch.progress(.win32)
+            if state.over { break }
+            if state.done != lastDone {
+                lastDone = state.done
+                lastMove = Date()
+            } else if Date().timeIntervalSince(lastMove) > 20 {
+                prefetch.stop()
+                break
+            }
+            rate.add(bytes: Double(state.done))
+            if state.total > 0 {
+                progress = Double(state.done) / Double(state.total)
+                detail = SetupDetail.steamUpdate(done: state.done, total: state.total, bytesPerSecond: rate.bytesPerSecond)
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        progress = nil
+        prefetch.place(.win32, into: Engine.steamRoot.appendingPathComponent("package", isDirectory: true))
+    }
+
+    nonisolated private static func bootstrapLogSize() -> Int64 {
+        let log = Engine.steamRoot.appendingPathComponent("logs/bootstrap_log.txt")
+        return ((try? FileManager.default.attributesOfItem(atPath: log.path))?[.size] as? NSNumber)?.int64Value ?? -1
+    }
+
     /// Ends everything of Steam's and starts it again, once all of it is gone (up to 10 s). Before
-    /// anyone signed in, Steam's browser cache goes too: the first client after the update starts
-    /// Valve's browser, which lays the cache down; ended a few seconds in, it left it so that the
-    /// next browser hung while reading it – after "This is Chrome version", every time (29.10.2026,
-    /// all three runs; the start after that worked). Before the sign-in nothing is in it.
+    /// anyone signed in, Steam's browser cache goes too: the first browser after Valve's had been
+    /// ended hung after "This is Chrome version", and the cache it laid down looked like the cause –
+    /// clearing it didn't stop that (29.10.2026, run 5; SteamBrowser restarts a hung one early now).
+    /// Before the sign-in nothing is in it.
     private func restartSteam(_ wine: URL) async throws {
         detail = L10n.t("Restarting Steam …")
         await Engine.offMain { Engine.stopAll(wine) }

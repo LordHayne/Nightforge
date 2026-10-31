@@ -1,0 +1,6 @@
+[404:408:1029/213640.648:WARNING:chrome_main_delegate.cc(748)] This is Chrome version 126.0.6478.183 (not a warning)
+[404:408:1029/213640.903:ERROR:network_change_notifier_win.cc(268)] WSALookupServiceBegin failed with: 8
+[404:408:1029/213705.262:WARNING:chrome_main_delegate.cc(748)] This is Chrome version 126.0.6478.183 (not a warning)
+[404:408:1029/213705.545:ERROR:network_change_notifier_win.cc(268)] WSALookupServiceBegin failed with: 8
+[404:408:1029/213705.753:ERROR:system_network_context_manager.cc(885)] Cannot use V8 Proxy resolver in single process mode.
+[404:408:1029/213705.871:WARNING:account_consistency_mode_manager.cc(77)] Desktop Identity Consistency cannot be enabled as no OAuth client ID and client secret have been configured.

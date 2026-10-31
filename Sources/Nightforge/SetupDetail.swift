@@ -64,6 +64,12 @@ enum SetupDetail {
         }
     }
 
+    /// Steam's update as Nightforge fetches it ahead (SteamPrefetch), when it's still coming down
+    /// as Steam is about to start.
+    static func steamUpdate(done: Int64, total: Int64, bytesPerSecond: Double?) -> String {
+        L10n.t("Downloading Steam's update: %@", transfer(done: done, total: total, bytesPerSecond: bytesPerSecond))
+    }
+
     /// Steam's own update, from its bootstrap log: which of its two packages (the 32-bit step first,
     /// then the 64-bit client), how far and how fast – the speed from the log's own stamps.
     static func steam(log: String, clientInstalled: Bool) -> String {
