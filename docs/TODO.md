@@ -144,6 +144,19 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
   in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
   Mac-Spielen damit noch aufgeht.
+- **Hängendes Spiel vom Sofa aus beenden** (Nutzer, 31.10., gesehen mit Left 4 Dead 2: Prozess lief weiter mit
+  ~100 % CPU, Bild stand. „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
+  - **Von Hand:** PS-/Guide-Taste 2 s gedrückt halten. Nightforge kommt nach vorne mit „<Spiel> beenden?“,
+    A bestätigt, B bricht ab. Nightforge beendet dann das Spiel samt Prozessbaum (Windows: das Programm unter
+    `\steamapps\common\` bzw. `\GOG Games\`, notfalls `wineserver -k` für die Spielsitzung; Mac: das Spiel-Programm),
+    räumt auf wie nach einem normalen Ende und zeigt wieder die Spielseite.
+  - **Von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
+    oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge dasselbe an, ohne zu
+    raten, wenn ein Ladebildschirm nur lange dauert.
+  - **Technik:** Nightforge bekommt die Taste auch im Hintergrund über `GCController.shouldMonitorBackgroundEvents`
+    (macOS 11.3+). Kollidiert nicht mit Steams Guide-Taste (siehe `SteamGuideButton` oben); macOS selbst kann die
+    Home-Taste für Launchpad oder die Spiele-App belegen, also auf macOS 26/27 prüfen, ob „gedrückt halten“ frei ist.
+  - Für den Release 0.3.0 wichtig, weil der TV-Modus ohne Maus und Tastatur auskommen soll.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
