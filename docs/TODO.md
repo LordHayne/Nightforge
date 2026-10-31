@@ -107,6 +107,23 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
   - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
   - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
+- **L1/R1 wechseln zwischen Startseite und Bibliothek** (Nutzer, 31.10., beschlossen, baut der Koordinator nach dem
+  2.5-Merge):
+  - L1 führt immer zur Startseite, R1 immer zur Bibliothek. Kein Umschalten, die Richtung steht fest.
+  - Neben dem Schalter „Startseite | Bibliothek“ stehen kleine Chips „L1“/„R1“, bei Xbox-Pads „LB“/„RB“.
+  - Der Sprung um fünf Spiele (`model.move(±5)` in `InputRouter`) fällt weg. L2/R2 bleiben erstes/letztes Spiel, ☰ bleibt
+    zweiter Weg.
+  - Die Beschriftungen im Controller-Test (`PadDrawing`: „Five games back/on“) passen mit an.
+- **Suche mit dem Controller** (Nutzer, 31.10., Idee, noch nicht besprochen): Heute erreicht man die Suche nur mit der
+  Tastatur (⌘F oder /). Möglichkeiten:
+  - Buchstaben-Sprung ohne Tippen: Bei Sortierung „Name“ springt eine Taste plus Stick oder Steuerkreuz von A nach B
+    nach C, eine Buchstabenleiste am Rand zeigt, wo man ist. Klein, wie in Konsolen-Bibliotheken.
+  - Eigene Bildschirmtastatur aus Glas: Eine Taste öffnet die Suche, zum Beispiel ⧉ Create/Ansicht. Eine kompakte
+    ABC-Tastatur, die man mit dem Steuerkreuz bedient. A tippt, B löscht, die Treffer laufen live mit. Weil
+    „rdr2“/„bg3“ schon gehen, reichen meist 2–3 Buchstaben.
+  - Sprachsuche über das Mac-Mikrofon (Taste halten und Spielnamen sagen, `SFSpeechRecognizer`): bequem, braucht aber
+    eine Freigabe von macOS. Eher später.
+  - Empfehlung: Buchstaben-Sprung und Bildschirmtastatur zusammen, Sprache später.
 
 ## Darstellung und Leistung
 
