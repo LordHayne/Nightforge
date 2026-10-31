@@ -7,6 +7,32 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Nächster Release (0.3.0)
+
+Der Nutzer, 31.10.: „Wenn wir die großen Brocken abgearbeitet haben, brauchen wir einen Stand für einen Release.“
+Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem lokalen Integrationszweig
+`claude/ux-roadmap-next`, nichts davon gepusht.
+
+- **Vorher fertig (jeweils live getestet, gemergt mit OK des Nutzers):**
+  - 2.5 größere Schrift: erledigt (a55040a).
+  - GOG 7.3: offen ist der Live-Test von Mafia II auf „Automatisch“. Danach mergen, mit 4 Schrift-Konflikten
+    gegen 2.5.
+  - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
+  - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
+  - Reichere Spieldaten, Phase 2, in zwei Teilen.
+  - Testabdeckung (Session test-coverage).
+  - Landingpage und README.
+- **Release-Stand einfrieren:**
+  - Alle Testreihen grün.
+  - Ersteinrichtung mit leerem HOME (`build/fh`, siehe Notizen zum Fresh-Setup-Test).
+  - Kurzer Live-Durchlauf: Windows-Spiel über Steam, Mac-Version, Epic, GOG, TV.
+  - Version 0.2.1-dev → 0.3.0.
+  - Release-Notizen seit v0.2.0 auf Deutsch und Englisch.
+- **Veröffentlichen, nur mit ausdrücklichem OK des Nutzers:**
+  - Integrationszweig pushen und über einen PR nach `main` bringen.
+  - Tag `v0.3.0` löst `release.yml` aus.
+  - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
+
 ## Nach dem Engine-Wechsel neu prüfen
 
 Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR #7 läuft winecx 4.7.3.
