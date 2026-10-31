@@ -80,14 +80,14 @@ private struct StoresSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Steam")
                         Text(steamStatus)
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
                 EpicStoreRow(epic: model.epic)
             } footer: {
                 Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed. You sign in in Epic's own window; Nightforge never sees your login."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,12 +101,12 @@ private struct StoresSettings: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(L10n.t("CrossOver, Whisky and your own Wine"))
                             Text(L10n.t("Only needed to also show games from your own bottles."))
-                                .font(.caption)
+                                .font(size: 10)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(size: 12, weight: .semibold, scales: false)
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(showsOwnWine ? 90 : 0))
                     }
@@ -129,7 +129,7 @@ private struct StoresSettings: View {
                         .labelsHidden()
                 }
                 Text(L10n.t("Nightforge brings everything it needs. Fill this in only to also show games from CrossOver or Whisky bottles: leave Wine empty for CrossOver, or enter the path to the wine binary of Whisky or your own Wine."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(L10n.t("Rescan Library")) { model.reload() }
@@ -182,7 +182,7 @@ private struct EpicStoreRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Provider.epic.label)
                     status
-                        .font(.caption)
+                        .font(size: 10)
                 }
             }
             if epic.connecting {
@@ -192,7 +192,7 @@ private struct EpicStoreRow: View {
                     Text(L10n.t("Epic Games' sign-in page is open in a window. Once you're signed in, your games appear here by themselves."))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.system(size: 12.5))
+                .font(size: 12.5)
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -241,6 +241,7 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.Keys.notifyDownloads) private var notifyDownloads = true
     @AppStorage(Prefs.Keys.saveBattery) private var saveBattery = false
     @AppStorage(Prefs.Keys.reduceMotion) private var reduceMotionSetting = ""
+    @AppStorage(Prefs.Keys.largerText) private var largerText = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     var body: some View {
@@ -256,7 +257,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Sharp & smooth"))
                         Text(L10n.t("Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -265,7 +266,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Game Mode"))
                         Text(L10n.t("Gives games priority on the CPU and graphics and halves Bluetooth latency for controllers and headphones. Turn it off if a game's sound crackles."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -275,7 +276,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Save battery when unplugged"))
                         Text(L10n.t("On battery, games are capped at 30 FPS so the battery lasts longer. Plugged in, everything runs at full speed. Takes effect at the next game start."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -284,7 +285,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Performance HUD in games"))
                         Text(L10n.t("Shows frames per second and frame times while you play. Takes effect at the next game start."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -294,7 +295,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Notify me when downloads finish"))
                         Text(L10n.t("A macOS notification with a Play button while Nightforge is in the background. Your last five games are in the Dock menu, too."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -312,11 +313,20 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Reduce motion"))
                         Text(L10n.t("No zoom on covers, no sliding – plain cross-fades. Follows “Reduce motion” in macOS until you change it here."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padFocus("settings.reduceMotion", toggle: reduceMotion)
+                Toggle(isOn: $largerText) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Larger text"))
+                        Text(L10n.t("All of Nightforge's text one step larger, from the library to the dialogs."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padFocus("settings.largerText", toggle: $largerText)
             } header: {
                 SectionTitle(L10n.t("Accessibility"))
             }
@@ -367,7 +377,7 @@ private struct ControllerSettings: View {
                 .padFocus("settings.pair", cornerRadius: 15, activate: pair)
             if pairing {
                 Text(L10n.t("PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -390,20 +400,20 @@ private struct ControllerSettings: View {
     private func padRow(_ pad: GCController) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "gamecontroller")
-                .font(.system(size: 16, weight: .semibold))
+                .font(size: 16, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.sodium)
             VStack(alignment: .leading, spacing: 3) {
                 Text(pad.vendorName ?? pad.productCategory)
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(size: 13.5, weight: .semibold)
                 Text(L10n.t("Connected · works in every game and in Nightforge"))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             if let battery = pad.battery, battery.batteryState != .unknown {
                 Label("\(Int((battery.batteryLevel * 100).rounded())) %",
                       systemImage: battery.batteryState == .charging ? "battery.100.bolt" : Self.batterySymbol(battery.batteryLevel))
-                    .font(.system(size: 12).monospacedDigit())
+                    .font(size: 12).monospacedDigit()
                     .foregroundStyle(battery.batteryLevel < 0.2 && battery.batteryState != .charging ? Theme.sodium : .secondary)
                     .help(L10n.t("Controller battery"))
             }
@@ -504,16 +514,16 @@ private struct StorageSettings: View {
                             legend("Nightforge", ownSize, Theme.storageNightforge)
                         } else {
                             HStack(spacing: 6) { GlassSpinner(size: 12); Text(L10n.t("Measuring Nightforge …")) }
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(size: 10).foregroundStyle(.secondary)
                         }
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
                         Text(L10n.t("%@ free", Format.bytes(disk.free)))
-                            .font(.caption.monospacedDigit())
+                            .font(size: 10).monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
                     Text(L10n.t("“Nightforge” is the game engine, the Windows environment and Steam itself – everything besides the games."))
-                        .font(.caption)
+                        .font(size: 10)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
@@ -541,11 +551,11 @@ private struct StorageSettings: View {
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
                         Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName)
-                            .font(.caption.monospacedDigit())
+                            .font(size: 10).monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
                     if let note = drive.check.note(drive.name) {
-                        Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        Text(note).font(size: 10).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                     if games.isEmpty {
                         Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
@@ -583,7 +593,7 @@ private struct StorageSettings: View {
                         Text(L10n.t("Shader caches"))
                         Text(gameBusy ? L10n.t("Quit the game first – it's using them.")
                                       : L10n.t("Rebuilt by itself – the next start of each game takes a moment longer."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -599,11 +609,11 @@ private struct StorageSettings: View {
                         .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
                     if measuringRemoval || removing {
                         GlassSpinner()
-                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(.caption).foregroundStyle(.secondary)
+                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(size: 10).foregroundStyle(.secondary)
                     }
                 }
                 Text(L10n.t("Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -665,7 +675,7 @@ private struct StorageSettings: View {
                 Text(game.name).lineLimit(1)
                 Text(model.move?.game.id == game.id ? L10n.t("Moving …")
                      : game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
             }
         }
@@ -746,7 +756,7 @@ private struct StorageSettings: View {
             Circle().fill(color).frame(width: 8, height: 8)
             Text("\(title) \(Format.bytes(bytes))").monospacedDigit()
         }
-        .font(.caption)
+        .font(size: 10)
     }
 
     private func reveal(_ game: Game) {
@@ -808,7 +818,7 @@ private struct AboutSettings: View {
                         Text(L10n.t("No account. No telemetry. No background service."))
                             .fontWeight(.semibold)
                         Text(L10n.t("Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -821,13 +831,13 @@ private struct AboutSettings: View {
 
             Section {
                 Text(L10n.t("Nightforge is free software under the GPL-3.0. It stands on these projects – thank you to everyone behind them. Their licence files ship inside the app."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(credits) { credit in
                     LabeledContent {
                         Text(credit.license)
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 220, alignment: .trailing)
@@ -836,10 +846,10 @@ private struct AboutSettings: View {
                             HStack(spacing: 6) {
                                 Text(credit.name)
                                 if let version = credit.version {
-                                    Text(version).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                                    Text(version).font(size: 10).foregroundStyle(.secondary).monospacedDigit()
                                 }
                             }
-                            Text(credit.role).font(.caption).foregroundStyle(.secondary)
+                            Text(credit.role).font(size: 10).foregroundStyle(.secondary)
                         }
                     }
                 }

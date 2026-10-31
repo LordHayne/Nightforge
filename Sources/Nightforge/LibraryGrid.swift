@@ -103,10 +103,10 @@ struct LibraryGrid: View {
                             VStack(alignment: .leading, spacing: 18) {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                                     Text(section.title)
-                                        .font(Theme.display(19))
+                                        .displayFont(19)
                                         .foregroundStyle(Theme.ink)
                                     Text("\(section.items.count)")
-                                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                                        .font(size: 13, weight: .semibold).monospacedDigit()
                                         .foregroundStyle(Theme.muted)
                                 }
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 30) {
@@ -163,12 +163,12 @@ private struct GridCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 // The level's own icon (each has a different one), named for VoiceOver and on hover.
                 Image(systemName: compatibility.level.symbol)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(size: 11, weight: .semibold)
                     .foregroundStyle(compatibility.level.color)
                     .help(compatibility.level.label)
                     .accessibilityLabel(compatibility.level.label)
                 Text(game.name)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    .font(size: 13, weight: isSelected ? .semibold : .medium)
                     .foregroundStyle(isSelected ? Theme.ink : Theme.muted)
                     .lineLimit(2)
             }
@@ -188,24 +188,24 @@ struct LibraryToolbar: View {
             HeaderRow {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(model.showingHidden ? L10n.t("Hidden games") : L10n.t("Library"))
-                        .font(Theme.display(26))
+                        .displayFont(26)
                         .foregroundStyle(Theme.ink)
                     Text(countText)
-                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .font(size: 13, weight: .semibold).monospacedDigit()
                         .foregroundStyle(Theme.muted)
                     if !model.showingHidden {
                         // Redrawn every half minute, so "2 min ago" moves on by itself.
                         TimelineView(.periodic(from: .now, by: 30)) { context in
                             if let fresh = ScanFreshness.text(lastScan: model.lastScan, scanning: model.isScanning, now: context.date) {
                                 Text("· " + fresh)
-                                    .font(.system(size: 12.5).monospacedDigit())
+                                    .font(size: 12.5).monospacedDigit()
                                     .foregroundStyle(Theme.muted.opacity(0.8))
                             }
                         }
                     }
                     if model.showingHidden {
                         Text(L10n.t("Open a game to bring it back."))
-                            .font(.system(size: 13, weight: .medium))
+                            .font(size: 13, weight: .medium)
                             .foregroundStyle(Theme.muted)
                             .lineLimit(1)
                     }
@@ -220,7 +220,7 @@ struct LibraryToolbar: View {
                     }
                     if !model.showingHidden {
                         Text(L10n.t("Sort"))
-                            .font(.system(size: 13, weight: .medium))
+                            .font(size: 13, weight: .medium)
                             .foregroundStyle(Theme.muted)
                             .fixedSize()
                         Segmented(options: LibraryFilters.Sort.allCases.map { ($0, $0.label, nil) }, selection: model.filters.sort,
@@ -319,16 +319,17 @@ private struct HeaderRow: Layout {
 private struct LibrarySearchField: View {
     @EnvironmentObject private var model: LibraryModel
     @FocusState private var focused: Bool
+    @Environment(\.textScale) private var textScale
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .semibold))
+                .font(size: 13, weight: .semibold)
                 .foregroundStyle(Theme.muted)
             TextField("", text: $model.searchText,
                       prompt: Text(L10n.t("Search – try “rdr2” or “bg3”")).foregroundStyle(Theme.muted))
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(size: 14)
                 .foregroundStyle(Theme.ink)
                 .focused($focused)
                 .onSubmit { focused = false }
@@ -344,7 +345,7 @@ private struct LibrarySearchField: View {
                     model.searchText = ""
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(size: 8, weight: .bold, scales: false)
                         .foregroundStyle(Theme.ink.opacity(0.8))
                         .frame(width: 20, height: 20)
                         .background(Color.white.opacity(0.15), in: Circle())
@@ -354,14 +355,14 @@ private struct LibrarySearchField: View {
                 .accessibilityLabel(L10n.t("Clear search"))
             } else {
                 Text("⌘F")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(size: 11, weight: .semibold)
                     .foregroundStyle(Theme.muted)
                     .accessibilityHidden(true)
             }
         }
         .padding(.leading, 14)
         .padding(.trailing, 10)
-        .frame(minWidth: 180, idealWidth: 300, maxWidth: 300)
+        .frame(minWidth: 180, idealWidth: 300 * textScale, maxWidth: 300 * textScale)
         .frame(height: 38)
         .background(GlassBackground(glass: .regular, shape: Capsule()))
         .overlay(Capsule().strokeBorder(Theme.sodium.opacity(focused || !model.searchText.isEmpty ? 0.8 : 0), lineWidth: 1.5))
@@ -402,7 +403,7 @@ struct Segmented<Value: Hashable>: View {
                             Text("\(count)").monospacedDigit().foregroundStyle(on ? Theme.night.opacity(0.6) : Theme.muted)
                         }
                     }
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(size: 13, weight: .semibold)
                     .foregroundStyle(on ? Theme.night : Theme.ink.opacity(0.8))
                     .padding(.horizontal, 12)
                     .frame(maxHeight: .infinity)
@@ -435,7 +436,7 @@ struct FilterToggle: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 12, weight: .semibold))
+                Image(systemName: symbol).font(size: 12, weight: .semibold)
                 Text(title)
                 if let count {
                     Text("\(count)")
@@ -443,7 +444,7 @@ struct FilterToggle: View {
                         .foregroundStyle(on ? Theme.night.opacity(0.6) : Theme.muted)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(size: 13, weight: .semibold)
             .foregroundStyle(on ? Theme.night : Theme.ink.opacity(0.85))
             .padding(.horizontal, 13)
             .frame(height: 32)

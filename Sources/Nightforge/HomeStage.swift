@@ -128,7 +128,7 @@ struct HomeStage: View {
         HStack(spacing: 16) {
             StageArrow(symbol: "chevron.left", help: L10n.t("Previous game"), disabled: place == 0) { model.move(-1) }
             Text(L10n.t("%@ · %ld of %ld", section, place + 1, count))
-                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                .font(size: 13, weight: .medium).monospacedDigit()
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
                 .frame(minWidth: 220)
@@ -166,7 +166,7 @@ private struct StageCover: View {
                 LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
                 if front {
                     Text(game.name)
-                        .font(Theme.display(22))
+                        .displayFont(22)
                         .foregroundStyle(Theme.ink.opacity(0.9))
                         .multilineTextAlignment(.center)
                         .padding(20)
@@ -179,7 +179,7 @@ private struct StageCover: View {
         .overlay(alignment: .topTrailing) {
             if front && game.platform == .mac {
                 Text("MAC")
-                    .font(.system(size: 10.5, weight: .heavy).width(.expanded))
+                    .displayFont(10.5)
                     .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
@@ -190,7 +190,7 @@ private struct StageCover: View {
         .overlay(alignment: .bottomLeading) {
             if front && game.controller != .none {
                 Image(systemName: game.controller == .full ? "gamecontroller.fill" : "gamecontroller")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(size: 16, weight: .bold, scales: false)
                     .foregroundStyle(game.controller == .full ? Theme.sodium : Theme.ink.opacity(0.8))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
@@ -231,19 +231,19 @@ private struct AllGamesStageTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: "square.grid.2x2")
-                .font(.system(size: 34, weight: .semibold))
+                .font(size: 34, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.ink.opacity(0.85))
             Spacer()
             Text(L10n.t("All %ld games", count))
-                .font(Theme.display(26))
+                .displayFont(26)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
             HStack(spacing: 4) {
                 Text(L10n.t("In your library"))
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold))
+                Image(systemName: "chevron.right").font(size: 11, weight: .bold)
             }
-            .font(.system(size: 14, weight: .medium))
+            .font(size: 14, weight: .medium)
             .foregroundStyle(Theme.muted)
             .padding(.top, 6)
         }
@@ -267,7 +267,7 @@ private struct StageArrow: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .bold))
+                .font(size: 12, weight: .bold, scales: false)
                 .foregroundStyle(Theme.ink)
                 .frame(width: 34, height: 34)
         }

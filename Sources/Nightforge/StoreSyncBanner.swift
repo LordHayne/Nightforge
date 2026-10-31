@@ -23,7 +23,7 @@ struct StoreSyncBanner: View {
                         .foregroundStyle(Theme.ink.opacity(0.9))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.system(size: 13, weight: .medium))
+                .font(size: 13, weight: .medium)
                 if epic.sync.state == .signedOut {
                     actionButton(L10n.t("Sign In Again"), symbol: "person.crop.circle.badge.checkmark") { model.connectEpic() }
                 } else if epic.sync.failed {
@@ -53,7 +53,7 @@ struct StoreSyncBanner: View {
     private func actionButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(.system(size: 13, weight: .semibold))
+                .font(size: 13, weight: .semibold)
                 .foregroundStyle(Theme.sodium)
         }
         .buttonStyle(.plain)

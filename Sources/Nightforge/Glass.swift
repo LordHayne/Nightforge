@@ -111,7 +111,7 @@ struct GlassTextButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let tint = destructive ? Theme.danger : prominent ? Theme.sodium : nil
         GlassControl(label: configuration.label
-                        .font(.system(size: small ? 12.5 : 14, weight: .semibold))
+                        .font(size: small ? 12.5 : 14, weight: .semibold)
                         .foregroundStyle(tint != nil ? Theme.night : Theme.ink)
                         .padding(.horizontal, small ? 14 : 22)
                         .frame(height: small ? 30 : 42),
@@ -261,7 +261,7 @@ struct GlassDialogHeader: View {
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             Text(title)
-                .font(Theme.display(22))
+                .displayFont(22)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
@@ -280,7 +280,7 @@ struct GlassCloseButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
+                .font(size: 12, weight: .bold, scales: false)
                 .foregroundStyle(Theme.ink.opacity(0.8))
                 .frame(width: 32, height: 32)
         }
@@ -310,7 +310,7 @@ struct GlassQuestion<Buttons: View>: View {
     var body: some View {
         GlassDialog(title, id: id, width: 460) {
             Text(message)
-                .font(.system(size: 14))
+                .font(size: 14)
                 .lineSpacing(3)
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
@@ -331,7 +331,7 @@ struct SectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 11, weight: .semibold))
+            .font(size: 11, weight: .semibold)
             .tracking(1.6)
             .textCase(.uppercase)
             .foregroundStyle(Theme.muted)
@@ -378,7 +378,7 @@ struct GlassCheckboxStyle: ToggleStyle {
                 .overlay {
                     if configuration.isOn {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(size: 10, weight: .heavy, scales: false)
                             .foregroundStyle(Theme.night)
                     }
                 }
@@ -407,7 +407,7 @@ struct GlassTextField: View {
     var body: some View {
         TextField("", text: $text, prompt: Text(prompt).foregroundStyle(Theme.muted.opacity(0.7)))
             .textFieldStyle(.plain)
-            .font(.system(size: 14, design: monospaced ? .monospaced : .default))
+            .font(size: 14, design: monospaced ? .monospaced : .default)
             .foregroundStyle(Theme.ink)
             .focused($focused)
             .padding(.horizontal, 14)

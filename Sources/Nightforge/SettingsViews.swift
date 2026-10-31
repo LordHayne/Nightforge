@@ -103,12 +103,12 @@ private extension GameOptionsSheet {
                 VStack(alignment: .leading, spacing: 3) {
                     if let origin {
                         Label(origin.text, systemImage: origin.symbol)
-                            .font(.system(size: 13.5, weight: .medium))
+                            .font(size: 13.5, weight: .medium)
                             .help(origin.note ?? origin.text)
                     }
                     if options != GameOptions() {
                         Text(L10n.t("Your own settings."))
-                            .font(.system(size: 12.5))
+                            .font(size: 12.5)
                             .foregroundStyle(Theme.muted)
                     }
                 }
@@ -156,7 +156,7 @@ private extension GameOptionsSheet {
             }
             if options.preset == .custom {
                 Label(GraphicsPreset.custom.help, systemImage: "slider.horizontal.3")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(size: 12.5, weight: .medium)
                     .foregroundStyle(Theme.ink.opacity(0.85))
             }
         }
@@ -169,15 +169,15 @@ private extension GameOptionsSheet {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(preset.label)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(size: 13.5, weight: .semibold)
                     if preset == .automatic {
                         Text(L10n.t("recommended"))
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(size: 11, weight: .semibold)
                             .foregroundStyle(on ? Theme.night.opacity(0.6) : Theme.muted)
                     }
                 }
                 Text(preset.help)
-                    .font(.system(size: 12))
+                    .font(size: 12)
                     .lineSpacing(1)
                     .foregroundStyle(on ? Theme.night.opacity(0.75) : Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -198,10 +198,10 @@ private extension GameOptionsSheet {
             Button(action: toggleExpert) {
                 HStack(spacing: 8) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(size: 11, weight: .bold)
                         .rotationEffect(.degrees(expertOpen ? 90 : 0))
                     Text(L10n.t("Expert options"))
-                        .font(.system(size: 14, weight: .medium))
+                        .font(size: 14, weight: .medium)
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(Theme.ink.opacity(0.9))
@@ -275,13 +275,13 @@ private extension GameOptionsSheet {
 
 private extension GameOptionsSheet {
     func title(_ text: String) -> some View {
-        Text(text).font(.system(size: 14, weight: .medium))
+        Text(text).font(size: 14, weight: .medium)
     }
 
     /// What an option means, under it.
     func caption(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12.5))
+            .font(size: 12.5)
             .foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -289,9 +289,9 @@ private extension GameOptionsSheet {
     /// A switch's name with what it does, like the switches in Settings.
     func switchLabel(_ title: String, _ help: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.system(size: 14, weight: .medium))
+            Text(title).font(size: 14, weight: .medium)
             Text(help)
-                .font(.system(size: 12.5))
+                .font(size: 12.5)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
