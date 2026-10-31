@@ -166,6 +166,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   blockiert, 9 sind reine DX12-Spiele (jetzt Kandidaten für D3DMetal).
 - **Launcher-Spiele** sind ungeprüft: EA app (Sims 4, FC), Rockstar Launcher (GTA V, RDR2),
   Battle.net (Overwatch), REDlauncher (Witcher 3, startet DX12 als Standard).
+  - **Rockstar Games Launcher unbedingt testen** (Nutzer, 31.10., „wenn wir Zeit haben“): Geht ein
+    Rockstar-Spiel über Steam oder Epic nahtlos, also Launcher-Installation, Anmeldung, Start und Rückkehr zu
+    Nightforge, ohne dass der Nutzer den Launcher sieht oder bedienen muss? Bei Epic beachten: Rockstar-Spiele
+    erwarten `EpicGamesLauncher.exe` als Elternprozess (siehe Epic-Abschnitt).
 - **Rocket League:** Die Startoption ohne Anti-Cheat nutzt ein anderes Programm (`RocketLeague.exe`).
   `SteamCatalog.antiCheatOffArguments` übernimmt aber nur Optionen mit demselben Programm. Die Mac-Version ist
   der Stand von 2020 ohne Online-Spiel.
