@@ -999,6 +999,7 @@ enum L10n {
         // Epic: size before the download
         "Checking the size …": "Größe wird geprüft …",
         "On your Mac": "Auf dem Mac",
+        "On %@": "Auf %@",
         "Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept.":
             "Platz schaffen – diese wurden länger nicht gespielt. Sie bleiben in der Bibliothek ihres Stores, Spielstände in dessen Cloud bleiben erhalten.",
         "There's still not enough space: %@ needs %@, your Mac has %@ free.": "Noch immer zu wenig Platz: %@ braucht %@, dein Mac hat %@ frei.",

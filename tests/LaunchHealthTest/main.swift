@@ -92,6 +92,19 @@ struct LaunchHealthTest {
         check(LaunchHealth.current(app, ladder).index == 1, "0.2's \"DXMT failed\" carries over")
         check(UserDefaults.standard.object(forKey: "health.dxmtFailed.\(app.key)") == nil, "the old key is gone")
 
+        // MARK: What a game taught Nightforge (kept under a game ID no store has, removed again)
+        let taught = GameID.steam(990_003)
+        LearnedFixes.addWinetricks(["vcrun2019", "d3dx9"], for: taught)
+        LearnedFixes.addWinetricks(["d3dx9", "xact"], for: taught)
+        check(LearnedFixes.winetricks(taught) == ["vcrun2019", "d3dx9", "xact"], "runtimes it needed, each once, in the order found")
+        check(LearnedFixes.lastLaunchMark(taught) == nil, "no start noted yet")
+        LearnedFixes.setLastLaunch(taught, logMark: 123_456_789_012)
+        check(LearnedFixes.lastLaunchMark(taught) == 123_456_789_012, "where its last start begins in the log, past 32 bits too")
+        for key in ["learned.winetricks.\(taught.key)", "learned.logMark.\(taught.key)"] { UserDefaults.standard.removeObject(forKey: key) }
+        let dx11 = LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])
+        check(dx11.label == GraphicsLayer.dxvk.label + " -dx11" && dx11.shortLabel == GraphicsLayer.dxvk.shortLabel + " -dx11"
+              && LaunchAttempt(graphics: .dxmt).label == GraphicsLayer.dxmt.label, "a way's name says its layer and what's added")
+
         // MARK: Review from Steam's log
         let steam = FileManager.default.temporaryDirectory.appendingPathComponent("lht-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: steam.appendingPathComponent("logs"), withIntermediateDirectories: true)

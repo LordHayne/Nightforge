@@ -706,6 +706,13 @@ final class LibraryModel: ObservableObject {
         NSRunningApplication(processIdentifier: pid)?.activate(options: [.activateAllWindows])
     }
 
+    /// The player asked to rescan (⌘R, the button): the stores are asked again too, not only once
+    /// their 15 minutes are up – a sign-in that ran out or came back shows at once.
+    func rescan() {
+        refreshStores(force: true)
+        reload()
+    }
+
     /// `quiet` refreshes without the scanning indicator (used for download progress).
     func reload(quiet: Bool = false) {
         if !quiet { isScanning = true }

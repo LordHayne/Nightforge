@@ -1,5 +1,6 @@
-// Checks iniSettings, fileEdits with a Windows root or `once`, and the Retina mode a profile asks
-// for: tests/ProfileFilesTest/run.sh
+// Checks iniSettings, fileEdits with a Windows root or `once`, the Retina mode a profile asks
+// for, and the profile list Nightforge keeps (ProfileStore, in a home of the test's own):
+// tests/ProfileFilesTest/run.sh
 import Foundation
 
 @main
@@ -17,7 +18,7 @@ struct ProfileFilesTest {
         try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8))
     }
 
-    static func main() {
+    static func main() async {
         let fm = FileManager.default
         let temp = fm.temporaryDirectory.appendingPathComponent("profile-files-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: temp) }
@@ -137,6 +138,30 @@ struct ProfileFilesTest {
         check(found(manifest(["wine", "winecx"])) == gcenx,
               "winecx not unpacked yet: the engine that is there")
 
+        // MARK: Decoding what a newer or odd list holds
+        let odd = profile(#"{"graphics": "metal5", "winetricks": "xact", "arguments": ["-dx11"], "frameLimit": "sixty"}"#)
+        check(odd?.graphics == nil && odd?.winetricks == nil && odd?.frameLimit == nil && odd?.arguments == ["-dx11"],
+              "an unknown layer or a wrong type is no preference; the rest stays")
+        let saves = profile(#"{"saves": [{"root": "WinAppDataLocal", "path": "Game/Saved", "mac": "MacAppSupport"},"#
+                            + #"{"root": "WinMyDocuments", "path": "My Games", "pattern": "*.sav", "recursive": false, "mac": "MacDocuments", "macPath": "Game"}]}"#)?.saves
+        check(saves == [SaveRule(root: "WinAppDataLocal", path: "Game/Saved", pattern: "*", recursive: true, macRoot: "MacAppSupport", macAddPath: ""),
+                        SaveRule(root: "WinMyDocuments", path: "My Games", pattern: "*.sav", recursive: false, macRoot: "MacDocuments", macAddPath: "Game")],
+              "save folders: every file, all the way down, unless the list says otherwise")
+        check(profile(#"{"saves": [{"root": "WinAppDataLocal"}]}"#)?.saves == nil, "a save folder without its path is none")
+        let stream = AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: "e1b2c3")
+        check(stream.geforceNowURL?.absoluteString == "https://play.geforcenow.com/games?game-id=e1b2c3&utm_source=nightforge&utm_campaign=library",
+              "GeForce Now's link to the game: \(stream.geforceNowURL?.absoluteString ?? "nil")")
+        check(AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: nil).geforceNowURL == nil, "no game ID, no link")
+
+        // MARK: The profile list Nightforge keeps
+        // Only in a home of the test's own (run.sh): never the player's Application Support.
+        let realHome = String(cString: getpwuid(getuid())!.pointee.pw_dir)
+        if Engine.supportDir.path.hasPrefix(realHome + "/") {
+            check(false, "the profile list would be the player's own (\(Engine.supportDir.path)): run through run.sh")
+        } else {
+            await profileStore()
+        }
+
         // MARK: The Last Caretaker Demo's profile
         let list = CommandLine.arguments.dropFirst().first.map { URL(fileURLWithPath: $0) }
         let games = list.flatMap { try? Data(contentsOf: $0) }
@@ -157,5 +182,47 @@ struct ProfileFilesTest {
 
         print(failures == 0 ? "✓ all checks passed" : "\(failures) checks failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// The list in Application Support (the test's own home), as the online copy left it.
+    static func profileStore() async {
+        let fm = FileManager.default
+        let cached = Engine.supportDir.appendingPathComponent("profiles.json")
+        try? fm.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
+        let list = #"""
+            {"formatVersion": 1, "games": {
+              "570": {"name": "Dota 2", "preferWindows": true},
+              "730": {"antiCheat": ["VAC"], "geforceNow": "g730"},
+              "440": {"antiCheatOnline": ["Easy Anti-Cheat"]},
+              "100": {"antiCheat": [], "antiCheatOnline": []},
+              "300": "an entry from a newer list",
+              "Sugar": {"name": "not a Steam app ID"},
+              "epic.Sugar": {"antiCheat": ["Easy Anti-Cheat"], "geforceNow": "gSugar"},
+              "epic.Online": {"antiCheatOnline": ["BattlEye"]},
+              "epic.Fine": {"note": "Tested on M5"}}}
+            """#
+        try? Data(list.utf8).write(to: cached)
+        let store = ProfileStore()
+        let known = await store.knownProfiles()
+        check(Set(known.keys) == [570, 730, 440, 100], "Steam games by app ID; an odd entry costs only itself: \(known.keys.sorted())")
+        check(await store.preferWindows() == [570], "kept on the Windows version")
+        check(await store.antiCheatBlocks() == [730: AntiCheatBlock(antiCheat: ["VAC"], geforceNow: "g730"),
+                                                440: AntiCheatBlock(antiCheat: ["Easy Anti-Cheat"], geforceNow: nil, onlineOnly: true)],
+              "what anti-cheat stops, online only or not; an empty list stops nothing")
+        check(await store.epicAntiCheatBlocks() == ["Sugar": AntiCheatBlock(antiCheat: ["Easy Anti-Cheat"], geforceNow: "gSugar"),
+                                                    "Online": AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: nil, onlineOnly: true)],
+              "Epic games by catalog namespace")
+        let dota = await store.profile(for: 570), unknown = await store.profile(for: 1)
+        check(dota?.name == "Dota 2" && unknown == nil, "a game's profile, with no online copy to ask (the test has no app bundle)")
+
+        // A list too new for this Nightforge is no list: nothing, rather than a misread one.
+        try? Data(list.replacingOccurrences(of: #""formatVersion": 1"#, with: #""formatVersion": 2"#).utf8).write(to: cached)
+        check(await ProfileStore().knownProfiles().isEmpty, "a newer format isn't read")
+        check(ProfileStore.decodeEpic(Data(list.replacingOccurrences(of: #""formatVersion": 1"#, with: #""formatVersion": 2"#).utf8)).isEmpty
+              && ProfileStore.decodeEpic(Data("not json".utf8)).isEmpty, "nor its Epic entries, nor a broken file")
+        try? Data("{".utf8).write(to: cached)
+        check(await ProfileStore().antiCheatBlocks().isEmpty, "a broken file: nothing stopped")
+        try? fm.removeItem(at: cached)
+        check(await ProfileStore().preferWindows().isEmpty, "no list at all")
     }
 }

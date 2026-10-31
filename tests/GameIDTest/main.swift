@@ -23,6 +23,18 @@ struct GameIDTest {
         check(GameID(key: "epic.") == nil && GameID(key: "itch.1") == nil && GameID(key: "epic") == nil, "no ID, no store we know")
         check(GameID(key: "epic.a/b") == nil && GameID(key: "epic...") == nil, "IDs become file names: nothing but plain ones")
         check(GameID.steam(570).steamAppID == 570 && GameID.epic("Sugar").steamAppID == nil, "only Steam games have an app ID")
+        check(GameID(key: "gog.1207658924") == .gog("1207658924") && GameID.gog("1").steamAppID == nil, "GOG's product IDs")
+        check(GameID(key: "epic.Sugar_Rel-2") == .epic("Sugar_Rel-2") && GameID(key: "epic." + String(repeating: "a", count: 128)) != nil
+              && GameID(key: "epic." + String(repeating: "a", count: 129)) == nil, "letters, digits, - and _, up to 128")
+        check(GameID(key: "epic.Zuckerstück") == nil && GameID(key: "epic.a b") == nil && GameID(key: "steam.1.2") == nil,
+              "no letters beyond ASCII, no spaces, no dots")
+        check("\(GameID.epic("Sugar"))" == "epic.Sugar" && GameID(key: GameID.gog("42").key) == .gog("42"), "a game ID prints as its key")
+        check(Provider.allCases.map(\.id) == Provider.allCases.map(\.rawValue), "a store's ID is its raw value")
+        check(Set(Provider.allCases.map(\.label)).count == Provider.allCases.count && Set(Provider.allCases.map(\.short)).count == Provider.allCases.count,
+              "every store has its own name and badge")
+        check(Provider.names([]) == "" && Provider.names([.steam]) == "Steam", "no store, one store")
+        check(Provider.names([.steam, .gog]) == L10n.t("%@ and %@", "Steam", "GOG")
+              && Provider.names([.steam, .epic, .gog]) == L10n.t("%@ and %@", "Steam, Epic Games", "GOG"), "several stores in one line")
 
         // A game's identity: two stores, same number – two games.
         var steam = Game(appID: 42, name: "Game", bottle: Engine.bottle, steamRoot: Engine.bottle.url, steamExeWindowsPath: "",
