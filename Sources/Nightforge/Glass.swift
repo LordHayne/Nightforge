@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The design's glass: frosted, lit from above – a bright rim, a sheen in the upper half – and
@@ -111,7 +112,7 @@ struct GlassTextButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let tint = destructive ? Theme.danger : prominent ? Theme.sodium : nil
         GlassControl(label: configuration.label
-                        .font(.system(size: small ? 12.5 : 14, weight: .semibold))
+                        .font(size: small ? 12.5 : 14, weight: .semibold)
                         .foregroundStyle(tint != nil ? Theme.night : Theme.ink)
                         .padding(.horizontal, small ? 14 : 22)
                         .frame(height: small ? 30 : 42),
@@ -248,7 +249,45 @@ struct GlassDialog<Content: View>: View {
         }
         .padding(28)
         .frame(width: width)
+        // Never past the window: a part that scrolls (DialogScroll) gives way.
+        .frame(maxHeight: DialogRoom.height)
+        .fixedSize(horizontal: false, vertical: true)
         .glassDialogBackground()
+    }
+}
+
+/// How tall a dialog may be: Nightforge's window less a margin. A taller sheet pushes the window
+/// up and hangs out below it, so a dialog's long part scrolls within this instead.
+enum DialogRoom {
+    @MainActor static var height: CGFloat {
+        let window = NSApp.windows.first { $0.title == "Nightforge" }?.contentLayoutRect.height
+            ?? NSScreen.main?.visibleFrame.height ?? 800
+        return window - 40
+    }
+}
+
+/// The part of a dialog that scrolls once the dialog would reach past the window (DialogRoom),
+/// while its title and buttons stay: until then just as tall as what's in it. The pad's highlight
+/// brings what it moves to into view.
+struct DialogScroll<Content: View>: View {
+    let spacing: CGFloat
+    let content: Content
+    @ObservedObject private var padFocus = PadFocus.shared
+
+    init(spacing: CGFloat = 20, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: spacing) { content }
+                // Room for the pad's highlight, which reaches a little past each control.
+                .padding(8)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .padding(-8)
+        .onChange(of: padFocus.focused) { _, id in padFocus.reveal(id) }
     }
 }
 
@@ -261,7 +300,7 @@ struct GlassDialogHeader: View {
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             Text(title)
-                .font(Theme.display(22))
+                .displayFont(22)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
@@ -280,7 +319,7 @@ struct GlassCloseButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
+                .font(size: 12, weight: .bold, scales: false)
                 .foregroundStyle(Theme.ink.opacity(0.8))
                 .frame(width: 32, height: 32)
         }
@@ -310,7 +349,7 @@ struct GlassQuestion<Buttons: View>: View {
     var body: some View {
         GlassDialog(title, id: id, width: 460) {
             Text(message)
-                .font(.system(size: 14))
+                .font(size: 14)
                 .lineSpacing(3)
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
@@ -331,7 +370,7 @@ struct SectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 11, weight: .semibold))
+            .font(size: 11, weight: .semibold)
             .tracking(1.6)
             .textCase(.uppercase)
             .foregroundStyle(Theme.muted)
@@ -378,7 +417,7 @@ struct GlassCheckboxStyle: ToggleStyle {
                 .overlay {
                     if configuration.isOn {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(size: 10, weight: .heavy, scales: false)
                             .foregroundStyle(Theme.night)
                     }
                 }
@@ -407,7 +446,7 @@ struct GlassTextField: View {
     var body: some View {
         TextField("", text: $text, prompt: Text(prompt).foregroundStyle(Theme.muted.opacity(0.7)))
             .textFieldStyle(.plain)
-            .font(.system(size: 14, design: monospaced ? .monospaced : .default))
+            .font(size: 14, design: monospaced ? .monospaced : .default)
             .foregroundStyle(Theme.ink)
             .focused($focused)
             .padding(.horizontal, 14)

@@ -355,7 +355,7 @@ struct PadDrawing: View {
                 }
                 context.stroke(glyph, with: .color(ink), style: StrokeStyle(lineWidth: 1.9, lineCap: .round, lineJoin: .round))
             } else {
-                context.draw(Text(part.rawValue.uppercased()).font(.system(size: 14, weight: .heavy)).foregroundColor(ink), at: center)
+                context.draw(Text(part.rawValue.uppercased()).font(.drawing(size: 14, weight: .heavy)).foregroundColor(ink), at: center)
             }
         }
     }

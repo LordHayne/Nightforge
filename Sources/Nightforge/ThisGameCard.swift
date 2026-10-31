@@ -50,12 +50,12 @@ struct ThisGameCard: View {
                 .foregroundStyle(Theme.muted)
             Spacer(minLength: 0)
             Text(value)
-                .font(.system(size: monospaced ? 12 : 13, weight: .semibold, design: monospaced ? .monospaced : .default))
+                .font(size: monospaced ? 12 : 13, weight: .semibold, design: monospaced ? .monospaced : .default)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .font(.system(size: 13))
+        .font(size: 13)
         .accessibilityElement(children: .combine)
     }
 
@@ -63,7 +63,7 @@ struct ThisGameCard: View {
         if options != GameOptions() {
             VStack(alignment: .leading, spacing: 6) {
                 Text(origin == nil ? L10n.t("Your own settings.") : L10n.t("Your own settings, on top of the profile."))
-                    .font(.system(size: 12.5))
+                    .font(size: 12.5)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(origin == nil ? L10n.t("Back to Automatic") : L10n.t("Back to the Profile"), action: backToProfile)
@@ -73,7 +73,7 @@ struct ThisGameCard: View {
         } else {
             Label(origin?.text ?? L10n.t("No profile yet – Nightforge uses its automatic settings."),
                   systemImage: origin?.symbol ?? "wand.and.stars")
-                .font(.system(size: 12.5))
+                .font(size: 12.5)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
                 .help(origin?.note ?? "")
@@ -152,7 +152,7 @@ private struct CardLinkStyle: ButtonStyle {
 
         var body: some View {
             label
-                .font(.system(size: 13, weight: .semibold))
+                .font(size: 13, weight: .semibold)
                 .foregroundStyle(hovering && underlined ? Theme.sodium : color)
                 .underline(underlined || hovering)
                 .opacity(pressed ? 0.7 : 1)

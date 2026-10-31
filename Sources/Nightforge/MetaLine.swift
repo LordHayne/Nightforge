@@ -35,10 +35,10 @@ struct MetaLine: View {
     }
 
     /// 12 pt capitals, spaced out.
-    private func caps(_ text: String) -> Text {
+    private func caps(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .semibold))
             .tracking(1.9)
+            .font(size: 12, weight: .semibold)
     }
 }
 
@@ -48,7 +48,7 @@ struct StoreBadge: View {
 
     var body: some View {
         Text(store.uppercased())
-            .font(.system(size: 10.5, weight: .semibold))
+            .font(size: 10.5, weight: .semibold)
             .tracking(1.3)
             .foregroundStyle(Theme.ink.opacity(0.8))
             .padding(.horizontal, 8)

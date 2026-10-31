@@ -24,10 +24,9 @@ enum Theme {
     /// Text that says something failed: paler than `danger`, readable on the night blue.
     static let errorText = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)  // #FF9E94
 
-    /// Wide, heavy display face for titles and the play button.
-    static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .heavy).width(.expanded)
-    }
+    /// Wide, heavy display face for titles and the play button. Views take it through `.displayFont(_:)`,
+    /// which adds "Larger text".
+    static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .heavy).width(.expanded) }
 
     static let gutter: CGFloat = 56
 }
@@ -85,11 +84,16 @@ enum Format {
         bytes > 0 ? bytes.formatted(.byteCount(style: .file).locale(L10n.locale)) : "–"
     }
 
-    static func relative(_ date: Date) -> String {
+    static func relative(_ date: Date) -> String { relative(date, now: Date()) }
+
+    /// "2 hours ago" – and "just now" within a minute either way: a date a moment ahead of the clock
+    /// (a game that has just ended) would otherwise say "in 0 seconds".
+    static func relative(_ date: Date, now: Date) -> String {
+        if abs(date.timeIntervalSince(now)) < 60 { return L10n.t("just now") }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = L10n.locale
         formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return formatter.localizedString(for: date, relativeTo: now)
     }
 
     static func playtime(_ minutes: Int) -> String {

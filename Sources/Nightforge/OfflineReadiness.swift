@@ -18,9 +18,12 @@ enum OfflineReadiness: Equatable {
     case epicOnline
     /// Epic Games signed the player out: without the account, no start at all.
     case epicSignedOut
+    /// A GOG game: DRM-free, it needs no account and no internet to start.
+    case drmFree
 
     /// `accountRemembered`: for Epic games, that Nightforge is signed in to Epic.
     static func of(_ game: Game, analysis: GameAnalysis?, accountRemembered: Bool) -> OfflineReadiness {
+        if game.provider == .gog { return analysis?.launcher.map { .launcher($0) } ?? .drmFree }
         let epic = game.provider == .epic
         if !accountRemembered { return epic ? .epicSignedOut : .signInRemembered }
         if game.onlineOnly { return epic ? .epicOnline : .onlineOnly }
@@ -33,7 +36,7 @@ enum OfflineReadiness: Equatable {
 
     var label: String {
         switch self {
-        case .ready: return L10n.t("Ready")
+        case .ready, .drmFree: return L10n.t("Ready")
         case .startOnlineOnce: return L10n.t("Start online once")
         case .updateFirst: return L10n.t("Update first")
         case .onlineOnly, .launcher, .epicOnline: return L10n.t("Needs internet")
@@ -51,6 +54,7 @@ enum OfflineReadiness: Equatable {
         case .signInRemembered: return L10n.t("Steam doesn't remember your account: sign in once with “Remember me” so it can start offline.")
         case .epicOnline: return L10n.t("Epic Games doesn't approve it for offline play – it needs internet.")
         case .epicSignedOut: return L10n.t("Epic Games signed you out: sign in again in Settings › Stores, then it starts offline too.")
+        case .drmFree: return L10n.t("GOG's games are DRM-free: it plays without internet and without signing in.")
         }
     }
 

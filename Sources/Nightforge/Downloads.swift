@@ -37,7 +37,7 @@ struct DownloadsButton: View {
                     .stroke(Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .bold).monospacedDigit())
+                    .font(size: 10, weight: .bold, scales: false).monospacedDigit()
                     .foregroundStyle(Theme.ink)
             }
             .frame(width: 22, height: 22)
@@ -61,16 +61,17 @@ struct DownloadsButton: View {
 /// top bar (LibraryView lays it out).
 struct DownloadsPanel: View {
     @EnvironmentObject private var model: LibraryModel
+    @Environment(\.textScale) private var textScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L10n.t("Downloads"))
-                    .font(Theme.display(16))
+                    .displayFont(16)
                 Spacer()
                 Button { model.showingDownloads = false } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(size: 11, weight: .bold, scales: false)
                         .foregroundStyle(Theme.ink.opacity(0.8))
                         .frame(width: 28, height: 28)
                 }
@@ -80,7 +81,7 @@ struct DownloadsPanel: View {
             }
             if model.downloads.isEmpty && model.move == nil {
                 Text(L10n.t("Nothing is downloading."))
-                    .font(.system(size: 13))
+                    .font(size: 13)
                     .foregroundStyle(Theme.muted)
                     .padding(.vertical, 6)
             }
@@ -97,13 +98,13 @@ struct DownloadsPanel: View {
                     Text(L10n.t("Your Mac stays awake while games download. The display can still turn off."))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.system(size: 12))
+                .font(size: 12)
                 .foregroundStyle(Theme.muted)
             }
         }
         .foregroundStyle(Theme.ink)
         .padding(16)
-        .frame(width: 380)
+        .frame(width: 380 * textScale)  // grows with the text, so the names keep their room
         .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 24, style: .continuous)))
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
@@ -114,7 +115,7 @@ struct DownloadsPanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(game.name)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(size: 13.5, weight: .semibold)
                         .lineLimit(1)
                     // A game the player has in several stores: which one this download comes from.
                     if model.card(holding: game.id)?.others.isEmpty == false {
@@ -122,10 +123,7 @@ struct DownloadsPanel: View {
                     }
                 }
                 DownloadBar(fraction: fraction(game))
-                Text(line(game))
-                    .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
+                statusLines(line(game))
             }
             if model.canUninstall(game) {
                 Button(L10n.t("Cancel")) { model.requestUninstall(game) }
@@ -145,24 +143,21 @@ struct DownloadsPanel: View {
                 // "Hades → Spiele test": where it goes stays readable, the name gives way.
                 HStack(spacing: 6) {
                     Text(move.game.name)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(size: 13.5, weight: .semibold)
                         .lineLimit(1)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 10.5, weight: .bold))
+                        .font(size: 10.5, weight: .bold)
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                     Text(move.drive ?? L10n.t("This Mac"))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(size: 12.5, weight: .medium)
                         .foregroundStyle(Theme.muted)
                         .lineLimit(1)
                         .fixedSize()
                         .accessibilityLabel(move.drive.map { L10n.t("Moving to %@", $0) } ?? L10n.t("Moving back to your Mac"))
                 }
                 DownloadBar(fraction: move.phase == .copying ? move.fraction : move.phase == .finishing ? 1 : nil)
-                Text(moveLine(move))
-                    .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
+                statusLines(moveLine(move))
             }
             if move.phase != .finishing {
                 Button(L10n.t("Cancel")) { model.cancelMove() }
@@ -174,18 +169,27 @@ struct DownloadsPanel: View {
         .glassWell()
     }
 
-    /// "37 % of 12 GB", then "37 % · 25 MB/s · 8 min left" once the speed is known (the panel is narrow).
-    private func moveLine(_ move: GameMove) -> String {
+    /// How far, and below it how fast and how long still: on one line the panel cut off the time left.
+    private func statusLines(_ status: (progress: String, speed: String?)) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(status.progress)
+            if let speed = status.speed { Text(speed) }
+        }
+        .font(size: 11.5).monospacedDigit()
+        .foregroundStyle(Theme.muted)
+        .lineLimit(1)
+    }
+
+    /// "37 % of 12 GB" and "25 MB/s · 8 min left" once the speed is known.
+    private func moveLine(_ move: GameMove) -> (progress: String, speed: String?) {
         switch move.phase {
         case .stoppingSteam:
-            return move.game.provider == .steam ? L10n.t("Closing Steam for the move …") : L10n.t("Preparing …")
+            return (move.game.provider == .steam ? L10n.t("Closing Steam for the move …") : L10n.t("Preparing …"), nil)
         case .copying:
-            guard let fraction = move.fraction else { return L10n.t("Moving …") }
-            let total = move.progress.total
-            if let speed = move.rate.label(total: Double(total)) { return "\(Int(fraction * 100)) % · " + speed }
-            return total > 0 ? L10n.t("%ld %% of %@", Int(fraction * 100), Format.bytes(total)) : "\(Int(fraction * 100)) %"
+            guard let fraction = move.fraction else { return (L10n.t("Moving …"), nil) }
+            return Self.status(fraction: fraction, total: move.progress.total, rate: move.rate)
         case .finishing:
-            return L10n.t("Checked – finishing the move …")
+            return (L10n.t("Checked – finishing the move …"), nil)
         }
     }
 
@@ -195,15 +199,19 @@ struct DownloadsPanel: View {
         return nil
     }
 
-    /// "37 % of 12 GB · 12 MB/s · 25 min left" – as much as is known.
-    private func line(_ game: Game) -> String {
-        if game.downloadNeedsSpace != nil { return L10n.t("Paused – not enough space") }
-        guard case .downloading(let fraction?) = game.install else { return L10n.t("Preparing …") }
-        let done = game.sizeOnDisk > 0
-            ? L10n.t("%ld %% of %@", Int(fraction * 100), Format.bytes(game.sizeOnDisk))
-            : "\(Int(fraction * 100)) %"
-        guard let speed = model.downloadRates[game.gameID]?.label(total: Double(game.sizeOnDisk)) else { return done }
-        return done + " · " + speed
+    /// "37 % of 12 GB" and "12 MB/s · 25 min left" – as much as is known.
+    private func line(_ game: Game) -> (progress: String, speed: String?) {
+        if game.downloadNeedsSpace != nil { return (L10n.t("Paused – not enough space"), nil) }
+        guard case .downloading(let fraction?) = game.install else { return (L10n.t("Preparing …"), nil) }
+        return Self.status(fraction: fraction, total: game.sizeOnDisk, rate: model.downloadRates[game.gameID])
+    }
+
+    /// "37 % of 12 GB" (or "37 %" while the size isn't known), and the speed and time left once
+    /// they are – in what the store downloads, as the game page says it.
+    nonisolated static func status(fraction: Double, total: Int64, rate: DownloadRate?) -> (progress: String, speed: String?) {
+        let percent = Int(fraction * 100)
+        let progress = total > 0 ? L10n.t("%ld %% of %@", percent, Format.bytes(total)) : "\(percent) %"
+        return (progress, rate?.label(total: Double(total)))
     }
 }
 

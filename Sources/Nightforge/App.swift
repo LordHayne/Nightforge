@@ -19,7 +19,7 @@ struct NightforgeApp: App {
             LibraryView()
                 .id(language)
                 .environmentObject(model)
-                .modifier(ReduceMotionFromSettings())
+                .modifier(AccessibilityFromSettings())
                 .frame(minWidth: 980, minHeight: 640)
                 .preferredColorScheme(.dark)
         }

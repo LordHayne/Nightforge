@@ -28,6 +28,7 @@ struct EpicTest {
         launch()
         signIn()
         packed()
+        await refusesUnpacked()
         profiles()
         await store()
 
@@ -281,6 +282,56 @@ struct EpicTest {
         check(PackedApp.entries(in: Data("no archive here".utf8)) == nil, "a plain file has no table")
     }
 
+    /// A program whose bootloader won't run from the unpacked copy (gogdl 1.4.0): it ends with
+    /// PyInstaller's security message and 255, is noted, runs again as it comes – and from then on.
+    static func refusesUnpacked() async {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("epic-refuses-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: dir) }
+        let binary = dir.appendingPathComponent("tool/gogdl")
+        try? fm.createDirectory(at: PackedApp.folder(for: binary), withIntermediateDirectories: true)
+        fm.createFile(atPath: PackedApp.folder(for: binary).appendingPathComponent(".complete").path, contents: nil)
+        let runs = dir.appendingPathComponent("runs")
+        let script = """
+            #!/bin/sh
+            echo run >> "\(runs.path)"
+            if [ -n "$_PYI_APPLICATION_HOME_DIR" ]; then
+              echo "[PYI-45608:ERROR] Security validation failure: unexpected name of application's home directory!" >&2
+              exit 255
+            fi
+            echo '"1.4.0"'
+            """
+        try? Data(script.utf8).write(to: binary)
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+
+        check(PackedApp.refused(status: 255, log: "[PYI-45608:ERROR] Security validation failure: unexpected name of application's home directory!\n"),
+              "the bootloader's refusal")
+        check(!PackedApp.refused(status: 255, log: "Traceback …"), "not every 255")
+        check(!PackedApp.refused(status: 1, log: "Security validation failure"), "nor that text with another code")
+        check(!PackedApp.environment(binary: binary).isEmpty && !PackedApp.knowsHowToRun(binary), "unpacked and not tried yet")
+
+        let output = try? await PackedApp.run(binary, arguments: [], directory: dir, timeout: 30) { PackedApp.environment(binary: binary) }
+        check(output?.status == 0 && output?.text == "\"1.4.0\"\n", "it runs as it comes the same time: \(output?.text ?? "nil")")
+        check(PackedApp.refusesUnpacked(binary) && PackedApp.environment(binary: binary).isEmpty, "and is noted")
+        check(!fm.fileExists(atPath: PackedApp.folder(for: binary).path), "the unpacked copy goes")
+        check(PackedApp.isReady(binary) && PackedApp.knowsHowToRun(binary), "ready without it")
+        check((try? PackedApp.unpackOnce(binary)) == false && !fm.fileExists(atPath: PackedApp.folder(for: binary).path),
+              "and isn't unpacked again")
+        _ = try? await PackedApp.run(binary, arguments: [], directory: dir, timeout: 30) { PackedApp.environment(binary: binary) }
+        let count = ((try? String(contentsOf: runs, encoding: .utf8)) ?? "").split(separator: "\n").count
+        check(count == 3, "one refused start, then one start per run: \(count)")
+
+        // One that runs from it is noted too, so a download's start doesn't try first.
+        let fine = dir.appendingPathComponent("fine/legendary")
+        try? fm.createDirectory(at: PackedApp.folder(for: fine), withIntermediateDirectories: true)
+        fm.createFile(atPath: PackedApp.folder(for: fine).appendingPathComponent(".complete").path, contents: nil)
+        try? Data("#!/bin/sh\necho ok\n".utf8).write(to: fine)
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fine.path)
+        _ = try? await PackedApp.run(fine, arguments: [], directory: dir, timeout: 30) { PackedApp.environment(binary: fine) }
+        check(!PackedApp.refusesUnpacked(fine) && PackedApp.knowsHowToRun(fine) && !PackedApp.environment(binary: fine).isEmpty,
+              "a program that runs from the unpacked copy keeps it")
+    }
+
     /// PyInstaller's layout: some bytes, the entries, their table, then the cookie.
     static func archive(_ files: [(name: String, kind: Character, data: Data, compressed: Bool)]) -> Data {
         func be(_ value: Int) -> Data { Data([UInt8(value >> 24 & 0xFF), UInt8(value >> 16 & 0xFF), UInt8(value >> 8 & 0xFF), UInt8(value & 0xFF)]) }
@@ -375,13 +426,13 @@ struct EpicTest {
         check(await store.size(of: fortnite!) == nil, "signed out: Epic isn't asked for a size")
         await store.refresh()
         check(store.sync.state == .signedOut && store.sync.failed, "says Epic signed the player out")
-        check(StoreSyncBanner.text(provider: .epic, sync: store.sync)?.contains("Epic Games") == true, "the library's banner says so")
-        check(StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .ok, lastSuccess: Date())) == nil
-              && StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .syncing)) == nil, "all well: no banner")
-        let away = StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .failed("Couldn't reach Epic Games"), lastSuccess: threeDaysAgo))
+        check(StoreSyncText.text(provider: .epic, sync: store.sync)?.contains("Epic Games") == true, "the library's banner says so")
+        check(StoreSyncText.text(provider: .epic, sync: StoreSync(state: .ok, lastSuccess: Date())) == nil
+              && StoreSyncText.text(provider: .epic, sync: StoreSync(state: .syncing)) == nil, "all well: no banner")
+        let away = StoreSyncText.text(provider: .epic, sync: StoreSync(state: .failed("Couldn't reach Epic Games"), lastSuccess: threeDaysAgo))
         check(away == L10n.t("%@ – your %@ games are from %@ and still play.", "Couldn't reach Epic Games", "Epic Games", Format.relative(threeDaysAgo)),
               "out of reach: how old the games are, and that they still play: \(away ?? "-")")
-        check(StoreSyncBanner.text(provider: .epic, sync: StoreSync(state: .failed("x")))
+        check(StoreSyncText.text(provider: .epic, sync: StoreSync(state: .failed("x")))
               == L10n.t("%@ – your %@ games show up as soon as it answers.", "x", "Epic Games"), "never loaded: they come when Epic answers")
         check(await store.library().count == 3, "and the games are still there")
 

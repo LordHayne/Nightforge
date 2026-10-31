@@ -157,9 +157,9 @@ struct CompatibilityBadge: View {
         let level = compatibility.level
         HStack(spacing: 6) {
             Image(systemName: level.symbol)
-                .font(.system(size: small ? 11 : 12, weight: .semibold))
+                .font(size: small ? 11 : 12, weight: .semibold)
             Text(level.label)
-                .font(.system(size: small ? 11.5 : 12.5, weight: .semibold))
+                .font(size: small ? 11.5 : 12.5, weight: .semibold)
                 .lineLimit(1)
         }
         .foregroundStyle(level.color)

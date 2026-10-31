@@ -26,7 +26,7 @@ enum Legendary {
     /// without asking the network (offline starts); a new version comes when the component list
     /// names one (the engine's start removes versions it no longer names).
     static func program() async throws -> URL {
-        if let installed = programNow(), FileManager.default.fileExists(atPath: PackedApp.folder(for: installed).path) {
+        if let installed = programNow(), PackedApp.isReady(installed) {
             return installed
         }
         let manifest = try? await ComponentStore.shared.manifest()
@@ -87,35 +87,16 @@ enum Legendary {
             binary = try await self.program()
         }
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        return try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            process.executableURL = binary
-            process.arguments = arguments
-            process.environment = environment(program: binary)
-            process.currentDirectoryURL = configDir
-            let out = Pipe(), err = Pipe()
-            process.standardOutput = out
-            process.standardError = err
-            process.standardInput = FileHandle.nullDevice
-            try process.run()
-            let killer = DispatchWorkItem { if process.isRunning { process.terminate() } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
-            // Both pipes at once: a full one would stop legendary midway.
-            async let output = Task.detached { out.fileHandleForReading.readDataToEndOfFile() }.value
-            async let log = Task.detached { err.fileHandleForReading.readDataToEndOfFile() }.value
-            let (data, logData) = await (output, log)
-            // Not `waitUntilExit`: from a task it can miss legendary ending a moment after it closed
-            // its output and never return (1 in ~400 calls; a size check then waited for ever).
-            while process.isRunning { try? await Task.sleep(for: .milliseconds(20)) }
-            killer.cancel()
-            return Output(status: process.terminationStatus, output: data, log: String(decoding: logData, as: UTF8.self))
-        }.value
+        return try await PackedApp.run(binary, arguments: arguments, directory: configDir, timeout: timeout) {
+            environment(program: binary)
+        }
     }
 
     /// Starts legendary without waiting (a download, which carries on after Nightforge quits), its
     /// output into `log`.
     static func start(_ arguments: [String], log: URL) async throws -> DetachedProcess {
         let binary = try await program()
+        if !PackedApp.knowsHowToRun(binary) { _ = try? await run(["--version"], program: binary) }
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
@@ -230,12 +211,7 @@ enum Legendary {
     }
 
     /// What `legendary launch <app> --json` hands over, as Nightforge starts it under Wine.
-    struct LaunchCommand: Equatable {
-        var executable: URL
-        var workingDirectory: URL
-        var arguments: [String]
-        var environment: [String: String]
-    }
+    typealias LaunchCommand = StoreLaunchCommand
 
     /// `json`: legendary's launch parameters. Its ownership token file (`-epicovt=/…`) is a Mac
     /// path; Windows games see the Mac's files under Z:.
@@ -337,6 +313,7 @@ enum PackedApp {
     static func unpackOnce(_ binary: URL) throws -> Bool {
         let fm = FileManager.default
         let target = folder(for: binary)
+        if refusesUnpacked(binary) { return false }
         if fm.fileExists(atPath: target.appendingPathComponent(".complete").path) { return true }
         let data = try Data(contentsOf: binary, options: .alwaysMapped)
         guard let (start, entries) = entries(in: data) else { return false }
@@ -372,7 +349,92 @@ enum PackedApp {
     /// Lets the program run from the unpacked copy, as it does when it has just unpacked itself.
     static func environment(binary: URL) -> [String: String] {
         let target = folder(for: binary)
-        guard FileManager.default.fileExists(atPath: target.appendingPathComponent(".complete").path) else { return [:] }
+        guard !refusesUnpacked(binary), FileManager.default.fileExists(atPath: target.appendingPathComponent(".complete").path)
+        else { return [:] }
         return ["_PYI_APPLICATION_HOME_DIR": target.path, "_PYI_ARCHIVE_FILE": binary.path, "_PYI_PARENT_PROCESS_LEVEL": "1"]
+    }
+
+    // MARK: - Programs that won't run from it
+
+    /// Newer PyInstaller bootloaders (gogdl 1.4.0's) check that their home folder is one they made
+    /// themselves – named `_MEI…`, with their parent's PID, owned by them – and otherwise stop with
+    /// "Security validation failure" and code 255 before any of the program runs. That check is
+    /// deliberate, so such a program runs as it comes and unpacks itself at each start (gogdl: ~3 s).
+    /// A note next to it says so; one that ran from the unpacked copy gets a note too.
+    static func refusedNote(for binary: URL) -> URL {
+        binary.deletingLastPathComponent().appendingPathComponent(".runs-packed")
+    }
+
+    static func acceptedNote(for binary: URL) -> URL {
+        binary.deletingLastPathComponent().appendingPathComponent(".runs-unpacked")
+    }
+
+    static func refusesUnpacked(_ binary: URL) -> Bool { FileManager.default.fileExists(atPath: refusedNote(for: binary).path) }
+
+    /// It ran once already, one way or the other – or there's nothing unpacked to try.
+    static func knowsHowToRun(_ binary: URL) -> Bool {
+        environment(binary: binary).isEmpty || FileManager.default.fileExists(atPath: acceptedNote(for: binary).path)
+    }
+
+    /// Unpacked once, or known to run as it comes.
+    static func isReady(_ binary: URL) -> Bool {
+        refusesUnpacked(binary) || FileManager.default.fileExists(atPath: folder(for: binary).path)
+    }
+
+    /// How a refusal ends: "[PYI-45608:ERROR] Security validation failure: unexpected name of
+    /// application's home directory!" and code 255.
+    static func refused(status: Int32, log: String) -> Bool {
+        status == 255 && log.contains("Security validation failure")
+    }
+
+    /// From now on it runs as it comes; the unpacked copy goes (the note first, so nothing unpacks it again meanwhile).
+    static func markRefused(_ binary: URL) {
+        FileManager.default.createFile(atPath: refusedNote(for: binary).path, contents: nil)
+        try? FileManager.default.removeItem(at: folder(for: binary))
+    }
+
+    /// Runs `binary` and waits for it – from the unpacked copy while it lets itself be run from
+    /// there. One that refuses is noted and run again as it comes, now and from then on: nothing of
+    /// it ran the first time, so running it again is safe.
+    static func run(_ binary: URL, arguments: [String], directory: URL, timeout: TimeInterval,
+                    environment: @escaping @Sendable () -> [String: String]) async throws -> Legendary.Output {
+        let first = environment()
+        let output = try await execute(binary, arguments: arguments, environment: first, directory: directory, timeout: timeout)
+        guard first["_PYI_APPLICATION_HOME_DIR"] != nil else { return output }
+        guard refused(status: output.status, log: output.log) else {
+            if !FileManager.default.fileExists(atPath: acceptedNote(for: binary).path) {
+                FileManager.default.createFile(atPath: acceptedNote(for: binary).path, contents: nil)
+            }
+            return output
+        }
+        markRefused(binary)
+        return try await execute(binary, arguments: arguments, environment: environment(), directory: directory, timeout: timeout)
+    }
+
+    private static func execute(_ binary: URL, arguments: [String], environment: [String: String], directory: URL,
+                                timeout: TimeInterval) async throws -> Legendary.Output {
+        try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = binary
+            process.arguments = arguments
+            process.environment = environment
+            process.currentDirectoryURL = directory
+            let out = Pipe(), err = Pipe()
+            process.standardOutput = out
+            process.standardError = err
+            process.standardInput = FileHandle.nullDevice
+            try process.run()
+            let killer = DispatchWorkItem { if process.isRunning { process.terminate() } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
+            // Both pipes at once: a full one would stop the program midway.
+            async let output = Task.detached { out.fileHandleForReading.readDataToEndOfFile() }.value
+            async let log = Task.detached { err.fileHandleForReading.readDataToEndOfFile() }.value
+            let (data, logData) = await (output, log)
+            // Not `waitUntilExit`: from a task it can miss the program ending a moment after it closed
+            // its output and never return (1 in ~400 legendary calls; a size check then waited for ever).
+            while process.isRunning { try? await Task.sleep(for: .milliseconds(20)) }
+            killer.cancel()
+            return Legendary.Output(status: process.terminationStatus, output: data, log: String(decoding: logData, as: UTF8.self))
+        }.value
     }
 }

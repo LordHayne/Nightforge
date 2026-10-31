@@ -96,11 +96,11 @@ private struct BackdropView: View {
             Theme.night
             VStack(spacing: 10) {
                 Text(state.returning ? L10n.t("Back to Nightforge …") : L10n.t("%@ is running …", state.game))
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(size: 22, weight: .semibold)
                     .foregroundColor(Theme.ink)
                 if !state.returning {
                     Text(L10n.t("Nightforge waits here until you're done."))
-                        .font(.system(size: 14))
+                        .font(size: 14)
                         .foregroundColor(Theme.muted)
                 }
             }

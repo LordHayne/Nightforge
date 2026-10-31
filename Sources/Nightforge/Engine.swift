@@ -256,11 +256,11 @@ enum Engine {
     }
 
     /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
-    /// Steam's steamapps\common, Epic's Program Files\Epic Games).
+    /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games).
     static var windowsGameRunning: Bool {
         ownProcesses().contains { process in
             let command = process.command.lowercased()
-            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#)
+            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#) || command.contains(#"\gog games\"#)
         }
     }
 
@@ -460,6 +460,12 @@ enum Engine {
 
     /// D3DMetal is in the engine (installD3DMetal): DirectX 12 games have a way to run.
     static var d3dMetalReady: Bool { installedWineNow().map(isD3DMetalDeployed(wine:)) ?? false }
+
+    /// Nightforge's Vulkan layer reaches the games: not under winecx, whose winevulkan loads
+    /// MoltenVK straight, without a Vulkan loader (docs/TODO.md › Vulkan-Layer und winecx). Without
+    /// the layer DXVK asks MoltenVK for what it lacks (geometryShader, shaderCullDistance) and gets
+    /// no device – Left 4 Dead 2 and Mafia II on DirectX 9.
+    static var vulkanLayerLoads: Bool { installedWineNow().map { !isGPTKCapable(wine: $0) } ?? true }
 
     static func isD3DMetalDeployed(wine: URL) -> Bool {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
@@ -704,6 +710,7 @@ enum Engine {
         game_running() {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
           has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
+          has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
           return 1
         }
@@ -1849,6 +1856,21 @@ enum Engine {
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
 
+    /// A Steam that stopped taking commands (SteamCommands) doesn't take its "-shutdown" either: it
+    /// ends with its Wine session instead – the caller makes sure no game runs in it – and starts
+    /// again in the background. A client update going in finishes first.
+    static func restartHungSteam(_ wine: URL) async throws {
+        var waited = 0
+        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
+            try await Task.sleep(for: .seconds(1))
+            waited += 1
+        }
+        await offMain { stopAll(wine) }
+        applyRetinaMode(wine)
+        try startSteam(wine, arguments: ["-silent"])
+        UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
+    }
+
     /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
     /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
@@ -1899,7 +1921,10 @@ enum Engine {
 
     /// Under Wine, Steam now and then hangs while starting: it never signs in, stops writing its
     /// logs and swallows every launch request. Signed out *and* silent for `seconds` is that state;
-    /// a Steam that is merely slow (first start, client update) keeps logging.
+    /// a Steam that is merely slow (first start, client update) keeps logging – a client update
+    /// only in bootstrap_log, so every log counts here, not console_log alone. A signed-in Steam
+    /// that stops taking commands still writes configstore_log and appinfo_log: that hang is told
+    /// by the command itself (SteamCommands).
     static func steamLooksStuck(quietFor seconds: TimeInterval) -> Bool {
         let logs = steamRoot.appendingPathComponent("logs", isDirectory: true)
         let files = (try? FileManager.default.contentsOfDirectory(

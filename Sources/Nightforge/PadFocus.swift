@@ -50,6 +50,13 @@ final class PadFocus: ObservableObject {
 
     func clear() { focused = nil }
 
+    /// Brings the highlighted control into view where a scroll view hides it, with a row's room
+    /// around it so the next one shows too: for sheets whose content scrolls.
+    func reveal(_ id: String?) {
+        guard let id, let view = items[id]?.view else { return }
+        view.scrollToVisible(view.bounds.insetBy(dx: 0, dy: -48))
+    }
+
     /// Moves the highlight one step (dx: -1 left, 1 right; dy: -1 up, 1 down). With nothing
     /// focused yet, it starts on the preferred control (a dialog's default answer); else up enters
     /// from the bottom (the main window's action row, above the games) and any other direction

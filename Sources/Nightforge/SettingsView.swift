@@ -21,6 +21,7 @@ struct SettingsView: View {
 
     @State private var tab: Tab
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var padFocus = PadFocus.shared
 
     init(tab: Tab = .general) {
         _tab = State(initialValue: tab)
@@ -41,9 +42,9 @@ struct SettingsView: View {
                 case .general: GeneralSettings()
                 case .controller: ControllerSettings()
                 case .storage: StorageSettings()
-                        .frame(height: 480)  // the list of games scrolls
+                        .frame(idealHeight: 480)  // the list of games scrolls
                 case .about: AboutSettings()
-                        .frame(height: 480)  // the list of projects scrolls
+                        .frame(idealHeight: 480)  // the list of projects scrolls
                 }
             }
             .formStyle(.grouped)
@@ -54,7 +55,10 @@ struct SettingsView: View {
             .padding(.bottom, 8)
         }
         .frame(width: 640)
+        // Never past the window: the tab's form scrolls instead, under the title and the tabs.
+        .frame(maxHeight: DialogRoom.height)
         .fixedSize(horizontal: false, vertical: true)
+        .onChange(of: padFocus.focused) { _, id in padFocus.reveal(id) }
         // The design's dialog: thick glass over the dimmed library, not a window of its own.
         .glassDialogBackground()
     }
@@ -80,14 +84,15 @@ private struct StoresSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Steam")
                         Text(steamStatus)
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
-                EpicStoreRow(epic: model.epic)
+                AccountStoreRow(store: model.epic, connect: model.connectEpic, disconnect: model.disconnectEpic)
+                AccountStoreRow(store: model.gog, connect: model.connectGOG, disconnect: model.disconnectGOG)
             } footer: {
-                Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed. You sign in in Epic's own window; Nightforge never sees your login."))
-                    .font(.caption)
+                Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. You sign in in the store's own window; Nightforge never sees your login."))
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,12 +106,12 @@ private struct StoresSettings: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(L10n.t("CrossOver, Whisky and your own Wine"))
                             Text(L10n.t("Only needed to also show games from your own bottles."))
-                                .font(.caption)
+                                .font(size: 10)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(size: 12, weight: .semibold, scales: false)
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(showsOwnWine ? 90 : 0))
                     }
@@ -129,7 +134,7 @@ private struct StoresSettings: View {
                         .labelsHidden()
                 }
                 Text(L10n.t("Nightforge brings everything it needs. Fill this in only to also show games from CrossOver or Whisky bottles: leave Wine empty for CrossOver, or enter the path to the wine binary of Whisky or your own Wine."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(L10n.t("Rescan Library")) { model.reload() }
@@ -149,50 +154,56 @@ private struct StoresSettings: View {
     }
 }
 
-/// Epic Games: connect in Epic's own sign-in window, then how its library stands – with a way out
-/// when Epic couldn't be reached (the games from last time still play).
-private struct EpicStoreRow: View {
+/// A store the player signs in to (Epic Games, GOG): connect in the store's own sign-in window,
+/// then how its library stands – with a way out when the store couldn't be reached (the games from
+/// last time still play).
+private struct AccountStoreRow<Store: AccountStore>: View {
     @EnvironmentObject private var model: LibraryModel
-    @ObservedObject var epic: EpicStore
+    @ObservedObject var store: Store
+    let connect: () -> Void
+    let disconnect: () -> Void
+
+    private var label: String { store.provider.label }
+    private var key: String { store.provider.rawValue }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             LabeledContent {
                 HStack(spacing: 8) {
-                    if epic.isConnected && epic.sync.state == .signedOut {
-                        Button(epic.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Sign In Again")) { model.connectEpic() }
-                            .buttonStyle(GlassTextButtonStyle(prominent: !epic.connecting, small: true))
-                            .padFocus("settings.epic.signIn", activate: { model.connectEpic() })
-                    } else if epic.isConnected && epic.sync.failed {
+                    if store.isConnected && store.sync.state == .signedOut {
+                        Button(store.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Sign In Again"), action: connect)
+                            .buttonStyle(GlassTextButtonStyle(prominent: !store.connecting, small: true))
+                            .padFocus("settings.\(key).signIn", activate: connect)
+                    } else if store.isConnected && store.sync.failed {
                         Button { model.refreshStores(force: true) } label: {
                             Label(L10n.t("Try Again"), systemImage: "arrow.clockwise")
                         }
-                        .padFocus("settings.epic.retry", activate: { model.refreshStores(force: true) })
+                        .padFocus("settings.\(key).retry", activate: { model.refreshStores(force: true) })
                     }
-                    if epic.isConnected {
-                        Button(L10n.t("Disconnect")) { model.disconnectEpic() }
-                            .padFocus("settings.epic.disconnect", activate: { model.disconnectEpic() })
+                    if store.isConnected {
+                        Button(L10n.t("Disconnect"), action: disconnect)
+                            .padFocus("settings.\(key).disconnect", activate: disconnect)
                     } else {
-                        Button(epic.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Connect")) { model.connectEpic() }
-                            .buttonStyle(GlassTextButtonStyle(prominent: !epic.connecting, small: true))
-                            .padFocus("settings.epic.connect", activate: { model.connectEpic() })
+                        Button(store.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Connect"), action: connect)
+                            .buttonStyle(GlassTextButtonStyle(prominent: !store.connecting, small: true))
+                            .padFocus("settings.\(key).connect", activate: connect)
                     }
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(Provider.epic.label)
+                    Text(label)
                     status
-                        .font(.caption)
+                        .font(size: 10)
                 }
             }
-            if epic.connecting {
+            if store.connecting {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "person.badge.key")
                         .foregroundStyle(Theme.sodium)
-                    Text(L10n.t("Epic Games' sign-in page is open in a window. Once you're signed in, your games appear here by themselves."))
+                    Text(L10n.t("%@'s sign-in page is open in a window. Once you're signed in, your games appear here by themselves.", label))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.system(size: 12.5))
+                .font(size: 12.5)
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -202,28 +213,28 @@ private struct EpicStoreRow: View {
     }
 
     @ViewBuilder private var status: some View {
-        if !epic.isConnected {
-            Text(epic.connecting ? L10n.t("Sign in in Epic's window") : L10n.t("Not connected"))
+        if !store.isConnected {
+            Text(store.connecting ? L10n.t("Sign in in %@'s window", label) : L10n.t("Not connected"))
                 .foregroundStyle(.secondary)
         } else {
-            switch epic.sync.state {
+            switch store.sync.state {
             case .syncing:
                 Text(L10n.t("Updating …")).foregroundStyle(.secondary)
             case .failed(let reason):
-                Text(epic.sync.lastSuccess.map { L10n.t("%@ · last update %@", reason, Format.relative($0)) } ?? reason)
+                Text(store.sync.lastSuccess.map { L10n.t("%@ · last update %@", reason, Format.relative($0)) } ?? reason)
                     .foregroundStyle(Theme.sodium)
             case .signedOut:
-                Text(L10n.t("Epic Games signed you out – your games stay here"))
+                Text(L10n.t("%@ signed you out – your games stay here", label))
                     .foregroundStyle(Theme.sodium)
             case .ok:
-                let count = model.visibleCount(of: .epic)
+                let count = model.visibleCount(of: store.provider)
                 let games = count == 1 ? L10n.t("1 game") : L10n.t("%ld games", count)
                 HStack(spacing: 6) {
                     Circle().fill(Theme.runsGreat).frame(width: 7, height: 7)
-                    Text(epic.sync.lastSuccess.map { L10n.t("%@ · up to date %@", games, Format.relative($0)) } ?? games)
+                    Text(store.sync.lastSuccess.map { L10n.t("%@ · up to date %@", games, Format.relative($0)) } ?? games)
                 }
                 .foregroundStyle(.secondary)
-                .help(epic.accountName.map { L10n.t("Signed in as %@", $0) } ?? "")
+                .help(store.accountName.map { L10n.t("Signed in as %@", $0) } ?? "")
             }
         }
     }
@@ -241,6 +252,7 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.Keys.notifyDownloads) private var notifyDownloads = true
     @AppStorage(Prefs.Keys.saveBattery) private var saveBattery = false
     @AppStorage(Prefs.Keys.reduceMotion) private var reduceMotionSetting = ""
+    @AppStorage(Prefs.Keys.largerText) private var largerText = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     var body: some View {
@@ -256,7 +268,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Sharp & smooth"))
                         Text(L10n.t("Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -265,7 +277,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Game Mode"))
                         Text(L10n.t("Gives games priority on the CPU and graphics and halves Bluetooth latency for controllers and headphones. Turn it off if a game's sound crackles."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -275,7 +287,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Save battery when unplugged"))
                         Text(L10n.t("On battery, games are capped at 30 FPS so the battery lasts longer. Plugged in, everything runs at full speed. Takes effect at the next game start."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -284,7 +296,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Performance HUD in games"))
                         Text(L10n.t("Shows frames per second and frame times while you play. Takes effect at the next game start."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -294,7 +306,7 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Notify me when downloads finish"))
                         Text(L10n.t("A macOS notification with a Play button while Nightforge is in the background. Your last five games are in the Dock menu, too."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -312,11 +324,20 @@ private struct GeneralSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Reduce motion"))
                         Text(L10n.t("No zoom on covers, no sliding – plain cross-fades. Follows “Reduce motion” in macOS until you change it here."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padFocus("settings.reduceMotion", toggle: reduceMotion)
+                Toggle(isOn: $largerText) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Larger text"))
+                        Text(L10n.t("All of Nightforge's text one step larger, from the library to the dialogs."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padFocus("settings.largerText", toggle: $largerText)
             } header: {
                 SectionTitle(L10n.t("Accessibility"))
             }
@@ -367,7 +388,7 @@ private struct ControllerSettings: View {
                 .padFocus("settings.pair", cornerRadius: 15, activate: pair)
             if pairing {
                 Text(L10n.t("PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -390,20 +411,20 @@ private struct ControllerSettings: View {
     private func padRow(_ pad: GCController) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "gamecontroller")
-                .font(.system(size: 16, weight: .semibold))
+                .font(size: 16, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.sodium)
             VStack(alignment: .leading, spacing: 3) {
                 Text(pad.vendorName ?? pad.productCategory)
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(size: 13.5, weight: .semibold)
                 Text(L10n.t("Connected · works in every game and in Nightforge"))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             if let battery = pad.battery, battery.batteryState != .unknown {
                 Label("\(Int((battery.batteryLevel * 100).rounded())) %",
                       systemImage: battery.batteryState == .charging ? "battery.100.bolt" : Self.batterySymbol(battery.batteryLevel))
-                    .font(.system(size: 12).monospacedDigit())
+                    .font(size: 12).monospacedDigit()
                     .foregroundStyle(battery.batteryLevel < 0.2 && battery.batteryState != .charging ? Theme.sodium : .secondary)
                     .help(L10n.t("Controller battery"))
             }
@@ -446,8 +467,10 @@ private struct StorageSettings: View {
 
     private struct RemovalPlan: Identifiable {
         let id = UUID()
-        let windowsGames: Int
-        let windowsGamesSize: Int64
+        /// The games in Nightforge's folder (Windows games, GOG's Mac versions) and their stores.
+        let games: Int
+        let gamesSize: Int64
+        let stores: Set<Provider>
         let ownSize: Int64
         let savesSize: Int64
     }
@@ -504,16 +527,16 @@ private struct StorageSettings: View {
                             legend("Nightforge", ownSize, Theme.storageNightforge)
                         } else {
                             HStack(spacing: 6) { GlassSpinner(size: 12); Text(L10n.t("Measuring Nightforge …")) }
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(size: 10).foregroundStyle(.secondary)
                         }
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
                         Text(L10n.t("%@ free", Format.bytes(disk.free)))
-                            .font(.caption.monospacedDigit())
+                            .font(size: 10).monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
                     Text(L10n.t("“Nightforge” is the game engine, the Windows environment and Steam itself – everything besides the games."))
-                        .font(.caption)
+                        .font(size: 10)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
@@ -541,11 +564,11 @@ private struct StorageSettings: View {
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
                         Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName)
-                            .font(.caption.monospacedDigit())
+                            .font(size: 10).monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
                     if let note = drive.check.note(drive.name) {
-                        Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        Text(note).font(size: 10).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                     if games.isEmpty {
                         Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
@@ -583,7 +606,7 @@ private struct StorageSettings: View {
                         Text(L10n.t("Shader caches"))
                         Text(gameBusy ? L10n.t("Quit the game first – it's using them.")
                                       : L10n.t("Rebuilt by itself – the next start of each game takes a moment longer."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -599,11 +622,11 @@ private struct StorageSettings: View {
                         .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
                     if measuringRemoval || removing {
                         GlassSpinner()
-                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(.caption).foregroundStyle(.secondary)
+                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(size: 10).foregroundStyle(.secondary)
                     }
                 }
                 Text(L10n.t("Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -630,8 +653,7 @@ private struct StorageSettings: View {
         }
         .task { await measureShaders() }
         .task(id: model.allGames.count) {
-            let builtIn = model.allGames.filter { $0.bottle.isBuiltIn && $0.install != .notInstalled && $0.install != .inStore
-                && DriveLibrary.drive(of: $0.installDir) == nil }
+            let builtIn = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
                 .reduce(Int64(0)) { $0 + $1.sizeOnDisk }
             let folder = Engine.supportDir
             let total = await Task.detached(priority: .utility) { LibraryScanner.folderSize(folder) }.value
@@ -665,7 +687,7 @@ private struct StorageSettings: View {
                 Text(game.name).lineLimit(1)
                 Text(model.move?.game.id == game.id ? L10n.t("Moving …")
                      : game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
             }
         }
@@ -698,10 +720,9 @@ private struct StorageSettings: View {
     private func planRemoval() {
         guard !gameBusy else { return }
         measuringRemoval = true
-        // Games on a drive aren't in Nightforge's folder: they stay there.
-        let windows = model.allGames.filter { $0.bottle.isBuiltIn && $0.install != .notInstalled && $0.install != .inStore
-            && DriveLibrary.drive(of: $0.installDir) == nil }
-        let gamesSize = windows.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
+        // Games on a drive aren't in Nightforge's folder: they stay there (`inNightforgeFolder`).
+        let games = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
+        let gamesSize = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
         Task {
             let (own, saves) = await Task.detached(priority: .userInitiated) {
                 let total = CompleteRemoval.targets().reduce(Int64(0)) { $0 + LibraryScanner.folderSize($1) }
@@ -709,22 +730,19 @@ private struct StorageSettings: View {
                 return (total, saves)
             }.value
             measuringRemoval = false
-            removal = RemovalPlan(windowsGames: windows.count, windowsGamesSize: gamesSize, ownSize: max(0, own - gamesSize), savesSize: saves)
+            removal = RemovalPlan(games: games.count, gamesSize: gamesSize, stores: Set(games.map(\.provider)),
+                                  ownSize: max(0, own - gamesSize), savesSize: saves)
         }
     }
 
     private func removalMessage(_ plan: RemovalPlan) -> String {
         var parts: [String] = []
-        if plan.windowsGames > 0 {
-            parts.append(plan.windowsGames == 1
-                ? L10n.t("1 Windows game (%@) is deleted – it stays in your Steam library and can be downloaded again.", Format.bytes(plan.windowsGamesSize))
-                : L10n.t("%ld Windows games (%@) are deleted – they stay in your Steam library and can be downloaded again.", plan.windowsGames, Format.bytes(plan.windowsGamesSize)))
-        }
+        if let games = CompleteRemoval.gamesNote(count: plan.games, size: plan.gamesSize, stores: plan.stores) { parts.append(games) }
         parts.append(L10n.t("The game engine, the Windows environment, caches and settings: %@.", Format.bytes(plan.ownSize)))
         if plan.savesSize > 0 {
             parts.append(L10n.t("Saves that are only on this Mac (%@) are copied to Documents › Nightforge Saves first.", Format.bytes(plan.savesSize)))
         }
-        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in the Steam Cloud stay. Then Nightforge moves itself to the Bin and quits."))
+        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in your stores' clouds stay. Then Nightforge moves itself to the Bin and quits."))
         return parts.joined(separator: "\n\n")
     }
 
@@ -746,7 +764,7 @@ private struct StorageSettings: View {
             Circle().fill(color).frame(width: 8, height: 8)
             Text("\(title) \(Format.bytes(bytes))").monospacedDigit()
         }
-        .font(.caption)
+        .font(size: 10)
     }
 
     private func reveal(_ game: Game) {
@@ -808,7 +826,7 @@ private struct AboutSettings: View {
                         Text(L10n.t("No account. No telemetry. No background service."))
                             .fontWeight(.semibold)
                         Text(L10n.t("Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it."))
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -821,13 +839,13 @@ private struct AboutSettings: View {
 
             Section {
                 Text(L10n.t("Nightforge is free software under the GPL-3.0. It stands on these projects – thank you to everyone behind them. Their licence files ship inside the app."))
-                    .font(.caption)
+                    .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(credits) { credit in
                     LabeledContent {
                         Text(credit.license)
-                            .font(.caption)
+                            .font(size: 10)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 220, alignment: .trailing)
@@ -836,10 +854,10 @@ private struct AboutSettings: View {
                             HStack(spacing: 6) {
                                 Text(credit.name)
                                 if let version = credit.version {
-                                    Text(version).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                                    Text(version).font(size: 10).foregroundStyle(.secondary).monospacedDigit()
                                 }
                             }
-                            Text(credit.role).font(.caption).foregroundStyle(.secondary)
+                            Text(credit.role).font(size: 10).foregroundStyle(.secondary)
                         }
                     }
                 }

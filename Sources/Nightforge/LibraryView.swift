@@ -175,19 +175,35 @@ struct LibraryView: View {
 /// the rest at the stage's end (design 2d).
 private struct HomeLevel: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var padFocus = PadFocus.shared
 
     var body: some View {
         if model.showsFirstStart || model.allGames.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer(minLength: 24)
-                if model.showsFirstStart {
-                    SetupView(setup: model.setup, macSteam: model.macSteamPrep)
-                        .padding(.horizontal, Theme.gutter)
-                } else if !model.isScanning {
-                    EmptyLibrary()
-                        .padding(.horizontal, Theme.gutter)
+            // A page taller than the window (a short one, larger text) scrolls instead of pushing the
+            // top bar out; its buttons are at its end, so the pad's highlight brings the end into view.
+            GeometryReader { geo in
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Spacer(minLength: 24)
+                            if model.showsFirstStart {
+                                SetupView(setup: model.setup, macSteam: model.macSteamPrep)
+                                    .padding(.horizontal, Theme.gutter)
+                            } else if !model.isScanning {
+                                EmptyLibrary()
+                                    .padding(.horizontal, Theme.gutter)
+                            }
+                            Spacer(minLength: 28)
+                                .id("firstStart.end")
+                        }
+                        .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .leading)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .onChange(of: padFocus.focused) { _, id in
+                        guard id != nil else { return }
+                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("firstStart.end", anchor: .bottom) }
+                    }
                 }
-                Spacer(minLength: 28)
             }
         } else {
             GeometryReader { geo in
@@ -250,7 +266,7 @@ private struct NoFilterMatches: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(L10n.t("No games match these filters"))
-                .font(Theme.display(30))
+                .displayFont(30)
                 .foregroundStyle(Theme.ink)
             Button(L10n.t("Clear filters")) { model.filters = model.filters.cleared }
                 .buttonStyle(GlassTextButtonStyle())
@@ -278,7 +294,9 @@ private struct DetailLevel: View {
                 }
             }
             .id(game.id)
-            Spacer(minLength: 28)
+            // Ahead of the spacers: the logo gives way only when the window is really too short.
+            .layoutPriority(1)
+            Spacer(minLength: 20)
         }
         .padding(.horizontal, Theme.gutter)
     }
@@ -293,9 +311,9 @@ private struct BackPill: View {
         Button { model.back() } label: {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(size: 12, weight: .bold)
                 Text(to == .home ? L10n.t("Home") : L10n.t("Library"))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(size: 13, weight: .semibold)
             }
             .foregroundStyle(Theme.ink.opacity(0.9))
             .padding(.leading, 10)
@@ -316,25 +334,25 @@ private struct AllGamesHero: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text(L10n.t("Library").uppercased())
-                .font(.system(size: 12, weight: .semibold))
+                .font(size: 12, weight: .semibold)
                 .kerning(1.8)
                 .foregroundStyle(Theme.muted)
             Text(model.visibleCount == 1 ? L10n.t("Your game") : L10n.t("All %ld games", model.visibleCount))
-                .font(Theme.display(54))
+                .displayFont(54)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
                 .minimumScaleFactor(0.5)
             Text(L10n.t("Everything in your library – installed or not – in one place."))
-                .font(.system(size: 15))
+                .font(size: 15)
                 .foregroundStyle(Theme.muted)
                 .frame(minWidth: 320, maxWidth: 520, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             Button { model.goLibrary() } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "square.grid.2x2.fill")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(size: 15, weight: .bold)
                     Text(L10n.t("Open Library"))
-                        .font(Theme.display(17))
+                        .displayFont(17)
                 }
                 .foregroundStyle(Theme.night)
                 .padding(.horizontal, 32)
@@ -358,58 +376,61 @@ struct FailedLaunchSheet: View {
 
     var body: some View {
         GlassDialog(L10n.t("%@ didn't start", failed.game.name), id: "failed") {
-            VStack(alignment: .leading, spacing: 8) {
-                DialogWarning(L10n.t("It ended right after starting, with every way Nightforge knows to start it."))
-                if !failed.tried.isEmpty {
-                    Text(L10n.t("Tried: %@", failed.tried.joined(separator: " · ")))
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(Theme.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, 26)
+            // The ways out scroll in a short window; the report line stays under them.
+            DialogScroll {
+                VStack(alignment: .leading, spacing: 8) {
+                    DialogWarning(L10n.t("It ended right after starting, with every way Nightforge knows to start it."))
+                    if !failed.tried.isEmpty {
+                        Text(L10n.t("Tried: %@", failed.tried.joined(separator: " · ")))
+                            .font(size: 12.5)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 26)
+                    }
                 }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                // A on a controller is Return: the first way out, not a browser.
-                if offersCompatible {
-                    Button(action: mostCompatible) {
-                        Label(L10n.t("Try “Most compatible”"), systemImage: "shield.lefthalf.filled")
+                VStack(alignment: .leading, spacing: 8) {
+                    // A on a controller is Return: the first way out, not a browser.
+                    if offersCompatible {
+                        Button(action: mostCompatible) {
+                            Label(L10n.t("Try “Most compatible”"), systemImage: "shield.lefthalf.filled")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(GlassTextButtonStyle(prominent: true))
+                        .keyboardShortcut(.defaultAction)
+                        .padFocus("failed.compatible", cornerRadius: 21, preferred: true, activate: mostCompatible)
+                        Text(L10n.t("Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options."))
+                            .font(size: 12.5)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
+                            .padding(.bottom, 4)
+                    }
+                    Button(action: startOver) {
+                        Label(L10n.t("Try Again From the First Way"), systemImage: "arrow.counterclockwise")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(GlassTextButtonStyle(prominent: true))
-                    .keyboardShortcut(.defaultAction)
-                    .padFocus("failed.compatible", cornerRadius: 21, preferred: true, activate: mostCompatible)
-                    Text(L10n.t("Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options."))
-                        .font(.system(size: 12.5))
+                    .buttonStyle(GlassTextButtonStyle(prominent: !offersCompatible))
+                    .keyboardShortcut(offersCompatible ? nil : .defaultAction)
+                    .padFocus("failed.again", cornerRadius: 21, preferred: !offersCompatible, activate: startOver)
+                    Text(L10n.t("Helps when something got in the way the first time – Steam updating, a window asking something."))
+                        .font(size: 12.5)
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 4)
-                        .padding(.bottom, 4)
-                }
-                Button(action: startOver) {
-                    Label(L10n.t("Try Again From the First Way"), systemImage: "arrow.counterclockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(GlassTextButtonStyle(prominent: !offersCompatible))
-                .keyboardShortcut(offersCompatible ? nil : .defaultAction)
-                .padFocus("failed.again", cornerRadius: 21, preferred: !offersCompatible, activate: startOver)
-                Text(L10n.t("Helps when something got in the way the first time – Steam updating, a window asking something."))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
-                if hasLayers {
-                    Button(action: chooseByHand) {
-                        Label(L10n.t("Choose Graphics by Hand …"), systemImage: "slider.horizontal.3")
-                            .frame(maxWidth: .infinity)
+                    if hasLayers {
+                        Button(action: chooseByHand) {
+                            Label(L10n.t("Choose Graphics by Hand …"), systemImage: "slider.horizontal.3")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
+                        .padding(.top, 4)
                     }
-                    .buttonStyle(GlassTextButtonStyle())
-                    .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
-                    .padding(.top, 4)
                 }
             }
             HStack(alignment: .center, spacing: 12) {
                 Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there."))
-                    .font(.system(size: 12.5))
+                    .font(size: 12.5)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -463,7 +484,7 @@ struct SaveChoiceSheet: View {
                 .padFocus("saves.keep", cornerRadius: 16, activate: { model.answerSaveChoice(takeNewer: false) })
             }
             Text(L10n.t("Taking the newer one keeps this version's save as a backup in Nightforge's Backups folder."))
-                .font(.system(size: 12.5))
+                .font(size: 12.5)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -477,22 +498,22 @@ struct SaveChoiceSheet: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: newer ? "clock.arrow.circlepath" : "clock")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(size: 18, weight: .semibold, scales: false)
                     .foregroundStyle(Theme.ink.opacity(0.85))
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.ink)
+                        Text(title).font(size: 14, weight: .semibold).foregroundStyle(Theme.ink)
                         if newer {
                             Text(L10n.t("Newer"))
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(size: 11, weight: .semibold)
                                 .foregroundStyle(Theme.sodium)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)
                                 .background(Theme.sodium.opacity(0.2), in: Capsule())
                         }
                     }
-                    Text(Self.when(date)).font(.system(size: 12.5)).foregroundStyle(Theme.muted)
+                    Text(Self.when(date)).font(size: 12.5).foregroundStyle(Theme.muted)
                 }
                 Spacer()
             }
@@ -533,58 +554,61 @@ struct SpaceSheet: View {
 
     var body: some View {
         GlassDialog(L10n.t("%@ needs up to %@", request.game.name, Format.bytes(request.needed)), id: "space", width: 540) {
-            DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
-                                 Format.bytes(request.free), Format.bytes(request.shortfall)),
-                          symbol: "externaldrive.badge.exclamationmark")
-            if request.candidates.isEmpty {
-                Text(L10n.t("No game here has gone unplayed for a month. Remove games or other files you don't need, then try again."))
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(request.candidates.allSatisfy { $0.provider == .steam }
-                         ? L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept.")
-                         : L10n.t("Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept."))
-                        .font(.system(size: 13, weight: .medium))
+            // The games to make room with scroll in a short window; the buttons stay under them.
+            DialogScroll {
+                DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
+                                     Format.bytes(request.free), Format.bytes(request.shortfall)),
+                              symbol: "externaldrive.badge.exclamationmark")
+                if request.candidates.isEmpty {
+                    Text(L10n.t("No game here has gone unplayed for a month. Remove games or other files you don't need, then try again."))
+                        .font(size: 13)
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                    VStack(spacing: 0) {
-                        ForEach(Array(request.candidates.enumerated()), id: \.element.id) { place, game in
-                            let on = Binding(get: { picked.contains(game.id) },
-                                             set: { if $0 { picked.insert(game.id) } else { picked.remove(game.id) } })
-                            if place > 0 { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
-                            Toggle(isOn: on) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(game.name)
-                                            .font(.system(size: 13.5, weight: .semibold))
-                                            .lineLimit(1)
-                                        Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(Theme.muted)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(request.candidates.allSatisfy { $0.provider == .steam }
+                             ? L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept.")
+                             : L10n.t("Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept."))
+                            .font(size: 13, weight: .medium)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(spacing: 0) {
+                            ForEach(Array(request.candidates.enumerated()), id: \.element.id) { place, game in
+                                let on = Binding(get: { picked.contains(game.id) },
+                                                 set: { if $0 { picked.insert(game.id) } else { picked.remove(game.id) } })
+                                if place > 0 { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
+                                Toggle(isOn: on) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(game.name)
+                                                .font(size: 13.5, weight: .semibold)
+                                                .lineLimit(1)
+                                            Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
+                                                .font(size: 12)
+                                                .foregroundStyle(Theme.muted)
+                                        }
+                                        Spacer()
+                                        Text(Format.bytes(game.sizeOnDisk))
+                                            .font(size: 13)
+                                            .monospacedDigit()
+                                            .foregroundStyle(Theme.ink.opacity(0.8))
                                     }
-                                    Spacer()
-                                    Text(Format.bytes(game.sizeOnDisk))
-                                        .font(.system(size: 13))
-                                        .monospacedDigit()
-                                        .foregroundStyle(Theme.ink.opacity(0.8))
                                 }
+                                .toggleStyle(GlassCheckboxStyle())
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .padFocus("space.\(game.id)", toggle: on)
                             }
-                            .toggleStyle(GlassCheckboxStyle())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .padFocus("space.\(game.id)", toggle: on)
                         }
+                        .glassWell()
                     }
-                    .glassWell()
                 }
+                DriveInstallChoices(request: request)
             }
-            DriveInstallChoices(request: request)
             HStack(spacing: 8) {
                 if !request.candidates.isEmpty {
                     Text(enough ? L10n.t("Frees %@ – enough", Format.bytes(freed)) : L10n.t("Frees %@ of %@", Format.bytes(freed), Format.bytes(request.shortfall)))
-                        .font(.system(size: 12.5).monospacedDigit())
+                        .font(size: 12.5).monospacedDigit()
                         .foregroundStyle(enough ? Theme.runsGreat : Theme.muted)
                 }
                 Spacer()
@@ -619,11 +643,11 @@ private struct DialogWarning: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
+                .font(size: 14, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.warning)
                 .frame(width: 16)
             Text(text)
-                .font(.system(size: 14))
+                .font(size: 14)
                 .lineSpacing(3)
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
@@ -749,7 +773,7 @@ private struct TopBar: View {
                 NightforgeMark()
                     .frame(height: 17)
                 Text("Nightforge")
-                    .font(Theme.display(15))
+                    .displayFont(15)
                     .foregroundStyle(Theme.ink)
             }
             .accessibilityElement(children: .combine)
@@ -765,7 +789,7 @@ private struct TopBar: View {
                 HStack(spacing: 8) {
                     GlassSpinner(size: 14)
                     Text(L10n.t("Scanning …"))
-                        .font(.system(size: 13))
+                        .font(size: 13)
                         .foregroundStyle(Theme.muted)
                         .fixedSize()
                 }
@@ -785,7 +809,7 @@ private struct TopBar: View {
                             .lineLimit(1)
                     }
                     .fixedSize()
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(size: 13, weight: .semibold)
                     .foregroundStyle(Theme.night)
                     .padding(.horizontal, 14)
                     .frame(height: 34)
@@ -799,7 +823,7 @@ private struct TopBar: View {
 
             if model.power.onBattery, let level = model.power.level {
                 Label("\(Int((level * 100).rounded())) %", systemImage: PowerSource.symbol(level))
-                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                    .font(size: 13, weight: .semibold).monospacedDigit()
                     .foregroundStyle(level < 0.2 ? Theme.sodium : Theme.ink.opacity(0.9))
                     .padding(.horizontal, 12)
                     .frame(height: 38)
@@ -816,7 +840,7 @@ private struct TopBar: View {
                     GlassDivider()
                 }
                 Button { model.reload() } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "arrow.clockwise").font(size: 13, weight: .semibold, scales: false)
                 }
                 .buttonStyle(GlassGroupButtonStyle())
                 .help(L10n.t("Rescan library (⌘R)"))
@@ -824,7 +848,7 @@ private struct TopBar: View {
                 .padFocus("top.rescan", cornerRadius: 15, activate: { model.reload() })
                 GlassDivider()
                 Button { model.openSettings() } label: {
-                    Image(systemName: "gearshape").font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "gearshape").font(size: 14, weight: .semibold, scales: false)
                 }
                 .buttonStyle(GlassGroupButtonStyle())
                 .help(L10n.t("Settings (⌘,)"))
@@ -837,7 +861,7 @@ private struct TopBar: View {
 
             TimelineView(.everyMinute) { context in
                 Text(context.date, format: .dateTime.hour().minute().locale(L10n.locale))  // the app's language, not the Mac's
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                    .font(size: 14, weight: .semibold).monospacedDigit()
                     .foregroundStyle(Theme.ink)
             }
             .padding(.horizontal, 14)
@@ -877,7 +901,7 @@ private struct SectionSwitch: View {
                         .foregroundStyle(on ? Theme.night.opacity(0.6) : Theme.muted)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(size: 13, weight: .semibold)
             .foregroundStyle(on ? Theme.night : Theme.ink.opacity(0.8))
             .padding(.horizontal, 14)
             .frame(maxHeight: .infinity)
@@ -898,7 +922,7 @@ private struct NoResults: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(L10n.t("No games match “%@”", model.searchText))
-                .font(Theme.display(30))
+                .displayFont(30)
                 .foregroundStyle(Theme.ink)
             Button(L10n.t("Clear search")) { model.searchText = "" }
                 .buttonStyle(GlassTextButtonStyle())
@@ -936,7 +960,7 @@ private struct GameDetail: View {
                     .fixedSize()
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.ink.opacity(0.8))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -953,7 +977,7 @@ private struct GameDetail: View {
                         .shadow(color: .black.opacity(0.6), radius: 20, y: 8)
                 } else {
                     Text(game.name)
-                        .font(Theme.display(54))
+                        .displayFont(54)
                         .foregroundStyle(Theme.ink)
                         .lineLimit(2)
                         .minimumScaleFactor(0.5)
@@ -961,15 +985,16 @@ private struct GameDetail: View {
                         .shadow(color: .black.opacity(0.5), radius: 16, y: 6)
                 }
             }
-            // On Home the logo gives way first when the window is short: the page has to fit, or it
-            // grows past the window and the top bar jumps between Home and the library.
-            .frame(minHeight: compact ? 80 : 170, maxHeight: compact ? 150 : 170, alignment: .bottomLeading)
+            // The logo gives way first when the window is short (a game's page in a small window with
+            // its buttons on two lines, larger text): the page has to fit, or it grows past the window
+            // and the top bar jumps between Home and the library.
+            .frame(minHeight: 80, maxHeight: compact ? 150 : 170, alignment: .bottomLeading)
             .accessibilityLabel(game.name)
 
             // Why it's a good start, in one sentence – only for a game nobody has played here yet.
             if let starter {
                 Text(StarterPicks.reason(starter))
-                    .font(.system(size: 15))
+                    .font(size: 15)
                     .foregroundStyle(Theme.ink.opacity(0.82))
                     .frame(minWidth: 320, maxWidth: 600, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1026,14 +1051,14 @@ private struct GameDetail: View {
             }
             if !compact, !game.addOns.isEmpty {
                 Label(AddOns.line(game.addOns), systemImage: "puzzlepiece.extension")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if game.isVROnly {
                 Label(L10n.t("Needs a VR headset – this game can't be played on a Mac."), systemImage: "visionpro")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
             }
             if let block = game.antiCheatBlock {
@@ -1054,18 +1079,18 @@ private struct GameDetail: View {
             }
             if model.power.onBattery && Prefs.saveBattery && game.isInstalled && !model.isRunning(game) {
                 Label(L10n.t("On battery: games are capped at 30 FPS to last longer."), systemImage: "battery.50percent")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
             }
             if let warning = model.chargerWarning, game.install != .inStore {
                 Label(ChargerPill.note(warning), systemImage: "bolt.fill")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.warning)
             }
             if model.lowPowerMode && game.install != .inStore {
                 HStack(spacing: 10) {
                     Label(L10n.t("Low Power Mode is on – games run much slower with it."), systemImage: "battery.25percent")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(size: 13, weight: .semibold)
                         .foregroundStyle(Theme.sodium)
                     Button(L10n.t("Battery Settings"), action: Self.openBatterySettings)
                         .buttonStyle(GlassTextButtonStyle(small: true))
@@ -1079,7 +1104,7 @@ private struct GameDetail: View {
                 Label(L10n.t("Not enough space: Steam needs %@ to download this game, your Mac has %@ free. Make some room, then continue.",
                              Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: game.installDir.deletingLastPathComponent()))),
                       systemImage: "externaldrive.badge.exclamationmark")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1089,7 +1114,9 @@ private struct GameDetail: View {
                 StoreChoiceRow(game: game)
             }
 
-            HStack(spacing: 14) {
+            // The round buttons go to a new line rather than squeezing Play's words (a narrow window,
+            // larger text, German).
+            FlowRow(spacing: 14, lineSpacing: 14, centered: true) {
                 PlayButton(install: game.install, isLaunching: model.launchingID == game.id || model.sizingID == game.id,
                            isUninstalling: model.uninstallingID == game.id,
                            isRunning: model.isRunning(game),
@@ -1158,14 +1185,14 @@ private struct GameDetail: View {
                 Text(starter.mac && game.platform != .mac
                      ? L10n.t("Comes as its Mac version – the first time, Nightforge sets up Steam for Mac for it, once, in a few minutes.")
                      : L10n.t("Downloads in the background – you can browse on, and your Mac stays awake."))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if model.launchingID == game.id, let hint = model.launchHint {
                 Text(hint)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1240,8 +1267,8 @@ private struct StageKicker: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            if prominent { Image(systemName: "sparkle").font(.system(size: 10, weight: .bold)) }
-            Text(text).font(.system(size: 11.5, weight: .bold))
+            if prominent { Image(systemName: "sparkle").font(size: 10, weight: .bold) }
+            Text(text).font(size: 11.5, weight: .bold)
         }
         .foregroundStyle(prominent ? Theme.night : Theme.ink)
         .padding(.horizontal, 10)
@@ -1262,20 +1289,20 @@ private struct StoreChoiceRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Text(L10n.t("Start through"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                 // In the stores' own order, so the choice doesn't move the segments.
                 Segmented(options: Provider.allCases.filter(game.providers.contains).map { ($0, $0.label, nil) },
                           selection: game.provider, id: "detail.store") { model.chooseStore($0, for: game) }
             }
             Label(L10n.t("Saves stay with each store."), systemImage: "externaldrive.badge.icloud")
-                .font(.system(size: 13, weight: .medium))
+                .font(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)
             if game.shown.id != game.id, case .downloading(let fraction) = game.shown.install {
                 Label(fraction.map { L10n.t("Downloading from %@ … %ld %%", game.shown.provider.label, Int($0 * 100)) }
                       ?? L10n.t("Preparing the download from %@ …", game.shown.provider.label),
                       systemImage: "arrow.down.circle")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .accessibilityAddTraits(.updatesFrequently)
             }
@@ -1292,7 +1319,7 @@ private struct CompatibilityNote: View {
         let parts = [compatibility.note, tested].compactMap { $0 }
         if !parts.isEmpty {
             Label(parts.joined(separator: " · "), systemImage: compatibility.level.symbol)
-                .font(.system(size: 13, weight: .medium))
+                .font(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)
                 .lineLimit(3)
                 .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
@@ -1313,7 +1340,7 @@ private struct HeldEngineNote: View {
             Label(L10n.t("Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.",
                          EngineRollback.day(held.setUp)),
                   systemImage: "arrow.uturn.backward")
-                .font(.system(size: 13, weight: .medium))
+                .font(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)
                 .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1338,7 +1365,7 @@ private struct AntiCheatNote: View {
                       systemImage: "cloud")
             }
         }
-        .font(.system(size: 13, weight: .medium))
+        .font(size: 13, weight: .medium)
         .foregroundStyle(Theme.muted)
         .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -1352,10 +1379,10 @@ private struct Stat: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .font(size: 12, weight: .medium)
                 .foregroundStyle(Theme.muted)
             Text(value)
-                .font(.system(size: 16, weight: .semibold))
+                .font(size: 16, weight: .semibold)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
         }
@@ -1416,26 +1443,26 @@ private struct PlayButton: View {
                     Circle().fill(Color.green).frame(width: 10, height: 10)
                 } else if let unavailable {
                     Image(systemName: unavailable.symbol)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(size: 15, weight: .bold)
                 } else if cloud {
                     Image(systemName: "cloud.fill")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(size: 15, weight: .bold)
                 } else if noSpace {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(size: 15, weight: .bold)
                 } else if busy {
                     ProgressView()
                         .controlSize(.small)
                         .environment(\.colorScheme, .light)
                 } else if install == .installed && update != nil {
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(size: 15, weight: .bold)
                 } else {
                     Image(systemName: install == .notInstalled ? "arrow.down" : install == .inStore ? "cart" : "play.fill")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(size: 15, weight: .bold)
                 }
                 Text(title)
-                    .font(Theme.display(17))
+                    .displayFont(17)
                     .monospacedDigit()
             }
             .foregroundStyle(Theme.night)
@@ -1471,7 +1498,7 @@ struct RoundIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: size * 0.32, weight: .semibold))
+                .font(size: size * 0.32, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.ink)
                 .frame(width: size, height: size)
         }
@@ -1545,7 +1572,7 @@ struct CoverCard: View {
             } else {
                 LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
                 Text(game.name)
-                    .font(.system(size: 15, weight: .bold).width(.expanded))
+                    .font(size: 15, weight: .bold).fontWidth(.expanded)
                     .foregroundStyle(Theme.ink.opacity(0.85))
                     .multilineTextAlignment(.center)
                     .padding(14)
@@ -1561,7 +1588,7 @@ struct CoverCard: View {
                 // several stores names them all.
                 if game.providers != [.steam] {
                     Text(game.providers.map(\.short).joined(separator: " + "))
-                        .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                        .displayFont(9.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)  // small covers (a pinch) with two stores
                         .foregroundStyle(Theme.ink)
@@ -1574,7 +1601,7 @@ struct CoverCard: View {
                 // The version in use; in the store, that Steam has one.
                 if game.platform == .mac || (game.install == .inStore && game.macNative) {
                     Text("MAC")
-                        .font(.system(size: 9.5, weight: .heavy).width(.expanded))
+                        .displayFont(9.5)
                         .foregroundStyle(Theme.ink)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
@@ -1590,7 +1617,7 @@ struct CoverCard: View {
             // Full support in the accent colour, so it reads across the room; partial in outline.
             if game.controller != .none {
                 Image(systemName: game.controller == .full ? "gamecontroller.fill" : "gamecontroller")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(size: 15, weight: .bold, scales: false)
                     .foregroundStyle(game.controller == .full ? Theme.sodium : Theme.ink.opacity(0.8))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
@@ -1602,7 +1629,7 @@ struct CoverCard: View {
         .overlay(alignment: .topLeading) {
             if isPinned && !isRunning {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(size: 11, weight: .bold, scales: false)
                     .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 5)
@@ -1613,7 +1640,7 @@ struct CoverCard: View {
             if isRunning {
                 HStack(spacing: 5) {
                     Circle().fill(Color.green).frame(width: 7, height: 7)
-                    Text(L10n.t("Running")).font(.system(size: 11, weight: .bold))
+                    Text(L10n.t("Running")).font(size: 11, weight: .bold)
                 }
                 .foregroundStyle(Theme.ink)
                 .padding(.horizontal, 8)
@@ -1673,10 +1700,10 @@ struct CoverCard: View {
             HStack {
                 Spacer()
                 Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(size: 20, weight: .semibold, scales: false)
                     .foregroundStyle(Theme.ink, Theme.night.opacity(0.7))
                     .padding(8)
-                    .help(game.provider == .epic ? L10n.t("An update is waiting – it comes from Epic Games before the game starts")
+                    .help(game.provider != .steam ? L10n.t("An update is waiting – it comes from %@ before the game starts", game.provider.label)
                           : L10n.t("An update is waiting – Steam downloads it before the game starts"))
             }
             .frame(maxHeight: .infinity, alignment: .bottom)
@@ -1687,7 +1714,7 @@ struct CoverCard: View {
             HStack {
                 Spacer()
                 Image(systemName: "externaldrive.badge.xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(size: 14, weight: .bold, scales: false)
                     .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 5)
@@ -1702,7 +1729,7 @@ struct CoverCard: View {
                 if let block = game.antiCheatBlock {
                     // Instead of the download sign: this one won't run here, or only in the cloud.
                     Image(systemName: block.geforceNow != nil ? "cloud" : "shield.slash")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(size: 14, weight: .bold, scales: false)
                         .foregroundStyle(Theme.ink)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 5)
@@ -1712,7 +1739,7 @@ struct CoverCard: View {
                               : L10n.t("Anti-cheat stops this game on a Mac"))
                 } else {
                     Image(systemName: game.install == .inStore ? "cart.circle.fill" : "arrow.down.circle.fill")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(size: 20, weight: .semibold, scales: false)
                         .foregroundStyle(Theme.ink, Theme.night.opacity(0.7))
                         .padding(8)
                 }
@@ -1746,7 +1773,7 @@ private struct HintBar: View {
             if model.controllerConnected, let status = model.controllerStatus,
                !(model.showsFirstStart && model.setup.stage == .checklist) {
                 Label(status.label, systemImage: status.symbol)
-                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .font(size: 12, weight: .medium).monospacedDigit()
                     .foregroundStyle(status.isLow ? Theme.sodium : Theme.ink.opacity(0.8))
                     .padding(.horizontal, 12)
                     .frame(height: 32)
@@ -1829,15 +1856,15 @@ private struct Hint: View {
             switch glyph {
             case .key(let key):
                 Text(key)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(size: 11, weight: .semibold)
                     .foregroundStyle(Theme.ink.opacity(0.9))
                     .padding(.horizontal, key.count > 1 ? 7 : 0)
                     .frame(minWidth: 22, minHeight: 22)
                     .background(GlassBackground(glass: .regular, shape: Capsule()))
             case .pad(let symbol):
-                Image(systemName: symbol).font(.system(size: 17, weight: .semibold))
+                Image(systemName: symbol).font(size: 17, weight: .semibold)
             }
-            Text(text).font(.system(size: 13, weight: .medium))
+            Text(text).font(size: 13, weight: .medium)
         }
         .foregroundStyle(Theme.muted)
     }
@@ -1857,10 +1884,10 @@ private struct EmptyLibrary: View {
     private var connected: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(L10n.t("Steam is connected"))
-                .font(Theme.display(36))
+                .displayFont(36)
                 .foregroundStyle(Theme.ink)
             Text(L10n.t("Install a game in Steam – it shows up here as soon as it's on your Mac."))
-                .font(.system(size: 15))
+                .font(size: 15)
                 .foregroundStyle(Theme.muted)
                 .frame(minWidth: 320, maxWidth: 560, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1878,15 +1905,15 @@ private struct EmptyLibrary: View {
     private var bottles: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(L10n.t("No games here yet"))
-                .font(Theme.display(36))
+                .displayFont(36)
                 .foregroundStyle(Theme.ink)
             Text(L10n.t("Nightforge shows the Steam games installed in your CrossOver bottles. Install Steam in a bottle, download a game there, then rescan your library."))
-                .font(.system(size: 15))
+                .font(size: 15)
                 .foregroundStyle(Theme.muted)
                 .frame(minWidth: 320, maxWidth: 560, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             Text(L10n.t("Scanned: %@", Prefs.bottlesRoot.path))
-                .font(.system(size: 12))
+                .font(size: 12)
                 .foregroundStyle(Theme.muted.opacity(0.8))
                 .textSelection(.enabled)
             HStack(spacing: 12) {
@@ -1939,7 +1966,7 @@ private struct VersionNotes: View {
                         }
                         Text(fraction.map { L10n.t("Loading the Mac version … %ld %%", Int($0 * 100)) }
                              ?? L10n.t("Preparing the Mac version …"))
-                            .font(.system(size: 12, weight: .medium).monospacedDigit())
+                            .font(size: 12, weight: .medium).monospacedDigit()
                             .foregroundStyle(Theme.muted)
                         Button(L10n.t("Cancel")) { model.cancelMacVersion(of: game) }
                             .buttonStyle(GlassTextButtonStyle(small: true))
@@ -1963,7 +1990,7 @@ private struct VersionNotes: View {
                 HStack(spacing: 10) {
                     Label(L10n.t("The Windows version is still installed and takes %@.", Format.bytes(leftover)),
                           systemImage: "externaldrive")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(size: 13, weight: .medium)
                         .foregroundStyle(Theme.muted)
                     Button(L10n.t("Remove …")) { model.requestLeftoverRemoval(game) }
                         .buttonStyle(GlassTextButtonStyle(small: true))
@@ -1999,7 +2026,7 @@ private struct VersionNotes: View {
 
     private func note(_ text: String, systemImage: String) -> some View {
         Label(text, systemImage: systemImage)
-            .font(.system(size: 13, weight: .medium))
+            .font(size: 13, weight: .medium)
             .foregroundStyle(Theme.muted)
             .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -2037,7 +2064,7 @@ private struct GameInsightNotes: View {
 
     private func note(_ text: String, systemImage: String) -> some View {
         Label(text, systemImage: systemImage)
-            .font(.system(size: 13, weight: .medium))
+            .font(size: 13, weight: .medium)
             .foregroundStyle(Theme.muted)
             .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)

@@ -491,6 +491,9 @@ enum L10n {
         "Reduce motion": "Bewegung reduzieren",
         "No zoom on covers, no sliding – plain cross-fades. Follows “Reduce motion” in macOS until you change it here.":
             "Kein Zoom auf Covern, kein Gleiten – nur Überblenden. Folgt „Bewegung reduzieren“ in macOS, bis du es hier änderst.",
+        "Larger text": "Größere Schrift",
+        "All of Nightforge's text one step larger, from the library to the dialogs.":
+            "Alle Texte in Nightforge eine Stufe größer, von der Bibliothek bis zu den Dialogen.",
 
         // Not enough space
         "%@ needs up to %@": "%@ braucht bis zu %@",
@@ -568,8 +571,8 @@ enum L10n {
         "Steam started again meanwhile.": "Steam wurde inzwischen wieder gestartet.",
         "This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.":
             "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Steam-Bibliothek, du kannst es jederzeit wieder herunterladen. Spielstände in der Steam Cloud bleiben erhalten.",
-        "This removes the game from %@ and frees %@ there. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
-            "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
+        "This removes the game from %@ and frees %@ there. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.":
+            "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Bibliothek bei %@, du kannst es jederzeit wieder laden. Spielstände in dessen Cloud bleiben erhalten.",
 
         // Storage
         "Storage": "Speicher",
@@ -671,6 +674,7 @@ enum L10n {
         "Your Mac stays awake while games download. The display can still turn off.": "Dein Mac bleibt wach, solange Spiele laden. Der Bildschirm darf trotzdem ausgehen.",
         "Paused – not enough space": "Pausiert – zu wenig Platz",
         "%ld %% of %@": "%ld %% von %@",
+        "just now": "gerade eben",
         "Preparing …": "Wird vorbereitet …",
         "%@ · %@ left": "%@ · noch %@",
         "under a minute": "unter einer Minute",
@@ -696,15 +700,15 @@ enum L10n {
         "Remove Nightforge completely?": "Nightforge komplett entfernen?",
         "Remove Everything": "Alles entfernen",
         "Nothing was removed": "Nichts wurde entfernt",
-        "1 Windows game (%@) is deleted – it stays in your Steam library and can be downloaded again.":
-            "1 Windows-Spiel (%@) wird gelöscht – es bleibt in deiner Steam-Bibliothek und lässt sich wieder laden.",
-        "%ld Windows games (%@) are deleted – they stay in your Steam library and can be downloaded again.":
-            "%ld Windows-Spiele (%@) werden gelöscht – sie bleiben in deiner Steam-Bibliothek und lassen sich wieder laden.",
+        "1 game (%@) is deleted – it stays in your library on %@ and can be downloaded again.":
+            "1 Spiel (%@) wird gelöscht – es bleibt in deiner Bibliothek bei %@ und lässt sich wieder laden.",
+        "%ld games (%@) are deleted – they stay in your library on %@ and can be downloaded again.":
+            "%ld Spiele (%@) werden gelöscht – sie bleiben in deiner Bibliothek bei %@ und lassen sich wieder laden.",
         "The game engine, the Windows environment, caches and settings: %@.": "Spiel-Engine, Windows-Umgebung, Caches und Einstellungen: %@.",
         "Saves that are only on this Mac (%@) are copied to Documents › Nightforge Saves first.":
             "Spielstände, die nur auf diesem Mac liegen (%@), werden vorher nach Dokumente › Nightforge Saves kopiert.",
-        "Steam for Mac with its Mac games and your saves in the Steam Cloud stay. Then Nightforge moves itself to the Bin and quits.":
-            "Steam für Mac mit seinen Mac-Spielen und deine Spielstände in der Steam Cloud bleiben. Danach legt sich Nightforge in den Papierkorb und beendet sich.",
+        "Steam for Mac with its Mac games and your saves in your stores' clouds stay. Then Nightforge moves itself to the Bin and quits.":
+            "Steam für Mac mit seinen Mac-Spielen und deine Spielstände in der Cloud deiner Stores bleiben. Danach legt sich Nightforge in den Papierkorb und beendet sich.",
         "The saves couldn't be copied to Documents (%@), so everything is still there.":
             "Die Spielstände ließen sich nicht nach „Dokumente“ kopieren (%@), deshalb ist noch alles da.",
 
@@ -925,22 +929,22 @@ enum L10n {
         "%@ couldn't start: %@": "%@ konnte nicht starten: %@",
         "Epic Games is connected – your games are in the library": "Epic Games ist verbunden – deine Spiele sind in der Bibliothek",
         "From %@": "Von %@",
-        "Your save is with Epic Games.": "Dein Spielstand ist bei Epic Games.",
-        "Your save goes up to Epic Games in the background.": "Dein Spielstand geht im Hintergrund zu Epic Games.",
-        "Uploading your save to Epic Games …": "Dein Spielstand wird zu Epic Games hochgeladen …",
-        "No Epic cloud saves for this game – its saves are on this Mac.": "Keine Epic-Cloud für dieses Spiel – seine Spielstände sind auf diesem Mac.",
-        "Epic Games couldn't take your save just now. It's safe on this Mac and goes up after your next session.":
-            "Epic Games konnte deinen Spielstand gerade nicht annehmen. Er ist sicher auf diesem Mac und geht nach deiner nächsten Runde hoch.",
-        "Games from every connected store show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed. You sign in in Epic's own window; Nightforge never sees your login.":
-            "Spiele aus allen verbundenen Stores stehen zusammen in der Bibliothek. Epic-Spiele lädt und startet Nightforge selbst – ohne den Epic-Launcher. Du meldest dich in Epics eigenem Fenster an; Nightforge sieht deine Anmeldedaten nie.",
+        "Your save is with %@.": "Dein Spielstand ist bei %@.",
+        "Your save goes up to %@ in the background.": "Dein Spielstand geht im Hintergrund zu %@.",
+        "Uploading your save to %@ …": "Dein Spielstand wird zu %@ hochgeladen …",
+        "No %@ cloud saves for this game – its saves are on this Mac.": "Keine %@-Cloud für dieses Spiel – seine Spielstände sind auf diesem Mac.",
+        "%@ couldn't take your save just now. It's safe on this Mac and goes up after your next session.":
+            "%@ konnte deinen Spielstand gerade nicht annehmen. Er ist sicher auf diesem Mac und geht nach deiner nächsten Runde hoch.",
+        "Games from every connected store show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. You sign in in the store's own window; Nightforge never sees your login.":
+            "Spiele aus allen verbundenen Stores stehen zusammen in der Bibliothek. Epic- und GOG-Spiele lädt und startet Nightforge selbst – ohne Epic-Launcher und ohne GOG Galaxy. Du meldest dich im eigenen Fenster des Stores an; Nightforge sieht deine Anmeldedaten nie.",
         "Try Again": "Erneut versuchen",
         "Disconnect": "Trennen",
         "Connect": "Verbinden",
         "Waiting for sign-in …": "Warte auf Anmeldung …",
-        "Epic Games' sign-in page is open in a window. Once you're signed in, your games appear here by themselves.":
-            "Die Anmeldeseite von Epic Games ist in einem Fenster offen. Sobald du angemeldet bist, erscheinen deine Spiele hier von selbst.",
+        "%@'s sign-in page is open in a window. Once you're signed in, your games appear here by themselves.":
+            "Die Anmeldeseite von %@ ist in einem Fenster offen. Sobald du angemeldet bist, erscheinen deine Spiele hier von selbst.",
         "Not connected": "Nicht verbunden",
-        "Sign in in Epic's window": "Melde dich in Epics Fenster an",
+        "Sign in in %@'s window": "Melde dich im Fenster von %@ an",
         "%@ · last update %@": "%@ · zuletzt aktualisiert %@",
         "%@ · up to date %@": "%@ · aktuell, %@",
         "Signed in as %@": "Angemeldet als %@",
@@ -955,18 +959,18 @@ enum L10n {
         "Epic Games doesn't approve it for offline play – it needs internet.": "Epic Games gibt es nicht für Offline-Spiel frei – es braucht Internet.",
         "Epic Games signed you out: sign in again in Settings › Stores, then it starts offline too.":
             "Epic Games hat dich abgemeldet: Melde dich unter Einstellungen › Stores wieder an, dann startet es auch offline.",
-        "This removes the game from your Mac and frees %@. It stays in your Epic Games library, so you can download it again any time. Saves in Epic's cloud are kept.":
-            "Das entfernt das Spiel von deinem Mac und gibt %@ frei. Es bleibt in deiner Epic-Games-Bibliothek, du kannst es jederzeit wieder laden. Spielstände in Epics Cloud bleiben erhalten.",
-        "Epic Games signed you out – your games stay here": "Epic Games hat dich abgemeldet – deine Spiele bleiben hier",
+        "This removes the game from your Mac and frees %@. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.":
+            "Das entfernt das Spiel von deinem Mac und gibt %@ frei. Es bleibt in deiner Bibliothek bei %@, du kannst es jederzeit wieder laden. Spielstände in dessen Cloud bleiben erhalten.",
+        "%@ signed you out – your games stay here": "%@ hat dich abgemeldet – deine Spiele bleiben hier",
         // Epic: Update & Play
-        "The update comes from Epic Games first – the game starts by itself when it's done.":
-            "Das Update kommt zuerst von Epic Games – das Spiel startet von selbst, sobald es fertig ist.",
+        "The update comes from %@ first – the game starts by itself when it's done.":
+            "Das Update kommt zuerst von %@ – das Spiel startet von selbst, sobald es fertig ist.",
         "Epic Games can't be reached – %@ starts without its update.": "Epic Games ist nicht erreichbar – %@ startet ohne das Update.",
         "Another Epic download is running – %@ starts now and updates next time.":
             "Ein anderer Epic-Download läuft – %@ startet jetzt und wird beim nächsten Mal aktualisiert.",
         "The update of %@ stopped: %@. Press Play again to carry on where it stopped.":
             "Das Update von %@ wurde unterbrochen: %@. Drück noch einmal auf Spielen, dann geht es dort weiter.",
-        "An update is waiting – it comes from Epic Games before the game starts": "Ein Update wartet – es kommt von Epic Games, bevor das Spiel startet",
+        "An update is waiting – it comes from %@ before the game starts": "Ein Update wartet – es kommt von %@, bevor das Spiel startet",
         // Epic: add-ons (DLCs)
         "The add-on %@ didn't download: %@. Its game is ready – the add-on follows with its next Update & Play.":
             "Der Zusatzinhalt %@ wurde nicht geladen: %@. Das Spiel ist bereit – der Zusatzinhalt kommt mit dem nächsten „Aktualisieren & spielen“.",
@@ -987,6 +991,44 @@ enum L10n {
         "Downloading from %@ … %ld %%": "Wird von %@ geladen … %ld %%",
         "Preparing the download from %@ …": "Download von %@ wird vorbereitet …",
         "%@ and %@": "%@ und %@",
+
+        // GOG (7.3)
+        "Sign in to GOG": "Bei GOG anmelden",
+        "Couldn't reach GOG": "GOG nicht erreichbar",
+        "GOG is connected – your games are in the library": "GOG ist verbunden – deine Spiele sind in der Bibliothek",
+        "GOG signed you out – sign in again to download %@": "GOG hat dich abgemeldet – melde dich wieder an, um %@ zu laden",
+        "GOG support isn't in the component list yet. Check your internet connection and try again.":
+            "GOG fehlt noch in der Komponentenliste. Prüfe deine Internetverbindung und versuch es noch einmal.",
+        "GOG didn't accept the sign-in. Please try again.": "GOG hat die Anmeldung nicht angenommen. Bitte versuch es noch einmal.",
+        "Nightforge's GOG helper didn't start, so the sign-in didn't reach GOG. Please try again.":
+            "Nightforges GOG-Helfer ist nicht gestartet, deshalb kam die Anmeldung nicht bei GOG an. Bitte versuch es noch einmal.",
+        "Nightforge's GOG helper didn't start": "Nightforges GOG-Helfer ist nicht gestartet",
+        "Steam isn't responding – restarting it …": "Steam reagiert nicht – wird neu gestartet …",
+        "Steam stopped taking requests. A fresh start fixes that – the game starts right after.":
+            "Steam nimmt keine Befehle mehr an. Ein Neustart behebt das – das Spiel startet gleich danach.",
+        "Steam isn't responding, and restarting it would end the game that's running. Quit that game and press Play again.":
+            "Steam reagiert nicht, und ein Neustart würde das laufende Spiel beenden. Beende das Spiel und drück noch einmal auf Spielen.",
+        "Windows part: %@ – the game needs it. Only the first time.": "Windows-Baustein: %@ – das Spiel braucht ihn. Nur beim ersten Mal.",
+        "The Windows parts the game needs come from GOG. Only the first time.":
+            "Die Windows-Bausteine, die das Spiel braucht, kommen von GOG. Nur beim ersten Mal.",
+        "GOG's install script": "GOGs Installationsskript",
+        "Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.":
+            "Nicht alle Windows-Bausteine für %@ ließen sich einrichten (%@). Es startet trotzdem; beim nächsten Start versucht Nightforge es noch einmal.",
+        "Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.":
+            "Nicht alle Windows-Bausteine für %@ ließen sich einrichten (%@). Es startet trotzdem – läuft es nicht richtig, kann es daran liegen.",
+        "there isn't enough space on the Mac": "auf dem Mac ist nicht genug Platz",
+        "gogdl stopped (code %d)": "gogdl hat aufgehört (Code %d)",
+        "GOG's files for it aren't where gogdl put them": "GOGs Dateien dafür liegen nicht dort, wo gogdl sie hingelegt hat",
+        "%@ is missing GOG's start information. Download it again.": "Bei %@ fehlen GOGs Startdaten. Lade es noch einmal.",
+        "Your newest save comes from GOG's cloud first, so you go on where you stopped.":
+            "Dein neuester Spielstand kommt zuerst aus der GOG-Cloud – so spielst du dort weiter, wo du aufgehört hast.",
+        "The Mac version of %@ is too old for this Mac – the Windows version comes instead.":
+            "Die Mac-Version von %@ ist zu alt für diesen Mac – stattdessen kommt die Windows-Version.",
+        "%@ can't be reached – %@ starts without its update.": "%@ ist nicht erreichbar – %@ startet ohne das Update.",
+        "Another %@ download is running – %@ starts now and updates next time.":
+            "Ein anderer Download von %@ läuft – %@ startet jetzt und wird beim nächsten Mal aktualisiert.",
+        "GOG's games are DRM-free: it plays without internet and without signing in.":
+            "GOG-Spiele sind DRM-frei: Es läuft ohne Internet und ohne Anmeldung.",
 
         // Home's stage (2d) and "To start with"
         "To start with": "Für den Anfang",
