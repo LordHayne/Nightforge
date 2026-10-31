@@ -55,8 +55,9 @@ FAILED_KK=0
 run() {
   local name="$1" bits="$2" wine="$3" program="$4" seconds="$5"; shift 5
   local log="$WORK/$name-$bits.log"
-  env -u VK_ICD_FILENAMES -u VK_ADD_DRIVER_FILES -u VK_LOADER_DRIVERS_SELECT -u VK_LOADER_DRIVERS_DISABLE \
-    WINEDEBUG=-all DXVK_LOG_LEVEL=info DXVK_LOG_PATH=none "$@" "$wine" "$program" "$seconds" > "$log" 2>&1
+  # DXVK-macOS keeps a pipeline cache in the working folder: the work folder, not the repository.
+  (cd "$WORK" && env -u VK_ICD_FILENAMES -u VK_ADD_DRIVER_FILES -u VK_LOADER_DRIVERS_SELECT -u VK_LOADER_DRIVERS_DISABLE \
+    WINEDEBUG=-all DXVK_LOG_LEVEL=info DXVK_LOG_PATH=none DXVK_STATE_CACHE_PATH="$WORK" "$@" "$wine" "$program" "$seconds" > "$log" 2>&1)
   local rc=$?
   "$WINE_ROOT/bin/wineserver" -w
   local verdict
