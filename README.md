@@ -50,7 +50,7 @@ Your Steam, Epic and GOG games show up together. Nightforge downloads and starts
 
 ### Made for the couch
 
-Every button in Nightforge works with a controller. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. When a game ends, Nightforge is back in front – no desktop, no Steam window in between. Keyboard and trackpad work everywhere too.
+Every button in Nightforge works with a controller. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back like on a console – no desktop, no Steam window in between. Keyboard and trackpad work everywhere too.
 
 <p align="center">
   <img src="site/img/shots/pad-en-1400.webp" alt="Home with a DualSense connected: its battery at the bottom left, PlayStation buttons in the hints" width="820">
@@ -58,7 +58,7 @@ Every button in Nightforge works with a controller. PlayStation and Xbox control
 
 ### Welcome back
 
-After every game Nightforge shows how long you played and asks how it ran. It remembers that for the next start and for how it rates the game on your Mac – the answer stays on your Mac. A game's page shows what you said, what Nightforge starts it with, and where its settings come from.
+After every game Nightforge shows how long you played and asks how it ran. It remembers that for the next start and for how it rates the game on your Mac – the answer stays on your Mac. A game's page shows what you said, what Nightforge starts it with, where its settings come from and whether it starts without internet – along with the game's description, screenshots and game modes.
 
 <p align="center">
   <img src="site/img/shots/detail-en-1400.webp" alt="OxyRail's page: You said it runs well, and the This game card with store, version, graphics and engine" width="820">
@@ -74,7 +74,7 @@ After every game Nightforge shows how long you played and asks how it ran. It re
 - **Dock and notifications.** Right-click the Dock icon to start your last five games. A notification tells you when a download is done, and downloads keep your Mac awake.
 - **Looks out for your battery.** A charger too weak for games shows at the top before the battery runs low; on battery, games can be capped at 30 FPS.
 - **Store search.** Search also finds games in the Steam store, with price and Metascore; you buy in your browser, and they appear in your library.
-- **Big screen.** Plug in a monitor, and Nightforge and your games move over to it.
+- **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it by themselves.
 - **Larger text and less motion.** One switch makes all of Nightforge's text a step larger; another turns zooming and sliding into plain cross-fades.
 - **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub, filled in, and goes nowhere until you submit it.
 
@@ -102,8 +102,6 @@ No dates – just an honest sort.
 
 **Coming soon** – in the works, arriving with one of the next updates:
 
-- **TV and couch mode.** Games start full screen at the TV's resolution, sound goes over HDMI, and afterwards you're back like on a console. Built; the test on a real TV is still to come.
-- **More about every game.** Description, screenshots and game modes right on the game's page.
 - **Even more controller.** L1/R1 switch between Home and the library; search with a controller by jumping to a first letter or with an on-screen keyboard.
 - **Games stay up to date.** Updates download in the background while Nightforge is open – like on a console.
 - **Download queue.** Set the order, pause and resume, and download only at night if you like.
