@@ -52,6 +52,8 @@ Your Steam, Epic and GOG games show up together. Nightforge downloads and starts
 
 Every button in Nightforge works with a controller. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back like on a console – no desktop, no Steam window in between. Keyboard and trackpad work everywhere too.
 
+**Nightforge's own controller menu.** A button combination on the controller brings up a calm menu in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
+
 <p align="center">
   <img src="site/img/shots/pad-en-1400.webp" alt="Home with a DualSense connected: its battery at the bottom left, PlayStation buttons in the hints" width="820">
 </p>

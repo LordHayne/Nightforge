@@ -290,6 +290,24 @@ b { font-weight: 600; color: var(--text); }
 .duo { display: grid; gap: 20px; margin-top: clamp(44px, 6vw, 72px); }
 @media (min-width: 1068px) { .duo { grid-template-columns: 1fr 1fr; } }
 
+/* Nightforge's own controller menu: one wide panel under the couch chapter. */
+.feature-panel {
+  display: grid; gap: 28px 56px; align-items: center; margin-top: clamp(40px, 5vw, 56px);
+  background: radial-gradient(60% 120% at 0% 0%, rgba(46, 122, 255, 0.18), transparent 60%), var(--card);
+}
+@media (min-width: 1068px) { .feature-panel { grid-template-columns: 1.15fr 1fr; } }
+.feature-title { margin: 10px 0 14px; font: 600 clamp(26px, 3vw, 38px)/1.1 var(--font-display); letter-spacing: -0.01em; text-wrap: balance; }
+.feature-text { color: var(--text-2); font-size: 17px; line-height: 1.5; }
+.feature-list { display: grid; gap: 12px; }
+.feature-list li {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 17px; font-weight: 600;
+}
+.feature-list .i { width: 20px; height: 20px; color: var(--amber); }
+.feature-list .i-mark { width: 16px; height: 21px; }
+
 /* Frame-rate chart: two routes, measured numbers from the README. */
 .chart { display: flex; flex-direction: column; justify-content: center; }
 .panel-kicker { color: var(--amber); font-size: 15px; font-weight: 600; letter-spacing: 0; }
