@@ -546,6 +546,22 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
 
 ## Ideen für später
 
+- **Echte Speicherverwaltung unter Einstellungen › Speicher** (Nutzer, 31.10.; noch nicht anfangen):
+  - Heute zeigt der Tab ein Laufwerk nur, wenn Spiele oder ein Ordner `Nightforge Games` darauf liegen
+    (`StorageSettings.drives`). Ein frisch eingesteckter, leerer Stick taucht nicht auf.
+  - Ziel:
+    - Nightforge erkennt einen neu eingesteckten Stick oder eine Platte.
+    - Ein kleines Pop-up (Toast) „„Spiele test“ eingesteckt · Für Spiele vorbereiten“ führt direkt zu
+      Einstellungen › Speicher.
+    - Dort stehen alle Laufwerke mit Platz und Format.
+    - „Vorbereiten“ prüft das Format: exFAT und FAT32 taugen nicht (keine Rechte und Links, FAT32 max. 4 GB pro
+      Datei), NTFS ist auf dem Mac nur lesbar. Dafür erklärt es, was zu tun ist, und bietet an, das Laufwerk in
+      APFS umzuwandeln. Löschen nur nach ausdrücklicher Bestätigung, mit Hinweis, dass alles darauf verloren geht.
+    - Danach legt es `Nightforge Games` an.
+  - Dazu gehört ein Hinweis bei langsamen Laufwerken (USB-2-Sticks): „Spiele starten von hier spürbar
+    langsamer“, gesehen am 31.10. mit A New Beginning auf „Spiele test“.
+  - Anfangen bei `ExternalDrive` (Format steht schon in `format`), `DriveLibrary`, `StorageSettings`, `Toasts`.
+
 - **Von steamac lernen** (github.com/fxgl/steamac, Apache-2.0, angeschaut am 31.10.; noch nicht anfangen):
   - steamac lässt Valves ARM64-SteamOS in einer VM laufen. Spiele laufen dort über Proton und FEX, die Grafik geht den
     Weg Vulkan → Venus → virglrenderer → MoltenVK/KosmicKrisp → Metal. Den Weg übernehmen wir nicht: Er bringt zwei
