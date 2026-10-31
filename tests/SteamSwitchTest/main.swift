@@ -200,6 +200,8 @@ struct SteamSwitchTest {
         let prep = MacSteamPrep()
         check(!prep.primary() && !prep.back(), "Return and Esc are the setup's until its code is up")
         check(!prep.secondCodeFollows && prep.detail == nil, "nothing said before it starts")
+        prep.abandon()
+        check(prep.state == .idle && !prep.isGettingReady, "a first start that closes before it started leaves it alone")
 
         // MARK: The reveal's Mac versions
         func card(_ id: Int, mac: Bool = false, pending: Bool = false) -> Game {

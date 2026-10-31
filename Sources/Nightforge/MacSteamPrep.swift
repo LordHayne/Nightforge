@@ -115,7 +115,12 @@ final class MacSteamPrep: ObservableObject {
             state = .later
             return
         }
-        if case .failed = state { return }
+        // Failed, or put off meanwhile (the first start was skipped: abandon).
+        switch state {
+        case .failed, .later: return
+        default: break
+        }
+        guard !Task.isCancelled else { return }
         let decision = Self.decide(macAccount: MacSteam.hasSignedIn ? MacSteam.account : nil,
                                    windowsAccount: windowsAccount, macVersions: macVersions)
         switch decision {
@@ -133,6 +138,14 @@ final class MacSteamPrep: ObservableObject {
                 return
             }
             await signIn()
+        }
+    }
+
+    /// On its way, or ready and waiting for the library: its row shows under the library check.
+    var isGettingReady: Bool {
+        switch state {
+        case .preparing, .ready: return true
+        default: return false
         }
     }
 
@@ -184,15 +197,38 @@ final class MacSteamPrep: ObservableObject {
         MacSteam.hold(false)
     }
 
+    /// The first start closed ("Skip") before Steam for Mac's turn: it stops getting ready and
+    /// quits; Mac versions are set up the first time one is played. A finished one stays as it is.
+    func abandon() {
+        switch state {
+        case .idle, .done, .later, .failed: return
+        case .signingIn: return later()
+        case .preparing, .ready: break
+        }
+        task?.cancel()
+        MacSteam.hold(false)
+        state = .later
+        Task {
+            if MacSteam.startedByNightforge && MacSteam.isRunning { await MacSteam.quit() }
+        }
+    }
+
     private func signIn() async {
         state = .signingIn
+        // The Windows Steam restarts hidden after its sign-in (SetupModel.finish): signing in after
+        // Steam for Mac, it would sign that one out before it has written its account list.
+        var waited = 0
+        while !Engine.steamSignedIn, !Engine.sessionReplaced(), waited < 60, !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+            waited += 1
+        }
         MacSteam.hold(false)
         let asked = Date()
         task = Task {
             MacSteam.show(keepFor: 600)
             // Steam writes its account list a few seconds after the sign-in; quit before that, it
             // wouldn't remember it.
-            while !Task.isCancelled, !(MacSteam.signedIn && Self.accountsWritten(since: asked)) {
+            while !Task.isCancelled, !Self.accountsWritten(since: asked) {
                 try? await Task.sleep(for: .seconds(1))
             }
         }

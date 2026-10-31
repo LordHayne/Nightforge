@@ -218,6 +218,12 @@ private struct CheckingPage: View {
                     .padding(.top, 14)
                     .transition(.opacity)
             } else {
+                // Steam for Mac still on its way: what it does, so the wait for its code says why.
+                if macSteam.isGettingReady {
+                    MacSteamStep(prep: macSteam)
+                        .padding(.top, 14)
+                        .transition(.opacity)
+                }
                 SkipButton(action: skip)
                     .padding(.top, 8)
             }

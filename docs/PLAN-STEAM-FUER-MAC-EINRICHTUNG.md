@@ -235,11 +235,26 @@ muss nicht neu starten. A′ bleibt die Alternative, wenn die Mehrzeit von A st�
   - `LibraryReveal.checkLibrary` ruft `MacSteamPrep.finish` vor der Enthüllung auf, aber nur, wenn die Vorbereitung lief.
     Ohne den Haken in `Setup.swift` ändert sich am Erststart also nichts.
 
-**Noch offen:**
-- Haken in `Setup.swift`: nur noch der Start, `LibraryModel.macSteamPrep.start()` nach dem Engine-Schritt, etwa über einen
-  Rückruf wie `onFinished`. Entscheidung und zweiter Code laufen schon über `checkLibrary`. Wartet auf setup-speed.
-- **Nicht angefasst:** Der Vorwärm-Start von Steam für Mac für Mac-Downloads beim App-Start (`afterScan`) wirft die
-  Windows-Steam weiterhin raus. `takeTurnsDownloading` räumt danach auf.
+- **Haken in `Setup.swift`** (nach setup-speed, 31.10.):
+  - `SetupModel.onSignInReady` feuert, sobald Steams Anmeldefenster steht (oder Steam schon angemeldet war). `LibraryModel`
+    startet dann `macSteamPrep`.
+  - `SetupModel.onClosed` lässt eine noch laufende Vorbereitung bei „Skip“ fallen.
+  - **Abweichung vom Plan:** Nicht nach dem Engine-Schritt. Seit setup-speed lädt Steams Update während wineboot, und
+    Steams erster Start ist die zeitkritische Phase (Wrapper bei der Dateiprüfung, Browser-Neustart). Steam für Macs 289 MB
+    und sein erster Start hätten sich Leitung und Mac damit geteilt. Ab dem Anmeldefenster wartet die Windows-Seite nur noch
+    auf den Spieler, der Windows-Weg (2:11) bleibt also unberührt. Dafür kommt der zweite Code rund 30–40 s später
+    (Steam für Mac braucht ~70 s bis zu seinem Anmeldefenster). Auf „Checking your library“ zeigt die Mac-Zeile so lange,
+    was sie tut.
+  - **Kein `Step.macSteam`:** Die Schritte von `SetupModel` laufen nacheinander (ein aktueller Schritt), Steam für Mac
+    nebenher. Als Step stünde es auf „fertig“, sobald die Windows-Schritte fertig sind. Seine Zeile hat deshalb ihren
+    eigenen Zustand (`MacSteamPrep.state`).
+  - **Der zweite Code kommt vor der Enthüllung,** nicht vor `SetupModel.finish()`: Die Entscheidung braucht die Zahl der
+    Mac-Versionen, die erst die Bibliotheksprüfung kennt. Vorher wartet `MacSteamPrep` (höchstens 60 s), bis die
+    Windows-Steam nach ihrem Hintergrund-Neustart wieder angemeldet ist. Sonst würde sie Steam für Mac rauswerfen, bevor
+    es sein Konto gespeichert hat.
+- **Testmodus geprüft:** Valves Starter (`/Applications/Steam.app/Contents/MacOS/steam_osx`) liest zuerst `$HOME` und
+  fragt `getpwuid` nur, wenn `HOME` fehlt (statisch nachgesehen, 31.10.). Mit `HOME=build/fh` landet Steam für Mac also in
+  `build/fh/Library/Application Support/Steam`. Kein anderer Code öffnet `steam://` über das System.
 
 ## Quellen
 
