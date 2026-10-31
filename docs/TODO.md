@@ -51,6 +51,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Standard-Startoption automatisch zu wählen. Kandidat: `steam://launch/<id>/<Typ>` (Steam kennt die Typnamen
   Default, Option1…). Ein Versuch blieb ohne Wirkung, lief aber, während schon ein Dialog offen war.
   Also ungeklärt.
+- **„Aktualisieren & spielen“ zeigt die ganze Zeit 0 %.** OxyRail am 31.10.: 5,8 GB in 4,5 Minuten, der Knopf
+  stand bis zum Schluss auf „Aktualisiert … 0 %“. Steam schreibt `BytesDownloaded` im appmanifest erst am Ende
+  (während des Updates `StateFlags 1030`, `BytesDownloaded 0`). `LibraryScanner.updateState` liest nur das
+  Manifest. Kandidat: die Größe von `steamapps/downloading/<appid>` gegen `BytesToStage` rechnen, oder den
+  Fortschritt aus `content_log.txt` lesen. Danach ist das Spiel von selbst gestartet. Der Grund, warum das Update
+  am Nachmittag dreimal scheiterte, war ein hängendes Steam (Log stand seit 16:46). Die Erkennung dafür liegt auf
+  dem GOG-Zweig (557c2c2).
 - **Windows-Steam ignoriert manchmal `steam.exe -shutdown`.** Dann hilft nur `wineserver -k`. Läuft Steam gar
   nicht, startet `-shutdown` ein neues Steam. Nightforges eigenes Beenden darauf prüfen.
 - **steam-shutdown.sh** hält jeden Prozess unter `\steamapps\common\` für ein Spiel, auch in
