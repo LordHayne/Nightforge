@@ -11,7 +11,8 @@
 # patches carried on top are in scripts/kosmickrisp/. Needs Homebrew's cmake, ninja, pkg-config,
 # llvm, spirv-llvm-translator and spirv-tools, and Python 3.10 or later with meson, mako, packaging
 # and pyyaml first in PATH (a venv is fine). Network for the sources, about 2 GB in the work folder.
-# JOBS limits the parallel compiles (default: all cores).
+# JOBS limits the parallel compiles (default: all cores). EXTRA_PATCHES names a folder of Mesa patches
+# to try on top (scripts/kosmickrisp/proposed); the archive's version then ends in "-test".
 #
 # The archive holds libvulkan.1.dylib (the loader), libvulkan_kosmickrisp.dylib, kosmickrisp_icd.json
 # (library path relative to it), the licences (Mesa MIT, loader and headers Apache-2.0) and
@@ -69,7 +70,9 @@ checkout() {
 
 MESA="$WORK/mesa"
 checkout "$MESA_URL" "$MESA_COMMIT" "$MESA"
-for patch in "$here"/kosmickrisp/patches/*.patch; do
+PATCHES=("$here"/kosmickrisp/patches/*.patch)
+[ -n "${EXTRA_PATCHES:-}" ] && PATCHES+=("$(cd "$EXTRA_PATCHES" && pwd -P)"/*.patch)
+for patch in "${PATCHES[@]}"; do
   [ -e "$patch" ] || continue
   git -C "$MESA" apply --index "$patch"
 done
@@ -134,7 +137,7 @@ cmake --fresh -S "$WORK/loader" -B "$WORK/loader-build" -G Ninja \
 cmake --build "$WORK/loader-build" --parallel "$JOBS"
 
 # 4. The archive.
-VERSION="$(tr -d '[:space:]' < "$MESA/VERSION")-${MESA_COMMIT:0:8}"
+VERSION="$(tr -d '[:space:]' < "$MESA/VERSION")-${MESA_COMMIT:0:8}${EXTRA_PATCHES:+-test}"
 NAME="nightforge-kosmickrisp-$VERSION"
 STAGE="$OUTDIR/$NAME"
 rm -rf "$STAGE"
@@ -184,7 +187,7 @@ cp "$WORK/headers/LICENSE.md" "$STAGE/licenses/vulkan-headers.md"
   echo "Nightforge's scripts/build-kosmickrisp.sh. Mesa is MIT-licensed, the loader and headers Apache-2.0."
   echo
   grep -E '^[A-Z_]+=' "$here/kosmickrisp/pins.env"
-  for patch in "$here"/kosmickrisp/patches/*.patch; do
+  for patch in "${PATCHES[@]}"; do
     [ -e "$patch" ] && echo "PATCH=$(basename "$patch") $(shasum -a 256 "$patch" | cut -d' ' -f1)"
   done
   echo

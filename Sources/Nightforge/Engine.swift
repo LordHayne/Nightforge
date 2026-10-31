@@ -95,6 +95,12 @@ enum Engine {
             .appendingPathComponent("Nightforge/dxmt", isDirectory: true)
     }
 
+    /// Where Mesa keeps KosmicKrisp's translated shaders (MSL), next to DXMT's instead of ~/.cache.
+    static var mesaShaderCache: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge/mesa", isDirectory: true)
+    }
+
     /// Steam starts its games with a fresh environment built from the Windows registry, not with
     /// its own – so the game settings go into the user environment (HKCU\Environment) as well,
     /// where every Windows program, games included, picks them up at start.
@@ -212,12 +218,15 @@ enum Engine {
         case kosmicKrisp(URL)
     }
 
-    static let kosmicKrispVariables = ["CX_ACTIVE_GRAPHICS_BACKEND", "CX_LIBVULKAN", "VK_DRIVER_FILES"]
+    static let kosmicKrispVariables = ["CX_ACTIVE_GRAPHICS_BACKEND", "CX_LIBVULKAN", "VK_DRIVER_FILES", "MESA_SHADER_CACHE_DIR"]
 
     static func kosmicKrispEnvironment(_ folder: URL) -> [String: String] {
-        ["CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
-         "CX_LIBVULKAN": folder.appendingPathComponent("libvulkan.1.dylib").path,
-         "VK_DRIVER_FILES": folder.appendingPathComponent("kosmickrisp_icd.json").path]
+        try? FileManager.default.createDirectory(at: mesaShaderCache, withIntermediateDirectories: true)
+        return ["CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                "CX_LIBVULKAN": folder.appendingPathComponent("libvulkan.1.dylib").path,
+                "VK_DRIVER_FILES": folder.appendingPathComponent("kosmickrisp_icd.json").path,
+                // Mesa 44989e5a doesn't keep one yet (scripts/kosmickrisp/proposed/0003).
+                "MESA_SHADER_CACHE_DIR": mesaShaderCache.path]
     }
 
     /// The Vulkan driver a start under winecx draws through: KosmicKrisp for DXVK's Direct3D 9 once

@@ -310,7 +310,8 @@ struct EngineLayoutTest {
         check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk))
               && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d"
               && Engine.steamEnvironment["CX_LIBVULKAN"] == "/kk/libvulkan.1.dylib"
-              && Engine.steamEnvironment["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json",
+              && Engine.steamEnvironment["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json"
+              && Engine.steamEnvironment["MESA_SHADER_CACHE_DIR"] == Engine.mesaShaderCache.path,
               "a DirectX 9 game on DXVK brings KosmicKrisp into Steam's environment")
         check(Engine.steamConfigSignature.contains("CX_LIBVULKAN=/kk/libvulkan.1.dylib"), "Steam restarts for it")
         check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk)),

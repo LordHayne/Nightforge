@@ -25,12 +25,14 @@ struct ShaderCachesTest {
         let steamapps = root.appendingPathComponent("Steam/steamapps", isDirectory: true)
         let external = root.appendingPathComponent("T7/SteamLibrary/steamapps", isDirectory: true)
         let dxmt = root.appendingPathComponent("Caches/Nightforge/dxmt", isDirectory: true)
+        let mesa = root.appendingPathComponent("Caches/Nightforge/mesa", isDirectory: true)
         let userCache = root.appendingPathComponent("C", isDirectory: true)
 
         // Caches …
         write(steamapps.appendingPathComponent("shadercache/550/DXVK_state_cache/left4dead2.dxvk-cache"))
         write(external.appendingPathComponent("shadercache/1623730/fozpipelinesv6/steamapp_pipeline_cache.foz"))
         write(dxmt.appendingPathComponent("ab/cd.bin"))
+        write(mesa.appendingPathComponent("mesa_shader_cache_db/kosmickrisp/index"))
         write(userCache.appendingPathComponent("io.github.lordhayne.nightforge.game/com.apple.metal/16777235_339/functions.data"))
         write(userCache.appendingPathComponent("org.winehq.wine/com.apple.gpuarchiver/archive.bin"))
         // … and what must stay.
@@ -41,9 +43,9 @@ struct ShaderCachesTest {
         for file in [game, manifest, appUICache, otherApp] { write(file) }
 
         let folders = ShaderCaches.folders(steamapps: [steamapps, external, root.appendingPathComponent("gone/steamapps")],
-                                           dxmt: dxmt, userCache: userCache)
-        check(folders.count == 5, "the five cache folders that are there, nothing for a missing library: \(folders.map(\.lastPathComponent))")
-        check(ShaderCaches.size(folders) >= 5 * 4096, "their size: \(ShaderCaches.size(folders))")
+                                           dxmt: dxmt, mesa: mesa, userCache: userCache)
+        check(folders.count == 6, "the six cache folders that are there, nothing for a missing library: \(folders.map(\.lastPathComponent))")
+        check(ShaderCaches.size(folders) >= 6 * 4096, "their size: \(ShaderCaches.size(folders))")
 
         let defaults = UserDefaults(suiteName: "nightforge.shader-test")!
         defaults.removePersistentDomain(forName: "nightforge.shader-test")
@@ -51,7 +53,7 @@ struct ShaderCachesTest {
         defaults.set(true, forKey: "library.hidden")
         let freed = ShaderCaches.clear(folders, defaults: defaults)
 
-        check(freed >= 5 * 4096, "freed what was there: \(freed)")
+        check(freed >= 6 * 4096, "freed what was there: \(freed)")
         check(ShaderCaches.size(folders) == 0, "the caches are empty")
         check(folders.allSatisfy(exists), "the folders themselves stay for whoever writes there next")
         check([game, manifest, appUICache, otherApp].allSatisfy(exists), "games, manifests, Nightforge's own UI cache and other apps stay")

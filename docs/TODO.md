@@ -1624,6 +1624,34 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     fehlt Transform Feedback, DXVK 3.1.1 fehlt `VK_KHR_external_memory_win32` für geteilte Ressourcen. Auch Mesa
     44989e5a bietet `VK_EXT_transform_feedback` noch nicht an (nur die Eigenschaften stehen schon da). steamac
     (fxgl/steamac, `host/kosmickrisp/patches` 0010–0014) trägt es in der GS-Emulation.
+  - Live-Test Mafia II (GOG) am 1.11., 00:17–00:24, am gespiegelten TV (DENON-AVR, 1920×1080):
+    - Automatisch startete auf DXVK, scheiterte aber am Vollbild („EnterFullscreenMode: Failed to change display mode“).
+      DXVK meldete dem Spiel die Retina-Größe des eingebauten Displays. LaunchHealth ging zu WineD3D. Das Thema hat
+      die TV-Session.
+    - Mit 1920×1080 in `videoconfig.cfg` und DXVK von Hand lief es auf KosmicKrisp (`lsof` sah es, der Layer loggte FPS).
+      Mal 54–60 FPS, mal 7–17 FPS, einzelne Stopps bis 8,3 s. CPU 130–370 % statt 230–440 %, ein Thread bei 92–100 %.
+      Der Nutzer: „Anfang lief echt gut, dann wieder Ruckler“. Echo und Knacken im Ton blieben. Der Ton lief diesmal
+      über den DENON mit 8 Kanälen, ob das beim Echo eine Rolle spielt, prüft ein späterer Test.
+    - Welcher Thread voll läuft, sagt der nächste Lauf: `tests/kosmickrisp/thread-cpu.py <pid> 5 [sample.txt]` liest
+      die CPU-Zeit pro Thread mit Namen (DXVKs heißen `dxvk-cs`, `dxvk-submit` …, die des Spiels haben keinen), `sample`
+      dazu die Module. In Frage kommen Mafias Hauptthread (Spiel und DXVKs D3D9-Seite, 32-Bit-Code unter Rosetta) und
+      `dxvk-cs` (übersetzt Pipelines beim Zeichnen).
+  - Warum es ruckelt, aus Quelltext und Caches gelesen:
+    - KosmicKrisp bietet keine Graphics Pipeline Library an, nur die Eigenschaften stehen da. DXVK 3 übersetzt dann
+      jede Pipeline beim ersten Zeichnen. `dxvk.numCompilerThreads` hilft dabei nicht, `d3d9.maxFrameLatency` und
+      `dxvk.latencySleep` glätten nur das Takten.
+    - DXVK 3 hat keinen eigenen Pipeline-Cache mehr (seit 2.0). KosmicKrisp legt keinen Mesa-Cache an: Es gibt den
+      Shader samt MSL zwar serialisiert (`kk_shader_ops`), ruft aber nie `disk_cache_create` auf. Ein Patch dafür liegt
+      ungebaut in `scripts/kosmickrisp/proposed/` (`EXTRA_PATCHES=scripts/kosmickrisp/proposed` baut ihn mit).
+      Nightforge setzt `MESA_SHADER_CACHE_DIR` schon auf `~/Library/Caches/Nightforge/mesa`.
+    - Metal hebt fertig übersetzte Bibliotheken pro App auf: für das Game-Bundle 9,4 MB, geschrieben während des
+      Laufs. Ein zweiter Start spart Metals Übersetzung, nicht aber KosmicKrisps NIR→MSL und DXVKs SPIR-V.
+    - Nächster Versuch: DXVK-macOS 1.10.3-async auf KosmicKrisp (zeichnet dort, Probe). Es übersetzt Pipelines im
+      Hintergrund, statt zu warten, und legt einen State-Cache an, der beim nächsten Start vorübersetzt.
+      `DXVK_ASYNC=1` und `dxvk.enableAsync` setzt Nightforge schon. Später ginge dasselbe mit dxvk-gplasync auf neuem DXVK.
+    - Ein arm64-KosmicKrisp hinter dem x86_64-Loader geht nicht. Ein Prozess unter Rosetta ist ganz x86_64, er kann
+      keine arm64-Bibliothek laden. Es bliebe Vulkan über einen zweiten Prozess (wie Venus bei steamac): viel Arbeit
+      und Kosten pro Aufruf. Metals eigener Compiler läuft ohnehin nativ im MTLCompilerService.
   - Folgepunkte:
     - MetalFX fehlt auf KosmicKrisp: Der Layer skaliert nur mit `VK_EXT_metal_objects`, das KosmicKrisp nicht hat.
       `GraphicsLayer.dxvk.upscales` sagt trotzdem ja.
