@@ -254,6 +254,20 @@ gebaut. Abweichungen vom Plan: ein Cache-File `GameInfo/known.json`; Altersfreig
 `game_rating.agency` 4 bzw. 2); ältere Cache-Einträge werden über `GameInfo.format` einmal neu gefragt; Screenshots
 werden nach Bildnamen gecacht (`<GameID.key>_ss_….jpg`).
 
+**Nachbesserung nach dem ersten Live-Blick (31.10. nachts, Nutzer: „sieht nicht fertig aus“):**
+Zwei Varianten wurden gezeigt, der Nutzer hat **Variante 1** gewählt: eine Seite mit fester Spielleiste.
+- Die Beschreibung steht nur noch einmal, unten. Der erste Bildschirm hat keinen Teaser mehr, darunter lugen
+  „ÜBER DAS SPIEL ⌄“ (klickbar) und die Screenshots herein.
+- Beim Scrollen blendet der erste Bildschirm aus (`scrollTransition`). Ab 40 % Scrollweg erscheint unter der Kopfleiste
+  die Spielleiste `GameBar` mit Logo, Meta-Zeile und kleinem „Spielen“ (`PlayButton.of(…, compact: true)`). Ab macOS 15
+  kommt die Scrollposition über `onScrollGeometryChange`, auf macOS 14 über eine Preference.
+- Ruhiges Raster: Screenshot-Band, darunter die Beschreibung, darunter „Auf einen Blick“ und „So spielt man es“ als zwei
+  gleich große Karten. Bei weniger als zwei Zeilen je Karte gibt es nur eine. Leere Angaben fallen weg.
+- Daten: Ist Steams Text nicht in der Mac-Sprache (`NLLanguageRecognizer`), kommt GOGs deutscher. GOGs Beschreibung
+  verliert dabei den Editions-Block („Mafia II Complete enthält … DLCs“) und die Listen. Hat Steam keine Screenshots
+  für alle Altersstufen (Mafia II: nur „mature“), kommen GOGs. Steams Angaben bleiben, GOG füllt nur Lücken
+  (`GameInfo.filled(from:)`). `GameInfo.format` = 3.
+
 ### Abschnitt A: Daten, Filter, Bibliothek (etwa 2½ Tage)
 
 1. **`GameInfo.swift`:** das Modell (`GameInfo`, `PlayMode`, `LanguageSupport`, `AgeRating`, `Screenshot`) und

@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 /// How a game is played, as its store says.
 enum PlayMode: String, Codable, CaseIterable, Hashable {
@@ -86,8 +87,12 @@ struct Screenshot: Codable, Hashable {
 /// What a game is, for its page and the library's filters: from its store, or from the same game on
 /// Steam for Epic and GOG, whose own data says little (GameInfoStore).
 struct GameInfo: Codable, Hashable {
-    /// A few plain sentences, in the language asked for.
-    var summary: String?
+    /// A few plain sentences, in the language asked for – or English, where a store has no other.
+    var summary: String? {
+        didSet { summaryLanguage = summary.flatMap(Self.language(of:)) }
+    }
+    /// What `summary` is written in ("de", "en"), so a German one from the other store can stand in.
+    private(set) var summaryLanguage: String?
     /// The language it was asked in ("german", "english"): another one is asked again.
     var language: String
     var genres: [String] = []
@@ -111,8 +116,39 @@ struct GameInfo: Codable, Hashable {
     /// What Nightforge read from the answer then (`GameInfo.format`): an older one is asked again.
     var format: Int? = GameInfo.format
 
-    /// 2: PEGI ratings too (31.10.2026).
-    static let format = 2
+    /// 2: PEGI ratings too; 3: GOG's description without its edition notes, the summary's language (31.10.2026).
+    static let format = 3
+
+    /// The language a text is written in, as macOS recognizes it ("de", "en").
+    static func language(of text: String) -> String? {
+        NLLanguageRecognizer.dominantLanguage(for: text)?.rawValue
+    }
+
+    /// The Mac's language as `summaryLanguage` writes it.
+    static func code(_ language: String) -> String { language == "german" ? "de" : "en" }
+
+    /// One game's info from two stores: the same game on Steam (`self`) and its own store (`own`).
+    /// Steam's facts stay; what Steam doesn't have, or has only in another language than the
+    /// Mac's, comes from the own store – GOG's German description, its screenshots where Steam
+    /// shows only ones for adults.
+    func filled(from own: GameInfo?) -> GameInfo {
+        guard let own else { return self }
+        var info = self
+        let wanted = Self.code(language)
+        if summary == nil || (summaryLanguage != wanted && own.summaryLanguage == wanted && own.summary != nil) {
+            info.summary = own.summary ?? summary
+        }
+        if screenshots.isEmpty { info.screenshots = own.screenshots }
+        if genres.isEmpty { info.genres = own.genres }
+        if developers.isEmpty { info.developers = own.developers }
+        if publishers.isEmpty { info.publishers = own.publishers }
+        if modes.isEmpty { info.modes = own.modes }
+        info.released = released ?? own.released
+        info.controller = controller ?? own.controller
+        info.macLanguage = macLanguage ?? own.macLanguage
+        info.age = age ?? own.age
+        return info
+    }
 
     /// Up to this many screenshots are kept.
     static let maxScreenshots = 12
@@ -190,7 +226,7 @@ struct GameInfo: Codable, Hashable {
         guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
               let embedded = object["_embedded"] as? [String: Any] else { return nil }
         var info = GameInfo(language: language, source: GameID.gog(id).key, asked: now)
-        info.summary = (object["overview"] as? String ?? object["description"] as? String).map { summary(HTMLText.plain($0)) }
+        info.summary = (object["overview"] as? String ?? object["description"] as? String).map { summary(HTMLText.plain(gogDescription($0))) }
         info.developers = names(embedded["developers"])
         info.publishers = names(embedded["publisher"].map { [$0] })
         if let date = (embedded["product"] as? [String: Any])?["globalReleaseDate"] as? String {
@@ -222,6 +258,14 @@ struct GameInfo: Codable, Hashable {
             return Screenshot(thumbnail: small, full: big)
         }
         return info
+    }
+
+    /// GOG's overview without what isn't the game's description: the edition's notes in a "module"
+    /// box ("Mafia II Complete enthält Mafia II und die folgenden DLCs …") and the feature lists.
+    static func gogDescription(_ html: String) -> String {
+        html.replacingOccurrences(of: #"<p[^>]*class="[^"]*module[^"]*"[^>]*>[\s\S]*?</p>"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"<(ul|ol)[^>]*>[\s\S]*?</\1>"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"<h[1-6][^>]*>[\s\S]*?</h[1-6]>"#, with: "", options: [.regularExpression, .caseInsensitive])
     }
 
     // MARK: - Epic (legendary's catalog data)

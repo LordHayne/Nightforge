@@ -24,6 +24,7 @@ struct GameInfoTest {
         steam()
         gog()
         epicAndTwins()
+        merging()
         texts()
         modes()
         asking()
@@ -94,6 +95,54 @@ struct GameInfoTest {
         check(info.genres.contains("Rollenspiel"), "German genres: \(info.genres)")
         check(info.screenshots.first?.thumbnail.absoluteString.contains("product_card_screenshot_748") == true, "screenshots at a size")
         check(GameInfo.gog(fromJSON: Data("[]".utf8), id: "1", language: "german") == nil, "nothing from a broken answer")
+
+        // Mafia II: GOG's overview opens with the edition's notes; the description is what follows.
+        guard let mafia = GameInfo.gog(fromJSON: fixture("gog-mafia2-de.json"), id: "1816059595", language: "german") else {
+            return check(false, "Mafia II's GOG page read")
+        }
+        check(mafia.summary?.hasPrefix("Vito Scaletta ist dabei") == true && mafia.summary?.contains("DLCs") == false,
+              "the description, not the edition's notes: \(mafia.summary ?? "nil")")
+        check(mafia.summaryLanguage == "de", "recognized as German: \(mafia.summaryLanguage ?? "nil")")
+        check(mafia.screenshots.count == 11, "GOG's 11 screenshots: \(mafia.screenshots.count)")
+    }
+
+    /// Steam's info of the same game, filled in from the own store (Mafia II from GOG: Steam has an
+    /// English description and screenshots only for adults; GOG a German one and its own).
+    static func merging() {
+        let now = Date()
+        var steam = GameInfo(language: "german", source: "steam.50130", asked: now)
+        steam.summary = "Vito Scaletta has started to make a name for himself on the streets of Empire Bay as someone who can be trusted to get a job done."
+        steam.developers = ["2K Czech"]
+        steam.controller = .partial
+        steam.age = AgeRating(system: "PEGI", age: 18)
+        check(steam.summaryLanguage == "en", "Steam's text is English: \(steam.summaryLanguage ?? "nil")")
+        guard let gog = GameInfo.gog(fromJSON: fixture("gog-mafia2-de.json"), id: "1816059595", language: "german") else { return }
+        let merged = steam.filled(from: gog)
+        check(merged.summary?.hasPrefix("Vito Scaletta ist dabei") == true, "the German description from GOG")
+        check(merged.screenshots.count == 11, "GOG's screenshots where Steam has none for everyone")
+        check(merged.developers == ["2K Czech"] && merged.controller == .partial && merged.age == AgeRating(system: "PEGI", age: 18)
+              && merged.source == "steam.50130", "Steam's facts stay, and it says so")
+        var german = steam
+        german.summary = "Vito Scaletta macht sich auf den Straßen von Empire Bay einen Namen, als einer, dem man jeden Auftrag anvertrauen kann."
+        check(german.filled(from: gog).summary == german.summary, "Steam's own German description stays")
+        check(steam.filled(from: nil) == steam, "nothing to fill from: as it was")
+
+        var known = GameInfoStore.Known()
+        known.infos["steam.50130"] = steam
+        known.infos["gog.1816059595"] = gog
+        known.twins["gog.1816059595"] = GameInfoStore.Twin(appID: 50130, asked: now)
+        let game = Game(gameID: .gog("1816059595"), name: "Mafia II (Classic)", bottle: Engine.bottle, steamRoot: Engine.bottle.url,
+                        steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: 0)
+        check(GameInfoStore.info(for: game, in: known)?.summary?.hasPrefix("Vito Scaletta ist dabei") == true, "the page gets the merged info")
+        var onlySteam = known
+        onlySteam.infos["gog.1816059595"] = nil
+        check(GameInfoStore.wantsOwn(game, in: onlySteam, language: "german"), "GOG's page is asked when Steam's text isn't German")
+        check(!GameInfoStore.wantsOwn(game, in: onlySteam, language: "english") || steam.screenshots.isEmpty,
+              "on an English Mac only for the screenshots")
+        let sky = Game(appID: 275850, name: "No Man's Sky", bottle: Engine.bottle, steamRoot: Engine.bottle.url,
+                       steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: 0)
+        known.infos["steam.275850"] = GameInfo(language: "german", source: "steam.275850", asked: now)
+        check(GameInfoStore.info(for: sky, in: known)?.source == "steam.275850", "a Steam game: its own info")
     }
 
     static func epicAndTwins() {

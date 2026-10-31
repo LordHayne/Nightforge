@@ -582,6 +582,9 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
   Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
   Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). In Arbeit seit 31.10. (für 0.3.0) in zwei Abschnitten
   (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
+  - **Nachbesserung nach dem ersten Live-Blick (31.10. nachts)**, Variante 1 nach Wahl des Nutzers: Beschreibung nur einmal
+    (unten), feste Spielleiste beim Scrollen, ruhiges Raster mit zwei Karten, deutsche Beschreibung und Screenshots von GOG,
+    wo Steam keine hat. Noch ohne Live-Test.
   - **Abschnitt B gebaut (31.10.)**: Die Spielseite scrollt. Oben 2 Zeilen Beschreibung (weichen im kleinen Fenster),
     unten „Über das Spiel“ mit Screenshot-Leiste, Großbild (← → / Pad, Esc/B/A/Return schließt), Genres, Spielmodi und
     der Karte „Auf einen Blick“. Neu: `GameAbout.swift`. Altersfreigabe: Steam liefert sie je Land, in Österreich PEGI

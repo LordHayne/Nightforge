@@ -65,8 +65,20 @@ actor GameInfoStore {
         return game.gameID.key
     }
 
+    /// Its info: the same game's on Steam where there is one, filled in from its own store's (GOG's
+    /// German description and screenshots); else its own store's.
     nonisolated static func info(for game: Game, in known: Known) -> GameInfo? {
-        known.infos[source(of: game, in: known)]
+        let key = source(of: game, in: known)
+        guard key != game.gameID.key else { return known.infos[key] }
+        let own = known.infos[game.gameID.key]
+        guard let steam = known.infos[key] else { return own }
+        return steam.filled(from: own)
+    }
+
+    /// A GOG game whose Steam twin's info lacks a description in the Mac's language or screenshots.
+    static func wantsOwn(_ game: Game, in known: Known, language: String) -> Bool {
+        guard game.provider == .gog, let appID = twin(of: game, in: known), let steam = known.infos[GameID.steam(appID).key] else { return false }
+        return steam.summaryLanguage != GameInfo.code(language) || steam.screenshots.isEmpty
     }
 
     static func needsAsking(_ info: GameInfo?, language: String, now: Date = Date()) -> Bool {
@@ -159,8 +171,10 @@ actor GameInfoStore {
             guard await askSteam(for: Array(games), language: language, publish: publish) else { return }
         }
 
-        // 3. Without a Steam twin: GOG's own page; Epic's catalog data that legendary keeps.
-        for game in entries where game.provider != .steam && Self.twin(of: game, in: known) == nil {
+        // 3. Without a Steam twin: GOG's own page; Epic's catalog data that legendary keeps. GOG's page
+        //    also for a game whose Steam info lacks what GOG has: a description in the Mac's language,
+        //    screenshots (Steam shows some games' only to adults).
+        for game in entries where game.provider != .steam && (Self.twin(of: game, in: known) == nil || Self.wantsOwn(game, in: known, language: language)) {
             let key = game.gameID.key
             guard Self.needsAsking(known.infos[key], language: language) else { continue }
             switch game.provider {

@@ -845,9 +845,10 @@ enum L10n {
         "The search finds all %ld games – filters and store rest until you clear it.": "Die Suche findet alle %ld Spiele – Filter und Store ruhen, bis du sie leerst.",
 
         // A game's page: about the game (GameAbout)
-        "More about the game": "Mehr über das Spiel",
         "About the game": "Über das Spiel",
         "How it's played": "So spielt man es",
+        "Ways to play": "Spielmodi",
+        "Genre": "Genre",
         "At a glance": "Auf einen Blick",
         "Developer & publisher": "Entwickler & Publisher",
         "Developer": "Entwickler",

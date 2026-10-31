@@ -293,6 +293,8 @@ private struct DetailLevel: View {
     let game: Game
     @EnvironmentObject private var model: LibraryModel
     @ObservedObject private var focus = PadFocus.shared
+    /// The page went up past its first screen: the game bar shows under the top bar.
+    @State private var barShown = false
 
     var body: some View {
         let info = model.info(for: game).flatMap { GameAboutSection.hasContent($0) ? $0 : nil }
@@ -300,19 +302,35 @@ private struct DetailLevel: View {
             ScrollViewReader { scroll in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        // The first screen as before, with Play always on it: the short description gives
-                        // way first – two lines, one, none (it's further down anyway) – then the logo. The
-                        // next section's title peeks in below it.
-                        let more = { withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) } }
-                        ViewThatFits(in: .vertical) {
-                            firstScreen(teaser: 2, more: more)
-                            firstScreen(teaser: 1, more: more)
-                            firstScreen(teaser: 0, more: more)
+                        GeometryReader { place in
+                            Color.clear.preference(key: PageOffset.self, value: place.frame(in: .named("page")).minY)
                         }
-                        .frame(height: max(geo.size.height - (info == nil ? 0 : 44), 0), alignment: .topLeading)
+                        .frame(height: 0)
+                        firstScreen
+                            // With "About the game" below, its title and the screenshots' top peek in.
+                            .frame(height: max(geo.size.height - (info == nil ? 0 : 70), 0), alignment: .topLeading)
+                            // It fades as the page goes up, rather than being cut by the top bar.
+                            .scrollTransition(.interactive, axis: .vertical) { content, phase in
+                                content.opacity(phase.value < 0 ? max(0, 1 + phase.value * 1.6) : 1)
+                            }
                         if let info {
+                            Button { withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) } } label: {
+                                HStack(spacing: 8) {
+                                    SectionTitle(L10n.t("About the game"))
+                                    Image(systemName: "chevron.down")
+                                        .font(size: 9, weight: .bold)
+                                        .foregroundStyle(Theme.muted)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padFocus("detail.about", cornerRadius: 8) {
+                                withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) }
+                            }
+                            .padding(.bottom, 18)
                             GameAboutSection(game: game, info: info, narrow: geo.size.width < 1100)
                                 .id("about")
+                                .padding(.bottom, 40)
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
@@ -320,13 +338,21 @@ private struct DetailLevel: View {
                         if info != nil {
                             // Darkens the art behind as the section comes up: a gradient that scrolls with
                             // the page, no blur (UI power budget).
-                            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Theme.night.opacity(0.9), location: 0.55),
-                                                   .init(color: Theme.night.opacity(0.94), location: 1)],
+                            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Theme.night.opacity(0.92), location: 0.5),
+                                                   .init(color: Theme.night.opacity(0.95), location: 1)],
                                            startPoint: .top, endPoint: .bottom)
-                                .padding(.top, geo.size.height * 0.55)
+                                .padding(.top, geo.size.height * 0.5)
                                 .padding(.bottom, -400)
                                 .allowsHitTesting(false)
                         }
+                    }
+                }
+                .coordinateSpace(name: "page")
+                .modifier(PageScrolled(threshold: geo.size.height * 0.4, scrolled: $barShown))
+                .overlay(alignment: .top) {
+                    if barShown {
+                        GameBar(game: game)
+                            .transition(.opacity.combined(with: .offset(y: -8)))
                     }
                 }
                 .modifier(SoftTopEdge())
@@ -338,13 +364,13 @@ private struct DetailLevel: View {
         .task(id: game.id) { await model.askInfo(for: game) }
     }
 
-    private func firstScreen(teaser: Int, more: @escaping () -> Void) -> some View {
+    private var firstScreen: some View {
         VStack(alignment: .leading, spacing: 0) {
             BackPill(to: model.route.level)
                 .padding(.top, 18)
             Spacer(minLength: 24)
             HStack(alignment: .bottom, spacing: 32) {
-                GameDetail(game: game, compact: false, teaserLines: teaser, showMore: more)
+                GameDetail(game: game, compact: false)
                 // What's set for it and where that comes from (2.3), beside the title as in the design.
                 if game.install != .inStore {
                     Spacer(minLength: 0)
@@ -355,6 +381,80 @@ private struct DetailLevel: View {
             .layoutPriority(1)
             Spacer(minLength: 20)
         }
+    }
+}
+
+/// Where a game's page has scrolled to (its top in the scroll view, negative once it went up), for
+/// macOS 14; from 15 on the scroll view says it itself.
+private struct PageOffset: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// `scrolled` turns true once the page went up more than `threshold` – only then, not on every step.
+private struct PageScrolled: ViewModifier {
+    let threshold: CGFloat
+    @Binding var scrolled: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > threshold } action: { _, past in
+                set(past)
+            }
+        } else {
+            content.onPreferenceChange(PageOffset.self) { y in set(-y > threshold) }
+        }
+    }
+
+    private func set(_ past: Bool) {
+        guard past != scrolled else { return }
+        withAnimation(.easeOut(duration: 0.18)) { scrolled = past }
+    }
+}
+
+/// Under the top bar once a game's page went up: the game and its button, on a solid edge the page
+/// passes under – nothing is cut by the top bar.
+private struct GameBar: View {
+    let game: Game
+    @EnvironmentObject private var model: LibraryModel
+    @State private var logo: NSImage?
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Group {
+                if let logo {
+                    Image(nsImage: logo)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 180, maxHeight: 34, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Text(game.name)
+                        .displayFont(18)
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                }
+            }
+            .accessibilityLabel(game.name)
+            MetaLine(compatibility: model.compatibility(of: game), facts: nil, stores: game.providers.map(\.label), info: model.info(for: game))
+                .fixedSize()
+                .layoutPriority(-1)
+            Spacer(minLength: 0)
+            PlayButton.of(game, model: model, compact: true)
+                .padFocus("detail.bar.play", cornerRadius: 22, activate: { model.primaryAction() })
+        }
+        .padding(.horizontal, Theme.gutter)
+        .frame(height: 64)
+        .background {
+            VStack(spacing: 0) {
+                Theme.night.opacity(0.95)
+                LinearGradient(colors: [Theme.night.opacity(0.95), Theme.night.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+            }
+            .padding(.bottom, -28)
+            .allowsHitTesting(false)
+        }
+        .task(id: game.id) { logo = await ArtworkStore.shared.image(for: game, kind: .logo) }
     }
 }
 
@@ -1007,10 +1107,6 @@ private struct GameDetail: View {
     var compact = false
     /// On Home's stage: what the game is there (StarterPicks, HomeRail.stage).
     var role: LibraryModel.HomeRole?
-    /// On its page: the short description under the title, in this many lines (0: none, the window is short).
-    var teaserLines = 0
-    /// … and "More about the game", which scrolls the page there.
-    var showMore: (() -> Void)?
     @EnvironmentObject private var model: LibraryModel
     @State private var logo: NSImage?
     /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
@@ -1062,10 +1158,6 @@ private struct GameDetail: View {
             // and the top bar jumps between Home and the library.
             .frame(minHeight: 80, maxHeight: compact ? 150 : 170, alignment: .bottomLeading)
             .accessibilityLabel(game.name)
-
-            if !compact, teaserLines > 0, let summary = info?.summary, let showMore {
-                SummaryTeaser(text: summary, lines: teaserLines, more: showMore)
-            }
 
             // Why it's a good start, in one sentence – only for a game nobody has played here yet.
             if let starter {
@@ -1198,18 +1290,8 @@ private struct GameDetail: View {
             // The round buttons go to a new line rather than squeezing Play's words (a narrow window,
             // larger text, German).
             FlowRow(spacing: 14, lineSpacing: 14, centered: true) {
-                PlayButton(install: game.install, isLaunching: model.launchingID == game.id || model.sizingID == game.id,
-                           isUninstalling: model.uninstallingID == game.id,
-                           isRunning: model.isRunning(game),
-                           needsConfirmation: model.launchNeedsConfirmation,
-                           status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchPhase?.title,
-                           unavailable: unavailable, cloud: game.playsInCloud,
-                           noSpace: game.downloadNeedsSpace != nil,
-                           demo: game.demoOf != nil,
-                           update: game.pendingUpdate) {
-                    model.primaryAction()
-                }
-                .padFocus("play", cornerRadius: 34, activate: { model.primaryAction() })
+                PlayButton.of(game, model: model)
+                    .padFocus("play", cornerRadius: 34, activate: { model.primaryAction() })
                 if compact {
                     RoundIconButton(symbol: "info", help: L10n.t("Details (I)")) {
                         model.openDetail()
@@ -1311,9 +1393,28 @@ private struct GameDetail: View {
     private var metascore: Int? {
         facts?.metascore ?? askedScore ?? steam.flatMap { Metascores.cached($0.appID) }
     }
+}
+
+extension PlayButton {
+    /// The button for `game` as its page shows it – `compact` in the game bar that stays at the top of
+    /// its scrolled page.
+    @MainActor static func of(_ game: Game, model: LibraryModel, compact: Bool = false) -> PlayButton {
+        PlayButton(install: game.install, isLaunching: model.launchingID == game.id || model.sizingID == game.id,
+                   isUninstalling: model.uninstallingID == game.id,
+                   isRunning: model.isRunning(game),
+                   needsConfirmation: model.launchNeedsConfirmation,
+                   status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchPhase?.title,
+                   unavailable: unavailable(game, model: model), cloud: game.playsInCloud,
+                   noSpace: game.downloadNeedsSpace != nil,
+                   demo: game.demoOf != nil,
+                   update: game.pendingUpdate,
+                   compact: compact) {
+            model.primaryAction()
+        }
+    }
 
     /// Nothing a Mac can run (VR only, anti-cheat): the button says why instead.
-    private var unavailable: PlayButton.Unavailable? {
+    @MainActor private static func unavailable(_ game: Game, model: LibraryModel) -> Unavailable? {
         guard game.install == .notInstalled || game.install == .installed, !model.isRunning(game) else { return nil }
         if let drive = game.missingDrive, game.install == .notInstalled {
             return .init(title: L10n.t("Connect %@ to Play", drive), symbol: "externaldrive.badge.xmark")
@@ -1493,6 +1594,8 @@ private struct PlayButton: View {
     var demo = false
     /// An update Steam downloads first: its size, 0 when not known yet.
     var update: Int64?
+    /// Smaller, for the game bar.
+    var compact = false
     let action: () -> Void
 
     private var busy: Bool {
@@ -1546,12 +1649,12 @@ private struct PlayButton: View {
                         .font(size: 15, weight: .bold)
                 }
                 Text(title)
-                    .displayFont(17)
+                    .displayFont(compact ? 14 : 17)
                     .monospacedDigit()
             }
             .foregroundStyle(Theme.night)
-            .padding(.horizontal, 32)
-            .frame(height: 52)
+            .padding(.horizontal, compact ? 20 : 32)
+            .frame(height: compact ? 40 : 52)
             .animation(.easeOut(duration: 0.4), value: install)
         }
         .buttonStyle(GlassButtonStyle(glass: .tinted(Theme.sodium, glows: true), shape: Capsule(), dimmed: busy,
