@@ -108,6 +108,11 @@ struct GameInfo: Codable, Hashable {
     /// Where it came from: "steam.728880" for Overcooked! 2 from Epic.
     var source: String
     var asked: Date
+    /// What Nightforge read from the answer then (`GameInfo.format`): an older one is asked again.
+    var format: Int? = GameInfo.format
+
+    /// 2: PEGI ratings too (31.10.2026).
+    static let format = 2
 
     /// Up to this many screenshots are kept.
     static let maxScreenshots = 12
@@ -139,9 +144,11 @@ struct GameInfo: Codable, Hashable {
                 info.controller = .steam(Set(categories["controller_categoryids"] as? [Int] ?? []))
             }
             info.macLanguage = steamLanguage(item["supported_languages"], language: language)
-            if let rating = item["game_rating"] as? [String: Any], let age = (rating["rating"] as? String).flatMap({ Int($0) }) {
-                // Agency 4 is the USK; Steam's own rating (17) and others' aren't shown.
-                if rating["agency"] as? Int == 4 { info.age = AgeRating(system: "USK", age: age) }
+            // The rating for the country asked for: the USK in Germany (agency 4), PEGI in most of Europe
+            // (2). ESRB's letters (1) and Steam's own rating (17) aren't shown.
+            if let rating = item["game_rating"] as? [String: Any], let age = (rating["rating"] as? String).flatMap({ Int($0) }),
+               let system = [4: "USK", 2: "PEGI"][rating["agency"] as? Int ?? 0] {
+                info.age = AgeRating(system: system, age: age)
             }
             let screenshots = (item["screenshots"] as? [String: Any])?["all_ages_screenshots"] as? [[String: Any]] ?? []
             info.screenshots = screenshots.prefix(maxScreenshots).compactMap { shot in

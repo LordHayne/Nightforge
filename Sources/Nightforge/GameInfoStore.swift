@@ -71,7 +71,7 @@ actor GameInfoStore {
 
     static func needsAsking(_ info: GameInfo?, language: String, now: Date = Date()) -> Bool {
         guard let info else { return true }
-        return info.language != language || now.timeIntervalSince(info.asked) > askAgainAfter
+        return info.language != language || info.format != GameInfo.format || now.timeIntervalSince(info.asked) > askAgainAfter
     }
 
     static func needsAsking(_ twin: Twin?, now: Date = Date()) -> Bool {
@@ -208,6 +208,18 @@ actor GameInfoStore {
         guard let answer = await twinFromGamesDB(game) else { return nil }
         if let appID = answer { return appID }
         return .some(await twinByTitle(game.name))
+    }
+
+    /// One game's Steam info now, when its page opens before the fill came to it (a store hit, a game
+    /// just added) or it's a month old. What's known afterwards, or nil when nothing was asked.
+    func ask(_ game: Game) async -> Known? {
+        let language = Self.language
+        guard Date() >= pausedUntil, let appID = game.gameID.steamAppID ?? Self.twin(of: game, in: known),
+              Self.needsAsking(known.infos[GameID.steam(appID).key], language: language),
+              let found = await steamInfos([appID], language: language) else { return nil }
+        known.infos[GameID.steam(appID).key] = found[appID] ?? GameInfo(language: language, source: GameID.steam(appID).key, asked: Date())
+        save()
+        return known
     }
 
     /// Steam's info for store hits (games not in the library): their covers and controller support,

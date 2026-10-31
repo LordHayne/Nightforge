@@ -81,6 +81,8 @@ final class InputRouter {
         if window.firstResponder is NSText { return false }
 
         switch code {
+        case 123 where model.lightbox != nil: model.lightbox?.step(-1); return true
+        case 124 where model.lightbox != nil: model.lightbox?.step(1); return true
         case 123: model.move(-1); return true            // ←
         case 124: model.move(1); return true             // →
         case 126: model.moveRow(-1); return model.showingLibrary // ↑
@@ -88,9 +90,11 @@ final class InputRouter {
         case 115: model.jump(toStart: true); return true // Pos1
         case 119: model.jump(toStart: false); return true // Ende
         case 36, 76:                                     // Return / Enter
-            model.activate()
+            // On a big screenshot: back to the page.
+            if model.lightbox != nil { model.lightbox = nil } else { model.activate() }
             return true
         case 53:                                         // Esc
+            if model.lightbox != nil { model.lightbox = nil; return true }
             if model.showingDownloads { model.showingDownloads = false; return true }
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
             if model.awaitingSteam { model.cancelLaunch(); return true }
@@ -311,7 +315,9 @@ final class InputRouter {
         pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                if let key = NSApp.keyWindow, let item = PadFocus.shared.focusedItem(in: key) {
+                if self?.model?.lightbox != nil, self?.dialog == nil {
+                    self?.model?.lightbox = nil  // A on a big screenshot: back to the page
+                } else if let key = NSApp.keyWindow, let item = PadFocus.shared.focusedItem(in: key) {
                     item.activate()
                 } else if let window = self?.padWindow, window !== Self.mainWindow {
                     // Nothing highlighted yet: the first press shows where you are, it doesn't save.
@@ -328,7 +334,9 @@ final class InputRouter {
             MainActor.assumeIsolated {
                 guard let self, let model = self.model else { return }
                 let main = Self.mainWindow
-                if let menu = model.libraryMenu, NSApp.modalWindow == nil, self.dialog == nil {
+                if model.lightbox != nil, NSApp.modalWindow == nil, self.dialog == nil {
+                    model.lightbox = nil
+                } else if let menu = model.libraryMenu, NSApp.modalWindow == nil, self.dialog == nil {
                     model.closeLibraryMenu(menu)
                 } else if let key = NSApp.keyWindow, key === main, PadFocus.shared.focusedItem(in: key) != nil {
                     PadFocus.shared.clear()  // from the buttons back to the games
@@ -472,6 +480,11 @@ final class InputRouter {
     @discardableResult
     private func perform(_ step: Step) -> Bool {
         guard let model else { return false }
+        // A screenshot shown big: left and right go through the others.
+        if model.lightbox != nil, padWindow == nil || padWindow === Self.mainWindow {
+            if step.dx != 0 { model.lightbox?.step(step.dx) }
+            return true
+        }
         if let window = padWindow {
             let focus = PadFocus.shared
             if window !== Self.mainWindow {

@@ -69,6 +69,12 @@ struct GameInfoTest {
         check(StoreArt(sheep).cover == sheep.cover && StoreArt(sheep).wideCover == sheep.wideCover, "its art for ArtworkStore")
 
         check(GameInfo.steam(fromItems: Data("{}".utf8), language: "german").isEmpty, "nothing from an empty answer")
+        func rated(_ agency: Int, _ rating: String) -> AgeRating? {
+            let json = #"{"response":{"store_items":[{"appid":1,"name":"A","game_rating":{"rating":"\#(rating)","agency":\#(agency)}}]}}"#
+            return GameInfo.steam(fromItems: Data(json.utf8), language: "german")[1]?.age
+        }
+        check(rated(2, "18") == AgeRating(system: "PEGI", age: 18), "PEGI (Austria, most of Europe)")
+        check(rated(1, "m") == nil && rated(17, "12") == nil, "not ESRB's letters, not Steam's own")
         let english = GameInfo.steam(fromItems: fixture("steam-items-de.json"), language: "english")
         check(english[275850]?.macLanguage == nil, "no German row on an English Mac")
     }
@@ -133,6 +139,9 @@ struct GameInfoTest {
         old.asked = now.addingTimeInterval(-GameInfoStore.askAgainAfter - 1)
         check(GameInfoStore.needsAsking(old, language: "german", now: now), "a month old: asked again")
         check(GameInfoStore.needsAsking(nil as GameInfo?, language: "german", now: now), "unknown: asked")
+        var older = fresh
+        older.format = nil
+        check(GameInfoStore.needsAsking(older, language: "german", now: now), "read by an older Nightforge: asked again once")
         check(!GameInfoStore.needsAsking(GameInfoStore.Twin(appID: 5, asked: .distantPast), now: now), "a twin found stays")
         check(GameInfoStore.needsAsking(GameInfoStore.Twin(appID: nil, asked: .distantPast), now: now), "none found: asked again after a month")
         check(!GameInfoStore.needsAsking(GameInfoStore.Twin(appID: nil, asked: now), now: now), "… not before")

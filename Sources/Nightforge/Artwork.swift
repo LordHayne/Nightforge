@@ -93,6 +93,26 @@ actor ArtworkStore {
         return image
     }
 
+    /// A game's screenshot, small: kept on disk at the size its page draws it (one file per game and
+    /// picture, "epic.Potoo_ss_2f84a1…"), so the page shows it offline and doesn't load it again.
+    func screenshot(_ url: URL, key: String) async -> NSImage? {
+        if let cached = memory.object(forKey: key as NSString) { return cached }
+        let file = cacheDir.appendingPathComponent(key + ".jpg")
+        var image = (try? Data(contentsOf: file)).flatMap { Self.decode($0, maxPixelSize: 560) }
+        if image == nil {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let small = Self.decode(data, maxPixelSize: 560),
+                  let pixels = small.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+            Self.writeJPEG(pixels, to: file)
+            image = small
+        }
+        if let image { memory.setObject(image, forKey: key as NSString, cost: Self.cost(of: image)) }
+        return image
+    }
+
     /// Home's stage behind its covers: the game's key art (else its cover) blurred once, at about
     /// window size, and kept in the cache – never blurred live over the window, which would cost the
     /// battery and the graphics power games need. With it the colour the cover gives off, for the
@@ -179,9 +199,13 @@ actor ArtworkStore {
 
     /// An image from file data, scaled down to `kind`'s size when it's larger.
     static func decode(_ data: Data, kind: ArtKind) -> NSImage? {
-        guard let maxSize = kind.maxPixelSize, let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return NSImage(data: data)
-        }
+        guard let maxSize = kind.maxPixelSize else { return NSImage(data: data) }
+        return decode(data, maxPixelSize: maxSize)
+    }
+
+    /// … to at most `maxPixelSize` on its longer side.
+    static func decode(_ data: Data, maxPixelSize maxSize: Int) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return NSImage(data: data) }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceThumbnailMaxPixelSize: maxSize,

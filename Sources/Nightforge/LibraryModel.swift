@@ -45,6 +45,7 @@ final class LibraryModel: ObservableObject {
             guard route != oldValue else { return }
             history.moved(from: oldValue, to: route, by: historyStep)
             libraryMenu = nil
+            lightbox = nil
         }
     }
     /// What forward (the trackpad swipe) can retrace, and what kind of step changes the route now.
@@ -67,6 +68,8 @@ final class LibraryModel: ObservableObject {
     }
     /// The list one of the library's chips opened (stores, order, filters).
     @Published var libraryMenu: LibraryMenu?
+    /// A game's screenshot shown big over the window.
+    @Published var lightbox: Lightbox?
     /// The game each level had selected, so going back to it finds it there again.
     private var homeGameID: String?
     private var libraryGameID: String?
@@ -1140,6 +1143,18 @@ final class LibraryModel: ObservableObject {
         Task { [weak self] in
             await GameInfoStore.shared.fill(entries) { known in self?.takeGameInfo(known) }
         }
+    }
+
+    /// What its store or the same game on Steam says about a game (its page).
+    func info(for game: Game) -> GameInfo? {
+        GameInfoStore.info(for: game, in: gameInfo)
+    }
+
+    /// A game's page opens: Steam's info for it now, when the fill hasn't come to it yet (a store
+    /// hit, a game just added) or it's a month old.
+    func askInfo(for game: Game) async {
+        guard let known = await GameInfoStore.shared.ask(game) else { return }
+        takeGameInfo(known)
     }
 
     private func takeGameInfo(_ known: GameInfoStore.Known) {

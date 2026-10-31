@@ -582,6 +582,10 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
   Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
   Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). In Arbeit seit 31.10. (für 0.3.0) in zwei Abschnitten
   (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
+  - **Abschnitt B gebaut (31.10.)**: Die Spielseite scrollt. Oben 2 Zeilen Beschreibung (weichen im kleinen Fenster),
+    unten „Über das Spiel“ mit Screenshot-Leiste, Großbild (← → / Pad, Esc/B/A/Return schließt), Genres, Spielmodi und
+    der Karte „Auf einen Blick“. Neu: `GameAbout.swift`. Altersfreigabe: Steam liefert sie je Land, in Österreich PEGI
+    (No Man's Sky hat dort keine), in Deutschland USK. Noch ohne Live-Test: Prüfliste „Live-Test B“.
   - **Abschnitt A gebaut (31.10.)**, Branch `claude/game-metadata-a2cee0`; noch ohne Live-Test. Prüfliste: „Live-Test A“ in
     `docs/ENTWURF-SPIELINFOS.md`. Neu: `GameInfo.swift`, `GameInfoStore.swift` (Cache `GameInfo/known.json`),
     `LibraryFilterRow.swift`. Offen für den Live-Test: Ein Epic-/GOG-Spiel mit Steam-Profil zeigt jetzt dessen

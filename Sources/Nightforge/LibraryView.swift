@@ -67,8 +67,14 @@ struct LibraryView: View {
                     .transition(.opacity.combined(with: .offset(y: -8)))
             }
 
+            if let lightbox = model.lightbox {
+                ScreenshotLightbox(lightbox: lightbox)
+                    .transition(.opacity)
+            }
+
             ToastHost()
         }
+        .animation(.easeOut(duration: 0.2), value: model.lightbox)
         // A list a chip of the library's row opened, under that chip and over the grid.
         .overlayPreferenceValue(LibraryMenuAnchors.self) { anchors in
             if model.route == .library {
@@ -286,26 +292,81 @@ private struct NoFilterMatches: View {
 private struct DetailLevel: View {
     let game: Game
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var focus = PadFocus.shared
 
     var body: some View {
+        let info = model.info(for: game).flatMap { GameAboutSection.hasContent($0) ? $0 : nil }
+        GeometryReader { geo in
+            ScrollViewReader { scroll in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // The first screen as before, with Play always on it: the short description gives
+                        // way first – two lines, one, none (it's further down anyway) – then the logo. The
+                        // next section's title peeks in below it.
+                        let more = { withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) } }
+                        ViewThatFits(in: .vertical) {
+                            firstScreen(teaser: 2, more: more)
+                            firstScreen(teaser: 1, more: more)
+                            firstScreen(teaser: 0, more: more)
+                        }
+                        .frame(height: max(geo.size.height - (info == nil ? 0 : 44), 0), alignment: .topLeading)
+                        if let info {
+                            GameAboutSection(game: game, info: info, narrow: geo.size.width < 1100)
+                                .id("about")
+                        }
+                    }
+                    .padding(.horizontal, Theme.gutter)
+                    .background(alignment: .top) {
+                        if info != nil {
+                            // Darkens the art behind as the section comes up: a gradient that scrolls with
+                            // the page, no blur (UI power budget).
+                            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Theme.night.opacity(0.9), location: 0.55),
+                                                   .init(color: Theme.night.opacity(0.94), location: 1)],
+                                           startPoint: .top, endPoint: .bottom)
+                                .padding(.top, geo.size.height * 0.55)
+                                .padding(.bottom, -400)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                }
+                .modifier(SoftTopEdge())
+                // The pad's highlight stays in sight as it moves down the page.
+                .onChange(of: focus.focused) { _, id in PadFocus.shared.reveal(id) }
+            }
+        }
+        .id(game.id)
+        .task(id: game.id) { await model.askInfo(for: game) }
+    }
+
+    private func firstScreen(teaser: Int, more: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             BackPill(to: model.route.level)
                 .padding(.top, 18)
             Spacer(minLength: 24)
             HStack(alignment: .bottom, spacing: 32) {
-                GameDetail(game: game, compact: false)
+                GameDetail(game: game, compact: false, teaserLines: teaser, showMore: more)
                 // What's set for it and where that comes from (2.3), beside the title as in the design.
                 if game.install != .inStore {
                     Spacer(minLength: 0)
                     ThisGameCard(game: game)
                 }
             }
-            .id(game.id)
             // Ahead of the spacers: the logo gives way only when the window is really too short.
             .layoutPriority(1)
             Spacer(minLength: 20)
         }
-        .padding(.horizontal, Theme.gutter)
+    }
+}
+
+/// Content scrolling under the top bar fades out there: the system's soft edge from macOS 26, a
+/// plain edge before.
+private struct SoftTopEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content
+        }
     }
 }
 
@@ -946,6 +1007,10 @@ private struct GameDetail: View {
     var compact = false
     /// On Home's stage: what the game is there (StarterPicks, HomeRail.stage).
     var role: LibraryModel.HomeRole?
+    /// On its page: the short description under the title, in this many lines (0: none, the window is short).
+    var teaserLines = 0
+    /// … and "More about the game", which scrolls the page there.
+    var showMore: (() -> Void)?
     @EnvironmentObject private var model: LibraryModel
     @State private var logo: NSImage?
     /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
@@ -963,7 +1028,7 @@ private struct GameDetail: View {
                 if let role, let kicker = StageKicker(role: role, game: game) {
                     kicker
                 }
-                MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: game.providers.map(\.label))
+                MetaLine(compatibility: model.compatibility(of: game), facts: facts, stores: game.providers.map(\.label), info: info)
                     .fixedSize()
                 if model.isHidden(game) {
                     Label(L10n.t("Hidden"), systemImage: "eye.slash")
@@ -997,6 +1062,10 @@ private struct GameDetail: View {
             // and the top bar jumps between Home and the library.
             .frame(minHeight: 80, maxHeight: compact ? 150 : 170, alignment: .bottomLeading)
             .accessibilityLabel(game.name)
+
+            if !compact, teaserLines > 0, let summary = info?.summary, let showMore {
+                SummaryTeaser(text: summary, lines: teaserLines, more: showMore)
+            }
 
             // Why it's a good start, in one sentence – only for a game nobody has played here yet.
             if let starter {
@@ -1234,6 +1303,9 @@ private struct GameDetail: View {
     private var facts: StoreFacts? {
         steam.flatMap { SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot) }
     }
+
+    /// What its store or the same game on Steam says about it (GameInfoStore).
+    private var info: GameInfo? { model.info(for: game) }
 
     /// Steam's catalog first; else what the store said, now or before (offline).
     private var metascore: Int? {

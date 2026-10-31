@@ -249,6 +249,11 @@ Start erst auf das Go des Koordinators nach den Merges von 2.5 und GOG (`git mer
 Abschnitt B baut auf A auf (`GameInfoStore`). Jeder Abschnitt endet mit grünen Testsuiten, einem sauberen
 `./build.sh`, lokalen Commits und einem Live-Test durch den Koordinator. Danach beginnt der nächste.
 
+Stand 31.10. abends: A gebaut (17abfa0, Fix 2bb1882: Infos kommen schrittweise, alles nach etwa 8 s statt 39 s), B
+gebaut. Abweichungen vom Plan: ein Cache-File `GameInfo/known.json`; Altersfreigabe USK oder PEGI je nach Land (Steams
+`game_rating.agency` 4 bzw. 2); ältere Cache-Einträge werden über `GameInfo.format` einmal neu gefragt; Screenshots
+werden nach Bildnamen gecacht (`<GameID.key>_ss_….jpg`).
+
 ### Abschnitt A: Daten, Filter, Bibliothek (etwa 2½ Tage)
 
 1. **`GameInfo.swift`:** das Modell (`GameInfo`, `PlayMode`, `LanguageSupport`, `AgeRating`, `Screenshot`) und
