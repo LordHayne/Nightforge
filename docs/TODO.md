@@ -157,6 +157,22 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     (macOS 11.3+). Kollidiert nicht mit Steams Guide-Taste (siehe `SteamGuideButton` oben); macOS selbst kann die
     Home-Taste für Launchpad oder die Spiele-App belegen, also auf macOS 26/27 prüfen, ob „gedrückt halten“ frei ist.
   - Für den Release 0.3.0 wichtig, weil der TV-Modus ohne Maus und Tastatur auskommen soll.
+- **Nightforge-Overlay für den Controller** (Nutzer, 31.10., Idee; das Beenden oben wäre sein erster Teil):
+  - PS-/Guide-Taste im Spiel (gedrückt halten, damit Steams kurzer Druck frei bleibt) öffnet ein ruhiges Overlay
+    über dem Spiel:
+    - Weiterspielen (B oder noch einmal PS)
+    - Spiel beenden (mit Rückfrage; auch wenn es hängt)
+    - Zu Nightforge (Bibliothek, Downloads, ohne das Spiel zu beenden)
+    - Uhrzeit, Controller-Akku, laufende Downloads
+    - später: Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung
+  - Technik, zu klären:
+    - Ein Panel mit `.canJoinAllSpaces`/`.fullScreenAuxiliary` über dem Vollbild-Space des Spiels. Hat Wine den
+      Bildschirm exklusiv belegt (`CGCaptureAllDisplays` bei echtem Modus-Wechsel), kann kein Fenster darüber; dann
+      kommt Nightforge stattdessen nach vorne.
+    - Eingaben gehen weiter ans Spiel, denn macOS kann einem anderen Prozess den Controller nicht wegnehmen. Kandidat:
+      das Spiel solange mit `SIGSTOP` anhalten und mit `SIGCONT` weiterlaufen lassen. Bei Online-Spielen, beim Ton
+      und bei Steams Spielerkennung prüfen.
+    - Stromsparend nach dem UI-Budget: kein Live-Weichzeichner über dem ganzen Bild, nur abdunkeln.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
