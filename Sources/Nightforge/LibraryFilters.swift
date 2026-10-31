@@ -1,20 +1,8 @@
 import Foundation
 
 /// What the library grid shows and in which order. Kept while you open a game's page and come
-/// back, and while you're on Home; only the library applies it.
+/// back, and while you're on Home; only the library applies it, and a search leaves it resting.
 struct LibraryFilters: Equatable {
-    enum Status: CaseIterable {
-        case all, onMac, notDownloaded
-
-        var label: String {
-            switch self {
-            case .all: return L10n.t("All")
-            case .onMac: return L10n.t("On this Mac")
-            case .notDownloaded: return L10n.t("Not downloaded")
-            }
-        }
-    }
-
     enum Sort: CaseIterable {
         case recent, name, size
 
@@ -25,39 +13,83 @@ struct LibraryFilters: Equatable {
             case .size: return L10n.t("Disk space")
             }
         }
+
+        /// What A on the pad (a click on the chip opens the list) picks next.
+        var next: Sort { Self.allCases[(Self.allCases.firstIndex(of: self)! + 1) % Self.allCases.count] }
     }
 
-    var status = Status.all
-    /// Only games rated "Runs great".
-    var great = false
-    /// Only games with full controller support.
-    var controller = false
-    /// Only games that run as their Mac version.
-    var mac = false
+    /// One switch in the filter panel.
+    enum Filter: CaseIterable {
+        case great, controller, couch, mac, onMac
+
+        var label: String {
+            switch self {
+            case .great: return Compatibility.Level.great.label
+            case .controller: return L10n.t("Plays with a controller")
+            case .couch: return L10n.t("Two on one Mac")
+            case .mac: return L10n.t("Mac version")
+            case .onMac: return L10n.t("Only on this Mac")
+            }
+        }
+
+        var note: String? {
+            switch self {
+            case .controller: return L10n.t("Full support")
+            case .couch: return L10n.t("Local co-op or split screen")
+            case .onMac: return L10n.t("Installed or downloading")
+            case .great, .mac: return nil
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .great: return Compatibility.Level.great.symbol
+            case .controller: return "gamecontroller.fill"
+            case .couch: return "sofa.fill"
+            case .mac: return "apple.logo"
+            case .onMac: return "internaldrive"
+            }
+        }
+    }
+
+    /// One store's games (a game from several counts in each); nil: all of them.
+    var store: Provider?
+    /// The panel's switches that are on.
+    var on: Set<Filter> = []
     var sort = Sort.recent
 
     /// Something leaves games out.
-    var narrows: Bool { status != .all || great || controller || mac }
+    var narrows: Bool { store != nil || !on.isEmpty }
 
     /// Without what leaves games out (the order stays).
     var cleared: LibraryFilters { LibraryFilters(sort: sort) }
 
-    /// A game from several stores goes by what its card shows (`Game.shown`).
+    /// The panel's "All filters off": the store stays.
+    var switchesOff: LibraryFilters { LibraryFilters(store: store, sort: sort) }
+
+    func has(_ filter: Filter) -> Bool { on.contains(filter) }
+
+    mutating func toggle(_ filter: Filter) {
+        if on.remove(filter) == nil { on.insert(filter) }
+    }
+
+    /// A game from several stores goes by what its card shows (`Game.shown`) and is in each of its stores.
     func admits(_ game: Game, level: (Game) -> Compatibility.Level) -> Bool {
-        let onMac: Bool
-        switch game.shown.shelfState {
-        case .installed, .downloading: onMac = true
-        case .notInstalled, .inStore: onMac = false
+        if let store, !game.providers.contains(store) { return false }
+        for filter in on {
+            switch filter {
+            case .great where level(game) != .great: return false
+            case .controller where game.controller != .full: return false
+            case .couch where game.playModes.isDisjoint(with: PlayMode.couch): return false
+            case .mac where game.platform != .mac: return false
+            case .onMac:
+                switch game.shown.shelfState {
+                case .installed, .downloading: break
+                case .notInstalled, .inStore: return false
+                }
+            default: break
+            }
         }
-        switch status {
-        case .all: break
-        case .onMac where !onMac: return false
-        case .notDownloaded where onMac || game.install == .inStore: return false
-        default: break
-        }
-        if controller && game.controller != .full { return false }
-        if mac && game.platform != .mac { return false }
-        if great && level(game) != .great { return false }
         return true
     }
 

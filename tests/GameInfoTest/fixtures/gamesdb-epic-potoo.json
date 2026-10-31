@@ -1,0 +1,196 @@
+{
+ "id": "54391464688803340",
+ "platform_id": "epic",
+ "external_id": "Potoo",
+ "title": {
+  "*": "Overcooked! 2",
+  "en-US": "Overcooked! 2"
+ },
+ "game": {
+  "id": "51298686131457274",
+  "releases": [
+   {
+    "id": "51356365722436659",
+    "platform_id": "steam",
+    "external_id": "728880",
+    "release_per_platform_id": "steam_728880",
+    "availability": 0
+   },
+   {
+    "id": "51701635613009127",
+    "platform_id": "xboxone",
+    "external_id": "308654313",
+    "release_per_platform_id": "xboxone_308654313",
+    "availability": 0
+   },
+   {
+    "id": "51985077006741255",
+    "platform_id": "gog",
+    "external_id": "1297999995",
+    "release_per_platform_id": "gog_1297999995",
+    "availability": 1
+   },
+   {
+    "id": "52086761479362114",
+    "platform_id": "psn",
+    "external_id": "CUSA10870_00",
+    "release_per_platform_id": "psn_CUSA10870_00",
+    "availability": 0
+   },
+   {
+    "id": "52092464880233851",
+    "platform_id": "psn",
+    "external_id": "NPWR14796_00",
+    "release_per_platform_id": "psn_NPWR14796_00",
+    "availability": 0
+   },
+   {
+    "id": "52382542290905318",
+    "platform_id": "psn",
+    "external_id": "CUSA10940_00",
+    "release_per_platform_id": "psn_CUSA10940_00",
+    "availability": 0
+   },
+   {
+    "id": "52884138893460129",
+    "platform_id": "humble",
+    "external_id": "overcooked2_us_switch",
+    "release_per_platform_id": "humble_overcooked2_us_switch",
+    "availability": 0
+   },
+   {
+    "id": "52958737949558656",
+    "platform_id": "psn",
+    "external_id": "CUSA14803_00",
+    "release_per_platform_id": "psn_CUSA14803_00",
+    "availability": 0
+   },
+   {
+    "id": "52998033561633217",
+    "platform_id": "humble",
+    "external_id": "overcooked2_steam",
+    "release_per_platform_id": "humble_overcooked2_steam",
+    "availability": 0
+   },
+   {
+    "id": "53193527457797649",
+    "platform_id": "humble",
+    "external_id": "overcooked2_carnivalofchaos_storefront_steam_parfm",
+    "release_per_platform_id": "humble_overcooked2_carnivalofchaos_storefront_steam_parfm",
+    "availability": 0
+   },
+   {
+    "id": "53210844930588801",
+    "platform_id": "xboxone",
+    "external_id": "1727613823",
+    "release_per_platform_id": "xboxone_1727613823",
+    "availability": 0
+   },
+   {
+    "id": "53235487859350838",
+    "platform_id": "winstore",
+    "external_id": "9pgb72nfg5jn",
+    "release_per_platform_id": "winstore_9pgb72nfg5jn",
+    "availability": 0
+   },
+   {
+    "id": "53236254360716009",
+    "platform_id": "itch",
+    "external_id": "0cfce8df9896dd58bdfe91d373731f78c224ec73efedcaf9da017f3c",
+    "release_per_platform_id": "itch_0cfce8df9896dd58bdfe91d373731f78c224ec73efedcaf9da017f3c",
+    "availability": 0
+   },
+   {
+    "id": "53236432470954343",
+    "platform_id": "itch",
+    "external_id": "XFxSYWlkc2VydmVyXGdcTXkgRHJpdmVcRml0R2lybCBHYW1lc1xPdmVyY29va2VkIDIgW0ZpdEdpcmwgUmVwYWNrXQ==",
+    "release_per_platform_id": "itch_XFxSYWlkc2VydmVyXGdcTXkgRHJpdmVcRml0R2lybCBHYW1lc1xPdmVyY29va2VkIDIgW0ZpdEdpcmwgUmVwYWNrXQ==",
+    "availability": 0
+   },
+   {
+    "id": "53257652169125292",
+    "platform_id": "origin",
+    "external_id": "f0d834b383337b27607ba044d7542f92a234a9d4",
+    "release_per_platform_id": "origin_f0d834b383337b27607ba044d7542f92a234a9d4",
+    "availability": 0
+   },
+   {
+    "id": "53257744533581624",
+    "platform_id": "origin",
+    "external_id": "92bcf4e1cec00a4ef245668c00154c31bbc3a1778556a9eec0e84679e8d259ed",
+    "release_per_platform_id": "origin_92bcf4e1cec00a4ef245668c00154c31bbc3a1778556a9eec0e84679e8d259ed",
+    "availability": 0
+   },
+   {
+    "id": "53280616617045000",
+    "platform_id": "origin",
+    "external_id": "7504cebd1b75972dfe9745df2c1c0cc9808ef894",
+    "release_per_platform_id": "origin_7504cebd1b75972dfe9745df2c1c0cc9808ef894",
+    "availability": 0
+   },
+   {
+    "id": "53349200242255044",
+    "platform_id": "test",
+    "external_id": "bfc8039602d2ffae26c08ad40a07ce46340e4e5a",
+    "release_per_platform_id": "test_bfc8039602d2ffae26c08ad40a07ce46340e4e5a",
+    "availability": 0
+   },
+   {
+    "id": "53349215720365766",
+    "platform_id": "test",
+    "external_id": "2752d6b57e7563d399ba9cc91a42cd57c4344e7f",
+    "release_per_platform_id": "test_2752d6b57e7563d399ba9cc91a42cd57c4344e7f",
+    "availability": 0
+   },
+   {
+    "id": "53349339077507389",
+    "platform_id": "test",
+    "external_id": "e0e245cdcc192eb24491efb5bdd1d0ac67409300",
+    "release_per_platform_id": "test_e0e245cdcc192eb24491efb5bdd1d0ac67409300",
+    "availability": 0
+   },
+   {
+    "id": "53480651646657352",
+    "platform_id": "origin",
+    "external_id": "412033",
+    "release_per_platform_id": "origin_412033",
+    "availability": 0
+   },
+   {
+    "id": "53608090850161690",
+    "platform_id": "nswitch",
+    "external_id": "01006FD0080B2000",
+    "release_per_platform_id": "nswitch_01006FD0080B2000",
+    "availability": 0
+   },
+   {
+    "id": "53692213639464302",
+    "platform_id": "psx",
+    "external_id": "Overcooked! 2",
+    "release_per_platform_id": "psx_Overcooked! 2",
+    "availability": 0
+   },
+   {
+    "id": "54391464688803340",
+    "platform_id": "epic",
+    "external_id": "Potoo",
+    "release_per_platform_id": "epic_Potoo",
+    "availability": 0
+   },
+   {
+    "id": "54736042907523331",
+    "platform_id": "humble",
+    "external_id": "overcooked2_bundle_steam",
+    "release_per_platform_id": "humble_overcooked2_bundle_steam",
+    "availability": 0
+   },
+   {
+    "id": "51298686131457274",
+    "platform_id": "generic",
+    "external_id": "51298686131457274",
+    "release_per_platform_id": "generic_51298686131457274",
+    "availability": 1
+   }
+  ]
+ }
+}

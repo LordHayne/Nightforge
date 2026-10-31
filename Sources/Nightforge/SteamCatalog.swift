@@ -27,6 +27,8 @@ struct CatalogApp: Hashable {
     var controller = ControllerSupport.none
     /// Steam lists a single-player mode (or says nothing about it); false: online only.
     var singlePlayer = true
+    /// How it's played, from its store categories (local co-op, split screen …).
+    var modes: Set<PlayMode> = []
     /// Its store tags, genres, release and Metacritic score.
     var store = StoreFacts()
 }
@@ -421,6 +423,7 @@ enum SteamCatalog {
                 // Store category 2 is "Single-player"; a game with categories but not that one is online only.
                 if let categories = common["category"]?.object, !categories.isEmpty {
                     game.singlePlayer = categories["category_2"] != nil
+                    game.modes = PlayMode.steam(Set(categories.keys.compactMap { Int($0.dropFirst("category_".count)) }))
                 }
                 if game.macNative {
                     (game.mac64, game.macAppleSilicon) = macBuild(common: common, depots: depots,

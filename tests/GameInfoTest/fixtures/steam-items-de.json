@@ -1,0 +1,966 @@
+{
+ "response": {
+  "store_items": [
+   {
+    "item_type": 0,
+    "id": 728880,
+    "success": 1,
+    "visible": true,
+    "name": "Overcooked! 2",
+    "appid": 728880,
+    "type": 0,
+    "tagids": [
+     3859,
+     3841,
+     3843,
+     1685,
+     3920,
+     597,
+     4136,
+     4840,
+     7368,
+     492,
+     5350,
+     19,
+     7481,
+     4726,
+     1719,
+     4182,
+     4026,
+     599,
+     9,
+     4305
+    ],
+    "categories": {
+     "supported_player_categoryids": [
+      2,
+      1,
+      49,
+      36,
+      37,
+      9,
+      38,
+      39,
+      24
+     ],
+     "feature_categoryids": [
+      22,
+      29,
+      23,
+      41,
+      42,
+      43,
+      44,
+      62
+     ],
+     "controller_categoryids": [
+      28
+     ]
+    },
+    "basic_info": {
+     "short_description": "Overcooked kehrt mit einer brandneuen zweiten Portion Chaos-Koch-Action zurück! Kehrt ins Zwiebelreich zurück und stellt in klassischem Couch-Koop oder Onlinespiel für bis zu vier Spieler euer Team aus Köchen zusammen. Haltet eure Schürzen fest … Es ist (wieder) Zeit, die Welt zu retten!",
+     "publishers": [
+      {
+       "name": "Team17"
+      }
+     ],
+     "developers": [
+      {
+       "name": "Ghost Town Games Ltd.",
+       "creator_clan_account_id": 34636320
+      },
+      {
+       "name": "Team17"
+      }
+     ],
+     "franchises": [
+      {
+       "name": "Team17 Digital"
+      },
+      {
+       "name": "Overcooked!"
+      }
+     ]
+    },
+    "tags": [
+     {
+      "tagid": 3859,
+      "weight": 1169
+     },
+     {
+      "tagid": 3841,
+      "weight": 1060
+     },
+     {
+      "tagid": 3843,
+      "weight": 1057
+     },
+     {
+      "tagid": 1685,
+      "weight": 788
+     },
+     {
+      "tagid": 3920,
+      "weight": 700
+     },
+     {
+      "tagid": 597,
+      "weight": 685
+     },
+     {
+      "tagid": 4136,
+      "weight": 611
+     },
+     {
+      "tagid": 4840,
+      "weight": 513
+     },
+     {
+      "tagid": 7368,
+      "weight": 433
+     },
+     {
+      "tagid": 492,
+      "weight": 425
+     },
+     {
+      "tagid": 5350,
+      "weight": 353
+     },
+     {
+      "tagid": 19,
+      "weight": 340
+     },
+     {
+      "tagid": 7481,
+      "weight": 330
+     },
+     {
+      "tagid": 4726,
+      "weight": 316
+     },
+     {
+      "tagid": 1719,
+      "weight": 238
+     },
+     {
+      "tagid": 4182,
+      "weight": 229
+     },
+     {
+      "tagid": 4026,
+      "weight": 207
+     },
+     {
+      "tagid": 599,
+      "weight": 206
+     },
+     {
+      "tagid": 9,
+      "weight": 178
+     },
+     {
+      "tagid": 4305,
+      "weight": 153
+     }
+    ],
+    "assets": {
+     "asset_url_format": "steam/apps/728880/${FILENAME}?t=1789548883",
+     "main_capsule": "d589548e5ab1c6fdbe74875dc558d14488399bd3/capsule_616x353.jpg",
+     "main_capsule_2x": "d589548e5ab1c6fdbe74875dc558d14488399bd3/capsule_616x353_2x.jpg",
+     "small_capsule": "729e5b5ce6a2c529d104a37baec5bfe555c609e1/capsule_231x87.jpg",
+     "small_capsule_2x": "729e5b5ce6a2c529d104a37baec5bfe555c609e1/capsule_231x87_2x.jpg",
+     "header": "9305414f49b2f7aee7f7198dc507d6b66383fdd6/header.jpg",
+     "header_2x": "9305414f49b2f7aee7f7198dc507d6b66383fdd6/header_2x.jpg",
+     "page_background": "page_bg_generated_v6b.jpg",
+     "hero_capsule": "8663edd71619b99093c12ea1aea9afa7d4a4f1ca/hero_capsule.jpg",
+     "hero_capsule_2x": "8663edd71619b99093c12ea1aea9afa7d4a4f1ca/hero_capsule_2x.jpg",
+     "library_capsule": "library_600x900.jpg",
+     "library_capsule_2x": "library_600x900_2x.jpg",
+     "library_hero": "library_hero.jpg",
+     "library_hero_2x": "library_hero_2x.jpg",
+     "community_icon": "bac36f471109038ae0b40619de4109d475f86a54",
+     "page_background_path": "app/728880?t=1789548883",
+     "raw_page_background": "page_bg_raw.jpg",
+     "last_modified": 1789548883
+    },
+    "release": {
+     "steam_release_date": 1533657685
+    },
+    "game_rating": {
+     "rating": "12",
+     "agency": 17,
+     "banned": false,
+     "esrb_online_music_not_rated": false,
+     "esrb_online_interactions_not_rated": false,
+     "survey_interactive_elements": [
+      4
+     ],
+     "required_age": 0,
+     "use_age_gate": false,
+     "image_url": "public/shared/images/game_ratings/default/12.png"
+    },
+    "screenshots": {
+     "all_ages_screenshots": [
+      {
+       "filename": "steam/apps/728880/ss_2f84a12e1fe82cca37848bf29d4b8b16e83db03b.jpg?t=1789548883",
+       "ordinal": 1
+      },
+      {
+       "filename": "steam/apps/728880/ss_7f290dccbdc3c0eb9ded951717bceba5d7455764.jpg?t=1789548883",
+       "ordinal": 2
+      },
+      {
+       "filename": "steam/apps/728880/ss_652d62549a8a5fdf4f0061e20b16a3cd9a19dc45.jpg?t=1789548883",
+       "ordinal": 3
+      },
+      {
+       "filename": "steam/apps/728880/ss_773917e64738bc879685cff49b8ac6eb4f15ab93.jpg?t=1789548883",
+       "ordinal": 4
+      },
+      {
+       "filename": "steam/apps/728880/ss_3728a182f291231c4713860611dd9292b8b4fd05.jpg?t=1789548883",
+       "ordinal": 5
+      },
+      {
+       "filename": "steam/apps/728880/ss_1ed2b6e65220555ab81f376b7a65424083c4cbb0.jpg?t=1789548883",
+       "ordinal": 6
+      },
+      {
+       "filename": "steam/apps/728880/ss_34974a4c2047b287a1f55802fde061fd7ee1a026.jpg?t=1789548883",
+       "ordinal": 7
+      },
+      {
+       "filename": "steam/apps/728880/ss_2bd9b26dae1ea739ec36e6032d3aa86de7ce2590.jpg?t=1789548883",
+       "ordinal": 8
+      },
+      {
+       "filename": "steam/apps/728880/ss_a87a245229d8196f25301685d991467412e9fef8.jpg?t=1789548883",
+       "ordinal": 9
+      },
+      {
+       "filename": "steam/apps/728880/ss_02a07ff51f68e4a39cdb5860c488955a52e12beb.jpg?t=1789548883",
+       "ordinal": 10
+      },
+      {
+       "filename": "steam/apps/728880/ss_3ad0ef6b7f1f227b20ebb8d51d53869407fe119b.jpg?t=1789548883",
+       "ordinal": 11
+      },
+      {
+       "filename": "steam/apps/728880/ss_437c0f73c664f72a73ae7db8610c933cecb50cff.jpg?t=1789548883",
+       "ordinal": 12
+      },
+      {
+       "filename": "steam/apps/728880/ss_62ca794ba62988f522cb6c7cb5e6ca6b579d6351.jpg?t=1789548883",
+       "ordinal": 13
+      },
+      {
+       "filename": "steam/apps/728880/ss_c60ce268ebd2b405ddf9b2934f2f993c236c4a22.jpg?t=1789548883",
+       "ordinal": 14
+      }
+     ]
+    },
+    "supported_languages": [
+     {
+      "elanguage": 0,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 2,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 3,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 1,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 5,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 10,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 6,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 4,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 12,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 22,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 7,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     },
+     {
+      "elanguage": 8,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": true
+     }
+    ]
+   },
+   {
+    "item_type": 0,
+    "id": 275850,
+    "success": 1,
+    "visible": true,
+    "name": "No Man's Sky",
+    "appid": 275850,
+    "type": 0,
+    "tagids": [
+     1695,
+     1755,
+     1100689,
+     3834,
+     3942,
+     1662,
+     3859,
+     5125,
+     21,
+     3810,
+     3839,
+     4182,
+     4166,
+     1702,
+     16598,
+     492,
+     19,
+     599,
+     21978,
+     1663
+    ],
+    "categories": {
+     "supported_player_categoryids": [
+      2,
+      1,
+      49,
+      36,
+      9,
+      38,
+      27
+     ],
+     "feature_categoryids": [
+      22,
+      52,
+      53,
+      29,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      72,
+      74,
+      78,
+      79,
+      23,
+      42,
+      43,
+      61,
+      62
+     ],
+     "controller_categoryids": [
+      28,
+      55,
+      56,
+      57,
+      58,
+      59
+     ]
+    },
+    "basic_info": {
+     "short_description": "No Man's Sky ist ein Science-Fiction-Spiel über Erkundung und Überleben in einem grenzenlosen, in Echtzeit generierten Universum.",
+     "publishers": [
+      {
+       "name": "Hello Games",
+       "creator_clan_account_id": 34051164
+      }
+     ],
+     "developers": [
+      {
+       "name": "Hello Games",
+       "creator_clan_account_id": 34051164
+      }
+     ]
+    },
+    "tags": [
+     {
+      "tagid": 1695,
+      "weight": 922
+     },
+     {
+      "tagid": 1755,
+      "weight": 867
+     },
+     {
+      "tagid": 1100689,
+      "weight": 858
+     },
+     {
+      "tagid": 3834,
+      "weight": 817
+     },
+     {
+      "tagid": 3942,
+      "weight": 657
+     },
+     {
+      "tagid": 1662,
+      "weight": 595
+     },
+     {
+      "tagid": 3859,
+      "weight": 572
+     },
+     {
+      "tagid": 5125,
+      "weight": 544
+     },
+     {
+      "tagid": 21,
+      "weight": 521
+     },
+     {
+      "tagid": 3810,
+      "weight": 500
+     },
+     {
+      "tagid": 3839,
+      "weight": 492
+     },
+     {
+      "tagid": 4182,
+      "weight": 473
+     },
+     {
+      "tagid": 4166,
+      "weight": 366
+     },
+     {
+      "tagid": 1702,
+      "weight": 362
+     },
+     {
+      "tagid": 16598,
+      "weight": 359
+     },
+     {
+      "tagid": 492,
+      "weight": 274
+     },
+     {
+      "tagid": 19,
+      "weight": 242
+     },
+     {
+      "tagid": 599,
+      "weight": 199
+     },
+     {
+      "tagid": 21978,
+      "weight": 192
+     },
+     {
+      "tagid": 1663,
+      "weight": 177
+     }
+    ],
+    "assets": {
+     "asset_url_format": "steam/apps/275850/${FILENAME}?t=1793196605",
+     "main_capsule": "25ac8e11e488e3cc996dbfe32055ba4e2d3382f9/capsule_616x353_alt_assets_26.jpg",
+     "main_capsule_2x": "25ac8e11e488e3cc996dbfe32055ba4e2d3382f9/capsule_616x353_alt_assets_26_2x.jpg",
+     "small_capsule": "79d6a2b52a0a948b4b80b8a755d873b634dc67c5/capsule_231x87_alt_assets_26.jpg",
+     "small_capsule_2x": "79d6a2b52a0a948b4b80b8a755d873b634dc67c5/capsule_231x87_alt_assets_26_2x.jpg",
+     "header": "9f1ca9e3b7d1dccb7b5af404a6739ddc1118ef32/header_alt_assets_26.jpg",
+     "header_2x": "9f1ca9e3b7d1dccb7b5af404a6739ddc1118ef32/header_alt_assets_26_2x.jpg",
+     "page_background": "719b88538c75532ee595b44421e3e13bc3651aff/page_bg_v6.jpg",
+     "hero_capsule": "d12fda46a50723f8bfeb447da270971532c0f08a/hero_capsule.jpg",
+     "hero_capsule_2x": "d12fda46a50723f8bfeb447da270971532c0f08a/hero_capsule_2x.jpg",
+     "library_capsule": "2012c0098b08cdff7665a6a808e218b1ab1c6399/library_capsule.jpg",
+     "library_capsule_2x": "2012c0098b08cdff7665a6a808e218b1ab1c6399/library_capsule_2x.jpg",
+     "library_hero": "a06bedfeefe046496d0155b46cff309933e7d46b/library_hero.jpg",
+     "library_hero_2x": "a06bedfeefe046496d0155b46cff309933e7d46b/library_hero_2x.jpg",
+     "community_icon": "fccb20f309ac5ae05b3cb4576a8a3357edf86f2e",
+     "page_background_path": "app/275850?t=1793196605",
+     "raw_page_background": "719b88538c75532ee595b44421e3e13bc3651aff/page_bg_raw.jpg",
+     "last_modified": 1793196605
+    },
+    "release": {
+     "steam_release_date": 1471021020
+    },
+    "game_rating": {
+     "rating": "6",
+     "agency": 4,
+     "banned": false,
+     "esrb_online_music_not_rated": false,
+     "esrb_online_interactions_not_rated": false,
+     "survey_interactive_elements": [
+      4
+     ],
+     "required_age": 0,
+     "use_age_gate": false,
+     "image_url": "public/shared/images/game_ratings/USK/6.png"
+    },
+    "screenshots": {
+     "all_ages_screenshots": [
+      {
+       "filename": "steam/apps/275850/7d45478fbac8b1a41172adf8e598784a7d04b41d/ss_7d45478fbac8b1a41172adf8e598784a7d04b41d.jpg?t=1793196605",
+       "ordinal": 1
+      },
+      {
+       "filename": "steam/apps/275850/53afb343452e839000d5eab38d0656fcdad9547b/ss_53afb343452e839000d5eab38d0656fcdad9547b.jpg?t=1793196605",
+       "ordinal": 2
+      },
+      {
+       "filename": "steam/apps/275850/6c2ddcffe192b0e155a69aa2a1dd3f33b863033d/ss_6c2ddcffe192b0e155a69aa2a1dd3f33b863033d.jpg?t=1793196605",
+       "ordinal": 3
+      },
+      {
+       "filename": "steam/apps/275850/ss_d4884d4d208b3f6a3ecef898559da7a36102fc70.jpg?t=1793196605",
+       "ordinal": 4
+      },
+      {
+       "filename": "steam/apps/275850/e9a343b9aaa51b91e14d1cbdf4b8dd11305f1377/ss_e9a343b9aaa51b91e14d1cbdf4b8dd11305f1377.jpg?t=1793196605",
+       "ordinal": 5
+      },
+      {
+       "filename": "steam/apps/275850/cad26f1dc67d28327ccdabeecb68d5006ad5639b/ss_cad26f1dc67d28327ccdabeecb68d5006ad5639b.jpg?t=1793196605",
+       "ordinal": 6
+      },
+      {
+       "filename": "steam/apps/275850/01a92e57a23e2196021091ccfa3e3eacb2c44639/ss_01a92e57a23e2196021091ccfa3e3eacb2c44639.jpg?t=1793196605",
+       "ordinal": 7
+      },
+      {
+       "filename": "steam/apps/275850/227c7c49d81de5f77d260495885e433efaece06d/ss_227c7c49d81de5f77d260495885e433efaece06d.jpg?t=1793196605",
+       "ordinal": 8
+      },
+      {
+       "filename": "steam/apps/275850/6db1fa75dba6d47fa8484c1565fc544023c300d0/ss_6db1fa75dba6d47fa8484c1565fc544023c300d0.jpg?t=1793196605",
+       "ordinal": 9
+      },
+      {
+       "filename": "steam/apps/275850/695237b81fa03750ac555758fd7411547a0bcdbc/ss_695237b81fa03750ac555758fd7411547a0bcdbc.jpg?t=1793196605",
+       "ordinal": 10
+      },
+      {
+       "filename": "steam/apps/275850/ffdb42a2f5ef6ee1e2fed153d2f3150911a8e74c/ss_ffdb42a2f5ef6ee1e2fed153d2f3150911a8e74c.jpg?t=1793196605",
+       "ordinal": 11
+      },
+      {
+       "filename": "steam/apps/275850/ss_32256c21c6bfd9032debf56e1af47029e6d9f9b0.jpg?t=1793196605",
+       "ordinal": 12
+      },
+      {
+       "filename": "steam/apps/275850/7fff751a32d956dabbca9f6895230d018f87002a/ss_7fff751a32d956dabbca9f6895230d018f87002a.jpg?t=1793196605",
+       "ordinal": 13
+      },
+      {
+       "filename": "steam/apps/275850/156a6bf33468bcbb3ab2b2fe8d1bb6f0a6e86d60/ss_156a6bf33468bcbb3ab2b2fe8d1bb6f0a6e86d60.jpg?t=1793196605",
+       "ordinal": 14
+      }
+     ]
+    },
+    "supported_languages": [
+     {
+      "elanguage": 0,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 2,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 3,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 1,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 5,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 14,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": false,
+      "subtitles": false
+     },
+     {
+      "elanguage": 10,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 4,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 12,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 11,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 22,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 8,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 6,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 7,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     }
+    ]
+   },
+   {
+    "item_type": 0,
+    "id": 5391790,
+    "success": 1,
+    "visible": true,
+    "name": "A SHEEP GAME",
+    "appid": 5391790,
+    "type": 0,
+    "is_free": true,
+    "content_descriptorids": [
+     5
+    ],
+    "tagids": [
+     9,
+     3798,
+     5537,
+     3813,
+     1664,
+     597,
+     4975,
+     4726,
+     19995,
+     4136,
+     7481,
+     6971,
+     4195,
+     492,
+     4305,
+     4252,
+     6129,
+     9626,
+     4562,
+     17337
+    ],
+    "categories": {
+     "supported_player_categoryids": [
+      2
+     ],
+     "feature_categoryids": [
+      22,
+      62
+     ],
+     "controller_categoryids": [
+      18
+     ]
+    },
+    "basic_info": {
+     "short_description": "Kostenloses Cartoon-Rätselchaos im Geist von Lemmings: Führe eine sture Schafherde durch 218 Level, von der sonnigen Weide bis in Satans Thronraum. Grabe, baue, sprenge – während der Soundtrack von Country zu Death Metal abrutscht und aus dem Mäh ein Growl wird.",
+     "publishers": [
+      {
+       "name": "bakedbytes"
+      }
+     ],
+     "developers": [
+      {
+       "name": "bakedbytes"
+      }
+     ]
+    },
+    "tags": [
+     {
+      "tagid": 9,
+      "weight": 820
+     },
+     {
+      "tagid": 3798,
+      "weight": 767
+     },
+     {
+      "tagid": 5537,
+      "weight": 741
+     },
+     {
+      "tagid": 3813,
+      "weight": 706
+     },
+     {
+      "tagid": 1664,
+      "weight": 679
+     },
+     {
+      "tagid": 597,
+      "weight": 617
+     },
+     {
+      "tagid": 4975,
+      "weight": 591
+     },
+     {
+      "tagid": 4726,
+      "weight": 573
+     },
+     {
+      "tagid": 19995,
+      "weight": 556
+     },
+     {
+      "tagid": 4136,
+      "weight": 538
+     },
+     {
+      "tagid": 7481,
+      "weight": 520
+     },
+     {
+      "tagid": 6971,
+      "weight": 503
+     },
+     {
+      "tagid": 4195,
+      "weight": 485
+     },
+     {
+      "tagid": 492,
+      "weight": 467
+     },
+     {
+      "tagid": 4305,
+      "weight": 282
+     },
+     {
+      "tagid": 4252,
+      "weight": 264
+     },
+     {
+      "tagid": 6129,
+      "weight": 247
+     },
+     {
+      "tagid": 9626,
+      "weight": 229
+     },
+     {
+      "tagid": 4562,
+      "weight": 211
+     },
+     {
+      "tagid": 17337,
+      "weight": 194
+     }
+    ],
+    "assets": {
+     "asset_url_format": "steam/apps/5391790/${FILENAME}?t=1793142099",
+     "main_capsule": "173c30d98328cd0627fe714f8578815c137e4435/capsule_616x353.jpg",
+     "main_capsule_2x": "173c30d98328cd0627fe714f8578815c137e4435/capsule_616x353_2x.jpg",
+     "small_capsule": "1480e5c2b593ee4a081dc6e343afd9e3c5eb714c/capsule_231x87.jpg",
+     "small_capsule_2x": "1480e5c2b593ee4a081dc6e343afd9e3c5eb714c/capsule_231x87_2x.jpg",
+     "header": "00a260fa369d7d6e56ee063baf68103f7725dc47/header.jpg",
+     "header_2x": "00a260fa369d7d6e56ee063baf68103f7725dc47/header_2x.jpg",
+     "page_background": "6a52f23000d401822ddf3eb700a476262da8fa6c/page_bg_v6.jpg",
+     "hero_capsule": "96511910d4b3561fcbc0a121143b8aafe830e3b3/hero_capsule.jpg",
+     "hero_capsule_2x": "96511910d4b3561fcbc0a121143b8aafe830e3b3/hero_capsule_2x.jpg",
+     "library_capsule": "b4b74902339dafe926dd19b43a4c7706061afa28/library_capsule.jpg",
+     "library_capsule_2x": "b4b74902339dafe926dd19b43a4c7706061afa28/library_capsule_2x.jpg",
+     "library_hero": "7a9ea1e67c76b42b2405e0e8733bcbe5d66664f9/library_hero.jpg",
+     "library_hero_2x": "7a9ea1e67c76b42b2405e0e8733bcbe5d66664f9/library_hero_2x.jpg",
+     "community_icon": "5b35b198a1af0bc6636575386df54ce5669dc7db",
+     "page_background_path": "app/5391790?t=1793142099",
+     "raw_page_background": "6a52f23000d401822ddf3eb700a476262da8fa6c/page_bg_raw.jpg",
+     "last_modified": 1793142099
+    },
+    "release": {
+     "steam_release_date": 1798704000,
+     "is_coming_soon": true,
+     "coming_soon_display": "date_quarter"
+    },
+    "game_rating": {
+     "rating": "12",
+     "descriptors": [
+      "Gewalt"
+     ],
+     "agency": 17,
+     "banned": false,
+     "esrb_online_music_not_rated": false,
+     "esrb_online_interactions_not_rated": false,
+     "required_age": 0,
+     "use_age_gate": false,
+     "content_survey_notes": "Slapstick-Cartoon-Gewalt: Schafe explodieren, stürzen, ertrinken, verbrennen, werden vom Wolf gefressen oder landen im Fleischwolf, mit übertriebenem Comic-Blut und Knochen. Blut lässt sich in den Einstellungen abschalten (es wird dann zu Wolle). Schwarzer Humor über den Tod, mit Wurstfabrik, Hölle und Satan.",
+     "image_url": "public/shared/images/game_ratings/default/12.png"
+    },
+    "is_coming_soon": true,
+    "screenshots": {
+     "all_ages_screenshots": [
+      {
+       "filename": "steam/apps/5391790/dd11e3a8636cf394a1fe30c575d97b9ee4f4a71c/ss_dd11e3a8636cf394a1fe30c575d97b9ee4f4a71c.jpg?t=1793142099",
+       "ordinal": 1,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/014caaf2b89d9a27ddde0ea17b6a76fd4fd76ae7/ss_014caaf2b89d9a27ddde0ea17b6a76fd4fd76ae7.jpg?t=1793142099",
+       "ordinal": 2,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/b000c58deab4a013b61fd9264e60e66c745f5415/ss_b000c58deab4a013b61fd9264e60e66c745f5415.jpg?t=1793142099",
+       "ordinal": 3,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/908c56a3a3abb268f6031518d8ee1140fd9da0a5/ss_908c56a3a3abb268f6031518d8ee1140fd9da0a5.jpg?t=1793142099",
+       "ordinal": 4,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/40e03b8fc2bcf339873386f63925c5612850c092/ss_40e03b8fc2bcf339873386f63925c5612850c092.jpg?t=1793142099",
+       "ordinal": 5,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/0f03bbcacdf1bb206dd8057658e812be74560fc8/ss_0f03bbcacdf1bb206dd8057658e812be74560fc8.jpg?t=1793142099",
+       "ordinal": 6,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/afc91fd1050e333488779407684b599b7d37e114/ss_afc91fd1050e333488779407684b599b7d37e114.jpg?t=1793142099",
+       "ordinal": 7,
+       "category": 1
+      },
+      {
+       "filename": "steam/apps/5391790/a3128acf124abc0703bf2c4cf9b95e3378bd17e9/ss_a3128acf124abc0703bf2c4cf9b95e3378bd17e9.jpg?t=1793142099",
+       "ordinal": 9,
+       "category": 2
+      }
+     ],
+     "mature_content_screenshots": [
+      {
+       "filename": "steam/apps/5391790/e86cf6dad4dfa2986694181d87f256e98273b402/ss_e86cf6dad4dfa2986694181d87f256e98273b402.jpg?t=1793142099",
+       "ordinal": 8,
+       "category": 1
+      }
+     ]
+    },
+    "supported_languages": [
+     {
+      "elanguage": 0,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     },
+     {
+      "elanguage": 1,
+      "eadditionallanguage": -1,
+      "supported": true,
+      "full_audio": true,
+      "subtitles": false
+     }
+    ]
+   }
+  ]
+ }
+}

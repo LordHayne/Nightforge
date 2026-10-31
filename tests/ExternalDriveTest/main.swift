@@ -304,9 +304,7 @@ struct ExternalDriveTest {
         check(sections.first { $0.id == "installed" }?.items.map { games[$0].name } == ["OxyRail", "Hades"]
               && sections.first { $0.id == "library" }?.items.map { games[$0].name } == ["Alpha", "Zeta"],
               "under Installed, not In your library: \(sections.map { ($0.id, $0.items) })")
-        var filters = LibraryFilters()
-        filters.status = .notDownloaded
-        check(!filters.admits(games[0], level: { _ in .great }), "not among the games to download")
+        check(LibraryFilters(on: [.onMac]).admits(games[0], level: { _ in .great }), "among the games on this Mac")
 
         // The count goes by what's shown: an installed demo is under "Installed" too.
         var demo = game(5, "Caretaker Demo", .installed, played: 1)

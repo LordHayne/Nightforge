@@ -50,6 +50,9 @@ final class PadFocus: ObservableObject {
 
     func clear() { focused = nil }
 
+    /// Puts the highlight on a control, as when a list closes and it goes back to its chip.
+    func focus(_ id: String) { focused = id }
+
     /// Brings the highlighted control into view where a scroll view hides it, with a row's room
     /// around it so the next one shows too: for sheets whose content scrolls.
     func reveal(_ id: String?) {

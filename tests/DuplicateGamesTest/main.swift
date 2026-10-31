@@ -153,7 +153,9 @@ struct DuplicateGamesTest {
         check(card.shown.provider == .epic && card.shown.install == .downloading(0.4), "its cover shows Epic's download")
         let quiet = DuplicateGames.card([steam(1, "A", .installed), epic("A", "A")], chosen: nil)
         check(quiet.shown.id == quiet.id, "nothing under way: it shows the store it starts through")
-        check(LibraryFilters(status: .onMac).admits(card) { _ in .untested }, "a download in one of its stores is on this Mac (filters)")
+        check(LibraryFilters(on: [.onMac]).admits(card) { _ in .untested }, "a download in one of its stores is on this Mac (filters)")
+        check(LibraryFilters(store: .epic).admits(card) { _ in .untested } && LibraryFilters(store: .steam).admits(card) { _ in .untested }
+              && !LibraryFilters(store: .gog).admits(card) { _ in .untested }, "a game from two stores is in each of them (store filter)")
         check(LibrarySection.make([card], sort: .recent, searching: false, hidden: false).first?.id == "downloading",
               "… and in the library's downloads group")
     }
