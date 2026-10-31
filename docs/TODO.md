@@ -411,6 +411,27 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 
 ## Ideen für später
 
+- **Spiele automatisch aktuell halten** (Nutzer, 31.10., nach den laufenden Merges angehen, vorher recherchieren):
+  - Heute:
+    - **Steam (Windows):** Nightforge setzt `AutoUpdateBehavior 0` (immer aktuell). Steam lädt Updates aber nur, solange es
+      läuft, also solange Nightforge offen ist (`scheduleSteamShutdown`), und verschiebt sie nach eigenem Plan.
+      OxyRail hatte am 31.10. „Update delayed for 12165 secs“.
+    - **Epic und GOG:** Updates nur über „Aktualisieren & spielen“ (`updateEpic`, `beforeGOGStart`).
+    - **Steam für Mac:** läuft nur während eines Mac-Spiels.
+  - Folge: Nach ein paar Tagen Pause wartet man auf dem Sofa erst auf ein Update.
+  - Ziel wie bei einer Konsole:
+    - Solange Nightforge offen ist, Updates im Hintergrund holen, eins nach dem anderen. Steam sofort statt
+      verzögert; Epic und GOG über legendary bzw. gogdl selbst.
+    - Pause, solange ein Spiel läuft. Nur am Netzteil (`ChargerCheck`). Der Mac bleibt wach wie bei Downloads.
+    - Auf der Startseite ruhig sichtbar machen („3 Spiele wurden aktualisiert“). „Aktualisieren & spielen“ bleibt als
+      Rückfall.
+    - Standardmäßig an, höchstens ein Schalter in den Einstellungen.
+  - Erst klären: Wie bringt man Steam zuverlässig zu einem sofortigen Update, ohne das Spiel zu starten?
+    Kandidaten: Steams Update-Fenster in `config.vdf`, `ScheduledAutoUpdate`, Konsolenbefehl `app_update`.
+    Mit Belegen, keine Experimente am echten Konto des Nutzers ohne Absprache.
+  - Später vielleicht Updates über Nacht bei geschlossenem Nightforge. Das braucht einen Hintergrunddienst; siehe auch
+    Roadmap 4.4 (Reihenfolge, Pause, über Nacht).
+
 - **Lizenzen in „Über“ zum Aufklappen** (Idee des Nutzers, 28.10.; noch nicht anfangen):
   - Ein Klick oder A auf eine Komponente (Wine, DXMT …) wechselt im selben Glas-Sheet in eine Detailansicht, kein
     zweites Sheet darüber. Oben „‹ Zurück“ (B/Esc), weiche Überblendung.
