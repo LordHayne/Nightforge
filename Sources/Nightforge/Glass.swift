@@ -143,7 +143,7 @@ struct GlassSwitchStyle: ToggleStyle {
     }
 }
 
-private struct GlassSwitch: View {
+struct GlassSwitch: View {
     let isOn: Bool
     let toggle: () -> Void
     @Environment(\.isEnabled) private var isEnabled

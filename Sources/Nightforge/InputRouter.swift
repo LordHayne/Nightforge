@@ -92,6 +92,7 @@ final class InputRouter {
             return true
         case 53:                                         // Esc
             if model.showingDownloads { model.showingDownloads = false; return true }
+            if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
             if model.awaitingSteam { model.cancelLaunch(); return true }
             return model.back()
         default: break
@@ -327,7 +328,9 @@ final class InputRouter {
             MainActor.assumeIsolated {
                 guard let self, let model = self.model else { return }
                 let main = Self.mainWindow
-                if let key = NSApp.keyWindow, key === main, PadFocus.shared.focusedItem(in: key) != nil {
+                if let menu = model.libraryMenu, NSApp.modalWindow == nil, self.dialog == nil {
+                    model.closeLibraryMenu(menu)
+                } else if let key = NSApp.keyWindow, key === main, PadFocus.shared.focusedItem(in: key) != nil {
                     PadFocus.shared.clear()  // from the buttons back to the games
                 } else if model.showingDownloads, NSApp.modalWindow == nil, self.dialog == nil {
                     model.showingDownloads = false

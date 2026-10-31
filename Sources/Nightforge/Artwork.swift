@@ -7,6 +7,8 @@ struct StoreArt: Hashable {
     var cover: URL?
     var hero: URL?
     var logo: URL?
+    /// A wide cover for games without a portrait one: set on a blurred copy of itself.
+    var wideCover: URL?
 
     func url(_ kind: ArtKind) -> URL? {
         switch kind {
@@ -14,6 +16,13 @@ struct StoreArt: Hashable {
         case .hero: return hero
         case .logo: return logo
         }
+    }
+}
+
+extension StoreArt {
+    /// Steam's art for a game at the addresses its store-browse API names (with a hash, which newer games need).
+    init(_ info: GameInfo) {
+        self.init(cover: info.cover, hero: info.hero, logo: nil, wideCover: info.wideCover)
     }
 }
 
@@ -202,12 +211,18 @@ actor ArtworkStore {
             try? fm.removeItem(at: missingMarker)
             return image
         }
+        // A "missing" marker is about the usual addresses; those Steam's store-browse API named since
+        // (a store hit's cover, newer games) are still tried.
+        var urls = remoteURLs(game: game, kind: kind)
         if let written = (try? fm.attributesOfItem(atPath: missingMarker.path))?[.modificationDate] as? Date {
-            guard Date().timeIntervalSince(written) > missingLifetime else { return nil }
-            try? fm.removeItem(at: missingMarker)
+            if Date().timeIntervalSince(written) > missingLifetime {
+                try? fm.removeItem(at: missingMarker)
+            } else {
+                guard game.gameID.steamAppID != nil, game.art?.url(kind) != nil || (kind == .cover && game.art?.wideCover != nil)
+                else { return nil }
+                urls = game.art?.url(kind).map { [$0] } ?? []
+            }
         }
-
-        let urls = remoteURLs(game: game, kind: kind)
         // No address at all (a store that lists none for it): nothing to remember as missing.
         var everythingWas404 = !urls.isEmpty
         for url in urls {
@@ -226,9 +241,39 @@ actor ArtworkStore {
             }
         }
 
+        // No portrait cover anywhere: the wide one, set on a blurred copy of itself (made once, kept).
+        if kind == .cover, let wide = game.art?.wideCover {
+            var request = URLRequest(url: wide)
+            request.timeoutInterval = 10
+            if let (data, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
+               let source = cgImage(data), let portrait = portrait(fromWide: source) {
+                writeJPEG(portrait, to: cached)
+                return NSImage(cgImage: portrait, size: NSSize(width: portrait.width, height: portrait.height))
+            }
+        }
+
         // Steam has no such art for this game: remember that and stop asking.
         if everythingWas404 { fm.createFile(atPath: missingMarker.path, contents: nil) }
         return nil
+    }
+
+    /// A portrait cover (2:3) from a wide picture: the picture across the middle, the rest the same
+    /// picture blurred and darkened behind it.
+    static func portrait(fromWide source: CGImage, width: CGFloat = 600) -> CGImage? {
+        let size = CGSize(width: width, height: width * 1.5)
+        let input = CIImage(cgImage: source)
+        let fill = max(size.width / input.extent.width, size.height / input.extent.height)
+        var back = input.transformed(by: CGAffineTransform(scaleX: fill, y: fill))
+        back = back.transformed(by: CGAffineTransform(translationX: (size.width - back.extent.width) / 2 - back.extent.minX,
+                                                      y: (size.height - back.extent.height) / 2 - back.extent.minY))
+        back = back.clampedToExtent().applyingGaussianBlur(sigma: 24)
+            .applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: -0.18, kCIInputSaturationKey: 1.1])
+        let fit = size.width / input.extent.width
+        var front = input.transformed(by: CGAffineTransform(scaleX: fit, y: fit))
+        front = front.transformed(by: CGAffineTransform(translationX: -front.extent.minX,
+                                                        y: (size.height - front.extent.height) / 2 - front.extent.minY))
+        return images.createCGImage(front.composited(over: back).cropped(to: CGRect(origin: .zero, size: size)),
+                                    from: CGRect(origin: .zero, size: size))
     }
 
     private static func localFile(game: Game, kind: ArtKind) -> URL? {
@@ -253,7 +298,17 @@ actor ArtworkStore {
     }
 
     private static func remoteURLs(game: Game, kind: ArtKind) -> [URL] {
-        guard let appID = game.gameID.steamAppID else { return game.art?.url(kind).map { [$0] } ?? [] }
+        guard let appID = game.gameID.steamAppID else {
+            if let own = game.art?.url(kind) { return [own] }
+            // No logo of its own (GOG never has one, Epic rarely): the same game's on Steam.
+            if kind == .logo, let twin = game.steamTwin { return steamURLs(appID: twin, kind: kind) }
+            return []
+        }
+        // The addresses Steam's store-browse API named first: newer games have art only there.
+        return (game.art?.url(kind).map { [$0] } ?? []) + steamURLs(appID: appID, kind: kind)
+    }
+
+    private static func steamURLs(appID: Int, kind: ArtKind) -> [URL] {
         let bases = [
             "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/\(appID)/",
             "https://cdn.akamai.steamstatic.com/steam/apps/\(appID)/",

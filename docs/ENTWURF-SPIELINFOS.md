@@ -169,7 +169,7 @@ leer, ist alles wieder wie vorher.
 - **Keine Treffer für Spiele, die man schon hat.** Heute zeigt „overcooked“ das eigene Overcooked! 2 von Epic *und*
   denselben Titel zum Kaufen auf Steam. Der Abgleich läuft nur über die `GameID` (`steam.728880` ≠ `epic.Potoo`).
   Mit dem Gegenstück fällt der Steam-Treffer weg (Bild 12).
-- **Store-Filter:** Bei „Epic Games“ oder „GOG“ gibt es keine Steam-Treffer, bei „Alle“ und „Steam“ schon.
+- **Store-Filter:** Eine Suche lässt ihn ruhen wie die anderen Filter, Steam-Treffer kommen also immer (gebaut so, 31.10.).
 - **Platzhalter-Cover** („A Sheep Game“, „Death a Live“): Neue Steam-Apps legen ihre Bilder nur noch unter einem
   Hash-Pfad ab (`/apps/5391790/<hash>/header.jpg`). Die festen Adressen in `ArtworkStore.remoteURLs`
   (`/apps/<id>/library_600x900_2x.jpg` usw.) geben dort 404. GetItems liefert `assets.library_capsule` samt Hash
@@ -198,9 +198,9 @@ struct GameInfo: Codable, Equatable {
 }
 ```
 
-- Eine JSON-Datei pro Spiel unter `~/Library/Application Support/Nightforge/GameInfo/<GameID.key>.json` (3–6 KB,
-  300 Spiele ≈ 1,5 MB). Application Support statt Caches, damit es offline sicher da ist. Zwillinge kommen in
-  `GameInfo/twins.json` ({Key: Steam-App-ID oder 0 für „keins“}). „Keins“ wird nach 30 Tagen neu gefragt.
+- Gebaut (31.10.): eine Datei `~/Library/Application Support/Nightforge/GameInfo/known.json` mit `infos` (nach Quelle,
+  „steam.728880“) und `twins` (Epic-/GOG-Key → Steam-App-ID oder keine). 107 Spiele ≈ 390 KB. Application Support
+  statt Caches, damit es offline sicher da ist. „Keins“ wird nach 30 Tagen neu gefragt.
 - Neu gefragt wird nach 30 Tagen oder bei anderer App-Sprache. Offline bleibt das Alte stehen, wie bei `Metascores`.
 - Screenshot-Vorschauen kommen nach `Caches/Nightforge/Artwork/<key>_shot<n>.jpg` (über `ArtworkStore`, neue
   `ArtKind.shot`, `maxPixelSize` 560).
@@ -263,7 +263,7 @@ Abschnitt B baut auf A auf (`GameInfoStore`). Jeder Abschnitt endet mit grünen 
    - Steam-Gegenstück aus GamesDB (`game.releases`).
    Der alte Epic-Inhaltsdienst kommt nur dazu, wenn der Live-Test Epic-Spiele ohne Gegenstück und ohne Infos zeigt.
 2. **`GameInfoStore.swift`** (actor):
-   - Cache unter `Application Support/Nightforge/GameInfo/` (eine Datei pro Spiel, dazu `twins.json`).
+   - Cache in `Application Support/Nightforge/GameInfo/known.json` (Infos und Zwillinge in einer Datei).
    - Zwillinge: GOG über `GOGRelease.steamAppID`, das neu aus derselben GamesDB-Antwort kommt; Epic über GamesDB
      `epic/<AppName>`; sonst `StoreSearch` mit genau gleichem Namen nach dem Normalisieren.
    - Nachholen nach dem Scan in 50er-Bündeln: zuerst Epic- und GOG-Gegenstücke, dann die Bühne, dann der Rest.

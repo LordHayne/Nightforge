@@ -69,6 +69,13 @@ struct LibraryView: View {
 
             ToastHost()
         }
+        // A list a chip of the library's row opened, under that chip and over the grid.
+        .overlayPreferenceValue(LibraryMenuAnchors.self) { anchors in
+            if model.route == .library {
+                LibraryMenuLayer(anchors: anchors)
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: model.libraryMenu)
         .animation(.easeOut(duration: 0.18), value: model.showingDownloads)
         .animation(.easeOut(duration: 0.28), value: model.heroGame?.id)
         .animation(.easeOut(duration: 0.22), value: model.route)
@@ -1039,7 +1046,8 @@ private struct GameDetail: View {
                     Stat(label: L10n.t("Version"), value: starter.mac ? "Mac" : "Windows")
                 }
                 if game.install != .inStore || game.controller != .none {
-                    Stat(label: L10n.t("Controller"), value: game.controller.label)
+                    // Epic and GOG games without the same game on Steam: nobody says.
+                    Stat(label: L10n.t("Controller"), value: game.knownController?.label ?? "–")
                 }
                 if !game.bottle.isBuiltIn && game.platform == .windows {  // only means something with several CrossOver bottles
                     Stat(label: L10n.t("Bottle"), value: game.bottle.name)

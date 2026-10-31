@@ -229,31 +229,11 @@ struct LibraryToolbar: View {
                                      help: L10n.t("Games you hid from your library")) { model.toggleShowingHidden() }
                             .padding(.trailing, model.showingHidden ? 0 : 8)
                     }
-                    if !model.showingHidden {
-                        Text(L10n.t("Sort"))
-                            .font(size: 13, weight: .medium)
-                            .foregroundStyle(Theme.muted)
-                            .fixedSize()
-                        Segmented(options: LibraryFilters.Sort.allCases.map { ($0, $0.label, nil) }, selection: model.filters.sort,
-                                  id: "library.sort") { model.filters.sort = $0 }
-                    }
                     LibrarySearchField()
                 }
             }
             if !model.showingHidden {
-                HStack(spacing: 10) {
-                    Segmented(options: LibraryFilters.Status.allCases.map { ($0, $0.label, nil) }, selection: model.filters.status,
-                              id: "library.status") { model.filters.status = $0 }
-                    Divider().frame(height: 18).overlay(Color.white.opacity(0.15))
-                    FilterToggle(title: Compatibility.Level.great.label, symbol: Compatibility.Level.great.symbol,
-                                 on: model.filters.great, id: "library.great",
-                                 help: L10n.t("Only games that run great on a Mac")) { model.filters.great.toggle() }
-                    FilterToggle(title: L10n.t("Controller"), symbol: "gamecontroller.fill", on: model.filters.controller,
-                                 id: "library.controller", help: L10n.t("Full controller support")) { model.filters.controller.toggle() }
-                    FilterToggle(title: L10n.t("Mac version"), symbol: "apple.logo", on: model.filters.mac,
-                                 id: "library.mac", help: L10n.t("Runs as its Mac version")) { model.filters.mac.toggle() }
-                    Spacer(minLength: 0)
-                }
+                LibraryFilterRow()
                 StoreSyncBanner(store: model.epic, connect: model.connectEpic)
                 StoreSyncBanner(store: model.gog, connect: model.connectGOG)
             }
