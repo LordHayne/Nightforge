@@ -17,7 +17,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - 2.5 größere Schrift: erledigt (a55040a).
   - GOG 7.3: gemergt (159acfa, Fixes d555778), live geprüft. Offen ist nur der Offline-Start.
   - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
-  - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
+  - L1/R1 zwischen Startseite und Bibliothek: baut die TV-Session mit, weil sie `InputRouter` ohnehin ändert (kein Merge-Konflikt).
   - Reichere Spieldaten, Phase 2: Teil A und B gebaut. Das Layout der Spielseite wird nach dem Feedback vom 31.10. überarbeitet.
   - Testabdeckung: gemergt (9becef2). Weitere Tests für TV und Spielinfos nach deren Merge.
   - Kleines Controller-Overlay: beide Sticks 2 s drücken (L3 + R3, weil macOS 26 die PS-Taste fürs Game Overlay nutzt), dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
@@ -192,8 +192,8 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
   - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
   - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
-- **L1/R1 wechseln zwischen Startseite und Bibliothek** (Nutzer, 31.10., beschlossen, baut der Koordinator nach dem
-  2.5-Merge):
+- **L1/R1 wechseln zwischen Startseite und Bibliothek** (Nutzer, 31.10., beschlossen; baut die TV-Session auf
+  `claude/tv-fullscreen-61ab1e` mit, weil sie `InputRouter` für das Overlay ändert):
   - L1 führt immer zur Startseite, R1 immer zur Bibliothek. Kein Umschalten, die Richtung steht fest.
   - Neben dem Schalter „Startseite | Bibliothek“ stehen kleine Chips „L1“/„R1“, bei Xbox-Pads „LB“/„RB“.
   - Der Sprung um fünf Spiele (`model.move(±5)` in `InputRouter`) fällt weg. L2/R2 bleiben erstes/letztes Spiel, ☰ bleibt
