@@ -6,6 +6,7 @@ import CoreGraphics
 /// as long as a game runs that screen is the main one – Wine and Mac games open their full screen
 /// on the main display, and the menu bar would otherwise keep it on a MacBook's own screen.
 /// Moving the window back to the Mac's screen is the way to play there; Nightforge remembers it.
+/// Mirrored screens are one screen: nothing moves, and games open in the mirror set's mode.
 @MainActor
 enum GameDisplay {
     struct Candidate: Equatable {
@@ -13,12 +14,23 @@ enum GameDisplay {
         let name: String
         let builtIn: Bool
         let pixels: Int
+        /// Shows another screen's picture (mirroring): no place of its own to move to.
+        var mirrors = false
     }
 
     /// The external screen to play on: a TV before a monitor, then the biggest. None without one.
     nonisolated static func pick(_ displays: [Candidate]) -> CGDirectDisplayID? {
-        displays.filter { !$0.builtIn }
+        displays.filter { !$0.builtIn && !$0.mirrors }
             .max { ($0.isTV ? 1 : 0, $0.pixels) < ($1.isTV ? 1 : 0, $1.pixels) }?.id
+    }
+
+    /// The display to make main for a game on `display`, nil when that one is main already. Mirrored
+    /// screens are one screen: `primary` (CGDisplayPrimaryDisplay) gives a mirror set's master, which
+    /// is the one that is main – so a game on a mirrored TV needs no change at all.
+    nonisolated static func newMain(for display: CGDirectDisplayID, main: CGDirectDisplayID,
+                                    primary: (CGDirectDisplayID) -> CGDirectDisplayID) -> CGDirectDisplayID? {
+        let wanted = primary(display)
+        return wanted == primary(main) ? nil : wanted
     }
 
     /// The screen a game will open on.
@@ -120,7 +132,7 @@ enum GameDisplay {
         running = true
         guard let game = screen.flatMap(id) else { return }
         let main = CGMainDisplayID()
-        guard game != main, makeMain(game) else { return }
+        guard let wanted = newMain(for: game, main: main, primary: CGDisplayPrimaryDisplay), makeMain(wanted) else { return }
         if UserDefaults.standard.object(forKey: Keys.restoreMain) == nil {
             UserDefaults.standard.set(Int(main), forKey: Keys.restoreMain)
         }
@@ -142,7 +154,10 @@ enum GameDisplay {
         guard let stored = UserDefaults.standard.object(forKey: Keys.restoreMain) as? Int else { return }
         UserDefaults.standard.removeObject(forKey: Keys.restoreMain)
         let main = CGDirectDisplayID(stored)
-        if CGDisplayIsActive(main) != 0, main != CGMainDisplayID() { _ = makeMain(main) }
+        if CGDisplayIsActive(main) != 0,
+           let wanted = newMain(for: main, main: CGMainDisplayID(), primary: CGDisplayPrimaryDisplay) {
+            _ = makeMain(wanted)
+        }
     }
 
     /// The main display is the one at the origin: shift every screen so `display` lands there.
@@ -177,7 +192,8 @@ enum GameDisplay {
         NSScreen.screens.compactMap { screen in
             guard let display = id(screen) else { return nil }
             return Candidate(id: display, name: screen.localizedName, builtIn: CGDisplayIsBuiltin(display) != 0,
-                             pixels: CGDisplayPixelsWide(display) * CGDisplayPixelsHigh(display))
+                             pixels: CGDisplayPixelsWide(display) * CGDisplayPixelsHigh(display),
+                             mirrors: CGDisplayMirrorsDisplay(display) != kCGNullDirectDisplay)
         }
     }
 }

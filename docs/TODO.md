@@ -139,6 +139,30 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
 - **Ton über HDMI.** macOS stellt meist selbst auf den TV um, aber nicht immer. Erst am TV prüfen; falls nötig beim
   Spielstart das Audiogerät des Spiel-Bildschirms wählen (CoreAudio, Transport HDMI/DisplayPort) und danach zurück,
   wie `GameDisplay.enterGame`/`leaveGame` es mit dem Hauptbildschirm machen.
+- **Ziel fürs Sofa (28.10.):** MacBook anstecken, Controller einschalten, alles läuft, ohne Maus und Tastatur.
+  - **Vollbild am Fernseher** (31.10., Branch `claude/tv-fullscreen-61ab1e`, `GameResolution.swift`): Overcooked 2
+    (Epic, Unity) ging am gespiegelten TV als kleineres Fenster auf. Unity und Unreal merken sich die Auflösung des
+    letzten Starts, und unter Wine wird Vollbild in einer anderen Größe als der des Bildschirms zum Fenster. Gebaut:
+    Vor jedem Start eines Windows-Spiels (Steam, Epic, GOG über `launchDirect`) bekommt ein Spiel im Vollbild die
+    Größe des Hauptbildschirms, wie Wine ihn zeigt (Punkte, mit Retina-Modus Pixel; gespiegelt der Master).
+    Unity (Modus 0/1) über die Registry: `Screenmanager Resolution Width/Height` und „Use Native“ = 1, nur Werte, die
+    das Spiel selbst angelegt hat, Schlüssel aus `<Spiel>_Data/app.info`, per regedit. Unreal (`FullscreenMode`
+    0/1) in `GameUserSettings.ini` unter `AppData/Local/<Projekt>/Saved/Config/Windows*/` (bzw. `Documents/My Games`).
+    Fenster-Modus bleibt, und solange das Spiel läuft, wird nichts angefasst. `GameDisplay` sieht einen Spiegel-Satz
+    als einen Bildschirm (`newMain`, `Candidate.mirrors`) und stellt beim Spiegeln nichts um. Am Fernseher prüfen:
+    - Overcooked 2 am gespiegelten TV: Vollbild? In `Logs/wine.log` steht vor dem Start
+      `[nightforge] Full screen Overcooked2: 1512×945 → 1920×1080`.
+    - Steht die Zeile da und es bleibt ein Fenster, merkt sich Overcooked 2 die Auflösung auch im eigenen,
+      verschlüsselten Spielstand (`SettingsOptions`, `Meta_SaveFile.save`). Dann einmal im Spielmenü per Controller
+      Vollbild bzw. 1920×1080 wählen und sehen, ob es beim nächsten Start bleibt.
+    - Offene Frage: Der einzige Start war am 31.10. um 16:34 (laut `wine.log`), und die 1512×945 wurden beim Beenden
+      um 16:35 geschrieben. War der TV da schon gespiegelt angeschlossen, kam das MacBook-Raster von Wine selbst.
+      Dann sieht die laufende Wine-Sitzung (Steam im Hintergrund) den angesteckten TV nicht, und erst ein Neustart der
+      Sitzung hilft. Prüfen: TV anstecken, ein Unity-Spiel mit „Use Native“ starten (20 Minutes Till Dawn) und
+      danach in `user.reg` nachsehen, ob 1920×1080 drinsteht.
+    - Ein Unreal-Spiel (Palworld) am TV, danach zurück am MacBook: wieder bildschirmfüllend 1512×982?
+    - Spiegeln mit dem MacBook als Master: Spiele laufen in MacBook-Größe, der TV zeigt sie skaliert. Im Spiegelmodus
+      wird auch der Launcher nicht von selbst Vollbild, weil `GameDisplay.place` nur beim Verschieben umschaltet.
 
 ## Anti-Cheat und GeForce Now
 

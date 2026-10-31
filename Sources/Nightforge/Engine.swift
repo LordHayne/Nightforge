@@ -166,6 +166,9 @@ enum Engine {
         defaults.set(launchRetina, forKey: key)
     }
 
+    /// Wine's Retina mode as the prefix has it now: what `applyRetinaMode` put there last.
+    static var retinaModeApplied: Bool { UserDefaults.standard.bool(forKey: "retinaMode") }
+
     /// What a game started straight by Nightforge (not through Steam) gets on top of `gameEnvironment`:
     /// the same as `prepareLaunchEnvironment` hands Steam ("" takes a variable away).
     static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool) -> [String: String] {
@@ -1316,7 +1319,7 @@ enum Engine {
 
     /// A quoted .reg string. Line breaks and other control characters are dropped: in a .reg file
     /// they would end the line and start lines of their own.
-    private static func regString(_ text: String) -> String {
+    static func regString(_ text: String) -> String {
         let plain = String(text.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7f })
         return "\"" + plain.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
