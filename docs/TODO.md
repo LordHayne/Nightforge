@@ -620,6 +620,17 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
 
 ## Ideen für später
 
+- **Tab „Entdecken“** (Nutzer, 31.10.; noch nicht anfangen): neben „Startseite | Bibliothek“ ein dritter Tab, in dem man
+  durch Steam, Epic und GOG stöbert und neue Spiele findet.
+  - Was Nightforge dabei besser kann als die Stores selbst: Jedes Spiel trägt gleich die Einschätzung für **diesen
+    Mac**, also Mac-Version, „läuft wahrscheinlich“ über Wine, Anti-Cheat blockiert oder nur über GeForce Now.
+    Dazu ein Filter „Läuft auf meinem Mac“.
+  - Inhalte: Angebote, Neu und beliebt, „ähnlich wie deine meistgespielten“, kostenlose Spiele (Epic-Gratisspiele).
+    Gekauft wird im Store selbst (Browser oder Store-Seite), danach taucht das Spiel von selbst in der Bibliothek auf.
+  - Anfangen bei `StoreSearch` (heute nur Steam), Steams store-browse-API und den Store-Treffern aus dem
+    Spielinfo-Design (Zweig `claude/game-metadata-a2cee0`, Commit 91d10a7), `Compatibility.rate` für die Einschätzung.
+  - Ganz mit dem Controller bedienbar, wie Startseite und Bibliothek.
+
 - **Echte Speicherverwaltung unter Einstellungen › Speicher** (Nutzer, 31.10.; noch nicht anfangen):
   - Heute zeigt der Tab ein Laufwerk nur, wenn Spiele oder ein Ordner `Nightforge Games` darauf liegen
     (`StorageSettings.drives`). Ein frisch eingesteckter, leerer Stick taucht nicht auf.
