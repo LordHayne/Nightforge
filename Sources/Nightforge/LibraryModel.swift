@@ -527,7 +527,7 @@ final class LibraryModel: ObservableObject {
         let endedAt = Date().addingTimeInterval(-10)
         let endedGames = allGames.filter { ended.contains($0.id) }
         for game in endedGames { steamSwitch.ended(game, at: endedAt) }
-        if endedGames.contains(where: { $0.platform == .mac }) {
+        if endedGames.contains(where: { $0.platform == .mac && $0.provider == .steam }) {
             steamSwitch.afterMacGame(facts: { [weak self] in self?.steamFacts ?? SteamSwitch.Facts() },
                                      restartWindows: { [weak self] in await self?.restartWindowsSteam() })
         }
@@ -637,7 +637,7 @@ final class LibraryModel: ObservableObject {
     /// out of the way then – signing in, it would sign Steam for Mac out (one sign-in per account),
     /// and the game's saves would no longer reach Steam Cloud.
     private var macSteamBusy: Bool {
-        anyRunning(.mac) || allGames.contains { $0.id == launchingID && $0.platform == .mac }
+        anyRunning(.mac) || allGames.contains { $0.id == launchingID && $0.platform == .mac && $0.provider == .steam }
     }
 
     private func runningGame(_ platform: Platform) -> Game? {
@@ -651,7 +651,7 @@ final class LibraryModel: ObservableObject {
         SteamSwitch.Facts(
             macSteamRunning: MacSteam.isRunning, macSteamOurs: MacSteam.startedByNightforge, macGameBusy: macSteamBusy,
             macDownload: allGames.contains { game in
-                (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
+                (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
             },
             windowsSteamRunning: Engine.isSteamRunning,
             windowsGameBusy: anyRunning(.windows) || allGames.contains { $0.id == launchingID && $0.platform == .windows },

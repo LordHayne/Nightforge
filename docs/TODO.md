@@ -403,6 +403,8 @@ Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
       spielen (Windows- und Mac-Version), „Verschieben nach …“ zurück auf den Mac und wieder hin, Laufwerk abziehen
       („Schließe … an“, bleibt unter „Installiert“), Deinstallieren-Frage nennt Laufwerk und GOG.
 - [ ] **Abgemeldet:** `GOG/gogdl/auth.json` löschen bzw. Token ungültig – Banner „GOG hat dich abgemeldet“, „Erneut anmelden“.
+- [ ] **Steam-Wechsel:** nach einem Steam-Mac-Spiel ein GOG-Spiel (Mac und Windows) starten – kein Steam wird beendet oder
+      gestartet, kein „Spielstand geht in die Steam Cloud …“; ein GOG-Mac-Download hält Steam für Mac nicht wach.
 
 Bekannte Lücken (bewusst, siehe Roadmap 7.3):
 - Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
@@ -411,6 +413,10 @@ Bekannte Lücken (bewusst, siehe Roadmap 7.3):
 - Controller-Unterstützung kennt nur Steam: Ein Spiel nur von GOG (oder Epic) hat keine Angabe – auf der Bühne sagt
   „Für den Anfang“ dann nichts über den Controller (statt „Gespielt wird mit Maus und Tastatur“), und der Controller-Filter
   findet es nicht. GOGs `api.gog.com/v2/games/<id>` nennt `controller_support` unter den Features – ein Abruf pro Spiel.
+- Läuft ein Windows-Spiel von GOG (oder Epic), lehnt Nightforge den Start einer Steam-Mac-Version ab („… braucht Steam“).
+  Das GOG-Spiel braucht Steam nicht, aber das Stoppen der Windows-Steam kann die Wine-Sitzung beenden, in der es läuft
+  (`Engine.stopSteam` → `stopAll`). Zulassen hieße: Steam für Mac meldet die Windows-Steam ab, ohne sie zu stoppen – und
+  ein späterer Neustart der Windows-Steam (`restartStuckSteam`) darf dann das laufende Spiel nicht treffen. Text stimmt nicht.
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 
