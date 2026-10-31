@@ -1,6 +1,6 @@
 # Entwurf: Mehr Infos pro Spiel („Über das Spiel“)
 
-Stand 31.10.2026, Phase 1 (Recherche und Entwurf). Gebaut wird erst nach dem OK des Nutzers und nachdem
+Stand 31.10.2026, Phase 1 (Recherche und Entwurf) abgeschlossen; der Nutzer hat entschieden (siehe unten). Gebaut wird erst nach dem OK des Nutzers und nachdem
 2.5 (größere Schrift) und 7.3 (GOG) in `claude/ux-roadmap-next` gemergt sind. Phase 2 nimmt die Korrektur der
 Bibliotheksfilter „Controller“ und „Läuft super“ für Epic- und GOG-Spiele mit, weil sie dieselbe Datenschicht braucht.
 
@@ -220,18 +220,18 @@ struct GameInfo: Codable, Equatable {
   Gegenstück gelten soll, prüfe ich in Phase 2 einzeln: Ein Steam-Profil passt nicht zwingend auf Epics Build.
 - Nach dem Nachholen ruft das Modell `applyFilter()` auf, damit die Filter das neue Wissen nutzen.
 
-## Offene Entscheidungen (für den Nutzer)
+## Entscheidungen (Nutzer, 31.10., alle vier Empfehlungen angenommen)
 
-1. **Wo steht die Kurzbeschreibung?** Empfehlung: 2 Zeilen auf dem ersten Bildschirm, die bei kleinem Fenster als
-   Erstes weichen, und alles Weitere unten beim Scrollen (Bild 1–4). Alternative: alles erst nach dem Scrollen.
-   Der erste Bildschirm bleibt dann genau wie heute.
-2. **Status-Segment „Alle | Auf diesem Mac | Nicht geladen“?** Empfehlung: Es fällt weg, dafür kommt der Schalter
-   „Nur auf diesem Mac“ ins Filter-Panel. Bei „Zuletzt gespielt“ gruppiert das Raster ohnehin so. Alternative:
-   Es bleibt als vierter Chip „Alle ▾“.
-3. **Store-Treffer bei der Suche:** Empfehlung: nur Steam, ohne Spiele, die man schon in einem anderen Store hat,
-   mit echten Covern. Alternative: zusätzlich GOG-Treffer (öffentlich möglich, eine zweite Gruppe; Epic geht nicht).
-4. **Trailer?** Empfehlung: in Phase 2 nur Screenshots. Später geht es ohne Browser: GetItems und appdetails liefern
-   Trailer als HLS, das AVKit direkt abspielt (eine Kachel „▶ Trailer“ vorne in der Leiste). GOG hat nur YouTube.
+1. **Kurzbeschreibung:** 2 Zeilen auf dem ersten Bildschirm, die bei kleinem Fenster als Erstes weichen. Der Rest
+   steht unten beim Scrollen.
+2. **Das Segment „Alle | Auf diesem Mac | Nicht geladen“ fällt weg.** Dafür kommt „Nur auf diesem Mac“ ins
+   Filter-Panel.
+3. **Store-Treffer nur von Steam**, ohne Spiele, die man in einem anderen Store schon hat, und mit echten Covern
+   über den Hash-Pfad.
+4. **In Phase 2 nur Screenshots**, Trailer später.
+
+Dazu: Das kleine Extra „Steam-Logo für Epic- und GOG-Spiele über das Gegenstück“ darf mit, wenn es klein bleibt.
+Die HTML-Entitäten in Store-Treffern gehören in Phase 2.
 
 Ohne Entscheidung festgelegt, weil die Bilder es zeigen oder der Auftrag es vorgibt:
 - Startseite unverändert (Bild 6 läuft bei 980 × 640 über).
@@ -242,6 +242,112 @@ Ohne Entscheidung festgelegt, weil die Bilder es zeigen oder der Auftrag es vorg
 - Hinweis „Angaben von Steam“ bei Daten vom Gegenstück.
 - „Deutsch“-Zeile nur auf deutschen Macs.
 - „Mehr über das Spiel“ scrollt, statt aufzuklappen.
+
+## Plan Phase 2: zwei Abschnitte, je mit eigenem Live-Test
+
+Start erst auf das Go des Koordinators nach den Merges von 2.5 und GOG (`git merge claude/ux-roadmap-next`).
+Abschnitt B baut auf A auf (`GameInfoStore`). Jeder Abschnitt endet mit grünen Testsuiten, einem sauberen
+`./build.sh`, lokalen Commits und einem Live-Test durch den Koordinator. Danach beginnt der nächste.
+
+### Abschnitt A: Daten, Filter, Bibliothek (etwa 2½ Tage)
+
+1. **`GameInfo.swift`:** das Modell (`GameInfo`, `PlayMode`, `LanguageSupport`, `AgeRating`, `Screenshot`) und
+   reine Parser ohne Netz, jeder mit Fixture:
+   - `from(getItems:)`, Steams Store-Browse-API, die Hauptquelle. Spielmodi aus `supported_player_categoryids`:
+     2 Einzelspieler, 38 Online-Koop, 39 Lokaler Koop, 24/37/39 geteilter Bildschirm, 36/49 gegeneinander.
+     Controller aus `controller_categoryids` 28/18. Sprachen aus `supported_languages` (elanguage 3 = Deutsch).
+     USK über `game_rating.agency == 4`, Genres über `StoreFacts.tagName`.
+   - `from(appDetails:)` als Rückfall.
+   - `from(gogV2:)`: HTML von `overview` zu Text, `features`, `localizations`.
+   - `from(legendary:)`: nur Entwickler und eine echte Beschreibung.
+   - Steam-Gegenstück aus GamesDB (`game.releases`).
+   Der alte Epic-Inhaltsdienst kommt nur dazu, wenn der Live-Test Epic-Spiele ohne Gegenstück und ohne Infos zeigt.
+2. **`GameInfoStore.swift`** (actor):
+   - Cache unter `Application Support/Nightforge/GameInfo/` (eine Datei pro Spiel, dazu `twins.json`).
+   - Zwillinge: GOG über `GOGRelease.steamAppID`, das neu aus derselben GamesDB-Antwort kommt; Epic über GamesDB
+     `epic/<AppName>`; sonst `StoreSearch` mit genau gleichem Namen nach dem Normalisieren.
+   - Nachholen nach dem Scan in 50er-Bündeln: zuerst Epic- und GOG-Gegenstücke, dann die Bühne, dann der Rest.
+   - Drossel: 10 Minuten Pause bei 429/403. Nach 30 Tagen oder bei anderer App-Sprache wird neu gefragt.
+   - Offline gilt das Alte.
+3. **`SteamCatalog`:** `category` → Spielmodi für eigene Steam-Spiele offline, damit „Zu zweit am Mac“ ohne Netz
+   funktioniert.
+4. **`LibraryModel`:**
+   - Infos auf die Karten übertragen: `controller` für Epic und GOG, unbekannt statt „keine“.
+   - `compatibility(of:)` über das Gegenstück.
+   - Nach dem Nachholen `applyFilter()` aufrufen.
+   - Die Suche lässt Filter und Store ruhen.
+   - Store-Treffer ohne Gegenstücke eigener Spiele, und bei Store „Epic“ oder „GOG“ keine Steam-Treffer.
+5. **`LibraryFilters`:**
+   - `status` fällt weg. Neu sind `store: Provider?`, `onMac` und `couch`.
+   - `narrows` und `cleared` werden angepasst.
+   - Gemeinsame Karten zählen bei jedem ihrer Stores. Die Filter werden nicht gespeichert, deshalb braucht es
+     keine Migration.
+6. **`LibraryGrid` › `LibraryToolbar`:**
+   - Kopfzeile mit Titel, Zahl, Frische, „Ausgeblendet“ und Suche.
+   - Die Chip-Zeile: `ChoiceChip`, `FilterPanel`, `StoreMenu`, `ActiveChip`.
+   - Die Panels arbeiten wie `DownloadsPanel`: Klick daneben oder B/Esc schließt (`InputRouter`).
+   - `PadFocus`-IDs `library.store`, `library.sort`, `library.filter`, `library.active.<n>`, `filter.<id>`.
+   - Das Sync-Banner aus dem GOG-Zweig bleibt unter der Zeile.
+7. **Bilder:**
+   - `ArtworkStore.remoteURLs` nimmt zuerst die Asset-Pfade mit Hash aus `GameInfo` (Cover, Hero).
+   - Ohne Hochformat-Cover gibt es das breite Bild auf seiner einmal weichgezeichneten, gecachten Kopie.
+   - Extra: Epic- und GOG-Spiele ohne Logo bekommen Steams Logo über das Gegenstück, sonst bleibt es beim Namen.
+8. **`StoreSearch`:** HTML-Entitäten in Namen auflösen (`&amp;`, `&quot;`, `&#39;`).
+9. **Texte und Tests:**
+   - Texte über `L10n`.
+   - Neu: `tests/GameInfoTest` (Parser mit den Fixtures aus `game-metadata/data/`, Zwilling über den Namen,
+     Cache und Neufragen).
+   - `LibraryFiltersTest` erweitern (Store, gemeinsame Karten, Zu zweit, Nur auf diesem Mac).
+   - `SearchTest`: Filter ruhen, keine Treffer für eigene Spiele.
+   - Dazu `StringsTest` und `TextScaleTest`.
+
+**Live-Test A** (Koordinator, echte App, 198 Spiele):
+- Die Zeile bei 1512 und 980 pt einzeilig.
+- Store-Chip: „Epic Games“ zeigt „93 von 198 Spielen“, das Menü zeigt die Zahl je Store, eine gemeinsame Karte
+  steht in beiden Stores.
+- „Mit Controller spielbar“ zeigt Overcooked! 2 (Epic).
+- „Läuft super“ enthält Epic- und GOG-Spiele mit Profil.
+- „Zu zweit am Mac“ und „Nur auf diesem Mac“ funktionieren.
+- Pad: ↑ aus dem Raster, A öffnet das Panel, ↑↓ und A schalten, B schließt.
+- Suche „overcooked“: kein Steam-Treffer für Overcooked! 2. Suche „sheep“: echte Cover, kein `&amp;`.
+- Zeit vom ersten Nachholen nach dem Scan, gemessen.
+- Offline-Start zeigt dasselbe.
+- Epic-Spiel mit Steam-Logo auf Startseite und Spielseite.
+
+### Abschnitt B: Spielseite (etwa 1½–2 Tage)
+
+1. **`GameAbout.swift`:** `SummaryTeaser`, `GameAboutSection`, `InfoChip`, `ScreenshotStrip`, `FactsCard`,
+   `AgeBadge`, `ScreenshotLightbox`. Vorlage ist der Prototyp in `game-metadata/harness/Proto.swift`, mit
+   `.font(size:)` und `.displayFont` statt `.system`.
+2. **`DetailLevel`:**
+   - `ScrollView` mit dem ersten Bildschirm in `ViewThatFits` (2, 1 oder 0 Zeilen) und `GameAboutSection` darunter.
+   - Ein mitlaufender Verlauf über dem Hintergrund.
+   - `scrollEdgeEffectStyle(.soft)` ab macOS 26.
+   - „Mehr über das Spiel“ scrollt über `ScrollViewReader`.
+3. **`GameDetail`:**
+   - Der Teaser unter dem Logo.
+   - `MetaLine` bekommt Genre und Jahr aus `GameInfo` auch für Epic und GOG.
+   - Die Kennzahl „Controller“ zeigt „–“, wenn nichts bekannt ist.
+4. **`ArtworkStore`:**
+   - `ArtKind.shot`: Vorschaubilder, `maxPixelSize` 560, Cache-Datei `<key>_shot<n>.jpg`.
+   - Höchstens 12 Bilder.
+   - Das große Bild nur im Speicher, solange das Großbild offen ist.
+5. **Pad und Tasten:**
+   - ↓ von der Knopfreihe in die Leiste, ←→ in der Leiste, A öffnet groß.
+   - Im Großbild ←→ blättern, B/Esc schließt. `PadFocus.reveal` beim Scrollen.
+   - Die Tastatur im Großbild gleich.
+6. **Tests:** `TextScaleTest`, `StringsTest`, dazu ein Offscreen-Render mit dem Harness als Kontrolle, bei 1512
+   und 980 pt und mit größerer Schrift.
+
+**Live-Test B** (Koordinator):
+- Die Seite eines Steam-, eines Epic- und eines GOG-Spiels. Beim Epic-Spiel steht „Angaben von Steam“ in der Karte.
+- 980 × 640: „Spielen“ ist sichtbar.
+- Größere Schrift an.
+- Scrollen mit Trackpad und Pad.
+- Großbild mit Pad und Tastatur.
+- Offline: Die Seite ist voll, außer den Screenshots, die noch nie geladen wurden.
+- USK-Schild und die „Deutsch“-Zeile stimmen bei No Man's Sky (USK 6, Text und Sprachausgabe) und Overcooked! 2
+  (Text ja, Sprachausgabe nein).
 
 ## Aufwand (Phase 2)
 
@@ -256,8 +362,7 @@ Ohne Entscheidung festgelegt, weil die Bilder es zeigen oder der Auftrag es vorg
 Zusammen etwa 4–5 Tage einer Sitzung, ca. 1 600–2 000 neue Zeilen, danach der Live-Blick mit dem Koordinator.
 Konfliktgefahr: `LibraryView.swift` (`DetailLevel`, `GameDetail`), `LibraryGrid.swift` (`LibraryToolbar`; GOG
 fügt dort ein zweites Sync-Banner ein) und `LibraryModel.swift`. Darum erst nach den Merges von 2.5 und GOG.
-Teilbar in zwei Sitzungen nacheinander (erst Datenschicht + Filter + Bibliothek, dann Spielseite), weil beide
-`GameInfoStore` brauchen.
+Geteilt wie im Plan oben: erst Abschnitt A, dann B, nacheinander, weil B `GameInfoStore` aus A braucht.
 
 ## Nebenfunde
 

@@ -396,7 +396,8 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 
 - **Mehr Infos pro Spiel („Über das Spiel“)** (Wunsch des Nutzers, 31.10.: „kurze Spielbeschreibung usw.“).
   Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
-  Es fehlen noch die Entscheidung des Nutzers (4 offene Fragen) und die Merges von 2.5 und GOG. Danach wird gebaut.
+  Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). Es fehlen nur noch die Merges von 2.5 und GOG, dann
+  wird in zwei Abschnitten gebaut (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
   - Zusatzauftrag (31.10.): Store-Filter „Alle Stores ▾“ und eine einfachere Filterzeile (Sortier-Chip, „Filter ▾“-
     Panel, aktive Filter als Chips, die Suche lässt die Filter ruhen). Entwurf und Bilder 8–13 im selben Dokument.
   - Store-Treffer der Suche: Sie zeigen auch Spiele, die man schon bei Epic oder GOG hat. Neue Steam-Apps zeigen nur
