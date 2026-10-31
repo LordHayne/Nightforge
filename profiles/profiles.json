@@ -447,6 +447,12 @@
    ],
    "source": "umu"
   },
+  "50130": {
+   "name": "Mafia II (Classic)",
+   "graphics": "wined3d",
+   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but stutters at ~360 % CPU, and FMOD's sound came doubled, like reverb. APEX PhysX runs on the CPU on a Mac (no CUDA under Wine); Proton players turn it off for the same stutter. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on.",
+   "source": "mac"
+  },
   "50620": {
    "name": "Darksiders",
    "winetricks": [
@@ -5190,6 +5196,12 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "eed1e86e-71ef-4c8e-9c55-2b9ca7c803d9"
+  },
+  "gog.1816059595": {
+   "name": "Mafia II (Classic)",
+   "graphics": "wined3d",
+   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but stutters at ~360 % CPU, and FMOD's sound came doubled, like reverb. APEX PhysX runs on the CPU on a Mac (no CUDA under Wine); Proton players turn it off for the same stutter. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on.",
+   "source": "mac"
   }
  },
  "generated": "2026-10-27T20:21:54Z"

@@ -41,7 +41,7 @@ struct ThisGameCard: View {
         .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 24, style: .continuous)))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L10n.t("Options for this game"))
-        .task(id: game.id) { profile = await ProfileStore.shared.profile(for: game.appID) }
+        .task(id: game.id) { profile = await ProfileStore.shared.profile(for: game.gameID) }
     }
 
     private func row(_ label: String, _ value: String, monospaced: Bool = false) -> some View {

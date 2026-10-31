@@ -170,12 +170,25 @@ actor ProfileStore {
     private var profiles: [Int: GameProfile]?
     /// Epic games' entries ("epic.<namespace>" in the list), by catalog namespace.
     private var epicProfiles: [String: GameProfile] = [:]
+    /// GOG games' entries ("gog.<product ID>" in the list), by product ID.
+    private var gogProfiles: [String: GameProfile] = [:]
     private var refreshed = false
 
     func profile(for appID: Int) async -> GameProfile? {
         if !refreshed { await refresh() }
         loadLocalIfNeeded()
         return profiles?[appID]
+    }
+
+    /// The profile a game starts with, from any store: Steam's by app ID, GOG's by product ID (the
+    /// Steam version's profile, for the GOG versions profiles/mac.json names). Epic's entries only
+    /// say what blocks a game (`epicAntiCheatBlocks`), so an Epic game starts without.
+    func profile(for game: GameID) async -> GameProfile? {
+        if let appID = game.steamAppID { return await profile(for: appID) }
+        guard game.provider == .gog else { return nil }
+        if !refreshed { await refresh() }
+        loadLocalIfNeeded()
+        return gogProfiles[game.id]
     }
 
     /// Every game's profile from the list at hand, without waiting for the online copy (like
@@ -226,6 +239,7 @@ actor ProfileStore {
             if let data = try? Data(contentsOf: local), let decoded = decode(data) {
                 profiles = decoded
                 epicProfiles = Self.decodeEpic(data)
+                gogProfiles = Self.decodeGOG(data)
                 return
             }
         }
@@ -244,18 +258,24 @@ actor ProfileStore {
         else { return }
         profiles = decoded
         epicProfiles = Self.decodeEpic(data)
+        gogProfiles = Self.decodeGOG(data)
         try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
         try? data.write(to: cachedURL, options: .atomic)
     }
 
     /// The entries keyed "epic.<namespace>" (older Nightforge versions skip them: not a number).
-    static func decodeEpic(_ data: Data) -> [String: GameProfile] {
+    static func decodeEpic(_ data: Data) -> [String: GameProfile] { decodeStore(data, prefix: "epic.") }
+
+    /// The entries keyed "gog.<product ID>", by product ID.
+    static func decodeGOG(_ data: Data) -> [String: GameProfile] { decodeStore(data, prefix: "gog.") }
+
+    private static func decodeStore(_ data: Data, prefix: String) -> [String: GameProfile] {
         guard let document = try? JSONDecoder().decode(ProfileDocument.self, from: data),
               document.formatVersion <= supportedFormat
         else { return [:] }
         return Dictionary(uniqueKeysWithValues: document.games.compactMap { key, value in
-            guard key.hasPrefix("epic."), let profile = value.profile else { return nil }
-            return (String(key.dropFirst("epic.".count)), profile)
+            guard key.hasPrefix(prefix), let profile = value.profile else { return nil }
+            return (String(key.dropFirst(prefix.count)), profile)
         })
     }
 

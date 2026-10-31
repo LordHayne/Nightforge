@@ -2072,7 +2072,7 @@ final class LibraryModel: ObservableObject {
             var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
-            let profile = viaSteam && game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
+            let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.gameID) : nil
             let insight = await insight(of: game)
             let analysis = insight?.analysis
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
@@ -2286,7 +2286,7 @@ final class LibraryModel: ObservableObject {
         preparations[game.gameID] = Task {
             defer { preparations[game.gameID] = nil }
             guard let wine = await Engine.installedWine() else { return }
-            let profile = await ProfileStore.shared.profile(for: game.appID)
+            let profile = await ProfileStore.shared.profile(for: game.gameID)
             let analysis = await insight(of: game)?.analysis
             await installRuntimes(for: game, profile: profile, analysis: analysis, wine: wine, showStatus: false)
             if game.provider == .gog { await setUpGOG(game, wine: wine, showStatus: false) }
@@ -2589,7 +2589,7 @@ final class LibraryModel: ObservableObject {
             analyzing[game.gameID] = nil
             analyses[game.gameID] = analysis
         }
-        let profile = await ProfileStore.shared.profile(for: game.appID)
+        let profile = await ProfileStore.shared.profile(for: game.gameID)
         let insight = GameInsight(analysis: analysis, attempts: LaunchHealth.attempts(for: analysis, profile: profile))
         if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
@@ -2680,7 +2680,7 @@ final class LibraryModel: ObservableObject {
     func reportProblem(for game: Game, tried: [String] = []) {
         Task {
             ProblemReport.open(game: game, insight: await insight(of: game),
-                               profile: await ProfileStore.shared.profile(for: game.appID), tried: tried)
+                               profile: await ProfileStore.shared.profile(for: game.gameID), tried: tried)
         }
     }
 

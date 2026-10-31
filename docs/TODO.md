@@ -55,6 +55,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
   einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
   „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
+  Der Ausweg ist KosmicKrisp (unten bei „Vulkan-Layer und winecx“): Er meldet `shaderCullDistance` schon lange und
+  `geometryShader` seit Mesa 14f59d06 (29.10.2026).
+  Die D3D9-Leiter in `LaunchHealth.attempts` fragt das Profil nicht. Ein Profil mit `graphics` ändert für D3D9-Spiele nur
+  „Am verträglichsten“ (`ladder`). Für Mafia II reicht das, weil winecx ohnehin mit WineD3D beginnt.
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
   Noch kein einziges getestet.
 - **Unreal-Spiele allgemein.** Bis 26.10. bekam kein Unreal-Spiel DXMT. Die Einstellungen reichten nur drei
@@ -479,6 +483,18 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
       bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
       (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
+- [ ] **Mafia II ruckelt, der Ton klingt doppelt (WineD3D, 31.10.).** Befunde, Belege und Testanleitung in den
+      Notizen der Mafia-II-Sitzung (`mafia-ii.md`).
+      - Bis jetzt bekam kein GOG-Spiel ein Profil: Der Start fragte nur Steam-IDs ab. Jetzt gilt „gog.<Produkt-ID>“ in
+        `profiles.json`. `mac.json` nennt die GOG-Ausgabe beim Steam-Zwilling (`"gog": ["1816059595"]` bei 50130).
+      - Ton: FMOD Ex steckt fest im Programm und gibt unter Windows 10 über WASAPI aus. EAX und OpenAL gibt es nicht im
+        Prefix. Die Lautsprecher kommen vom System (MacBook: Stereo, 48 kHz), der Mixer läuft mit 44,1 kHz.
+        Wahrscheinlichste Ursache: FMODs Mixer kommt unter Last nicht hinterher und spielt alte Blöcke noch einmal.
+      - Last: APEX PhysX läuft auf dem Mac auf der CPU. ProtonDB rät durchweg „PhysX aus“. WineD3D meldet den
+        Apple-Chip als NVIDIA (Ausweichwert von wined3d), Mafia II stuft eine unbekannte NVIDIA-Karte am höchsten ein.
+      - Offen: APEX und Tonqualität stehen in `profile.dat`. Das ist eine Bitfolge mit Prüfsumme, die Nightforge noch
+        nicht schreiben kann. Für die Stelle braucht es zwei Kopien von `profile.dat`, vor und nach „APEX aus“
+        (Testanleitung).
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
       übrig: `pgrep -fl gogdl`).
@@ -691,6 +707,12 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   transform feedback“), DXVK 3.1.1 kann keine geteilten Ressourcen anlegen (`VK_KHR_external_memory_win32` fehlt) und das
   Spiel stürzt ab. Nächster Versuch: DXVK mit einem Patch, der geteilte Ressourcen ungeteilt anlegt, und ein Spiel ohne
   geteilte Texturen (DirectX 9–11). Nicht als Komponente ausgeliefert; Bau braucht Netz und LLVM (~2 GB).
+  Neu seit 29.10.2026 in Mesa main: Geometry-Shader über „poly“ (9a40f0c6, 5c145789, 531e208d, 14f59d06 „kk: Advertise
+  geometryShader“, MR 44786). `shaderCullDistance`, Tessellation und robustness2 waren schon da. Damit bekäme DXVKs
+  Direct3D 9 sein Gerät, also Mafia II, Left 4 Dead 2 und die Source-Spiele. Unser Bau vom 28.10. (063dfae) ist älter,
+  der nächste muss ≥ 14f59d06 sein. steamac (fxgl/steamac, `host/kosmickrisp/patches`) trägt dieselben vier als 0001–0004
+  und dazu Transform Feedback in der GS-Emulation (0010–0014), was vkd3d-proton fehlte. steamac nutzt KosmicKrisp aber
+  arm64 auf dem Host über Venus. Wir brauchen x86_64 unter winecx, gebaut in CI.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit

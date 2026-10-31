@@ -155,6 +155,20 @@ struct ProfileFilesTest {
         check(demo.map { $0.fromNightforge && Compatibility.rate(.init(profile: $0, analysis: unreal)).level == .great } == true,
               "tested on a Mac: it runs great")
 
+        // MARK: Mafia II, on Steam and on GOG
+        let steamMafia = games?["50130"] as? [String: Any]
+        check(steamMafia.map { NSDictionary(dictionary: $0).isEqual(to: games?["gog.1816059595"] as? [String: Any] ?? [:]) } == true,
+              "the GOG version (1816059595) has the Steam version's profile")
+        check(steamMafia?["gog"] == nil, "the twin list stays out of the profile itself")
+        let mafia = list.flatMap { try? Data(contentsOf: $0) }.map(ProfileStore.decodeGOG)?["1816059595"]
+        check(mafia?.graphics == .wined3d && mafia?.fromNightforge == true, "Mafia II on GOG: tested on a Mac, WineD3D")
+        let d3d9 = GameAnalysis(apis: [.d3d9])
+        check(LaunchHealth.attempts(for: d3d9, profile: mafia, vulkanLayer: false).first == LaunchAttempt(graphics: .wined3d),
+              "on winecx it starts with WineD3D, which MoltenVK's missing geometry shaders leave as the way")
+        check(LaunchHealth.ladder(LaunchHealth.attempts(for: d3d9, profile: mafia, vulkanLayer: true), preset: .compatible,
+                                  profile: mafia).first == LaunchAttempt(graphics: .wined3d),
+              "Most compatible starts with the tested way")
+
         print(failures == 0 ? "✓ all checks passed" : "\(failures) checks failed")
         exit(failures == 0 ? 0 : 1)
     }
