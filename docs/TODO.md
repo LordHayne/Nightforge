@@ -553,7 +553,9 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
     - Nightforge erkennt einen neu eingesteckten Stick oder eine Platte.
     - Ein kleines Pop-up (Toast) „„Spiele test“ eingesteckt · Für Spiele vorbereiten“ führt direkt zu
       Einstellungen › Speicher.
-    - Dort stehen alle Laufwerke mit Platz und Format.
+    - Dort stehen alle Laufwerke mit Platz und Format, **oben** direkt unter „Macintosh HD“, ohne Scrollen
+      (Nutzer: wer eine externe Platte dabeihat, will den freien Platz sofort sehen). Heute steht ein
+      angeschlossenes Laufwerk erst unter der Spieleliste des Macs.
     - „Vorbereiten“ prüft das Format: exFAT und FAT32 taugen nicht (keine Rechte und Links, FAT32 max. 4 GB pro
       Datei), NTFS ist auf dem Mac nur lesbar. Dafür erklärt es, was zu tun ist, und bietet an, das Laufwerk in
       APFS umzuwandeln. Löschen nur nach ausdrücklicher Bestätigung, mit Hinweis, dass alles darauf verloren geht.
