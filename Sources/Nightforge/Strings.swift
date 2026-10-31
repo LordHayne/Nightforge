@@ -992,6 +992,9 @@ enum L10n {
         "GOG support isn't in the component list yet. Check your internet connection and try again.":
             "GOG fehlt noch in der Komponentenliste. Prüfe deine Internetverbindung und versuch es noch einmal.",
         "GOG didn't accept the sign-in. Please try again.": "GOG hat die Anmeldung nicht angenommen. Bitte versuch es noch einmal.",
+        "Nightforge's GOG helper didn't start, so the sign-in didn't reach GOG. Please try again.":
+            "Nightforges GOG-Helfer ist nicht gestartet, deshalb kam die Anmeldung nicht bei GOG an. Bitte versuch es noch einmal.",
+        "Nightforge's GOG helper didn't start": "Nightforges GOG-Helfer ist nicht gestartet",
         "there isn't enough space on the Mac": "auf dem Mac ist nicht genug Platz",
         "gogdl stopped (code %d)": "gogdl hat aufgehört (Code %d)",
         "GOG's files for it aren't where gogdl put them": "GOGs Dateien dafür liegen nicht dort, wo gogdl sie hingelegt hat",

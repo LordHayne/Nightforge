@@ -2,8 +2,8 @@ import Foundation
 
 /// gogdl (GPL-3.0, github.com/Heroic-Games-Launcher/heroic-gogdl), Heroic's GOG downloader, speaks
 /// to GOG for Nightforge: sign-in tokens, downloads with resume and updates (as deltas), what a game
-/// comes to, cloud saves. It comes as a component (components/manifest.json), packed like legendary
-/// and run from a copy unpacked once (`PackedApp`). The library Nightforge reads from GOG's API
+/// comes to, cloud saves. It comes as a component (components/manifest.json), packed like legendary,
+/// but it won't run from a copy unpacked once (`PackedApp`). The library Nightforge reads from GOG's API
 /// itself – gogdl has no list of games – and it starts the games itself, from their own info file.
 enum GOGDL {
     static let componentID = "gogdl"
@@ -34,12 +34,17 @@ enum GOGDL {
 
     static func log(for id: String) -> URL { logsDir.appendingPathComponent("\(id).log") }
 
+    /// How the last sign-in went (and a token refresh where gogdl didn't run): its code and log,
+    /// without the sign-in code or any token.
+    static var authLog: URL { logsDir.appendingPathComponent("auth.log") }
+
     // MARK: - The program
 
-    /// gogdl, fetched on first use and unpacked once. The copy there is used without asking the
+    /// gogdl, fetched on first use and unpacked once – which gogdl 1.4.0 refuses to run from, so it
+    /// runs as it comes (`PackedApp.refusesUnpacked`). The copy there is used without asking the
     /// network (offline starts and sizes); a new version comes when the component list names one.
     static func program() async throws -> URL {
-        if let installed = programNow(), FileManager.default.fileExists(atPath: PackedApp.folder(for: installed).path) {
+        if let installed = programNow(), PackedApp.isReady(installed) {
             return installed
         }
         let manifest = try? await ComponentStore.shared.manifest()
@@ -51,8 +56,9 @@ enum GOGDL {
         return binary
     }
 
-    /// Fetches and unpacks gogdl and runs it once while the player signs in: macOS looks at every
-    /// freshly unpacked library at its first start, which takes a while only that once.
+    /// Fetches gogdl and runs it once while the player signs in: macOS looks at every freshly
+    /// unpacked library at its first start, which takes longest that once (gogdl: 7.6 s, then ~3 s),
+    /// and how it runs (`PackedApp`) is settled before the sign-in's code reaches it.
     static func prepare() async {
         guard let program = try? await program() else { return }
         _ = try? await run(["--version"], program: program, timeout: 120)
@@ -91,28 +97,9 @@ enum GOGDL {
             binary = try await self.program()
         }
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        let arguments = arguments(command)
-        return try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            process.executableURL = binary
-            process.arguments = arguments
-            process.environment = environment(program: binary)
-            process.currentDirectoryURL = configDir
-            let out = Pipe(), err = Pipe()
-            process.standardOutput = out
-            process.standardError = err
-            process.standardInput = FileHandle.nullDevice
-            try process.run()
-            let killer = DispatchWorkItem { if process.isRunning { process.terminate() } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
-            async let output = Task.detached { out.fileHandleForReading.readDataToEndOfFile() }.value
-            async let log = Task.detached { err.fileHandleForReading.readDataToEndOfFile() }.value
-            let (data, logData) = await (output, log)
-            // Not `waitUntilExit` (see Legendary.run).
-            while process.isRunning { try? await Task.sleep(for: .milliseconds(20)) }
-            killer.cancel()
-            return Legendary.Output(status: process.terminationStatus, output: data, log: String(decoding: logData, as: UTF8.self))
-        }.value
+        return try await PackedApp.run(binary, arguments: arguments(command), directory: configDir, timeout: timeout) {
+            environment(program: binary)
+        }
     }
 
     /// The line a download's log ends with: gogdl itself says nothing when it's done, so the shell
@@ -123,6 +110,7 @@ enum GOGDL {
     /// output and how it ended into `log`.
     static func start(_ command: [String], log: URL) async throws -> DetachedProcess {
         let binary = try await program()
+        if !PackedApp.knowsHowToRun(binary) { _ = try? await run(["--version"], program: binary) }
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
@@ -150,6 +138,36 @@ enum GOGDL {
     }
 
     // MARK: - What gogdl says
+
+    /// gogdl ran and answered: its answers are JSON ("null" too). Nothing, or no JSON, with an
+    /// error code: it didn't get that far.
+    static func answered(_ result: Legendary.Output) -> Bool {
+        (try? JSONSerialization.jsonObject(with: result.output, options: .fragmentsAllowed)) != nil
+    }
+
+    /// What goes into `authLog`: gogdl's exit code, what kind of answer it gave and its log, with
+    /// `secrets` and whatever looks like a token or code blanked out.
+    static func authLogText(_ result: Legendary.Output, command: String, hiding secrets: [String], at date: Date = Date()) -> String {
+        var log = result.log
+        for secret in secrets where !secret.isEmpty { log = log.replacingOccurrences(of: secret, with: "…") }
+        log = log.replacingOccurrences(of: #"((?:access_token|refresh_token|id_token|session_id|code)["']?\s*[:=]\s*["']?)[^"'\s,&}]+"#,
+                                       with: "$1…", options: .regularExpression)
+        let answer: String
+        switch (try? JSONSerialization.jsonObject(with: result.output, options: .fragmentsAllowed)) {
+        case let object as [String: Any] where object["access_token"] != nil: answer = "credentials"
+        case let object as [String: Any]: answer = "JSON with " + object.keys.sorted().joined(separator: ", ")
+        case is NSNull: answer = "null"
+        case .some: answer = "other JSON"
+        case nil: answer = "none (\(result.output.count) bytes, not JSON)"
+        }
+        let stamp = ISO8601DateFormatter().string(from: date)
+        return "\(stamp) gogdl \(command) ended with \(result.status)\nanswer: \(answer)\n\n\(log)"
+    }
+
+    static func writeAuthLog(_ result: Legendary.Output, command: String, hiding secrets: [String] = []) {
+        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        try? Data(authLogText(result, command: command, hiding: secrets).utf8).write(to: authLog, options: .atomic)
+    }
 
     /// A download's state from its log: how far, how fast, how long still, and how it ended.
     struct Progress: Equatable {
@@ -225,6 +243,8 @@ enum GOGDL {
 enum GOGError: LocalizedError {
     case unavailable
     case signInFailed
+    /// gogdl itself didn't run (`GOGAuth.helperFailed`): GOG never saw the sign-in.
+    case helperFailed
     case failed(String)
 
     var errorDescription: String? {
@@ -233,6 +253,8 @@ enum GOGError: LocalizedError {
             return L10n.t("GOG support isn't in the component list yet. Check your internet connection and try again.")
         case .signInFailed:
             return L10n.t("GOG didn't accept the sign-in. Please try again.")
+        case .helperFailed:
+            return L10n.t("Nightforge's GOG helper didn't start, so the sign-in didn't reach GOG. Please try again.")
         case .failed(let reason):
             return reason
         }

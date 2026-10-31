@@ -145,6 +145,29 @@ struct GOGTest {
               "no answer from GOG: offline, not signed out")
         check(GOGAuth.from(output: Data("null\n".utf8), log: "") == .signedOut, "GOG turned the refresh down: signed out")
         check(GOGAuth.from(output: Data(#"{"error": true}"#.utf8), log: "") == .signedOut, "a sign-in code GOG didn't take")
+        check(GOGAuth.from(output: Data(#"{"error": true}"#.utf8), log: "", status: 1) == .signedOut, "also with an error code")
+        let refused = "[PYI-45608:ERROR] Security validation failure: unexpected name of application's home directory!\n"
+        check(GOGAuth.from(output: Data(), log: refused, status: 255) == .helperFailed, "gogdl didn't run: not GOG's no")
+        check(GOGAuth.from(output: Data(), log: "", status: 0) == .signedOut, "no answer but no error either: signed out")
+
+        let log = """
+            [AUTH] INFO: Exchanging code 0a1b2c3d for tokens
+            [AUTH] DEBUG: https://auth.gog.com/token?client_id=46899977096215655&code=0a1b2c3d&grant_type=authorization_code
+            [AUTH] DEBUG: {"access_token": "secret-access", "refresh_token": "secret-refresh", "user_id": "4815"}
+            [AUTH] ERROR: something else
+            """
+        let credentials2 = #"{"access_token": "secret-access", "refresh_token": "secret-refresh", "user_id": "4815"}"#
+        let text = GOGDL.authLogText(Legendary.Output(status: 0, output: Data(credentials2.utf8), log: log),
+                                     command: "auth --code", hiding: ["0a1b2c3d"], at: Date(timeIntervalSince1970: 0))
+        check(!text.contains("0a1b2c3d") && !text.contains("secret-access") && !text.contains("secret-refresh"),
+              "the auth log has neither the code nor a token: \(text)")
+        check(text.hasPrefix("1970-01-01T00:00:00Z gogdl auth --code ended with 0\nanswer: credentials\n"), "but how it ended")
+        check(text.contains("[AUTH] ERROR: something else") && text.contains("\"user_id\": \"4815\""), "and the rest of gogdl's log")
+        let failed = GOGDL.authLogText(Legendary.Output(status: 255, output: Data(), log: refused), command: "auth --code", hiding: ["x"])
+        check(failed.contains("ended with 255\nanswer: none (0 bytes, not JSON)") && failed.contains("Security validation failure"),
+              "a gogdl that didn't run: its code and message")
+        check(GOGDL.authLogText(Legendary.Output(status: 0, output: Data(#"{"error": true}"#.utf8), log: ""), command: "auth --code",
+                                hiding: []).contains("answer: JSON with error"), "GOG's no")
     }
 
     static func sizes() {

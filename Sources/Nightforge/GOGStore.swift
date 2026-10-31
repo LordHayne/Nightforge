@@ -33,7 +33,9 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// The account's token for GOG's API, from gogdl (which refreshes it). Tests hand in their own.
     var authenticate: () async -> GOGAuth = {
         guard let result = try? await GOGDL.run(["auth"], timeout: 60) else { return .offline }
-        return GOGAuth.from(output: result.output, log: result.log)
+        let auth = GOGAuth.from(output: result.output, log: result.log, status: result.status)
+        if auth == .helperFailed { GOGDL.writeAuthLog(result, command: "auth") }
+        return auth
     }
     /// Asks GOG's API (with the token when one is given). Tests hand in their own.
     var fetch: @Sendable (URL, String?) async throws -> Data = { url, token in try await GOGStore.ask(url, token: token) }
@@ -228,6 +230,8 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
             sync = StoreSync(state: .signedOut, lastSuccess: catalog.loaded)
         case .offline:
             sync = StoreSync(state: .failed(L10n.t("Couldn't reach GOG")), lastSuccess: catalog.loaded)
+        case .helperFailed:
+            sync = StoreSync(state: .failed(L10n.t("Nightforge's GOG helper didn't start")), lastSuccess: catalog.loaded)
         case .signedIn(let token, let user):
             do {
                 try await load(token: token, user: user)
@@ -312,12 +316,14 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     // MARK: - Signing in
 
-    /// The code GOG's sign-in page ends with goes to gogdl, which swaps it for its tokens.
+    /// The code GOG's sign-in page ends with goes to gogdl, which swaps it for its tokens. How that
+    /// went goes into GOG/Logs/auth.log, without the code or the tokens.
     func connect(code: String) async throws {
         let result = try await GOGDL.run(["auth", "--code", code], timeout: 60)
-        guard result.status == 0, case .signedIn(let token, let user) = GOGAuth.from(output: result.output, log: result.log) else {
-            throw GOGError.signInFailed
-        }
+        GOGDL.writeAuthLog(result, command: "auth --code", hiding: [code])
+        let auth = GOGAuth.from(output: result.output, log: result.log, status: result.status)
+        if auth == .helperFailed { throw GOGError.helperFailed }
+        guard result.status == 0, case .signedIn(let token, let user) = auth else { throw GOGError.signInFailed }
         var name = ""
         if let url = URL(string: "https://users.gog.com/users/\(user)"), let data = try? await fetch(url, token),
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {

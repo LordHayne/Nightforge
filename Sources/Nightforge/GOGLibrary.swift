@@ -124,16 +124,19 @@ enum GOGAuth: Equatable {
     case signedIn(token: String, user: String)
     case signedOut
     case offline
+    /// gogdl itself didn't run: no answer at all, and an error code.
+    case helperFailed
 
     /// `output`: gogdl's stdout (the credentials as JSON, or "null"); `log` its stderr, which says
-    /// "Failed to refresh credentials" only when GOG didn't answer at all.
-    static func from(output: Data, log: String) -> GOGAuth {
+    /// "Failed to refresh credentials" only when GOG didn't answer at all; `status` its exit code.
+    static func from(output: Data, log: String, status: Int32 = 0) -> GOGAuth {
         if let object = try? JSONSerialization.jsonObject(with: output, options: .fragmentsAllowed) as? [String: Any],
            let token = object["access_token"] as? String, !token.isEmpty {
             let user = (object["user_id"] as? String) ?? (object["user_id"] as? NSNumber)?.stringValue ?? ""
             return .signedIn(token: token, user: user)
         }
         if log.contains("Failed to refresh credentials") || log.contains("Failed to reach GOG") { return .offline }
+        if status != 0, !GOGDL.answered(Legendary.Output(status: status, output: output, log: log)) { return .helperFailed }
         return .signedOut
     }
 }
