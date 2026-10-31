@@ -2,7 +2,7 @@
   <img src="docs/images/banner.png" alt="Nightforge – Every game. One place." width="820">
 </p>
 
-<h3 align="center">Your Steam and Epic games on an Apple silicon Mac.<br>Free, one click, no fiddling.</h3>
+<h3 align="center">Your Steam, Epic and GOG games on an Apple silicon Mac.<br>Free, one click, no fiddling.</h3>
 
 <p align="center">
   <a href="https://github.com/LordHayne/Nightforge/releases/latest"><b>Download</b></a> ·
@@ -18,13 +18,13 @@
   <img src="site/img/shots/home-en-2200.webp" alt="Nightforge's Home screen: Overcooked! 2 in front, the other recently played games beside it" width="900">
 </p>
 
-Nightforge sets up everything a game needs on your Mac and then gets out of the way. Connect Steam once, and your whole library shows up as covers; connect Epic Games too if you like. If a game has a Mac version, that's what you play. If not, its Windows version runs – sharp, smooth and set up by itself. Switch it on and enjoy.
+Nightforge sets up everything a game needs on your Mac and then gets out of the way. Connect Steam once, and your whole library shows up as covers; connect Epic Games and GOG too if you like. If a game has a Mac version, that's what you play. If not, its Windows version runs – sharp, smooth and set up by itself. Switch it on and enjoy.
 
 ## What Nightforge does
 
 ### Mac versions first
 
-When a game also comes for the Mac, Nightforge plays the Mac version – without any Windows translation. The first time, it sets up Valve's Steam for Mac for that, once. A small **MAC** tag shows which games run that way. If a Mac version fails, the Windows version takes over at once, and your saves come along.
+When a game also comes for the Mac, Nightforge plays the Mac version – without any Windows translation. GOG's Mac versions come straight from GOG; for Steam, Nightforge sets up Valve's Steam for Mac once. A small **MAC** tag shows which games run that way. If a Mac version fails, the Windows version takes over at once, and your saves come along.
 
 <p align="center">
   <img src="site/img/shots/library-en-1400.webp" alt="The library: installed games first, MAC and EPIC tags on the covers, filters for Runs great, Controller and Mac version" width="820">
@@ -43,9 +43,9 @@ Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even f
   <img src="site/img/shots/options-en-1100.webp" alt="A game's options: Automatic (recommended), Balanced, Fastest and Most compatible" width="420">
 </p>
 
-### Steam and Epic in one place
+### Steam, Epic and GOG in one place
 
-Your Steam library and your Epic games show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed – through [legendary](https://github.com/derrod/legendary). You sign in in Steam's and Epic's own windows; Nightforge never sees your login. Games you own in both stores show up once, and you choose which store starts them.
+Your Steam, Epic and GOG games show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy – through [legendary](https://github.com/derrod/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). You sign in in each store's own window; Nightforge never sees your login. GOG's games are DRM-free, so they play without internet and without signing in. Games you own in more than one store show up once, and you choose which store starts them.
 
 ### Made for the couch
 
@@ -88,7 +88,7 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
   </tr>
 </table>
 
-- **Stores:** connect Steam and Epic Games.
+- **Stores:** connect Steam, Epic Games and GOG.
 - **General:** language, Sharp & smooth, Game Mode, save battery when unplugged, performance HUD, notifications, what happens after a game starts, reduce motion and larger text.
 - **Controller:** pair a controller and choose the button labels.
 - **Storage:** what games, Nightforge and its caches take up; move or uninstall games, or remove Nightforge completely (saves that are only on your Mac are copied to Documents first).
@@ -97,7 +97,7 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
 
 ### Coming soon
 
-Already in the works, not done yet: **GOG** without the GOG launcher, a **TV and couch mode** – full screen on your TV, no mouse or keyboard – and **more about every game**: screenshots, description, genres and game modes on its page.
+Already in the works, not done yet: a **TV and couch mode** – full screen on your TV, no mouse or keyboard – and **more about every game**: screenshots, description, genres and game modes on its page.
 
 ## Install
 
@@ -149,6 +149,7 @@ On a trackpad, two fingers sideways go back, and pinching in the library makes t
 - **Components:** `components/sources.json` lists what's used; a nightly workflow pins the newest releases with checksums in `components/manifest.json`, which the app downloads and verifies.
 - **Steam in the background:** Steam's browser runs through a small wrapper (`wrapper/`) so it draws under Wine, and a tiny library keeps its windows out of the Dock. Games are started with Steam's own `-applaunch`, so licences, cloud saves and updates work as usual.
 - **Epic Games:** [legendary](https://github.com/derrod/legendary) (GPL-3.0) signs in through Epic's own page, downloads Epic games and starts them directly in the same Windows environment – no Epic launcher.
+- **GOG:** [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (GPL-3.0, Heroic's GOG downloader) handles sign-in tokens, downloads with resume and updates, and cloud saves; the library comes straight from GOG's API. Windows games get the Windows parts and install scripts GOG Galaxy would set up; Mac versions run as they are, outside Wine.
 - **Game Mode:** macOS only grants it to app bundles marked as games, so Wine's loader runs from a small "Nightforge Game" bundle.
 - **Mac versions:** the Windows Steam can't download macOS builds, so games that run their Mac version go through Valve's own Steam for Mac. Nightforge installs it from Valve's `steam.dmg` (checking Valve's signature) the first time it's needed, starts it hidden, asks it for downloads the same way as the Windows Steam (an app manifest it picks up at start, so there's no install dialog), shows their progress from what Steam has received over the network (Steam for Mac reserves a game's whole size on disk up front) and starts games with `steam://run`. Steam's catalog says which Mac builds are 64-bit (`osextended` "macos64", or a depot's `osarch`); 32-bit ones no longer run on macOS and stay on Windows. A Mac version that fails – Steam can't start it, or it crashes in its first seconds (macOS writes a crash report) – hands over to the best alternative at once: Nightforge starts the Windows version, or downloads it first. Saves come along: before a game's other version starts for the first time, its empty save folders get the saves of the version played before – from the folders Steam Cloud uses for the game, so nothing is guessed and a folder with saves in it is never touched. A Steam account can be signed in on one Steam client at a time, so Play signs in the Steam the game needs. Steam for Mac shows its icon in the Dock while it runs and is closed with Nightforge, like the Windows one, when Nightforge started it.
 - **Game profiles:** `profiles/profiles.json` is built every night (`.github/workflows/profiles.yml`) from [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) plus our Mac-tested profiles in `profiles/mac.json`, which win. `scripts/build-profiles.py` reads the upstream fixes as syntax trees without running them and leaves out what only matters on Linux or would change every game in the shared environment. Profiles set the graphics layer, launch arguments, DLL overrides, Windows version, registry entries and runtimes installed with [winetricks](https://github.com/Winetricks/winetricks).
@@ -188,6 +189,6 @@ D3DMetal is Apple's software, not part of Nightforge and not under the GPL. Nigh
 
 ## Credits
 
-Nightforge stands on the work of [Wine](https://www.winehq.org), CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk)), [Gcenx's Wine builds and DXVK-macOS](https://github.com/Gcenx), [DXMT](https://github.com/3Shain/dxmt), [MoltenVK](https://github.com/KhronosGroup/MoltenVK), Apple's [D3DMetal](https://developer.apple.com/games/game-porting-toolkit/), [legendary](https://github.com/derrod/legendary), [winetricks](https://github.com/Winetricks/winetricks), [cabextract](https://www.cabextract.org.uk), [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) and [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet). Their licences apply to the components Nightforge downloads.
+Nightforge stands on the work of [Wine](https://www.winehq.org), CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk)), [Gcenx's Wine builds and DXVK-macOS](https://github.com/Gcenx), [DXMT](https://github.com/3Shain/dxmt), [MoltenVK](https://github.com/KhronosGroup/MoltenVK), Apple's [D3DMetal](https://developer.apple.com/games/game-porting-toolkit/), [legendary](https://github.com/derrod/legendary), [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl), [winetricks](https://github.com/Winetricks/winetricks), [cabextract](https://www.cabextract.org.uk), [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) and [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet). Their licences apply to the components Nightforge downloads.
 
-Nightforge is not affiliated with Valve, Epic Games, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library; game artwork belongs to its publishers.
+Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library; game artwork belongs to its publishers.

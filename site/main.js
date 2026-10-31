@@ -19,8 +19,8 @@
     en: 'Nightforge – Your games on your Mac'
   };
   var descriptions = {
-    de: 'Nightforge ist ein kostenloser Spiele-Launcher für Macs mit Apple-Chip: Steam- und Epic-Spiele an einem Ort, Mac-Versionen zuerst, Windows-Spiele scharf und flüssig, ganz von selbst.',
-    en: 'Nightforge is a free game launcher for Apple silicon Macs: Steam and Epic games in one place, Mac versions first, Windows games sharp and smooth by themselves.'
+    de: 'Nightforge ist ein kostenloser Spiele-Launcher für Macs mit Apple-Chip: Spiele von Steam, Epic und GOG an einem Ort, Mac-Versionen zuerst, Windows-Spiele scharf und flüssig, ganz von selbst.',
+    en: 'Nightforge is a free game launcher for Apple silicon Macs: Steam, Epic and GOG games in one place, Mac versions first, Windows games sharp and smooth by themselves.'
   };
 
   function apply(lang) {
