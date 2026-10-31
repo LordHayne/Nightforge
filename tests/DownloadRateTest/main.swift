@@ -55,6 +55,18 @@ struct DownloadRateTest {
         check(DownloadRate.duration(5400) == "1 hr, 30 min", "hours and minutes: \(DownloadRate.duration(5400))")
         check(steady.label(total: 100 * mb) == "12 MB/s", "nothing left to wait for: the speed alone: \(steady.label(total: 100 * mb) ?? "nil")")
 
+        // The panel: how far on one line, how fast and how long still on the next (one line cut the time off).
+        let status = DownloadsPanel.status(fraction: 0.155, total: 4_110_000_000, rate: steady)
+        check(status.progress == "15 % of 4.11 GB" && status.speed?.hasPrefix("12 MB/s · ") == true && status.speed?.hasSuffix(" left") == true,
+              "progress, then speed and time left: \(status)")
+        check(DownloadsPanel.status(fraction: 0.4, total: 0, rate: nil) == ("40 %", nil), "no size, no speed yet")
+
+        // "Last played just now" – also for a date a moment ahead of the clock, not "in 0 seconds".
+        check(Format.relative(start.addingTimeInterval(0.3), now: start) == "just now", "a hair in the future: just now")
+        check(Format.relative(start.addingTimeInterval(-59), now: start) == "just now", "59 s ago: just now")
+        check(Format.relative(start.addingTimeInterval(-120), now: start) == "2 minutes ago",
+              "two minutes ago: \(Format.relative(start.addingTimeInterval(-120), now: start))")
+
         print(failures == 0 ? "✓ DownloadRate" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

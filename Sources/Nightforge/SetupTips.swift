@@ -65,7 +65,7 @@ struct SetupTipCarousel: View {
         let tip = tips[index % tips.count]
         HStack(alignment: .top, spacing: 18) {
             Image(systemName: tip.symbol)
-                .font(.system(size: 24, weight: .semibold))
+                .font(size: 24, weight: .semibold, scales: false)
                 .foregroundStyle(Theme.sodium)
                 .frame(width: 60, height: 60)
                 .background(GlassBackground(glass: .regular, shape: RoundedRectangle(cornerRadius: 19, style: .continuous)))
@@ -74,20 +74,20 @@ struct SetupTipCarousel: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(L10n.t("Good to know").uppercased())
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(size: 11, weight: .semibold)
                         .kerning(1.8)
                     Spacer()
                     Text("\(index % tips.count + 1) / \(tips.count)")
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .font(size: 11, weight: .semibold).monospacedDigit()
                         .opacity(0.7)
                 }
                 .foregroundStyle(Theme.muted)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tip.title)
-                        .font(.system(size: 16.5, weight: .semibold))
+                        .font(size: 16.5, weight: .semibold)
                         .foregroundStyle(Theme.ink)
                     Text(tip.text(playstation))
-                        .font(.system(size: 14))
+                        .font(size: 14)
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(minHeight: 40, alignment: .topLeading)
@@ -154,7 +154,7 @@ struct SetupSidePanel: View {
                 HStack(spacing: 8) {
                     Circle().fill(Theme.sodium).frame(width: 6, height: 6)
                     Text(L10n.t("Paused while Steam waits for you to sign in"))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(size: 13, weight: .medium)
                         .foregroundStyle(Theme.muted)
                 }
                 .offset(y: -30)

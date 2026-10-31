@@ -50,6 +50,13 @@ enum GameLog {
         }
     }
 
+    /// A Windows program crashed: Wine says "wine: Unhandled page fault on …", "wine: Unhandled
+    /// exception …" (and starts its debugger). The log is shared, so it may be another program of
+    /// the session – good enough as one sign among others (LaunchHealth.earlyEnd).
+    static func crashed(in text: String) -> Bool {
+        text.contains("wine: Unhandled ") || text.contains("Unhandled exception:")
+    }
+
     static func illegalInstruction(in text: String) -> Bool {
         text.lowercased().contains("unhandled illegal instruction") || text.contains("EXCEPTION_ILLEGAL_INSTRUCTION")
     }

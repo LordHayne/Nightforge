@@ -106,7 +106,7 @@ private struct ToastView: View {
     private func pill(oneLine: Bool) -> some View {
         HStack(spacing: 12) {
             Text(toast.message)
-                .font(.system(size: 13, weight: .medium))
+                .font(size: 13, weight: .medium)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(oneLine ? 1 : 2)
                 .fixedSize(horizontal: oneLine, vertical: true)
@@ -116,7 +116,7 @@ private struct ToastView: View {
             if let action = toast.action {
                 Button(action: { Toasts.shared.runAction() }) {
                     Text(action.label)
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .font(size: 12.5, weight: .semibold)
                         .foregroundStyle(Theme.night)
                         .padding(.horizontal, 12)
                         .frame(height: 28)

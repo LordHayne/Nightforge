@@ -7,6 +7,34 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Nächster Release (0.3.0)
+
+Der Nutzer, 31.10.: „Wenn wir die großen Brocken abgearbeitet haben, brauchen wir einen Stand für einen Release.“
+Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem lokalen Integrationszweig
+`claude/ux-roadmap-next`, nichts davon gepusht.
+
+- **Vorher fertig (jeweils live getestet, gemergt mit OK des Nutzers):**
+  - 2.5 größere Schrift: erledigt (a55040a).
+  - GOG 7.3: offen ist der Live-Test von Mafia II auf „Automatisch“. Danach mergen, mit 4 Schrift-Konflikten
+    gegen 2.5.
+  - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
+  - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
+  - Reichere Spieldaten, Phase 2, in zwei Teilen.
+  - Testabdeckung (Session test-coverage).
+  - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
+    APEX/PhysX-Profil, Ton unter Wine.
+  - Landingpage und README.
+- **Release-Stand einfrieren:**
+  - Alle Testreihen grün.
+  - Ersteinrichtung mit leerem HOME (`build/fh`, siehe Notizen zum Fresh-Setup-Test).
+  - Kurzer Live-Durchlauf: Windows-Spiel über Steam, Mac-Version, Epic, GOG, TV.
+  - Version 0.2.1-dev → 0.3.0.
+  - Release-Notizen seit v0.2.0 auf Deutsch und Englisch.
+- **Veröffentlichen, nur mit ausdrücklichem OK des Nutzers:**
+  - Integrationszweig pushen und über einen PR nach `main` bringen.
+  - Tag `v0.3.0` löst `release.yml` aus.
+  - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
+
 ## Nach dem Engine-Wechsel neu prüfen
 
 Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR #7 läuft winecx 4.7.3.
@@ -21,6 +49,12 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   „Aus dem Code-Audit“ → Vulkan-Layer). WineD3D bleibt der Weg. Zum Ton:
   In der Cloud-Konfiguration stehen `volume "0.008"` und Quadro-Lautsprecher, also erst im Spiel unter
   Optionen → Audio hochdrehen, bevor man Wine verdächtigt.
+- **DXVK unter winecx gar nicht nutzbar?** Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
+  5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
+  `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
+  (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
+  einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
+  „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
   Noch kein einziges getestet.
 - **Unreal-Spiele allgemein.** Bis 26.10. bekam kein Unreal-Spiel DXMT. Die Einstellungen reichten nur drei
@@ -51,8 +85,22 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Standard-Startoption automatisch zu wählen. Kandidat: `steam://launch/<id>/<Typ>` (Steam kennt die Typnamen
   Default, Option1…). Ein Versuch blieb ohne Wirkung, lief aber, während schon ein Dialog offen war.
   Also ungeklärt.
+- **„Aktualisieren & spielen“ zeigt die ganze Zeit 0 %.** OxyRail am 31.10.: 5,8 GB in 4,5 Minuten, der Knopf
+  stand bis zum Schluss auf „Aktualisiert … 0 %“. Steam schreibt `BytesDownloaded` im appmanifest erst am Ende
+  (während des Updates `StateFlags 1030`, `BytesDownloaded 0`). `LibraryScanner.updateState` liest nur das
+  Manifest. Kandidat: die Größe von `steamapps/downloading/<appid>` gegen `BytesToStage` rechnen, oder den
+  Fortschritt aus `content_log.txt` lesen. Danach ist das Spiel von selbst gestartet. Der Grund, warum das Update
+  am Nachmittag dreimal scheiterte, war ein hängendes Steam (Log stand seit 16:46). Die Erkennung dafür liegt auf
+  dem GOG-Zweig (557c2c2).
 - **Windows-Steam ignoriert manchmal `steam.exe -shutdown`.** Dann hilft nur `wineserver -k`. Läuft Steam gar
   nicht, startet `-shutdown` ein neues Steam. Nightforges eigenes Beenden darauf prüfen.
+- **Angemeldete Steam nimmt keine Befehle mehr an** (31.10., OxyRail, Branch `claude/gog-7-3-e69c3b`): Seit etwa
+  16:46 kam kein `-applaunch` mehr in `console_log` an. Nightforges Client endete trotzdem nach 0,2–0,3 s (macOS-Log,
+  wie bei den funktionierenden Starts), und `configstore_log`/`appinfo_log` liefen weiter. Gebaut (`SteamCommands`):
+  War Steam angemeldet und fertig gestartet und loggt 15 s lang kein `ExecCommandLine` für den Start, folgt „Steam
+  reagiert nicht – wird neu gestartet …“: `wineserver -k` ohne `-shutdown` (nur wenn kein Windows-Spiel läuft;
+  ein Client-Update läuft vorher zu Ende), stiller Neustart, Anmeldung abwarten, Start noch einmal. Live prüfen,
+  sobald Steam wieder so hängt. Ursache des Hängers selbst offen (letzte Zeile: `SlowJSMethodCall Messaging.PostMessage`).
 - **steam-shutdown.sh** hält jeden Prozess unter `\steamapps\common\` für ein Spiel, auch in
   Test-Prefixen, und holt Nightforge dann nach vorne.
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
@@ -107,6 +155,23 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
   - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
   - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
+- **L1/R1 wechseln zwischen Startseite und Bibliothek** (Nutzer, 31.10., beschlossen, baut der Koordinator nach dem
+  2.5-Merge):
+  - L1 führt immer zur Startseite, R1 immer zur Bibliothek. Kein Umschalten, die Richtung steht fest.
+  - Neben dem Schalter „Startseite | Bibliothek“ stehen kleine Chips „L1“/„R1“, bei Xbox-Pads „LB“/„RB“.
+  - Der Sprung um fünf Spiele (`model.move(±5)` in `InputRouter`) fällt weg. L2/R2 bleiben erstes/letztes Spiel, ☰ bleibt
+    zweiter Weg.
+  - Die Beschriftungen im Controller-Test (`PadDrawing`: „Five games back/on“) passen mit an.
+- **Suche mit dem Controller** (Nutzer, 31.10., Idee, noch nicht besprochen): Heute erreicht man die Suche nur mit der
+  Tastatur (⌘F oder /). Möglichkeiten:
+  - Buchstaben-Sprung ohne Tippen: Bei Sortierung „Name“ springt eine Taste plus Stick oder Steuerkreuz von A nach B
+    nach C, eine Buchstabenleiste am Rand zeigt, wo man ist. Klein, wie in Konsolen-Bibliotheken.
+  - Eigene Bildschirmtastatur aus Glas: Eine Taste öffnet die Suche, zum Beispiel ⧉ Create/Ansicht. Eine kompakte
+    ABC-Tastatur, die man mit dem Steuerkreuz bedient. A tippt, B löscht, die Treffer laufen live mit. Weil
+    „rdr2“/„bg3“ schon gehen, reichen meist 2–3 Buchstaben.
+  - Sprachsuche über das Mac-Mikrofon (Taste halten und Spielnamen sagen, `SFSpeechRecognizer`): bequem, braucht aber
+    eine Freigabe von macOS. Eher später.
+  - Empfehlung: Buchstaben-Sprung und Bildschirmtastatur zusammen, Sprache später.
 
 ## Darstellung und Leistung
 
@@ -142,6 +207,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   blockiert, 9 sind reine DX12-Spiele (jetzt Kandidaten für D3DMetal).
 - **Launcher-Spiele** sind ungeprüft: EA app (Sims 4, FC), Rockstar Launcher (GTA V, RDR2),
   Battle.net (Overwatch), REDlauncher (Witcher 3, startet DX12 als Standard).
+  - **Rockstar Games Launcher unbedingt testen** (Nutzer, 31.10., „wenn wir Zeit haben“): Geht ein
+    Rockstar-Spiel über Steam oder Epic nahtlos, also Launcher-Installation, Anmeldung, Start und Rückkehr zu
+    Nightforge, ohne dass der Nutzer den Launcher sieht oder bedienen muss? Bei Epic beachten: Rockstar-Spiele
+    erwarten `EpicGamesLauncher.exe` als Elternprozess (siehe Epic-Abschnitt).
 - **Rocket League:** Die Startoption ohne Anti-Cheat nutzt ein anderes Programm (`RocketLeague.exe`).
   `SteamCatalog.antiCheatOffArguments` übernimmt aber nur Optionen mit demselben Programm. Die Mac-Version ist
   der Stand von 2020 ohne Online-Spiel.
@@ -378,6 +447,63 @@ von „Epic Games“ unten:
   <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ im ersten Start
   (6.1) entfällt nach Entscheidung des Nutzers (29.10.): Epic verbindet man in Settings › Stores.
 
+### GOG (Branch `claude/gog-7-3-e69c3b`, Roadmap 7.3) – offene Tests mit echtem Konto (Stand 31.10.)
+
+Live getestet am 31.10. mit dem echten Konto (0e017bd): Anmeldung, Bibliothek, ein Mac-Download und Spielen klappen. Am
+besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
+
+- [x] **Anmeldung:** GOGs Seite auf Deutsch, Fenster schließt von selbst, `auth.log` „ended with 0 / answer: credentials“,
+      `.runs-packed` angelegt. (Erster Versuch mit a6a2899 scheiterte: gogdl 1.4.0 läuft nicht aus dem entpackten Ordner,
+      Roadmap 7.3.) Offen: Zwei-Faktor, Kontoname als Tooltip. Vor dem nächsten Live-Test `tests/GOGTest/run.sh` – mit
+      installiertem gogdl startet es das echte Programm.
+- [x] **Bibliothek:** 7 Spiele, keine DLCs; Control und The Evil Within 2 mit Epic zu einer Karte zusammengelegt (193 → 198).
+- [x] **Mac-Version laden und spielen:** „A New Beginning: Final Cut“, 3,9 GB in ~3 Min. (~21 MB/s), keine gogdl-Reste;
+      startet als Mac-App (x86_64 unter Rosetta), „Willkommen zurück“ mit GOG-Cloud-Zeile, danach Platz 1 auf der Startseite.
+- [ ] **Nachgebessert, nachprüfen:** „Zuletzt gespielt gerade eben“ statt „in 0 Sekunden“; die Cloud-Zeile in „Willkommen
+      zurück“ bricht um (bis 2 Zeilen); im Download-Panel Fortschritt und Tempo/Restzeit in zwei Zeilen; eine GOG-Größe
+      „Herunterladen“ vor und während des Downloads und im Panel (die Download-Größe, nicht gogdls Installations-Bytes).
+- [x] **Weiterladen** nach Beenden und Neustart von Nightforge (Mafia II, 8,4 GB, deutsch).
+- [x] **Doppelt:** Control und The Evil Within 2 als eine Karte EPIC + GOG.
+- [ ] **Ein Windows-Spiel – Mafia II (Classic), 1816059595:** Der erste Start (0e017bd) scheiterte an „PhysX SDK not
+      initialized“ – Galaxys Abhängigkeiten fehlten. Seit dem Fix (Roadmap 7.3, `GOGRedist`) prüfen: vor dem ersten Start
+      „Windows-Bausteine für Mafia II werden eingerichtet …“ mit „Visual C++ Redist 2017“, „NVIDIA PhysX Legacy“,
+      „NVIDIA PhysX“ darunter, **kein** Installer-Fenster; `GOG/Redist/__redist/` mit MSVC2017, PHYSXLEGACY, PHYSX, ISI
+      (kein DirectX); `Prefix/gog-redist.json` mit den drei und `products` 1816059595; `GOG/Logs/redist.log` mit Exit 0
+      je Installer und dem Installationsskript. Dann startet das Spiel ohne PhysX-Fenster (Grafik-Leiter,
+      Erstsekunden-Prüfung, Prozess über `\GOG Games\`). Ein zweiter Start richtet nichts mehr ein.
+      Live 31.10. (557c2c2): Redists liefen alle (VC_redist 2017 endet mit 102 = 1638 „neuere Version da“, v14 14.51 ist im
+      Prefix – zählt richtig als installiert). Mafia II endet dann aber nach 6 s: DXVK-d3d9 bekommt unter winecx kein Gerät
+      („DxvkAdapter: Failed to create device“, MoltenVK ohne `geometryShader`/`shaderCullDistance`, siehe oben bei L4D2).
+      Seit dem Fix danach: Die alte Bestätigung (ohne Bild-Nachweis) gilt nicht mehr, der Start wird beobachtet und geht nach
+      dem Grafikfehler von selbst auf WineD3D – und seit danach beginnt die D3D9-Leiter unter winecx ohnehin mit WineD3D.
+      Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
+      bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
+      (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
+- [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
+- [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
+      übrig: `pgrep -fl gogdl`).
+- [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC; danach läuft das Installationsskript neu),
+      **Cloud-Spielstände** (vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
+- [ ] **Laufwerk:** ein GOG-Spiel „Auf <Laufwerk> installieren“ (landet in `Nightforge Games/GOG Games/`), von dort
+      spielen (Windows- und Mac-Version), „Verschieben nach …“ zurück auf den Mac und wieder hin, Laufwerk abziehen
+      („Schließe … an“, bleibt unter „Installiert“), Deinstallieren-Frage nennt Laufwerk und GOG.
+- [ ] **Abgemeldet:** `GOG/gogdl/auth.json` löschen bzw. Token ungültig – Banner „GOG hat dich abgemeldet“, „Erneut anmelden“.
+- [ ] **Steam-Wechsel:** nach einem Steam-Mac-Spiel ein GOG-Spiel (Mac und Windows) starten – kein Steam wird beendet oder
+      gestartet, kein „Spielstand geht in die Steam Cloud …“; ein GOG-Mac-Download hält Steam für Mac nicht wach.
+
+Bekannte Lücken (bewusst, siehe Roadmap 7.3):
+- Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
+  64-Bit, läuft aber schlecht, gibt es noch keinen Weg zur Windows-Version außer Deinstallieren + Datei `GOG/mac-unfit.json`.
+- Galaxys Abhängigkeiten: DirectX (June 2010) und .NET Framework 3.5–4.7.2 laufen bewusst nicht (winecx hat DirectX
+  eingebaut; für .NET Framework kommt Wine Mono). Alte v1-Builds: ihre `support_commands` laufen nicht, nur ihre Redists.
+- Controller-Unterstützung kennt nur Steam: Ein Spiel nur von GOG (oder Epic) hat keine Angabe – auf der Bühne sagt
+  „Für den Anfang“ dann nichts über den Controller (statt „Gespielt wird mit Maus und Tastatur“), und der Controller-Filter
+  findet es nicht. GOGs `api.gog.com/v2/games/<id>` nennt `controller_support` unter den Features – ein Abruf pro Spiel.
+- Läuft ein Windows-Spiel von GOG (oder Epic), lehnt Nightforge den Start einer Steam-Mac-Version ab („… braucht Steam“).
+  Das GOG-Spiel braucht Steam nicht, aber das Stoppen der Windows-Steam kann die Wine-Sitzung beenden, in der es läuft
+  (`Engine.stopSteam` → `stopAll`). Zulassen hieße: Steam für Mac meldet die Windows-Steam ab, ohne sie zu stoppen – und
+  ein späterer Neustart der Windows-Steam (`restartStuckSteam`) darf dann das laufende Spiel nicht treffen. Text stimmt nicht.
+
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 
 Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
@@ -392,12 +518,38 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 - **Zurück zur Startseite:** Beim Mitgleiten scheint nur die Bibliothek durch (sie liegt schon hinter einer Spielseite).
   Die Startseite erscheint erst am Ende mit dem Überblenden. Sie dahinter vorzurendern wäre schöner.
 
+### Größere Schrift (Branch `claude/larger-text-2-5-2d1360`, Roadmap 2.5)
+
+Nur offscreen gerendert (echte Views, Deutsch und Englisch, aus und an, 1512 × 900 und 980 × 640). Ausgeschaltet
+pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
+
+- **Umschalten im laufenden Betrieb:** Werden in Einstellungen › Allgemein sofort alle Texte größer, auch im offenen
+  Sheet und hinter ihm, ohne dass das Sheet zugeht?
+- **Kleines Fenster (980 × 640), Schalter an:** Startseite (runde Knöpfe unter „Spielen“), Spielseite (Logo wird
+  kleiner, Knöpfe in zwei Zeilen), Bibliothek (Suchfeld-Hinweis ganz lesbar), Download-Panel, Hinweisleiste mit
+  verbundenem Controller (Akku-Pille links) – nicht gerendert.
+- **Erster Start unter ~680 pt Fensterhöhe:** Anmeldung (mit QR-Hinweis) und Ergebnis scrollen jetzt, statt die obere
+  Leiste hinauszuschieben (die Anmeldung tat das bei 640 pt schon ohne größere Schrift). Holt der Pad-Fokus den Knopf
+  am Ende ins Bild? Stört der Scrollbereich das Wischen mit zwei Fingern nicht?
+- **Einstellungen und Dialoge im kleinen Fenster** (Nachbesserung nach dem Live-Test, beide Schriftgrößen): Das Sheet
+  ist höchstens Fensterhöhe − 40 pt hoch (bei 980 × 640: 568 statt 727/771), Kopf und Tabs stehen, das Formular scrollt.
+  Scrollt das Trackpad im Sheet das Sheet und nicht die Bibliothek dahinter? Holt der Pad-Fokus in Allgemein „Größere
+  Schrift“ und „Bewegung reduzieren“ ins Bild? Dasselbe im Platz-Dialog (viele Spiele) und in „… ist nicht gestartet“.
+  Bei 1512 × 853 bleibt alles wie vorher (771 < 781). Die Werte der System-Popups (Sprache, Nach dem Start) bleiben
+  13 pt – wirkt das störend?
+- **Bibliothek bei 980 × 640:** Steht das gewählte Spiel in der ersten Reihe, bleibt „Installiert“ mit vollem Abstand
+  unter den Filtern, auch nach Spielseite → Esc und nach Pinch auf eine andere Cover-Größe.
+- **Spielseite mit vielen Hinweisen** (Kompatibilität, Akku, Low Power Mode, Versionen) bei 640 pt Höhe war schon vorher
+  zu hoch und wird mit größerer Schrift höher. Nächster Schritt wäre, dass sie scrollt wie der erste Start.
+- **Nicht gerendert:** Controller-Test mit echtem Pad, Epic-Anmeldehinweis und Sync-Banner, leere Bibliothek,
+  Store-Wahl (7.4), Hinweise aus der Spielanalyse, Steam-für-Mac-Fortschritt, „Willkommen zurück“ mit Cloud-Zuständen.
+
 ## Ideen für später
 
 - **Mehr Infos pro Spiel („Über das Spiel“)** (Wunsch des Nutzers, 31.10.: „kurze Spielbeschreibung usw.“).
   Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
-  Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). Es fehlen nur noch die Merges von 2.5 und GOG, dann
-  wird in zwei Abschnitten gebaut (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
+  Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). In Arbeit seit 31.10. (für 0.3.0) in zwei Abschnitten
+  (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
   - Zusatzauftrag (31.10.): Store-Filter „Alle Stores ▾“ und eine einfachere Filterzeile (Sortier-Chip, „Filter ▾“-
     Panel, aktive Filter als Chips, die Suche lässt die Filter ruhen). Entwurf und Bilder 8–13 im selben Dokument.
   - Store-Treffer der Suche: Sie zeigen auch Spiele, die man schon bei Epic oder GOG hat. Neue Steam-Apps zeigen nur
@@ -407,6 +559,45 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
     GOG-Spiele sind immer „keine Controller“ (Overcooked! 2 von Epic zeigt „Maus & Tastatur“), und
     `compatibility(of:)` sucht Profile nur per Steam-App-ID. Die Lösung ist dasselbe Spiel auf Steam: Epic-AppName
     oder GOG-ID → GamesDB → Steam-App-ID, sonst ein genau gleicher Name.
+
+- **Von steamac lernen** (github.com/fxgl/steamac, Apache-2.0, angeschaut am 31.10.; noch nicht anfangen):
+  - steamac lässt Valves ARM64-SteamOS in einer VM laufen. Spiele laufen dort über Proton und FEX, die Grafik geht den
+    Weg Vulkan → Venus → virglrenderer → MoltenVK/KosmicKrisp → Metal. Den Weg übernehmen wir nicht: Er bringt zwei
+    Übersetzungsschichten mehr und einen festen RAM-Anteil für die VM. Außerdem braucht er ein Disk-Image von bis zu
+    150 GB und eine zweite Steam-Anmeldung. Mac-Versionen, Epic und GOG gibt es dort nicht, und Anti-Cheat sperrt VMs.
+    Ihre eigenen Zahlen belegen den Aufwand: Death's Door läuft mit 41 FPS über den Vulkan-Weg und mit 117 FPS über
+    DXMT direkt auf Metal (M1 Max).
+  - Einzelne Ideen, die sich lohnen könnten:
+    - Neue Standard-Tonausgabe sofort übernehmen (steamac 1.9). Passt zum HDMI-Ton im TV-Modus.
+    - Eine ruhige Karte „Wird vorbereitet …“, wenn ein Spiel beim ersten Start Shader baut und das Bild steht
+      (steamac zeigt „Still working…“, wenn die GPU 2 s lang nichts tut).
+    - Das Limit für offene Dateien beim Start anheben. Bei steamac verloren Spiele sonst nach einer Weile die GPU
+      (1.7.6). Prüfen, ob Wine und MoltenVK bei uns dasselbe trifft.
+    - Steam-Anmeldung per QR-Code mit der Steam-App auf dem Handy, für das Sofa ohne Tastatur. Prüfen, ob Steams
+      Anmeldefenster den Code bei uns zeigt, und in der Einrichtung darauf hinweisen.
+    - KosmicKrisp ist dort auf macOS 26+ der Standard. Unsere früheren Ergebnisse (Caretaker-Demo) mit neuen
+      Versionen nachprüfen.
+
+- **Spiele automatisch aktuell halten** (Nutzer, 31.10., nach den laufenden Merges angehen, vorher recherchieren):
+  - Heute:
+    - **Steam (Windows):** Nightforge setzt `AutoUpdateBehavior 0` (immer aktuell). Steam lädt Updates aber nur, solange es
+      läuft, also solange Nightforge offen ist (`scheduleSteamShutdown`), und verschiebt sie nach eigenem Plan.
+      OxyRail hatte am 31.10. „Update delayed for 12165 secs“.
+    - **Epic und GOG:** Updates nur über „Aktualisieren & spielen“ (`updateEpic`, `beforeGOGStart`).
+    - **Steam für Mac:** läuft nur während eines Mac-Spiels.
+  - Folge: Nach ein paar Tagen Pause wartet man auf dem Sofa erst auf ein Update.
+  - Ziel wie bei einer Konsole:
+    - Solange Nightforge offen ist, Updates im Hintergrund holen, eins nach dem anderen. Steam sofort statt
+      verzögert; Epic und GOG über legendary bzw. gogdl selbst.
+    - Pause, solange ein Spiel läuft. Nur am Netzteil (`ChargerCheck`). Der Mac bleibt wach wie bei Downloads.
+    - Auf der Startseite ruhig sichtbar machen („3 Spiele wurden aktualisiert“). „Aktualisieren & spielen“ bleibt als
+      Rückfall.
+    - Standardmäßig an, höchstens ein Schalter in den Einstellungen.
+  - Erst klären: Wie bringt man Steam zuverlässig zu einem sofortigen Update, ohne das Spiel zu starten?
+    Kandidaten: Steams Update-Fenster in `config.vdf`, `ScheduledAutoUpdate`, Konsolenbefehl `app_update`.
+    Mit Belegen, keine Experimente am echten Konto des Nutzers ohne Absprache.
+  - Später vielleicht Updates über Nacht bei geschlossenem Nightforge. Das braucht einen Hintergrunddienst; siehe auch
+    Roadmap 4.4 (Reihenfolge, Pause, über Nacht).
 
 - **Lizenzen in „Über“ zum Aufklappen** (Idee des Nutzers, 28.10.; noch nicht anfangen):
   - Ein Klick oder A auf eine Komponente (Wine, DXMT …) wechselt im selben Glas-Sheet in eine Detailansicht, kein

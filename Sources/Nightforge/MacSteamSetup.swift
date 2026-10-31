@@ -92,7 +92,7 @@ struct MacSteamSetupView: View {
         // × and Esc stop the setup, like Cancel.
         GlassDialog(L10n.t("Steam for Mac"), id: "macSetup", width: 560, spacing: 22, close: close) {
             Text(L10n.t("%@ has a Mac version. It runs without any Windows translation, so it usually looks and runs better. To get it, Nightforge sets up Valve's Steam for Mac – once, in a few minutes.", setup.game.name))
-                .font(.system(size: 14))
+                .font(size: 14)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
 

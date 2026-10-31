@@ -96,6 +96,14 @@ struct CompleteRemovalTest {
         empty.support = root.appendingPathComponent("nothing", isDirectory: true)
         check((try? CompleteRemoval.copySaves(empty)) == .some(nil), "no saves, no folder")
 
+        // What the question says about the games: where they stay, in every store they come from.
+        let one = CompleteRemoval.gamesNote(count: 1, size: 2_000_000_000, stores: [.gog])
+        check(one?.contains("GOG") == true && one?.contains("Steam") == false, "a GOG game stays in the library on GOG: \(one ?? "–")")
+        let three = CompleteRemoval.gamesNote(count: 3, size: 1, stores: [.gog, .steam, .epic])
+        check(three?.contains("Steam, Epic Games") == true && three.map { $0.range(of: "Epic")!.lowerBound < $0.range(of: "GOG")!.lowerBound } == true,
+              "every store, in the stores' order: \(three ?? "–")")
+        check(CompleteRemoval.gamesNote(count: 0, size: 0, stores: []) == nil, "no games, no line about them")
+
         print(failures == 0 ? "✓ CompleteRemoval" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

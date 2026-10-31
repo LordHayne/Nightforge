@@ -103,22 +103,28 @@ enum FramePacing {
         return limits.sorted(by: >)
     }
 
-    /// Frame rates of full-minute periods from the given programs' lines:
-    /// "[nightforge-dxmt] Game: 58.2 FPS over 60 s, …" (DXMT names the program without ".exe").
+    /// Frame rates of full-minute periods from the given programs' lines.
     static func rates(in text: String, programs: Set<String>) -> [Double] {
+        periods(in: text, programs: programs).filter { $0.seconds >= 50 }.map(\.fps)
+    }
+
+    /// Every period the given programs logged: "[nightforge-dxmt] Game: 58.2 FPS over 60 s, …"
+    /// (DXMT names the program without ".exe"); every 10 s from the first frame for two minutes,
+    /// then every minute.
+    static func periods(in text: String, programs: Set<String>) -> [(fps: Double, seconds: Double)] {
         let names = Set(programs.map(baseName))
-        var rates: [Double] = []
+        var periods: [(fps: Double, seconds: Double)] = []
         for line in text.split(whereSeparator: \.isNewline) where line.contains("[nightforge-") {
             guard let tag = line.range(of: "] "), let colon = line.range(of: ": ", range: tag.upperBound..<line.endIndex),
                   names.contains(baseName(String(line[tag.upperBound..<colon.lowerBound])))
             else { continue }
             let fields = line[colon.upperBound...].split(separator: " ")
             guard fields.count >= 5, fields[1] == "FPS", fields[2] == "over",
-                  let fps = Double(fields[0]), let seconds = Double(fields[3]), seconds >= 50
+                  let fps = Double(fields[0]), let seconds = Double(fields[3])
             else { continue }
-            rates.append(fps)
+            periods.append((fps, seconds))
         }
-        return rates
+        return periods
     }
 
     private static func baseName(_ program: String) -> String {

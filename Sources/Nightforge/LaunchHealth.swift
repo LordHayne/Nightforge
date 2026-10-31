@@ -20,10 +20,67 @@ enum LaunchHealth {
     /// A session this short counts as "didn't start" (crash, black window closed by the game).
     static let failureWindow: TimeInterval = 30
 
+    /// Running past its first seconds isn't working yet: an error box keeps a game running too
+    /// (Mafia II's "PhysX SDK not initialized" for a minute, 31.10.2026 – confirmed, and the game
+    /// page said "Runs great"). A way is confirmed once the game has drawn frames: DXMT and
+    /// Nightforge's Vulkan layer (DXVK and Vulkan games) log the frame rate 10 s after the first
+    /// one – the layer only where the engine has a Vulkan loader, not under winecx. Where nothing
+    /// logs frames (Wine's own Direct3D, D3DMetal, DXVK on winecx), a game still running after
+    /// this long counts. One that ends before, without a frame, stays unconfirmed – on the same
+    /// way: what stopped it needn't be the graphics.
+    static let drawingWindow: TimeInterval = 180
+
+    enum Verdict: Equatable {
+        case working, ended, watching
+    }
+
+    static func verdict(drewFrames: Bool, running: Bool, ranFor: TimeInterval) -> Verdict {
+        if drewFrames { return .working }
+        if !running { return .ended }
+        return ranFor >= drawingWindow ? .working : .watching
+    }
+
+    /// What a watched start does to its way.
+    enum Outcome: Equatable {
+        case confirm
+        /// Nothing against the way (yet).
+        case keep
+        /// It stopped working: watched again next time, on the same way.
+        case unconfirm
+        /// The graphics layer failed – or the way wasn't confirmed: on to the next one, as before.
+        case nextWay
+    }
+
+    /// A start that ended within its first seconds. A way not confirmed yet moves on. A confirmed
+    /// one only on evidence: a graphics error moves on, a crash in the log or the second such short
+    /// start in a row unconfirms it. One short start alone isn't evidence – Wine's own Direct3D,
+    /// D3DMetal and DXVK on winecx log no frames, and players start a game just to look (OxyRail,
+    /// 22 s, 31.10.2026).
+    static func earlyEnd(trusted: Bool, graphicsFailed: Bool, crashed: Bool, drew: Bool, shortEndsBefore: Int) -> Outcome {
+        if graphicsFailed || !trusted { return .nextWay }
+        if drew { return .keep }
+        return crashed || shortEndsBefore + 1 >= 2 ? .unconfirm : .keep
+    }
+
+    /// A start that ran past its first seconds, once its verdict is in: confirmed when it drew (or
+    /// ran `drawingWindow`). Ending earlier without a picture changes nothing – no frames in the
+    /// log says nothing on most layers; it isn't a short start either.
+    static func afterFirstSeconds(_ verdict: Verdict) -> Outcome {
+        switch verdict {
+        case .working: return .confirm
+        case .ended, .watching: return .keep
+        }
+    }
+
+    /// A frame-rate line from one of the game's programs: it has drawn.
+    static func drewFrames(in log: String, programs: Set<String>) -> Bool {
+        FramePacing.periods(in: log, programs: programs).contains { $0.fps > 0 }
+    }
+
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
     /// Direct3D 12 runs on a Mac (DirectX 11 stays with DXMT and DXVK, which run it better).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
-                         d3dMetal: Bool = Engine.d3dMetalReady) -> [LaunchAttempt] {
+                         d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, profile?.graphics == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
             let arguments = analysis.preferD3D11Arguments
@@ -44,7 +101,9 @@ enum LaunchHealth {
             return list
         }
         if analysis.usesD3D9 {
-            return [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
+            // Without Nightforge's Vulkan layer (winecx) DXVK gets no device: Wine's own Direct3D first.
+            return vulkanLayer ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
+                : [LaunchAttempt(graphics: .wined3d), LaunchAttempt(graphics: .dxvk)]
         }
         if analysis.onlyD3D12, d3dMetal {
             return [LaunchAttempt(graphics: .d3dmetal)]
@@ -70,11 +129,23 @@ enum LaunchHealth {
         /// The attempts' ids when this was saved; a different list starts over.
         var ladder: [String]
         var index = 0
-        /// The current way has run past its first seconds once.
+        /// The current way has worked once.
         var confirmed = false
+        /// How: `proof` – it drew, or ran `drawingWindow`. nil: confirmed before that counted (it
+        /// ran 30 s, which an error box does too) – checked again at its next start, and no
+        /// "Runs great" until then.
+        var proof: Int?
+        /// Starts of the confirmed way in a row that ended within their first seconds without a
+        /// picture and without an error (earlyEnd).
+        var shortEnds: Int?
         /// When the current, unconfirmed way was last started.
         var startedAt: Date?
+
+        var trusted: Bool { confirmed && proof == LaunchHealth.proof }
     }
+
+    /// The kind of confirmation that counts (since 31.10.2026).
+    static let proof = 2
 
     private static func key(_ game: GameID) -> String { "launchHealth.\(game.key)" }
 
@@ -102,7 +173,7 @@ enum LaunchHealth {
     /// The way to start the game now.
     static func current(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool) {
         let state = load(game, attempts)
-        return (min(state.index, max(attempts.count - 1, 0)), state.confirmed)
+        return (min(state.index, max(attempts.count - 1, 0)), state.trusted)
     }
 
     /// How it stands without touching what's saved: nil when the game hasn't been started this way yet.
@@ -110,7 +181,7 @@ enum LaunchHealth {
         guard let data = UserDefaults.standard.data(forKey: key(game)),
               let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == attempts.map(\.id)
         else { return nil }
-        return (min(state.index, max(attempts.count - 1, 0)), state.confirmed)
+        return (min(state.index, max(attempts.count - 1, 0)), state.trusted)
     }
 
     static func recordStart(_ game: GameID, _ attempts: [LaunchAttempt], at date: Date = Date()) {
@@ -122,7 +193,29 @@ enum LaunchHealth {
     static func confirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
         var state = load(game, attempts)
         state.confirmed = true
+        state.proof = proof
+        state.shortEnds = nil
         state.startedAt = nil
+        save(game, state)
+    }
+
+    /// How many starts of the confirmed way in a row ended early without a picture or an error.
+    static func shortEnds(_ game: GameID, _ attempts: [LaunchAttempt]) -> Int { load(game, attempts).shortEnds ?? 0 }
+
+    /// Counts such a start – or starts over after one that drew, or ran past its first seconds.
+    static func noteStart(_ game: GameID, _ attempts: [LaunchAttempt], short: Bool) {
+        var state = load(game, attempts)
+        state.shortEnds = short ? (state.shortEnds ?? 0) + 1 : nil
+        save(game, state)
+    }
+
+    /// A confirmed way that stopped working (`earlyEnd`): it keeps its place and is watched again
+    /// at the next start.
+    static func unconfirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
+        var state = load(game, attempts)
+        state.confirmed = false
+        state.proof = nil
+        state.shortEnds = nil
         save(game, state)
     }
 
@@ -131,6 +224,7 @@ enum LaunchHealth {
         var state = load(game, attempts)
         state.startedAt = nil
         state.confirmed = false
+        state.proof = nil
         let next = state.index + 1 < attempts.count
         state.index = next ? state.index + 1 : 0
         save(game, state)
@@ -145,7 +239,7 @@ enum LaunchHealth {
             let stored = String(key.dropFirst("launchHealth.".count))
             // Only store keys ("steam.570"): the bare app IDs GameIDMigration left behind are older copies.
             guard Int(stored) == nil, let game = GameID(key: stored), let data = value as? Data,
-                  let state = try? JSONDecoder().decode(State.self, from: data), state.confirmed,
+                  let state = try? JSONDecoder().decode(State.self, from: data), state.trusted,
                   state.ladder.indices.contains(state.index)
             else { continue }
             ways[game] = state.ladder[state.index]
@@ -162,12 +256,13 @@ enum LaunchHealth {
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
     static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
         let state = load(game, attempts)
-        guard !state.confirmed, let started = state.startedAt,
+        guard !state.trusted, let started = state.startedAt,
               let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
         if span < failureWindow {
             _ = advance(game, attempts)
-        } else {
+        } else if span >= drawingWindow {
+            // Without Nightforge watching, Steam's log only says how long it ran (`drawingWindow`).
             confirm(game, attempts)
         }
     }

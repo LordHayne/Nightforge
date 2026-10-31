@@ -1,8 +1,9 @@
 import AppKit
 
-/// "Remove Nightforge completely": the engine, the Windows environment with its games, the caches
-/// and the settings go; saves that live only on this Mac are copied to Documents first. Steam for
-/// Mac with its Mac games, CrossOver or Whisky bottles and the Steam Cloud stay untouched.
+/// "Remove Nightforge completely": the engine, the Windows environment with its games (Steam's,
+/// Epic's, GOG's) and GOG's Mac versions, the caches and the settings go; saves that live only on
+/// this Mac are copied to Documents first. Steam for Mac with its Mac games, CrossOver or Whisky
+/// bottles and the stores' clouds stay untouched.
 enum CompleteRemoval {
     /// Where Nightforge keeps things, so a test can point it at a folder of its own.
     struct Places {
@@ -90,6 +91,18 @@ enum CompleteRemoval {
             try fm.copyItem(at: source, to: destination)
         }
         return target
+    }
+
+    // MARK: - What the question says
+
+    /// The games that go with Nightforge's folder and where they stay: "2 games (30 GB) are
+    /// deleted – they stay in your library on Steam and GOG …". nil when there are none.
+    static func gamesNote(count: Int, size: Int64, stores: Set<Provider>) -> String? {
+        guard count > 0 else { return nil }
+        let names = Provider.names(Provider.allCases.filter(stores.contains))
+        return count == 1
+            ? L10n.t("1 game (%@) is deleted – it stays in your library on %@ and can be downloaded again.", Format.bytes(size), names)
+            : L10n.t("%ld games (%@) are deleted – they stay in your library on %@ and can be downloaded again.", count, Format.bytes(size), names)
     }
 
     // MARK: - Removing

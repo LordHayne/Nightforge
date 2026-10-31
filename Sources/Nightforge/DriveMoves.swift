@@ -47,14 +47,15 @@ extension LibraryModel {
         allGames.contains { running[$0.id] != nil && $0.platform == platform }
     }
 
-    /// "Move to …" can take the game now: installed through Nightforge's Steam, Steam for Mac or
-    /// Epic, its files where they should be, and nothing running that its stopped Steam would end.
+    /// "Move to …" can take the game now: installed through Nightforge's Steam, Steam for Mac, Epic
+    /// or GOG, its files where they should be, and nothing running that its stopped Steam would end.
     func canMove(_ game: Game) -> Bool {
         guard move == nil, uninstallingID == nil, launchingID == nil, game.isInstalled, !isRunning(game),
               FileManager.default.fileExists(atPath: game.installDir.path)
         else { return false }
         switch (game.provider, game.platform) {
         case (.epic, _): return !epic.isBusy
+        case (.gog, _): return !gog.isBusy  // no Steam to stop; gogdl mustn't be writing meanwhile
         case (_, .mac): return !gameRunning(.mac)
         default: return game.bottle.isBuiltIn && !gameRunning(.windows)
         }
@@ -77,6 +78,7 @@ extension LibraryModel {
     private func macLibrary(for game: Game) -> URL {
         switch (game.provider, game.platform) {
         case (.epic, _): return Legendary.gamesDir
+        case (.gog, _): return GOGDL.gamesDir(for: game.platform)
         case (_, .mac): return MacSteam.steamapps
         default: return Engine.steamRoot.appendingPathComponent("steamapps", isDirectory: true)
         }
@@ -194,6 +196,14 @@ extension LibraryModel {
                     throw EpicError.failed(result.error ?? L10n.t("legendary stopped (code %d)", result.status))
                 }
             }
+        case (.gog, _):
+            // gogdl keeps no list of where games are: Nightforge's own record learns the new place.
+            let base = drive.map(DriveLibrary.gog(on:)) ?? GOGDL.gamesDir(for: game.platform)
+            let to = base.appendingPathComponent(game.installDir.lastPathComponent, isDirectory: true)
+            move?.phase = .copying
+            return try await GameMover.move([GameMover.Part(from: game.installDir, to: to)], progress: progress) {
+                gog.recordMove(game, to: to)
+            }
         case (_, .mac):
             let wasRunning = MacSteam.isRunning, ours = MacSteam.startedByNightforge
             if wasRunning { await MacSteam.quit() }
@@ -250,9 +260,9 @@ extension LibraryModel {
     // MARK: - Downloads onto a drive
 
     /// Drives a download can go to instead of the Mac – for games of Nightforge's Steam, Steam for
-    /// Mac and Epic (a CrossOver bottle's Steam keeps its own libraries).
+    /// Mac, Epic and GOG (a CrossOver bottle's Steam keeps its own libraries).
     func driveChoices(for game: Game, needed: Int64) -> [DriveChoice] {
-        guard game.provider == .epic || game.platform == .mac || game.bottle.isBuiltIn else { return [] }
+        guard game.provider != .steam || game.platform == .mac || game.bottle.isBuiltIn else { return [] }
         return DriveChoice.options(ExternalDrive.connected(), size: needed)
     }
 
