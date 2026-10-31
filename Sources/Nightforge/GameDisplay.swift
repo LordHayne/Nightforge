@@ -276,6 +276,87 @@ enum GameDisplay {
         return Array(displays.prefix(Int(count)))
     }
 
+    // MARK: - Wine's view of the screens
+
+    /// A screen as Wine takes it when its session starts: the displays that mirror nothing (a
+    /// mirror set is one), which is main, their size in points and pixels. Wine keeps that for the
+    /// session – on 31.10. a session begun before the TV was mirrored still had the MacBook as a
+    /// primary screen of its own (two sources, both flagged primary), so Overcooked 2 opened at
+    /// 1512×982 with Retina scale in the corner of the 1920×1080 TV.
+    struct WineScreen: Equatable {
+        var id: CGDirectDisplayID
+        var main: Bool
+        var points: CGSize
+        var pixels: CGSize
+    }
+
+    nonisolated static func wineSignature(_ screens: [WineScreen]) -> String {
+        screens.sorted { $0.id < $1.id }.map { screen in
+            "\(screen.id)\(screen.main ? "*" : ""):\(Int(screen.points.width))x\(Int(screen.points.height))"
+                + "@\(Int(screen.pixels.width))x\(Int(screen.pixels.height))"
+        }.joined(separator: ",")
+    }
+
+    /// The screens a Wine session (its wineserver) began with.
+    struct WineSession: Codable, Equatable {
+        var server: Int32
+        var screens: String
+    }
+
+    /// Whether the session `server` saw other screens than `now`. A session seen for the first
+    /// time is taken to have begun with what's there now – it's looked at every few seconds
+    /// (`observeWineSession`), so before the screens change.
+    nonisolated static func wineSessionCheck(stored: WineSession?, server: pid_t?, now: String) -> (stale: Bool, store: WineSession?) {
+        guard let server else { return (false, nil) }  // no session: the next one starts fresh
+        guard let stored, stored.server == server else { return (false, WineSession(server: server, screens: now)) }
+        return (stored.screens != now, stored)
+    }
+
+    private nonisolated static let wineSessionKey = "wineSessionScreens"
+
+    /// With the running-games check (LibraryModel), so a session is known before the screens change.
+    nonisolated static func observeWineSession() { _ = wineSessionStale() }
+
+    /// True when the running Wine session began with other screens: a fresh one opens games right.
+    nonisolated static func wineSessionStale() -> Bool {
+        let defaults = UserDefaults.standard
+        let stored = defaults.data(forKey: wineSessionKey).flatMap { try? JSONDecoder().decode(WineSession.self, from: $0) }
+        let (stale, store) = wineSessionCheck(stored: stored, server: wineserver(), now: wineSignature(currentWineScreens()))
+        if store != stored {
+            if let store, let data = try? JSONEncoder().encode(store) { defaults.set(data, forKey: wineSessionKey) }
+            else { defaults.removeObject(forKey: wineSessionKey) }
+        }
+        return stale
+    }
+
+    private nonisolated static func currentWineScreens() -> [WineScreen] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).filter { CGDisplayMirrorsDisplay($0) == kCGNullDirectDisplay }.compactMap { display in
+            guard let mode = CGDisplayCopyDisplayMode(display) else { return nil }
+            return WineScreen(id: display, main: CGDisplayIsMain(display) != 0,
+                              points: CGSize(width: mode.width, height: mode.height),
+                              pixels: CGSize(width: mode.pixelWidth, height: mode.pixelHeight))
+        }
+    }
+
+    /// The wineserver of Nightforge's engine, found without running ps.
+    private nonisolated static func wineserver() -> pid_t? {
+        let root = Engine.supportDir.resolvingSymlinksInPath().path + "/"
+        var pids = [pid_t](repeating: 0, count: 4096)
+        let bytes = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        guard bytes > 0 else { return nil }
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        for pid in pids.prefix(Int(bytes)) where pid > 0 {
+            guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { continue }
+            let executable = String(cString: path)
+            if executable.hasSuffix("/bin/wineserver"), executable.hasPrefix(root) { return pid }
+        }
+        return nil
+    }
+
     // MARK: - Sound
 
     /// The TV that shows Nightforge, for its sound (GameAudio): the window's screen when it's a TV,

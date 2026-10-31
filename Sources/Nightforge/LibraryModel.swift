@@ -485,6 +485,7 @@ final class LibraryModel: ObservableObject {
                 let found = await Task.detached(priority: .utility) { Self.runningGames(folders) }.value
                 if found != running { running = found }
                 if loaded { runningScanned = true }  // only a look with the games known counts
+                await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
                 if found.isEmpty, launchingID == nil, playing.isEmpty { idleLooks += 1 } else { idleLooks = 0 }
                 if idleLooks == 20 {  // a start that never got going (~1 min)
@@ -2233,6 +2234,21 @@ final class LibraryModel: ObservableObject {
                    await Engine.offMain({ DockHider.runningSteamState() }) == .missing {
                     launchPhase = .startingSteam
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: true)
+                    launchPhase = nil
+                }
+                // The screens changed since Wine's session began (a TV plugged in, mirroring on): Wine
+                // keeps the ones it saw then, and the game would open in their size. A fresh session.
+                if game.bottle.isBuiltIn, !anyRunning(.windows), let runner,
+                   await Engine.offMain({ GameDisplay.wineSessionStale() }) {
+                    launchPhase = .startingSteam
+                    let wine = URL(fileURLWithPath: runner)
+                    if viaSteam {
+                        _ = await restartStuckSteam(wine, freshSession: true)
+                    } else {
+                        // A store's game starts its own session; Steam comes back when it's needed.
+                        try? await Engine.stopSteam(wine)
+                        await Engine.offMain { Engine.stopAll(wine) }
+                    }
                     launchPhase = nil
                 }
                 // Settings a game only takes from the environment come with the Steam that starts it.

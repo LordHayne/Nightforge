@@ -76,6 +76,32 @@ struct GameDisplayTest {
         check(!GameDisplay.leavesFullScreen(madeFullScreen: false, fullScreen: true, windowOn: macBook), "the player's own full screen stays")
         check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: false, windowOn: macBook), "not full screen: nothing")
 
+        // Wine keeps the screens its session began with: a fresh session when they changed since.
+        typealias W = GameDisplay.WineScreen
+        let alone = GameDisplay.wineSignature([W(id: 1, main: true, points: CGSize(width: 1512, height: 982),
+                                                 pixels: CGSize(width: 3024, height: 1964))])
+        let mirrorSet = GameDisplay.wineSignature([W(id: 4, main: true, points: CGSize(width: 1920, height: 1080),
+                                                    pixels: CGSize(width: 1920, height: 1080))])
+        let extended = GameDisplay.wineSignature([W(id: 4, main: false, points: CGSize(width: 1920, height: 1080), pixels: CGSize(width: 1920, height: 1080)),
+                                                  W(id: 1, main: true, points: CGSize(width: 1512, height: 982), pixels: CGSize(width: 3024, height: 1964))])
+        let extendedTVMain = GameDisplay.wineSignature([W(id: 1, main: false, points: CGSize(width: 1512, height: 982), pixels: CGSize(width: 3024, height: 1964)),
+                                                        W(id: 4, main: true, points: CGSize(width: 1920, height: 1080), pixels: CGSize(width: 1920, height: 1080))])
+        check(alone == "1*:1512x982@3024x1964", "the MacBook alone (\(alone))")
+        check(Set([alone, mirrorSet, extended, extendedTVMain]).count == 4, "alone, mirrorSet, extended and the TV made main all differ")
+        let session = GameDisplay.WineSession(server: 500, screens: alone)
+        var result = GameDisplay.wineSessionCheck(stored: nil, server: 500, now: alone)
+        check(!result.stale && result.store == session, "a session seen for the first time: what's there now")
+        result = GameDisplay.wineSessionCheck(stored: session, server: 500, now: alone)
+        check(!result.stale && result.store == session, "nothing changed: no restart")
+        result = GameDisplay.wineSessionCheck(stored: session, server: 500, now: mirrorSet)
+        check(result.stale && result.store == session, "the live test: begun on the MacBook, now the TV mirrorSet – a fresh session")
+        result = GameDisplay.wineSessionCheck(stored: session, server: 500, now: extendedTVMain)
+        check(result.stale, "a TV made main for the game: a fresh session, so it's Wine's primary too")
+        result = GameDisplay.wineSessionCheck(stored: session, server: 777, now: mirrorSet)
+        check(!result.stale && result.store == GameDisplay.WineSession(server: 777, screens: mirrorSet), "a new session: fresh, remembered as such")
+        result = GameDisplay.wineSessionCheck(stored: session, server: nil, now: mirrorSet)
+        check(!result.stale && result.store == nil, "no session: nothing to restart, nothing kept")
+
         // Which TV shows Nightforge, for its sound: false = an external display in the mirror set.
         let tv = screen(2, "LG TV SSCR2"), avr = screen(4, "DENON-AVR"), monitor = screen(3, "DELL U2720Q")
         check(GameDisplay.soundScreen(tv, mirroredWith: []) == "LG TV SSCR2", "on a TV: its sound")
