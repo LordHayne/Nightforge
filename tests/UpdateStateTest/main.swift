@@ -1,5 +1,6 @@
 // Checks UpdateState: when an installed game has an update waiting, how big it is, and when Steam
-// is applying it (from the manifest's StateFlags and bytes): tests/UpdateStateTest/run.sh
+// is applying it (from the manifest's StateFlags and bytes); and LibraryScanner reading a made-up
+// bottle: its manifests, extra libraries, unplugged drives and playtimes: tests/UpdateStateTest/run.sh
 import Foundation
 
 @main
@@ -31,7 +32,201 @@ struct UpdateStateTest {
               "downloading without sizes: running, no percentage")
         check(UpdateState(flags: 1024, toDownload: 100, downloaded: 100).fraction == 0.99, "never shows 100 % before it's done")
 
+        do { try scanner() } catch { check(false, "the made-up bottle: \(error)") }
+        try? FileManager.default.removeItem(at: root)
+
         print(failures == 0 ? "✓ UpdateState" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    // MARK: A made-up bottle, as LibraryScanner reads it
+
+    static let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("nightforge-update-state-test-\(UUID().uuidString)", isDirectory: true)
+
+    static func write(_ text: String, _ path: String, in base: URL) throws {
+        let file = base.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(text.utf8).write(to: file)
+    }
+
+    /// An appmanifest as Steam writes it; `fields` add to or replace the usual ones.
+    static func manifest(_ appID: Int, _ name: String, _ fields: [String: String] = [:]) -> String {
+        let all = ["appid": String(appID), "name": name, "installdir": name, "StateFlags": "4"].merging(fields) { $1 }
+        return "\"AppState\"\n{\n" + all.sorted { $0.key < $1.key }.map { "\t\"\($0.key)\"\t\t\"\($0.value)\"\n" }.joined() + "}\n"
+    }
+
+    static func usage(_ apps: [Int: (lastPlayed: Int, playtime: Int?)]) -> String {
+        let entries = apps.map { id, use in
+            "\"\(id)\" { \"LastPlayed\" \"\(use.lastPlayed)\" " + (use.playtime.map { "\"Playtime\" \"\($0)\" " } ?? "") + "}"
+        }
+        return #""UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "# + entries.joined(separator: " ") + " } } } } }"
+    }
+
+    static func scanner() throws {
+        let fm = FileManager.default
+        let bottle = Bottle(name: "Main", url: root.appendingPathComponent("Bottles/Main", isDirectory: true))
+        let steam = bottle.url.appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true)
+        let steamapps = steam.appendingPathComponent("steamapps", isDirectory: true)
+        try write("", "steam.exe", in: steam)
+
+        try write(manifest(1623730, "Palworld", ["SizeOnDisk": "31755444704", "buildid": "1", "TargetBuildID": "2",
+                                                 "BytesToDownload": "500", "BytesDownloaded": "100"]),
+                  "appmanifest_1623730.acf", in: steamapps)
+        try write(manifest(228980, "Steamworks Common Redistributables"), "appmanifest_228980.acf", in: steamapps)
+        try write(manifest(1493711, "Steam Linux Runtime 3.0 (sniper)"), "appmanifest_1493711.acf", in: steamapps)
+        try write(manifest(100, "DirectX Redistributable Pack"), "appmanifest_100.acf", in: steamapps)
+        try write(manifest(101, "Proton 9.0"), "appmanifest_101.acf", in: steamapps)
+        try write(manifest(2000, "Anno 2070", ["StateFlags": "1026", "BytesToDownload": "1000", "BytesDownloaded": "250"]),
+                  "appmanifest_2000.acf", in: steamapps)
+        try write(manifest(3000, "Staged Game", ["StateFlags": "1026", "BytesToStage": "40000"]), "appmanifest_3000.acf", in: steamapps)
+        try write(String(repeating: "x", count: 10_000), "downloading/3000/data/one.pak", in: steamapps)
+        try write(String(repeating: "x", count: 10_000), "downloading/3000/two.pak", in: steamapps)
+        try write(manifest(4000, "Waiting Game", ["StateFlags": "1026"]), "appmanifest_4000.acf", in: steamapps)
+        try write(manifest(5000, "Full Disk", ["StateFlags": "1026", "UpdateResult": "12", "BytesToDownload": "2000", "BytesToStage": "3000"]),
+                  "appmanifest_5000.acf", in: steamapps)
+        try write(#""AppState" { "appid" "6000" "installdir" "Nameless" }"#, "appmanifest_6000.acf", in: steamapps)
+        try write(#""AppState" { "appid" "6001" "name" "" "installdir" "Empty" }"#, "appmanifest_6001.acf", in: steamapps)
+        try write(#""AppState" { "appid" "abc" "name" "Bad ID" "installdir" "Bad" }"#, "appmanifest_6002.acf", in: steamapps)
+        try write(manifest(7000, "Half Written"), "appmanifest_7000.acf.tmp", in: steamapps)
+
+        // Extra libraries: through drive letters Wine links, the old one-line format, a Mac path,
+        // a drive letter that isn't there and the Steam folder itself again.
+        let driveD = root.appendingPathComponent("DriveD", isDirectory: true)
+        let driveE = root.appendingPathComponent("DriveE", isDirectory: true)
+        let macLibrary = root.appendingPathComponent("MacLibrary", isDirectory: true)
+        try fm.createDirectory(at: bottle.url.appendingPathComponent("dosdevices"), withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: bottle.url.appendingPathComponent("dosdevices/d:"), withDestinationURL: driveD)
+        try fm.createSymbolicLink(at: bottle.url.appendingPathComponent("dosdevices/e:"), withDestinationURL: driveE)
+        try write("""
+        "libraryfolders"
+        {
+            "0" { "path" "C:\\\\Program Files (x86)\\\\Steam" }
+            "1" { "path" "D:\\\\SteamLibrary" "apps" { "6100" "1" } }
+            "2" "E:\\\\Old"
+            "3" { "path" "\(macLibrary.path)" }
+            "4" { "path" "X:\\\\Gone" }
+            "5" { "path" "nonsense" }
+        }
+        """, "libraryfolders.vdf", in: steamapps)
+        try write(manifest(6100, "Hades"), "SteamLibrary/steamapps/appmanifest_6100.acf", in: driveD)
+        try write(manifest(1623730, "Palworld (second copy)"), "SteamLibrary/steamapps/appmanifest_1623730.acf", in: driveD)
+        try write(manifest(6200, "Old Game"), "Old/steamapps/appmanifest_6200.acf", in: driveE)
+        try write(manifest(6300, "Mac Library Game"), "steamapps/appmanifest_6300.acf", in: macLibrary)
+
+        // Two accounts' playtimes: the most recent start counts, 0 means never.
+        try write(usage([1623730: (1_700_000_000, 120), 6100: (1_600_000_000, nil), 2000: (0, 3)]),
+                  "userdata/111/config/localconfig.vdf", in: steam)
+        try write(usage([1623730: (1_500_000_000, 5), 6200: (1_650_000_000, 7)]), "userdata/222/config/localconfig.vdf", in: steam)
+        try write("not a config", "userdata/333/config/localconfig.vdf", in: steam)
+
+        // A second Steam in the same bottle: what the first one has isn't listed twice.
+        let other = bottle.url.appendingPathComponent("drive_c/Program Files/Steam", isDirectory: true)
+        try write("", "steam.exe", in: other)
+        try write(manifest(8000, "Second Steam Game"), "steamapps/appmanifest_8000.acf", in: other)
+        try write(manifest(1623730, "Palworld (other Steam)"), "steamapps/appmanifest_1623730.acf", in: other)
+
+        // Steam's own library first; the others in no set order (the file's keys come as a dictionary).
+        let libraries = LibraryScanner.libraryFolders(steamRoot: steam, bottle: bottle).map(\.path)
+        check(libraries.first == steamapps.path && libraries.count == 4
+              && Set(libraries) == [steamapps.path, driveD.appendingPathComponent("SteamLibrary/steamapps").resolvingSymlinksInPath().path,
+                                    driveE.appendingPathComponent("Old/steamapps").resolvingSymlinksInPath().path,
+                                    macLibrary.appendingPathComponent("steamapps").path],
+              "four libraries, each once: \(libraries)")
+
+        let games = LibraryScanner.scan(bottle: bottle)
+        let byID = Dictionary(games.map { ($0.appID, $0) }, uniquingKeysWith: { first, _ in first })
+        check(Set(byID.keys) == [1623730, 2000, 3000, 4000, 5000, 6100, 6200, 6300, 8000] && games.count == 9,
+              "games without redistributables, runtimes, Proton, broken or half-written manifests: \(byID.keys.sorted())")
+        let palworld = byID[1623730]
+        check(palworld?.name == "Palworld" && palworld?.install == .installed && palworld?.sizeOnDisk == 31_755_444_704,
+              "the first library's copy, installed, with its size")
+        check(palworld?.pendingUpdate == 400, "an update to another build, what's left of it: \(palworld?.pendingUpdate ?? -1)")
+        check(palworld?.installDir == steamapps.appendingPathComponent("common/Palworld", isDirectory: true)
+              && palworld?.installDirName == "Palworld" && palworld?.steamExeWindowsPath == #"C:\Program Files (x86)\Steam\steam.exe"#,
+              "where it lies and which Steam starts it")
+        check(palworld?.lastPlayed == Date(timeIntervalSince1970: 1_700_000_000) && palworld?.playtimeMinutes == 120,
+              "the most recent account's playtime")
+        check(byID[6200]?.lastPlayed == Date(timeIntervalSince1970: 1_650_000_000) && byID[6200]?.playtimeMinutes == 7,
+              "the other account's game")
+        check(byID[6100]?.lastPlayed != nil && byID[6100]?.playtimeMinutes == nil, "played, no playtime noted")
+        check(byID[2000]?.lastPlayed == nil && byID[2000]?.playtimeMinutes == 3, "LastPlayed 0 is never")
+        check(byID[2000]?.install == .downloading(0.25) && byID[2000]?.sizeOnDisk == 1000 && byID[2000]?.pendingUpdate == nil,
+              "a download: how far, and what it comes to")
+        let staged = LibraryScanner.folderSize(steamapps.appendingPathComponent("downloading/3000"))
+        check(staged >= 20_000, "unpacked files counted, in subfolders too: \(staged)")
+        check(byID[3000]?.install == .downloading(min(Double(staged) / 40_000, 0.99)), "unpacked so far: \(String(describing: byID[3000]?.install))")
+        check(byID[4000]?.install == .downloading(nil), "size not known yet")
+        check(byID[5000]?.downloadNeedsSpace == 3000 && byID[5000]?.install == .downloading(0), "Steam's full disk: the space it needs")
+        check(byID[6100]?.installDir.path.hasSuffix("DriveD/SteamLibrary/steamapps/common/Hades") == true, "a game on drive D:")
+        check(byID[8000]?.steamExeWindowsPath == #"C:\Program Files\Steam\steam.exe"#, "the second Steam's own game")
+        check(LibraryScanner.folderSize(root.appendingPathComponent("missing")) == 0, "a folder that isn't there takes no space")
+
+        // What a game's manifest says while Nightforge waits for Steam.
+        if let palworld {
+            check(LibraryScanner.updateState(of: palworld) == UpdateState(flags: 4, toDownload: 500, downloaded: 100, targetBuild: "2", build: "1"),
+                  "read from the game's own manifest")
+            try write(manifest(1623730, "Palworld", ["StateFlags": "1030", "BytesToDownload": "800", "BytesDownloaded": "200"]),
+                      "appmanifest_1623730.acf", in: steamapps)
+            let running = LibraryScanner.updateState(of: palworld)
+            check(running?.isRunning == true && running?.fraction == 0.25, "an update under way: \(String(describing: running))")
+        }
+        let gone = Game(appID: 9, name: "Gone", bottle: bottle, steamRoot: steam, steamExeWindowsPath: "",
+                        installDir: steamapps.appendingPathComponent("common/Gone"), sizeOnDisk: 0)
+        check(LibraryScanner.updateState(of: gone) == nil, "no manifest, nothing known")
+
+        // Several bottles; a folder that is a bottle itself; one without Steam; a file among them.
+        try fm.createDirectory(at: root.appendingPathComponent("Bottles/No Steam/drive_c"), withIntermediateDirectories: true)
+        try write("", "Bottles/notes.txt", in: root)
+        let all = LibraryScanner.scan(bottlesRoot: root.appendingPathComponent("Bottles"))
+        check(all.map(\.appID) == [1623730, 6200, 6100, 6300, 8000, 2000, 5000, 3000, 4000],
+              "installed by last start, then by name; then downloads by name: \(all.map(\.name))")
+        check(LibraryScanner.scan(bottlesRoot: bottle.url).count == 9, "a chosen folder that is a bottle itself")
+        check(LibraryScanner.scan(bottlesRoot: root.appendingPathComponent("Bottles/No Steam")).isEmpty, "a bottle without Steam")
+        check(LibraryScanner.scan(bottlesRoot: root.appendingPathComponent("nowhere"), extraBottles: [bottle]).count == 9,
+              "extra bottles, even with no bottles folder")
+
+        // Windows paths in a bottle.
+        check(LibraryScanner.macPath(forWindowsPath: #"C:\Games\x"#, in: bottle) == bottle.url.appendingPathComponent("drive_c/Games/x"),
+              "C: without a link is drive_c")
+        check(LibraryScanner.macPath(forWindowsPath: "d:/SteamLibrary", in: bottle)?.path == driveD.resolvingSymlinksInPath().path + "/SteamLibrary",
+              "a linked drive, either slash, any case")
+        check(LibraryScanner.macPath(forWindowsPath: #"Q:\x"#, in: bottle) == nil && LibraryScanner.macPath(forWindowsPath: "Games", in: bottle) == nil,
+              "no such drive, no drive at all")
+
+        // Libraries on drives that aren't plugged in.
+        let volumes = root.appendingPathComponent("Volumes", isDirectory: true)
+        try fm.createDirectory(at: volumes.appendingPathComponent("T7"), withIntermediateDirectories: true)
+        func missing(_ path: String) -> String? { LibraryScanner.missingVolume(forLibrary: path, in: bottle, volumes: volumes) }
+        check(missing("/Volumes/T7/SteamLibrary") == nil, "a plugged-in drive isn't missing")
+        check(missing("/Volumes/Gone/SteamLibrary") == "Gone", "an unplugged drive, by its name")
+        check(missing("/Users/me/SteamLibrary") == nil && missing("/Volumes") == nil, "not on a drive")
+        try fm.createSymbolicLink(atPath: bottle.url.appendingPathComponent("dosdevices/f:").path, withDestinationPath: "/Volumes/Gone2")
+        try fm.createSymbolicLink(atPath: bottle.url.appendingPathComponent("dosdevices/g:").path, withDestinationPath: "Volumes/T7")
+        check(missing(#"F:\SteamLibrary"#) == "Gone2", "through a drive letter Wine linked to it")
+        check(missing(#"G:\SteamLibrary"#) == nil, "a link without its leading slash, to a drive that's there")
+        check(missing(#"H:\SteamLibrary"#) == nil && missing("SteamLibrary") == nil, "no link, no drive letter")
+
+        let unplugged = "nightforge-test-\(UUID().uuidString)"
+        let lonely = root.appendingPathComponent("LonelySteam", isDirectory: true)
+        try write("""
+        "libraryfolders"
+        {
+            "0" { "path" "\(lonely.path)" "apps" { "1" "1" } }
+            "1" { "path" "/Volumes/\(unplugged)/SteamLibrary" "apps" { "6400" "123" "6401" "1" "notes" "x" } }
+            "2" { "path" "/Volumes/\(unplugged)/Empty" }
+        }
+        """, "steamapps/libraryfolders.vdf", in: lonely)
+        let drives = LibraryScanner.missingDrives(steamRoot: lonely, bottle: bottle)
+        check(drives == [6400: unplugged, 6401: unplugged], "games on an unplugged drive, by app ID: \(drives)")
+        check(LibraryScanner.missingDrives(steamRoot: root.appendingPathComponent("nowhere"), bottle: bottle).isEmpty, "no library list")
+        var notHere = gone
+        notHere.install = .notInstalled
+        let hades = Game(appID: 6400, name: "Hades", bottle: bottle, steamRoot: steam, steamExeWindowsPath: "", installDir: steam, sizeOnDisk: 0)
+        var hadesOwned = hades
+        hadesOwned.install = .notInstalled
+        let marked = LibraryScanner.markMissingDrives([hades, hadesOwned, notHere], drives: drives)
+        check(marked.map(\.missingDrive) == [nil, unplugged, nil], "only owned games not on the Mac wait for their drive")
+        check(LibraryScanner.markMissingDrives([hadesOwned], drives: [:]) == [hadesOwned], "no drive missing, nothing changes")
     }
 }
