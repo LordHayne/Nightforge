@@ -418,6 +418,24 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 
 ## Ideen für später
 
+- **Von steamac lernen** (github.com/fxgl/steamac, Apache-2.0, angeschaut am 31.10.; noch nicht anfangen):
+  - steamac lässt Valves ARM64-SteamOS in einer VM laufen. Spiele laufen dort über Proton und FEX, die Grafik geht den
+    Weg Vulkan → Venus → virglrenderer → MoltenVK/KosmicKrisp → Metal. Den Weg übernehmen wir nicht: Er bringt zwei
+    Übersetzungsschichten mehr und einen festen RAM-Anteil für die VM. Außerdem braucht er ein Disk-Image von bis zu
+    150 GB und eine zweite Steam-Anmeldung. Mac-Versionen, Epic und GOG gibt es dort nicht, und Anti-Cheat sperrt VMs.
+    Ihre eigenen Zahlen belegen den Aufwand: Death's Door läuft mit 41 FPS über den Vulkan-Weg und mit 117 FPS über
+    DXMT direkt auf Metal (M1 Max).
+  - Einzelne Ideen, die sich lohnen könnten:
+    - Neue Standard-Tonausgabe sofort übernehmen (steamac 1.9). Passt zum HDMI-Ton im TV-Modus.
+    - Eine ruhige Karte „Wird vorbereitet …“, wenn ein Spiel beim ersten Start Shader baut und das Bild steht
+      (steamac zeigt „Still working…“, wenn die GPU 2 s lang nichts tut).
+    - Das Limit für offene Dateien beim Start anheben. Bei steamac verloren Spiele sonst nach einer Weile die GPU
+      (1.7.6). Prüfen, ob Wine und MoltenVK bei uns dasselbe trifft.
+    - Steam-Anmeldung per QR-Code mit der Steam-App auf dem Handy, für das Sofa ohne Tastatur. Prüfen, ob Steams
+      Anmeldefenster den Code bei uns zeigt, und in der Einrichtung darauf hinweisen.
+    - KosmicKrisp ist dort auf macOS 26+ der Standard. Unsere früheren Ergebnisse (Caretaker-Demo) mit neuen
+      Versionen nachprüfen.
+
 - **Spiele automatisch aktuell halten** (Nutzer, 31.10., nach den laufenden Merges angehen, vorher recherchieren):
   - Heute:
     - **Steam (Windows):** Nightforge setzt `AutoUpdateBehavior 0` (immer aktuell). Steam lädt Updates aber nur, solange es
