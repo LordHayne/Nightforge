@@ -17,6 +17,13 @@ GOG Galaxy, Heroic und Playnite.
   Epic und GOG nimmt Nightforge darum **dasselbe Spiel auf Steam**. Das findet GOGs öffentliche GamesDB per ID,
   nicht über den Namen: 40 von 40 Epic-Spielen des Nutzers gefunden, 39 davon mit Steam-ID.
 - Mit diesem Steam-Gegenstück funktionieren dann auch die Filter „Controller“ und „Läuft super“ für Epic und GOG.
+- Für Steam selbst ist Steams **Store-Browse-API** (`IStoreBrowseService/GetItems`, ohne Schlüssel) die beste Quelle.
+  Sie liefert 50 Spiele in einer Anfrage (0,6 s): deutsche Kurzbeschreibung, Entwickler, Tags, Spielmodi,
+  Controller, Sprachen mit Ton/Untertiteln, USK, Bewertung („Sehr positiv · 90 %“), Screenshots und die
+  **Cover-Adressen mit Hash**. Ohne diese Adressen bleiben die Cover neuer Store-Treffer leer.
+- **Bibliothek** (Zusatzauftrag): eine Zeile mit drei Chips, „Alle Stores ▾“, „Zuletzt gespielt ▾“ und „Filter ▾“.
+  Die Filter liegen in einem kleinen Glas-Panel, aktive Filter stehen als abwählbare Chips in der Zeile. So bleibt
+  sie auch bei 980 pt einzeilig. Eine Suche findet immer alles, Filter und Store ruhen so lange.
 
 ## Bilder (Offscreen-Render der echten Views, auf dem Stand von 2.5)
 
@@ -32,6 +39,13 @@ das seine Angaben vom Steam-Gegenstück bekommt (echte Daten vom 31.10.). No Man
 | `images/spielinfos/5-bild-gross-1512.jpg` | Ein Screenshot groß, über allem: ← →, Esc schließt |
 | `images/spielinfos/6-startseite-mit-zeile-980.jpg` | Verworfene Variante: Startseite mit dem ersten Satz → läuft bei 980 × 640 über |
 | `images/spielinfos/7-startseite-heute-980.jpg` | Startseite heute zum Vergleich (schon ohne Zeile voll, siehe Nebenfunde) |
+| `images/spielinfos/8-filterzeile-1512.jpg` | Bibliothek mit der neuen Zeile: „Alle Stores ▾ · Zuletzt gespielt ▾ · Filter ▾“, Sortierung nicht mehr oben rechts |
+| `images/spielinfos/8b-filterzeile-980.jpg` | Dasselbe im kleinsten Fenster: eine Zeile, Suche neben dem Titel |
+| `images/spielinfos/9-store-menue-1512.jpg` | Klick auf den Store-Chip: kleines Glas-Menü mit Zahlen je Store |
+| `images/spielinfos/10-nur-epic-1512.jpg` | Nur Epic: Chip gefüllt, Zahl oben „93 von 198 Spielen“ |
+| `images/spielinfos/11-filter-panel-pad-980.jpg` | Filter-Panel im kleinsten Fenster, Pad-Rahmen auf „Zu zweit am Mac“; zwei aktive Filter als Chips mit ✕ in der Zeile |
+| `images/spielinfos/12-suche-overcooked-1512.jpg` | Suche: Overcooked! 2 von Epic unter „Deine Spiele“, der Steam-Treffer „Overcooked! 2“ fehlt (Gegenstück), die Zeile sagt „Filter und Store ruhen“ |
+| `images/spielinfos/13-suche-sheep-1512.jpg` | Store-Treffer mit echten Covern aus der Store-Browse-API; zwei Spiele ohne Hochformat-Cover zeigen noch den Platzhalter |
 
 Das Harness (Prototyp-Views `Proto.swift`, Patch der Spielseite, Render-Treiber) und die Rohdaten liegen außerhalb
 des Repos im Notizordner der Sitzungsgruppe unter `game-metadata/`.
@@ -54,9 +68,9 @@ des Repos im Notizordner der Sitzungsgruppe unter `game-metadata/`.
 | | Steam (eigenes Spiel) | Epic | GOG |
 |---|---|---|---|
 | **Schon auf der Platte** | `appinfo.vdf`, je Spiel unter `common`: `associations` (Entwickler, Publisher), `category` (Spielmodi, Controller), `supported_languages` (je Sprache `supported`/`full_audio`/`subtitles`), `steam_release_date`, `genres`, `store_tags`, `metacritic_score`, `review_percentage`. Keine Beschreibung, keine Screenshots. | legendary `metadata/<AppName>.json`: Titel, `developer` (meist die Firma hinter dem Konto), Bilder (`DieselGameBox` breit, `DieselGameBoxTall` Cover, **kein Logo**). `description` ist bei 87 von 105 Spielen nur der Titel, sonst Englisch. Kein Genre, kein Erscheinungsjahr (`creationDate` ist das Katalogdatum), keine Modi. | Was der GOG-Zweig schon holt: GamesDB `platforms/gog/external_releases/<id>` (Titel, Cover, Hintergrund, Mac). Im selben Antwort-JSON stehen schon `game.releases` (mit Steam-ID), `summary` (nur Englisch), `genres`, `game_modes`, `screenshots`. |
-| **Online, ohne Login** | `store.steampowered.com/api/appdetails?appids=…&l=german&cc=DE`: `short_description` (Deutsch), `genres`, `categories` (deutsche Namen und IDs), `developers`, `publishers`, `release_date`, `screenshots` (600×338 und 1920×1080), `movies` (HLS/DASH), `ratings` (`usk`, `pegi`, `esrb`; dazu Steams eigene erzeugte Einstufungen, die nicht zählen), `supported_languages` (HTML, `*` = Sprachausgabe), `controller_support`. | GraphQL (`store.epicgames.com/graphql`, auch `launcher.store…`): **403, Cloudflare-Prüfung**, nicht nutzbar (und nicht zu umgehen). Katalog (`catalog-public-service…/bulk/items`): **401, braucht Login**. Alter Inhaltsdienst `store-content-ipv4.ak.epicgames.com/api/de/content/products/<slug>`: Deutsch, mit Kurzbeschreibung, Entwickler, Datum, Sprachen nach Text/Ton und PEGI. Er braucht aber den Slug und traf nur **16 von 30** (neuere Produkte fehlen). → **Steam-Gegenstück** | `api.gog.com/v2/games/<id>?locale=de-DE`: `overview`/`description` (Deutsch, HTML), Entwickler, Publisher, `globalReleaseDate`, `tags` (deutsche Genres), `features` (`single`, `multi`, `coop`, `controller_support` …), `localizations` (je Sprache `text`/`audio`), `screenshots` (Größen über `formatter`, z. B. `product_card_screenshot_748`), `videos` (YouTube), `pegiRating`/`esrbRating`. Cache-Control 1 Tag. |
+| **Online, ohne Login** | **Erste Wahl:** `api.steampowered.com/IStoreBrowseService/GetItems/v1?input_json=…` (ohne Schlüssel, bis 50 App-IDs pro Anfrage, `context.language = german`). Je Spiel: `basic_info.short_description` (Deutsch), Entwickler, Publisher, `tagids` mit Gewicht, `categories` (getrennt nach Spielern, Merkmalen und Controller), `release`, `reviews` („Sehr positiv“, 90 %), `game_rating` (`agency` 4 = USK; 17 ist Steams eigene Einstufung und zählt nicht), `supported_languages` (je Sprache `full_audio`/`subtitles`), `screenshots`, `trailers` und `assets` (`library_capsule`, `library_hero`, `header` mit Hash-Pfad). Gemessen: 50 Spiele, 268 KB, 0,6 s. **Rückfall:** `store.steampowered.com/api/appdetails?appids=…&l=german&cc=DE` (ein Spiel pro Anfrage): `short_description` (Deutsch), `genres`, `categories` (deutsche Namen und IDs), `developers`, `publishers`, `release_date`, `screenshots` (600×338 und 1920×1080), `movies` (HLS/DASH), `ratings` (`usk`, `pegi`, `esrb`; dazu Steams eigene erzeugte Einstufungen, die nicht zählen), `supported_languages` (HTML, `*` = Sprachausgabe), `controller_support`. | GraphQL (`store.epicgames.com/graphql`, auch `launcher.store…`): **403, Cloudflare-Prüfung**, nicht nutzbar (und nicht zu umgehen). Katalog (`catalog-public-service…/bulk/items`): **401, braucht Login**. Alter Inhaltsdienst `store-content-ipv4.ak.epicgames.com/api/de/content/products/<slug>`: Deutsch, mit Kurzbeschreibung, Entwickler, Datum, Sprachen nach Text/Ton und PEGI. Er braucht aber den Slug und traf nur **16 von 30** (neuere Produkte fehlen). → **Steam-Gegenstück** | `api.gog.com/v2/games/<id>?locale=de-DE`: `overview`/`description` (Deutsch, HTML), Entwickler, Publisher, `globalReleaseDate`, `tags` (deutsche Genres), `features` (`single`, `multi`, `coop`, `controller_support` …), `localizations` (je Sprache `text`/`audio`), `screenshots` (Größen über `formatter`, z. B. `product_card_screenshot_748`), `videos` (YouTube), `pegiRating`/`esrbRating`. Cache-Control 1 Tag. |
 | **Sprache** | `l=german`/`english` nach `AppLanguage` (wie `StoreSearch.regionItems`) | über das Steam-Gegenstück; GamesDB nur Englisch | `locale=de-DE`/`en-US` |
-| **Stabilität** | undokumentiert, seit Jahren gleich (Heroic, Playnite und Lutris nutzen es). Limit etwa 200 Anfragen pro 5 Minuten und IP (Erfahrungswert, darüber 429/403). | GamesDB: öffentlich, von GOG Galaxy für alle Plattformen genutzt | v2 wird von Galaxy und Heroic genutzt |
+| **Stabilität** | Beide undokumentiert. GetItems nutzt Steams eigener Store (Web und Client), appdetails seit Jahren gleich (Heroic, Playnite, Lutris). appdetails: etwa 200 Anfragen pro 5 Minuten und IP (Erfahrungswert, darüber 429/403); GetItems braucht für 200 Spiele 4 Anfragen. | GamesDB: öffentlich, von GOG Galaxy für alle Plattformen genutzt | v2 wird von Galaxy und Heroic genutzt |
 
 **Steam-Gegenstück (eine Datenschicht für Seite und Filter):**
 1. Steam-Spiel: die eigene App-ID.
@@ -106,6 +120,64 @@ dieses Spiel.
 
 **Bibliothek:** Die Karten bleiben Cover und Name. Mehr Text unter 154 pt breiten Covern macht das Raster unruhig.
 
+## Bibliothek: Filterzeile, Store-Filter, Store-Treffer (Zusatzauftrag 31.10.)
+
+Heute stehen oben rechts die Sortierung als Segment („Zuletzt gespielt | Name | Speicherplatz“) und die Suche.
+In der Zeile darunter stehen das Segment „Alle | Auf diesem Mac | Nicht geladen“ und die drei Schalter
+„Läuft super“, „Controller“ und „Mac-Version“. Bei 980 pt rutscht die Sortierung schon in eine eigene Zeile. Ein
+Store-Filter hätte keinen Platz mehr.
+
+**Neue Zeile (Bild 8, 8b, 10):** Oben stehen Titel, Zahl und Frische links, rechts nur die Suche (und
+„Ausgeblendet 3“ davor, wenn es ausgeblendete Spiele gibt, wie heute). Darunter folgen drei Chips aus Glas, in
+gleicher Höhe wie heute (32 pt):
+1. **„Alle Stores ▾“**, nur wenn mindestens zwei Stores verbunden sind. Mit dem Pad schaltet A weiter:
+   Alle → Steam → Epic Games → GOG → Alle (nur verbundene Stores). Ein Mausklick öffnet ein kleines Glas-Menü mit
+   der Zahl je Store (Bild 9). Ein gewählter Store füllt den Chip hell wie heute ein aktiver Schalter
+   („Epic Games ▾“). Gemeinsame Karten („STEAM + EPIC“) zählen bei jedem ihrer Stores, das sagt eine Zeile unten im
+   Menü. Oben steht dann „93 von 198 Spielen“ (gibt es schon: `countText`, sobald `filters.narrows`).
+2. **„Zuletzt gespielt ▾“**: Sortierung als ein Chip. A schaltet weiter, ein Klick öffnet dasselbe kleine Menü.
+3. **„Filter ▾“** öffnet ein Glas-Panel (Bild 11). Jeder Filter ist ein Schalter mit der Zahl der Spiele, die er
+   übrig lässt: Läuft super · Mit Controller spielbar · Zu zweit am Mac (Lokaler Koop oder geteilter Bildschirm,
+   neu aus den Spielmodi) · Mac-Version · Nur auf diesem Mac. Unten „Alle Filter aus“. Mit dem Pad: A öffnet,
+   ↑↓ wandert, A schaltet, B schließt. Ein Klick daneben schließt wie bei `DownloadsPanel`. Am Chip steht die Zahl
+   der aktiven Filter als Natriumpunkt.
+4. Rechts neben einem Trennstrich stehen die **aktiven Filter als Chips mit ✕**, ein Klick oder A nimmt den Filter
+   heraus. Passen nicht alle in die Zeile, steht nur der erste da und „+2“ (`ViewThatFits`). So bleibt die Zeile
+   bei 980 pt einzeilig (Bild 11: Store, Sortierung, Filter und zwei aktive Chips passen gerade).
+
+Pad: ↑ aus der ersten Rasterzeile erreicht die Chips wie heute die Segmente (`PadFocus`, IDs `library.store`,
+`library.sort`, `library.filter`, `library.active.<n>`).
+
+**„Auf diesem Mac / Nicht geladen“:** Bei „Zuletzt gespielt“ gruppiert das Raster schon nach „Installiert“,
+„Wird geladen“ und „In deiner Bibliothek“. Das Segment wiederholt das nur. Gebraucht wird es allein bei „Name“ und
+„Speicherplatz“, wo das Raster eine Liste ist. Vorschlag: Das Segment fällt weg, im Panel steht der Schalter
+„Nur auf diesem Mac“ (installiert oder lädt gerade). „Nicht geladen“ allein entfällt, dafür ist die Gruppe
+„In deiner Bibliothek“ da.
+
+**Während einer Suche** ruhen Filter und Store-Filter (nicht gelöscht): Die Suche findet immer alle Spiele. Heute
+gelten die Filter weiter, und „Kein Spiel passt zu …“ verwirrt, wenn ein vergessener Filter das gesuchte Spiel
+ausblendet. Statt der Chips steht dort eine graue Zeile: „Die Suche findet alle 198 Spiele – Filter und Store
+ruhen, bis du sie leerst.“ (Bild 12). Die Sortierung spielt keine Rolle, Treffer kommen nach Güte. Ist die Suche
+leer, ist alles wieder wie vorher.
+
+**Store-Treffer bei der Suche („Im Steam-Store“):**
+- **Steam allein reicht.** Treffer aus Steam sind die, die Nightforge am besten kann: Profile, „Läuft super“, Mac-
+  Versionen, Anti-Cheat-Hinweis und Steam für Mac hängen alle an der Steam-App-ID. GOG ginge öffentlich
+  (`catalog.gog.com/v1/catalog?query=like:<Begriff>&locale=de-DE&countryCode=DE`: Preise, Cover, Merkmale, 0,3 s),
+  Epic nicht (keine Suche ohne Browser). Zwei Store-Gruppen machen die Suche länger, ohne dass der Nutzer
+  mehr spielen kann.
+- **Keine Treffer für Spiele, die man schon hat.** Heute zeigt „overcooked“ das eigene Overcooked! 2 von Epic *und*
+  denselben Titel zum Kaufen auf Steam. Der Abgleich läuft nur über die `GameID` (`steam.728880` ≠ `epic.Potoo`).
+  Mit dem Gegenstück fällt der Steam-Treffer weg (Bild 12).
+- **Store-Filter:** Bei „Epic Games“ oder „GOG“ gibt es keine Steam-Treffer, bei „Alle“ und „Steam“ schon.
+- **Platzhalter-Cover** („A Sheep Game“, „Death a Live“): Neue Steam-Apps legen ihre Bilder nur noch unter einem
+  Hash-Pfad ab (`/apps/5391790/<hash>/header.jpg`). Die festen Adressen in `ArtworkStore.remoteURLs`
+  (`/apps/<id>/library_600x900_2x.jpg` usw.) geben dort 404. GetItems liefert `assets.library_capsule` samt Hash
+  (Bild 13). Wenige kleine Spiele haben gar kein Hochformat-Cover (in Bild 13 zwei von 12). Für sie gibt es das breite
+  `main_capsule` mittig auf einer einmal weichgezeichneten Kopie seiner selbst, wie die Bühne der Startseite.
+  Das wird einmal berechnet und gecacht, ist also kein Live-Effekt. Gilt auch für eigene Spiele, deren Steam keine
+  lokalen Bilder hat.
+
 ## Datenmodell und Cache (Phase 2)
 
 ```swift
@@ -132,13 +204,15 @@ struct GameInfo: Codable, Equatable {
 - Neu gefragt wird nach 30 Tagen oder bei anderer App-Sprache. Offline bleibt das Alte stehen, wie bei `Metascores`.
 - Screenshot-Vorschauen kommen nach `Caches/Nightforge/Artwork/<key>_shot<n>.jpg` (über `ArtworkStore`, neue
   `ArtKind.shot`, `maxPixelSize` 560).
-- **Anfragen:** Beim Öffnen einer Seite ohne Infos gibt es 1 Anfrage. Im Hintergrund werden nur Epic- und GOG-Spiele
-  ohne Infos nachgeholt, weil die Filter sie brauchen: höchstens 1 Anfrage alle 2 s, bei 429/403 zehn Minuten Pause.
-  Eigene Steam-Spiele brauchen das nicht, `appinfo.vdf` liefert die Filterdaten offline. Für die Spiele auf der
-  Bühne der Startseite (höchstens 8) holt Nightforge die Infos vorab, damit die Seite sofort voll ist.
+- **Anfragen:** Steam-Infos kommen gebündelt über GetItems, 50 Spiele pro Anfrage. Nach einem Scan holt Nightforge
+  alle fehlenden Infos nach (200 Spiele = 4 Anfragen, je 1 s Abstand), zuerst die Epic- und GOG-Gegenstücke (für die
+  Filter) und die Spiele auf der Bühne. Dazu je Epic-Spiel einmal GamesDB (Zwilling, 1 Anfrage alle 0,5 s; danach
+  gecacht) und je GOG-Spiel einmal GOG v2. Öffnet man eine Seite ohne Infos, wird sofort einzeln gefragt. Bei
+  429/403 gibt es zehn Minuten Pause. Offline ändert sich nichts, `appinfo.vdf` liefert die Filterdaten eigener
+  Steam-Spiele ohnehin.
 
 **Filterkorrektur (gehört zu Phase 2):**
-- `Game.controller` für Epic/GOG: vom Gegenstück (`categories` 28 → voll, 18 → teilweise), sonst GOGs Merkmal
+- `Game.controller` für Epic/GOG: vom Gegenstück (`controller_categoryids` 28 → voll, 18 → teilweise), sonst GOGs Merkmal
   `controller_support` (sagt nicht „teilweise“ → voll). Ohne Angabe bleibt der Wert unbekannt, nicht „keine“. Die
   Kennzahl zeigt dann „–“ statt „Maus & Tastatur“ (passt zu `StarterFacts.controller` als Optional im GOG-Zweig).
 - `compatibility(of:)`: Profil per `game.gameID.steamAppID ?? twin(of: game)`. Damit greift „Läuft super“ auch bei
@@ -149,32 +223,47 @@ struct GameInfo: Codable, Equatable {
 ## Offene Entscheidungen (für den Nutzer)
 
 1. **Wo steht die Kurzbeschreibung?** Empfehlung: 2 Zeilen auf dem ersten Bildschirm, die bei kleinem Fenster als
-   Erstes weichen, und alles Weitere unten beim Scrollen (wie Bild 1–4). Alternative: alles erst nach dem Scrollen.
+   Erstes weichen, und alles Weitere unten beim Scrollen (Bild 1–4). Alternative: alles erst nach dem Scrollen.
    Der erste Bildschirm bleibt dann genau wie heute.
-2. **Startseite?** Empfehlung: nichts Neues (Bild 6 gegen Bild 7). Alternative: der erste Satz, aber nur, wenn das
-   Fenster hoch genug ist.
-3. **Trailer?** Empfehlung: in Phase 2 nur Screenshots. Später geht es ohne Browser: Steam liefert Trailer als HLS,
-   das AVKit direkt abspielt (eine Kachel „▶ Trailer“ vorne in der Leiste). GOG hat nur YouTube.
-4. **Neuer Bibliotheksfilter „Zu zweit“** (Lokaler Koop / Geteilter Bildschirm) aus denselben Daten? Empfehlung: ja,
-   als kleiner Zusatz. Er passt zum Spielen am Fernseher mit Controller. Die Karten selbst bleiben unverändert.
+2. **Status-Segment „Alle | Auf diesem Mac | Nicht geladen“?** Empfehlung: Es fällt weg, dafür kommt der Schalter
+   „Nur auf diesem Mac“ ins Filter-Panel. Bei „Zuletzt gespielt“ gruppiert das Raster ohnehin so. Alternative:
+   Es bleibt als vierter Chip „Alle ▾“.
+3. **Store-Treffer bei der Suche:** Empfehlung: nur Steam, ohne Spiele, die man schon in einem anderen Store hat,
+   mit echten Covern. Alternative: zusätzlich GOG-Treffer (öffentlich möglich, eine zweite Gruppe; Epic geht nicht).
+4. **Trailer?** Empfehlung: in Phase 2 nur Screenshots. Später geht es ohne Browser: GetItems und appdetails liefern
+   Trailer als HLS, das AVKit direkt abspielt (eine Kachel „▶ Trailer“ vorne in der Leiste). GOG hat nur YouTube.
 
-Ohne Entscheidung festgelegt: Altersfreigabe als USK → PEGI → ESRB; der Hinweis „Angaben von Steam“ bei Daten vom
-Gegenstück; „Deutsch“-Zeile nur auf deutschen Macs; „Mehr über das Spiel“ scrollt statt aufzuklappen.
+Ohne Entscheidung festgelegt, weil die Bilder es zeigen oder der Auftrag es vorgibt:
+- Startseite unverändert (Bild 6 läuft bei 980 × 640 über).
+- Filter „Zu zweit am Mac“ im Panel.
+- Store-Chip wie vorgegeben.
+- Die Suche lässt Filter und Store ruhen.
+- Altersfreigabe als USK → PEGI → ESRB.
+- Hinweis „Angaben von Steam“ bei Daten vom Gegenstück.
+- „Deutsch“-Zeile nur auf deutschen Macs.
+- „Mehr über das Spiel“ scrollt, statt aufzuklappen.
 
 ## Aufwand (Phase 2)
 
 | Teil | Etwa |
 |---|---|
-| Datenschicht: `GameInfo.swift` (Modell, Parser für appdetails, appinfo-Felder, GOG v2, GamesDB, legendary, alter Epic-Inhaltsdienst), `GameInfoStore.swift` (Cache, Reihenfolge, Zwillinge, Drossel), `SteamCatalog` (associations, category, supported_languages), `GOGRelease.steamAppID` | 1 Tag |
-| Views: `GameAbout.swift` (Teaser, Abschnitt, Chips, Leiste, Karte, Freigabe, Großbild), scrollende `DetailLevel`, Pad-Fokus (↓ von der Knopfreihe in die Leiste, `PadFocus.reveal`), Tastatur im Großbild, Texte in `Strings.swift` | 1–1,5 Tage |
-| Filterkorrektur (Controller, Läuft super) + optional Filter „Zu zweit“ | ½ Tag |
-| Tests: `tests/GameInfoTest` mit echten Antworten als Fixtures (appdetails DE für 728880 und 275850, GOG v2, GamesDB Epic, legendary), Zwillingssuche, Cache/Neufragen, Filter; dazu `StringsTest` und `TextScaleTest` | ½ Tag |
+| Datenschicht: `GameInfo.swift` (Modell, Parser für GetItems, appdetails als Rückfall, appinfo-Felder, GOG v2, GamesDB, legendary, alter Epic-Inhaltsdienst), `GameInfoStore.swift` (Cache, Reihenfolge, Zwillinge, Drossel, 50er-Bündel), `SteamCatalog` (associations, category, supported_languages), `GOGRelease.steamAppID` | 1 Tag |
+| Spielseite: `GameAbout.swift` (Teaser, Abschnitt, Chips, Leiste, Karte, Freigabe, Großbild), scrollende `DetailLevel`, Pad-Fokus (↓ von der Knopfreihe in die Leiste, `PadFocus.reveal`), Tastatur im Großbild, Texte in `Strings.swift` | 1–1,5 Tage |
+| Bibliothek: neue Zeile (Store-, Sortier-, Filter-Chip, Panel, aktive Chips, Pad), `LibraryFilters.store` und `.couch`, Suche lässt Filter ruhen | 1 Tag |
+| Filterkorrektur (Controller, Läuft super), Store-Treffer ohne eigene Spiele, Cover mit Hash-Pfad, `&amp;` in Treffernamen | ½ Tag |
+| Tests: `tests/GameInfoTest` mit echten Antworten als Fixtures (GetItems und appdetails DE für 728880/275850, GOG v2, GamesDB Epic, legendary), Zwillingssuche, Cache/Neufragen; `LibraryFiltersTest` (Store, Zählung gemeinsamer Karten, Ruhen bei Suche); `StringsTest`, `TextScaleTest` | ½–1 Tag |
 
-Zusammen etwa 3 Tage einer Sitzung, ca. 1 000–1 300 neue Zeilen, danach der Live-Blick mit dem Koordinator.
-Konfliktgefahr: `LibraryView.swift` (`DetailLevel`, `GameDetail`) und `LibraryModel.swift`. Darum erst nach den
-Merges von 2.5 und GOG.
+Zusammen etwa 4–5 Tage einer Sitzung, ca. 1 600–2 000 neue Zeilen, danach der Live-Blick mit dem Koordinator.
+Konfliktgefahr: `LibraryView.swift` (`DetailLevel`, `GameDetail`), `LibraryGrid.swift` (`LibraryToolbar`; GOG
+fügt dort ein zweites Sync-Banner ein) und `LibraryModel.swift`. Darum erst nach den Merges von 2.5 und GOG.
+Teilbar in zwei Sitzungen nacheinander (erst Datenschicht + Filter + Bibliothek, dann Spielseite), weil beide
+`GameInfoStore` brauchen.
 
 ## Nebenfunde
+
+- **HTML-Reste in Store-Treffern:** Die Store-Suche gibt Namen mit `&amp;` zurück („PROFITS 2167: Planetar-
+  Ressourcen-Optimierungs- &amp; Infrastruktur-…“). `StoreSearch.gameHits` müsste HTML-Entitäten auflösen.
+  Kleine Korrektur, gehört in Phase 2.
 
 - **Startseite bei 980 × 640** (auf dem Stand von 2.5, Bild 7): Bei einem Epic-Spiel ohne Logo, „Als Nächstes“ und
   dem StarterPicks-Satz rückt die Spalte bis an die Kopfleiste. Die Meta-Zeile läuft unter die Kachel „Alle Spiele“.
