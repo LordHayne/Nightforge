@@ -166,16 +166,22 @@ struct SessionSummarySheet: View {
             Label(store.map { L10n.t("Your save goes up to %@ in the background.", $0) } ?? L10n.t("Steam syncs your save in the background."),
                   systemImage: "icloud")
                 .foregroundStyle(Theme.ink.opacity(0.85))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         case .syncing:
             HStack(spacing: 10) {
                 GlassSpinner()
                 Text(store.map { L10n.t("Uploading your save to %@ …", $0) } ?? L10n.t("Steam is syncing your save with the Steam Cloud …"))
                     .foregroundStyle(Theme.ink.opacity(0.85))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         case .noCloud:
             Label(store.map { L10n.t("No %@ cloud saves for this game – its saves are on this Mac.", $0) }
                       ?? L10n.t("No Steam Cloud for this game – its saves are on this Mac."), systemImage: "internaldrive")
                 .foregroundStyle(Theme.ink.opacity(0.85))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         case .failed:
             Label(L10n.t("%@ couldn't take your save just now. It's safe on this Mac and goes up after your next session.",
                          store ?? summary.game.provider.label),

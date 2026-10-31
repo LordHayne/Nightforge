@@ -154,7 +154,10 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         let folder = install?.path ?? (job?.folder ?? GOGDL.gamesDir(for: platform))
             .appendingPathComponent(size?.folder.isEmpty == false ? size!.folder : Self.folderName(entry.title), isDirectory: true)
         let isDownloading = job != nil
-        let onDisk = isDownloading ? progress?.total ?? size?.install ?? 0 : install?.size ?? size?.install ?? 0
+        // While it downloads: what comes down, as the game page said before it started – gogdl counts
+        // the bytes it writes (the size on the Mac), and its share goes for either.
+        let download = (size?.download).flatMap { $0 > 0 ? $0 : nil }
+        let onDisk = isDownloading ? download ?? progress?.total ?? size?.install ?? 0 : install?.size ?? size?.install ?? 0
         let played = playTimes[entry.id]
         var game = Game(gameID: .gog(entry.id), name: entry.title, bottle: platform == .mac ? Self.macBottle : Engine.bottle,
                         steamRoot: Engine.steamRoot, steamExeWindowsPath: "", installDir: folder, sizeOnDisk: onDisk,

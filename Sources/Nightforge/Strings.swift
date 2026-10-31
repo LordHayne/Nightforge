@@ -667,6 +667,7 @@ enum L10n {
         "Your Mac stays awake while games download. The display can still turn off.": "Dein Mac bleibt wach, solange Spiele laden. Der Bildschirm darf trotzdem ausgehen.",
         "Paused – not enough space": "Pausiert – zu wenig Platz",
         "%ld %% of %@": "%ld %% von %@",
+        "just now": "gerade eben",
         "Preparing …": "Wird vorbereitet …",
         "%@ · %@ left": "%@ · noch %@",
         "under a minute": "unter einer Minute",

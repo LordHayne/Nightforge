@@ -378,23 +378,22 @@ von „Epic Games“ unten:
   <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ im ersten Start
   (6.1) entfällt nach Entscheidung des Nutzers (29.10.): Epic verbindet man in Settings › Stores.
 
-### GOG (Branch `claude/gog-7-3-e69c3b`, Roadmap 7.3) – offene Tests mit echtem Konto (Stand 29.10.)
+### GOG (Branch `claude/gog-7-3-e69c3b`, Roadmap 7.3) – offene Tests mit echtem Konto (Stand 31.10.)
 
-Gebaut und gegen Fixtures geprüft (`tests/GOGTest`), mit echtem Konto und in der App **noch gar nicht**. Am besten im leeren
-Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
+Live getestet am 31.10. mit dem echten Konto (0e017bd): Anmeldung, Bibliothek, ein Mac-Download und Spielen klappen. Am
+besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
 
-- [ ] **Anmeldung:** Einstellungen › Stores › GOG › „Verbinden“ – GOGs Seite im Fenster (deutsch ✓), Anmelden (auch mit
-      Zwei-Faktor), Fenster schließt von selbst (✓), Toast „GOG ist verbunden“, Kontoname als Tooltip. Erster Versuch (31.10.,
-      a6a2899) scheiterte: gogdl 1.4.0 läuft nicht aus dem entpackten Ordner (Roadmap 7.3); seit 0e017bd läuft es normal.
-      Danach: `Components/gogdl/1.4.0/.runs-packed` da, `unpacked/` weg, `GOG/Logs/auth.log` mit Code 0 und „answer:
-      credentials“, ohne Code und Token. Vorher `tests/GOGTest/run.sh` – mit installiertem gogdl startet es das echte Programm.
-- [ ] **Bibliothek:** Zahl der Spiele plausibel (keine DLCs/Goodies als Spiele), Cover hochkant, Hero-Bild, Abzeichen „GOG“.
-      Die Felder von galaxy-library/GamesDB sind aus Heroics Typen übernommen – weicht GOG ab, zeigt sich das hier zuerst.
-- [ ] **Kleines Gratis-Spiel mit Mac-Version laden** (z. B. „Beneath a Steel Sky“ oder „Flight of the Amazon Queen“ aus
-      der eigenen Bibliothek): „Größe wird geprüft …“, dann Größe auf der Spielseite, Fortschritt/Tempo/Restzeit im
-      Download-Panel, danach „Spielen“ startet die App ohne Wine, Nightforge erkennt das laufende Spiel und kommt danach
-      zurück („Willkommen zurück“ mit Spielstand-Zeile). Liefert GOG die Mac-Version nicht übers Content-System, muss die
-      Windows-Version kommen (Hinweis-Toast); ist sie 32-Bit, ebenso.
+- [x] **Anmeldung:** GOGs Seite auf Deutsch, Fenster schließt von selbst, `auth.log` „ended with 0 / answer: credentials“,
+      `.runs-packed` angelegt. (Erster Versuch mit a6a2899 scheiterte: gogdl 1.4.0 läuft nicht aus dem entpackten Ordner,
+      Roadmap 7.3.) Offen: Zwei-Faktor, Kontoname als Tooltip. Vor dem nächsten Live-Test `tests/GOGTest/run.sh` – mit
+      installiertem gogdl startet es das echte Programm.
+- [x] **Bibliothek:** 7 Spiele, keine DLCs; Control und The Evil Within 2 mit Epic zu einer Karte zusammengelegt (193 → 198).
+- [x] **Mac-Version laden und spielen:** „A New Beginning: Final Cut“, 3,9 GB in ~3 Min. (~21 MB/s), keine gogdl-Reste;
+      startet als Mac-App (x86_64 unter Rosetta), „Willkommen zurück“ mit GOG-Cloud-Zeile, danach Platz 1 auf der Startseite.
+- [ ] **Nachgebessert, nachprüfen:** „Zuletzt gespielt gerade eben“ statt „in 0 Sekunden“; die Cloud-Zeile in „Willkommen
+      zurück“ bricht um (bis 2 Zeilen); im Download-Panel Fortschritt und Tempo/Restzeit in zwei Zeilen; eine GOG-Größe
+      „Herunterladen“ vor und während des Downloads und im Panel (die Download-Größe, nicht gogdls Installations-Bytes).
+- [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [ ] **Ein Windows-Spiel** laden und starten (Grafik-Leiter, Erstsekunden-Prüfung), Prozess-Erkennung über `\GOG Games\`.
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
       übrig: `pgrep -fl gogdl`), **Weiterladen** nach Beenden/Neustart von Nightforge.
