@@ -269,6 +269,20 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     - Am MacBook allein: Nightforges Fenster liegt hinter dem Spiel, beim Beenden ist es sofort da, die Seite deckt nur
       den Schreibtisch ab. Ein Spiel im Fenstermodus hat die dunkle Seite drumherum statt des Schreibtischs.
     - GOG-Spiele (Mac über `launchGOGMac`, Windows über `launchDirect`): dasselbe beim Beenden.
+  - **Vorhang beim Start und Ende** (1.11., Wunsch des Nutzers nach dem Valheim-Test: beim Start der Schreibtisch, am
+    Ende kurz der Schreibtisch und Steams Fenster). Gebaut in `GameBackdrop.swift`:
+    - Dieselbe Seite wird zum Vorhang über allem (Ebene knapp unter dem Overlay, alle Spaces, auch Vollbild-Spaces),
+      mit dem Hintergrundbild der Startseite, Spielname, „Wird gestartet …“ und einem kleinen Spinner.
+    - Er kommt, sobald das Spiel an seinen Store geht, für Steam, Steam für Mac, Epic und GOG
+      (`LibraryModel.raiseCurtain`). Er sinkt hinter das Spiel, sobald dessen App vorne ist und ein Fenster ab 640×360
+      zeigt, eine Sekunde später (`GameProcesses.showsWindow`).
+    - Eine Rückfrage von Steam, ein Fehler oder ein Start, der nicht klappt, nehmen ihn weg. Zeigt ein laufendes Spiel
+      60 s lang nichts, fragt das Overlay „<Spiel> startet nicht?“: Weiter warten, Zu Nightforge, Spiel beenden.
+    - Am Ende ist der Vorhang sofort da („Zurück zu Nightforge …“), auch schon bei „Spiel beenden“ im Overlay.
+      Steam für Mac wird gleich ausgeblendet, danach kommt die Spielseite des Spiels.
+    - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
+      oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
+      (EULA): Der Vorhang geht weg, die Frage ist zu sehen.
   - **Ton aus dem Fernseher** (31.10., gleicher Branch, `GameAudio.swift`): Beim Live-Test blieb der Ton auf den
     MacBook-Lautsprechern, obwohl ein DENON-AVR per HDMI dran war (macOS merkt sich die Ausgabe pro Gerät). Gebaut:
     Zeigt ein Fernseher Nightforge (Fenster auf einem TV, ein AV-Receiver zählt dazu, oder ein Spiegel-Satz mit einem

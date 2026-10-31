@@ -634,7 +634,11 @@ enum L10n {
 
         // Welcome back
         "Welcome back": "Willkommen zurück",
-        "%@ is running …": "%@ läuft …",
+        "Starting …": "Wird gestartet …",
+        "%@ isn't starting?": "%@ startet nicht?",
+        "It runs, but hasn't shown a picture yet. Some games take long the first time.":
+            "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
+        "Keep Waiting": "Weiter warten",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
         "Sound now comes from %@": "Ton kommt jetzt aus %@",

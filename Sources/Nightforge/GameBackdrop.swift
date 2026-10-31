@@ -1,59 +1,89 @@
 import AppKit
 import SwiftUI
 
-/// What lies behind a running game on its screen: a calm Nightforge page ("Mafia II is running …")
-/// instead of the Mac's desktop. When the game ends it's what shows – "Back to Nightforge …" –
-/// until Nightforge is in front again, as with a console. Nightforge used to hide itself during a
-/// game, so the desktop was all that was left behind it.
+/// Nightforge's page around a game, on the screen it plays on, as with a console.
 ///
-/// It sits below every normal window and in every desktop Space of the game's screen: wherever
-/// macOS puts the game's window (on a TV, Nightforge's full screen is a Space of its own, and the
-/// game opens on the desktop Space), the page is right behind it and can never cover the game or
-/// another app. It never takes a click, a key or the pad. Static, so it costs nothing while the
-/// game covers it.
+/// - As a curtain (`raise`), over everything but the overlay, in every Space: from the moment
+///   the game is handed to its store until it shows its window in front ("Starting …"), and again
+///   the moment it ends ("Back to Nightforge …") until Nightforge is in front. Spaces changing
+///   underneath, Steam for Mac's window coming up and the desktop stay out of sight.
+/// - Behind the game (`show`, `lower`): below every normal window and in every desktop Space, so
+///   it never covers the game or another app; around a game in a window it's the page instead of
+///   the desktop.
+///
+/// It never takes a click, a key or the pad. A static picture – the game's backdrop from Home's
+/// stage, already blurred – with a small spinner while it's a curtain: nothing that costs the game
+/// frames.
 @MainActor
 enum GameBackdrop {
     final class State: ObservableObject {
         @Published var game = ""
-        @Published var returning = false
+        @Published var art: NSImage?
+        @Published var stage = Stage.behind
+    }
+
+    enum Stage: Equatable {
+        case starting, behind, returning
+
+        var raised: Bool { self != .behind }
     }
 
     private static let state = State()
     private static var window: NSWindow?
     private static var hiding: Task<Void, Never>?
     private static var observer: NSObjectProtocol?
+    private static var gameOn: @MainActor () -> Bool = { false }
 
-    /// Behind `game`, on the screen it plays on. `gameOn`: whether it still runs – when Nightforge
-    /// comes to the front without it (a game whose end went unseen), the page goes.
+    static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
+
+    /// Behind `game`, on the screen it plays on – unless the curtain is up, which stays.
+    /// `gameOn`: whether it still runs – when Nightforge comes to the front without it (a game
+    /// whose end went unseen), the page goes.
     static func show(_ game: String, on screen: NSScreen?, gameOn: @escaping @MainActor () -> Bool) {
-        guard let screen = screen ?? NSScreen.main else { return }
-        hiding?.cancel()
-        if let observer { NotificationCenter.default.removeObserver(observer) }
-        observer = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
-                                                          object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { if !gameOn() { hide() } }
-        }
-        state.game = game
-        state.returning = false
-        let window = self.window ?? make()
-        self.window = window
-        window.alphaValue = 1
-        window.setFrame(screen.frame, display: false)
-        window.orderFrontRegardless()  // within its level, under every normal window
+        if isRaised, state.game == game { return }
+        put(game, on: screen, stage: .behind, gameOn: gameOn)
     }
 
-    /// The game's processes are gone: Nightforge is on its way.
+    /// The curtain over the screen while `game` starts.
+    static func raise(_ game: String, on screen: NSScreen?, gameOn: @escaping @MainActor () -> Bool) {
+        put(game, on: screen, stage: .starting, gameOn: gameOn)
+    }
+
+    static func setArt(_ image: NSImage?, for game: String) {
+        guard state.game == game else { return }
+        state.art = image
+    }
+
+    /// The game is in front: the curtain fades and stays behind it.
+    static func lower() {
+        guard let window, window.isVisible, state.stage.raised else { return }
+        hiding?.cancel()
+        hiding = Task {
+            await NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                window.animator().alphaValue = 0
+            }
+            guard !Task.isCancelled else { return }
+            state.stage = .behind
+            arrange(window)
+            window.alphaValue = 1
+        }
+    }
+
+    /// The game's processes are gone: the curtain at once, "Back to Nightforge …".
     static func returning() {
-        guard window?.isVisible == true else { return }
-        state.returning = true
+        guard !state.game.isEmpty else { return }
+        put(state.game, on: GameDisplay.screen, stage: .returning, gameOn: gameOn)
     }
 
     /// They came back (a launcher handed over to the game): the game runs on.
     static func playing() {
-        state.returning = false
+        guard state.stage == .returning else { return }
+        state.stage = .behind
+        if let window { arrange(window) }
     }
 
-    /// Once Nightforge is in front: a moment later, so a switch of Spaces has finished by then.
+    /// Gone, once Nightforge is in front: a moment later, so a switch of Spaces has finished by then.
     static func hide(after delay: Duration = .milliseconds(900)) {
         guard let window, window.isVisible else { return }
         hiding?.cancel()
@@ -71,11 +101,41 @@ enum GameBackdrop {
         }
     }
 
+    private static func put(_ game: String, on screen: NSScreen?, stage: Stage, gameOn: @escaping @MainActor () -> Bool) {
+        guard let screen = screen ?? NSScreen.main else { return }
+        hiding?.cancel()
+        if state.game != game { state.art = nil }
+        state.game = game
+        state.stage = stage
+        self.gameOn = gameOn
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
+                                                          object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { if !GameBackdrop.gameOn(), !GameBackdrop.isRaised { hide() } }
+        }
+        let window = self.window ?? make()
+        self.window = window
+        window.alphaValue = 1
+        window.setFrame(screen.frame, display: false)
+        arrange(window)
+        window.orderFrontRegardless()
+    }
+
+    /// The curtain above the other windows and over full-screen Spaces too; behind, above the
+    /// desktop's icons only.
+    private static func arrange(_ window: NSWindow) {
+        if state.stage.raised {
+            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        } else {
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
+        }
+        window.orderFrontRegardless()
+    }
+
     private static func make() -> NSWindow {
         let window = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
-        // Above the desktop's icons, below everything else.
-        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
         window.isReleasedWhenClosed = false
         window.ignoresMouseEvents = true
         window.hasShadow = false
@@ -94,19 +154,37 @@ private struct BackdropView: View {
     var body: some View {
         ZStack {
             Theme.night
-            VStack(spacing: 10) {
-                Text(state.returning ? L10n.t("Back to Nightforge …") : L10n.t("%@ is running …", state.game))
-                    .font(size: 22, weight: .semibold)
-                    .foregroundColor(Theme.ink)
-                if !state.returning {
-                    Text(L10n.t("Nightforge waits here until you're done."))
-                        .font(size: 14)
-                        .foregroundColor(Theme.muted)
+            if let art = state.art {
+                Image(nsImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .opacity(0.45)
+                LinearGradient(colors: [Theme.night.opacity(0.2), Theme.night.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+            }
+            VStack(spacing: 14) {
+                Text(state.game)
+                    .font(size: 30, weight: .semibold)
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(2)
+                HStack(spacing: 10) {
+                    if state.stage.raised { GlassSpinner(size: 18) }
+                    Text(status)
+                        .font(size: 15, weight: .medium)
+                        .foregroundStyle(Theme.muted)
                 }
             }
             .multilineTextAlignment(.center)
             .padding(Theme.gutter)
         }
+        .clipped()
         .ignoresSafeArea()
+    }
+
+    private var status: String {
+        switch state.stage {
+        case .starting: return L10n.t("Starting …")
+        case .behind: return L10n.t("Nightforge waits here until you're done.")
+        case .returning: return L10n.t("Back to Nightforge …")
+        }
     }
 }

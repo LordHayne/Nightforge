@@ -1,6 +1,7 @@
 // Checks the controller overlay's parts that work without a screen: the two-second hold, its steps,
 // which processes belong to a game, and pausing and ending a stand-in game's process tree:
 // tests/GameOverlayTest/run.sh
+import CoreGraphics
 import Foundation
 
 @main
@@ -18,6 +19,7 @@ struct GameOverlayTest {
         hold()
         steps()
         targets()
+        windows()
         standIn()
         if failures == 0 { print("✓ GameOverlay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
@@ -72,6 +74,12 @@ struct GameOverlayTest {
         for event in [OverlayEvent.back, .resume, .askQuit, .quit, .nightforge] {
             expect(.quitting, event, (.quitting, .none), "while quitting nothing else (\(event))")
         }
+        // "Not starting?" over the curtain: keep waiting, go to Nightforge, or quit after the question.
+        expect(.notStarting, .resume, (.notStarting, .close), "Keep Waiting: the curtain stays, the question goes")
+        expect(.notStarting, .back, (.notStarting, .close), "B: keep waiting too")
+        expect(.notStarting, .nightforge, (.notStarting, .nightforge), "Go to Nightforge")
+        expect(.notStarting, .askQuit, (.confirmQuit, .none), "Quit Game asks first here too")
+        expect(.notStarting, .quit, (.notStarting, .none), "no quitting without the question")
     }
 
     /// Which processes are the game's: its folder, what it started, never the Wine session or Steam.
@@ -92,6 +100,23 @@ struct GameOverlayTest {
         for spared: pid_t in [1, 401, 6058, 6060, 6070, 6080, 6100, 6110, 900] {
             check(!(l4d2 + overcooked + nms).contains(spared), "\(spared) is spared")
         }
+    }
+
+    /// What the curtain waits for: a window of a game's size from one of the game's processes.
+    static func windows() {
+        func window(_ pid: Int32, _ width: Double, _ height: Double, layer: Int = 0, alpha: Double = 1) -> [String: Any] {
+            [kCGWindowOwnerPID as String: NSNumber(value: pid), kCGWindowLayer as String: NSNumber(value: layer),
+             kCGWindowAlpha as String: NSNumber(value: alpha),
+             kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": width, "Height": height] as [String: Any]]
+        }
+        let game: Set<pid_t> = [7000, 7010]
+        check(GameProcesses.showsWindow([window(7000, 1920, 1080)], pids: game), "the game's full-screen window")
+        check(GameProcesses.showsWindow([window(7010, 1280, 720)], pids: game), "a window of one of its processes")
+        check(!GameProcesses.showsWindow([window(7000, 480, 270)], pids: game), "a splash or a launcher's dialog doesn't count")
+        check(!GameProcesses.showsWindow([window(401, 1920, 1080)], pids: game), "Nightforge's own (or Steam's) window doesn't count")
+        check(!GameProcesses.showsWindow([window(7000, 1920, 1080, alpha: 0)], pids: game), "an invisible window doesn't count")
+        check(!GameProcesses.showsWindow([], pids: game), "nothing on screen yet")
+        check(!GameProcesses.showsWindow([window(7000, 1920, 1080)], pids: []), "no processes, no window")
     }
 
     /// A stand-in game: a shell named like a Windows game, which shrugs off SIGTERM, and its child.

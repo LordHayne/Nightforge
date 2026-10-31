@@ -459,6 +459,7 @@ final class LibraryModel: ObservableObject {
             guard await beforeGOGStart(game) else { return }
             let installDir = game.installDir
             await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            raiseCurtain(for: game)
             do {
                 try await gog.launchMac(game, extraArguments: arguments)
             } catch {
@@ -571,7 +572,9 @@ final class LibraryModel: ObservableObject {
         }
         if goneFor == 0 {
             goneSince = Date()
+            // The curtain at once, over Steam for Mac's window, which comes up when a game ends.
             GameBackdrop.returning()
+            MacSteam.hide()
         }
         goneFor += 1
         let ranFor = playing.compactMap { sessionStarts[$0]?.date }.map { goneSince.timeIntervalSince($0) }.max() ?? 0
@@ -596,6 +599,8 @@ final class LibraryModel: ObservableObject {
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt) : nil
         }
+        // Back on the game's page, as from a console's game.
+        if let game = endedGames.first(where: { $0.inLibrary }), reveal(game), !route.isDetail { openDetail() }
         comeBack()
         sessionSummary = sessions.max { $0.minutes < $1.minutes }
     }
@@ -744,6 +749,84 @@ final class LibraryModel: ObservableObject {
         return false
     }
 
+    // MARK: - The curtain
+
+    private var curtainWatch: Task<Void, Never>?
+
+    /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
+    /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
+    /// error or a start that didn't take take it away; a game that runs but shows nothing for a
+    /// minute gets the overlay's "Not starting?".
+    private func raiseCurtain(for game: Game) {
+        curtainWatch?.cancel()
+        GameBackdrop.raise(game.name, on: GameDisplay.screen) { [weak self] in self?.playing.isEmpty == false }
+        let name = game.name
+        Task {
+            let art = await ArtworkStore.shared.stageBackdrop(for: game)
+            GameBackdrop.setArt(art?.image, for: name)
+        }
+        curtainWatch = Task { await watchCurtain(game) }
+    }
+
+    private func watchCurtain(_ game: Game) async {
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        var askAt = Date().addingTimeInterval(Self.curtainPatience)
+        var seenOnce = false
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, GameBackdrop.isRaised else { return }
+            // Steam asks something in its window, or the start went wrong: the player has to see it.
+            if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
+                GameBackdrop.hide(after: .zero)
+                return
+            }
+            let pids = await Task.detached(priority: .utility) {
+                Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+            }.value
+            seenOnce = seenOnce || !pids.isEmpty
+            // Started and gone again, nothing starting any more: the start flow says what happened.
+            if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
+                if launchingID == nil { GameBackdrop.hide(after: .zero) }
+                if launchingID == nil { return }
+                continue
+            }
+            let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            if let front, pids.contains(front), await Task.detached(priority: .utility, operation: { GameProcesses.showsWindow(pids) }).value {
+                try? await Task.sleep(for: .seconds(1))  // its first frames
+                if GameOverlay.asksAboutStart { GameOverlay.close() }
+                GameBackdrop.lower()
+                return
+            }
+            if !pids.isEmpty, Date() >= askAt, !GameOverlay.isOpen {
+                askAt = Date().addingTimeInterval(Self.curtainPatience)
+                askAboutStart(game)
+            }
+        }
+    }
+
+    /// How long a running game may show nothing before the curtain asks.
+    private static let curtainPatience: TimeInterval = 60
+
+    private func askAboutStart(_ game: Game) {
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        let actions = GameOverlay.Actions(
+            quit: {
+                GameBackdrop.returning()
+                await Task.detached(priority: .userInitiated) {
+                    GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                }.value
+            },
+            nightforge: { [weak self] in
+                self?.curtainWatch?.cancel()
+                GameBackdrop.hide(after: .zero)
+                self?.comeForward()
+                NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+            })
+        GameOverlay.open(game.name, pause: [], on: GameDisplay.screen, symbols: padSymbols, step: .notStarting, actions: actions)
+    }
+
     /// Both sticks held in a game (InputRouter): the overlay over the game being played. A
     /// Windows game is paused under it. Quit ends its processes, also when it hangs, and its end
     /// is then seen like any other (watchForGameEnd); Go to Nightforge leaves it running.
@@ -761,6 +844,7 @@ final class LibraryModel: ObservableObject {
             }.value
             let actions = GameOverlay.Actions(
                 quit: {
+                    GameBackdrop.returning()
                     // Looked up again: the game may have started more processes since.
                     await Task.detached(priority: .userInitiated) {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
@@ -1481,6 +1565,7 @@ final class LibraryModel: ObservableObject {
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             let run = { MacSteam.open("run/\(game.appID)" + extra) }
+            raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)
             switch start {
@@ -2268,6 +2353,7 @@ final class LibraryModel: ObservableObject {
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
+                raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, arguments: arguments,

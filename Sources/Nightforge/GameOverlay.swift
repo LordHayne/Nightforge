@@ -37,16 +37,20 @@ enum GameOverlay {
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
+    /// Open with "Not starting?" (or the question it led to).
+    static var asksAboutStart: Bool { isOpen && state.step == .notStarting }
     /// The panel, while it's up: the pad's input goes there (InputRouter).
     static var window: NSWindow? { isOpen ? panel : nil }
 
-    /// Over `game` on `screen`. `pause`: its processes, stopped until the panel goes.
-    static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, symbols: PadSymbols, actions: Actions) {
+    /// Over `game` on `screen`. `pause`: its processes, stopped until the panel goes. `step`:
+    /// `.notStarting` for a game that runs but shows nothing (LibraryModel's curtain).
+    static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, symbols: PadSymbols,
+                     step: OverlayStep = .menu, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
         state.game = game
         state.symbols = symbols
-        state.step = .menu
+        state.step = step
         stop(pause)
         state.paused = !pause.isEmpty
         let panel = self.panel ?? make()
@@ -96,9 +100,9 @@ enum GameOverlay {
     nonisolated static func transition(_ step: OverlayStep, _ event: OverlayEvent) -> (OverlayStep, Effect) {
         switch (step, event) {
         case (.quitting, _): return (.quitting, .none)
-        case (.menu, .back), (_, .resume): return (step, .close)
-        case (.menu, .askQuit): return (.confirmQuit, .none)
-        case (.menu, .nightforge): return (.menu, .nightforge)
+        case (.menu, .back), (.notStarting, .back), (_, .resume): return (step, .close)
+        case (.menu, .askQuit), (.notStarting, .askQuit): return (.confirmQuit, .none)
+        case (.menu, .nightforge), (.notStarting, .nightforge): return (step, .nightforge)
         case (.confirmQuit, .back): return (.menu, .none)
         case (.confirmQuit, .quit): return (.quitting, .quit)
         default: return (step, .none)
@@ -166,7 +170,7 @@ enum GameOverlay {
     }
 }
 
-enum OverlayStep: Equatable { case menu, confirmQuit, quitting }
+enum OverlayStep: Equatable { case menu, notStarting, confirmQuit, quitting }
 
 enum OverlayEvent { case back, resume, askQuit, quit, nightforge }
 
@@ -186,6 +190,7 @@ private struct OverlayView: View {
             VStack(spacing: 14) {
                 switch state.step {
                 case .menu: menu
+                case .notStarting: notStarting
                 case .confirmQuit: question
                 case .quitting:
                     Text(L10n.t("Quitting %@ …", state.game))
@@ -232,6 +237,21 @@ private struct OverlayView: View {
         .font(size: 12, weight: .medium)
         .foregroundStyle(Theme.muted)
         .padding(.top, 8)
+    }
+
+    /// The game runs but has shown nothing for a minute (LibraryModel's curtain).
+    @ViewBuilder private var notStarting: some View {
+        Text(L10n.t("%@ isn't starting?", state.game))
+            .font(size: 22, weight: .semibold)
+        Text(L10n.t("It runs, but hasn't shown a picture yet. Some games take long the first time."))
+            .font(size: 14)
+            .foregroundStyle(Theme.muted)
+        VStack(spacing: 12) {
+            choice("overlay.wait", L10n.t("Keep Waiting"), tint: Theme.sodium, preferred: true) { GameOverlay.resume() }
+            choice("overlay.nightforge", L10n.t("Go to Nightforge")) { GameOverlay.toNightforge() }
+            choice("overlay.quit", L10n.t("Quit Game")) { GameOverlay.askQuit() }
+        }
+        .padding(.top, 10)
     }
 
     @ViewBuilder private var question: some View {
@@ -406,6 +426,26 @@ enum GameProcesses {
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return false }
         return info.pbi_status == UInt32(SSTOP)
+    }
+
+    /// Whether one of `pids` shows a window of a game's size on screen (CGWindowList's entries):
+    /// what the curtain waits for. Small ones – a splash, a launcher's dialog – don't count.
+    nonisolated static func showsWindow(_ windows: [[String: Any]], pids: Set<pid_t>) -> Bool {
+        windows.contains { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= 0,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return false }
+            return width >= 640 && height >= 360
+        }
+    }
+
+    nonisolated static func showsWindow(_ pids: Set<pid_t>) -> Bool {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        return showsWindow(windows, pids: pids)
     }
 
     /// A display taken by a game for a mode change: its shield window lies above every other.
