@@ -1630,8 +1630,19 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
       die TV-Session.
     - Mit 1920×1080 in `videoconfig.cfg` und DXVK von Hand lief es auf KosmicKrisp (`lsof` sah es, der Layer loggte FPS).
       Mal 54–60 FPS, mal 7–17 FPS, einzelne Stopps bis 8,3 s. CPU 130–370 % statt 230–440 %, ein Thread bei 92–100 %.
-      Der Nutzer: „Anfang lief echt gut, dann wieder Ruckler“. Echo und Knacken im Ton blieben. Der Ton lief diesmal
-      über den DENON mit 8 Kanälen, ob das beim Echo eine Rolle spielt, prüft ein späterer Test.
+      Der Nutzer: „Anfang lief echt gut, dann wieder Ruckler“. Echo und Knacken im Ton blieben. Die GPU-Last schwankt
+      und erreicht nie 100 %: Die CPU bremst.
+    - Das Echo kam mit DXVK und auch beim WineD3D-Rückfall, im Testbau `testcheck` (21:13, 23:00) war es weg. Mein
+      Zweig ändert für einen WineD3D-Start eines GOG-Spiels nichts: Seit 9becef2 berührt kein Commit den Ton, und
+      `vulkanDriver` gibt für WineD3D keine Variable mit. Anders war das Gerät: um 00:17 der DENON-AVR, vorher die
+      MacBook-Lautsprecher. Wine meldet den DENON laut Prefix-Registry (`MMDevices\Audio\Render\{E01B03C4-…}`,
+      DeviceFormat) mit 8 Kanälen, 48 kHz, Float und Kanalmaske 0xFF. Das ist Windows' altes „7.1 wide“ mit vorne
+      links und rechts von der Mitte statt seitlich, HDMI-7.1 wäre 0x63F. Die MacBook-Lautsprecher: 2 Kanäle, Maske 0x3.
+      FMOD übernimmt die Lautsprecher daraus (`getDriverCaps`, `setSpeakerMode`) und mischt dann für 7.1. Kanäle an der
+      falschen Stelle und der Abgleich im AVR können wie Hall klingen. Belegt ist das nicht. Test: dieselbe Stelle mit
+      der installierten Nightforge (WineD3D) einmal über den DENON und einmal über die MacBook-Lautsprecher. Hängt das
+      Echo am DENON, gibt es zwei Wege: in „Audio-MIDI-Setup“ für den DENON 2 Kanäle einstellen (Gegenprobe), oder
+      Nightforge meldet Spielen am Fernseher Stereo bzw. echtes 7.1.
     - Welcher Thread voll läuft, sagt der nächste Lauf: `tests/kosmickrisp/thread-cpu.py <pid> 5 [sample.txt]` liest
       die CPU-Zeit pro Thread mit Namen (DXVKs heißen `dxvk-cs`, `dxvk-submit` …, die des Spiels haben keinen), `sample`
       dazu die Module. In Frage kommen Mafias Hauptthread (Spiel und DXVKs D3D9-Seite, 32-Bit-Code unter Rosetta) und
