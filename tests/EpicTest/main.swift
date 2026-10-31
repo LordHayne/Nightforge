@@ -30,6 +30,7 @@ struct EpicTest {
         packed()
         await refusesUnpacked()
         profiles()
+        legendaryRuns()
         await store()
 
         print(failures == 0 ? "✓ Epic" : "\(failures) failed")
@@ -441,5 +442,40 @@ struct EpicTest {
         check(played?.playtimeMinutes == 42 && played?.lastPlayed.map { abs($0.timeIntervalSince(threeDaysAgo)) < 1 } == true,
               "Nightforge counts Epic games' play time itself")
         check(await EpicStore().library().first { $0.gameID == .epic("Sugar") }?.playtimeMinutes == 42, "it's kept")
+
+        // Installed but never in the list here, and a game whose drive is unplugged.
+        let unplugged = "nightforge-test-\(UUID().uuidString)"
+        let lone = Legendary.gamesDir.appendingPathComponent("Lone Game").path
+        let more = #"{"Sugar": {"install_path": "\#(installPath)", "install_size": 1000, "version": "2"},"#
+            + #""Lone": {"install_path": "\#(lone)", "install_size": 5, "version": "1", "can_run_offline": true},"#
+            + #""Odd": {"install_path": "/Volumes/\#(unplugged)/Epic Games/Odd", "install_size": 7, "version": "7"}}"#
+        try? Data(more.utf8).write(to: Legendary.configDir.appendingPathComponent("installed.json"))
+        let later = await EpicStore().library()
+        let loneGame = later.first { $0.gameID == .epic("Lone") }
+        check(loneGame?.name == "Lone Game" && loneGame?.install == .installed && loneGame?.onlineOnly == false,
+              "installed, not in the list: still there, by its folder's name, playable offline")
+        let oddGame = later.first { $0.gameID == .epic("Odd") }
+        check(oddGame?.install == .notInstalled && oddGame?.missingDrive == unplugged, "on an unplugged drive: waits for it")
+    }
+
+    /// What legendary is started with, and what Nightforge makes of what it says.
+    static func legendaryRuns() {
+        let binary = FileManager.default.temporaryDirectory.appendingPathComponent("nightforge-epic-\(UUID().uuidString)/legendary")
+        let environment = Legendary.environment(program: binary)
+        check(environment["LEGENDARY_CONFIG_PATH"] == Legendary.configDir.path && environment["WINEPREFIX"] == Engine.prefix.path
+              && environment["NO_COLOR"] == "1" && environment["PATH"] != nil,
+              "legendary gets its own folder, the Windows environment and no terminal colours")
+        check(environment["_PYI_APPLICATION_HOME_DIR"] == nil, "nothing unpacked: it unpacks itself")
+        let output = Legendary.Output(status: 1, output: Data("[]".utf8),
+                                      log: "[cli] INFO: Logging in\n[cli] ERROR: Login failed: invalid token\n[cli] INFO: done\n")
+        check(output.text == "[]" && output.error == "Login failed: invalid token", "the last error legendary gave: \(output.error ?? "nil")")
+        check(Legendary.Output(status: 1, output: Data(), log: "[cli] CRITICAL: No saved credentials").error == "No saved credentials",
+              "a critical one counts too")
+        check(Legendary.Output(status: 0, output: Data(), log: "[cli] INFO: fine").error == nil, "no error, none made up")
+        check(Legendary.log(for: "Sugar").lastPathComponent == "Sugar.log" && Legendary.log(for: "Sugar").path.hasPrefix(Engine.supportDir.path),
+              "one log per download, in Nightforge's folder")
+        let messages = [EpicError.unavailable, .signInFailed("expired"), .signInFailed(nil), .failed("disk full")].map(\.errorDescription)
+        check(Set(messages.compactMap { $0 }).count == 4 && messages[1]?.contains("expired") == true && messages[3] == "disk full",
+              "every failure says what happened")
     }
 }
