@@ -743,6 +743,36 @@ final class LibraryModel: ObservableObject {
         return false
     }
 
+    /// The PS button held in a game (InputRouter): the overlay over the game being played. A
+    /// Windows game is paused under it. Quit ends its processes, also when it hangs, and its end
+    /// is then seen like any other (watchForGameEnd); Go to Nightforge leaves it running.
+    func openOverlay() {
+        guard !GameOverlay.isOpen,
+              let game = allGames.first(where: { playing.contains($0.id) && running[$0.id] != nil })
+                ?? allGames.first(where: { running[$0.id] != nil })
+        else { return }
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        let pauses = game.platform == .windows
+        Task {
+            let pids = await Task.detached(priority: .userInitiated) {
+                GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table())
+            }.value
+            let actions = GameOverlay.Actions(
+                quit: {
+                    // Looked up again: the game may have started more processes since.
+                    await Task.detached(priority: .userInitiated) {
+                        GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                    }.value
+                },
+                nightforge: { [weak self] in
+                    self?.comeForward()
+                    NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+                })
+            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.screen, actions: actions)
+        }
+    }
+
     /// Brings the running game's window to the front.
     func switchToGame(_ game: Game) {
         guard let pid = game.entries.lazy.compactMap({ self.running[$0.id] }).first else { return }

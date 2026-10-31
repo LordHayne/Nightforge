@@ -21,8 +21,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
   - Reichere Spieldaten, Phase 2, in zwei Teilen.
   - Testabdeckung (Session test-coverage).
-  - Kleines Controller-Overlay: PS gedrückt halten, dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
-    Baut die TV-Session, es wird mit dem TV-Modus gemergt. Das schöne große Overlay kommt nach 0.3.0.
+  - Kleines Controller-Overlay: gebaut auf `claude/tv-fullscreen-61ab1e` (`GameOverlay.swift`), mit dem TV-Modus am
+    Fernseher testen (siehe „Controller“). Das schöne große Overlay kommt nach 0.3.0.
   - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
     APEX/PhysX-Profil, Ton unter Wine.
   - Landingpage und README.
@@ -146,35 +146,41 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
   in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
   Mac-Spielen damit noch aufgeht.
-- **Hängendes Spiel vom Sofa aus beenden** (Nutzer, 31.10., gesehen mit Left 4 Dead 2: Prozess lief weiter mit
-  ~100 % CPU, Bild stand. „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
-  - **Von Hand:** PS-/Guide-Taste 2 s gedrückt halten. Nightforge kommt nach vorne mit „<Spiel> beenden?“,
-    A bestätigt, B bricht ab. Nightforge beendet dann das Spiel samt Prozessbaum (Windows: das Programm unter
-    `\steamapps\common\` bzw. `\GOG Games\`, notfalls `wineserver -k` für die Spielsitzung; Mac: das Spiel-Programm),
-    räumt auf wie nach einem normalen Ende und zeigt wieder die Spielseite.
-  - **Von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
-    oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge dasselbe an, ohne zu
-    raten, wenn ein Ladebildschirm nur lange dauert.
-  - **Technik:** Nightforge bekommt die Taste auch im Hintergrund über `GCController.shouldMonitorBackgroundEvents`
-    (macOS 11.3+). Kollidiert nicht mit Steams Guide-Taste (siehe `SteamGuideButton` oben); macOS selbst kann die
-    Home-Taste für Launchpad oder die Spiele-App belegen, also auf macOS 26/27 prüfen, ob „gedrückt halten“ frei ist.
-  - Für den Release 0.3.0 wichtig, weil der TV-Modus ohne Maus und Tastatur auskommen soll.
-- **Nightforge-Overlay für den Controller** (Nutzer, 31.10.; die kleine Version kommt in 0.3.0, gebaut von der TV-Session, das schöne große Overlay danach):
-  - PS-/Guide-Taste im Spiel (gedrückt halten, damit Steams kurzer Druck frei bleibt) öffnet ein ruhiges Overlay
-    über dem Spiel:
-    - Weiterspielen (B oder noch einmal PS)
-    - Spiel beenden (mit Rückfrage; auch wenn es hängt)
-    - Zu Nightforge (Bibliothek, Downloads, ohne das Spiel zu beenden)
-    - Uhrzeit, Controller-Akku, laufende Downloads
-    - später: Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung
-  - Technik, zu klären:
-    - Ein Panel mit `.canJoinAllSpaces`/`.fullScreenAuxiliary` über dem Vollbild-Space des Spiels. Hat Wine den
-      Bildschirm exklusiv belegt (`CGCaptureAllDisplays` bei echtem Modus-Wechsel), kann kein Fenster darüber; dann
-      kommt Nightforge stattdessen nach vorne.
-    - Eingaben gehen weiter ans Spiel, denn macOS kann einem anderen Prozess den Controller nicht wegnehmen. Kandidat:
-      das Spiel solange mit `SIGSTOP` anhalten und mit `SIGCONT` weiterlaufen lassen. Bei Online-Spielen, beim Ton
-      und bei Steams Spielerkennung prüfen.
-    - Stromsparend nach dem UI-Budget: kein Live-Weichzeichner über dem ganzen Bild, nur abdunkeln.
+- **Kleines Controller-Overlay** (0.3.0, Branch `claude/tv-fullscreen-61ab1e`, `GameOverlay.swift`; Anlass: Left 4 Dead 2
+  hing am 31.10. im Ladebildschirm, „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
+  - **Gebaut:** PS-/Xbox-Taste 2 s halten, oder ☰ und ⧉ zusammen 2 s (falls macOS die Home-Taste nimmt). Dann kommt
+    ein ruhiges Panel über das Spiel: Weiterspielen (B oder noch einmal PS), Spiel beenden (mit Rückfrage) und Zu
+    Nightforge (das Spiel läuft weiter). Alles mit PadFocus bedienbar, abgedunkelt statt weichgezeichnet.
+  - **Beenden:** Nightforge weckt den ganzen Prozessbaum, bittet um Ende (SIGTERM) und tötet nach 3 s (SIGKILL), auch
+    ein hängendes Spiel. Dazu gehören die Programme im Spielordner und alles, was sie gestartet haben, nie aber
+    wineserver, `C:\windows\…`, Steam oder Nightforge (`GameProcesses.targets`). Danach räumt der normale Ablauf auf
+    (`watchForGameEnd`, Willkommen zurück). `wineserver -k` braucht es dafür nicht.
+  - **Technik:**
+    - Den Pad liest Nightforge auch im Hintergrund (`GCController.shouldMonitorBackgroundEvents`). Im Spiel wertet
+      `InputRouter` nur das Halten aus (`reach`), sonst nichts.
+    - Das Panel ist nicht aktivierend (`.nonactivatingPanel`, Level `.screenSaver`, `.canJoinAllSpaces` und
+      `.fullScreenAuxiliary`), also kein Space-Wechsel. Hat ein Spiel den Bildschirm exklusiv belegt (Schild-Fenster),
+      kommt Nightforge zusätzlich nach vorne.
+    - Windows-Spiele hält Nightforge solange mit `SIGSTOP` an. Begründung: Wines Pad-Treiber läuft in
+      `winedevice.exe`, XInput liefert beim Weiterlaufen den aktuellen Zustand statt der Zwischendrücke, und der Ton
+      setzt aus. Mac-Spiele laufen weiter und reagieren mit, weil GameController ihnen die Drücke sonst gesammelt
+      nachliefert.
+  - **macOS 27:** In Systemeinstellungen › Game-Controller öffnet die Home-Taste per Druck das Game-Overlay bzw. die
+    Spiele-App. Es gibt „Home-Tasten-Ausnahmen“ und eigene Aktionen für Einfach-, Doppel- und Langdruck. Nightforge
+    hört mit `.alwaysReceive` mit.
+  - **Am Fernseher prüfen:**
+    - Kommt das Halten der PS-Taste im Windows- und im Mac-Spiel an, oder nimmt macOS es? Sonst ☰ + ⧉.
+    - Liegt das Panel über dem Spiel, ohne Space-Wechsel? Steuert der Pad nur das Panel?
+    - Ist ein pausiertes Spiel wirklich still, und läuft es nach Weiterspielen ohne verschluckte oder doppelte
+      Eingaben weiter? Was macht Steam (Spielzeit, „läuft“)? Ein Online-Spiel nicht lange pausieren.
+    - Spiel beenden bei einem hängenden Spiel (Left 4 Dead 2 im Ladebildschirm): Nach höchstens ~3 s ist es weg,
+      danach kommt Willkommen zurück. Bleibt Steam dabei heil?
+    - Zu Nightforge: Bibliothek vorn, das Spiel läuft weiter, „Zum Spiel wechseln“ führt zurück.
+- **Hängendes Spiel von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
+  oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge das Overlay mit „Spiel
+  beenden“ an, ohne zu raten, wenn ein Ladebildschirm nur lange dauert.
+- **Großes Nightforge-Overlay** (nach 0.3.0, der Nutzer will es „später schön ausarbeiten“): Uhrzeit, Controller-Akku,
+  laufende Downloads, Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
