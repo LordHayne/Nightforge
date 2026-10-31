@@ -23,8 +23,11 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - Testabdeckung (Session test-coverage).
   - Kleines Controller-Overlay: PS gedrückt halten, dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
     Baut die TV-Session, es wird mit dem TV-Modus gemergt. Das schöne große Overlay kommt nach 0.3.0.
-  - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
-    APEX/PhysX-Profil, Ton unter Wine.
+  - GOG-Spiele bekommen Spielprofile, dazu das Mafia-II-Profil (Session mafia-ii, Zweig `claude/reverent-goldberg-46e548`,
+    95305e4 + 78997a3): mergen. Mafia II startet damit gleich mit WineD3D, ohne Echo.
+  - **Nach 0.3.0** (Nutzer, 31.10.): Mafia II flüssig und ohne Knacken. Ursache ist OpenGL im WoW64 für 32-Bit-Spiele
+    (zwei bis drei volle CPU-Threads). APEX, DirectSound, Schatten, Geometrie und AO helfen nicht. Der Weg ist DXVK
+    auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
   - Landingpage und README.
 - **Release-Stand einfrieren:**
   - Alle Testreihen grün.
