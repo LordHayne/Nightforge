@@ -228,5 +228,20 @@ struct UpdateStateTest {
         let marked = LibraryScanner.markMissingDrives([hades, hadesOwned, notHere], drives: drives)
         check(marked.map(\.missingDrive) == [nil, unplugged, nil], "only owned games not on the Mac wait for their drive")
         check(LibraryScanner.markMissingDrives([hadesOwned], drives: [:]) == [hadesOwned], "no drive missing, nothing changes")
+
+        // Anti-cheat that stops a Windows version (Steam offers no start without it here).
+        let battlEye = AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: "g1")
+        let onlineOnly = AntiCheatBlock(antiCheat: ["Easy Anti-Cheat"], geforceNow: nil, onlineOnly: true)
+        let windows = byID[1623730]!
+        var macVersion = windows
+        macVersion.platform = .mac
+        var storeHit = byID[6100]!
+        storeHit.install = .inStore
+        var online = byID[6200]!
+        online.onlineOnly = true
+        let blocked = LibraryScanner.markAntiCheat([windows, macVersion, storeHit, online, byID[6300]!],
+                                                   blocks: [1623730: battlEye, 6100: battlEye, 6200: onlineOnly, 6300: onlineOnly])
+        check(blocked.map(\.antiCheatBlock) == [battlEye, nil, nil, onlineOnly, nil],
+              "the Windows version is stopped, not the Mac one nor a store hit; online-only anti-cheat only stops online-only games")
     }
 }
