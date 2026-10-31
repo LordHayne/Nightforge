@@ -382,19 +382,14 @@ final class InputRouter {
                 self?.model?.toggleLibrary()
             }
         }
+        // L1 always to Home, R1 always to the library (the chips beside the top bar's switch).
         pad.leftShoulder.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
-                self?.model?.move(-5)
-            }
+            MainActor.assumeIsolated { self?.goSection(.l1) }
         }
         pad.rightShoulder.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
-                self?.model?.move(5)
-            }
+            MainActor.assumeIsolated { self?.goSection(.r1) }
         }
         // L2/R2: first and last game, like Home and End on the keyboard.
         pad.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
@@ -435,6 +430,22 @@ final class InputRouter {
                 self.watchHold(pad)
             }
         }
+    }
+
+    private func goSection(_ shoulder: PadPart) {
+        guard let model,
+              let target = Self.section(for: shoulder, route: model.route, inFront: reach == .app,
+                                        dialog: dialog != nil || model.showingDownloads, firstStart: model.showsFirstStart)
+        else { return }
+        target == .home ? model.goHome() : model.goLibrary()
+    }
+
+    /// Where L1 and R1 go: L1 always Home, R1 always the library – from a game's page too. Nowhere
+    /// in a sheet, the downloads, the first start or a game, nor to where you are already.
+    nonisolated static func section(for shoulder: PadPart, route: Route, inFront: Bool, dialog: Bool, firstStart: Bool) -> Route.Level? {
+        guard inFront, !dialog, !firstStart, shoulder == .l1 || shoulder == .r1 else { return nil }
+        let target: Route.Level = shoulder == .l1 ? .home : .library
+        return route == (target == .home ? .home : .library) ? nil : target
     }
 
     private func openOverlay() {
@@ -609,12 +620,15 @@ struct PadSymbols: Equatable {
     var stick = "l.joystick.fill"
     /// The overlay's buttons (GameOverlay): both sticks pressed, or ☰ and ⧉ on a pad without stick buttons.
     var overlayChord = ["l.joystick.press.down.fill", "r.joystick.press.down.fill"]
+    /// L1 and R1 as the controller prints them, for the chips beside Home | Library.
+    var shoulders = ["LB", "RB"]
 
     init() {}
 
     /// Always one maker's labels, whatever controller is in use.
     init(style: Style) {
         guard style == .playstation else { return }
+        shoulders = ["L1", "R1"]
         confirm = "xmark.circle.fill"
         back = "circle.circle.fill"
         library = "square.circle.fill"
@@ -628,6 +642,7 @@ struct PadSymbols: Equatable {
         library = Self.filled(pad.buttonX.sfSymbolsName) ?? library
         options = Self.filled(pad.buttonY.sfSymbolsName) ?? options
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
+        if PadLayout(pad) == .playstation { shoulders = ["L1", "R1"] }
         if let left = pad.leftThumbstickButton, let right = pad.rightThumbstickButton {
             overlayChord = [Self.filled(left.sfSymbolsName) ?? overlayChord[0], Self.filled(right.sfSymbolsName) ?? overlayChord[1]]
         } else {

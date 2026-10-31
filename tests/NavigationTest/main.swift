@@ -1,5 +1,5 @@
-// Checks Home's rail (what's on it, in which order, how many) and which section a game's page
-// belongs to: tests/NavigationTest/run.sh
+// Checks Home's rail (what's on it, in which order, how many), which section a game's page
+// belongs to and where L1/R1 go: tests/NavigationTest/run.sh
 import Foundation
 
 @main
@@ -81,6 +81,25 @@ struct NavigationTest {
         check(Route.detail(gameID: "x", from: .home).level == .home, "a page opened on Home is on Home")
         check(Route.home.level == .home && Route.library.level == .library, "the levels are their own section")
         check(Route.detail(gameID: "x", from: .home).isDetail && !Route.library.isDetail, "only a game's page is a detail")
+
+        // L1 always Home, R1 always the library – no switching back and forth.
+        func section(_ shoulder: PadPart, _ route: Route, inFront: Bool = true, dialog: Bool = false, firstStart: Bool = false) -> Route.Level? {
+            InputRouter.section(for: shoulder, route: route, inFront: inFront, dialog: dialog, firstStart: firstStart)
+        }
+        check(section(.l1, .library) == .home, "L1 in the library: Home")
+        check(section(.r1, .home) == .library, "R1 on Home: the library")
+        check(section(.l1, .home) == nil, "L1 on Home stays there – it doesn't flip to the library")
+        check(section(.r1, .library) == nil, "R1 in the library stays there")
+        check(section(.l1, .detail(gameID: "x", from: .library)) == .home, "L1 on a game's page from the library: Home")
+        check(section(.r1, .detail(gameID: "x", from: .library)) == .library, "R1 on a game's page: back to the library")
+        check(section(.l1, .detail(gameID: "x", from: .home)) == .home, "L1 on a game's page from Home: Home")
+        check(section(.l1, .library, dialog: true) == nil && section(.r1, .home, dialog: true) == nil,
+              "in a sheet (settings, options) or the downloads: nothing")
+        check(section(.r1, .home, firstStart: true) == nil, "not during the first start")
+        check(section(.r1, .home, inFront: false) == nil, "not in a game (the pad reaches Nightforge there for the overlay only)")
+        check(section(.l3, .library) == nil && section(.l2, .library) == nil, "only the shoulders (L3 + R3 is the overlay, L2/R2 first and last)")
+        check(PadSymbols().shoulders == ["LB", "RB"] && PadSymbols(style: .playstation).shoulders == ["L1", "R1"],
+              "the chips say LB/RB, or L1/R1 for PlayStation")
 
         print(failures == 0 ? "✓ Navigation" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

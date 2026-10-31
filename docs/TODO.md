@@ -18,7 +18,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - GOG 7.3: offen ist der Live-Test von Mafia II auf „Automatisch“. Danach mergen, mit 4 Schrift-Konflikten
     gegen 2.5.
   - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
-  - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
+  - L1/R1 zwischen Startseite und Bibliothek: gebaut auf `claude/tv-fullscreen-61ab1e`, mit dem TV-Test prüfen.
   - Reichere Spieldaten, Phase 2, in zwei Teilen.
   - Testabdeckung (Session test-coverage).
   - Kleines Controller-Overlay: gebaut auf `claude/tv-fullscreen-61ab1e` (`GameOverlay.swift`), mit dem TV-Modus am
@@ -199,13 +199,11 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
   - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
   - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
-- **L1/R1 wechseln zwischen Startseite und Bibliothek** (Nutzer, 31.10., beschlossen, baut der Koordinator nach dem
-  2.5-Merge):
-  - L1 führt immer zur Startseite, R1 immer zur Bibliothek. Kein Umschalten, die Richtung steht fest.
-  - Neben dem Schalter „Startseite | Bibliothek“ stehen kleine Chips „L1“/„R1“, bei Xbox-Pads „LB“/„RB“.
-  - Der Sprung um fünf Spiele (`model.move(±5)` in `InputRouter`) fällt weg. L2/R2 bleiben erstes/letztes Spiel, ☰ bleibt
-    zweiter Weg.
-  - Die Beschriftungen im Controller-Test (`PadDrawing`: „Five games back/on“) passen mit an.
+- **L1/R1 zwischen Startseite und Bibliothek** (Nutzer, 31.10., gebaut auf `claude/tv-fullscreen-61ab1e`,
+  `InputRouter.section`): L1 führt immer zur Startseite, R1 immer zur Bibliothek, auch von einer Spielseite. In einem
+  Sheet, im Download-Panel, bei der Ersteinrichtung und im Spiel tun sie nichts. Die Chips „L1“/„R1“ (Xbox
+  „LB“/„RB“) neben „Startseite | Bibliothek“ erscheinen nur mit verbundenem Controller. Der Sprung um fünf Spiele ist
+  weg, L2/R2 und ☰ bleiben. Am Gerät prüfen: Chips und Beschriftungen im Controller-Test, mit DualSense und Xbox-Pad.
 - **Suche mit dem Controller** (Nutzer, 31.10., Idee, noch nicht besprochen): Heute erreicht man die Suche nur mit der
   Tastatur (⌘F oder /). Möglichkeiten:
   - Buchstaben-Sprung ohne Tippen: Bei Sortierung „Name“ springt eine Taste plus Stick oder Steuerkreuz von A nach B

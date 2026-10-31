@@ -879,15 +879,31 @@ private struct SectionSwitch: View {
     @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
-        HStack(spacing: 0) {
-            segment(.home, L10n.t("Home"), count: nil) { model.goHome() }
-            segment(.library, L10n.t("Library"), count: model.visibleCount) { model.goLibrary() }
+        HStack(spacing: 8) {
+            // With a controller: L1 is always Home, R1 always the library (InputRouter.section).
+            if model.controllerConnected { chip(model.padSymbols.shoulders[0]) }
+            HStack(spacing: 0) {
+                segment(.home, L10n.t("Home"), count: nil) { model.goHome() }
+                segment(.library, L10n.t("Library"), count: model.visibleCount) { model.goLibrary() }
+            }
+            .padding(4)
+            .frame(height: 38)
+            .background(GlassBackground(glass: .regular, shape: Capsule()))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(L10n.t("Sections"))
+            if model.controllerConnected { chip(model.padSymbols.shoulders[1]) }
         }
-        .padding(4)
-        .frame(height: 38)
-        .background(GlassBackground(glass: .regular, shape: Capsule()))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(L10n.t("Sections"))
+    }
+
+    /// A shoulder button's name on a keycap, like the hint bar's keys.
+    private func chip(_ name: String) -> some View {
+        Text(name)
+            .font(size: 11, weight: .semibold)
+            .foregroundStyle(Theme.muted)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 22, minHeight: 22)
+            .background(GlassBackground(glass: .regular, shape: Capsule()))
+            .accessibilityHidden(true)
     }
 
     private func segment(_ level: Route.Level, _ title: String, count: Int?, action: @escaping () -> Void) -> some View {

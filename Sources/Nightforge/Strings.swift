@@ -1088,8 +1088,10 @@ enum L10n {
         "Opens the selected game's page": "Öffnet die Seite des gewählten Spiels",
         "Options for the selected game": "Optionen für das gewählte Spiel",
         "Switches between Home and the library": "Wechselt zwischen Startseite und Bibliothek",
-        "Five games back": "Fünf Spiele zurück",
-        "Five games on": "Fünf Spiele weiter",
+        "Goes to Home": "Geht zur Startseite",
+        "Goes to the library": "Geht zur Bibliothek",
+        "Works – both sticks held for 2 seconds in a game bring Nightforge's menu":
+            "Funktioniert – beide Sticks 2 Sekunden gehalten bringen im Spiel Nightforges Menü",
         "Jumps to the first game": "Springt zum ersten Spiel",
         "Jumps to the last game": "Springt zum letzten Spiel",
         "Moves the selection": "Bewegt die Auswahl",
