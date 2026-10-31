@@ -81,49 +81,82 @@ actor GameInfoStore {
 
     // MARK: - Filling in
 
-    /// Asks for what isn't known yet about these entries (or is a month old): first the Steam twins of
-    /// Epic's and GOG's games, then Steam's info for all of them, then GOG's own for those without one.
-    /// What's known afterwards, or nil when nothing changed (offline, all known, another fill running).
-    func fill(_ games: [Game]) async -> Known? {
-        guard !filling, Date() >= pausedUntil else { return nil }
+    /// How many GamesDB lookups run at once, and after how many twins found their Steam info is asked
+    /// and shown: the first ones show within seconds, not after the whole library.
+    static let parallelLookups = 4
+    static let twinsPerRound = 20
+
+    /// The order games are filled in: GOG's (few, their twins mostly named already), then what's on
+    /// the Mac, then what was played last – what the player looks at first.
+    static func order(_ games: [Game]) -> [Game] {
+        func rank(_ game: Game) -> Int { game.provider == .gog ? 0 : game.isInstalled ? 1 : 2 }
+        return games.enumerated().sorted { a, b in
+            let (ra, rb) = (rank(a.element), rank(b.element))
+            if ra != rb { return ra < rb }
+            let (la, lb) = (a.element.lastPlayed ?? .distantPast, b.element.lastPlayed ?? .distantPast)
+            return la != lb ? la > lb : a.offset < b.offset
+        }.map(\.element)
+    }
+
+    /// Asks for what isn't known yet about these entries (or is a month old) and hands each step's
+    /// result to `progress` as it comes: Steam's info for every game whose Steam app ID is known
+    /// (its own, or the twin GOG's library names), then the twins of the other Epic and GOG games,
+    /// a few at a time, each round with its Steam info, then the own store's info for those without one.
+    /// Entries handed in while a fill runs are filled in right after it.
+    func fill(_ games: [Game], progress: @escaping @MainActor @Sendable (Known) -> Void) async {
+        guard !filling else {
+            waiting = games
+            return
+        }
         filling = true
-        defer { filling = false }
-        let before = known
+        var next: [Game]? = games
+        while let batch = next {
+            waiting = nil
+            await fillOnce(batch, progress: progress)
+            next = waiting
+        }
+        filling = false
+    }
+
+    private var waiting: [Game]?
+
+    private func fillOnce(_ games: [Game], progress: @escaping @MainActor @Sendable (Known) -> Void) async {
+        guard Date() >= pausedUntil else { return }
         let language = Self.language
-        let entries = games.filter { $0.inLibrary }
-
-        // 1. The same game on Steam.
-        for game in entries where game.provider != .steam {
-            let key = game.gameID.key
-            if let appID = game.steamTwin {
-                if known.twins[key]?.appID != appID { known.twins[key] = Twin(appID: appID, asked: Date()) }
-                continue
-            }
-            guard Self.needsAsking(known.twins[key]) else { continue }
-            guard let answer = await twinFromGamesDB(game) else { break }  // offline or turned down: later
-            var appID = answer
-            if appID == nil { appID = await twinByTitle(game.name) }
-            known.twins[key] = Twin(appID: appID, asked: Date())
-        }
-
-        // 2. Steam's info, 50 apps per request.
-        var wanted: [Int] = []
-        var seen = Set<Int>()
-        for game in entries {
-            guard let appID = game.gameID.steamAppID ?? Self.twin(of: game, in: known), seen.insert(appID).inserted,
-                  Self.needsAsking(known.infos[GameID.steam(appID).key], language: language) else { continue }
-            wanted.append(appID)
-        }
-        for start in stride(from: 0, to: wanted.count, by: Self.batchSize) {
-            let batch = Array(wanted[start..<min(start + Self.batchSize, wanted.count)])
-            guard let found = await steamInfos(batch, language: language) else { break }
-            let now = Date()
-            for appID in batch {
-                // One Steam doesn't know (delisted, region-locked) is noted too, so it isn't asked every start.
-                known.infos[GameID.steam(appID).key] = found[appID]
-                    ?? GameInfo(language: language, source: GameID.steam(appID).key, asked: now)
-            }
+        let entries = Self.order(games.filter(\.inLibrary))
+        var shown = known
+        func publish() async {
+            guard known != shown else { return }
             save()
+            shown = known
+            await progress(known)
+        }
+
+        // 1. The twins GOG's library names, and Steam's info for everything that has an app ID now.
+        for game in entries where game.provider != .steam {
+            if let appID = game.steamTwin, known.twins[game.gameID.key]?.appID != appID {
+                known.twins[game.gameID.key] = Twin(appID: appID, asked: Date())
+            }
+        }
+        guard await askSteam(for: entries, language: language, publish: publish) else { return }
+
+        // 2. The other twins, a few lookups at a time; each round's Steam info right after it.
+        let unknown = entries.filter { $0.provider != .steam && $0.steamTwin == nil && Self.needsAsking(known.twins[$0.gameID.key]) }
+        var offline = false
+        for round in stride(from: 0, to: unknown.count, by: Self.twinsPerRound) where !offline {
+            let games = unknown[round..<min(round + Self.twinsPerRound, unknown.count)]
+            for start in stride(from: games.startIndex, to: games.endIndex, by: Self.parallelLookups) where !offline {
+                let group = Array(games[start..<min(start + Self.parallelLookups, games.endIndex)])
+                let found = await withTaskGroup(of: (String, Int??).self) { tasks in
+                    for game in group { tasks.addTask { (game.gameID.key, await self.lookUpTwin(game)) } }
+                    return await tasks.reduce(into: [(String, Int??)]()) { $0.append($1) }
+                }
+                for (key, answer) in found {
+                    guard let appID = answer else { offline = true; continue }  // GamesDB didn't answer: later
+                    known.twins[key] = Twin(appID: appID, asked: Date())
+                }
+            }
+            guard await askSteam(for: Array(games), language: language, publish: publish) else { return }
         }
 
         // 3. Without a Steam twin: GOG's own page; Epic's catalog data that legendary keeps.
@@ -142,10 +175,39 @@ actor GameInfoStore {
                 break
             }
         }
+        await publish()
+    }
 
-        guard known != before else { return nil }
-        save()
-        return known
+    /// Steam's info for these games and their twins, 50 apps per request, each shown as it comes.
+    /// False when Steam couldn't be asked (offline, turned down).
+    private func askSteam(for games: [Game], language: String, publish: () async -> Void) async -> Bool {
+        var wanted: [Int] = []
+        var seen = Set<Int>()
+        for game in games {
+            guard let appID = game.gameID.steamAppID ?? Self.twin(of: game, in: known), seen.insert(appID).inserted,
+                  Self.needsAsking(known.infos[GameID.steam(appID).key], language: language) else { continue }
+            wanted.append(appID)
+        }
+        for start in stride(from: 0, to: wanted.count, by: Self.batchSize) {
+            let batch = Array(wanted[start..<min(start + Self.batchSize, wanted.count)])
+            guard let found = await steamInfos(batch, language: language) else { return false }
+            let now = Date()
+            for appID in batch {
+                // One Steam doesn't know (delisted, region-locked) is noted too, so it isn't asked every start.
+                known.infos[GameID.steam(appID).key] = found[appID]
+                    ?? GameInfo(language: language, source: GameID.steam(appID).key, asked: now)
+            }
+            await publish()
+        }
+        return true
+    }
+
+    /// The same game on Steam: GamesDB's, else a store hit with exactly the same title. .some(nil):
+    /// none; nil: GamesDB couldn't be asked.
+    private func lookUpTwin(_ game: Game) async -> Int?? {
+        guard let answer = await twinFromGamesDB(game) else { return nil }
+        if let appID = answer { return appID }
+        return .some(await twinByTitle(game.name))
     }
 
     /// Steam's info for store hits (games not in the library): their covers and controller support,
@@ -179,7 +241,6 @@ actor GameInfoStore {
         let platform = game.provider == .epic ? "epic" : "gog"
         guard let id = game.gameID.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://gamesdb.gog.com/platforms/\(platform)/external_releases/\(id)") else { return .some(nil) }
-        try? await Task.sleep(for: .milliseconds(250))
         switch await fetch(url) {
         case .found(let data): return .some(GameInfo.steamTwin(fromGamesDB: data))
         case .missing: return .some(nil)

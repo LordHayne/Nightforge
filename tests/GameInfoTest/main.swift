@@ -137,6 +137,18 @@ struct GameInfoTest {
         check(GameInfoStore.needsAsking(GameInfoStore.Twin(appID: nil, asked: .distantPast), now: now), "none found: asked again after a month")
         check(!GameInfoStore.needsAsking(GameInfoStore.Twin(appID: nil, asked: now), now: now), "… not before")
 
+        // What the player looks at first is filled in first.
+        func entry(_ id: GameID, installed: Bool = false, played: Double? = nil) -> Game {
+            var game = Game(gameID: id, name: id.key, bottle: Engine.bottle, steamRoot: Engine.bottle.url,
+                            steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: 0)
+            game.install = installed ? .installed : .notInstalled
+            game.lastPlayed = played.map { now.addingTimeInterval(-$0) }
+            return game
+        }
+        let order = GameInfoStore.order([entry(.epic("A")), entry(.steam(1), played: 50), entry(.epic("B"), installed: true),
+                                         entry(.gog("2")), entry(.steam(3), played: 5)]).map(\.gameID.key)
+        check(order == ["gog.2", "epic.B", "steam.3", "steam.1", "epic.A"], "GOG, then installed, then played last: \(order)")
+
         var known = GameInfoStore.Known()
         known.infos["steam.728880"] = GameInfo(language: "german", source: "steam.728880", asked: now)
         known.twins["epic.Potoo"] = GameInfoStore.Twin(appID: 728880, asked: now)

@@ -1127,15 +1127,19 @@ final class LibraryModel: ObservableObject {
     }
 
     /// Asks for what isn't known yet about the library (after a scan, in the background); the
-    /// filters and covers follow when it comes.
+    /// filters, controller support and covers follow each step as it comes.
     private func fillGameInfo() {
         let entries = allGames
-        Task {
-            guard let known = await GameInfoStore.shared.fill(entries) else { return }
-            gameInfo = known
-            allGames = withGameInfo(allGames)
-            applyFilter()
+        Task { [weak self] in
+            await GameInfoStore.shared.fill(entries) { known in self?.takeGameInfo(known) }
         }
+    }
+
+    private func takeGameInfo(_ known: GameInfoStore.Known) {
+        guard known != gameInfo else { return }
+        gameInfo = known
+        allGames = withGameInfo(allGames)
+        applyFilter()
     }
 
     private func withStorePrices(_ games: [Game]) -> [Game] {
