@@ -458,6 +458,12 @@ enum Engine {
     /// D3DMetal is in the engine (installD3DMetal): DirectX 12 games have a way to run.
     static var d3dMetalReady: Bool { installedWineNow().map(isD3DMetalDeployed(wine:)) ?? false }
 
+    /// Nightforge's Vulkan layer reaches the games: not under winecx, whose winevulkan loads
+    /// MoltenVK straight, without a Vulkan loader (docs/TODO.md › Vulkan-Layer und winecx). Without
+    /// the layer DXVK asks MoltenVK for what it lacks (geometryShader, shaderCullDistance) and gets
+    /// no device – Left 4 Dead 2 and Mafia II on DirectX 9.
+    static var vulkanLayerLoads: Bool { installedWineNow().map { !isGPTKCapable(wine: $0) } ?? true }
+
     static func isD3DMetalDeployed(wine: URL) -> Bool {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
         let fm = FileManager.default

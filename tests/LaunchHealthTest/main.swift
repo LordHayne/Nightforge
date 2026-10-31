@@ -36,9 +36,10 @@ struct LaunchHealthTest {
         FileManager.default.createFile(atPath: url.path, contents: Data(bytes))
     }
 
-    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false) -> [String] {
+    /// The ladder on an engine as asked – not the one installed on this Mac.
+    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false, vulkanLayer: Bool = true) -> [String] {
         let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
-        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal).map(\.id)
+        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer).map(\.id)
     }
 
     static func main() {
@@ -117,8 +118,10 @@ struct LaunchHealthTest {
 
         // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
         let mafia = GameID.gog("1816059595")
-        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil)
-        check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9: DXVK, then WineD3D")
+        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)
+        check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9 with Nightforge's Vulkan layer: DXVK, then WineD3D")
+        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false).map(\.id) == ["wined3d", "dxvk"],
+              "under winecx (no layer, DXVK gets no device – L4D2, Mafia II): WineD3D first")
         UserDefaults.standard.set(Data(#"{"ladder":["dxvk","wined3d"],"confirmed":true,"index":0}"#.utf8), forKey: "launchHealth.gog.1816059595")
         check(LaunchHealth.current(mafia, d3d9) == (0, false), "an old confirmation is checked again at the next start, on the same way")
         check(LaunchHealth.peek(mafia, d3d9).map { $0.confirmed } == false, "and is no \"Runs great\" until then")
@@ -130,6 +133,34 @@ struct LaunchHealthTest {
         LaunchHealth.confirm(mafia, d3d9)
         check(LaunchHealth.advance(mafia, d3d9) && LaunchHealth.current(mafia, d3d9) == (1, false), "a graphics error: on to WineD3D")
         LaunchHealth.reset(mafia)
+
+        // MARK: A confirmed way loses its confirmation only on evidence
+        // The player quits after 20 s (OxyRail after 22 s) on a layer that logs no frames.
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .keep,
+              "one short start without a picture: kept")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 1) == .unconfirm,
+              "the second in a row: unconfirmed")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 1) == .keep,
+              "one that drew was quit by the player")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: true, drew: false, shortEndsBefore: 0) == .unconfirm,
+              "a crash in the log: unconfirmed")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: true, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
+              "a graphics error: the next way")
+        check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
+              "a way not confirmed yet moves on, as before")
+        // The player plays 2 minutes on D3DMetal (no frame lines), then quits.
+        check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 120)) == .keep,
+              "two minutes without a frame line: the confirmation stays")
+        check(LaunchHealth.afterFirstSeconds(.working) == .confirm && LaunchHealth.afterFirstSeconds(.watching) == .keep, "drew: confirmed")
+        LaunchHealth.confirm(mafia, d3d9)
+        LaunchHealth.noteStart(mafia, d3d9, short: true)
+        check(LaunchHealth.current(mafia, d3d9) == (0, true) && LaunchHealth.shortEnds(mafia, d3d9) == 1, "a short start is counted, the way stays")
+        LaunchHealth.noteStart(mafia, d3d9, short: false)
+        check(LaunchHealth.shortEnds(mafia, d3d9) == 0, "a normal one in between starts the count over")
+        LaunchHealth.reset(mafia)
+        check(GameLog.crashed(in: "wine: Unhandled page fault on read access to 00000000 at address 7B00B1A2 (thread 0024), starting debugger..."),
+              "Wine's crash line")
+        check(!GameLog.crashed(in: "Failed to load ADL library\nerr:   DxvkAdapter: Failed to create device"), "other errors aren't a crash")
 
         // MARK: Steam that stopped taking commands (OxyRail, 31.10.2026, console_log as Steam wrote it)
         let took = #"[2026-10-31 16:36:11] ExecCommandLine: ""C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing -silent -applaunch 3907790""#

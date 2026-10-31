@@ -40,6 +40,38 @@ enum LaunchHealth {
         return ranFor >= drawingWindow ? .working : .watching
     }
 
+    /// What a watched start does to its way.
+    enum Outcome: Equatable {
+        case confirm
+        /// Nothing against the way (yet).
+        case keep
+        /// It stopped working: watched again next time, on the same way.
+        case unconfirm
+        /// The graphics layer failed – or the way wasn't confirmed: on to the next one, as before.
+        case nextWay
+    }
+
+    /// A start that ended within its first seconds. A way not confirmed yet moves on. A confirmed
+    /// one only on evidence: a graphics error moves on, a crash in the log or the second such short
+    /// start in a row unconfirms it. One short start alone isn't evidence – Wine's own Direct3D,
+    /// D3DMetal and DXVK on winecx log no frames, and players start a game just to look (OxyRail,
+    /// 22 s, 31.10.2026).
+    static func earlyEnd(trusted: Bool, graphicsFailed: Bool, crashed: Bool, drew: Bool, shortEndsBefore: Int) -> Outcome {
+        if graphicsFailed || !trusted { return .nextWay }
+        if drew { return .keep }
+        return crashed || shortEndsBefore + 1 >= 2 ? .unconfirm : .keep
+    }
+
+    /// A start that ran past its first seconds, once its verdict is in: confirmed when it drew (or
+    /// ran `drawingWindow`). Ending earlier without a picture changes nothing – no frames in the
+    /// log says nothing on most layers; it isn't a short start either.
+    static func afterFirstSeconds(_ verdict: Verdict) -> Outcome {
+        switch verdict {
+        case .working: return .confirm
+        case .ended, .watching: return .keep
+        }
+    }
+
     /// A frame-rate line from one of the game's programs: it has drawn.
     static func drewFrames(in log: String, programs: Set<String>) -> Bool {
         FramePacing.periods(in: log, programs: programs).contains { $0.fps > 0 }
@@ -48,7 +80,7 @@ enum LaunchHealth {
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
     /// Direct3D 12 runs on a Mac (DirectX 11 stays with DXMT and DXVK, which run it better).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
-                         d3dMetal: Bool = Engine.d3dMetalReady) -> [LaunchAttempt] {
+                         d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, profile?.graphics == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
             let arguments = analysis.preferD3D11Arguments
@@ -69,7 +101,9 @@ enum LaunchHealth {
             return list
         }
         if analysis.usesD3D9 {
-            return [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
+            // Without Nightforge's Vulkan layer (winecx) DXVK gets no device: Wine's own Direct3D first.
+            return vulkanLayer ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
+                : [LaunchAttempt(graphics: .wined3d), LaunchAttempt(graphics: .dxvk)]
         }
         if analysis.onlyD3D12, d3dMetal {
             return [LaunchAttempt(graphics: .d3dmetal)]
@@ -101,6 +135,9 @@ enum LaunchHealth {
         /// ran 30 s, which an error box does too) – checked again at its next start, and no
         /// "Runs great" until then.
         var proof: Int?
+        /// Starts of the confirmed way in a row that ended within their first seconds without a
+        /// picture and without an error (earlyEnd).
+        var shortEnds: Int?
         /// When the current, unconfirmed way was last started.
         var startedAt: Date?
 
@@ -157,16 +194,28 @@ enum LaunchHealth {
         var state = load(game, attempts)
         state.confirmed = true
         state.proof = proof
+        state.shortEnds = nil
         state.startedAt = nil
         save(game, state)
     }
 
-    /// A confirmed way that stopped working (ended without a picture): it keeps its place and is
-    /// watched again at the next start.
+    /// How many starts of the confirmed way in a row ended early without a picture or an error.
+    static func shortEnds(_ game: GameID, _ attempts: [LaunchAttempt]) -> Int { load(game, attempts).shortEnds ?? 0 }
+
+    /// Counts such a start – or starts over after one that drew, or ran past its first seconds.
+    static func noteStart(_ game: GameID, _ attempts: [LaunchAttempt], short: Bool) {
+        var state = load(game, attempts)
+        state.shortEnds = short ? (state.shortEnds ?? 0) + 1 : nil
+        save(game, state)
+    }
+
+    /// A confirmed way that stopped working (`earlyEnd`): it keeps its place and is watched again
+    /// at the next start.
     static func unconfirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
         var state = load(game, attempts)
         state.confirmed = false
         state.proof = nil
+        state.shortEnds = nil
         save(game, state)
     }
 

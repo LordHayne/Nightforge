@@ -2183,15 +2183,25 @@ final class LibraryModel: ObservableObject {
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
                 }
-                // It ended within its first seconds. A confirmed way that drew was just quit early;
-                // otherwise it loses its confirmation – and moves on to the next way only on a
-                // graphics error (Mafia II on DXVK: "DxvkAdapter: Failed to create device", 31.10.2026).
+                // It ended within its first seconds. A confirmed way loses its confirmation only on
+                // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
+                // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
                 let graphicsFailed = GameLog.graphicsFailed(since: logMark)
                 if wayConfirmed {
                     let installDir = game.installDir
                     let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
-                    if !graphicsFailed, LaunchHealth.drewFrames(in: GameLog.text(since: logMark), programs: programs) { break }
-                    LaunchHealth.unconfirm(game.gameID, attempts)
+                    let log = GameLog.text(since: logMark)
+                    let drew = LaunchHealth.drewFrames(in: log, programs: programs)
+                    let crashed = GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty
+                    switch LaunchHealth.earlyEnd(trusted: true, graphicsFailed: graphicsFailed, crashed: crashed, drew: drew,
+                                                 shortEndsBefore: LaunchHealth.shortEnds(game.gameID, attempts)) {
+                    case .keep:
+                        // Quit early, by the look of it: the game is gone, Nightforge stays in front.
+                        LaunchHealth.noteStart(game.gameID, attempts, short: !drew)
+                        return
+                    case .unconfirm, .nextWay, .confirm:
+                        LaunchHealth.unconfirm(game.gameID, attempts)
+                    }
                 }
                 launchingID = game.id
                 NSApp.activate()
@@ -2513,17 +2523,19 @@ final class LibraryModel: ObservableObject {
                 }.value
                 // Gone for two looks (10 s): a launcher handing over leaves a shorter gap.
                 absent = running ? 0 : absent + 1
-                switch LaunchHealth.verdict(drewFrames: LaunchHealth.drewFrames(in: text, programs: programs), running: absent < 2,
-                                            ranFor: Date().timeIntervalSince(startedAt)) {
-                case .working:
+                let verdict = LaunchHealth.verdict(drewFrames: LaunchHealth.drewFrames(in: text, programs: programs),
+                                                   running: absent < 2, ranFor: Date().timeIntervalSince(startedAt))
+                switch LaunchHealth.afterFirstSeconds(verdict) {
+                case .confirm:
                     if !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
-                case .ended:
-                    // A confirmed way that ended without a picture has stopped working.
-                    if wasConfirmed, !attempts.isEmpty { LaunchHealth.unconfirm(game.gameID, attempts) }
+                case _ where verdict == .ended:
+                    // Past its first seconds without a picture: no evidence against a confirmed way
+                    // (most layers log no frames), and no short start either.
+                    if wasConfirmed, !attempts.isEmpty { LaunchHealth.noteStart(game.gameID, attempts, short: false) }
                     return
-                case .watching:
+                default:
                     try? await Task.sleep(for: .seconds(5))
                 }
             }
