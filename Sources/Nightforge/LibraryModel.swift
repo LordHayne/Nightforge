@@ -2172,8 +2172,8 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark) {
-                    if automatic, !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
-                    if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
+                    confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
+                                       startedAt: startedAt)
                     break
                 }
                 launchingID = game.id
@@ -2441,6 +2441,37 @@ final class LibraryModel: ObservableObject {
             if !process.isRunning { break }
         }
         return true
+    }
+
+    /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching
+    /// in the background from the end of its first seconds. One that ends without a frame stays
+    /// unconfirmed and is watched again next time.
+    private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String,
+                                    logMark: UInt64, startedAt: Date) {
+        let folders = Self.processFolders([game])
+        let installDir = game.installDir
+        Task {
+            let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
+            var absent = 0
+            while true {
+                let (text, running) = await Task.detached(priority: .utility) {
+                    (GameLog.text(since: logMark), Self.runningGames(folders)[game.id] != nil)
+                }.value
+                // Gone for two looks (10 s): a launcher handing over leaves a shorter gap.
+                absent = running ? 0 : absent + 1
+                switch LaunchHealth.verdict(drewFrames: LaunchHealth.drewFrames(in: text, programs: programs), running: absent < 2,
+                                            ranFor: Date().timeIntervalSince(startedAt)) {
+                case .working:
+                    if !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
+                    if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
+                    return
+                case .ended:
+                    return
+                case .watching:
+                    try? await Task.sleep(for: .seconds(5))
+                }
+            }
+        }
     }
 
     /// Whether the game is still running `LaunchHealth.failureWindow` seconds after it started.

@@ -21,6 +21,11 @@ struct GameRating: Codable, Equatable {
     var good: Bool
     var issues: [Issue] = []
     var date = Date()
+
+    /// The choice in "Welcome back": "Not well" with the chips picked, in their order; "Well" without.
+    static func choice(good: Bool, issues: Set<Issue>) -> GameRating {
+        GameRating(good: good, issues: good ? [] : Issue.allCases.filter(issues.contains))
+    }
 }
 
 enum GameRatings {
@@ -118,7 +123,7 @@ struct SessionSummarySheet: View {
                 } else {
                     HStack(spacing: 10) {
                         ratingButton(L10n.t("Well"), symbol: "hand.thumbsup", id: "session.good") { save(good: true) }
-                        ratingButton(L10n.t("Not well"), symbol: "hand.thumbsdown", id: "session.bad") { rating = false }
+                        ratingButton(L10n.t("Not well"), symbol: "hand.thumbsdown", id: "session.bad") { keep(good: false) }
                     }
                 }
             }
@@ -222,15 +227,23 @@ struct SessionSummarySheet: View {
                 let on = issues.contains(issue)
                 FilterToggle(title: issue.label, symbol: on ? "checkmark" : "circle", on: on, id: "session.issue.\(issue.rawValue)") {
                     if on { issues.remove(issue) } else { issues.insert(issue) }
+                    keep(good: false)
                 }
             }
         }
     }
 
+    /// Saves and says thanks ("Well", "Save").
     private func save(good: Bool) {
-        GameRatings.save(GameRating(good: good, issues: good ? [] : GameRating.Issue.allCases.filter(issues.contains)), for: summary.game.gameID)
-        rating = good
+        keep(good: good)
         saved = true
+    }
+
+    /// A choice is kept the moment it's made – "Not well" too, and again with each chip – so
+    /// however the sheet closes (Done, ×, Esc, B), nothing chosen is lost.
+    private func keep(good: Bool) {
+        GameRatings.save(GameRating.choice(good: good, issues: issues), for: summary.game.gameID)
+        rating = good
     }
 
     /// Crashes, glitches and stutters are what "Most compatible" is for – in Nightforge's own Windows games.

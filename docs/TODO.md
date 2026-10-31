@@ -402,6 +402,9 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       (kein DirectX); `Prefix/gog-redist.json` mit den drei und `products` 1816059595; `GOG/Logs/redist.log` mit Exit 0
       je Installer und dem Installationsskript. Dann startet das Spiel ohne PhysX-Fenster (Grafik-Leiter,
       Erstsekunden-Prüfung, Prozess über `\GOG Games\`). Ein zweiter Start richtet nichts mehr ein.
+      Vorher `defaults delete io.github.lordhayne.nightforge launchHealth.gog.1816059595` – der Fehlstart steht dort noch als
+      bestätigt. Danach: bestätigt erst mit einer Zeile „[nightforge-vulkan] mafia2.exe: … FPS“ in `Logs/wine.log` (oder nach
+      3 Min. Laufzeit); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“ (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
       übrig: `pgrep -fl gogdl`).

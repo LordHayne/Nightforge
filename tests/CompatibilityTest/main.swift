@@ -108,6 +108,15 @@ struct CompatibilityTest {
         }
         check(Set(Compatibility.Level.allCases.map(\.symbol)).count == 4, "every level has its own icon")
 
+        // "Welcome back": what's kept the moment it's chosen.
+        check(GameRating.choice(good: false, issues: []).good == false && GameRating.choice(good: false, issues: []).issues.isEmpty,
+              "\"Not well\" alone is kept as soon as it's pressed")
+        check(GameRating.choice(good: false, issues: [.sound, .crashed]).issues == [.crashed, .sound], "with the chips picked, in their order")
+        check(GameRating.choice(good: true, issues: [.sound]).issues.isEmpty, "\"Well\" has no chips")
+        var unconfirmed = Compatibility.Facts(platform: .windows, profile: nil, analysis: analysis([.d3d9]))
+        unconfirmed.launch = (index: 0, confirmed: false)
+        check(level(unconfirmed) != .great, "a start not confirmed (no frames yet) isn't \"Runs great\"")
+
         if failures > 0 {
             print("\(failures) check(s) failed")
             exit(1)

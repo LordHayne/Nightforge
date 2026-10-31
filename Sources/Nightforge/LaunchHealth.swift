@@ -20,6 +20,30 @@ enum LaunchHealth {
     /// A session this short counts as "didn't start" (crash, black window closed by the game).
     static let failureWindow: TimeInterval = 30
 
+    /// Running past its first seconds isn't working yet: an error box keeps a game running too
+    /// (Mafia II's "PhysX SDK not initialized" for a minute, 31.10.2026 – confirmed, and the game
+    /// page said "Runs great"). A way is confirmed once the game has drawn frames: DXMT and
+    /// Nightforge's Vulkan layer (DXVK and Vulkan games) log the frame rate 10 s after the first
+    /// one. Where nothing logs frames (Wine's own Direct3D, D3DMetal), a game still running after
+    /// this long counts. One that ends before, without a frame, stays unconfirmed – on the same
+    /// way: what stopped it needn't be the graphics.
+    static let drawingWindow: TimeInterval = 180
+
+    enum Verdict: Equatable {
+        case working, ended, watching
+    }
+
+    static func verdict(drewFrames: Bool, running: Bool, ranFor: TimeInterval) -> Verdict {
+        if drewFrames { return .working }
+        if !running { return .ended }
+        return ranFor >= drawingWindow ? .working : .watching
+    }
+
+    /// A frame-rate line from one of the game's programs: it has drawn.
+    static func drewFrames(in log: String, programs: Set<String>) -> Bool {
+        FramePacing.periods(in: log, programs: programs).contains { $0.fps > 0 }
+    }
+
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
     /// Direct3D 12 runs on a Mac (DirectX 11 stays with DXMT and DXVK, which run it better).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
@@ -167,7 +191,8 @@ enum LaunchHealth {
         else { return }
         if span < failureWindow {
             _ = advance(game, attempts)
-        } else {
+        } else if span >= drawingWindow {
+            // Without Nightforge watching, Steam's log only says how long it ran (`drawingWindow`).
             confirm(game, attempts)
         }
     }

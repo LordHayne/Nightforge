@@ -218,6 +218,31 @@ struct LaunchHealthTest {
         """
         check(FramePacing.rates(in: paceLog, programs: ["Game.exe"]) == [52.5, 55.0],
               "frame rates: full minutes of the game's own programs, DXMT without .exe")
+        check(FramePacing.periods(in: paceLog, programs: ["Game.exe"]).map(\.seconds) == [10, 60, 60], "every period of the game, 10 s ones too")
+
+        // MARK: Confirmed once it draws
+        // Mafia II behind "PhysX SDK not initialized" for a minute (31.10.2026): its whole part of wine.log.
+        let errorBox = "Failed to load ADL library\n"
+        check(!LaunchHealth.drewFrames(in: errorBox, programs: ["mafia2.exe", "launcher.exe"]), "an error box draws no frames")
+        check(LaunchHealth.drewFrames(in: "[nightforge-vulkan] mafia2.exe: 60.0 FPS over 10 s, frames 16.7 ms on average, slowest 30 ms",
+                                      programs: ["mafia2.exe"]), "DXVK through Nightforge's Vulkan layer: drawing")
+        check(LaunchHealth.drewFrames(in: "info:  [nightforge-dxmt] Overcooked2: 55.0 FPS over 10 s, frames 18.2 ms on average, slowest 788 ms",
+                                      programs: ["Overcooked2.exe"]), "DXMT: drawing")
+        check(!LaunchHealth.drewFrames(in: "info:  [nightforge-dxmt] Overcooked2: 55.0 FPS over 10 s, frames 18.2 ms on average, slowest 788 ms",
+                                       programs: ["mafia2.exe"]), "another game's frames don't count")
+        check(LaunchHealth.verdict(drewFrames: true, running: true, ranFor: 35) == .working, "frames: confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: 60) == .watching, "running without a frame yet: still watching")
+        check(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 62) == .ended, "ended after a minute without a frame: not confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: LaunchHealth.drawingWindow) == .working,
+              "nothing logs frames (wined3d, D3DMetal): three minutes of running count")
+        LaunchHealth.reset(app)
+        LaunchHealth.recordStart(app, ladder, at: now)
+        session(seconds: 70, startedAt: now)
+        let unwatched = LaunchHealth.current(app, ladder)
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == unwatched && unwatched == (0, false),
+              "unwatched, 70 s in Steam's log: neither confirmed nor moved on")
+
         check(FramePacing.candidates(refreshRate: 120, upTo: 60) == [60, 40, 30], "120 Hz: 60, 40, 30")
         check(FramePacing.candidates(refreshRate: 60, upTo: 60) == [60, 30], "60 Hz: 60, 30")
         check(FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt)
