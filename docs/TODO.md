@@ -495,6 +495,10 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
         - CPU: Menü ~120 %, im Spiel 230–440 %, und dabei zwei Threads mit je ~95 %. Kaum GPU-Last.
         - APEX war schon aus. APEX an ändert nichts, und `windowsVersion: winxp` (DirectSound statt WASAPI) auch nicht.
         - Ausgabeweg und PhysX sind damit ausgeschieden.
+        - Folgetest 23:15: Schatten Niedrig, Geometrie Niedrig, AO aus. Kein Unterschied beim Knacken, im Spiel
+          weiter 250–460 %, Threads bei 97/88/88/45 %. Die Hebel im Spiel sind damit ausgeschöpft.
+        - Für 0.3.0 bleibt Mafia II auf WineD3D: Das Echo ist weg, das Knacken bleibt. Der Weg ist DXVK auf
+          KosmicKrisp (Session kosmickrisp-dx9).
       - Ursache, aus winecx gelesen: Mafia II ist ein 32-Bit-Spiel und läuft im neuen WoW64 (winecx hat kein
         `i386-unix`). Jeder OpenGL-Aufruf von WineD3D wird übersetzt. `opengl32.so` kopiert gemappte Puffer um
         („Copying %#zx from wow64 buffer“) und schaltet `GL_ARB_buffer_storage` ab („Disabling … on wow64“).
@@ -510,8 +514,7 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
           über 60 FPS kommt.
       - `profile.dat`: Bitfolge, LSB zuerst, mit 32-Bit-Prüfsumme 8 Bytes vor dem Ende (kein CRC32, Adler oder Summe).
         - APEX an statt aus setzt die Bits 39337 und 39370, gleich nach den vier Lautstärken (1.0f).
-        - Schreiben kann Nightforge sie noch nicht. Bei Schatten und Geometrie lohnt es sich erst, wenn ein Test zeigt,
-          dass sie CPU sparen.
+        - Schreiben kann Nightforge sie nicht. Seit dem Folgetest ist das für Mafia II auch nicht mehr nötig.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
       übrig: `pgrep -fl gogdl`).
