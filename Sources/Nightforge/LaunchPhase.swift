@@ -29,8 +29,8 @@ enum LaunchPhase: Equatable {
     /// A game held back on the previous engine: Steam moves over to that one first.
     case heldEngine
     /// A GOG game's Windows parts (GOG Galaxy's redistributables), before its first start: the
-    /// game's name, and the part being installed (nil while they come from GOG).
-    case settingUpWindowsParts(String, String?)
+    /// part being installed (nil while they come from GOG), named in the line below the button.
+    case settingUpWindowsParts(String?)
 
     var title: String {
         switch self {
@@ -50,7 +50,7 @@ enum LaunchPhase: Equatable {
         case .syncingSaves: return L10n.t("Getting your save …")
         case .rollingBack: return L10n.t("Trying the previous engine …")
         case .heldEngine: return L10n.t("Starting with the previous engine …")
-        case .settingUpWindowsParts(let game, _): return L10n.t("Setting up Windows parts for %@ …", game)
+        case .settingUpWindowsParts: return L10n.t("Setting up the game …")
         }
     }
 
@@ -74,10 +74,10 @@ enum LaunchPhase: Equatable {
             return L10n.t("The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.")
         case .heldEngine:
             return L10n.t("The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.")
-        case .settingUpWindowsParts(_, let part?):
-            return L10n.t("Installing %@, which the game needs from Windows. Only the first time.", part)
-        case .settingUpWindowsParts(_, nil):
-            return L10n.t("Getting what the game needs from Windows from GOG. Only the first time.")
+        case .settingUpWindowsParts(let part?):
+            return L10n.t("Windows part: %@ – the game needs it. Only the first time.", part)
+        case .settingUpWindowsParts(nil):
+            return L10n.t("The Windows parts the game needs come from GOG. Only the first time.")
         }
     }
 

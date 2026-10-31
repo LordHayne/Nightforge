@@ -1001,11 +1001,9 @@ enum L10n {
             "Steam nimmt keine Befehle mehr an. Ein Neustart behebt das – das Spiel startet gleich danach.",
         "Steam isn't responding, and restarting it would end the game that's running. Quit that game and press Play again.":
             "Steam reagiert nicht, und ein Neustart würde das laufende Spiel beenden. Beende das Spiel und drück noch einmal auf Spielen.",
-        "Setting up Windows parts for %@ …": "Windows-Bausteine für %@ werden eingerichtet …",
-        "Installing %@, which the game needs from Windows. Only the first time.":
-            "%@ wird installiert – das Spiel braucht es aus Windows. Nur beim ersten Mal.",
-        "Getting what the game needs from Windows from GOG. Only the first time.":
-            "Was das Spiel aus Windows braucht, kommt von GOG. Nur beim ersten Mal.",
+        "Windows part: %@ – the game needs it. Only the first time.": "Windows-Baustein: %@ – das Spiel braucht ihn. Nur beim ersten Mal.",
+        "The Windows parts the game needs come from GOG. Only the first time.":
+            "Die Windows-Bausteine, die das Spiel braucht, kommen von GOG. Nur beim ersten Mal.",
         "GOG's install script": "GOGs Installationsskript",
         "Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.":
             "Nicht alle Windows-Bausteine für %@ ließen sich einrichten (%@). Es startet trotzdem; beim nächsten Start versucht Nightforge es noch einmal.",

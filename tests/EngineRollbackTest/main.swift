@@ -260,12 +260,14 @@ struct EngineRollbackTest {
         // MARK: Seeds from what already runs
         let suite = UserDefaults(suiteName: "nightforge.engine-rollback-test-\(UUID().uuidString)")!
         let ladder = [LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"]), LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])]
-        let state = #"{"ladder":["dxmt -dx11","dxvk -dx11"],"index":1,"confirmed":true}"#
+        let state = #"{"ladder":["dxmt -dx11","dxvk -dx11"],"index":1,"confirmed":true,"proof":2}"#
         suite.set(Data(state.utf8), forKey: "launchHealth.steam.42")
         suite.set(Data(#"{"ladder":["dxmt"],"index":0,"confirmed":false}"#.utf8), forKey: "launchHealth.steam.43")
         suite.set(Data(state.utf8), forKey: "launchHealth.epic.Sugar")
+        // Confirmed before frames counted (no proof): an error box ran 30 s too – it doesn't count.
+        suite.set(Data(#"{"ladder":["dxvk","wined3d"],"confirmed":true,"index":0}"#.utf8), forKey: "launchHealth.gog.1816059595")
         // The copy under the bare app ID GameIDMigration left for older builds doesn't count twice.
-        suite.set(Data(#"{"ladder":["dxmt"],"index":0,"confirmed":true}"#.utf8), forKey: "launchHealth.42")
+        suite.set(Data(#"{"ladder":["dxmt"],"index":0,"confirmed":true,"proof":2}"#.utf8), forKey: "launchHealth.42")
         check(LaunchHealth.confirmedWays(suite) == [.steam(42): ladder[1].id, .epic("Sugar"): ladder[1].id],
               "confirmed ways are read from LaunchHealth, by store and ID: \(LaunchHealth.confirmedWays(suite))")
 

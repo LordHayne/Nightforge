@@ -115,6 +115,22 @@ struct LaunchHealthTest {
         LaunchHealth.review(app, ladder, steamRoot: steam)
         check(LaunchHealth.current(app, ladder) == (1, true), "a 10 min session confirms")
 
+        // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
+        let mafia = GameID.gog("1816059595")
+        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil)
+        check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9: DXVK, then WineD3D")
+        UserDefaults.standard.set(Data(#"{"ladder":["dxvk","wined3d"],"confirmed":true,"index":0}"#.utf8), forKey: "launchHealth.gog.1816059595")
+        check(LaunchHealth.current(mafia, d3d9) == (0, false), "an old confirmation is checked again at the next start, on the same way")
+        check(LaunchHealth.peek(mafia, d3d9).map { $0.confirmed } == false, "and is no \"Runs great\" until then")
+        check(LaunchHealth.confirmedWays()[mafia] == nil, "nor a way that ran well for the engine rollback")
+        LaunchHealth.confirm(mafia, d3d9)
+        check(LaunchHealth.current(mafia, d3d9) == (0, true) && LaunchHealth.confirmedWays()[mafia] == "dxvk", "confirmed anew: it counts")
+        LaunchHealth.unconfirm(mafia, d3d9)
+        check(LaunchHealth.current(mafia, d3d9) == (0, false), "a confirmed way that ended without a picture: unconfirmed, same way")
+        LaunchHealth.confirm(mafia, d3d9)
+        check(LaunchHealth.advance(mafia, d3d9) && LaunchHealth.current(mafia, d3d9) == (1, false), "a graphics error: on to WineD3D")
+        LaunchHealth.reset(mafia)
+
         // MARK: Steam that stopped taking commands (OxyRail, 31.10.2026, console_log as Steam wrote it)
         let took = #"[2026-10-31 16:36:11] ExecCommandLine: ""C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing -silent -applaunch 3907790""#
         check(SteamCommands.isLaunch(took[...], appID: 3907790), "Steam took the start")

@@ -21,6 +21,12 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   „Aus dem Code-Audit“ → Vulkan-Layer). WineD3D bleibt der Weg. Zum Ton:
   In der Cloud-Konfiguration stehen `volume "0.008"` und Quadro-Lautsprecher, also erst im Spiel unter
   Optionen → Audio hochdrehen, bevor man Wine verdächtigt.
+- **DXVK unter winecx gar nicht nutzbar?** Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
+  5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
+  `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
+  (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
+  einem D3D11-Spiel auf DXVK nachprüfen. Vorschlag: Solange die Engine winecx ist, D3D9 mit WineD3D zuerst. Bis dahin kostet
+  es einen Fehlstart, dann wechselt Nightforge von selbst (LaunchHealth, auch bei bestätigten Wegen).
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
   Noch kein einziges getestet.
 - **Unreal-Spiele allgemein.** Bis 26.10. bekam kein Unreal-Spiel DXMT. Die Einstellungen reichten nur drei
@@ -409,9 +415,13 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       (kein DirectX); `Prefix/gog-redist.json` mit den drei und `products` 1816059595; `GOG/Logs/redist.log` mit Exit 0
       je Installer und dem Installationsskript. Dann startet das Spiel ohne PhysX-Fenster (Grafik-Leiter,
       Erstsekunden-Prüfung, Prozess über `\GOG Games\`). Ein zweiter Start richtet nichts mehr ein.
-      Vorher `defaults delete io.github.lordhayne.nightforge launchHealth.gog.1816059595` – der Fehlstart steht dort noch als
-      bestätigt. Danach: bestätigt erst mit einer Zeile „[nightforge-vulkan] mafia2.exe: … FPS“ in `Logs/wine.log` (oder nach
-      3 Min. Laufzeit); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“ (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
+      Live 31.10. (557c2c2): Redists liefen alle (VC_redist 2017 endet mit 102 = 1638 „neuere Version da“, v14 14.51 ist im
+      Prefix – zählt richtig als installiert). Mafia II endet dann aber nach 6 s: DXVK-d3d9 bekommt unter winecx kein Gerät
+      („DxvkAdapter: Failed to create device“, MoltenVK ohne `geometryShader`/`shaderCullDistance`, siehe oben bei L4D2).
+      Seit dem Fix danach: Die alte Bestätigung (ohne Bild-Nachweis) gilt nicht mehr, der Start wird beobachtet und geht nach
+      dem Grafikfehler von selbst auf WineD3D. Prüfen: zweiter Startversuch mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
+      bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
+      (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
       übrig: `pgrep -fl gogdl`).

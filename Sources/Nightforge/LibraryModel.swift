@@ -430,9 +430,9 @@ final class LibraryModel: ObservableObject {
     private func setUpGOG(_ game: Game, wine: URL, showStatus: Bool) async {
         guard game.platform == .windows, let facts = gog.setupFacts(of: game),
               await Engine.offMain({ GOGRedist.hasWork(facts.install) }) else { return }
-        if showStatus { launchPhase = .settingUpWindowsParts(game.name, nil) }
+        if showStatus { launchPhase = .settingUpWindowsParts(nil) }
         let outcome = await GOGRedist.setUp(facts.install, versionName: facts.versionName, wine: wine) { part in
-            if showStatus { self.launchPhase = .settingUpWindowsParts(game.name, part) }
+            if showStatus { self.launchPhase = .settingUpWindowsParts(part) }
         }
         if showStatus { launchPhase = nil }
         guard showStatus, !outcome.failed.isEmpty else { return }
@@ -2112,12 +2112,16 @@ final class LibraryModel: ObservableObject {
                 }
                 var arguments = analysis?.preferD3D11Arguments ?? []
                 var watchFirstSeconds = false
+                var wayConfirmed = false
                 if automatic, !attempts.isEmpty {
                     let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
                     options.graphics = attempts[index].graphics
                     arguments = attempts[index].arguments
-                    watchFirstSeconds = !confirmed
-                    if watchFirstSeconds { LaunchHealth.recordStart(game.gameID, attempts) }
+                    // Every start is watched: a confirmed way can stop working too (an engine or game
+                    // update, a part missing) – it then loses its confirmation (below).
+                    watchFirstSeconds = true
+                    wayConfirmed = confirmed
+                    if !confirmed { LaunchHealth.recordStart(game.gameID, attempts) }
                 }
                 let logMark = GameLog.mark()
                 let startedAt = Date()
@@ -2176,8 +2180,18 @@ final class LibraryModel: ObservableObject {
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark) {
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
-                                       startedAt: startedAt)
+                                       startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
+                }
+                // It ended within its first seconds. A confirmed way that drew was just quit early;
+                // otherwise it loses its confirmation – and moves on to the next way only on a
+                // graphics error (Mafia II on DXVK: "DxvkAdapter: Failed to create device", 31.10.2026).
+                let graphicsFailed = GameLog.graphicsFailed(since: logMark)
+                if wayConfirmed {
+                    let installDir = game.installDir
+                    let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
+                    if !graphicsFailed, LaunchHealth.drewFrames(in: GameLog.text(since: logMark), programs: programs) { break }
+                    LaunchHealth.unconfirm(game.gameID, attempts)
                 }
                 launchingID = game.id
                 NSApp.activate()
@@ -2207,6 +2221,9 @@ final class LibraryModel: ObservableObject {
                 }
                 // Graphics chosen by hand, or nothing known about the game: no other way to try.
                 guard automatic, !attempts.isEmpty else { break }
+                // A way that worked before and ended without a graphics error keeps its place:
+                // watched again at the next start. Nightforge stays in front.
+                if wayConfirmed && !graphicsFailed { return }
                 if LaunchHealth.advance(game.gameID, attempts) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
@@ -2484,7 +2501,7 @@ final class LibraryModel: ObservableObject {
     /// in the background from the end of its first seconds. One that ends without a frame stays
     /// unconfirmed and is watched again next time.
     private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String,
-                                    logMark: UInt64, startedAt: Date) {
+                                    logMark: UInt64, startedAt: Date, wasConfirmed: Bool = false) {
         let folders = Self.processFolders([game])
         let installDir = game.installDir
         Task {
@@ -2503,6 +2520,8 @@ final class LibraryModel: ObservableObject {
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 case .ended:
+                    // A confirmed way that ended without a picture has stopped working.
+                    if wasConfirmed, !attempts.isEmpty { LaunchHealth.unconfirm(game.gameID, attempts) }
                     return
                 case .watching:
                     try? await Task.sleep(for: .seconds(5))

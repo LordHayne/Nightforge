@@ -24,7 +24,8 @@ enum LaunchHealth {
     /// (Mafia II's "PhysX SDK not initialized" for a minute, 31.10.2026 – confirmed, and the game
     /// page said "Runs great"). A way is confirmed once the game has drawn frames: DXMT and
     /// Nightforge's Vulkan layer (DXVK and Vulkan games) log the frame rate 10 s after the first
-    /// one. Where nothing logs frames (Wine's own Direct3D, D3DMetal), a game still running after
+    /// one – the layer only where the engine has a Vulkan loader, not under winecx. Where nothing
+    /// logs frames (Wine's own Direct3D, D3DMetal, DXVK on winecx), a game still running after
     /// this long counts. One that ends before, without a frame, stays unconfirmed – on the same
     /// way: what stopped it needn't be the graphics.
     static let drawingWindow: TimeInterval = 180
@@ -94,11 +95,20 @@ enum LaunchHealth {
         /// The attempts' ids when this was saved; a different list starts over.
         var ladder: [String]
         var index = 0
-        /// The current way has run past its first seconds once.
+        /// The current way has worked once.
         var confirmed = false
+        /// How: `proof` – it drew, or ran `drawingWindow`. nil: confirmed before that counted (it
+        /// ran 30 s, which an error box does too) – checked again at its next start, and no
+        /// "Runs great" until then.
+        var proof: Int?
         /// When the current, unconfirmed way was last started.
         var startedAt: Date?
+
+        var trusted: Bool { confirmed && proof == LaunchHealth.proof }
     }
+
+    /// The kind of confirmation that counts (since 31.10.2026).
+    static let proof = 2
 
     private static func key(_ game: GameID) -> String { "launchHealth.\(game.key)" }
 
@@ -126,7 +136,7 @@ enum LaunchHealth {
     /// The way to start the game now.
     static func current(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool) {
         let state = load(game, attempts)
-        return (min(state.index, max(attempts.count - 1, 0)), state.confirmed)
+        return (min(state.index, max(attempts.count - 1, 0)), state.trusted)
     }
 
     /// How it stands without touching what's saved: nil when the game hasn't been started this way yet.
@@ -134,7 +144,7 @@ enum LaunchHealth {
         guard let data = UserDefaults.standard.data(forKey: key(game)),
               let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == attempts.map(\.id)
         else { return nil }
-        return (min(state.index, max(attempts.count - 1, 0)), state.confirmed)
+        return (min(state.index, max(attempts.count - 1, 0)), state.trusted)
     }
 
     static func recordStart(_ game: GameID, _ attempts: [LaunchAttempt], at date: Date = Date()) {
@@ -146,7 +156,17 @@ enum LaunchHealth {
     static func confirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
         var state = load(game, attempts)
         state.confirmed = true
+        state.proof = proof
         state.startedAt = nil
+        save(game, state)
+    }
+
+    /// A confirmed way that stopped working (ended without a picture): it keeps its place and is
+    /// watched again at the next start.
+    static func unconfirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
+        var state = load(game, attempts)
+        state.confirmed = false
+        state.proof = nil
         save(game, state)
     }
 
@@ -155,6 +175,7 @@ enum LaunchHealth {
         var state = load(game, attempts)
         state.startedAt = nil
         state.confirmed = false
+        state.proof = nil
         let next = state.index + 1 < attempts.count
         state.index = next ? state.index + 1 : 0
         save(game, state)
@@ -169,7 +190,7 @@ enum LaunchHealth {
             let stored = String(key.dropFirst("launchHealth.".count))
             // Only store keys ("steam.570"): the bare app IDs GameIDMigration left behind are older copies.
             guard Int(stored) == nil, let game = GameID(key: stored), let data = value as? Data,
-                  let state = try? JSONDecoder().decode(State.self, from: data), state.confirmed,
+                  let state = try? JSONDecoder().decode(State.self, from: data), state.trusted,
                   state.ladder.indices.contains(state.index)
             else { continue }
             ways[game] = state.ladder[state.index]
@@ -186,7 +207,7 @@ enum LaunchHealth {
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
     static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
         let state = load(game, attempts)
-        guard !state.confirmed, let started = state.startedAt,
+        guard !state.trusted, let started = state.startedAt,
               let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
         if span < failureWindow {
