@@ -394,6 +394,14 @@ Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:
 
 ## Ideen für später
 
+- **Mehr Infos pro Spiel („Über das Spiel“)** (Wunsch des Nutzers, 31.10.: „kurze Spielbeschreibung usw.“).
+  Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
+  Es fehlen noch die Entscheidung des Nutzers (4 offene Fragen) und die Merges von 2.5 und GOG. Danach wird gebaut.
+  - Dazu gehört dieser Fehler: Die Filter „Controller“ und „Läuft super“ greifen nur bei Steam-Spielen. Epic- und
+    GOG-Spiele sind immer „keine Controller“ (Overcooked! 2 von Epic zeigt „Maus & Tastatur“), und
+    `compatibility(of:)` sucht Profile nur per Steam-App-ID. Die Lösung ist dasselbe Spiel auf Steam: Epic-AppName
+    oder GOG-ID → GamesDB → Steam-App-ID, sonst ein genau gleicher Name.
+
 - **Lizenzen in „Über“ zum Aufklappen** (Idee des Nutzers, 28.10.; noch nicht anfangen):
   - Ein Klick oder A auf eine Komponente (Wine, DXMT …) wechselt im selben Glas-Sheet in eine Detailansicht, kein
     zweites Sheet darüber. Oben „‹ Zurück“ (B/Esc), weiche Überblendung.
