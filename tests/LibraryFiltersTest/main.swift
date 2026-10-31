@@ -67,6 +67,25 @@ struct LibraryFiltersTest {
         check(hidden.map(\.id) == ["hidden"], "hidden games: one list")
         check(LibrarySection.make([], sort: .recent, searching: false, hidden: false).isEmpty, "no games, no groups")
 
+        // Each filter on its own says it narrows; every choice has its own words.
+        check(LibraryFilters(status: .onMac).narrows && LibraryFilters(great: true).narrows && LibraryFilters(controller: true).narrows
+              && LibraryFilters(mac: true).narrows && !LibraryFilters(sort: .size).narrows, "what narrows, and what only orders")
+        check(Set(LibraryFilters.Status.allCases.map(\.label)).count == 3 && Set(LibraryFilters.Sort.allCases.map(\.label)).count == 3,
+              "every status and order has its own label")
+        // A game from two stores goes by its card: downloading in the other store counts as on this Mac.
+        var both = game(7, "Celeste", .notInstalled)
+        both.others = [game(8, "Celeste", .downloading(0.3))]
+        check(LibraryFilters(status: .onMac).admits(both, level: level) && !LibraryFilters(status: .notDownloaded).admits(both, level: level),
+              "a game from two stores, downloading in one: on this Mac")
+        let tie = [game(9, "Zeta", .installed, size: 10), game(10, "alpha", .installed, size: 10), game(11, "Beta", .installed, size: 20)]
+        check(LibraryFilters(sort: .size).sorted(tie).map(\.name) == ["Beta", "alpha", "Zeta"], "the same size: by name, any case")
+        check(LibraryFilters(sort: .name).sorted([game(12, "Game 10", .installed), game(13, "Game 9", .installed)]).map(\.appID) == [13, 12],
+              "names with numbers in the order people read them")
+        let bySize = LibrarySection.make(games, sort: .size, searching: false, hidden: false)
+        check(bySize.map(\.id) == ["all", "store"] && bySize[0].title == L10n.t("Largest first"), "by size: one list, largest first")
+        check(LibrarySection.make([games[5]], sort: .recent, searching: true, hidden: false).map(\.id) == ["store"],
+              "a search that finds only store hits")
+
         // The grid layout follows the groups: each starts its own row.
         let layout = GridLayout(sections: named.map(\.items), columns: 3)
         check(layout.rows == [[0, 1, 2], [3, 4], [5]], "rows follow the groups: \(layout.rows)")

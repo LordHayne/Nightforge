@@ -110,6 +110,34 @@ struct GraphicsPresetTest {
         check(automaticPacing.limit == (Prefs.sharpAndSmooth ? 60 : 0), "Automatic: the display's even rate")
         check(automaticPacing.learning == Prefs.sharpAndSmooth, "… which Automatic learns from")
 
+        // What FramePacing learned stands at the next start – until the display or the layer changes.
+        // (Kept in this test program's own defaults under a game ID no store has; removed again.)
+        let automatic = preset(.automatic).resolved(refreshRate: 120, profile: nil)
+        let pacingKey = "framePacing.\(paced.key)"
+        func kept() -> FramePacing.State? {
+            UserDefaults.standard.data(forKey: pacingKey).flatMap { try? JSONDecoder().decode(FramePacing.State.self, from: $0) }
+        }
+        if Prefs.sharpAndSmooth {
+            let context = FramePacing.Context(refreshRate: 120, upscaling: automatic.effectiveUpscaling(), graphics: automatic.graphics)
+            UserDefaults.standard.set(try? JSONEncoder().encode(FramePacing.State(context: context, limit: 40)), forKey: pacingKey)
+            let learned = FramePacing.automaticLimit(game: paced, options: automatic, profile: nil, refreshRate: 120)
+            check(learned.limit == 40 && learned.learning, "the limit it learned: \(learned.limit)")
+            check(FramePacing.automaticLimit(game: paced, options: automatic, profile: nil, refreshRate: 60).limit == 60,
+                  "another display starts over")
+            check(FramePacing.automaticLimit(game: paced, options: automatic, profile: profile(#"{"frameLimit": 30}"#), refreshRate: 120) == (30, false),
+                  "a profile's limit stands and isn't learned against")
+
+            FramePacing.recordStart(game: paced, options: automatic, profile: nil, refreshRate: 120, logMark: 7, limit: 40, learning: true)
+            check(kept()?.limit == 40 && kept()?.mark == 7 && kept()?.ranWith == 40, "a start is noted with its limit, the learned one kept")
+            FramePacing.recordStart(game: paced, options: automatic, profile: nil, refreshRate: 120, logMark: 9, limit: 50, learning: false)
+            check(kept()?.mark == 9 && kept()?.ranWith == nil, "a limit the player chose says nothing about the game")
+            FramePacing.recordStart(game: paced, options: automatic, profile: nil, refreshRate: 60, logMark: 11, limit: 60, learning: true)
+            check(kept()?.limit == nil && kept()?.context.refreshRate == 60, "a start on another display starts over")
+            check(FramePacing.automaticLimit(game: paced, options: automatic, profile: nil, refreshRate: 120).limit == 60,
+                  "back on the first display: the even rate again")
+            UserDefaults.standard.removeObject(forKey: pacingKey)
+        }
+
         // MARK: The order "Most compatible" tries the ways in
         let d3d11 = GameAnalysis(apis: [.d3d11])
         check(ids(d3d11, .automatic) == ["dxmt", "dxvk"], "Automatic: DXMT first")

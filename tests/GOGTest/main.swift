@@ -36,6 +36,7 @@ struct GOGTest {
         await store()
         await refresh()
         await drives()
+        await playing()
         redistFormats()
         await redistSetUp()
         await realProgram()
@@ -773,6 +774,98 @@ struct GOGTest {
         let back = await moved.library().first { $0.gameID == .gog("1207664663") }
         check(back?.install == .installed && back?.installDir == here && back?.missingDrive == nil, "after a move it's installed where it went")
         check(!fm.fileExists(atPath: goneFolder.path), "(the drive really isn't there)")
+    }
+}
+
+extension GOGTest {
+    /// The store between GOG's answers: how a refresh that doesn't get through says so, play time,
+    /// what a start and the Windows parts' setup are given, and games on the Mac that aren't in the list.
+    @MainActor
+    static func playing() async {
+        let fm = FileManager.default
+        let store = GOGStore()
+        store.authenticate = { .signedOut }
+        await store.refresh()
+        check(store.sync.state == .signedOut, "GOG ended the sign-in: signed out")
+        store.authenticate = { .helperFailed }
+        await store.refresh()
+        check(store.sync.state == .failed(L10n.t("Nightforge's GOG helper didn't start")), "gogdl didn't run: says so")
+        store.authenticate = { .signedIn(token: "tok", user: "4815") }
+        store.fetch = { _, _ in throw GOGFetchError.status(503) }
+        await store.refresh()
+        check(store.sync.state == .failed(L10n.t("Couldn't reach GOG")) && store.catalog.games.count == 2,
+              "GOG signed in but not answering: out of reach, the library stays")
+
+        // Play time Nightforge counts itself, kept between starts.
+        guard let witcher = await store.library().first(where: { $0.gameID == .gog("1207664663") }) else {
+            return check(false, "The Witcher is in the library")
+        }
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        store.recordStart(witcher, at: started)
+        check(await store.library().first { $0.gameID == witcher.gameID }?.lastPlayed == started, "a start counts as played")
+        store.recordSession(witcher, minutes: 42, endedAt: started.addingTimeInterval(3600))
+        store.recordSession(witcher, minutes: -5, endedAt: started.addingTimeInterval(7200))
+        let played = await GOGStore().library().first { $0.gameID == witcher.gameID }
+        check(played?.playtimeMinutes == 42 && played?.lastPlayed == started.addingTimeInterval(7200),
+              "sessions add up (a clock gone backwards adds nothing), and stay: \(played?.playtimeMinutes ?? -1)")
+
+        // What a start and the Windows parts' setup are given.
+        check(store.setupFacts(of: witcher)?.install.id == "1207664663" && store.setupFacts(of: witcher)?.install.platform == .windows,
+              "the Windows version's install record for its setup")
+        let stardew = Game(gameID: .gog("1453375253"), name: "Stardew Valley", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                           steamExeWindowsPath: "", installDir: GOGDL.macGamesDir.appendingPathComponent("Stardew Valley.app"), sizeOnDisk: 0)
+        check(store.setupFacts(of: stardew) == nil, "nothing to set up for a game that isn't on the Mac")
+        check(store.hasCloudSaves(witcher) == nil, "cloud saves unknown until they were synced")
+        let bare = fm.temporaryDirectory.appendingPathComponent("gog-bare-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: bare, withIntermediateDirectories: true)
+        let lost = Game(gameID: .gog("31337"), name: "Lost Game", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                        steamExeWindowsPath: "", installDir: bare, sizeOnDisk: 0)
+        let missing = L10n.t("%@ is missing GOG's start information. Download it again.", "Lost Game")
+        do { _ = try store.launchCommand(for: lost); check(false, "a game without GOG's info file can't start") } catch {
+            check(error.localizedDescription == missing, "without GOG's info file it says what to do: \(error.localizedDescription)")
+        }
+        try? Data(#"{"name": "Lost Game", "playTasks": [{"isPrimary": true, "path": "game.exe"}]}"#.utf8)
+            .write(to: bare.appendingPathComponent("goggame-31337.info"))
+        do { _ = try store.launchCommand(for: lost); check(false, "a program that isn't there can't start") } catch {
+            check(error.localizedDescription == missing, "nor when the program it names is gone")
+        }
+        try? fm.removeItem(at: bare)
+
+        // On the Mac but not in the list here: by the name in its info file, else its folder's.
+        let installedFile = gogFolder.appendingPathComponent("installed.json")
+        let before = try? Data(contentsOf: installedFile)
+        let named = GOGDL.windowsGamesDir.appendingPathComponent("Lone", isDirectory: true)
+        let unnamed = GOGDL.windowsGamesDir.appendingPathComponent("Nameless Folder", isDirectory: true)
+        try? fm.createDirectory(at: named, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: unnamed, withIntermediateDirectories: true)
+        try? Data(#"{"name": "Lone Wolf", "playTasks": [{"isPrimary": true, "path": "lone.exe"}]}"#.utf8)
+            .write(to: named.appendingPathComponent("goggame-777.info"))
+        var installs = (before.flatMap { try? JSONDecoder().decode([String: GOGInstall].self, from: $0) }) ?? [:]
+        installs["777"] = GOGInstall(id: "777", path: named, platform: .windows, build: "1", language: "en-US", size: 10)
+        installs["778"] = GOGInstall(id: "778", path: unnamed, platform: .windows, build: "1", language: "en-US", size: 10)
+        try? JSONEncoder().encode(installs).write(to: installedFile)
+        let extra = await GOGStore().library()
+        check(extra.first { $0.gameID == .gog("777") }?.name == "Lone Wolf" && extra.first { $0.gameID == .gog("778") }?.name == "Nameless Folder",
+              "installed games outside the list keep a name: \(extra.map(\.name))")
+        check(extra.first { $0.gameID == .gog("777") }?.install == .installed, "and stay playable")
+        if let before { try? before.write(to: installedFile) }
+        try? fm.removeItem(at: named)
+        try? fm.removeItem(at: unnamed)
+
+        // What a failed sign-in leaves for a problem report: gogdl's log without the secrets.
+        let output = Legendary.Output(status: 255, output: Data(), log: "[AUTH] ERROR: code sekret123 refused\n")
+        GOGDL.writeAuthLog(output, command: "auth --code", hiding: ["sekret123"])
+        let written = (try? String(contentsOf: GOGDL.authLog, encoding: .utf8)) ?? ""
+        check(written.contains("gogdl auth --code ended with 255") && written.contains("[AUTH] ERROR") && !written.contains("sekret123"),
+              "the sign-in's log is kept, the code left out: \(written)")
+
+        let messages = [GOGError.unavailable, .signInFailed, .helperFailed, .failed("disk full")].map(\.errorDescription)
+        check(Set(messages.compactMap { $0 }).count == 4 && messages[3] == "disk full", "every failure says what happened")
+        let needs = GOGRedist.Needs(dependencies: ["MSVC2017"], scriptInterpreter: true, products: [("1", "setup.exe")], build: "5")
+        var other = needs
+        other.products = [("1", "other.exe")]
+        check(needs == GOGRedist.Needs(dependencies: ["MSVC2017"], scriptInterpreter: true, products: [("1", "setup.exe")], build: "5")
+              && needs != other, "a build's needs compare by their products' installers too")
     }
 }
 
