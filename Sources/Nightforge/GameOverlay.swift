@@ -165,7 +165,7 @@ enum GameOverlay {
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
-        panel.contentView = NSHostingView(rootView: OverlayView(state: state))
+        panel.contentView = NSHostingView(rootView: OverlayView(state: state).modifier(AccessibilityFromSettings()))
         return panel
     }
 }

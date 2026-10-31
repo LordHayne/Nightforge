@@ -11,9 +11,10 @@ import SwiftUI
 ///   it never covers the game or another app; around a game in a window it's the page instead of
 ///   the desktop.
 ///
-/// It never takes a click, a key or the pad. A static picture – the game's backdrop from Home's
-/// stage, already blurred – with a small spinner while it's a curtain: nothing that costs the game
-/// frames.
+/// It never takes a click, a key or the pad. A loading screen of its own: the Nightforge N with its
+/// light seam, the game's name and what's happening, on the app's night with the game's backdrop
+/// from Home's stage (already blurred) faint behind. While it's a curtain only the seam pulses,
+/// gently, as a layer of its own – nothing that redraws the whole screen or costs the game frames.
 @MainActor
 enum GameBackdrop {
     final class State: ObservableObject {
@@ -143,7 +144,7 @@ enum GameBackdrop {
         window.backgroundColor = NSColor(Theme.night)
         window.isExcludedFromWindowsMenu = true
         window.animationBehavior = .none
-        window.contentView = NSHostingView(rootView: BackdropView(state: state))
+        window.contentView = NSHostingView(rootView: BackdropView(state: state).modifier(AccessibilityFromSettings()))
         return window
     }
 }
@@ -158,20 +159,25 @@ private struct BackdropView: View {
                 Image(nsImage: art)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .opacity(0.45)
-                LinearGradient(colors: [Theme.night.opacity(0.2), Theme.night.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                    .opacity(0.16)
             }
-            VStack(spacing: 14) {
+            // The app's night, a little lighter round the mark like under its lamp.
+            RadialGradient(colors: [Theme.slate.opacity(0.9), Theme.night.opacity(0)], center: .center, startRadius: 0, endRadius: 620)
+            VStack(spacing: 0) {
+                if state.stage.raised {
+                    PulsingMark()
+                } else {
+                    NightforgeMark(seamWidth: 4, seamGlow: 14).frame(height: 150)
+                }
                 Text(state.game)
-                    .font(size: 30, weight: .semibold)
+                    .font(size: 32, weight: .semibold)
                     .foregroundStyle(Theme.ink)
                     .lineLimit(2)
-                HStack(spacing: 10) {
-                    if state.stage.raised { GlassSpinner(size: 18) }
-                    Text(status)
-                        .font(size: 15, weight: .medium)
-                        .foregroundStyle(Theme.muted)
-                }
+                    .padding(.top, 44)
+                Text(status)
+                    .font(size: 18, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 12)
             }
             .multilineTextAlignment(.center)
             .padding(Theme.gutter)
@@ -186,5 +192,20 @@ private struct BackdropView: View {
         case .behind: return L10n.t("Nightforge waits here until you're done.")
         case .returning: return L10n.t("Back to Nightforge …")
         }
+    }
+}
+
+/// The N while something happens: its light seam breathes, slowly. Still with "Reduce motion".
+private struct PulsingMark: View {
+    @Environment(\.reduceMotion) private var reduceMotion
+    @State private var bright = false
+
+    var body: some View {
+        NightforgeMark(seamWidth: 4, seamGlow: 14, seamOpacity: reduceMotion || bright ? 1 : 0.4)
+            .frame(height: 150)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) { bright = true }
+            }
     }
 }

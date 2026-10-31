@@ -272,7 +272,9 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - **Vorhang beim Start und Ende** (1.11., Wunsch des Nutzers nach dem Valheim-Test: beim Start der Schreibtisch, am
     Ende kurz der Schreibtisch und Steams Fenster). Gebaut in `GameBackdrop.swift`:
     - Dieselbe Seite wird zum Vorhang über allem (Ebene knapp unter dem Overlay, alle Spaces, auch Vollbild-Spaces),
-      mit dem Hintergrundbild der Startseite, Spielname, „Wird gestartet …“ und einem kleinen Spinner.
+      als eigener Ladescreen: das Nightforge-N mit seiner blauen Lichtnaht (pulsiert sanft, nur die Naht, nicht bei
+      „Bewegung reduzieren“), darunter Spielname und „Wird gestartet …“ bzw. „Zurück zu Nightforge …“, auf der Nacht
+      der App mit dem Hintergrundbild des Spiels ganz schwach dahinter. Aufwendigere Animationen später.
     - Er kommt, sobald das Spiel an seinen Store geht, für Steam, Steam für Mac, Epic und GOG
       (`LibraryModel.raiseCurtain`). Er sinkt hinter das Spiel, sobald dessen App vorne ist und ein Fenster ab 640×360
       zeigt, eine Sekunde später (`GameProcesses.showsWindow`).

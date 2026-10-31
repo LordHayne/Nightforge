@@ -32,15 +32,24 @@ enum Theme {
 }
 
 /// The N beside the name in the top bar: the app icon's three pieces in brushed silver, with the
-/// blue light seam along the slab (scripts/render-brand.swift draws the big one).
+/// blue light seam along the slab (scripts/render-brand.swift draws the big one). Bigger, on the
+/// loading screen (GameBackdrop), the seam is wider and glows further.
 struct NightforgeMark: View {
+    var seamWidth: CGFloat = 1
+    var seamGlow: CGFloat = 2
+    /// The seam's light alone, so it can pulse without the pieces being drawn again.
+    var seamOpacity: Double = 1
+
+    static let seamColor = Color(red: 0.18, green: 0.48, blue: 1)
+
     var body: some View {
         ZStack {
             NightforgeMarkShape()
                 .fill(LinearGradient(colors: [Theme.ink, Theme.muted], startPoint: .top, endPoint: .bottom))
             NightforgeMarkShape.Seam()
-                .stroke(Color(red: 0.18, green: 0.48, blue: 1), lineWidth: 1)
-                .shadow(color: Color(red: 0.18, green: 0.48, blue: 1).opacity(0.8), radius: 2)
+                .stroke(Self.seamColor, style: StrokeStyle(lineWidth: seamWidth, lineCap: .round))
+                .shadow(color: Self.seamColor.opacity(0.8), radius: seamGlow)
+                .opacity(seamOpacity)
         }
         .aspectRatio(332 / 440, contentMode: .fit)
         .accessibilityHidden(true)
