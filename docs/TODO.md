@@ -136,9 +136,6 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Erkennung am Namen (`Candidate.isTV`, Liste der Marken) und das Vollbild des Launchers.
 - **Hinweis „Spielt auf: …“** neben Play, wenn ein externer Bildschirm das Spiel bekommt, damit man weiß, wo es
   aufgeht. Ansatz: `GameDisplay.screen?.localizedName` in `LibraryView`, nur bei mehr als einem Bildschirm.
-- **Ton über HDMI.** macOS stellt meist selbst auf den TV um, aber nicht immer. Erst am TV prüfen; falls nötig beim
-  Spielstart das Audiogerät des Spiel-Bildschirms wählen (CoreAudio, Transport HDMI/DisplayPort) und danach zurück,
-  wie `GameDisplay.enterGame`/`leaveGame` es mit dem Hauptbildschirm machen.
 - **Ziel fürs Sofa (28.10.):** MacBook anstecken, Controller einschalten, alles läuft, ohne Maus und Tastatur.
   - **Vollbild am Fernseher** (31.10., Branch `claude/tv-fullscreen-61ab1e`, `GameResolution.swift`): Overcooked 2
     (Epic, Unity) ging am gespiegelten TV als kleineres Fenster auf. Unity und Unreal merken sich die Auflösung des
@@ -183,6 +180,22 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       den Schreibtisch ab. Ein Spiel im Fenstermodus hat die dunkle Seite drumherum statt des Schreibtischs.
     - GOG (`claude/gog-7-3-e69c3b`) hat einen eigenen Startweg mit `case .hide: NSApp.hide(nil)`. Beim Zusammenführen
       auf `stepBack(behind: game, behavior)` umstellen, sonst blendet sich Nightforge bei GOG-Spielen weiter aus.
+  - **Ton aus dem Fernseher** (31.10., gleicher Branch, `GameAudio.swift`): Beim Live-Test blieb der Ton auf den
+    MacBook-Lautsprechern, obwohl ein DENON-AVR per HDMI dran war (macOS merkt sich die Ausgabe pro Gerät). Gebaut:
+    Zeigt ein Fernseher Nightforge (Fenster auf einem TV, ein AV-Receiver zählt dazu, oder ein Spiegel-Satz mit einem
+    externen Bildschirm), geht die Standardausgabe auf dessen HDMI- bzw. DisplayPort-Gerät. Bei mehreren nimmt
+    Nightforge das gleichnamige, im Zweifel keins. Umgeschaltet wird nur von den eingebauten Lautsprechern weg, nie von
+    Kopfhörern, AirPods, Bluetooth oder USB. Dazu kommt ein kurzer Hinweis „Ton kommt jetzt aus …“. Zurück auf die
+    Lautsprecher geht es, wenn Nightforge den TV verlässt und der Ton noch dort ist, wo Nightforge ihn hingelegt hat.
+    Wählt der Spieler am TV selbst eine andere Ausgabe, bleibt die, bis der TV weg ist. Wine (winecoreaudio) liest die
+    Standardausgabe nur beim Öffnen und hört nicht auf Wechsel: Der Wechsel muss vor dem Spiel liegen, und
+    `GameDisplay.enterGame` prüft es vor jedem Start noch einmal. Am Fernseher prüfen:
+    - TV mit DENON-AVR anstecken (gespiegelt und erweitert): Ton kommt aus dem Receiver, Hinweis erscheint. Kommt das
+      HDMI-Gerät erst Sekunden nach dem Bild, schaltet der Listener auf die Geräteliste nach.
+    - Ein Windows-Spiel: Ton da, auch Dialoge? Wine nimmt das bevorzugte Kanal-Layout des Geräts (Audio-MIDI-Setup ›
+      „Lautsprecher konfigurieren“), sonst die 8 Kanäle als 7.1. Fehlt etwas, dort „Stereo“ einstellen.
+    - Fenster zurück aufs MacBook bzw. TV abziehen: Ton wieder aus den MacBook-Lautsprechern.
+    - Am TV in den Systemeinstellungen auf die Lautsprecher stellen: Nightforge schaltet nicht wieder um.
 
 ## Anti-Cheat und GeForce Now
 

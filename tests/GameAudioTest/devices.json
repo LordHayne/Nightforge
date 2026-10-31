@@ -1,0 +1,26 @@
+{
+  "about": "Output devices as GameAudio.outputDevices() reads them from CoreAudio, by setup. The first is the one from the live test on 31.10. (system_profiler: DENON-AVR over HDMI, 8 output channels; default output still the MacBook's speakers).",
+  "macbook-denon": [
+    {"uid": "BuiltInSpeakerDevice", "name": "MacBook Pro-Lautsprecher", "transport": "builtIn", "speakers": true},
+    {"uid": "AppleGFXHDAEngineOutputDP:10001:0:{AC10-D0A0-00000001}", "name": "DENON-AVR", "transport": "hdmi"}
+  ],
+  "headphones": [
+    {"uid": "BuiltInSpeakerDevice", "name": "MacBook Pro-Lautsprecher", "transport": "builtIn", "speakers": true},
+    {"uid": "BuiltInHeadphoneOutputDevice", "name": "Externe Kopfhörer", "transport": "builtIn"},
+    {"uid": "AppleGFXHDAEngineOutputDP:10001:0:{AC10-D0A0-00000001}", "name": "DENON-AVR", "transport": "hdmi"}
+  ],
+  "airpods-usb": [
+    {"uid": "BuiltInSpeakerDevice", "name": "MacBook Pro-Lautsprecher", "transport": "builtIn", "speakers": true},
+    {"uid": "70-F9-4A-11-22-33:output", "name": "AirPods Pro", "transport": "bluetooth"},
+    {"uid": "AppleUSBAudioEngine:Focusrite:Scarlett 2i2:1", "name": "Scarlett 2i2", "transport": "usb"},
+    {"uid": "AppleGFXHDAEngineOutputDP:10001:0:{AC10-D0A0-00000001}", "name": "DENON-AVR", "transport": "hdmi"}
+  ],
+  "tv-and-monitor": [
+    {"uid": "BuiltInSpeakerDevice", "name": "MacBook Pro-Lautsprecher", "transport": "builtIn", "speakers": true},
+    {"uid": "AppleGFXHDAEngineOutputDP:10001:0:{1E6D-C0A2-00000001}", "name": "LG TV SSCR2", "transport": "hdmi"},
+    {"uid": "AppleGFXHDAEngineOutputDP:10002:0:{10AC-A0F2-00000002}", "name": "DELL U2720Q", "transport": "displayPort"}
+  ],
+  "speakers-only": [
+    {"uid": "BuiltInSpeakerDevice", "name": "MacBook Pro-Lautsprecher", "transport": "builtIn", "speakers": true}
+  ]
+}

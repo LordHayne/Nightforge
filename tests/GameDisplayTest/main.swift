@@ -51,6 +51,17 @@ struct GameDisplayTest {
         check(GameDisplay.newMain(for: 3, main: 1, primary: mirrored) == 3, "a monitor beside a mirror set becomes main")
         check(GameDisplay.newMain(for: 1, main: 3, primary: mirrored) == 2, "back to the mirror set: its master becomes main")
 
+        // Which TV shows Nightforge, for its sound: false = an external display in the mirror set.
+        let tv = screen(2, "LG TV SSCR2"), avr = screen(4, "DENON-AVR"), monitor = screen(3, "DELL U2720Q")
+        check(GameDisplay.soundScreen(tv, mirroredWith: []) == "LG TV SSCR2", "on a TV: its sound")
+        check(GameDisplay.soundScreen(avr, mirroredWith: [true]) == "DENON-AVR", "the live test: the receiver's screen, the MacBook mirroring it")
+        check(GameDisplay.soundScreen(monitor, mirroredWith: []) == nil, "a desk monitor keeps the Mac's sound")
+        check(GameDisplay.soundScreen(monitor, mirroredWith: [true]) == "DELL U2720Q", "mirrored with the MacBook: the big screen")
+        check(GameDisplay.soundScreen(macBook, mirroredWith: [false]) == "", "the MacBook mirrored onto an external screen")
+        check(GameDisplay.soundScreen(macBook, mirroredWith: []) == nil, "the MacBook alone")
+        check(GameDisplay.soundScreen(nil, mirroredWith: []) == nil, "no window yet")
+        check(screen(9, "DENON-AVR").isTV && screen(9, "marantz AVR").isTV, "an AV receiver in front of a TV counts as one")
+
         // When a game whose processes are gone counts as ended, and Nightforge comes back.
         check(!LibraryModel.gameEnded(looksGone: 1, goneFor: 0, ranFor: 1800), "the look its end woke: not yet")
         check(LibraryModel.gameEnded(looksGone: 2, goneFor: 1, ranFor: 1800), "after a session, a second later")

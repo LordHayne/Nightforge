@@ -61,6 +61,7 @@ enum GameDisplay {
             for _ in 0..<50 where window == nil { try? await Task.sleep(for: .milliseconds(100)) }
             lastScreen = window?.screen.flatMap(id)
             await place()
+            followSound()
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { _ in
@@ -68,9 +69,13 @@ enum GameDisplay {
                 let now = Set(candidates().map(\.id))
                 let connected = !now.subtracting(known).isEmpty
                 known = now
+                followSound()  // also when a TV goes, or mirroring starts or ends
                 guard connected else { return }
                 UserDefaults.standard.removeObject(forKey: Keys.declined)  // plugged in again: try it
-                Task { await place() }
+                Task {
+                    await place()
+                    followSound()
+                }
             }
         }
         NotificationCenter.default.addObserver(forName: NSWindow.didChangeScreenNotification,
@@ -83,7 +88,10 @@ enum GameDisplay {
     /// A screen that went away taking the window along says nothing.
     private static func windowMoved(_ moved: NSWindow?) {
         guard let moved, moved === window, let now = moved.screen.flatMap(id) else { return }
-        defer { lastScreen = now }
+        defer {
+            lastScreen = now
+            followSound()
+        }
         // Away from the screen a game made main: the main display goes back now (leaveGame).
         if !running, !placing, !onMain { restoreLeftover() }
         guard !placing, let before = lastScreen, before != now,
@@ -133,6 +141,7 @@ enum GameDisplay {
     /// Before a game starts: the game screen becomes the main display.
     static func enterGame() {
         running = true
+        followSound()  // before the game: Wine takes the output when it starts
         guard let game = screen.flatMap(id) else { return }
         let main = CGMainDisplayID()
         guard let wanted = newMain(for: game, main: main, primary: CGDisplayPrimaryDisplay), makeMain(wanted) else { return }
@@ -183,14 +192,12 @@ enum GameDisplay {
     /// For this login session only, so a restart puts things back anyway.
     private static func makeMain(_ display: CGDirectDisplayID) -> Bool {
         let shift = CGDisplayBounds(display).origin
-        var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return false }
-        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return false }
+        let displays = activeDisplays()
+        guard !displays.isEmpty else { return false }
         var config: CGDisplayConfigRef?
         guard CGBeginDisplayConfiguration(&config) == .success, let config else { return false }
         // A mirrored screen follows the one it mirrors.
-        for other in displays.prefix(Int(count)) where CGDisplayMirrorsDisplay(other) == kCGNullDirectDisplay {
+        for other in displays where CGDisplayMirrorsDisplay(other) == kCGNullDirectDisplay {
             let origin = CGDisplayBounds(other).origin
             CGConfigureDisplayOrigin(config, other, Int32(origin.x - shift.x), Int32(origin.y - shift.y))
         }
@@ -215,13 +222,45 @@ enum GameDisplay {
                              mirrors: CGDisplayMirrorsDisplay(display) != kCGNullDirectDisplay)
         }
     }
+
+    /// Every display that shows a picture, mirrors included (they aren't NSScreens of their own).
+    private static func activeDisplays() -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return Array(displays.prefix(Int(count)))
+    }
+
+    // MARK: - Sound
+
+    /// The TV that shows Nightforge, for its sound (GameAudio): the window's screen when it's a TV,
+    /// or a screen mirrored with an external one – mirroring puts the picture on the big screen.
+    /// `mirroredWith`: the other displays of its mirror set, true for the Mac's own. A mirror has no
+    /// name of its own here (""). Nil when no TV shows Nightforge.
+    nonisolated static func soundScreen(_ screen: Candidate?, mirroredWith: [Bool]) -> String? {
+        guard let screen else { return nil }
+        if screen.isTV { return screen.name }
+        guard !mirroredWith.isEmpty, !screen.builtIn || mirroredWith.contains(false) else { return nil }
+        return screen.builtIn ? "" : screen.name
+    }
+
+    private static func followSound() {
+        guard let display = window?.screen.flatMap(id) else { return }
+        let set = CGDisplayPrimaryDisplay(display)
+        let mirroredWith = activeDisplays().filter { $0 != display && CGDisplayPrimaryDisplay($0) == set }
+            .map { CGDisplayIsBuiltin($0) != 0 }
+        GameAudio.follow(tv: soundScreen(candidates().first { $0.id == display }, mirroredWith: mirroredWith))
+    }
 }
 
 extension GameDisplay.Candidate {
-    /// TVs name themselves so over HDMI ("LG TV SSCR2", "SAMSUNG", "SONY TV  *00").
+    /// TVs name themselves so over HDMI ("LG TV SSCR2", "SAMSUNG", "SONY TV  *00"), and so does an
+    /// AV receiver in front of one ("DENON-AVR").
     var isTV: Bool {
         let words = name.uppercased().split { !$0.isLetter && !$0.isNumber }
-        let brands: Set<Substring> = ["TV", "SAMSUNG", "SONY", "VIZIO", "HISENSE", "TCL", "PANASONIC", "BRAVIA"]
+        let brands: Set<Substring> = ["TV", "SAMSUNG", "SONY", "VIZIO", "HISENSE", "TCL", "PANASONIC", "BRAVIA",
+                                      "AVR", "DENON", "MARANTZ", "ONKYO"]
         return words.contains { brands.contains($0) }
     }
 }

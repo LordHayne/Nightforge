@@ -634,6 +634,7 @@ enum L10n {
         "%@ is running …": "%@ läuft …",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
+        "Sound now comes from %@": "Ton kommt jetzt aus %@",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
         "Well": "Gut",
