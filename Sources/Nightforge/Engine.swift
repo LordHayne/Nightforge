@@ -318,6 +318,13 @@ enum Engine {
         SteamBootstrap.unwrappedHelperRunning(ownProcesses().map { ($0.command, processStart($0.pid)) }, swappedAt: swappedAt)
     }
 
+    /// Ends Steam's browser, every process of it, and leaves Steam running: its client starts the
+    /// browser again by itself from steamwebhelper.exe, ~8 s later – four times in a row
+    /// (30.10.2026, a scratch prefix; "Restart webhelper process").
+    static func endWebHelpers() {
+        for pid in SteamBootstrap.webHelperProcesses(ownProcesses()) where pid != getpid() { kill(pid, SIGKILL) }
+    }
+
     private static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
