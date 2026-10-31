@@ -9,6 +9,7 @@
   <a href="#install">Install</a> ·
   <a href="#what-nightforge-does">What it does</a> ·
   <a href="#good-to-know">Good to know</a> ·
+  <a href="#whats-next">What's next</a> ·
   <a href="#how-it-works">How it works</a>
   <br>
   <sub>Free · Apple silicon (M1 or newer) · macOS 14 or later · English and German · GPL-3.0</sub>
@@ -95,9 +96,23 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
 - **Per game (O):** Automatic, Balanced, Fastest or Most compatible, plus expert options and launch options.
 - **Advanced:** CrossOver and Whisky bottles or your own Wine, folded away until you need them.
 
-### Coming soon
+## What's next
 
-Already in the works, not done yet: a **TV and couch mode** – full screen on your TV, no mouse or keyboard – and **more about every game**: screenshots, description, genres and game modes on its page.
+No dates – just an honest sort.
+
+**Coming soon** – in the works, arriving with one of the next updates:
+
+- **TV and couch mode.** Games start full screen at the TV's resolution, sound goes over HDMI, and afterwards you're back like on a console. Built; the test on a real TV is still to come.
+- **More about every game.** Description, screenshots and game modes right on the game's page.
+- **Even more controller.** L1/R1 switch between Home and the library; search with a controller by jumping to a first letter or with an on-screen keyboard.
+- **Games stay up to date.** Updates download in the background while Nightforge is open – like on a console.
+- **Download queue.** Set the order, pause and resume, and download only at night if you like.
+
+**Planned** – later, no date yet:
+
+- **Save conflicts, solved.** When the save on your Mac and the one in the cloud differ, Nightforge asks before the start which one goes on, and backs up the other.
+- **Faster for DirectX 9.** More speed for older DirectX 9 games through KosmicKrisp, a new Vulkan driver for the Mac.
+- **Help rate games.** Voluntary and anonymous. For every game it adds which Macs it was tested on and how many reports back that up.
 
 ## Install
 
