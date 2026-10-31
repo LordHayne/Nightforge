@@ -21,6 +21,7 @@ struct SettingsView: View {
 
     @State private var tab: Tab
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var padFocus = PadFocus.shared
 
     init(tab: Tab = .general) {
         _tab = State(initialValue: tab)
@@ -41,9 +42,9 @@ struct SettingsView: View {
                 case .general: GeneralSettings()
                 case .controller: ControllerSettings()
                 case .storage: StorageSettings()
-                        .frame(height: 480)  // the list of games scrolls
+                        .frame(idealHeight: 480)  // the list of games scrolls
                 case .about: AboutSettings()
-                        .frame(height: 480)  // the list of projects scrolls
+                        .frame(idealHeight: 480)  // the list of projects scrolls
                 }
             }
             .formStyle(.grouped)
@@ -54,7 +55,10 @@ struct SettingsView: View {
             .padding(.bottom, 8)
         }
         .frame(width: 640)
+        // Never past the window: the tab's form scrolls instead, under the title and the tabs.
+        .frame(maxHeight: DialogRoom.height)
         .fixedSize(horizontal: false, vertical: true)
+        .onChange(of: padFocus.focused) { _, id in padFocus.reveal(id) }
         // The design's dialog: thick glass over the dimmed library, not a window of its own.
         .glassDialogBackground()
     }

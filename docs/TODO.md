@@ -405,8 +405,14 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
 - **Erster Start unter ~680 pt Fensterhöhe:** Anmeldung (mit QR-Hinweis) und Ergebnis scrollen jetzt, statt die obere
   Leiste hinauszuschieben (die Anmeldung tat das bei 640 pt schon ohne größere Schrift). Holt der Pad-Fokus den Knopf
   am Ende ins Bild? Stört der Scrollbereich das Wischen mit zwei Fingern nicht?
-- **Einstellungen mit größerer Schrift** sind bis ~770 pt hoch (Allgemein): Passt das Sheet bei kleinem Fenster auf den
-  Bildschirm? Die Werte der System-Popups (Sprache, Nach dem Start) bleiben 13 pt – wirkt das störend?
+- **Einstellungen und Dialoge im kleinen Fenster** (Nachbesserung nach dem Live-Test, beide Schriftgrößen): Das Sheet
+  ist höchstens Fensterhöhe − 40 pt hoch (bei 980 × 640: 568 statt 727/771), Kopf und Tabs stehen, das Formular scrollt.
+  Scrollt das Trackpad im Sheet das Sheet und nicht die Bibliothek dahinter? Holt der Pad-Fokus in Allgemein „Größere
+  Schrift“ und „Bewegung reduzieren“ ins Bild? Dasselbe im Platz-Dialog (viele Spiele) und in „… ist nicht gestartet“.
+  Bei 1512 × 853 bleibt alles wie vorher (771 < 781). Die Werte der System-Popups (Sprache, Nach dem Start) bleiben
+  13 pt – wirkt das störend?
+- **Bibliothek bei 980 × 640:** Steht das gewählte Spiel in der ersten Reihe, bleibt „Installiert“ mit vollem Abstand
+  unter den Filtern, auch nach Spielseite → Esc und nach Pinch auf eine andere Cover-Größe.
 - **Spielseite mit vielen Hinweisen** (Kompatibilität, Akku, Low Power Mode, Versionen) bei 640 pt Höhe war schon vorher
   zu hoch und wird mit größerer Schrift höher. Nächster Schritt wäre, dass sie scrollt wie der erste Start.
 - **Nicht gerendert:** Controller-Test mit echtem Pad, Epic-Anmeldehinweis und Sync-Banner, leere Bibliothek,

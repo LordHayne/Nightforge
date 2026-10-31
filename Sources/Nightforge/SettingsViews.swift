@@ -335,11 +335,7 @@ private extension GameOptionsSheet {
     var refreshRate: Int { GameDisplay.screen?.maximumFramesPerSecond ?? 60 }
 
     /// Leaves room for the title, the buttons and the sheet's edges in the main window.
-    var maxScrollHeight: CGFloat {
-        let window = NSApp.windows.first { $0.title == "Nightforge" }?.contentLayoutRect.height
-            ?? NSScreen.main?.visibleFrame.height ?? 800
-        return max(260, window - 230)
-    }
+    var maxScrollHeight: CGFloat { max(260, DialogRoom.height - 190) }
 
     /// What the next start uses for "Automatic", including what Nightforge learned (FramePacing).
     var automaticLimit: Int {

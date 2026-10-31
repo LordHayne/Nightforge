@@ -130,21 +130,32 @@ struct LibraryGrid: View {
                     }
                     .padding(.horizontal, Theme.gutter)
                     .padding(.vertical, 20)
+                    .id(Self.top)
                 }
                 .onAppear {
                     model.gridColumns = columnCount
-                    if let id = model.selected?.id { proxy.scrollTo(id, anchor: .center) }
+                    showSelected(proxy, columns: columnCount)
                 }
                 .onChange(of: columnCount) { _, count in model.gridColumns = count }
                 // Another cover size: the selected game stays in sight.
-                .onChange(of: coverSize) { _, _ in
-                    if let id = model.selected?.id { proxy.scrollTo(id, anchor: .center) }
-                }
+                .onChange(of: coverSize) { _, _ in showSelected(proxy, columns: columnCount) }
                 .onChange(of: model.selectedIndex) { _, _ in
-                    guard let id = model.selected?.id else { return }
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { showSelected(proxy, columns: columnCount) }
                 }
             }
+        }
+    }
+
+    private static let top = "grid.top"
+
+    /// The selected game in sight: in the middle, or in the first row the grid's very top, so the
+    /// first group's title and the room above it stay in view in a short window.
+    private func showSelected(_ proxy: ScrollViewProxy, columns: Int) {
+        guard let id = model.selected?.id else { return }
+        if model.librarySections.first?.items.prefix(columns).contains(model.selectedIndex) == true {
+            proxy.scrollTo(Self.top, anchor: .top)
+        } else {
+            proxy.scrollTo(id, anchor: .center)
         }
     }
 }

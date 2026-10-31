@@ -376,53 +376,56 @@ struct FailedLaunchSheet: View {
 
     var body: some View {
         GlassDialog(L10n.t("%@ didn't start", failed.game.name), id: "failed") {
-            VStack(alignment: .leading, spacing: 8) {
-                DialogWarning(L10n.t("It ended right after starting, with every way Nightforge knows to start it."))
-                if !failed.tried.isEmpty {
-                    Text(L10n.t("Tried: %@", failed.tried.joined(separator: " · ")))
-                        .font(size: 12.5)
-                        .foregroundStyle(Theme.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, 26)
+            // The ways out scroll in a short window; the report line stays under them.
+            DialogScroll {
+                VStack(alignment: .leading, spacing: 8) {
+                    DialogWarning(L10n.t("It ended right after starting, with every way Nightforge knows to start it."))
+                    if !failed.tried.isEmpty {
+                        Text(L10n.t("Tried: %@", failed.tried.joined(separator: " · ")))
+                            .font(size: 12.5)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 26)
+                    }
                 }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                // A on a controller is Return: the first way out, not a browser.
-                if offersCompatible {
-                    Button(action: mostCompatible) {
-                        Label(L10n.t("Try “Most compatible”"), systemImage: "shield.lefthalf.filled")
+                VStack(alignment: .leading, spacing: 8) {
+                    // A on a controller is Return: the first way out, not a browser.
+                    if offersCompatible {
+                        Button(action: mostCompatible) {
+                            Label(L10n.t("Try “Most compatible”"), systemImage: "shield.lefthalf.filled")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(GlassTextButtonStyle(prominent: true))
+                        .keyboardShortcut(.defaultAction)
+                        .padFocus("failed.compatible", cornerRadius: 21, preferred: true, activate: mostCompatible)
+                        Text(L10n.t("Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options."))
+                            .font(size: 12.5)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
+                            .padding(.bottom, 4)
+                    }
+                    Button(action: startOver) {
+                        Label(L10n.t("Try Again From the First Way"), systemImage: "arrow.counterclockwise")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(GlassTextButtonStyle(prominent: true))
-                    .keyboardShortcut(.defaultAction)
-                    .padFocus("failed.compatible", cornerRadius: 21, preferred: true, activate: mostCompatible)
-                    Text(L10n.t("Starts it the slower, safest way – no MetalFX, 60 FPS, the safest graphics first – and keeps that for this game. Change it any time in its options."))
+                    .buttonStyle(GlassTextButtonStyle(prominent: !offersCompatible))
+                    .keyboardShortcut(offersCompatible ? nil : .defaultAction)
+                    .padFocus("failed.again", cornerRadius: 21, preferred: !offersCompatible, activate: startOver)
+                    Text(L10n.t("Helps when something got in the way the first time – Steam updating, a window asking something."))
                         .font(size: 12.5)
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 4)
-                        .padding(.bottom, 4)
-                }
-                Button(action: startOver) {
-                    Label(L10n.t("Try Again From the First Way"), systemImage: "arrow.counterclockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(GlassTextButtonStyle(prominent: !offersCompatible))
-                .keyboardShortcut(offersCompatible ? nil : .defaultAction)
-                .padFocus("failed.again", cornerRadius: 21, preferred: !offersCompatible, activate: startOver)
-                Text(L10n.t("Helps when something got in the way the first time – Steam updating, a window asking something."))
-                    .font(size: 12.5)
-                    .foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
-                if hasLayers {
-                    Button(action: chooseByHand) {
-                        Label(L10n.t("Choose Graphics by Hand …"), systemImage: "slider.horizontal.3")
-                            .frame(maxWidth: .infinity)
+                    if hasLayers {
+                        Button(action: chooseByHand) {
+                            Label(L10n.t("Choose Graphics by Hand …"), systemImage: "slider.horizontal.3")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
+                        .padding(.top, 4)
                     }
-                    .buttonStyle(GlassTextButtonStyle())
-                    .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
-                    .padding(.top, 4)
                 }
             }
             HStack(alignment: .center, spacing: 12) {
@@ -551,54 +554,57 @@ struct SpaceSheet: View {
 
     var body: some View {
         GlassDialog(L10n.t("%@ needs up to %@", request.game.name, Format.bytes(request.needed)), id: "space", width: 540) {
-            DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
-                                 Format.bytes(request.free), Format.bytes(request.shortfall)),
-                          symbol: "externaldrive.badge.exclamationmark")
-            if request.candidates.isEmpty {
-                Text(L10n.t("No game here has gone unplayed for a month. Remove games or other files you don't need, then try again."))
-                    .font(size: 13)
-                    .foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(request.candidates.allSatisfy { $0.provider == .steam }
-                         ? L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept.")
-                         : L10n.t("Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept."))
-                        .font(size: 13, weight: .medium)
+            // The games to make room with scroll in a short window; the buttons stay under them.
+            DialogScroll {
+                DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
+                                     Format.bytes(request.free), Format.bytes(request.shortfall)),
+                              symbol: "externaldrive.badge.exclamationmark")
+                if request.candidates.isEmpty {
+                    Text(L10n.t("No game here has gone unplayed for a month. Remove games or other files you don't need, then try again."))
+                        .font(size: 13)
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                    VStack(spacing: 0) {
-                        ForEach(Array(request.candidates.enumerated()), id: \.element.id) { place, game in
-                            let on = Binding(get: { picked.contains(game.id) },
-                                             set: { if $0 { picked.insert(game.id) } else { picked.remove(game.id) } })
-                            if place > 0 { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
-                            Toggle(isOn: on) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(game.name)
-                                            .font(size: 13.5, weight: .semibold)
-                                            .lineLimit(1)
-                                        Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
-                                            .font(size: 12)
-                                            .foregroundStyle(Theme.muted)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(request.candidates.allSatisfy { $0.provider == .steam }
+                             ? L10n.t("Make room – these haven't been played for a while. They stay in your Steam library, and saves in the Steam Cloud are kept.")
+                             : L10n.t("Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept."))
+                            .font(size: 13, weight: .medium)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(spacing: 0) {
+                            ForEach(Array(request.candidates.enumerated()), id: \.element.id) { place, game in
+                                let on = Binding(get: { picked.contains(game.id) },
+                                                 set: { if $0 { picked.insert(game.id) } else { picked.remove(game.id) } })
+                                if place > 0 { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
+                                Toggle(isOn: on) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(game.name)
+                                                .font(size: 13.5, weight: .semibold)
+                                                .lineLimit(1)
+                                            Text(game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
+                                                .font(size: 12)
+                                                .foregroundStyle(Theme.muted)
+                                        }
+                                        Spacer()
+                                        Text(Format.bytes(game.sizeOnDisk))
+                                            .font(size: 13)
+                                            .monospacedDigit()
+                                            .foregroundStyle(Theme.ink.opacity(0.8))
                                     }
-                                    Spacer()
-                                    Text(Format.bytes(game.sizeOnDisk))
-                                        .font(size: 13)
-                                        .monospacedDigit()
-                                        .foregroundStyle(Theme.ink.opacity(0.8))
                                 }
+                                .toggleStyle(GlassCheckboxStyle())
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .padFocus("space.\(game.id)", toggle: on)
                             }
-                            .toggleStyle(GlassCheckboxStyle())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .padFocus("space.\(game.id)", toggle: on)
                         }
+                        .glassWell()
                     }
-                    .glassWell()
                 }
+                DriveInstallChoices(request: request)
             }
-            DriveInstallChoices(request: request)
             HStack(spacing: 8) {
                 if !request.candidates.isEmpty {
                     Text(enough ? L10n.t("Frees %@ – enough", Format.bytes(freed)) : L10n.t("Frees %@ of %@", Format.bytes(freed), Format.bytes(request.shortfall)))
