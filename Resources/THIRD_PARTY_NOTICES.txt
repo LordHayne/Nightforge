@@ -28,10 +28,12 @@ Each package comes with its own licence and, where its licence asks for it, its 
   MoltenVK                        Apache-2.0
   winetricks                      LGPL-2.1-or-later
   cabextract                      GPL-3.0-or-later
+  legendary (Epic Games)          GPL-3.0-or-later
+  gogdl (GOG, from Heroic)        GPL-3.0
   D3DMetal                        Apple's licence (License.rtf beside the files); not Nightforge's, not under the GPL
 
 Nightforge's own builds of Wine parts, DXMT and cabextract carry their licence texts inside the
 package and their corresponding source as a second asset of the same GitHub release.
 
-Nightforge is not affiliated with Valve or Apple. Steam is a trademark of Valve Corporation; Mac and
-macOS are trademarks of Apple Inc.
+Nightforge is not affiliated with Valve, Epic Games, GOG or Apple. Steam is a trademark of Valve
+Corporation; Mac and macOS are trademarks of Apple Inc.

@@ -49,6 +49,12 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   „Aus dem Code-Audit“ → Vulkan-Layer). WineD3D bleibt der Weg. Zum Ton:
   In der Cloud-Konfiguration stehen `volume "0.008"` und Quadro-Lautsprecher, also erst im Spiel unter
   Optionen → Audio hochdrehen, bevor man Wine verdächtigt.
+- **DXVK unter winecx gar nicht nutzbar?** Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
+  5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
+  `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
+  (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
+  einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
+  „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
   Noch kein einziges getestet.
 - **Unreal-Spiele allgemein.** Bis 26.10. bekam kein Unreal-Spiel DXMT. Die Einstellungen reichten nur drei
@@ -88,6 +94,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   dem GOG-Zweig (557c2c2).
 - **Windows-Steam ignoriert manchmal `steam.exe -shutdown`.** Dann hilft nur `wineserver -k`. Läuft Steam gar
   nicht, startet `-shutdown` ein neues Steam. Nightforges eigenes Beenden darauf prüfen.
+- **Angemeldete Steam nimmt keine Befehle mehr an** (31.10., OxyRail, Branch `claude/gog-7-3-e69c3b`): Seit etwa
+  16:46 kam kein `-applaunch` mehr in `console_log` an. Nightforges Client endete trotzdem nach 0,2–0,3 s (macOS-Log,
+  wie bei den funktionierenden Starts), und `configstore_log`/`appinfo_log` liefen weiter. Gebaut (`SteamCommands`):
+  War Steam angemeldet und fertig gestartet und loggt 15 s lang kein `ExecCommandLine` für den Start, folgt „Steam
+  reagiert nicht – wird neu gestartet …“: `wineserver -k` ohne `-shutdown` (nur wenn kein Windows-Spiel läuft;
+  ein Client-Update läuft vorher zu Ende), stiller Neustart, Anmeldung abwarten, Start noch einmal. Live prüfen,
+  sobald Steam wieder so hängt. Ursache des Hängers selbst offen (letzte Zeile: `SlowJSMethodCall Messaging.PostMessage`).
 - **steam-shutdown.sh** hält jeden Prozess unter `\steamapps\common\` für ein Spiel, auch in
   Test-Prefixen, und holt Nightforge dann nach vorne.
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
@@ -433,6 +446,63 @@ von „Epic Games“ unten:
 - **Noch offen aus der Roadmap:** Store-Filter in der Bibliothek (2.1, mit Warnsymbol bei Sync-Fehler), „Start through
   <anderer Store>“ im Fehlstart-Sheet (1.2; die Store-Wahl selbst ist mit 7.4 da). „Also add Epic Games“ im ersten Start
   (6.1) entfällt nach Entscheidung des Nutzers (29.10.): Epic verbindet man in Settings › Stores.
+
+### GOG (Branch `claude/gog-7-3-e69c3b`, Roadmap 7.3) – offene Tests mit echtem Konto (Stand 31.10.)
+
+Live getestet am 31.10. mit dem echten Konto (0e017bd): Anmeldung, Bibliothek, ein Mac-Download und Spielen klappen. Am
+besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nicht dazwischenfunken.
+
+- [x] **Anmeldung:** GOGs Seite auf Deutsch, Fenster schließt von selbst, `auth.log` „ended with 0 / answer: credentials“,
+      `.runs-packed` angelegt. (Erster Versuch mit a6a2899 scheiterte: gogdl 1.4.0 läuft nicht aus dem entpackten Ordner,
+      Roadmap 7.3.) Offen: Zwei-Faktor, Kontoname als Tooltip. Vor dem nächsten Live-Test `tests/GOGTest/run.sh` – mit
+      installiertem gogdl startet es das echte Programm.
+- [x] **Bibliothek:** 7 Spiele, keine DLCs; Control und The Evil Within 2 mit Epic zu einer Karte zusammengelegt (193 → 198).
+- [x] **Mac-Version laden und spielen:** „A New Beginning: Final Cut“, 3,9 GB in ~3 Min. (~21 MB/s), keine gogdl-Reste;
+      startet als Mac-App (x86_64 unter Rosetta), „Willkommen zurück“ mit GOG-Cloud-Zeile, danach Platz 1 auf der Startseite.
+- [ ] **Nachgebessert, nachprüfen:** „Zuletzt gespielt gerade eben“ statt „in 0 Sekunden“; die Cloud-Zeile in „Willkommen
+      zurück“ bricht um (bis 2 Zeilen); im Download-Panel Fortschritt und Tempo/Restzeit in zwei Zeilen; eine GOG-Größe
+      „Herunterladen“ vor und während des Downloads und im Panel (die Download-Größe, nicht gogdls Installations-Bytes).
+- [x] **Weiterladen** nach Beenden und Neustart von Nightforge (Mafia II, 8,4 GB, deutsch).
+- [x] **Doppelt:** Control und The Evil Within 2 als eine Karte EPIC + GOG.
+- [ ] **Ein Windows-Spiel – Mafia II (Classic), 1816059595:** Der erste Start (0e017bd) scheiterte an „PhysX SDK not
+      initialized“ – Galaxys Abhängigkeiten fehlten. Seit dem Fix (Roadmap 7.3, `GOGRedist`) prüfen: vor dem ersten Start
+      „Windows-Bausteine für Mafia II werden eingerichtet …“ mit „Visual C++ Redist 2017“, „NVIDIA PhysX Legacy“,
+      „NVIDIA PhysX“ darunter, **kein** Installer-Fenster; `GOG/Redist/__redist/` mit MSVC2017, PHYSXLEGACY, PHYSX, ISI
+      (kein DirectX); `Prefix/gog-redist.json` mit den drei und `products` 1816059595; `GOG/Logs/redist.log` mit Exit 0
+      je Installer und dem Installationsskript. Dann startet das Spiel ohne PhysX-Fenster (Grafik-Leiter,
+      Erstsekunden-Prüfung, Prozess über `\GOG Games\`). Ein zweiter Start richtet nichts mehr ein.
+      Live 31.10. (557c2c2): Redists liefen alle (VC_redist 2017 endet mit 102 = 1638 „neuere Version da“, v14 14.51 ist im
+      Prefix – zählt richtig als installiert). Mafia II endet dann aber nach 6 s: DXVK-d3d9 bekommt unter winecx kein Gerät
+      („DxvkAdapter: Failed to create device“, MoltenVK ohne `geometryShader`/`shaderCullDistance`, siehe oben bei L4D2).
+      Seit dem Fix danach: Die alte Bestätigung (ohne Bild-Nachweis) gilt nicht mehr, der Start wird beobachtet und geht nach
+      dem Grafikfehler von selbst auf WineD3D – und seit danach beginnt die D3D9-Leiter unter winecx ohnehin mit WineD3D.
+      Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
+      bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
+      (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
+- [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
+- [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
+      übrig: `pgrep -fl gogdl`).
+- [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC; danach läuft das Installationsskript neu),
+      **Cloud-Spielstände** (vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
+- [ ] **Laufwerk:** ein GOG-Spiel „Auf <Laufwerk> installieren“ (landet in `Nightforge Games/GOG Games/`), von dort
+      spielen (Windows- und Mac-Version), „Verschieben nach …“ zurück auf den Mac und wieder hin, Laufwerk abziehen
+      („Schließe … an“, bleibt unter „Installiert“), Deinstallieren-Frage nennt Laufwerk und GOG.
+- [ ] **Abgemeldet:** `GOG/gogdl/auth.json` löschen bzw. Token ungültig – Banner „GOG hat dich abgemeldet“, „Erneut anmelden“.
+- [ ] **Steam-Wechsel:** nach einem Steam-Mac-Spiel ein GOG-Spiel (Mac und Windows) starten – kein Steam wird beendet oder
+      gestartet, kein „Spielstand geht in die Steam Cloud …“; ein GOG-Mac-Download hält Steam für Mac nicht wach.
+
+Bekannte Lücken (bewusst, siehe Roadmap 7.3):
+- Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
+  64-Bit, läuft aber schlecht, gibt es noch keinen Weg zur Windows-Version außer Deinstallieren + Datei `GOG/mac-unfit.json`.
+- Galaxys Abhängigkeiten: DirectX (June 2010) und .NET Framework 3.5–4.7.2 laufen bewusst nicht (winecx hat DirectX
+  eingebaut; für .NET Framework kommt Wine Mono). Alte v1-Builds: ihre `support_commands` laufen nicht, nur ihre Redists.
+- Controller-Unterstützung kennt nur Steam: Ein Spiel nur von GOG (oder Epic) hat keine Angabe – auf der Bühne sagt
+  „Für den Anfang“ dann nichts über den Controller (statt „Gespielt wird mit Maus und Tastatur“), und der Controller-Filter
+  findet es nicht. GOGs `api.gog.com/v2/games/<id>` nennt `controller_support` unter den Features – ein Abruf pro Spiel.
+- Läuft ein Windows-Spiel von GOG (oder Epic), lehnt Nightforge den Start einer Steam-Mac-Version ab („… braucht Steam“).
+  Das GOG-Spiel braucht Steam nicht, aber das Stoppen der Windows-Steam kann die Wine-Sitzung beenden, in der es läuft
+  (`Engine.stopSteam` → `stopAll`). Zulassen hieße: Steam für Mac meldet die Windows-Steam ab, ohne sie zu stoppen – und
+  ein späterer Neustart der Windows-Steam (`restartStuckSteam`) darf dann das laufende Spiel nicht treffen. Text stimmt nicht.
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 

@@ -127,9 +127,18 @@ struct Game: Identifiable, Hashable {
     var isInstalled: Bool { install == .installed }
 
     /// What a running Windows version shows in `ps` (Wine gives its Windows path): Steam's games run
-    /// from steamapps\common, Epic's from Program Files\Epic Games.
+    /// from steamapps\common, Epic's from Program Files\Epic Games, GOG's from Program Files\GOG Games.
     var windowsFolderMarker: String {
-        provider == .steam ? "\\steamapps\\common\\\(installDirName)\\" : "\\Epic Games\\\(installDirName)\\"
+        switch provider {
+        case .steam: return "\\steamapps\\common\\\(installDirName)\\"
+        case .epic: return "\\Epic Games\\\(installDirName)\\"
+        case .gog: return "\\GOG Games\\\(installDirName)\\"
+        }
+    }
+    /// Its files are in Nightforge's own folder (the Windows environment, GOG's Mac versions), not
+    /// on an external drive: "Remove Nightforge completely" takes them along.
+    var inNightforgeFolder: Bool {
+        (bottle.isBuiltIn || (provider == .gog && platform == .mac)) && DriveLibrary.drive(of: installDir) == nil
     }
     /// One of the player's own games: not a store entry, nor the demo of a game they don't own.
     var inLibrary: Bool { install != .inStore && demoOf == nil }

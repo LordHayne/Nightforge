@@ -15,7 +15,7 @@ final class LibraryModel: ObservableObject {
     @Published var selectedIndex = 0 {
         didSet {
             loadStoreDetailsIfNeeded()
-            loadEpicSizeIfNeeded()
+            loadStoreSizeIfNeeded()
             if let game = selected { Task { _ = await insight(of: game) } }
         }
     }
@@ -80,9 +80,9 @@ final class LibraryModel: ObservableObject {
     var launchHint: String? {
         guard launchingID != nil else { return nil }
         if launchNeedsConfirmation { return LaunchPhase.confirmHint }
-        if case .updating? = launchPhase, allGames.first(where: { $0.id == launchingID })?.provider == .epic {
-            return LaunchPhase.epicUpdateHint
-        }
+        let provider = allGames.first { $0.id == launchingID }?.provider
+        if case .updating? = launchPhase, let provider, provider != .steam { return LaunchPhase.storeUpdateHint(provider) }
+        if launchPhase == .syncingSaves, provider == .gog { return LaunchPhase.gogSavesHint }
         if let launchPhase { return launchPhase.hint }
         return launchBuildsShaders ? LaunchPhase.shaderHint : nil
     }
@@ -132,7 +132,7 @@ final class LibraryModel: ObservableObject {
     @Published var move: GameMove?
     /// Settings › Storage's "Move to …": asking where the game goes.
     @Published var pendingMove: Game?
-    /// An Epic game whose download waits for Epic to say how big it is.
+    /// An Epic or GOG game whose download waits for its store to say how big it is.
     @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
@@ -170,7 +170,8 @@ final class LibraryModel: ObservableObject {
     /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
     let steam = SteamStore()
     let epic = EpicStore()
-    var stores: [StoreProvider] { [steam, epic] }
+    let gog = GOGStore()
+    var stores: [StoreProvider] { [steam, epic, gog] }
 
     func store(for game: Game) -> StoreProvider {
         stores.first { $0.provider == game.provider } ?? steam
@@ -208,6 +209,13 @@ final class LibraryModel: ObservableObject {
             self?.errorMessage = addOn
                 ? L10n.t("The add-on %@ didn't download: %@. Its game is ready – the add-on follows with its next Update & Play.", name, reason)
                 : L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
+        }
+        gog.changed = { [weak self] in self?.reload(quiet: true) }
+        gog.downloadFailed = { [weak self] name, reason in
+            self?.errorMessage = L10n.t("The download of %@ stopped: %@. Download it again to carry on where it stopped.", name, reason)
+        }
+        gog.tookWindowsVersion = { name in
+            Toasts.shared.show(L10n.t("The Mac version of %@ is too old for this Mac – the Windows version comes instead.", name))
         }
     }
 
@@ -317,18 +325,155 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Epic games' cloud saves after a session: how the upload is going (Welcome back sheet).
-    @Published private(set) var epicSaves: [GameID: CloudSaves.State] = [:]
+    /// Epic's and GOG's cloud saves after a session: how the upload is going (Welcome back sheet).
+    @Published private(set) var storeSaves: [GameID: CloudSaves.State] = [:]
 
     /// After an Epic game: its save goes up to Epic, and its play time is kept.
     private func afterEpicSession(_ game: Game, minutes: Int) {
         epic.recordSession(game, minutes: minutes)
         let hasCloud = epic.catalog.games.contains { $0.appName == game.gameID.id && $0.cloudSaves }
-        epicSaves[game.gameID] = hasCloud ? .syncing : .noCloud
+        storeSaves[game.gameID] = hasCloud ? .syncing : .noCloud
         guard hasCloud else { return }
         Task {
             let done = await epic.syncSaves(game, upload: true)
-            epicSaves[game.gameID] = done ? .synced : .failed
+            storeSaves[game.gameID] = done ? .synced : .failed
+        }
+    }
+
+    // MARK: - GOG
+
+    /// GOG's sign-in page in its own window; its code goes to gogdl.
+    func connectGOG() {
+        guard !gog.connecting else {
+            GOGSignIn.bringToFront()
+            return
+        }
+        gog.connecting = true
+        Task { await GOGDL.prepare() }
+        GOGSignIn.present { [weak self] code in
+            guard let self else { return }
+            guard let code else {
+                self.gog.connecting = false
+                return
+            }
+            Task {
+                defer { self.gog.connecting = false }
+                do {
+                    try await self.gog.connect(code: code)
+                    self.storeAsked[.gog] = Date()
+                    self.reload(quiet: true)
+                    Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
+                } catch {
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    /// GOG ended the sign-in: downloads need a fresh one (the games themselves start without it).
+    private func needsGOGSignIn(_ game: Game) -> Bool {
+        guard game.provider == .gog, !gog.isSignedIn else { return false }
+        Toasts.shared.show(L10n.t("GOG signed you out – sign in again to download %@", game.name))
+        connectGOG()
+        return true
+    }
+
+    func disconnectGOG() {
+        Task {
+            await gog.disconnect()
+            reload(quiet: true)
+        }
+    }
+
+    /// After a GOG game: its save goes up to GOG, and its play time is kept.
+    private func afterGOGSession(_ game: Game, minutes: Int) {
+        gog.recordSession(game, minutes: minutes)
+        storeSaves[game.gameID] = gog.hasCloudSaves(game) == false ? .noCloud : .syncing
+        Task { storeSaves[game.gameID] = await gog.syncSaves(game, upload: true) }
+    }
+
+    /// Before a GOG game starts: a waiting update first (Update & Play), then the newest save from
+    /// GOG's cloud. False when the start is off (called off, or the update stopped halfway).
+    private func beforeGOGStart(_ game: Game) async -> Bool {
+        if game.pendingUpdate != nil, gog.isSignedIn {
+            launchPhase = .updating(nil)
+            awaitingSteam = true
+            let outcome = await gog.update(game) { [weak self] fraction in self?.launchPhase = .updating(fraction) }
+            awaitingSteam = false
+            launchPhase = nil
+            if Task.isCancelled { return false }
+            switch outcome {
+            case .updated, .addOnFailed:
+                analyses[game.gameID] = nil  // its files changed
+                reload(quiet: true)
+            case .skipped(.offline):
+                Toasts.shared.show(L10n.t("%@ can't be reached – %@ starts without its update.", Provider.gog.label, game.name))
+            case .skipped(.busy):
+                Toasts.shared.show(L10n.t("Another %@ download is running – %@ starts now and updates next time.", Provider.gog.label, game.name))
+            case .failed(let reason):
+                errorMessage = L10n.t("The update of %@ stopped: %@. Press Play again to carry on where it stopped.", game.name, reason)
+                reload(quiet: true)
+                return false
+            }
+        }
+        if gog.isSignedIn, gog.hasCloudSaves(game) != false {
+            launchPhase = .syncingSaves
+            _ = await gog.syncSaves(game, upload: false)
+            launchPhase = nil
+        }
+        return !Task.isCancelled
+    }
+
+    /// A GOG game's Windows parts – GOG Galaxy's redistributables its manifest names, and its
+    /// install script – right after its download and before a start, until they're there
+    /// (GOGRedist; nothing to do costs nothing). Something that fails is said, and the game starts anyway.
+    private func setUpGOG(_ game: Game, wine: URL, showStatus: Bool) async {
+        guard game.platform == .windows, let facts = gog.setupFacts(of: game),
+              await Engine.offMain({ GOGRedist.hasWork(facts.install) }) else { return }
+        if showStatus { launchPhase = .settingUpWindowsParts(nil) }
+        let outcome = await GOGRedist.setUp(facts.install, versionName: facts.versionName, wine: wine) { part in
+            if showStatus { self.launchPhase = .settingUpWindowsParts(part) }
+        }
+        if showStatus { launchPhase = nil }
+        guard showStatus, !outcome.failed.isEmpty else { return }
+        let parts = outcome.failed.joined(separator: ", ")
+        errorMessage = outcome.retried
+            ? L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.", game.name, parts)
+            : L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.", game.name, parts)
+    }
+
+    /// A GOG game's Mac version: no Steam and no Wine – its update and save first, then the app
+    /// itself; Nightforge follows it like any game it started.
+    private func launchGOGMac(_ game: Game) {
+        launchingID = game.id
+        GameDisplay.enterGame()
+        launchNeedsConfirmation = false
+        launchPhase = nil
+        let behavior = Prefs.afterLaunch
+        let arguments = Launcher.splitArguments(GameOptionsStore.load(game.gameID).extraArgs)
+        launchTask = Task {
+            defer {
+                launchingID = nil
+                launchPhase = nil
+            }
+            guard await beforeGOGStart(game) else { return }
+            let installDir = game.installDir
+            await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            do {
+                try await gog.launchMac(game, extraArguments: arguments)
+            } catch {
+                errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription)
+                return
+            }
+            gog.recordStart(game)
+            launchingID = nil
+            startedHere.insert(game.id)
+            await bringToFront(game)
+            switch behavior {
+            case .quit: NSApp.terminate(nil)
+            case .hide: NSApp.hide(nil)
+            case .stay: break
+            }
         }
     }
 
@@ -400,7 +545,7 @@ final class LibraryModel: ObservableObject {
         let endedAt = Date().addingTimeInterval(-10)
         let endedGames = allGames.filter { ended.contains($0.id) }
         for game in endedGames { steamSwitch.ended(game, at: endedAt) }
-        if endedGames.contains(where: { $0.platform == .mac }) {
+        if endedGames.contains(where: { $0.platform == .mac && $0.provider == .steam }) {
             steamSwitch.afterMacGame(facts: { [weak self] in self?.steamFacts ?? SteamSwitch.Facts() },
                                      restartWindows: { [weak self] in await self?.restartWindowsSteam() })
         }
@@ -409,6 +554,7 @@ final class LibraryModel: ObservableObject {
             let minutes = Int(Date().timeIntervalSince(start.date) / 60)
             // Shorter is a start that didn't take (LaunchHealth deals with those).
             if game.provider == .epic { afterEpicSession(game, minutes: minutes) }
+            if game.provider == .gog { afterGOGSession(game, minutes: minutes) }
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt) : nil
         }
@@ -509,12 +655,13 @@ final class LibraryModel: ObservableObject {
     /// out of the way then – signing in, it would sign Steam for Mac out (one sign-in per account),
     /// and the game's saves would no longer reach Steam Cloud.
     private var macSteamBusy: Bool {
-        anyRunning(.mac) || allGames.contains { $0.id == launchingID && $0.platform == .mac }
+        anyRunning(.mac) || allGames.contains { $0.id == launchingID && $0.platform == .mac && $0.provider == .steam }
     }
 
     private func runningGame(_ platform: Platform) -> Game? {
         let ids = Set(running.keys)
-        return allGames.first { ids.contains($0.id) && $0.platform == platform }
+        // GOG's Mac versions need no Steam; its Windows versions share the Wine session.
+        return allGames.first { ids.contains($0.id) && $0.platform == platform && (platform == .windows || $0.provider == .steam) }
     }
 
     /// What the Steam switch goes by, now.
@@ -522,7 +669,7 @@ final class LibraryModel: ObservableObject {
         SteamSwitch.Facts(
             macSteamRunning: MacSteam.isRunning, macSteamOurs: MacSteam.startedByNightforge, macGameBusy: macSteamBusy,
             macDownload: allGames.contains { game in
-                (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
+                (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
             },
             windowsSteamRunning: Engine.isSteamRunning,
             windowsGameBusy: anyRunning(.windows) || allGames.contains { $0.id == launchingID && $0.platform == .windows },
@@ -613,7 +760,7 @@ final class LibraryModel: ObservableObject {
     private func afterScan() {
         if MacSteam.isReady { Engine.excludeGamesFromBackup(steamapps: MacSteam.steamapps) }
         let macDownload = allGames.contains { game in
-            (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
+            (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
         }
         if !macSteamPrewarmed, macDownload, MacSteam.isReady, !anyRunning(.windows), launchingID == nil {
             macSteamPrewarmed = true
@@ -633,7 +780,7 @@ final class LibraryModel: ObservableObject {
         // Not while a game moves to another drive: that stops and starts its Steam itself.
         guard launchingID == nil, running.isEmpty, move == nil, Date().timeIntervalSince(lastSignInSwitch) > 120 else { return }
         let macDownload = allGames.contains { game in
-            (game.platform == .mac && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
+            (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
         }
         let windowsDownload = allGames.contains { $0.platform == .windows && $0.bottle.isBuiltIn && Self.isDownloading($0.install) }
         // A Mac download that got nowhere in its last turn (Steam for Mac finds no download
@@ -641,7 +788,7 @@ final class LibraryModel: ObservableObject {
         // every few minutes for nothing. Any progress lets it take turns again.
         // What the scan measured (it asks nettop off the main thread); asking again here would block the window.
         let macProgress = allGames.compactMap { game in
-            Self.downloadFraction(game.macPending) ?? (game.platform == .mac ? Self.downloadFraction(game.install) : nil)
+            Self.downloadFraction(game.macPending) ?? (game.platform == .mac && game.provider == .steam ? Self.downloadFraction(game.install) : nil)
         }.reduce(0, +)
         let macStalled = lastMacTurnProgress.map { macProgress <= $0 } ?? false
         if macDownload, MacSteam.isReady, !MacSteam.signedIn, !(windowsDownload && Engine.steamSignedIn), !macStalled {
@@ -775,12 +922,15 @@ final class LibraryModel: ObservableObject {
     /// True once it has signed in again (up to 90 s). It signs in by itself; when it asks instead
     /// (its remembered sign-in ran out) while a game waits to start, its window comes to the front
     /// and the player gets ten minutes for it. `freshSession`: with a new Wine session (DockHider).
-    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false) async -> Bool {
+    /// `hung`: it stopped taking commands, so it's ended with its Wine session (no game may run).
+    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false, hung: Bool = false) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
             await previous?.value
-            if freshSession {
+            if hung {
+                try? await Engine.restartHungSteam(wine)
+            } else if freshSession {
                 try? await DockHider.restartSteam(wine)
             } else {
                 try? await Engine.restartSteamInBackground(wine)
@@ -964,12 +1114,12 @@ final class LibraryModel: ObservableObject {
 
     /// `drive`: onto that external drive instead of the Mac.
     func download(_ game: Game, drive: URL? = nil) {
-        if needsEpicSignIn(game) { return }
+        if needsEpicSignIn(game) || needsGOGSignIn(game) { return }
         if game.demoNeedsLicense {
             pendingDemoLicense = game
             return
         }
-        if game.platform == .mac {
+        if game.platform == .mac && game.provider == .steam {
             downloadMac(game, drive: drive)
             return
         }
@@ -984,31 +1134,42 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// An Epic game not on the Mac yet: how big it is, asked from Epic once its page has been looked
-    /// at for a moment (not for every cover scrolled past).
-    private func loadEpicSizeIfNeeded() {
-        guard let game = selected, game.provider == .epic, game.install == .notInstalled, game.sizeOnDisk == 0,
-              game.antiCheatBlock == nil, epic.isSignedIn else { return }
+    /// An Epic or GOG game not on the Mac yet: how big it is, asked from its store once its page has
+    /// been looked at for a moment (not for every cover scrolled past).
+    private func loadStoreSizeIfNeeded() {
+        guard let game = selected, game.install == .notInstalled, game.sizeOnDisk == 0, game.antiCheatBlock == nil,
+              (game.provider == .epic && epic.isSignedIn) || (game.provider == .gog && gog.isSignedIn) else { return }
         Task {
             try? await Task.sleep(for: .milliseconds(600))
             guard selected?.id == game.id else { return }
-            _ = await epic.size(of: game)
+            _ = await storeSize(of: game) { self.selected?.id == game.id }
         }
     }
 
-    /// Download, unless it wouldn't fit: then the player picks games to make room first. An Epic
-    /// game whose size isn't known yet asks Epic first; without an answer legendary checks for itself.
+    /// What an Epic or GOG game takes on the Mac, asked from its store. GOG asks one game at a
+    /// time, and not for a page left meanwhile (`stillWanted`).
+    private func storeSize(of game: Game, stillWanted: () -> Bool = { true }) async -> Int64? {
+        switch game.provider {
+        case .epic: return await epic.size(of: game)?.install
+        case .gog: return await gog.size(of: game, stillWanted: stillWanted)?.install
+        case .steam: return nil
+        }
+    }
+
+    /// Download, unless it wouldn't fit: then the player picks games to make room first. An Epic or
+    /// GOG game whose size isn't known yet asks its store first; without an answer the download
+    /// checks for itself.
     private func downloadIfRoom(_ game: Game) {
-        guard sizingID == nil else { return }  // a second press while Epic is asked
-        guard game.provider == .epic, game.sizeOnDisk == 0, epic.isSignedIn else {
+        guard sizingID == nil else { return }  // a second press while the store is asked
+        guard game.sizeOnDisk == 0, (game.provider == .epic && epic.isSignedIn) || (game.provider == .gog && gog.isSignedIn) else {
             downloadIfRoom(game, needed: game.sizeOnDisk)
             return
         }
         sizingID = game.id
         Task {
-            let size = await epic.size(of: game)
+            let size = await storeSize(of: game)
             sizingID = nil
-            downloadIfRoom(game, needed: size?.install ?? 0)
+            downloadIfRoom(game, needed: size ?? 0)
         }
     }
 
@@ -1662,7 +1823,9 @@ final class LibraryModel: ObservableObject {
         let score = game.metascore ?? steam.flatMap {
             SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot)?.metascore ?? Metascores.cached($0.appID)
         }
-        return StarterFacts(installed: game.isInstalled, level: compatibility(of: game).level, controller: game.controller,
+        // Controller support only Steam knows; Epic and GOG don't say.
+        return StarterFacts(installed: game.isInstalled, level: compatibility(of: game).level,
+                            controller: steam == nil ? nil : game.controller,
                             mac: game.platform == .mac || (game.macNative && game.mac64), metascore: score,
                             size: game.downloadSize ?? game.sizeOnDisk)
     }
@@ -1847,7 +2010,7 @@ final class LibraryModel: ObservableObject {
         guard game.isInstalled, launchingID == nil else { return }
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
-            launchMac(game)
+            if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
             return
         }
         let viaSteam = game.provider == .steam
@@ -1904,6 +2067,8 @@ final class LibraryModel: ObservableObject {
                 await epic.syncSaves(game, upload: false)
                 launchPhase = nil
             }
+            // GOG: the same, an update first and then the newest save.
+            if game.provider == .gog { guard await beforeGOGStart(game) else { return } }
             var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
@@ -1943,15 +2108,20 @@ final class LibraryModel: ObservableObject {
                 if let runner {
                     await installRuntimes(for: game, profile: profile, analysis: analysis,
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
+                    if game.provider == .gog { await setUpGOG(game, wine: URL(fileURLWithPath: runner), showStatus: true) }
                 }
                 var arguments = analysis?.preferD3D11Arguments ?? []
                 var watchFirstSeconds = false
+                var wayConfirmed = false
                 if automatic, !attempts.isEmpty {
                     let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
                     options.graphics = attempts[index].graphics
                     arguments = attempts[index].arguments
-                    watchFirstSeconds = !confirmed
-                    if watchFirstSeconds { LaunchHealth.recordStart(game.gameID, attempts) }
+                    // Every start is watched: a confirmed way can stop working too (an engine or game
+                    // update, a part missing) – it then loses its confirmation (below).
+                    watchFirstSeconds = true
+                    wayConfirmed = confirmed
+                    if !confirmed { LaunchHealth.recordStart(game.gameID, attempts) }
                 }
                 let logMark = GameLog.mark()
                 let startedAt = Date()
@@ -2009,9 +2179,29 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark) {
-                    if automatic, !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
-                    if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
+                    confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
+                                       startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
+                }
+                // It ended within its first seconds. A confirmed way loses its confirmation only on
+                // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
+                // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
+                let graphicsFailed = GameLog.graphicsFailed(since: logMark)
+                if wayConfirmed {
+                    let installDir = game.installDir
+                    let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
+                    let log = GameLog.text(since: logMark)
+                    let drew = LaunchHealth.drewFrames(in: log, programs: programs)
+                    let crashed = GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty
+                    switch LaunchHealth.earlyEnd(trusted: true, graphicsFailed: graphicsFailed, crashed: crashed, drew: drew,
+                                                 shortEndsBefore: LaunchHealth.shortEnds(game.gameID, attempts)) {
+                    case .keep:
+                        // Quit early, by the look of it: the game is gone, Nightforge stays in front.
+                        LaunchHealth.noteStart(game.gameID, attempts, short: !drew)
+                        return
+                    case .unconfirm, .nextWay, .confirm:
+                        LaunchHealth.unconfirm(game.gameID, attempts)
+                    }
                 }
                 launchingID = game.id
                 NSApp.activate()
@@ -2041,6 +2231,9 @@ final class LibraryModel: ObservableObject {
                 }
                 // Graphics chosen by hand, or nothing known about the game: no other way to try.
                 guard automatic, !attempts.isEmpty else { break }
+                // A way that worked before and ended without a graphics error keeps its place:
+                // watched again at the next start. Nightforge stays in front.
+                if wayConfirmed && !graphicsFailed { return }
                 if LaunchHealth.advance(game.gameID, attempts) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
@@ -2096,6 +2289,7 @@ final class LibraryModel: ObservableObject {
             let profile = await ProfileStore.shared.profile(for: game.appID)
             let analysis = await insight(of: game)?.analysis
             await installRuntimes(for: game, profile: profile, analysis: analysis, wine: wine, showStatus: false)
+            if game.provider == .gog { await setUpGOG(game, wine: wine, showStatus: false) }
         }
     }
 
@@ -2104,10 +2298,15 @@ final class LibraryModel: ObservableObject {
     private func start(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
                        arguments: [String], frameLimit: Int) async -> Bool {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
+        // Running, signed in and done starting: Steam logs the command within a second (SteamCommands).
+        var steamWasReady = game.bottle.isBuiltIn && Engine.isSteamRunning && Engine.steamSignedIn
+            && Engine.startupFinished(steamRoot: Engine.steamRoot)
+        var client: DetachedProcess?
+        var sentAt = Date()
         do {
             // Off the main thread: it reads Steam's app catalog and writes the registry, which
             // would freeze the window for a moment.
-            try await Task.detached(priority: .userInitiated) {
+            client = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                     frameLimit: frameLimit, extraArguments: arguments)
             }.value
@@ -2154,13 +2353,41 @@ final class LibraryModel: ObservableObject {
                 errorMessage = L10n.t("Steam couldn't start %@.", game.name)
                 return false
             case nil:
+                // A Steam that was ready and hasn't taken the command has stopped taking any – also
+                // signed in (SteamCommands). Restarted once, without its "-shutdown" (it wouldn't
+                // take that either), and asked again.
+                if steamWasReady, !retriedAfterRestart, let runner,
+                   SteamCommands.hung(steamWasReady: true, received: watcher.steamReceivedLaunch,
+                                      sentAgo: Date().timeIntervalSince(sentAt)) {
+                    retriedAfterRestart = true
+                    steamWasReady = false  // the fresh Steam may lose a request while starting: resent below
+                    guard running.isEmpty, !(await Engine.offMain { Engine.windowsGameRunning }) else {
+                        errorMessage = L10n.t("Steam isn't responding, and restarting it would end the game that's running. Quit that game and press Play again.")
+                        return false
+                    }
+                    if client?.isRunning == true { client?.terminate() }
+                    launchPhase = .steamNotResponding
+                    if await restartStuckSteam(URL(fileURLWithPath: runner), hung: true) {
+                        watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
+                        signedInSince = nil
+                        sentAt = Date()
+                        client = try? await Task.detached(priority: .userInitiated) {
+                            try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
+                                                frameLimit: frameLimit, extraArguments: arguments)
+                        }.value
+                    }
+                    launchPhase = nil
+                    quietSeconds = 0
+                    continue
+                }
                 // A request that arrives while Steam is still starting can get lost. Once Steam has
                 // signed in and still hasn't logged it, ask once more.
-                if game.bottle.isBuiltIn, !watcher.steamReceivedLaunch, !resent {
+                if game.bottle.isBuiltIn, !steamWasReady, !watcher.steamReceivedLaunch, !resent {
                     if signedInSince == nil, Engine.steamSignedIn { signedInSince = totalSeconds }
                     if let since = signedInSince, totalSeconds - since >= 10 {
                         resent = true
-                        try? await Task.detached(priority: .userInitiated) {
+                        sentAt = Date()
+                        client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                                 frameLimit: frameLimit, extraArguments: arguments)
                         }.value
@@ -2175,7 +2402,8 @@ final class LibraryModel: ObservableObject {
                     launchPhase = .restartingSteam
                     if await restartStuckSteam(URL(fileURLWithPath: runner)) {
                         watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
-                        try? await Task.detached(priority: .userInitiated) {
+                        sentAt = Date()
+                        client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
                                                 frameLimit: frameLimit, extraArguments: arguments)
                         }.value
@@ -2233,8 +2461,9 @@ final class LibraryModel: ObservableObject {
     }
 
     /// A game from another store starts straight with Nightforge's engine, no Steam in between: the
-    /// store hands over how (Epic: legendary's parameters with a fresh sign-in), and Nightforge
-    /// waits until its process is there. Whether it keeps running, `survivesFirstSeconds` sees.
+    /// store hands over how (Epic: legendary's parameters with a fresh sign-in; GOG: the game's own
+    /// info file), and Nightforge waits until its process is there. Whether it keeps running,
+    /// `survivesFirstSeconds` sees.
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
                              arguments: [String], frameLimit: Int, layer: GraphicsLayer) async -> Bool {
         guard let runner else {
@@ -2243,10 +2472,10 @@ final class LibraryModel: ObservableObject {
         }
         awaitingSteam = true
         defer { awaitingSteam = false }
-        launchPhase = .signingInEpic
-        let command: Legendary.LaunchCommand
+        if game.provider == .epic { launchPhase = .signingInEpic }
+        let command: StoreLaunchCommand
         do {
-            command = try await epic.launchCommand(for: game)
+            command = game.provider == .gog ? try gog.launchCommand(for: game) : try await epic.launchCommand(for: game)
         } catch {
             launchPhase = nil
             if !Task.isCancelled { errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription) }
@@ -2266,7 +2495,7 @@ final class LibraryModel: ObservableObject {
             errorMessage = error.localizedDescription
             return false
         }
-        epic.recordStart(game)
+        if game.provider == .gog { gog.recordStart(game) } else { epic.recordStart(game) }
         // Its process shows up within seconds; one that ends before that is the next way's business.
         let folders = Self.processFolders([game])
         for _ in 0..<30 {
@@ -2276,6 +2505,41 @@ final class LibraryModel: ObservableObject {
             if !process.isRunning { break }
         }
         return true
+    }
+
+    /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching
+    /// in the background from the end of its first seconds. One that ends without a frame stays
+    /// unconfirmed and is watched again next time.
+    private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String,
+                                    logMark: UInt64, startedAt: Date, wasConfirmed: Bool = false) {
+        let folders = Self.processFolders([game])
+        let installDir = game.installDir
+        Task {
+            let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
+            var absent = 0
+            while true {
+                let (text, running) = await Task.detached(priority: .utility) {
+                    (GameLog.text(since: logMark), Self.runningGames(folders)[game.id] != nil)
+                }.value
+                // Gone for two looks (10 s): a launcher handing over leaves a shorter gap.
+                absent = running ? 0 : absent + 1
+                let verdict = LaunchHealth.verdict(drewFrames: LaunchHealth.drewFrames(in: text, programs: programs),
+                                                   running: absent < 2, ranFor: Date().timeIntervalSince(startedAt))
+                switch LaunchHealth.afterFirstSeconds(verdict) {
+                case .confirm:
+                    if !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
+                    if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
+                    return
+                case _ where verdict == .ended:
+                    // Past its first seconds without a picture: no evidence against a confirmed way
+                    // (most layers log no frames), and no short start either.
+                    if wasConfirmed, !attempts.isEmpty { LaunchHealth.noteStart(game.gameID, attempts, short: false) }
+                    return
+                default:
+                    try? await Task.sleep(for: .seconds(5))
+                }
+            }
+        }
     }
 
     /// Whether the game is still running `LaunchHealth.failureWindow` seconds after it started.
@@ -2317,6 +2581,7 @@ final class LibraryModel: ObservableObject {
             let running = analyzing[game.gameID] ?? Task.detached(priority: .utility) {
                 GameAnalysis.analyze(installDir: game.installDir,
                                      launchExecutable: game.provider == .epic ? EpicStore.executable(of: game.gameID.id)
+                                         : game.provider == .gog ? GOGStore.executable(of: game.gameID.id, in: game.installDir)
                                          : SteamCatalog.launchExecutable(appID: game.appID, steamRoot: game.steamRoot))
             }
             analyzing[game.gameID] = running
@@ -2458,6 +2723,7 @@ final class LibraryModel: ObservableObject {
         guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
         guard uninstallingID == nil && launchingID == nil && move == nil else { return false }
+        if game.provider == .gog && game.platform == .mac { return !isRunning(game) }
         if game.platform == .mac { return !anyRunning(.mac) }
         return game.bottle.isBuiltIn && !anyRunning(.windows)
     }
@@ -2529,8 +2795,9 @@ final class LibraryModel: ObservableObject {
     func revealSelected() {
         guard let game = selected else { return }
         let fm = FileManager.default
+        // Not downloaded yet from another store: the nearest folder there is on the way to it.
         let target = fm.fileExists(atPath: game.installDir.path) ? game.installDir
-            : game.provider == .steam ? game.steamRoot : game.installDir.deletingLastPathComponent()
+            : game.provider == .steam ? game.steamRoot : SpaceCheck.existingFolder(for: game.installDir)
         NSWorkspace.shared.activateFileViewerSelecting([target])
     }
 

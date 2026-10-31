@@ -3,17 +3,19 @@ import SwiftUI
 /// A store whose library couldn't be brought up to date (7.5): above the library it says so, how
 /// old its games are – they still play – and offers the way out (try again, sign in again).
 /// Nothing goes quietly; everything that's up to date says nothing.
-struct StoreSyncBanner: View {
+struct StoreSyncBanner<Store: AccountStore>: View {
     @EnvironmentObject private var model: LibraryModel
-    @ObservedObject var epic: EpicStore
-    /// "Try Again" was pressed: while Epic is asked, the banner says so instead of going away.
+    @ObservedObject var store: Store
+    /// Opens the store's sign-in.
+    let connect: () -> Void
+    /// "Try Again" was pressed: while the store is asked, the banner says so instead of going away.
     @State private var retrying = false
 
     var body: some View {
-        if epic.isConnected, let text = shown {
+        if store.isConnected, let text = shown {
             HStack(spacing: 14) {
                 HStack(alignment: .firstTextBaseline, spacing: 9) {
-                    if epic.sync.state == .syncing {
+                    if store.sync.state == .syncing {
                         GlassSpinner()
                     } else {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -24,9 +26,9 @@ struct StoreSyncBanner: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(size: 13, weight: .medium)
-                if epic.sync.state == .signedOut {
-                    actionButton(L10n.t("Sign In Again"), symbol: "person.crop.circle.badge.checkmark") { model.connectEpic() }
-                } else if epic.sync.failed {
+                if store.sync.state == .signedOut {
+                    actionButton(L10n.t("Sign In Again"), symbol: "person.crop.circle.badge.checkmark", action: connect)
+                } else if store.sync.failed {
                     actionButton(L10n.t("Try Again"), symbol: "arrow.clockwise") {
                         retrying = true
                         model.refreshStores(force: true)
@@ -39,15 +41,15 @@ struct StoreSyncBanner: View {
             .background(Theme.sodium.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.sodium.opacity(0.25)))
             .accessibilityElement(children: .combine)
-            .onChange(of: epic.sync.state) { _, state in
+            .onChange(of: store.sync.state) { _, state in
                 if state != .syncing { retrying = false }
             }
         }
     }
 
     private var shown: String? {
-        if epic.sync.state == .syncing { return retrying ? L10n.t("Updating %@ …", Provider.epic.label) : nil }
-        return Self.text(provider: .epic, sync: epic.sync)
+        if store.sync.state == .syncing { return retrying ? L10n.t("Updating %@ …", store.provider.label) : nil }
+        return StoreSyncText.text(provider: store.provider, sync: store.sync)
     }
 
     private func actionButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -58,10 +60,13 @@ struct StoreSyncBanner: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
-        .padFocus("library.sync.\(Provider.epic.rawValue)", cornerRadius: 10, activate: action)
+        .padFocus("library.sync.\(store.provider.rawValue)", cornerRadius: 10, activate: action)
     }
+}
 
-    /// What the banner says for a store's state; nil while all is well.
+/// What the banner says for a store's state.
+enum StoreSyncText {
+    /// nil while all is well.
     static func text(provider: Provider, sync: StoreSync) -> String? {
         switch sync.state {
         case .ok, .syncing:

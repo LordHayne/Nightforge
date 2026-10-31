@@ -141,8 +141,8 @@ enum DriveCheck: Equatable {
 }
 
 /// Nightforge's folder on a drive, "Nightforge Games": the library of Nightforge's Windows Steam
-/// (its steamapps folder right in it), one for Steam for Mac and Epic's games – each store apart,
-/// so no Steam finds the other's games as its own.
+/// (its steamapps folder right in it), one for Steam for Mac, Epic's games and GOG's – each store
+/// apart, so no Steam finds the other's games as its own.
 enum DriveLibrary {
     static let folderName = "Nightforge Games"
 
@@ -157,6 +157,10 @@ enum DriveLibrary {
     /// Where legendary puts Epic games (each in its own folder): "Epic Games", like on the Mac, so a
     /// running game shows the same path (`Game.windowsFolderMarker`).
     static func epic(on drive: URL) -> URL { root(on: drive).appendingPathComponent("Epic Games", isDirectory: true) }
+
+    /// Where gogdl puts GOG games, Windows and Mac versions alike: "GOG Games", like in the Windows
+    /// environment, so a running Windows version shows the same path (`Game.windowsFolderMarker`).
+    static func gog(on drive: URL) -> URL { root(on: drive).appendingPathComponent("GOG Games", isDirectory: true) }
 
     /// The drive a folder is on: /Volumes/<name>; nil for a folder on the Mac itself.
     static func drive(of folder: URL) -> URL? {

@@ -36,7 +36,16 @@ struct StoreContext {
     var drive: URL?
 }
 
-/// One store Nightforge brings games in from (Steam, Epic Games). Its library comes from the Mac
+/// How a game from another store starts under Wine, as its store hands it over (Epic through
+/// legendary, GOG from the game's own info file): Nightforge starts it with its own engine.
+struct StoreLaunchCommand: Equatable {
+    var executable: URL
+    var workingDirectory: URL
+    var arguments: [String]
+    var environment: [String: String]
+}
+
+/// One store Nightforge brings games in from (Steam, Epic Games, GOG). Its library comes from the Mac
 /// first – as it was last loaded – and is brought up to date in the background; a store that can't
 /// be reached keeps its games, which still play. Nightforge downloads, starts and removes the games
 /// itself, without the store's own launcher.
@@ -61,6 +70,37 @@ protocol StoreProvider: AnyObject {
 
 extension StoreProvider {
     func refresh() async {}
+}
+
+/// A store the player signs in to in the store's own page (Epic Games, GOG): Settings › Stores and
+/// the sync banner show each the same way.
+@MainActor
+protocol AccountStore: StoreProvider, ObservableObject {
+    /// The sign-in page is open.
+    var connecting: Bool { get }
+    /// The account's name, as the store shows it.
+    var accountName: String? { get }
+}
+
+/// How the update before a start went ("Update & Play"), for stores Nightforge updates itself.
+enum StoreUpdate: Equatable {
+    /// Up to date now, or there was nothing to fetch.
+    case updated
+    /// Nothing was fetched, so the version on the Mac starts – as the stores' launchers do offline.
+    case skipped(Skip)
+    /// It stopped once it had begun, or there's no room for it: the game may be half updated, and
+    /// the next try carries on where this one stopped.
+    case failed(String)
+    /// The game is up to date, one of its add-ons stopped (its name, the reason): the game starts
+    /// without it, and the next update tries again.
+    case addOnFailed(String, String)
+
+    enum Skip: Equatable {
+        /// The store out of reach (offline, no answer).
+        case offline
+        /// Another download of the store's is running, which can't share.
+        case busy
+    }
 }
 
 /// Steam: Nightforge's own Windows Steam (hidden, in its Wine prefix), CrossOver bottles and Steam

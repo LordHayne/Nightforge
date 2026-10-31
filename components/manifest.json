@@ -111,6 +111,16 @@
       "size": 15275984,
       "license": "GPL-3.0-or-later",
       "source": "https://github.com/legendary-gl/legendary"
+    },
+    {
+      "id": "gogdl",
+      "kind": "tool",
+      "version": "1.4.0",
+      "url": "https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.4.0/gogdl_macos_arm64",
+      "sha256": "af167d29ca822f495ff677d03c40bb9d6dc5535dac1f30d71775c91fe844149c",
+      "size": 11098928,
+      "license": "GPL-3.0",
+      "source": "https://github.com/Heroic-Games-Launcher/heroic-gogdl"
     }
   ]
 }

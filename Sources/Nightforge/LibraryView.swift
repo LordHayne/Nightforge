@@ -1703,7 +1703,7 @@ struct CoverCard: View {
                     .font(size: 20, weight: .semibold, scales: false)
                     .foregroundStyle(Theme.ink, Theme.night.opacity(0.7))
                     .padding(8)
-                    .help(game.provider == .epic ? L10n.t("An update is waiting – it comes from Epic Games before the game starts")
+                    .help(game.provider != .steam ? L10n.t("An update is waiting – it comes from %@ before the game starts", game.provider.label)
                           : L10n.t("An update is waiting – Steam downloads it before the game starts"))
             }
             .frame(maxHeight: .infinity, alignment: .bottom)

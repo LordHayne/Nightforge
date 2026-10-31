@@ -36,9 +36,10 @@ struct LaunchHealthTest {
         FileManager.default.createFile(atPath: url.path, contents: Data(bytes))
     }
 
-    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false) -> [String] {
+    /// The ladder on an engine as asked – not the one installed on this Mac.
+    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false, vulkanLayer: Bool = true) -> [String] {
         let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
-        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal).map(\.id)
+        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer).map(\.id)
     }
 
     static func main() {
@@ -114,6 +115,83 @@ struct LaunchHealthTest {
         session(seconds: 600, startedAt: now)
         LaunchHealth.review(app, ladder, steamRoot: steam)
         check(LaunchHealth.current(app, ladder) == (1, true), "a 10 min session confirms")
+
+        // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
+        let mafia = GameID.gog("1816059595")
+        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)
+        check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9 with Nightforge's Vulkan layer: DXVK, then WineD3D")
+        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false).map(\.id) == ["wined3d", "dxvk"],
+              "under winecx (no layer, DXVK gets no device – L4D2, Mafia II): WineD3D first")
+        UserDefaults.standard.set(Data(#"{"ladder":["dxvk","wined3d"],"confirmed":true,"index":0}"#.utf8), forKey: "launchHealth.gog.1816059595")
+        check(LaunchHealth.current(mafia, d3d9) == (0, false), "an old confirmation is checked again at the next start, on the same way")
+        check(LaunchHealth.peek(mafia, d3d9).map { $0.confirmed } == false, "and is no \"Runs great\" until then")
+        check(LaunchHealth.confirmedWays()[mafia] == nil, "nor a way that ran well for the engine rollback")
+        LaunchHealth.confirm(mafia, d3d9)
+        check(LaunchHealth.current(mafia, d3d9) == (0, true) && LaunchHealth.confirmedWays()[mafia] == "dxvk", "confirmed anew: it counts")
+        LaunchHealth.unconfirm(mafia, d3d9)
+        check(LaunchHealth.current(mafia, d3d9) == (0, false), "a confirmed way that ended without a picture: unconfirmed, same way")
+        LaunchHealth.confirm(mafia, d3d9)
+        check(LaunchHealth.advance(mafia, d3d9) && LaunchHealth.current(mafia, d3d9) == (1, false), "a graphics error: on to WineD3D")
+        LaunchHealth.reset(mafia)
+
+        // MARK: A confirmed way loses its confirmation only on evidence
+        // The player quits after 20 s (OxyRail after 22 s) on a layer that logs no frames.
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .keep,
+              "one short start without a picture: kept")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 1) == .unconfirm,
+              "the second in a row: unconfirmed")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 1) == .keep,
+              "one that drew was quit by the player")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: true, drew: false, shortEndsBefore: 0) == .unconfirm,
+              "a crash in the log: unconfirmed")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: true, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
+              "a graphics error: the next way")
+        check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
+              "a way not confirmed yet moves on, as before")
+        // The player plays 2 minutes on D3DMetal (no frame lines), then quits.
+        check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 120)) == .keep,
+              "two minutes without a frame line: the confirmation stays")
+        check(LaunchHealth.afterFirstSeconds(.working) == .confirm && LaunchHealth.afterFirstSeconds(.watching) == .keep, "drew: confirmed")
+        LaunchHealth.confirm(mafia, d3d9)
+        LaunchHealth.noteStart(mafia, d3d9, short: true)
+        check(LaunchHealth.current(mafia, d3d9) == (0, true) && LaunchHealth.shortEnds(mafia, d3d9) == 1, "a short start is counted, the way stays")
+        LaunchHealth.noteStart(mafia, d3d9, short: false)
+        check(LaunchHealth.shortEnds(mafia, d3d9) == 0, "a normal one in between starts the count over")
+        LaunchHealth.reset(mafia)
+        check(GameLog.crashed(in: "wine: Unhandled page fault on read access to 00000000 at address 7B00B1A2 (thread 0024), starting debugger..."),
+              "Wine's crash line")
+        check(!GameLog.crashed(in: "Failed to load ADL library\nerr:   DxvkAdapter: Failed to create device"), "other errors aren't a crash")
+
+        // MARK: Steam that stopped taking commands (OxyRail, 31.10.2026, console_log as Steam wrote it)
+        let took = #"[2026-10-31 16:36:11] ExecCommandLine: ""C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -cef-single-process -noverifyfiles -cef-disable-gpu -cef-disable-gpu-compositing -silent -applaunch 3907790""#
+        check(SteamCommands.isLaunch(took[...], appID: 3907790), "Steam took the start")
+        check(!SteamCommands.isLaunch(took[...], appID: 390779), "not another game's")
+        // Helper runs from macOS's log: the client ran 0.22 s, and Steam logged the start in the same second.
+        check(!SteamCommands.hung(steamWasReady: true, received: true, sentAgo: 0.223), "16:36:10.854–11.077: taken at once")
+        check(!SteamCommands.hung(steamWasReady: true, received: false, sentAgo: 5), "not yet: Steam has its 15 s")
+        // 16:52:32 and 17:21:24: the client ended as quickly, and console_log stayed at
+        // "[16:46:43] STARTUP SlowJSMethodCall Messaging.PostMessage took 3.0ms".
+        check(SteamCommands.hung(steamWasReady: true, received: false, sentAgo: 15), "a ready Steam that took nothing in 15 s: hung, signed in or not")
+        check(!SteamCommands.hung(steamWasReady: false, received: false, sentAgo: 60),
+              "a Steam still starting may lose a request: that's resent, not a hang")
+        let oxyRail = steam.appendingPathComponent("oxyrail", isDirectory: true)
+        try? FileManager.default.createDirectory(at: oxyRail.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        let oxyLog = oxyRail.appendingPathComponent("logs/console_log.txt")
+        try? "[2026-10-31 16:39:34] Game process removed: AppID 3907790 \"\"C:\\Oxygen Train.exe\"\", ProcID 2828 \r\n".write(to: oxyLog, atomically: true, encoding: .utf8)
+        var oxyWatcher = LaunchWatcher(steamRoot: oxyRail, appID: 3907790)
+        func oxyAppend(_ text: String) {
+            let handle = try? FileHandle(forWritingTo: oxyLog)
+            _ = try? handle?.seekToEnd()
+            try? handle?.write(contentsOf: Data((text + "\r\n").utf8))
+            try? handle?.close()
+        }
+        oxyAppend("[2026-10-31 16:46:43] STARTUP SlowJSMethodCall Messaging.PostMessage took 3.0ms")
+        _ = oxyWatcher.poll()
+        check(!oxyWatcher.steamReceivedLaunch, "the hung Steam's last line isn't the start")
+        oxyAppend(took)
+        oxyAppend("[2026-10-31 16:36:11] GameAction [AppID 3907790, ActionID 3] : LaunchApp changed task to CheckShaderDepotManifest with \"\"")
+        _ = oxyWatcher.poll()
+        check(oxyWatcher.steamReceivedLaunch, "a working Steam's ExecCommandLine is")
 
         // MARK: Launch watcher on Steam's log
         let console = steam.appendingPathComponent("logs/console_log.txt")
@@ -218,6 +296,31 @@ struct LaunchHealthTest {
         """
         check(FramePacing.rates(in: paceLog, programs: ["Game.exe"]) == [52.5, 55.0],
               "frame rates: full minutes of the game's own programs, DXMT without .exe")
+        check(FramePacing.periods(in: paceLog, programs: ["Game.exe"]).map(\.seconds) == [10, 60, 60], "every period of the game, 10 s ones too")
+
+        // MARK: Confirmed once it draws
+        // Mafia II behind "PhysX SDK not initialized" for a minute (31.10.2026): its whole part of wine.log.
+        let errorBox = "Failed to load ADL library\n"
+        check(!LaunchHealth.drewFrames(in: errorBox, programs: ["mafia2.exe", "launcher.exe"]), "an error box draws no frames")
+        check(LaunchHealth.drewFrames(in: "[nightforge-vulkan] mafia2.exe: 60.0 FPS over 10 s, frames 16.7 ms on average, slowest 30 ms",
+                                      programs: ["mafia2.exe"]), "DXVK through Nightforge's Vulkan layer: drawing")
+        check(LaunchHealth.drewFrames(in: "info:  [nightforge-dxmt] Overcooked2: 55.0 FPS over 10 s, frames 18.2 ms on average, slowest 788 ms",
+                                      programs: ["Overcooked2.exe"]), "DXMT: drawing")
+        check(!LaunchHealth.drewFrames(in: "info:  [nightforge-dxmt] Overcooked2: 55.0 FPS over 10 s, frames 18.2 ms on average, slowest 788 ms",
+                                       programs: ["mafia2.exe"]), "another game's frames don't count")
+        check(LaunchHealth.verdict(drewFrames: true, running: true, ranFor: 35) == .working, "frames: confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: 60) == .watching, "running without a frame yet: still watching")
+        check(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 62) == .ended, "ended after a minute without a frame: not confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: LaunchHealth.drawingWindow) == .working,
+              "nothing logs frames (wined3d, D3DMetal): three minutes of running count")
+        LaunchHealth.reset(app)
+        LaunchHealth.recordStart(app, ladder, at: now)
+        session(seconds: 70, startedAt: now)
+        let unwatched = LaunchHealth.current(app, ladder)
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == unwatched && unwatched == (0, false),
+              "unwatched, 70 s in Steam's log: neither confirmed nor moved on")
+
         check(FramePacing.candidates(refreshRate: 120, upTo: 60) == [60, 40, 30], "120 Hz: 60, 40, 30")
         check(FramePacing.candidates(refreshRate: 60, upTo: 60) == [60, 30], "60 Hz: 60, 30")
         check(FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt)

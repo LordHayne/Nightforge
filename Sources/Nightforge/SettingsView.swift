@@ -88,9 +88,10 @@ private struct StoresSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                EpicStoreRow(epic: model.epic)
+                AccountStoreRow(store: model.epic, connect: model.connectEpic, disconnect: model.disconnectEpic)
+                AccountStoreRow(store: model.gog, connect: model.connectGOG, disconnect: model.disconnectGOG)
             } footer: {
-                Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic games itself – no Epic launcher needed. You sign in in Epic's own window; Nightforge never sees your login."))
+                Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. You sign in in the store's own window; Nightforge never sees your login."))
                     .font(size: 10)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
@@ -153,47 +154,53 @@ private struct StoresSettings: View {
     }
 }
 
-/// Epic Games: connect in Epic's own sign-in window, then how its library stands – with a way out
-/// when Epic couldn't be reached (the games from last time still play).
-private struct EpicStoreRow: View {
+/// A store the player signs in to (Epic Games, GOG): connect in the store's own sign-in window,
+/// then how its library stands – with a way out when the store couldn't be reached (the games from
+/// last time still play).
+private struct AccountStoreRow<Store: AccountStore>: View {
     @EnvironmentObject private var model: LibraryModel
-    @ObservedObject var epic: EpicStore
+    @ObservedObject var store: Store
+    let connect: () -> Void
+    let disconnect: () -> Void
+
+    private var label: String { store.provider.label }
+    private var key: String { store.provider.rawValue }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             LabeledContent {
                 HStack(spacing: 8) {
-                    if epic.isConnected && epic.sync.state == .signedOut {
-                        Button(epic.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Sign In Again")) { model.connectEpic() }
-                            .buttonStyle(GlassTextButtonStyle(prominent: !epic.connecting, small: true))
-                            .padFocus("settings.epic.signIn", activate: { model.connectEpic() })
-                    } else if epic.isConnected && epic.sync.failed {
+                    if store.isConnected && store.sync.state == .signedOut {
+                        Button(store.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Sign In Again"), action: connect)
+                            .buttonStyle(GlassTextButtonStyle(prominent: !store.connecting, small: true))
+                            .padFocus("settings.\(key).signIn", activate: connect)
+                    } else if store.isConnected && store.sync.failed {
                         Button { model.refreshStores(force: true) } label: {
                             Label(L10n.t("Try Again"), systemImage: "arrow.clockwise")
                         }
-                        .padFocus("settings.epic.retry", activate: { model.refreshStores(force: true) })
+                        .padFocus("settings.\(key).retry", activate: { model.refreshStores(force: true) })
                     }
-                    if epic.isConnected {
-                        Button(L10n.t("Disconnect")) { model.disconnectEpic() }
-                            .padFocus("settings.epic.disconnect", activate: { model.disconnectEpic() })
+                    if store.isConnected {
+                        Button(L10n.t("Disconnect"), action: disconnect)
+                            .padFocus("settings.\(key).disconnect", activate: disconnect)
                     } else {
-                        Button(epic.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Connect")) { model.connectEpic() }
-                            .buttonStyle(GlassTextButtonStyle(prominent: !epic.connecting, small: true))
-                            .padFocus("settings.epic.connect", activate: { model.connectEpic() })
+                        Button(store.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Connect"), action: connect)
+                            .buttonStyle(GlassTextButtonStyle(prominent: !store.connecting, small: true))
+                            .padFocus("settings.\(key).connect", activate: connect)
                     }
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(Provider.epic.label)
+                    Text(label)
                     status
                         .font(size: 10)
                 }
             }
-            if epic.connecting {
+            if store.connecting {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "person.badge.key")
                         .foregroundStyle(Theme.sodium)
-                    Text(L10n.t("Epic Games' sign-in page is open in a window. Once you're signed in, your games appear here by themselves."))
+                    Text(L10n.t("%@'s sign-in page is open in a window. Once you're signed in, your games appear here by themselves.", label))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(size: 12.5)
@@ -206,28 +213,28 @@ private struct EpicStoreRow: View {
     }
 
     @ViewBuilder private var status: some View {
-        if !epic.isConnected {
-            Text(epic.connecting ? L10n.t("Sign in in Epic's window") : L10n.t("Not connected"))
+        if !store.isConnected {
+            Text(store.connecting ? L10n.t("Sign in in %@'s window", label) : L10n.t("Not connected"))
                 .foregroundStyle(.secondary)
         } else {
-            switch epic.sync.state {
+            switch store.sync.state {
             case .syncing:
                 Text(L10n.t("Updating …")).foregroundStyle(.secondary)
             case .failed(let reason):
-                Text(epic.sync.lastSuccess.map { L10n.t("%@ · last update %@", reason, Format.relative($0)) } ?? reason)
+                Text(store.sync.lastSuccess.map { L10n.t("%@ · last update %@", reason, Format.relative($0)) } ?? reason)
                     .foregroundStyle(Theme.sodium)
             case .signedOut:
-                Text(L10n.t("Epic Games signed you out – your games stay here"))
+                Text(L10n.t("%@ signed you out – your games stay here", label))
                     .foregroundStyle(Theme.sodium)
             case .ok:
-                let count = model.visibleCount(of: .epic)
+                let count = model.visibleCount(of: store.provider)
                 let games = count == 1 ? L10n.t("1 game") : L10n.t("%ld games", count)
                 HStack(spacing: 6) {
                     Circle().fill(Theme.runsGreat).frame(width: 7, height: 7)
-                    Text(epic.sync.lastSuccess.map { L10n.t("%@ · up to date %@", games, Format.relative($0)) } ?? games)
+                    Text(store.sync.lastSuccess.map { L10n.t("%@ · up to date %@", games, Format.relative($0)) } ?? games)
                 }
                 .foregroundStyle(.secondary)
-                .help(epic.accountName.map { L10n.t("Signed in as %@", $0) } ?? "")
+                .help(store.accountName.map { L10n.t("Signed in as %@", $0) } ?? "")
             }
         }
     }
@@ -460,8 +467,10 @@ private struct StorageSettings: View {
 
     private struct RemovalPlan: Identifiable {
         let id = UUID()
-        let windowsGames: Int
-        let windowsGamesSize: Int64
+        /// The games in Nightforge's folder (Windows games, GOG's Mac versions) and their stores.
+        let games: Int
+        let gamesSize: Int64
+        let stores: Set<Provider>
         let ownSize: Int64
         let savesSize: Int64
     }
@@ -644,8 +653,7 @@ private struct StorageSettings: View {
         }
         .task { await measureShaders() }
         .task(id: model.allGames.count) {
-            let builtIn = model.allGames.filter { $0.bottle.isBuiltIn && $0.install != .notInstalled && $0.install != .inStore
-                && DriveLibrary.drive(of: $0.installDir) == nil }
+            let builtIn = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
                 .reduce(Int64(0)) { $0 + $1.sizeOnDisk }
             let folder = Engine.supportDir
             let total = await Task.detached(priority: .utility) { LibraryScanner.folderSize(folder) }.value
@@ -712,10 +720,9 @@ private struct StorageSettings: View {
     private func planRemoval() {
         guard !gameBusy else { return }
         measuringRemoval = true
-        // Games on a drive aren't in Nightforge's folder: they stay there.
-        let windows = model.allGames.filter { $0.bottle.isBuiltIn && $0.install != .notInstalled && $0.install != .inStore
-            && DriveLibrary.drive(of: $0.installDir) == nil }
-        let gamesSize = windows.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
+        // Games on a drive aren't in Nightforge's folder: they stay there (`inNightforgeFolder`).
+        let games = model.allGames.filter { $0.inNightforgeFolder && $0.install != .notInstalled && $0.install != .inStore }
+        let gamesSize = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
         Task {
             let (own, saves) = await Task.detached(priority: .userInitiated) {
                 let total = CompleteRemoval.targets().reduce(Int64(0)) { $0 + LibraryScanner.folderSize($1) }
@@ -723,22 +730,19 @@ private struct StorageSettings: View {
                 return (total, saves)
             }.value
             measuringRemoval = false
-            removal = RemovalPlan(windowsGames: windows.count, windowsGamesSize: gamesSize, ownSize: max(0, own - gamesSize), savesSize: saves)
+            removal = RemovalPlan(games: games.count, gamesSize: gamesSize, stores: Set(games.map(\.provider)),
+                                  ownSize: max(0, own - gamesSize), savesSize: saves)
         }
     }
 
     private func removalMessage(_ plan: RemovalPlan) -> String {
         var parts: [String] = []
-        if plan.windowsGames > 0 {
-            parts.append(plan.windowsGames == 1
-                ? L10n.t("1 Windows game (%@) is deleted – it stays in your Steam library and can be downloaded again.", Format.bytes(plan.windowsGamesSize))
-                : L10n.t("%ld Windows games (%@) are deleted – they stay in your Steam library and can be downloaded again.", plan.windowsGames, Format.bytes(plan.windowsGamesSize)))
-        }
+        if let games = CompleteRemoval.gamesNote(count: plan.games, size: plan.gamesSize, stores: plan.stores) { parts.append(games) }
         parts.append(L10n.t("The game engine, the Windows environment, caches and settings: %@.", Format.bytes(plan.ownSize)))
         if plan.savesSize > 0 {
             parts.append(L10n.t("Saves that are only on this Mac (%@) are copied to Documents › Nightforge Saves first.", Format.bytes(plan.savesSize)))
         }
-        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in the Steam Cloud stay. Then Nightforge moves itself to the Bin and quits."))
+        parts.append(L10n.t("Steam for Mac with its Mac games and your saves in your stores' clouds stay. Then Nightforge moves itself to the Bin and quits."))
         return parts.joined(separator: "\n\n")
     }
 

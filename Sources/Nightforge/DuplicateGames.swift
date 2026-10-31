@@ -1,9 +1,9 @@
 import Foundation
 
-/// A game the player owns in several stores (ARC Raiders on Steam and on Epic Games) shows as one
-/// card. Each store keeps its own entry – its options, what a start taught Nightforge, its saves
-/// and files differ – and the card starts, downloads and uninstalls through one of them
-/// (`Game.others` holds the rest).
+/// A game the player owns in several stores (ARC Raiders on Steam and on Epic Games, The Witcher 3
+/// on Steam and on GOG) shows as one card. Each store keeps its own entry – its options, what a
+/// start taught Nightforge, its saves and files differ – and the card starts, downloads and
+/// uninstalls through one of them (`Game.others` holds the rest).
 ///
 /// Which entries are the same game: their titles, the way both stores write them (case, ™, accents,
 /// punctuation, a generic "Game of the Year Edition"). Neither store's data on the Mac names the
@@ -76,8 +76,9 @@ enum DuplicateGames {
     }
 
     /// The store a game starts through: the one picked on its page; else the one it's installed
-    /// in (or downloading in) – of several, the one played last; else Steam, then the other
-    /// stores in their order.
+    /// in (or downloading in) – of several, the one played last; else a store that has its Mac
+    /// version (Mac first, Windows only as the fallback); else Steam, then the other stores in
+    /// their order.
     static func order(_ entries: [Game], chosen: Provider?) -> [Game] {
         func onMac(_ game: Game) -> Int {
             switch game.install {
@@ -91,6 +92,7 @@ enum DuplicateGames {
             if let chosen, (a.provider == chosen) != (b.provider == chosen) { return a.provider == chosen }
             if onMac(a) != onMac(b) { return onMac(a) < onMac(b) }
             if onMac(a) < 2, a.lastPlayed != b.lastPlayed { return (a.lastPlayed ?? .distantPast) > (b.lastPlayed ?? .distantPast) }
+            if onMac(a) == 2, (a.platform == .mac) != (b.platform == .mac) { return a.platform == .mac }
             return storeRank(a) < storeRank(b)
         }
     }

@@ -14,18 +14,23 @@ enum LaunchPhase: Equatable {
     case settingUp
     case settingUpDotNet
     case restartingSteam
+    /// The signed-in Steam stopped taking commands (SteamCommands): it's restarted.
+    case steamNotResponding
     /// It ended at once: the next way, by its name.
     case retrying(String)
     /// Steam updates the game before it starts it: how far, when known.
     case updating(Double?)
     /// Epic gives the game a fresh sign-in (legendary).
     case signingInEpic
-    /// The newest save comes down from Epic's cloud first.
+    /// The newest save comes down from the store's cloud first (Epic, GOG).
     case syncingSaves
     /// The newest engine crashed a game that ran well on the one before: it starts again with that one.
     case rollingBack
     /// A game held back on the previous engine: Steam moves over to that one first.
     case heldEngine
+    /// A GOG game's Windows parts (GOG Galaxy's redistributables), before its first start: the
+    /// part being installed (nil while they come from GOG), named in the line below the button.
+    case settingUpWindowsParts(String?)
 
     var title: String {
         switch self {
@@ -37,6 +42,7 @@ enum LaunchPhase: Equatable {
         case .settingUp: return L10n.t("Setting up the game …")
         case .settingUpDotNet: return L10n.t("Setting up .NET for the game …")
         case .restartingSteam: return L10n.t("Restarting Steam …")
+        case .steamNotResponding: return L10n.t("Steam isn't responding – restarting it …")
         case .retrying(let way): return L10n.t("Starting again with %@ …", way)
         case .updating(let fraction?): return L10n.t("Updating … %ld %%", Int(fraction * 100))
         case .updating(nil): return L10n.t("Updating …")
@@ -44,6 +50,7 @@ enum LaunchPhase: Equatable {
         case .syncingSaves: return L10n.t("Getting your save …")
         case .rollingBack: return L10n.t("Trying the previous engine …")
         case .heldEngine: return L10n.t("Starting with the previous engine …")
+        case .settingUpWindowsParts: return L10n.t("Setting up the game …")
         }
     }
 
@@ -58,6 +65,7 @@ enum LaunchPhase: Equatable {
         case .settingUp: return L10n.t("Installing what the game needs from Windows. Only the first time.")
         case .settingUpDotNet: return L10n.t("Installing .NET, which this game needs. Only the first time.")
         case .restartingSteam: return L10n.t("Steam got stuck while starting – a fresh start fixes that.")
+        case .steamNotResponding: return L10n.t("Steam stopped taking requests. A fresh start fixes that – the game starts right after.")
         case .retrying: return L10n.t("It closed right away – Nightforge starts it the next way and remembers what works.")
         case .updating: return L10n.t("Steam updates the game first – it starts by itself when the update is done.")
         case .signingInEpic: return L10n.t("The game gets a fresh sign-in from Epic, so it starts online with your account.")
@@ -66,13 +74,21 @@ enum LaunchPhase: Equatable {
             return L10n.t("The newest engine crashed this game, so Nightforge starts it with the previous one – nothing to do. It tries the new one again after the next update.")
         case .heldEngine:
             return L10n.t("The newest engine crashed this game, so it runs with the previous one – Steam starts again with that one first.")
+        case .settingUpWindowsParts(let part?):
+            return L10n.t("Windows part: %@ – the game needs it. Only the first time.", part)
+        case .settingUpWindowsParts(nil):
+            return L10n.t("The Windows parts the game needs come from GOG. Only the first time.")
         }
     }
 
     /// While Steam starts the game itself, the first time with new graphics: shaders are built then.
     static var shaderHint: String { L10n.t("First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.") }
-    /// `updating` for an Epic game: legendary fetches the update, not Steam.
-    static var epicUpdateHint: String { L10n.t("The update comes from Epic Games first – the game starts by itself when it's done.") }
+    /// `updating` for an Epic or GOG game: legendary or gogdl fetches the update, not Steam.
+    static func storeUpdateHint(_ provider: Provider) -> String {
+        L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label)
+    }
+    /// `syncingSaves` for a GOG game.
+    static var gogSavesHint: String { L10n.t("Your newest save comes from GOG's cloud first, so you go on where you stopped.") }
     static var confirmHint: String { L10n.t("Steam asks something before the game starts – answer it in its window.") }
 
     // MARK: - First start with new graphics
