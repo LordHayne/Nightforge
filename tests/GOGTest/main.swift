@@ -646,7 +646,9 @@ struct GOGTest {
         // Uninstalling: the folder goes, the game stays in the library.
         if let stardewNow { try? await later.uninstall(stardewNow) }
         check(!fm.fileExists(atPath: stardewApp.path), "uninstalled: the app is gone")
-        check(await later.library().first { $0.gameID == .gog("1453375253") }?.install == .notInstalled, "and the game is back to download")
+        let afterUninstall = await later.library().first { $0.gameID == .gog("1453375253") }
+        check(afterUninstall?.install == .notInstalled, "and the game is back to download")
+        check(afterUninstall?.hasFolder == false && stardewNow?.hasFolder == true, "no \"Show game folder in Finder\" once its folder is gone")
         let outside = fm.temporaryDirectory.appendingPathComponent("gog-keep-\(UUID().uuidString)", isDirectory: true)
         try? fm.createDirectory(at: outside, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: outside) }
@@ -760,6 +762,9 @@ struct GOGTest {
         let unplugged = await GOGStore().library().first { $0.gameID == .gog("1207664663") }
         check(unplugged?.install == .notInstalled && unplugged?.missingDrive == gone, "unplugged: not playable, and which drive to connect")
         check(unplugged?.installDir == goneFolder && unplugged?.pendingUpdate == nil, "its place is kept, nothing to update meanwhile")
+        check(unplugged?.onUnpluggedDrive == true && unplugged?.sizeOnDisk == 50_000 && unplugged?.downloadSize == nil,
+              "the game page says \"On <drive>\" with what it takes there, no download size")
+        check(unplugged?.hasFolder == false, "and offers no folder to show")
 
         // Moved: the record follows, the game plays from its new place.
         let moved = GOGStore()

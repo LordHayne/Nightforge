@@ -21,6 +21,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - L1/R1 zwischen Startseite und Bibliothek, gebaut in der Hauptsession.
   - Reichere Spieldaten, Phase 2, in zwei Teilen.
   - Testabdeckung (Session test-coverage).
+  - Kleines Controller-Overlay: PS gedrückt halten, dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
+    Baut die TV-Session, es wird mit dem TV-Modus gemergt. Das schöne große Overlay kommt nach 0.3.0.
   - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
     APEX/PhysX-Profil, Ton unter Wine.
   - Landingpage und README.
@@ -144,6 +146,35 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
   in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
   Mac-Spielen damit noch aufgeht.
+- **Hängendes Spiel vom Sofa aus beenden** (Nutzer, 31.10., gesehen mit Left 4 Dead 2: Prozess lief weiter mit
+  ~100 % CPU, Bild stand. „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
+  - **Von Hand:** PS-/Guide-Taste 2 s gedrückt halten. Nightforge kommt nach vorne mit „<Spiel> beenden?“,
+    A bestätigt, B bricht ab. Nightforge beendet dann das Spiel samt Prozessbaum (Windows: das Programm unter
+    `\steamapps\common\` bzw. `\GOG Games\`, notfalls `wineserver -k` für die Spielsitzung; Mac: das Spiel-Programm),
+    räumt auf wie nach einem normalen Ende und zeigt wieder die Spielseite.
+  - **Von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
+    oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge dasselbe an, ohne zu
+    raten, wenn ein Ladebildschirm nur lange dauert.
+  - **Technik:** Nightforge bekommt die Taste auch im Hintergrund über `GCController.shouldMonitorBackgroundEvents`
+    (macOS 11.3+). Kollidiert nicht mit Steams Guide-Taste (siehe `SteamGuideButton` oben); macOS selbst kann die
+    Home-Taste für Launchpad oder die Spiele-App belegen, also auf macOS 26/27 prüfen, ob „gedrückt halten“ frei ist.
+  - Für den Release 0.3.0 wichtig, weil der TV-Modus ohne Maus und Tastatur auskommen soll.
+- **Nightforge-Overlay für den Controller** (Nutzer, 31.10.; die kleine Version kommt in 0.3.0, gebaut von der TV-Session, das schöne große Overlay danach):
+  - PS-/Guide-Taste im Spiel (gedrückt halten, damit Steams kurzer Druck frei bleibt) öffnet ein ruhiges Overlay
+    über dem Spiel:
+    - Weiterspielen (B oder noch einmal PS)
+    - Spiel beenden (mit Rückfrage; auch wenn es hängt)
+    - Zu Nightforge (Bibliothek, Downloads, ohne das Spiel zu beenden)
+    - Uhrzeit, Controller-Akku, laufende Downloads
+    - später: Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung
+  - Technik, zu klären:
+    - Ein Panel mit `.canJoinAllSpaces`/`.fullScreenAuxiliary` über dem Vollbild-Space des Spiels. Hat Wine den
+      Bildschirm exklusiv belegt (`CGCaptureAllDisplays` bei echtem Modus-Wechsel), kann kein Fenster darüber; dann
+      kommt Nightforge stattdessen nach vorne.
+    - Eingaben gehen weiter ans Spiel, denn macOS kann einem anderen Prozess den Controller nicht wegnehmen. Kandidat:
+      das Spiel solange mit `SIGSTOP` anhalten und mit `SIGCONT` weiterlaufen lassen. Bei Online-Spielen, beim Ton
+      und bei Steams Spielerkennung prüfen.
+    - Stromsparend nach dem UI-Budget: kein Live-Weichzeichner über dem ganzen Bild, nur abdunkeln.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
@@ -536,16 +567,17 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
       (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
-- [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
-      übrig: `pgrep -fl gogdl`).
+- [x] **Deinstallieren** (A New Beginning: Ordner weg, Karte, Spielzeit und Bewertung bleiben), **Abbrechen** (Dishonored 2:
+      nach 3 s kein gogdl mehr, Ordner weg, `downloads.json` leer) – live 31.10. (159acfa). Danach behoben: kein
+      „Spielordner im Finder zeigen“ mehr ohne Ordner (`Game.hasFolder`).
 - [ ] **Update & Play** (ein Spiel mit neuerem Build oder später gekauftem DLC; danach läuft das Installationsskript neu),
-      **Cloud-Spielstände** (vorher „Spielstand wird geholt …“, danach „Dein Spielstand ist bei GOG.“), **Offline-Start**.
-- [ ] **Laufwerk:** ein GOG-Spiel „Auf <Laufwerk> installieren“ (landet in `Nightforge Games/GOG Games/`), von dort
-      spielen (Windows- und Mac-Version), „Verschieben nach …“ zurück auf den Mac und wieder hin, Laufwerk abziehen
-      („Schließe … an“, bleibt unter „Installiert“), Deinstallieren-Frage nennt Laufwerk und GOG.
-- [ ] **Abgemeldet:** `GOG/gogdl/auth.json` löschen bzw. Token ungültig – Banner „GOG hat dich abgemeldet“, „Erneut anmelden“.
-- [ ] **Steam-Wechsel:** nach einem Steam-Mac-Spiel ein GOG-Spiel (Mac und Windows) starten – kein Steam wird beendet oder
-      gestartet, kein „Spielstand geht in die Steam Cloud …“; ein GOG-Mac-Download hält Steam für Mac nicht wach.
+      **Cloud-Spielstände** (Upload nach Mafia II live 31.10. ✓, `saves.json` aktualisiert), **Offline-Start**.
+- [x] **Laufwerk:** auf USB-Stick installiert (`/Volumes/Spiele test/Nightforge Games/GOG Games/`), von dort gespielt, ohne
+      Stick „Schließe Spiele test an“ – live 31.10. Danach behoben: Die Kennzahlen sagen „Auf Spiele test · 4,11 GB“ statt
+      „Herunterladen · bis zu 4,11 GB“ (alle Stores).
+- [x] **Abgemeldet:** „GOG hat dich abgemeldet“ und „Erneut anmelden“ mit umbenannter `auth.json` – live 31.10. Erst nach
+      einem Neustart: „Neu einlesen“ (⌘R) fragte die Stores nicht. Danach behoben (`rescan()` mit `refreshStores(force: true)`).
+- [x] **Steam-Wechsel:** nach Valheim (Steam für Mac) startet Mafia II, an beiden Steams ändert sich nichts – live 31.10.
 
 Bekannte Lücken (bewusst, siehe Roadmap 7.3):
 - Keine Mac/Windows-Wahl in den Optionen eines GOG-Spiels (Automatisch = Mac zuerst). Ist eine Mac-Version zwar
@@ -601,6 +633,24 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
   Store-Wahl (7.4), Hinweise aus der Spielanalyse, Steam-für-Mac-Fortschritt, „Willkommen zurück“ mit Cloud-Zuständen.
 
 ## Ideen für später
+
+- **Echte Speicherverwaltung unter Einstellungen › Speicher** (Nutzer, 31.10.; noch nicht anfangen):
+  - Heute zeigt der Tab ein Laufwerk nur, wenn Spiele oder ein Ordner `Nightforge Games` darauf liegen
+    (`StorageSettings.drives`). Ein frisch eingesteckter, leerer Stick taucht nicht auf.
+  - Ziel:
+    - Nightforge erkennt einen neu eingesteckten Stick oder eine Platte.
+    - Ein kleines Pop-up (Toast) „„Spiele test“ eingesteckt · Für Spiele vorbereiten“ führt direkt zu
+      Einstellungen › Speicher.
+    - Dort stehen alle Laufwerke mit Platz und Format, **oben** direkt unter „Macintosh HD“, ohne Scrollen
+      (Nutzer: wer eine externe Platte dabeihat, will den freien Platz sofort sehen). Heute steht ein
+      angeschlossenes Laufwerk erst unter der Spieleliste des Macs.
+    - „Vorbereiten“ prüft das Format: exFAT und FAT32 taugen nicht (keine Rechte und Links, FAT32 max. 4 GB pro
+      Datei), NTFS ist auf dem Mac nur lesbar. Dafür erklärt es, was zu tun ist, und bietet an, das Laufwerk in
+      APFS umzuwandeln. Löschen nur nach ausdrücklicher Bestätigung, mit Hinweis, dass alles darauf verloren geht.
+    - Danach legt es `Nightforge Games` an.
+  - Dazu gehört ein Hinweis bei langsamen Laufwerken (USB-2-Sticks): „Spiele starten von hier spürbar
+    langsamer“, gesehen am 31.10. mit A New Beginning auf „Spiele test“.
+  - Anfangen bei `ExternalDrive` (Format steht schon in `format`), `DriveLibrary`, `StorageSettings`, `Toasts`.
 
 - **Von steamac lernen** (github.com/fxgl/steamac, Apache-2.0, angeschaut am 31.10.; noch nicht anfangen):
   - steamac lässt Valves ARM64-SteamOS in einer VM laufen. Spiele laufen dort über Proton und FEX, die Grafik geht den

@@ -839,13 +839,13 @@ private struct TopBar: View {
                     DownloadsButton()
                     GlassDivider()
                 }
-                Button { model.reload() } label: {
+                Button { model.rescan() } label: {
                     Image(systemName: "arrow.clockwise").font(size: 13, weight: .semibold, scales: false)
                 }
                 .buttonStyle(GlassGroupButtonStyle())
                 .help(L10n.t("Rescan library (⌘R)"))
                 .accessibilityLabel(L10n.t("Rescan library"))
-                .padFocus("top.rescan", cornerRadius: 15, activate: { model.reload() })
+                .padFocus("top.rescan", cornerRadius: 15, activate: { model.rescan() })
                 GlassDivider()
                 Button { model.openSettings() } label: {
                     Image(systemName: "gearshape").font(size: 14, weight: .semibold, scales: false)
@@ -1017,6 +1017,10 @@ private struct GameDetail: View {
                     }
                 case .installed:
                     Stat(label: L10n.t("Size"), value: Format.bytes(game.sizeOnDisk))
+                case .notInstalled where game.onUnpluggedDrive:
+                    // Installed there, only not plugged in: where it is and what it takes – not a download.
+                    Stat(label: L10n.t("On %@", game.missingDrive ?? ""),
+                         value: game.sizeOnDisk > 0 ? Format.bytes(game.sizeOnDisk) : "–")
                 case .notInstalled where game.playsInCloud:
                     Stat(label: L10n.t("Plays on"), value: "GeForce Now")
                 case .notInstalled:
@@ -1139,7 +1143,7 @@ private struct GameDetail: View {
                         model.showingOptions = true
                     }
                 }
-                if !compact && game.install != .inStore {
+                if !compact && game.hasFolder {
                     RoundIconButton(symbol: "folder", help: L10n.t("Show game folder in Finder")) {
                         model.revealSelected()
                     }
@@ -1532,7 +1536,7 @@ struct GameContextMenu: ViewModifier {
             default:
                 EmptyView()
             }
-            if game.install != .inStore {
+            if game.hasFolder {
                 Button(L10n.t("Show game folder in Finder")) { select(); model.revealSelected() }
             }
             // Onto a drive plugged in, or back to the Mac (DriveMoves).
@@ -1895,8 +1899,8 @@ private struct EmptyLibrary: View {
                 Button(L10n.t("Open Steam")) { model.openSteam() }
                     .padFocus("empty.openSteam", activate: { model.openSteam() })
                     .buttonStyle(GlassTextButtonStyle(prominent: true))
-                Button(L10n.t("Rescan")) { model.reload() }
-                    .padFocus("empty.rescan", activate: { model.reload() })
+                Button(L10n.t("Rescan")) { model.rescan() }
+                    .padFocus("empty.rescan", activate: { model.rescan() })
                     .buttonStyle(GlassTextButtonStyle())
             }
         }
@@ -1917,8 +1921,8 @@ private struct EmptyLibrary: View {
                 .foregroundStyle(Theme.muted.opacity(0.8))
                 .textSelection(.enabled)
             HStack(spacing: 12) {
-                Button(L10n.t("Rescan")) { model.reload() }
-                    .padFocus("empty.rescan", activate: { model.reload() })
+                Button(L10n.t("Rescan")) { model.rescan() }
+                    .padFocus("empty.rescan", activate: { model.rescan() })
                     .buttonStyle(GlassTextButtonStyle(prominent: true))
                 Button(L10n.t("Choose Another Folder …")) { model.chooseBottlesFolder() }
                     .padFocus("empty.chooseFolder", activate: { model.chooseBottlesFolder() })

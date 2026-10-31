@@ -137,8 +137,8 @@ private struct StoresSettings: View {
                     .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(L10n.t("Rescan Library")) { model.reload() }
-                    .padFocus("settings.rescan", activate: { model.reload() })
+                Button(L10n.t("Rescan Library")) { model.rescan() }
+                    .padFocus("settings.rescan", activate: { model.rescan() })
                 }
             }
         }
