@@ -432,7 +432,7 @@ b { font-weight: 650; color: var(--ink); }
 
 .soon { display: grid; gap: 14px; margin-top: 30px; }
 @media (min-width: 640px) { .soon { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1000px) { .soon { grid-template-columns: repeat(4, 1fr); gap: 18px; } }
+@media (min-width: 1000px) { .soon { grid-template-columns: repeat(3, 1fr); gap: 18px; } }
 .tile-soon { background: linear-gradient(180deg, rgba(255, 179, 71, 0.07), rgba(255, 255, 255, 0.02)), rgba(24, 31, 42, 0.5); }
 .soon-tag {
   position: absolute; top: 20px; right: 20px;
