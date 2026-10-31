@@ -181,13 +181,26 @@ final class LibraryModel: ObservableObject {
 
     init() {
         // The first start ends with how the library runs here, on Home in place of the games.
-        setup.onFinished = { [weak self] in self?.checkLibrary() }
+        setup.onFinished = { [weak self] in
+            // Steam's sign-in window had the front; keys and the pad only reach the app in front.
+            self?.comeForward()
+            self?.checkLibrary()
+        }
         // Steam for Mac gets ready once the Windows Steam waits for its sign-in (not in the replay).
         setup.onSignInReady = { [weak self] in
             guard let self, self.setup.isActive, !self.setup.isReplay else { return }
             self.macSteamPrep.start()
         }
-        setup.onClosed = { [weak self] in self?.macSteamPrep.abandon() }
+        setup.onClosed = { [weak self] in
+            guard let self else { return }
+            self.macSteamPrep.abandon()
+            // Home begins at its first place – Nightforge's recommendation to start – not where the
+            // still empty library left the selection (the "All games" tile).
+            if self.route == .home {
+                self.homeGameID = nil
+                self.selectOnHome(place: 0)
+            }
+        }
         setupChanges = setup.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         epic.changed = { [weak self] in self?.reload(quiet: true) }
         watchDrives()
@@ -412,6 +425,15 @@ final class LibraryModel: ObservableObject {
         configuration.activates = true
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
         reload(quiet: true)  // play time, last played
+    }
+
+    /// Nightforge in front again after a Steam window had it (its sign-in), the way it comes back
+    /// after a game (comeBack): keys and the pad only reach the app in front.
+    func comeForward() {
+        guard !NSApp.isActive else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
     }
 
     /// What a game's processes show in `ps`, by game: Wine's Windows path of the game folder, or
@@ -1484,8 +1506,11 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Home's selection: the one it had, else the rail's first game, else the "All games" tile.
+    /// Home's selection: the one it had, else the rail's first game, else the "All games" tile. An
+    /// empty library (the first start, before Steam sends the games) picks nothing yet: the "All
+    /// games" tile would stick once the games are there.
     private func selectOnHome() {
+        if homeRail.isEmpty && games.isEmpty { return }
         if homeGameID == Self.allGamesTile || homeRail.isEmpty {
             homeOnAllGames = true
         } else if let index = homeRail.first(where: { games[$0].holds(homeGameID) }) ?? homeRail.first {

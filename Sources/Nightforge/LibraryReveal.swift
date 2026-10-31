@@ -135,6 +135,7 @@ extension LibraryModel {
                 await macSteamPrep.finish(windowsAccount: SteamLogin.rememberedAccount(steamRoot: Engine.steamRoot),
                                           macVersions: reveal.mac)
                 guard !Task.isCancelled else { return }
+                comeForward()  // Steam for Mac's window had the front for its sign-in
             }
             setup.reveal(reveal)
         }
