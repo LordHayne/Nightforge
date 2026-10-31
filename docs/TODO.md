@@ -489,12 +489,29 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
         `profiles.json`. `mac.json` nennt die GOG-Ausgabe beim Steam-Zwilling (`"gog": ["1816059595"]` bei 50130).
       - Ton: FMOD Ex steckt fest im Programm und gibt unter Windows 10 über WASAPI aus. EAX und OpenAL gibt es nicht im
         Prefix. Die Lautsprecher kommen vom System (MacBook: Stereo, 48 kHz), der Mixer läuft mit 44,1 kHz.
-        Wahrscheinlichste Ursache: FMODs Mixer kommt unter Last nicht hinterher und spielt alte Blöcke noch einmal.
-      - Last: APEX PhysX läuft auf dem Mac auf der CPU. ProtonDB rät durchweg „PhysX aus“. WineD3D meldet den
-        Apple-Chip als NVIDIA (Ausweichwert von wined3d), Mafia II stuft eine unbekannte NVIDIA-Karte am höchsten ein.
-      - Offen: APEX und Tonqualität stehen in `profile.dat`. Das ist eine Bitfolge mit Prüfsumme, die Nightforge noch
-        nicht schreiben kann. Für die Stelle braucht es zwei Kopien von `profile.dat`, vor und nach „APEX aus“
-        (Testanleitung).
+      - Live-Test 31.10. 23:00, ohne Compiler daneben:
+        - Das Profil greift, Mafia II startet direkt mit WineD3D.
+        - Das Menü klingt sauber. Das Echo im Spiel ist weg, aber Knacken und Aussetzer bleiben.
+        - CPU: Menü ~120 %, im Spiel 230–440 %, und dabei zwei Threads mit je ~95 %. Kaum GPU-Last.
+        - APEX war schon aus. APEX an ändert nichts, und `windowsVersion: winxp` (DirectSound statt WASAPI) auch nicht.
+        - Ausgabeweg und PhysX sind damit ausgeschieden.
+      - Ursache, aus winecx gelesen: Mafia II ist ein 32-Bit-Spiel und läuft im neuen WoW64 (winecx hat kein
+        `i386-unix`). Jeder OpenGL-Aufruf von WineD3D wird übersetzt. `opengl32.so` kopiert gemappte Puffer um
+        („Copying %#zx from wow64 buffer“) und schaltet `GL_ARB_buffer_storage` ab („Disabling … on wow64“).
+        Dazu kommt Apples OpenGL unter Rosetta. Das passt zu zwei vollen Threads: Spiel-Thread und WineD3Ds CS-Thread.
+      - Ausweg: DXVK über Vulkan. winevulkan braucht für 32-Bit-Spiele `VK_EXT_map_memory_placed`. KosmicKrisp hat es,
+        bei MoltenVK ist es offen (Karte „DXVK auf KosmicKrisp“).
+      - WineD3D selbst bietet keinen Hebel:
+        - `csmt` bleibt an, aus legt beide Threads auf einen.
+        - `MaxVersionGL`: WoW64 deckelt bei 4.3, Apple liefert 4.1.
+        - `VideoMemorySize` und `strict_shader_math` betreffen die GPU.
+        - `OffscreenRenderingMode` gibt es in winecx' wined3d nicht mehr.
+        - Eine Bildratengrenze hat WineD3D nicht, das Spiel kennt nur VSync. 60 statt 120 Hz hilft nur, wenn das Spiel
+          über 60 FPS kommt.
+      - `profile.dat`: Bitfolge, LSB zuerst, mit 32-Bit-Prüfsumme 8 Bytes vor dem Ende (kein CRC32, Adler oder Summe).
+        - APEX an statt aus setzt die Bits 39337 und 39370, gleich nach den vier Lautstärken (1.0f).
+        - Schreiben kann Nightforge sie noch nicht. Bei Schatten und Geometrie lohnt es sich erst, wenn ein Test zeigt,
+          dass sie CPU sparen.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [ ] **Deinstallieren** (Ordner weg, Spiel bleibt in der Bibliothek), **Abbrechen** eines Downloads (keine gogdl-Prozesse
       übrig: `pgrep -fl gogdl`).
