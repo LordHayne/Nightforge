@@ -126,6 +126,13 @@ struct Game: Identifiable, Hashable {
     }
     var isInstalled: Bool { install == .installed }
 
+    /// There's a game folder to show: installed, or on its way down – not after an uninstall, not
+    /// on a drive that's unplugged.
+    var hasFolder: Bool {
+        if case .downloading = install { return true }
+        return isInstalled
+    }
+
     /// What a running Windows version shows in `ps` (Wine gives its Windows path): Steam's games run
     /// from steamapps\common, Epic's from Program Files\Epic Games, GOG's from Program Files\GOG Games.
     var windowsFolderMarker: String {

@@ -27,7 +27,7 @@ struct NightforgeApp: App {
         .defaultSize(width: 1440, height: 880)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button(L10n.t("Rescan Library")) { model.reload() }
+                Button(L10n.t("Rescan Library")) { model.rescan() }
                     .keyboardShortcut("r")
             }
             // A dialog over the library, not a window of its own.
