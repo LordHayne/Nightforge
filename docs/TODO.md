@@ -255,6 +255,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     Rockstar-Spiel über Steam oder Epic nahtlos, also Launcher-Installation, Anmeldung, Start und Rückkehr zu
     Nightforge, ohne dass der Nutzer den Launcher sieht oder bedienen muss? Bei Epic beachten: Rockstar-Spiele
     erwarten `EpicGamesLauncher.exe` als Elternprozess (siehe Epic-Abschnitt).
+  - **Battle.net als eigener Store** (Nutzer, 1.11.: „wird ein Thema für die Zukunft … riesige Anzahl von Spielern“;
+    noch nicht anfangen): Overwatch 2, World of Warcraft und die anderen Blizzard-Spiele in der Bibliothek, wie Epic
+    und GOG.
+    - Mac zuerst: WoW, Hearthstone und StarCraft II gibt es nativ für den Mac (WoW auch für Apple Silicon). Sie
+      laufen über die Mac-App von Battle.net, ganz ohne Wine.
+    - Overwatch 2 und Diablo IV gibt es nur für Windows, aber auch auf Steam. Prüfen, ob der Steam-Weg reicht oder
+      Battle.net unter Wine nötig ist, und wie Blizzards Anti-Cheat unter Wine reagiert.
+    - Die Cloud-Recherche „Rockstar, EA, Battle.net, Ubisoft unter Wine“ (1.11.) liefert die Grundlage.
+    - Anmelden tut sich der Nutzer selbst, keine Anmeldeversuche durch Sessions.
 - **Rocket League:** Die Startoption ohne Anti-Cheat nutzt ein anderes Programm (`RocketLeague.exe`).
   `SteamCatalog.antiCheatOffArguments` übernimmt aber nur Optionen mit demselben Programm. Die Mac-Version ist
   der Stand von 2020 ohne Online-Spiel.
