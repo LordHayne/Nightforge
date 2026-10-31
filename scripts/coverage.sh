@@ -4,7 +4,7 @@
 #   scripts/coverage.sh VDFTest EpicTest   only these
 #   scripts/coverage.sh --html             also an annotated copy of every file in build/coverage/html
 #   scripts/coverage.sh --files            … as text in build/coverage/files, where `grep -n '^ *[0-9]*| *0|'`
-#                                          finds the lines no test ran
+#                                          finds the lines no test ran, and `^0` marks parts of a line
 #
 # The tests' own run.sh files stay as they are: a swiftc in front of the real one on PATH adds the
 # coverage flags and keeps a copy of each test binary (some run.sh files delete theirs at the end).
@@ -100,7 +100,8 @@ if [ "$FILES" = 1 ]; then
   mkdir -p "$OUT/files"
   for source in $SOURCES; do
     # shellcheck disable=SC2086
-    xcrun llvm-cov show -instr-profile "$WORK/merged.profdata" "${args[@]}" "$source" > "$OUT/files/$(basename "$source").txt"
+    xcrun llvm-cov show -show-line-counts-or-regions -instr-profile "$WORK/merged.profdata" "${args[@]}" "$source" \
+      > "$OUT/files/$(basename "$source").txt"
   done
   echo "▸ build/coverage/files/"
 fi
