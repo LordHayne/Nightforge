@@ -647,6 +647,10 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
   Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
   Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). In Arbeit seit 31.10. (für 0.3.0) in zwei Abschnitten
   (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
+  - **Pad auf der Spielseite (TV-Test 1.11.)**: Es scrollte nicht weich, sprang von Punkt zu Punkt und kam nicht bis unten.
+    Behoben: Fokuswechsel scrollen weich mit (Platz für die Spielleiste), ↓/↑ hinter dem letzten/ersten Bedienelement
+    scrollen seitenweise bis ans Ende, der rechte Stick scrollt stufenlos (alle Seiten mit Scrollbereich), der Rahmen
+    beginnt auf „Spielen“ statt auf den Screenshots. Noch am TV zu prüfen.
   - **Nachbesserung nach dem ersten Live-Blick (31.10. nachts)**, Variante 1 nach Wahl des Nutzers: Beschreibung nur einmal
     (unten), feste Spielleiste beim Scrollen, ruhiges Raster mit zwei Karten, deutsche Beschreibung und Screenshots von GOG,
     wo Steam keine hat. Noch ohne Live-Test.

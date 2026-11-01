@@ -311,7 +311,7 @@ private struct DetailLevel: View {
                             .frame(height: max(geo.size.height - (info == nil ? 0 : 70), 0), alignment: .topLeading)
                             // It fades as the page goes up, rather than being cut by the top bar.
                             .scrollTransition(.interactive, axis: .vertical) { content, phase in
-                                content.opacity(phase.value < 0 ? max(0, 1 + phase.value * 1.6) : 1)
+                                content.opacity(phase.value < 0 ? max(0, 1 + phase.value * 2.5) : 1)
                             }
                         if let info {
                             Button { withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) } } label: {
@@ -356,8 +356,9 @@ private struct DetailLevel: View {
                     }
                 }
                 .modifier(SoftTopEdge())
-                // The pad's highlight stays in sight as it moves down the page.
-                .onChange(of: focus.focused) { _, id in PadFocus.shared.reveal(id) }
+                // The pad's highlight stays in sight as it moves down the page, clear of the game bar,
+                // and the page follows it smoothly.
+                .onChange(of: focus.focused) { _, id in PadFocus.shared.reveal(id, top: 96) }
             }
         }
         .id(game.id)
@@ -1290,8 +1291,9 @@ private struct GameDetail: View {
             // The round buttons go to a new line rather than squeezing Play's words (a narrow window,
             // larger text, German).
             FlowRow(spacing: 14, lineSpacing: 14, centered: true) {
+                // On its page the pad starts here, not on the lowest row (the screenshots further down).
                 PlayButton.of(game, model: model)
-                    .padFocus("play", cornerRadius: 34, activate: { model.primaryAction() })
+                    .padFocus("play", cornerRadius: 34, preferred: !compact, activate: { model.primaryAction() })
                 if compact {
                     RoundIconButton(symbol: "info", help: L10n.t("Details (I)")) {
                         model.openDetail()
