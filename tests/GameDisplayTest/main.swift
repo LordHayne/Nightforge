@@ -158,6 +158,22 @@ struct GameDisplayTest {
         check(fromTV.size == mac.size && mac.contains(fromTV), "from a TV that went: as big as the MacBook allows, on it (\(fromTV))")
         let first = FullScreen.defaultFrame(in: NSRect(x: 0, y: 0, width: 2560, height: 1415))
         check(first.size == CGSize(width: 1440, height: 880) && first.midX == 1280, "a window that filled the screen: the opening size, centred")
+
+        // The menu bar in full screen: it comes with the pointer at the top edge, stays while it's on it.
+        do {
+            let notched = CGRect(x: 0, y: 0, width: 1512, height: 982)
+            func bar(_ x: CGFloat, _ y: CGFloat, shown: Bool, on screen: CGRect = notched) -> Bool {
+                FullScreen.menuBarShown(pointer: CGPoint(x: x, y: y), on: screen, bar: 32, shown: shown)
+            }
+            check(!bar(700, 500, shown: false), "pointer in the middle: hidden")
+            check(bar(700, 982, shown: false) && bar(700, 981.5, shown: false), "at the top edge: shown")
+            check(!bar(700, 960, shown: false), "near the top, not at the edge: still hidden")
+            check(bar(700, 960, shown: true) && bar(700, 940, shown: true), "on the bar or just below: stays")
+            check(!bar(700, 900, shown: true), "further down: gone again")
+            let tv = CGRect(x: 1512, y: -200, width: 1920, height: 1080)
+            check(!bar(700, 982, shown: false, on: tv), "the pointer on the MacBook: not the TV's bar")
+            check(bar(2000, 880, shown: false, on: tv), "the TV's top edge: shown")
+        }
         if failures == 0 { print("✓ GameDisplay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
     }

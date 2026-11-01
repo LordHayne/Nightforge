@@ -486,6 +486,36 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       (`PadRules.padUsedLast`: in der letzten Minute, Maus seither nicht bewegt). Mitten im Spiel ginge es nur
       über eine private Schnittstelle (CGS „SetsCursorInBackground“) oder indem man die Maus verschiebt, was das
       Spiel als Mausbewegung sieht.
+      Live-Test 794b3e4 (1.11. 20:06, MacBook 14", Overcooked 2): kein Gleiten mehr, rein wie raus; Tippzeile da;
+      Zeiger in Nightforge weg. Drei Fehler, alle zuerst mit eigenen AppKit-Proben auf dem MacBook nachgestellt:
+      1) Vollbild mit Menüleiste, Fenster erst darunter, runde Ecken: Ein Fenster mit Titelleiste drückt macOS
+         auf 1512×950 unter den Notch-Streifen, und `.autoHideMenuBar` blendet die Leiste hier nicht aus, weder
+         ohne noch nach einem Zeiger-Warp (`menuBarVisible()` sagt trotzdem nein). Jetzt: im Vollbild ohne
+         `.titled` (randlos, keine Ecken, ganzer Bildschirm), Menüleiste und Dock per `.hideMenuBar/.hideDock`
+         aus. Die Leiste kommt, wenn der Zeiger oben anstößt (`FullScreen.menuBarShown`, dann nur
+         `.autoHideDock`), und geht, wenn er sie verlässt und kein Menü offen ist. Der Inhalt bleibt unter der
+         Notch (`additionalSafeAreaInsets`), daneben die Nacht der Seite. SwiftUIs Fensterklasse lässt sich
+         randlos nicht Key machen; ihre `canBecomeKey/Main`-Antwort ist für Nightforges Fenster erweitert
+         (eine eigene Unterklasse per `object_setClass` brachte SwiftUIs KVO zum Absturz). Nach dem Zurück sind
+         die Fensterknöpfe neue, der grüne wird wieder umgeleitet.
+      2) „Zurück zu Nightforge“ ohne Wirkung: Solange das Overlay-Panel die Tasten hat, meldet `NSApp.isActive`
+         ja, obwohl das Spiel vorne ist (Probe: lsappinfo und NSWorkspace sagen „Spiel“). `comeForward()` stieg
+         deshalb aus, Nightforge hat nie gefragt. Jetzt `NSApp.isFrontmost`; `leaveGame` holt Nightforges Fenster
+         vor und bittet um die Front. Behält das Spiel sie 0,5 s, wird es ausgeblendet (`hide`), und macOS gibt
+         die Front der App davor; landet sie bei einer dritten, kommt das Spiel wieder. Das Overlay bleibt bis
+         dahin stehen. „Zum Spiel wechseln“ blendet es wieder ein (`handFocus`). Probe: Ausblenden + Einblenden +
+         Übergabe zurück klappt; ausgeblendet gibt macOS die Front der App, die vor dem Spiel vorne war.
+      3) Zeiger im Ladebildschirm und im Spiel: Probe mit Bildschirmfoto samt Zeiger, Maus ruhig. Er geht nur
+         weg, wenn ein Nightforge-Panel die Tasten hat, unter dem Zeiger liegt, Mausereignisse annimmt und ~50 ms
+         Zeit hat; dann bleibt er über dem Spiel weg. Ein 1-pt-Panel, ein Panel, durch das die Maus fällt (wie
+         der Vorhang), ohne Tasten oder ohne Warten: Er blieb. Jetzt `InputRouter.hidePointerOverGame` (fast
+         durchsichtiges Panel über dem Bildschirm des Zeigers, 50 ms Tasten), unter dem Vorhang, sobald das Spiel
+         1 s vorne ist, je Mal, dass es nach vorne kommt (vor dem Senken). Beim Hochgehen ist Nightforge noch
+         vorne und blendet direkt aus.
+      Live zu prüfen: Vollbild-Bild (keine Leiste, keine Ecken, an der Notch nur ein Streifen Nacht), Leiste bei
+      Maus oben und wieder weg, ⌘-Tab zurück, Esc/⌃⌘F/Menü, Tasten und Suchfeld im Vollbild; „Zurück zu
+      Nightforge“ (zeigt Nightforge, „Zum Spiel wechseln“ bringt das Spiel samt Bild zurück; was `wine.log` dazu
+      sagt); Zeiger im Ladebildschirm und im Spiel weg, das Spiel ohne Stocken durch die 50 ms.
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die

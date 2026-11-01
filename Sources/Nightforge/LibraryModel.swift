@@ -672,7 +672,7 @@ final class LibraryModel: ObservableObject {
     /// Nightforge in front again after a Steam window had it (its sign-in), the way it comes back
     /// after a game (comeBack): keys and the pad only reach the app in front.
     func comeForward() {
-        guard !NSApp.isActive else { return }
+        guard !NSApp.isFrontmost else { return }
         NSApp.comeToFront()
     }
 
@@ -797,6 +797,7 @@ final class LibraryModel: ObservableObject {
         // The tip for new players on a curtain that comes up for this start, not again for each way it tries.
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.playing.isEmpty == false }
+        InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
     }
 
@@ -808,6 +809,8 @@ final class LibraryModel: ObservableObject {
         var frontSince: Date?
         var loweredAt: Date?
         var raisedAgain = 0
+        /// The game's time in front the pointer was hidden for.
+        var pointerHidden: Date?
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         while !Task.isCancelled {
@@ -842,6 +845,12 @@ final class LibraryModel: ObservableObject {
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
+            // The game coming to the front brought the pointer back over the curtain (1.11.):
+            // hidden again once it has had the front a moment, before the curtain goes.
+            if loweredAt == nil, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
+                pointerHidden = since
+                InputRouter.hidePointerOverGame()
+            }
             let (here, anywhere) = await Task.detached(priority: .utility) {
                 (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true))
             }.value
@@ -928,9 +937,8 @@ final class LibraryModel: ObservableObject {
     /// front first when it isn't (under the curtain, or from its own page).
     @discardableResult
     private func handFocus(to pids: Set<pid_t>) async -> Bool {
-        guard let app = pids.sorted().compactMap({ NSRunningApplication(processIdentifier: $0) })
-            .first(where: { $0.activationPolicy == .regular })
-        else { return false }
+        guard let app = Self.gameApp(pids) else { return false }
+        if app.isHidden { app.unhide() }  // Go to Nightforge hid it (leaveGame)
         if app.isActive { return true }
         if !NSApp.isActive {
             // Not through Launch Services here: its activation can land after the handover and take
@@ -944,6 +952,36 @@ final class LibraryModel: ObservableObject {
         app.activate(from: .current, options: [.activateAllWindows])
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         return app.isActive
+    }
+
+    /// The game's program with windows among its processes: a Windows game's .exe under Wine, a Mac game's app.
+    private static func gameApp(_ pids: Set<pid_t>) -> NSRunningApplication? {
+        pids.sorted().compactMap { NSRunningApplication(processIdentifier: $0) }.first { $0.activationPolicy == .regular }
+    }
+
+    /// Go to Nightforge in the overlay, the game running on behind it. Nightforge asks for the front
+    /// – on 1.11. it never did: with the overlay's keys it counted as active already (comeForward).
+    /// A game that keeps it is hidden, and macOS gives the front to the app before it: Nightforge,
+    /// which handed it over. Should another app get it, the game shows again – never a third app in
+    /// front of a hidden game. Switch to Game shows it again too (handFocus).
+    private func leaveGame(_ pids: Set<pid_t>) async {
+        let window = NSApp.windows.first { $0.title == "Nightforge" }
+        window?.orderFrontRegardless()
+        NSApp.comeToFront()
+        if await !Self.cameToFront(), let game = Self.gameApp(pids) {
+            game.hide()
+            if await !Self.cameToFront() { NSApp.comeToFront() }
+            if await !Self.cameToFront() { game.unhide() }
+            GameLog.note("Go to Nightforge: \(game.localizedName ?? "the game") kept the front, hidden – "
+                         + "\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front now")
+        }
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Nightforge in front within half a second.
+    private static func cameToFront() async -> Bool {
+        for _ in 0..<10 where !NSApp.isFrontmost { try? await Task.sleep(for: .milliseconds(50)) }
+        return NSApp.isFrontmost
     }
 
     /// How long a running game may show nothing before the curtain asks.
@@ -962,8 +1000,10 @@ final class LibraryModel: ObservableObject {
             nightforge: { [weak self] in
                 self?.curtainWatch?.cancel()
                 GameBackdrop.hide(after: .zero)
-                self?.comeForward()
-                NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+                let pids = await Task.detached(priority: .userInitiated) {
+                    Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                }.value
+                await self?.leaveGame(pids)
             })
         GameOverlay.open(game.name, pause: [], on: GameDisplay.gameScreen, symbols: padSymbols, step: .notStarting, actions: actions)
     }
@@ -991,10 +1031,7 @@ final class LibraryModel: ObservableObject {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
                     }.value
                 },
-                nightforge: { [weak self] in
-                    self?.comeForward()
-                    NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
-                })
+                nightforge: { [weak self] in await self?.leaveGame(Set(pids)) })
             GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.gameScreen, symbols: padSymbols,
                              soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
         }
@@ -3411,6 +3448,12 @@ final class LibraryModel: ObservableObject {
 }
 
 extension NSApplication {
+    /// In front for macOS. Not `isActive`: that says yes while a panel that doesn't activate
+    /// Nightforge has the keys – the overlay's, with the game in front (probe on 1.11.).
+    var isFrontmost: Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+    }
+
     /// Nightforge to the front because the player asked: Go to Nightforge, a game's end. Since
     /// macOS 14 asking politely from behind loses to any app with a window in the Space shown (on
     /// 1.11. the Claude app on the TV took the front, the game stayed behind it), so it's activated

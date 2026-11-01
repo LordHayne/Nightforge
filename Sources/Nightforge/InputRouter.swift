@@ -517,10 +517,51 @@ final class InputRouter {
     /// The pointer hidden until the mouse moves, when the pad was used last: called while Nightforge
     /// or its overlay still has the front, it stays hidden over the game that gets it.
     static func hidePointerForGame() {
-        guard PadRules.padUsedLast(at: padUse?.time, mouseThen: padUse?.mouse ?? .zero,
-                                   now: ProcessInfo.processInfo.systemUptime, mouseNow: NSEvent.mouseLocation)
-        else { return }
+        guard padUsedLast else { return }
         NSCursor.setHiddenUntilMouseMoves(true)
+    }
+
+    /// The same with a game in front, under the curtain: macOS hides it only for the app with the
+    /// keys and the window under the pointer. So Nightforge has both for a moment – a sheer panel
+    /// over the pointer's screen, as the overlay is when Continue Playing closes it – and the game
+    /// is without its keys for 50 ms. A one-point panel, one the mouse passes through (as the
+    /// curtain), no keys or no wait: the pointer stayed (probe on 1.11.).
+    static func hidePointerOverGame() {
+        let mouse = NSEvent.mouseLocation
+        guard padUsedLast, !GameOverlay.isOpen,
+              let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
+        else { return }
+        let panel = pointerPanel ?? makePointerPanel()
+        pointerPanel = panel
+        panel.setFrame(screen.frame, display: false)
+        panel.orderFrontRegardless()
+        panel.makeKey()
+        Task {
+            try? await Task.sleep(for: .milliseconds(50))
+            NSCursor.setHiddenUntilMouseMoves(true)
+            panel.orderOut(nil)
+        }
+    }
+
+    private static var padUsedLast: Bool {
+        PadRules.padUsedLast(at: padUse?.time, mouseThen: padUse?.mouse ?? .zero,
+                             now: ProcessInfo.processInfo.systemUptime, mouseNow: NSEvent.mouseLocation)
+    }
+
+    private static var pointerPanel: NSPanel?
+
+    private static func makePointerPanel() -> NSPanel {
+        let panel = PointerPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.level = .screenSaver
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.isOpaque = false
+        panel.backgroundColor = NSColor.black.withAlphaComponent(0.01)  // clear, the mouse would pass through
+        panel.hasShadow = false
+        panel.animationBehavior = .none
+        panel.isExcludedFromWindowsMenu = true
+        return panel
     }
 
     /// A button down or a stick or the d-pad pushed – not a resting stick's noise.
@@ -787,6 +828,11 @@ final class InputRouter {
             }
         }
     }
+}
+
+/// Takes the keys without making Nightforge the active app (InputRouter.hidePointerOverGame).
+private final class PointerPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
 }
 
 /// The SF Symbols a controller gives its own buttons: ✕ ○ □ △ on a PlayStation pad, A B X Y on

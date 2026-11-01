@@ -29,13 +29,15 @@ enum GameOverlay {
     struct Actions {
         /// Ends the game's processes (`GameProcesses.end`), off the main thread.
         var quit: () async -> Void
-        /// Nightforge in front, the game left running behind it.
-        var nightforge: () -> Void
+        /// Nightforge in front, the game left running behind it; done once it's there or can't be.
+        var nightforge: () async -> Void
     }
 
     private static let state = State()
     private static var panel: NSPanel?
     private static var actions: Actions?
+    /// On the way to Nightforge: the panel stays until it's there, and takes no more presses.
+    private static var leaving = false
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
@@ -77,6 +79,7 @@ enum GameOverlay {
     static func toNightforge() { handle(.nightforge) }
 
     private static func handle(_ event: OverlayEvent) {
+        guard !leaving else { return }
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
@@ -93,19 +96,16 @@ enum GameOverlay {
             close()
             Task { await actions.quit() }
         case .nightforge:
-            // The game runs again first: stopped, Wine can neither hand over the front nor lower its
-            // full-screen window (Go to Nightforge did nothing on 1.11.). Then Nightforge in front,
-            // then the panel goes: gone first, macOS gave the front to the next app with a window on
-            // the Space shown, and the game stayed behind it.
+            // The game runs again first: stopped, Wine can neither hand over the front nor hide.
+            // Then Nightforge in front (LibraryModel.leaveGame), then the panel goes: the game
+            // doesn't show in between.
+            guard let actions else { return }
             cont()
-            let actions = self.actions
-            actions?.nightforge()
-            close()
+            leaving = true
             Task {
-                try? await Task.sleep(for: .seconds(1))
-                if !NSApp.isActive {
-                    GameLog.note("Go to Nightforge: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") kept the front")
-                }
+                await actions.nightforge()
+                leaving = false
+                close()
             }
         }
     }
