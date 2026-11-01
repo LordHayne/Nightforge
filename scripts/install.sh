@@ -24,7 +24,7 @@ main() {
   [ "$(uname -s)" = "Darwin" ] || fail "Nightforge runs on macOS only."
   [ "$(uname -m)" = "arm64" ] || fail "Nightforge needs a Mac with Apple silicon (M1 or newer)."
   major="$(sw_vers -productVersion | cut -d. -f1)"
-  [ "$major" -ge 14 ] || fail "Nightforge needs macOS 14 Sonoma or newer."
+  [ "$major" -ge 26 ] || fail "Nightforge needs macOS 26 Tahoe or newer."
 
   if [ -n "${NIGHTFORGE_INSTALL_DIR:-}" ]; then
     target="$NIGHTFORGE_INSTALL_DIR"

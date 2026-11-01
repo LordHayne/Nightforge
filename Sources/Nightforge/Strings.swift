@@ -134,6 +134,8 @@ enum L10n {
         "Your Mac has only %@ free – macOS slows down and can't update when it runs this low.":
             "Dein Mac hat nur noch %@ frei – bei so wenig Platz wird macOS langsam und kann sich nicht aktualisieren.",
         "%@ has only %@ free.": "%1$@ hat nur noch %2$@ frei.",
+        "This version of Nightforge needs macOS %@ or newer, and this Mac runs macOS %@. Nightforge stays on the version you have.":
+            "Diese Version von Nightforge braucht macOS %@ oder neuer, und dieser Mac hat macOS %@. Nightforge bleibt auf der Version, die du hast.",
         "Nightforge runs from a protected place (macOS does that to an app opened straight from a download or a disk image), so it can't update itself. Drag Nightforge into the Applications folder, open it from there and update again.":
             "Nightforge läuft von einem geschützten Ort (macOS macht das bei einer App, die direkt aus dem Download oder aus einem Disk-Image geöffnet wird) und kann sich deshalb nicht selbst aktualisieren. Ziehe Nightforge in den Programme-Ordner, öffne es von dort und aktualisiere noch einmal.",
         "This game didn't start the usual way, so Nightforge now starts it another way, automatically.":
