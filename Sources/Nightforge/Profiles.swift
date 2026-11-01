@@ -40,6 +40,10 @@ struct GameProfile: Decodable, Equatable {
     var antiCheatOnline: [String]?
     /// Its game id on GeForce Now, NVIDIA's cloud gaming, where such a game can be streamed instead.
     var geforceNow: String?
+    /// Why the game doesn't start on a Mac yet, in plain English (the German is in Strings.swift): it
+    /// is expected to with a newer engine. Unlike anti-cheat it doesn't rule the game out for good,
+    /// so loading and starting it stay possible, only not as the big button.
+    var notYet: String?
     /// false: the game crashes when Rosetta advertises AVX/AVX2, so it starts without.
     var avx: Bool?
     /// Changes to the game's own settings files before it starts, for settings that crash it on a
@@ -111,7 +115,7 @@ struct GameProfile: Decodable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
-        case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, avx, fileEdits
+        case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
         case iniSettings, retina, resolution
     }
 
@@ -148,6 +152,8 @@ struct GameProfile: Decodable, Equatable {
         antiCheat = try? container.decodeIfPresent([String].self, forKey: .antiCheat)
         antiCheatOnline = try? container.decodeIfPresent([String].self, forKey: .antiCheatOnline)
         geforceNow = try? container.decodeIfPresent(String.self, forKey: .geforceNow)
+        // An empty reason is none.
+        notYet = (try? container.decodeIfPresent(String.self, forKey: .notYet)).flatMap { $0.isEmpty ? nil : $0 }
         avx = try? container.decodeIfPresent(Bool.self, forKey: .avx)
         fileEdits = try? container.decodeIfPresent([FileEdit].self, forKey: .fileEdits)
         iniSettings = try? container.decodeIfPresent([IniSetting].self, forKey: .iniSettings)
@@ -164,6 +170,9 @@ struct AntiCheatBlock: Hashable {
     let geforceNow: String?
     /// The anti-cheat only stops online play, so this blocks only games that are online only.
     var onlineOnly = false
+    /// Not for good: why it doesn't start on a Mac yet (`GameProfile.notYet`; `antiCheat` is empty then).
+    /// Downloading and starting stay possible, GeForce Now is what the big button offers.
+    var notYet: String?
 
     /// GeForce Now's deep link to the game's page, where it can be played
     /// (NVIDIA GeForce NOW SDK, doc/GfnSdk-Deep-Linking.md).
@@ -248,29 +257,28 @@ actor ProfileStore {
     /// Games whose anti-cheat stops them on a Mac, from the list at hand (like `preferWindows`).
     func antiCheatBlocks() -> [Int: AntiCheatBlock] {
         loadLocalIfNeeded()
-        return (profiles ?? [:]).compactMapValues { profile in
-            if let antiCheat = profile.antiCheat, !antiCheat.isEmpty {
-                return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow)
-            }
-            if let antiCheat = profile.antiCheatOnline, !antiCheat.isEmpty {
-                return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow, onlineOnly: true)
-            }
-            return nil
-        }
+        return (profiles ?? [:]).compactMapValues(Self.block(of:))
     }
 
     /// Epic games whose anti-cheat stops them on a Mac, by catalog namespace (like `antiCheatBlocks`).
     func epicAntiCheatBlocks() -> [String: AntiCheatBlock] {
         loadLocalIfNeeded()
-        return epicProfiles.compactMapValues { profile in
-            if let antiCheat = profile.antiCheat, !antiCheat.isEmpty {
-                return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow)
-            }
-            if let antiCheat = profile.antiCheatOnline, !antiCheat.isEmpty {
-                return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow, onlineOnly: true)
-            }
-            return nil
+        return epicProfiles.compactMapValues(Self.block(of:))
+    }
+
+    /// What stops a game on a Mac, as its profile says. "notYet" is the profile's own word about the
+    /// game (a Mac profile, tested), so it comes before what AreWeAntiCheatYet lists.
+    static func block(of profile: GameProfile) -> AntiCheatBlock? {
+        if let reason = profile.notYet {
+            return AntiCheatBlock(antiCheat: [], geforceNow: profile.geforceNow, notYet: reason)
         }
+        if let antiCheat = profile.antiCheat, !antiCheat.isEmpty {
+            return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow)
+        }
+        if let antiCheat = profile.antiCheatOnline, !antiCheat.isEmpty {
+            return AntiCheatBlock(antiCheat: antiCheat, geforceNow: profile.geforceNow, onlineOnly: true)
+        }
+        return nil
     }
 
     private func loadLocalIfNeeded() {

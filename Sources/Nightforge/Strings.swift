@@ -389,9 +389,21 @@ enum L10n {
         "Plays on GeForce Now – its anti-cheat doesn't run on a Mac": "Läuft über GeForce Now – sein Anti-Cheat läuft nicht auf dem Mac",
         "Play %@ on GeForce Now?": "%@ über GeForce Now spielen?",
         "Continue to GeForce Now": "Weiter zu GeForce Now",
-        "Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam. The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more.":
-            "Sein Anti-Cheat läuft nicht auf dem Mac, deshalb läuft das Spiel auf NVIDIAs Servern und wird auf deinen Mac gestreamt – mit deinem Steam-Spiel. Beim ersten Mal meldest du dich bei GeForce Now mit einem NVIDIA-Konto an und verknüpfst dort Steam. Kostenlos geht es je eine Stunde, mit Werbung und Warteschlange; die Bezahl-Tarife von GeForce Now heben das auf. Beim Anmelden vergisst GeForce Now das Spiel: Klick danach hier noch einmal auf „Über GeForce Now spielen“.",
+        "Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam.":
+            "Sein Anti-Cheat läuft nicht auf dem Mac, deshalb läuft das Spiel auf NVIDIAs Servern und wird auf deinen Mac gestreamt – mit deinem Steam-Spiel.",
+        "It doesn't start on a Mac yet, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam.":
+            "Es startet auf dem Mac noch nicht, deshalb läuft das Spiel auf NVIDIAs Servern und wird auf deinen Mac gestreamt – mit deinem Steam-Spiel.",
+        "The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more.":
+            "Beim ersten Mal meldest du dich bei GeForce Now mit einem NVIDIA-Konto an und verknüpfst dort Steam. Kostenlos geht es je eine Stunde, mit Werbung und Warteschlange; die Bezahl-Tarife von GeForce Now heben das auf. Beim Anmelden vergisst GeForce Now das Spiel: Klick danach hier noch einmal auf „Über GeForce Now spielen“.",
         "Anti-cheat stops this game on a Mac": "Anti-Cheat verhindert dieses Spiel auf dem Mac",
+        // A game that doesn't start on a Mac yet (profile field "notYet"; each reason is a key of its own)
+        "Doesn't start on a Mac yet": "Startet auf dem Mac noch nicht",
+        "Doesn't start on a Mac yet: %@": "Startet auf dem Mac noch nicht: %@",
+        "Plays on GeForce Now – it doesn't start on a Mac yet": "Läuft über GeForce Now – startet auf dem Mac noch nicht",
+        "Playable on GeForce Now instead.": "Stattdessen auf GeForce Now spielbar.",
+        "Play Anyway": "Trotzdem starten",
+        "Blizzard's anti-cheat hangs under Rosetta. It runs only with a newer engine (CrossOver 26.1), which Nightforge is still to get.":
+            "Blizzards Anti-Cheat hängt unter Rosetta. Es läuft erst mit einer neueren Engine (CrossOver 26.1), die Nightforge noch bekommt.",
         "Needs a VR headset – this game can't be played on a Mac.": "Braucht eine VR-Brille – dieses Spiel läuft nicht auf dem Mac.",
 
         // Search & library

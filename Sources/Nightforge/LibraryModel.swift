@@ -1268,12 +1268,26 @@ final class LibraryModel: ObservableObject {
         // On a drive that's unplugged: plugging it in plays it; downloading would make a second copy.
         if game.install == .notInstalled && game.missingDrive != nil { return }
         switch game.install {
-        case .installed: launchSelected()
+        // What anti-cheat stops does nothing here (the button says why); a game that doesn't start yet has `tryAnyway`.
         case .installed where game.antiCheatBlock != nil: break
+        case .installed: launchSelected()
         case .notInstalled where game.isVROnly || game.antiCheatBlock != nil: break
         case .notInstalled: downloadIfRoom(game)
         case .downloading: if game.downloadNeedsSpace != nil { resumeDownload(game) }
         case .inStore: openStorePage(game)
+        }
+    }
+
+    /// "Download Anyway" / "Play Anyway": a game that doesn't start on a Mac yet isn't ruled out – it
+    /// may work for this player – so it stays possible, only not as the big button. Room and the
+    /// drive are asked as for any download.
+    func tryAnyway() {
+        guard let game = selected, game.antiCheatBlock?.notYet != nil, !isRunning(game),
+              uninstallingID != game.id, launchingID != game.id, !waitsForMove(game), game.missingDrive == nil else { return }
+        switch game.install {
+        case .installed: launchSelected()
+        case .notInstalled: downloadIfRoom(game)
+        case .downloading, .inStore: break
         }
     }
 

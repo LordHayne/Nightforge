@@ -226,6 +226,20 @@ class AntiCheatTests(unittest.TestCase):
             "3907790": {"name": "OxyRail", "graphics": "dxmt", "source": "mac"},
         })
 
+    def test_games_that_dont_start_yet_get_their_geforce_now_id(self):
+        games = {}
+        build_profiles.merge_mac(games, {
+            "2357570": {"name": "Overwatch", "notYet": "Hangs under Rosetta.", "note": "Tested on M5"},
+            "3907790": {"name": "OxyRail", "graphics": "dxmt"},
+            "1": {"name": "Own", "notYet": "Not yet.", "geforceNow": "gOwn"},
+        })
+        build_profiles.link_geforce_now(games, {"2357570": "gOverwatch", "3907790": "gOxy", "1": "gOther"})
+        # The reason and the test note reach the list as they are; only a game that is held back gets the id.
+        self.assertEqual(games["2357570"], {"name": "Overwatch", "notYet": "Hangs under Rosetta.", "note": "Tested on M5",
+                                            "source": "mac", "geforceNow": "gOverwatch"})
+        self.assertNotIn("geforceNow", games["3907790"])
+        self.assertEqual(games["1"]["geforceNow"], "gOwn")
+
 
 class BuildTests(unittest.TestCase):
     def test_a_run_from_all_sources(self):
@@ -244,8 +258,10 @@ class BuildTests(unittest.TestCase):
             catalog = [
                 {"id": "gArc", "title": "ARC Raiders", "variants": [{"appStore": "STEAM", "storeId": "1808500"}]},
                 {"id": "gWar", "title": "WARDOGS", "variants": [{"appStore": "STEAM", "storeId": "1867240"}]},
+                {"id": "gOw", "title": "Overwatch", "variants": [{"appStore": "STEAM", "storeId": "2357570"}]},
             ]
-            mac = {"games": {"1867240": {"name": "WARDOGS", "antiCheat": ["Elytra"]}}}
+            mac = {"games": {"1867240": {"name": "WARDOGS", "antiCheat": ["Elytra"]},
+                             "2357570": {"name": "Overwatch", "notYet": "Hangs under Rosetta."}}}
             for name, content in (("anticheat.json", anticheat), ("gfn.json", catalog), ("mac.json", mac)):
                 (root / name).write_text(json.dumps(content))
             subprocess.run([sys.executable, "-I", str(SCRIPT), str(root / "umu"), "--anticheat", str(root / "anticheat.json"),
@@ -260,6 +276,9 @@ class BuildTests(unittest.TestCase):
                                             "geforceNow": "gArc"})
         # A block from profiles/mac.json gets its GeForce Now link as well.
         self.assertEqual(games["1867240"]["geforceNow"], "gWar")
+        # … and a game that doesn't start yet keeps its reason beside it.
+        self.assertEqual(games["2357570"], {"name": "Overwatch", "notYet": "Hangs under Rosetta.", "source": "mac",
+                                            "geforceNow": "gOw"})
 
 
 if __name__ == "__main__":

@@ -16,7 +16,8 @@ Sources, merged per Steam app ID:
   * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which blocked games can be
     streamed instead ("geforceNow", the game id its deep links take), and Steam app IDs by name.
   * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
-    reach the GOG versions they name ("gog").
+    reach the GOG versions they name ("gog"). "notYet" is a reason a game doesn't start on a Mac
+    yet but will with a newer engine: it gets a GeForce Now id like the anti-cheat games.
 
 Usage: build-profiles.py <umu-protonfixes checkout> [--anticheat games.json] [--geforcenow catalog.json]
                          [--out profiles/profiles.json]
@@ -311,10 +312,11 @@ def starts_without_anticheat(profile) -> bool:
 
 
 def link_geforce_now(games, cloud):
-    """Gives every Steam game something blocks (AreWeAntiCheatYet or profiles/mac.json) its GeForce
-    Now id, in place, when GeForce Now streams it and the profile doesn't name one itself."""
+    """Gives every Steam game something blocks (AreWeAntiCheatYet or profiles/mac.json, "notYet"
+    too) its GeForce Now id, in place, when GeForce Now streams it and the profile doesn't name
+    one itself."""
     for key, profile in games.items():
-        if key in cloud and (profile.get("antiCheat") or profile.get("antiCheatOnline")):
+        if key in cloud and (profile.get("antiCheat") or profile.get("antiCheatOnline") or profile.get("notYet")):
             profile.setdefault("geforceNow", cloud[key])
 
 

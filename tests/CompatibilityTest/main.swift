@@ -61,6 +61,19 @@ struct CompatibilityTest {
         let cloud = Compatibility.rate(Facts(antiCheatBlock: streamable))
         check(cloud.level == .no && cloud.note?.contains("GeForce Now") == true, "a streamable game points to GeForce Now")
         check(level(Facts(platform: .mac, antiCheatBlock: blocked)) == .great, "the Mac version isn't stopped by the Windows anti-cheat")
+
+        // Doesn't start yet: "doesn't run", with the profile's reason; the cloud and the test chip beside it.
+        let reason = "Hangs under Rosetta."
+        let later = AntiCheatBlock(antiCheat: [], geforceNow: nil, notYet: reason)
+        let laterCloud = AntiCheatBlock(antiCheat: [], geforceNow: "42", notYet: reason)
+        let tested = profile(#"{"source": "mac", "notYet": "Hangs under Rosetta.", "note": "Tested on M5, winecx: no window"}"#)
+        let notYet = Compatibility.rate(Facts(antiCheatBlock: later, profile: tested))
+        check(notYet.level == .no && notYet.note == reason && notYet.testedOn == ["M5"], "not yet: no, with the reason and the chip: \(String(describing: notYet.note))")
+        let notYetCloud = Compatibility.rate(Facts(antiCheatBlock: laterCloud, profile: tested))
+        check(notYetCloud.note == reason + " " + L10n.t("Playable on GeForce Now instead."), "…and the cloud as the way: \(String(describing: notYetCloud.note))")
+        check(level(Facts(profile: tested)) == .no, "the profile alone says it, where no block is at hand")
+        check(level(Facts(platform: .mac, antiCheatBlock: later, profile: tested)) == .great, "the Mac version doesn't wait for the engine")
+        check(level(Facts(antiCheatBlock: later, profile: tested, ownRating: GameRating(good: true, issues: []))) == .no, "no rating of the player's beats it")
         check(level(Facts(platform: .mac, vrOnly: true)) == .no, "VR only stays no, even on the Mac version")
 
         // What a game needs.
@@ -142,7 +155,8 @@ struct CompatibilityTest {
         for (_, game) in document.games {
             let rating = Compatibility.rate(Facts(profile: game))
             counts[rating.level, default: 0] += 1
-            if game.source == "mac" && game.antiCheat == nil { check(rating.level == .great, "\(game.name ?? "?"): Mac profile runs great") }
+            if game.source == "mac" && game.antiCheat == nil && game.notYet == nil { check(rating.level == .great, "\(game.name ?? "?"): Mac profile runs great") }
+            if let reason = game.notYet { check(rating.level == .no && rating.note?.hasPrefix(L10n.t(reason)) == true, "\(game.name ?? "?"): doesn't start yet, with its reason") }
         }
         check(counts.values.reduce(0, +) == document.games.count, "every game has a level")
         if let l4d2 = document.games["550"] { check(Compatibility.rate(Facts(profile: l4d2)).testedOn == ["M5"], "Left 4 Dead 2 tested on M5") }

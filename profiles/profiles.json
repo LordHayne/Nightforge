@@ -4816,6 +4816,13 @@
     "XIGNCODE3"
    ]
   },
+  "2357570": {
+   "name": "Overwatch",
+   "notYet": "Blizzard's anti-cheat hangs under Rosetta. It runs only with a newer engine (CrossOver 26.1), which Nightforge is still to get.",
+   "note": "Tested 2026-11-01 on M5, winecx 4.7.3: Overwatch.exe starts, 0 % CPU, no window.",
+   "source": "mac",
+   "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
+  },
   "2359600": {
    "name": "Perfect New World",
    "source": "anticheat",
@@ -5919,5 +5926,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-01T01:56:55Z"
+ "generated": "2026-11-01T14:56:57Z"
 }

@@ -61,6 +61,12 @@ struct Compatibility: Equatable {
         if facts.vrOnly {
             return .init(level: .no, note: L10n.t("Needs a VR headset."))
         }
+        // Not yet: the profile says so, tested on a Mac – with the block at hand or from the profile alone.
+        if facts.platform == .windows, let reason = facts.antiCheatBlock?.notYet ?? profile?.notYet {
+            let cloud = (facts.antiCheatBlock?.geforceNow ?? profile?.geforceNow) != nil
+            return .init(level: .no, note: [L10n.t(reason), cloud ? L10n.t("Playable on GeForce Now instead.") : nil]
+                .compactMap { $0 }.joined(separator: " "), testedOn: chips(in: profile?.note))
+        }
         if facts.platform == .windows, let block = facts.antiCheatBlock {
             return .init(level: .no, note: block.geforceNow == nil
                 ? L10n.t("Its anti-cheat needs Windows itself.")

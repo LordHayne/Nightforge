@@ -250,5 +250,11 @@ struct UpdateStateTest {
                                                    blocks: [1623730: battlEye, 6100: battlEye, 6200: onlineOnly, 6300: onlineOnly])
         check(blocked.map(\.antiCheatBlock) == [battlEye, nil, nil, onlineOnly, nil],
               "the Windows version is stopped, not the Mac one nor a store hit; online-only anti-cheat only stops online-only games")
+        // A game that doesn't start yet is marked the same way, but not for good: it can be tried, and streams when GeForce Now has it.
+        let later = AntiCheatBlock(antiCheat: [], geforceNow: "g2", notYet: "Not yet.")
+        let held = LibraryScanner.markAntiCheat([windows, macVersion, online], blocks: [1623730: later, 6200: later])
+        check(held.map(\.antiCheatBlock) == [later, nil, later], "not yet stops the Windows version, even when it isn't online only")
+        check(held[0].playsInCloud && held[0].antiCheatBlock?.notYet != nil && blocked[0].antiCheatBlock?.notYet == nil,
+              "a game that doesn't start yet streams from GeForce Now when it can, and says it isn't ruled out for good")
     }
 }
