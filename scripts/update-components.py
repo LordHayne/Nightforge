@@ -5,11 +5,14 @@ Runs nightly in CI. Uses the sha256 digest GitHub publishes for release assets; 
 (e.g. a script taken from a tag) are downloaded once and hashed. Set GITHUB_TOKEN to avoid rate limits.
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from datetime import date
 from pathlib import Path
@@ -42,7 +45,7 @@ def hash_url(url: str) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
-def latest_release(repo: str, tag_prefix: str = "") -> dict:
+def latest_release(repo: str, tag_prefix: str = "") -> dict | None:
     releases = get_json(f"https://api.github.com/repos/{repo}/releases?per_page=30")
     # GitHub doesn't list releases newest first (a graphics package from the morning came before
     # the evening's), so order by when each was published.
@@ -50,15 +53,27 @@ def latest_release(repo: str, tag_prefix: str = "") -> dict:
     for release in releases:
         if not release["draft"] and not release["prerelease"] and release["tag_name"].startswith(tag_prefix):
             return release
-    sys.exit(f"{repo}: no stable release found")
+    return None
 
 
-def build(source: dict) -> dict:
+def build(source: dict) -> dict | None:
+    """The manifest entry for one source; None for an "optional" one whose release doesn't exist
+    (yet): the entry stays out of the list, the app copes without it."""
     repo = source["repo"]
-    if "tag" in source:
-        release = get_json(f"https://api.github.com/repos/{repo}/releases/tags/{source['tag']}")
-    else:
-        release = latest_release(repo, source.get("tagPrefix", ""))
+    try:
+        if "tag" in source:
+            release = get_json(f"https://api.github.com/repos/{repo}/releases/tags/{source['tag']}")
+        else:
+            release = latest_release(repo, source.get("tagPrefix", ""))
+    except urllib.error.HTTPError as error:
+        if source.get("optional") and error.code == 404:
+            release = None
+        else:
+            raise
+    if release is None:
+        if source.get("optional"):
+            return None
+        sys.exit(f"{repo}: no stable release found")
     license_id = source.get("license") or (get_json(f"https://api.github.com/repos/{repo}").get("license") or {}).get("spdx_id") or "NOASSERTION"
     version = release["tag_name"].removeprefix(source.get("tagPrefix", "")).lstrip("v")
 
@@ -89,7 +104,13 @@ def build(source: dict) -> dict:
 
 def main() -> None:
     sources = json.loads(SOURCES.read_text())["sources"]
-    components = [build(s) for s in sources]
+    components = []
+    for source in sources:
+        component = build(source)
+        if component is None:
+            print(f"{source['id']}: no release yet, left out")
+        else:
+            components.append(component)
 
     previous = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
     if previous.get("components") == components and previous.get("schemaVersion") == SCHEMA_VERSION:
