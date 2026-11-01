@@ -38,6 +38,7 @@ enum GameBackdrop {
     private static var hiding: Task<Void, Never>?
     private static var observer: NSObjectProtocol?
     private static var spaceObserver: NSObjectProtocol?
+    private static var frontObserver: NSObjectProtocol?
     private static var gameOn: @MainActor () -> Bool = { false }
     /// The player quit the game: the curtain stays up, whatever its processes do, until Nightforge
     /// is in front (`hide(once:)`).
@@ -173,7 +174,19 @@ enum GameBackdrop {
         if spaceObserver == nil {
             spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                                               object: nil, queue: .main) { _ in
-                MainActor.assumeIsolated { if GameBackdrop.isRaised { GameBackdrop.window?.orderFrontRegardless() } }
+                MainActor.assumeIsolated {
+                    guard GameBackdrop.isRaised else { return }
+                    GameBackdrop.window?.orderFrontRegardless()
+                    GameLog.note("Space changed under the curtain")
+                }
+            }
+        }
+        // Who comes forward under it, in wine.log: what's seen of a flicker has a name then.
+        if frontObserver == nil {
+            frontObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                                                              object: nil, queue: .main) { note in
+                let app = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.localizedName ?? "?"
+                MainActor.assumeIsolated { if GameBackdrop.isRaised { GameLog.note("In front under the curtain: \(app)") } }
             }
         }
         let appearing = !window.isVisible

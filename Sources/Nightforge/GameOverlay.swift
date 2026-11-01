@@ -83,6 +83,7 @@ enum GameOverlay {
         case .none:
             break
         case .close:
+            InputRouter.hidePointerForGame()  // while the panel still has the keys
             close()
         case .quit:
             // One curtain from here until Nightforge is in front: the panel goes at once, the
@@ -92,11 +93,20 @@ enum GameOverlay {
             close()
             Task { await actions.quit() }
         case .nightforge:
-            // Nightforge in front first, then the panel goes: gone first, macOS gave the front to
-            // the next app with a window on the Space shown, and the game stayed behind it.
+            // The game runs again first: stopped, Wine can neither hand over the front nor lower its
+            // full-screen window (Go to Nightforge did nothing on 1.11.). Then Nightforge in front,
+            // then the panel goes: gone first, macOS gave the front to the next app with a window on
+            // the Space shown, and the game stayed behind it.
+            cont()
             let actions = self.actions
             actions?.nightforge()
             close()
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                if !NSApp.isActive {
+                    GameLog.note("Go to Nightforge: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") kept the front")
+                }
+            }
         }
     }
 
@@ -473,6 +483,20 @@ enum GameProcesses {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
         else { return false }
         return showsWindow(windows, pids: pids)
+    }
+
+    /// The biggest window of `pids` on the Space shown, for wine.log ("1512×945").
+    nonisolated static func windowSize(_ pids: Set<pid_t>) -> String? {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        let sizes = windows.compactMap { window -> CGSize? in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return nil }
+            return CGSize(width: width, height: height)
+        }
+        return sizes.max { $0.width * $0.height < $1.width * $1.height }.map { "\(Int($0.width))×\(Int($0.height))" }
     }
 
     /// A display taken by a game for a mode change: its shield window lies above every other.

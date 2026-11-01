@@ -27,6 +27,8 @@ final class InputRouter {
     private var lastWake: TimeInterval = 0
     /// When the pad last changed with Nightforge in front: a sheet opening soon after shows its highlight.
     private var lastPadUse: TimeInterval = 0
+    /// When the pad was last in use, anywhere, and where the mouse was then (PadRules.padUsedLast).
+    private static var padUse: (time: TimeInterval, mouse: CGPoint)?
     /// The right stick scrolls what shows (a game's page, the grid, Settings), smoothly, as fast as
     /// it's pushed: points per second, and the timer that moves it while it's held.
     private var stickScroll: CGFloat = 0
@@ -437,6 +439,7 @@ final class InputRouter {
     private func watchHold(_ pad: GCExtendedGamepad) {
         let now = ProcessInfo.processInfo.systemUptime
         if reach == .app { lastPadUse = now }
+        if Self.inUse(pad) { Self.padUse = (now, NSEvent.mouseLocation) }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
         // moves, as on a console. In a game it's the game's.
         if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)) {
@@ -505,6 +508,15 @@ final class InputRouter {
         lastWake = now
         model.comeForward()
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+    }
+
+    /// The pointer hidden until the mouse moves, when the pad was used last: called while Nightforge
+    /// or its overlay still has the front, it stays hidden over the game that gets it.
+    static func hidePointerForGame() {
+        guard PadRules.padUsedLast(at: padUse?.time, mouseThen: padUse?.mouse ?? .zero,
+                                   now: ProcessInfo.processInfo.systemUptime, mouseNow: NSEvent.mouseLocation)
+        else { return }
+        NSCursor.setHiddenUntilMouseMoves(true)
     }
 
     /// A button down or a stick or the d-pad pushed – not a resting stick's noise.

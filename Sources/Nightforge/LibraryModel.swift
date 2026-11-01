@@ -857,6 +857,9 @@ final class LibraryModel: ObservableObject {
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
                 loweredAt = Date()
+                let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
+                let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
+                GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
             case .raiseAgain:
                 // Another app took the front from the game – Unity builds its window anew for full
                 // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
@@ -895,9 +898,8 @@ final class LibraryModel: ObservableObject {
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
     /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
     /// hands the front to the game when another app has it, and sinks once the game has been in
-    /// front with its window shown for `settle` seconds (`curtainLimit` with it in any Space).
-    /// Down, for `focusGuard`: another app taking the front raises it again; Nightforge in front
-    /// (Go to Nightforge) ends the watch.
+    /// front with its window shown for `settle` seconds. Down, for `focusGuard`: another app taking
+    /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
                                         windowAnywhere: Bool, frontFor: TimeInterval, settle: TimeInterval = 1,
                                         guardOver: Bool) -> CurtainStep {
@@ -907,12 +909,10 @@ final class LibraryModel: ObservableObject {
         }
         guard windowHere || windowAnywhere else { return .wait }
         guard gameFront else { return .handOver }
-        // Never over a game that has the keys and the pad for long, wherever its window is.
-        return windowHere && frontFor >= settle || frontFor >= curtainLimit ? .lower : .wait
+        // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
+        // page while the game had the front (1.11.).
+        return windowHere && frontFor >= settle ? .lower : .wait
     }
-
-    /// How long the game may have the front with its window up before the curtain sinks anyway.
-    nonisolated static let curtainLimit: TimeInterval = 10
 
     /// How long after the curtain sinks the game's front is still watched.
     private static let focusGuard: TimeInterval = 8
@@ -936,6 +936,7 @@ final class LibraryModel: ObservableObject {
             NSApp.activate(ignoringOtherApps: true)
             for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         }
+        InputRouter.hidePointerForGame()
         NSApp.yieldActivation(to: app)
         // All its windows: with only the key one, Wine's full-screen window stayed under others.
         app.activate(from: .current, options: [.activateAllWindows])

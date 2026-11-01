@@ -156,11 +156,8 @@ struct GameOverlayTest {
         let again = LibraryModel.settleAgain
         check(step(gameFront: true, here: true, frontFor: 1.5, settle: again) == .wait, "up again: one second isn't enough")
         check(step(gameFront: true, here: true, frontFor: again, settle: again) == .lower, "the game kept the front a while: it sinks")
-        // Never over a game that has the keys and the pad for long.
-        let limit = LibraryModel.curtainLimit
-        check(step(gameFront: true, anywhere: true, frontFor: limit) == .lower, "its window in another Space, the game in front for long: it sinks anyway")
-        check(step(gameFront: true, frontFor: limit) == .wait, "no window yet, a long load: the curtain stays")
-        check(step(anywhere: true, frontFor: limit) == .handOver, "another app in front: handed over, not uncovered")
+        // Its window elsewhere, however long: sinking showed Nightforge's page under the game (1.11.).
+        check(step(gameFront: true, anywhere: true, frontFor: 30) == .wait, "its window in another Space: the curtain stays")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes

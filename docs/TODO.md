@@ -451,9 +451,25 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       nicht in die Vollbild-Spaces anderer Apps. Jetzt ist der Vorhang ein nicht aktivierendes Panel mit
       `.canJoinAllApplications`, das nie Key wird. Auf dem Rückweg ist die Seite fertig (300 ms), bevor Nightforge
       nach vorne kommt, und der Vorhang geht erst, wenn das Fenster auf genau dieser Seite steht
-      (`mayUncover`, nach 3 s ohnehin). Beim Start sinkt der Vorhang spätestens, wenn das Spiel 10 s vorne ist und
-      sein Fenster irgendwo zeigt (`curtainLimit`); das Overlay liegt immer darüber. Live zu prüfen: Bleibt der
-      Vorhang beim Start und beim Zurück ruhig stehen, auch wenn Steam oder das Spiel den Space wechseln?
+      (`mayUncover`, nach 3 s ohnehin). Live-Test 1.11. abends (Overcooked 2, MacBook, zwei Videos): Der Vorhang
+      gleitet trotzdem mit, sobald zwischen Nightforges Vollbild-Space und dem Schreibtisch-Space des Spiels
+      gewechselt wird; dabei ist Nightforges Seite zu sehen. `.canJoinAllApplications` und `.stationary` halten ihn
+      nicht. Ursache ist der eigene Vollbild-Space von Nightforge: Das Spiel liegt in einem anderen Space (dem
+      Schreibtisch oder einem eigenen), also gleitet jede Übergabe. Vorschlag: Nightforges Vollbild ohne
+      eigenen Space (randloses Fenster über den ganzen Bildschirm, Menüleiste und Dock per presentationOptions aus,
+      solange Nightforge vorne ist), dann liegen Nightforge, Vorhang und Spiel im selben Space. `CaptureDisplaysFor
+      Fullscreen` (winecx kennt es) löst das nicht: Die Aktivierung wechselt den Space trotzdem, und die Abschirmung
+      läge über Overlay und Vorhang. Die 10-s-Grenze aus e6aa24e ist wieder weg: Sie deckte Nightforges Seite auf,
+      wenn das Fenster des Spiels in einem anderen Space lag. In `wine.log` stehen jetzt, wer unter dem Vorhang nach
+      vorne kommt, jeder Space-Wechsel unter ihm und beim Senken die Front und die Fenstergröße des Spiels.
+      Overlay „Zu Nightforge“ ohne Wirkung: Das Spiel war dabei noch angehalten (SIGSTOP); es läuft jetzt zuerst
+      weiter, bleibt die Front trotzdem beim Spiel, steht es in `wine.log`.
+      Mauszeiger im Spiel: Nur die App vorne kann ihn ausblenden, aber `setHiddenUntilMouseMoves` hält über den
+      Wechsel hinaus (Beobachtung des Nutzers). Nightforge ruft es jetzt auf, solange es oder das Overlay noch
+      vorne ist (beim Übergeben ans Spiel, beim Schließen des Overlays), wenn zuletzt das Pad benutzt wurde
+      (`PadRules.padUsedLast`: in der letzten Minute, Maus seither nicht bewegt). Mitten im Spiel ginge es nur
+      über eine private Schnittstelle (CGS „SetsCursorInBackground“) oder indem man die Maus verschiebt, was das
+      Spiel als Mausbewegung sieht.
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
