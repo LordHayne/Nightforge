@@ -25,6 +25,8 @@ enum GameBackdrop {
         @Published var step: String?
         /// Why it takes a while, once a start takes its time ("Steam runs invisibly in the background …").
         @Published var detail: String?
+        /// A tip for new players under it, on their first starts (LaunchTip).
+        @Published var tip: LaunchTip?
     }
 
     enum Stage: Equatable {
@@ -59,9 +61,9 @@ enum GameBackdrop {
         put(game, on: screen, stage: .behind, gameOn: gameOn)
     }
 
-    /// The curtain over the screen while `game` starts.
-    static func raise(_ game: String, on screen: NSScreen?, gameOn: @escaping @MainActor () -> Bool) {
-        put(game, on: screen, stage: .starting, gameOn: gameOn)
+    /// The curtain over the screen while `game` starts; `tip` for a curtain that comes up for it.
+    static func raise(_ game: String, on screen: NSScreen?, tip: LaunchTip? = nil, gameOn: @escaping @MainActor () -> Bool) {
+        put(game, on: screen, stage: .starting, tip: tip, gameOn: gameOn)
     }
 
     /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
@@ -151,7 +153,8 @@ enum GameBackdrop {
         }
     }
 
-    private static func put(_ game: String, on screen: NSScreen?, stage: Stage, gameOn: @escaping @MainActor () -> Bool) {
+    private static func put(_ game: String, on screen: NSScreen?, stage: Stage, tip: LaunchTip? = nil,
+                            gameOn: @escaping @MainActor () -> Bool) {
         guard let screen = screen ?? NSScreen.main else { return }
         hiding?.cancel()
         state.game = game
@@ -159,6 +162,7 @@ enum GameBackdrop {
             raisedAt = Date()
             state.step = nil
             state.detail = nil
+            state.tip = tip
         }
         state.stage = stage
         self.gameOn = gameOn
@@ -290,6 +294,21 @@ private struct BackdropView: View {
                     .padding(.top, 14)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
+                // A tip for new players, quiet, in the banner's blue.
+                if state.stage == .starting, let tip = state.tip {
+                    HStack(spacing: 12) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(tip.symbols.enumerated()), id: \.offset) { index, symbol in
+                                if index > 0 { Text(verbatim: "+") }
+                                PadGlyph(symbol, size: 17)
+                            }
+                        }
+                        Text(tip.text)
+                    }
+                    .font(size: 15)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
+                    .padding(.top, 26)
+                }
             }
             .multilineTextAlignment(.center)
             .padding(Theme.gutter)

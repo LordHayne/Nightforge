@@ -794,7 +794,9 @@ final class LibraryModel: ObservableObject {
     /// minute gets the overlay's "Not starting?".
     private func raiseCurtain(for game: Game) {
         curtainWatch?.cancel()
-        GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+        // The tip for new players on a curtain that comes up for this start, not again for each way it tries.
+        let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
+        GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.playing.isEmpty == false }
         curtainWatch = Task { await watchCurtain(game) }
     }
 
