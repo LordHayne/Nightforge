@@ -35,29 +35,44 @@ enum GameAudio {
         case restore(uid: String)
     }
 
+    /// Why the output is looked at. It's switched at two moments only – a TV comes, a game starts
+    /// on it (Wine takes the output when it opens it) – never because Nightforge comes to the front
+    /// or its window moves between Spaces: the player's own choice stays until the next TV.
+    enum Moment: Equatable {
+        /// A TV or receiver came: its picture, or its HDMI sound a moment later.
+        case plugged
+        case gameStarts
+        /// Nightforge's window went to a screen that's no TV, or the TV went.
+        case left
+        /// Anything else: nothing switches, the player's choice is noted.
+        case look
+    }
+
     /// What to do with the output. `tv`: the TV showing Nightforge, by its screen's name ("" when
     /// only a mirror shows it, nil without one). `current`: the default output's ID.
-    static func decide(tv: String?, devices: [Device], current: String?, switched: Switched) -> (Action, Switched) {
-        guard let tv else {
+    static func decide(_ moment: Moment, tv: String?, devices: [Device], current: String?, switched: Switched) -> (Action, Switched) {
+        var state = switched
+        // A new TV: what the player chose for the last one is over.
+        if moment == .plugged, state == .declined { state = .none }
+        // The sound left where Nightforge put it: the player chose another output – or the receiver
+        // went off and macOS moved the sound back.
+        if case .moved(_, let to) = state, current != to {
+            state = devices.contains { $0.uid == to } ? .declined : .none
+        }
+        switch moment {
+        case .plugged, .gameStarts:
+            guard state == .none, let tv, let now = devices.first(where: { $0.uid == current }), now.speakers,
+                  let target = output(for: tv, in: devices)
+            else { return (.none, state) }
+            return (.switchTo(target), .moved(from: now.uid, to: target.uid))
+        case .left:
             // Off the TV: back to the speakers, if the sound is still where Nightforge put it.
-            if case .moved(let from, let to) = switched, current == to, devices.contains(where: { $0.uid == from }) {
+            if case .moved(let from, let to) = state, current == to, devices.contains(where: { $0.uid == from }) {
                 return (.restore(uid: from), .none)
             }
-            return (.none, .none)
-        }
-        switch switched {
-        case .declined:
-            return (.none, .declined)
-        case .moved(_, let to) where current == to:
-            return (.none, switched)
-        case .moved(_, let to) where devices.contains(where: { $0.uid == to }):
-            return (.none, .declined)  // the TV's output is there, the player chose another
-        case .none, .moved:
-            // Not yet, or the TV's output went (receiver off) and macOS moved the sound back.
-            guard let now = devices.first(where: { $0.uid == current }), now.speakers,
-                  let target = output(for: tv, in: devices)
-            else { return (.none, .none) }
-            return (.switchTo(target), .moved(from: now.uid, to: target.uid))
+            return (.none, state == .declined ? .declined : .none)
+        case .look:
+            return (.none, state)
         }
     }
 
@@ -79,25 +94,33 @@ enum GameAudio {
 
     private static var tv: String?
     private static var listening = false
+    /// The HDMI and DisplayPort outputs seen last: a new one is a TV's sound arriving.
+    private static var screenOutputs: Set<String> = []
 
     /// Where the output should be with `tv` showing Nightforge (GameDisplay). Also when outputs
-    /// come and go: a TV's HDMI sound shows up a moment after its picture.
-    static func follow(tv: String?) {
+    /// come and go: a TV's HDMI sound shows up a moment after its picture, and counts as it coming.
+    static func follow(_ moment: Moment, tv: String?) {
         self.tv = tv
         if !listening {
             listening = true
+            screenOutputs = Set(outputDevices().map(\.device).filter { $0.transport == .hdmi || $0.transport == .displayPort }.map(\.uid))
             var address = propertyAddress(kAudioHardwarePropertyDevices)
             AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main) { _, _ in
-                MainActor.assumeIsolated { apply() }
+                MainActor.assumeIsolated {
+                    let now = Set(outputDevices().map(\.device).filter { $0.transport == .hdmi || $0.transport == .displayPort }.map(\.uid))
+                    let arrived = !now.subtracting(screenOutputs).isEmpty
+                    screenOutputs = now
+                    apply(arrived ? .plugged : .look)
+                }
             }
         }
-        apply()
+        apply(moment)
     }
 
-    private static func apply() {
+    private static func apply(_ moment: Moment) {
         let outputs = outputDevices()
         let current = deviceUID(defaultOutput())
-        let (action, switched) = decide(tv: tv, devices: outputs.map(\.device), current: current, switched: stored)
+        let (action, switched) = decide(moment, tv: tv, devices: outputs.map(\.device), current: current, switched: stored)
         switch action {
         case .none:
             break

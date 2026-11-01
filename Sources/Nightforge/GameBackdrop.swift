@@ -21,6 +21,8 @@ enum GameBackdrop {
         @Published var game = ""
         @Published var art: NSImage?
         @Published var stage = Stage.behind
+        /// What's happening, while a start takes its time ("Starting again with WineD3D …").
+        @Published var detail: String?
     }
 
     enum Stage: Equatable {
@@ -33,9 +35,18 @@ enum GameBackdrop {
     private static var window: NSWindow?
     private static var hiding: Task<Void, Never>?
     private static var observer: NSObjectProtocol?
+    private static var spaceObserver: NSObjectProtocol?
     private static var gameOn: @MainActor () -> Bool = { false }
+    /// The player quit the game: the curtain stays up, whatever its processes do, until Nightforge
+    /// is in front (`hide(once:)`).
+    private static var held = false
+    private static var raisedAt = Date.distantPast
+    /// How long a start shows only "Starting …" before saying more.
+    static let detailAfter: TimeInterval = 3
 
     static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
+    /// Up for the game's end: Nightforge's way back has it now.
+    static var isReturning: Bool { isRaised && state.stage == .returning }
 
     /// Behind `game`, on the screen it plays on – unless the curtain is up, which stays.
     /// `gameOn`: whether it still runs – when Nightforge comes to the front without it (a game
@@ -48,6 +59,13 @@ enum GameBackdrop {
     /// The curtain over the screen while `game` starts.
     static func raise(_ game: String, on screen: NSScreen?, gameOn: @escaping @MainActor () -> Bool) {
         put(game, on: screen, stage: .starting, gameOn: gameOn)
+    }
+
+    /// A line on what's happening; it shows once the curtain has been up a few seconds, so a quick
+    /// start stays calm and a long one doesn't look stuck.
+    static func setDetail(_ text: String?) {
+        let shown = state.stage == .starting && Date().timeIntervalSince(raisedAt) >= detailAfter ? text : nil
+        if state.detail != shown { state.detail = shown }
     }
 
     static func setArt(_ image: NSImage?, for game: String) {
@@ -71,26 +89,56 @@ enum GameBackdrop {
         }
     }
 
-    /// The game's processes are gone: the curtain at once, "Back to Nightforge …".
-    static func returning() {
+    /// The game's processes are gone, or the player quit it (`held`): the curtain at once,
+    /// "Back to Nightforge …".
+    static func returning(held: Bool = false) {
         guard !state.game.isEmpty else { return }
+        if held {
+            self.held = true
+            // Never stuck: should the way back not come (a game that never counted as running).
+            Task {
+                try? await Task.sleep(for: .seconds(20))
+                if self.held, isReturning { hide(after: .zero) }
+            }
+        }
         put(state.game, on: GameDisplay.gameScreen, stage: .returning, gameOn: gameOn)
     }
 
-    /// They came back (a launcher handed over to the game): the game runs on.
+    /// They came back (a launcher handed over to the game): the game runs on – not after Quit Game,
+    /// where a process lingering a moment mustn't drop the curtain halfway.
     static func playing() {
-        guard state.stage == .returning else { return }
+        guard state.stage == .returning, !held else { return }
         state.stage = .behind
         if let window { arrange(window) }
     }
 
-    /// Gone, once Nightforge is in front: a moment later, so a switch of Spaces has finished by then.
-    static func hide(after delay: Duration = .milliseconds(900)) {
-        guard let window, window.isVisible else { return }
+    /// Gone, once Nightforge is in front – `ready` says so (its window on the Space shown) – and a
+    /// moment later, so the switch of Spaces has settled.
+    /// `then`: what may only show once the curtain is gone ("Welcome back").
+    static func hide(once ready: @escaping @MainActor () -> Bool, then: (@MainActor () -> Void)? = nil) {
+        hide(after: .milliseconds(350), waitingFor: ready, then: then)
+    }
+
+    static func hide(after delay: Duration = .milliseconds(900), waitingFor ready: (@MainActor () -> Bool)? = nil,
+                     then: (@MainActor () -> Void)? = nil) {
+        guard let window, window.isVisible else {
+            then?()
+            return
+        }
         hiding?.cancel()
         hiding = Task {
+            if let ready {
+                // While Spaces change underneath, the curtain is put in front again and again: the
+                // one shown next has it from its first frame on.
+                for _ in 0..<60 where !ready() {
+                    if isRaised { window.orderFrontRegardless() }
+                    try? await Task.sleep(for: .milliseconds(50))
+                }  // up to 3 s
+                if isRaised { window.orderFrontRegardless() }
+            }
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
+            held = false
             await NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
                 window.animator().alphaValue = 0
@@ -99,6 +147,7 @@ enum GameBackdrop {
             window.orderOut(nil)
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
+            then?()
         }
     }
 
@@ -107,6 +156,10 @@ enum GameBackdrop {
         hiding?.cancel()
         if state.game != game { state.art = nil }
         state.game = game
+        if stage == .starting, state.stage != .starting || !isRaised {
+            raisedAt = Date()
+            state.detail = nil
+        }
         state.stage = stage
         self.gameOn = gameOn
         if let observer { NotificationCenter.default.removeObserver(observer) }
@@ -116,6 +169,14 @@ enum GameBackdrop {
         }
         let window = self.window ?? make(screen.frame)
         self.window = window
+        // A curtain is ordered into the Space shown; after a switch of Spaces (Nightforge's full
+        // screen, the game's) it's put in front there at once.
+        if spaceObserver == nil {
+            spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                                              object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { if GameBackdrop.isRaised { GameBackdrop.window?.orderFrontRegardless() } }
+            }
+        }
         let appearing = !window.isVisible
         window.setFrame(screen.frame, display: true)
         window.alphaValue = appearing ? 0 : 1
@@ -188,6 +249,15 @@ private struct BackdropView: View {
                     .font(size: 18, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .padding(.top, 12)
+                // Its own fade only, nothing else on the page moves with it.
+                Text(state.stage == .starting ? state.detail ?? " " : " ")
+                    .font(size: 14)
+                    .foregroundStyle(Theme.muted.opacity(0.75))
+                    .lineLimit(2)
+                    .frame(maxWidth: 560)
+                    .padding(.top, 18)
+                    .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.5), value: state.detail)
             }
             .multilineTextAlignment(.center)
             .padding(Theme.gutter)
