@@ -70,6 +70,15 @@ wenn sie einer Version zugeordnet sind.
 - [ ] Spiele, die einen Fremd-Launcher brauchen, als Steam-Fassung ohne Launcher freischalten (Overwatch 2,
       Diablo IV, D2R). Danach Rockstar über Steam (nur Story), dann über Epic (`docs/recherche/launcher.md`).
 - [ ] Das große Controller-Overlay (heute die kleine Fassung mit L3+R3).
+- [ ] **Suchen mit dem Controller** (Nutzer, 1.11.). Heute springt Y ins Suchfeld, getippt wird noch mit der Tastatur.
+  - Eigene Bildschirmtastatur im Glas-Stil, unten eingeblendet: Steuerkreuz/Stick wählt, A tippt, X löscht, Y setzt ein
+    Leerzeichen, B schließt.
+  - Treffer erscheinen schon beim Tippen, nach jedem Buchstaben. Dazu Vorschläge aus den Spielenamen, ↓ springt direkt
+    in die Treffer. Meist reichen zwei, drei Buchstaben.
+  - Ein Buchstaben-Sprung ohne Tippen: Eine Taste blendet eine A–Z-Leiste am Rand ein, die Bibliothek springt zum
+    Anfangsbuchstaben, wie bei PlayStation und Xbox.
+  - Spracheingabe (macOS-Diktat) erst später, wenn klar ist, ob das Mikrofon des Controllers am Mac geht.
+  - Grundlage ist auch die Big-Picture-Recherche vom 1.11. (Tastaturen von Steam, Xbox, PlayStation).
 - [ ] Speicherverwaltung unter Einstellungen › Speicher: neue Laufwerke erkennen und vorbereiten, angesteckte
       Laufwerke oben.
 - [ ] Wine 7.7 abschalten, wenn alles auf winecx läuft (`docs/recherche/engines.md`).
