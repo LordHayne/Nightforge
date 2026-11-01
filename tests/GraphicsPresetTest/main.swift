@@ -23,7 +23,7 @@ struct GraphicsPresetTest {
 
     static func ids(_ analysis: GameAnalysis, _ preset: GraphicsPreset, profile json: String? = nil, d3dMetal: Bool = false) -> [String] {
         let profile = json.flatMap(profile)
-        return LaunchHealth.ladder(LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal),
+        return LaunchHealth.ladder(LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: true),
                                    preset: preset, profile: profile).map(\.id)
     }
 

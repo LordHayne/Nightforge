@@ -34,6 +34,16 @@ enum GOGDL {
 
     static func log(for id: String) -> URL { logsDir.appendingPathComponent("\(id).log") }
 
+    /// The log of a game's download that stopped, kept for a problem report until one finishes.
+    static func failedLog(for id: String) -> URL { logsDir.appendingPathComponent("\(id).failed.log") }
+
+    /// Its error lines and how it ended, without the progress (and the links in between).
+    static func failureLines(inLog text: String, limit: Int = 20) -> [String] {
+        let lines = text.split(whereSeparator: \.isNewline).map(String.init)
+            .filter { $0.contains("ERROR") || $0.contains("CRITICAL") || $0.contains(endMark) || $0.contains("Not enough disk space") }
+        return Array(lines.suffix(limit)).map { GameLog.redacted($0) }
+    }
+
     /// How the last sign-in went (and a token refresh where gogdl didn't run): its code and log,
     /// without the sign-in code or any token.
     static var authLog: URL { logsDir.appendingPathComponent("auth.log") }

@@ -10,6 +10,7 @@ if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/Command
   export SDKROOT="$CLT_SDK"
 fi
 DIR="$(mktemp -d)"
+trap 'rm -rf "$DIR"' EXIT  # the test program and its home go with it
 OUT="$DIR/epic-test"
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086

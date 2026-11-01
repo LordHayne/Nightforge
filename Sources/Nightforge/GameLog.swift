@@ -139,8 +139,15 @@ enum GameLog {
     /// Whether the Direct3D layer gave up since `mark`: DXVK couldn't create its device or its
     /// buffers on MoltenVK. The game then shows its own error box ("Failed to create D3D device")
     /// and stays open, so running past its first seconds doesn't mean it started.
-    static func graphicsFailed(since mark: UInt64) -> Bool {
-        graphicsFailed(in: text(since: mark))
+    static func graphicsFailed(since mark: UInt64, layer: GraphicsLayer) -> Bool {
+        graphicsFailed(in: text(since: mark), layer: layer)
+    }
+
+    /// The signs are DXVK's, so they count only for a start on DXVK: the log is shared, and on
+    /// another way they aren't the game's renderer failing. A WineD3D start of Mafia II (1.11.2026)
+    /// was ended over two such lines and moved on to DXVK, which never gets a device on MoltenVK.
+    static func graphicsFailed(in text: String, layer: GraphicsLayer) -> Bool {
+        layer == .dxvk && graphicsFailed(in: text)
     }
 
     static func graphicsFailed(in text: String) -> Bool {

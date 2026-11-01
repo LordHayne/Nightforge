@@ -2565,7 +2565,7 @@ final class LibraryModel: ObservableObject {
                 guard watchFirstSeconds else { break }
 
                 // The first start with this way: is the game still there after its first seconds?
-                if await survivesFirstSeconds(game, logMark: logMark) {
+                if await survivesFirstSeconds(game, logMark: logMark, layer: layer) {
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
@@ -2575,7 +2575,7 @@ final class LibraryModel: ObservableObject {
                 // It ended within its first seconds. A confirmed way loses its confirmation only on
                 // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
                 // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
-                let graphicsFailed = GameLog.graphicsFailed(since: logMark)
+                let graphicsFailed = GameLog.graphicsFailed(since: logMark, layer: layer)
                 if wayConfirmed {
                     let installDir = game.installDir
                     let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
@@ -2594,6 +2594,14 @@ final class LibraryModel: ObservableObject {
                 }
                 launchingID = game.id
                 NSApp.activate()
+                // Nothing starts again while the game still runs – crashed behind a dialog, hanging, or
+                // not ended after a graphics error: a second copy is only turned away ("Game Already
+                // Running", Control, 1.11.2026). Every other way below starts it again.
+                let folders = Self.processFolders([game])
+                if await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value != nil {
+                    errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
+                    return
+                }
                 // It ran well this way on the engine before and ends at once on the newest: the newest
                 // broke it, so it starts with the one before – the way stays.
                 if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.gameID, build: build, way: way) {
@@ -2931,7 +2939,8 @@ final class LibraryModel: ObservableObject {
     /// A launcher handing over to the game leaves a gap of a few seconds, so only a longer absence
     /// counts as the game having ended. A game whose Direct3D layer failed (GameLog) is ended here:
     /// it would only sit behind its own error box.
-    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil) async -> Bool {
+    /// `layer`: the way it started with – only that layer's failure ends it (GameLog.graphicsFailed).
+    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil, layer: GraphicsLayer? = nil) async -> Bool {
         let folders = Self.processFolders([game])
         let started = Date()
         var absent = 0
@@ -2940,7 +2949,7 @@ final class LibraryModel: ObservableObject {
             let pid = await Task.detached(priority: .utility) { Self.runningGames(folders)[game.id] }.value
             absent = pid == nil ? absent + 1 : 0
             if absent >= 10 { return false }
-            if let pid, let logMark, GameLog.graphicsFailed(since: logMark) {
+            if let pid, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
                 kill(pid, SIGTERM)
                 // Steam has to see it gone before the next way can start.
                 for _ in 0..<15 {

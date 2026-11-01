@@ -101,9 +101,11 @@ enum LaunchHealth {
             return list
         }
         if analysis.usesD3D9 {
-            // Without Nightforge's Vulkan layer (winecx) DXVK gets no device: Wine's own Direct3D first.
+            // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device – MoltenVK lacks
+            // geometryShader and shaderCullDistance: Wine's own Direct3D only, so an early end can't
+            // move on to a way that can't work here (Mafia II, 1.11.2026).
             return vulkanLayer ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
-                : [LaunchAttempt(graphics: .wined3d), LaunchAttempt(graphics: .dxvk)]
+                : [LaunchAttempt(graphics: .wined3d)]
         }
         if analysis.onlyD3D12, d3dMetal {
             return [LaunchAttempt(graphics: .d3dmetal)]

@@ -146,8 +146,14 @@ struct LaunchHealthTest {
         let mafia = GameID.gog("1816059595")
         let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)
         check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9 with Nightforge's Vulkan layer: DXVK, then WineD3D")
-        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false).map(\.id) == ["wined3d", "dxvk"],
-              "under winecx (no layer, DXVK gets no device – L4D2, Mafia II): WineD3D first")
+        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false).map(\.id) == ["wined3d"],
+              "under winecx (no layer, DXVK never gets a device – L4D2, Mafia II): WineD3D only, nothing to move on to")
+        // Mafia II's WineD3D start, 1.11.2026: two of DXVK's lines in the shared log ended it and moved it on to DXVK.
+        let dxvkLines = "Failed to load ADL library\n[mvk-error] VK_ERROR_FEATURE_NOT_PRESENT: vkCreateDevice(): …\nerr:   DxvkAdapter: Failed to create device\n"
+        check(!GameLog.graphicsFailed(in: dxvkLines, layer: .wined3d), "DXVK's failure isn't a WineD3D start failing")
+        check(GameLog.graphicsFailed(in: dxvkLines, layer: .dxvk), "on DXVK it is")
+        check(!GameLog.graphicsFailed(in: dxvkLines, layer: .dxmt) && !GameLog.graphicsFailed(in: dxvkLines, layer: .d3dmetal),
+              "nor on DXMT or D3DMetal")
         UserDefaults.standard.set(Data(#"{"ladder":["dxvk","wined3d"],"confirmed":true,"index":0}"#.utf8), forKey: "launchHealth.gog.1816059595")
         check(LaunchHealth.current(mafia, d3d9) == (0, false), "an old confirmation is checked again at the next start, on the same way")
         check(LaunchHealth.peek(mafia, d3d9).map { $0.confirmed } == false, "and is no \"Runs great\" until then")
