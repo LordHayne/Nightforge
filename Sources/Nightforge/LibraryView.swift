@@ -2150,7 +2150,7 @@ struct Hint: View {
                     .frame(minWidth: 22, minHeight: 22)
                     .background(GlassBackground(glass: .regular, shape: Capsule()))
             case .pad(let symbol):
-                Image(systemName: symbol).font(size: 17, weight: .semibold)
+                PadGlyph(symbol, size: 17)
             }
             Text(text).font(size: 13, weight: .medium)
         }

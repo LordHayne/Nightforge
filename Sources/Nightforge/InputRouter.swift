@@ -795,7 +795,7 @@ struct PadSymbols: Equatable {
     var details = "x.circle.fill"
     /// Y: search.
     var search = "y.circle.fill"
-    /// ☰: the selected game's options.
+    /// ☰: the selected game's options. On a PlayStation pad the drawn capsule (PadGlyph).
     var menu = "line.3.horizontal.circle.fill"
     var stick = "l.joystick.fill"
     /// The right stick: it scrolls.
@@ -815,6 +815,7 @@ struct PadSymbols: Equatable {
         back = "circle.circle.fill"
         details = "square.circle.fill"
         search = "triangle.circle.fill"
+        menu = Self.optionsCapsule
     }
 
     @MainActor
@@ -823,7 +824,7 @@ struct PadSymbols: Equatable {
         back = Self.filled(pad.buttonB.sfSymbolsName) ?? back
         details = Self.filled(pad.buttonX.sfSymbolsName) ?? details
         search = Self.filled(pad.buttonY.sfSymbolsName) ?? search
-        menu = Self.filled(pad.buttonMenu.sfSymbolsName) ?? menu
+        menu = Self.menuSymbol(pad.buttonMenu.sfSymbolsName)
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
         scroll = Self.filled(pad.rightThumbstick.sfSymbolsName) ?? scroll
         if PadLayout(pad) == .playstation { shoulders = ["L1", "R1"] }
@@ -835,11 +836,32 @@ struct PadSymbols: Equatable {
         }
     }
 
-    /// The filled variant where one exists (they read better at hint size), else the symbol itself.
-    private static func filled(_ name: String?) -> String? {
-        guard let name, NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil else { return nil }
+    /// The Options button as PlayStation pads have it, a slim capsule with three lines: no SF Symbol
+    /// shows it, PadGlyph draws it.
+    static let optionsCapsule = "nightforge.options.capsule"
+
+    /// ☰ as the controller shows it. A DualSense reports a bare capsule, a blank at hint size: the
+    /// drawn one instead. Missing: Xbox's.
+    static func menuSymbol(_ name: String?) -> String {
+        if let name, isBare(name) { return optionsCapsule }
+        return filled(name) ?? PadSymbols().menu
+    }
+
+    /// The filled variant where one exists (they read better at hint size), else the symbol itself;
+    /// nil for a name that isn't a symbol or is a bare shape.
+    static func filled(_ name: String?) -> String? {
+        guard let name, !isBare(name), NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil else { return nil }
         let fill = name.hasSuffix(".fill") ? name : name + ".fill"
         return NSImage(systemSymbolName: fill, accessibilityDescription: nil) != nil ? fill : name
+    }
+
+    /// One shape and nothing on it ("capsule.portrait", "circle.fill"): filled, it's a blank. Two
+    /// shapes are a mark ("circle.circle" is ○).
+    static func isBare(_ name: String) -> Bool {
+        let shapes: Set = ["capsule", "circle", "square", "rectangle", "oval", "diamond", "hexagon", "octagon", "seal", "shield"]
+        let plain: Set = ["portrait", "roundedtop", "roundedbottom", "inset", "fill"]
+        let parts = name.split(separator: ".").map(String.init)
+        return parts.filter(shapes.contains).count == 1 && parts.allSatisfy { shapes.contains($0) || plain.contains($0) }
     }
 }
 
