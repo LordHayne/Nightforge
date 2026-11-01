@@ -75,6 +75,20 @@ struct GameDisplayTest {
         check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: denon), "still on the TV: stays")
         check(!GameDisplay.leavesFullScreen(madeFullScreen: false, fullScreen: true, windowOn: macBook), "the player's own full screen stays")
         check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: false, windowOn: macBook), "not full screen: nothing")
+        // Per screen (the user's choice on 1.11.): a monitor in a window the first time, then as last had there.
+        let asus = screen(5, "ASUS MG278")
+        check(GameDisplay.placement(picked: asus, windowOn: 1, declined: nil, fullScreen: false) == GameDisplay.Placement(move: true, fullScreen: false),
+              "a monitor the first time: over, in a window")
+        check(GameDisplay.placement(picked: asus, windowOn: 1, declined: nil, fullScreen: false, wantsFullScreen: true)
+              == GameDisplay.Placement(move: true, fullScreen: true), "one the player had in full screen: full screen again")
+        check(GameDisplay.placement(picked: asus, windowOn: 5, declined: nil, fullScreen: false, wantsFullScreen: true)
+              == GameDisplay.Placement(move: false, fullScreen: true), "already there in a window: full screen")
+        check(GameDisplay.placement(picked: denon, windowOn: 1, declined: nil, fullScreen: false, wantsFullScreen: false)
+              == GameDisplay.Placement(move: true, fullScreen: false), "a TV the player left full screen on: a window")
+        check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: asus, wantsFullScreen: true),
+              "full screen Nightforge made on a monitor that wants it: stays")
+        check(GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: denon, wantsFullScreen: false),
+              "on a TV the player wants in a window: a window")
 
         // Wine keeps the screens its session began with: a fresh session when they changed since.
         typealias W = GameDisplay.WineScreen

@@ -3,7 +3,9 @@ import ColorSync
 import CoreGraphics
 
 /// The screen games are played on: the one Nightforge's window is on. When a TV or another
-/// external screen is connected, the window moves there by itself (full screen on a TV), and from
+/// external screen is connected, the window moves there by itself – full screen on a TV, in a
+/// window on a monitor the first time, and after that as the player last had it there
+/// (TVSettings, per screen) – and from
 /// a game's start until the window leaves it that screen is the main one – Wine and Mac games open
 /// their full screen on the main display, and the menu bar would otherwise keep it on a MacBook's
 /// own screen.
@@ -58,6 +60,9 @@ enum GameDisplay {
     private static var rearranging = false
     /// Nightforge put the window in full screen for a TV (so it leaves it when the TV goes).
     private static var madeFullScreen = false
+    /// Nightforge's own full screen on its way in or out, until then: what ends meanwhile is no
+    /// choice of the player's.
+    private static var ownFullScreenUntil = Date.distantPast
 
     // MARK: - The launcher
 
@@ -101,6 +106,18 @@ enum GameDisplay {
                                                object: nil, queue: .main) { note in
             MainActor.assumeIsolated { windowMoved(note.object as? NSWindow) }
         }
+        // The green button or ⌃⌘F on an external screen: so it is there next time.
+        for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { note in
+                MainActor.assumeIsolated {
+                    guard let moved = note.object as? NSWindow, moved === window, Date() > ownFullScreenUntil,
+                          let display = moved.screen.flatMap(id), CGDisplayIsBuiltin(display) == 0,
+                          let key = screenKey(display, name: moved.screen?.localizedName)
+                    else { return }
+                    TVSettings.setFullScreen(note.name == NSWindow.didEnterFullScreenNotification, for: key)
+                }
+            }
+        }
     }
 
     /// The player moved the window: away from the picked screen means "not there", onto it "yes".
@@ -125,26 +142,47 @@ enum GameDisplay {
         }
     }
 
-    /// What `place` does with the window: move it to the picked screen, and on a TV go full screen –
-    /// also when it's there already, as on a mirrored TV (one screen, nothing to move). Nothing on a
-    /// screen the player moved it away from (`declined`).
+    /// What `place` does with the window: move it to the picked screen, and go full screen where
+    /// that's wanted (`wantsFullScreen`, by default on a TV) – also when it's there already, as on a
+    /// mirrored TV (one screen, nothing to move). Nothing on a screen the player moved it away from
+    /// (`declined`).
     struct Placement: Equatable {
         var move: Bool
         var fullScreen: Bool
     }
 
     nonisolated static func placement(picked: Candidate?, windowOn: CGDirectDisplayID?, declined: CGDirectDisplayID?,
-                                      fullScreen: Bool) -> Placement? {
+                                      fullScreen: Bool, wantsFullScreen: Bool? = nil) -> Placement? {
         guard let picked, declined != picked.id else { return nil }
         let move = windowOn != picked.id
-        let full = picked.isTV && (move || !fullScreen)
+        let full = (wantsFullScreen ?? picked.isTV) && (move || !fullScreen)
         return move || full ? Placement(move: move, fullScreen: full) : nil
     }
 
-    /// Full screen that Nightforge chose for a TV ends when the window is on no TV any more (TV
-    /// unplugged, mirroring off). Full screen the player chose stays.
-    nonisolated static func leavesFullScreen(madeFullScreen: Bool, fullScreen: Bool, windowOn: Candidate?) -> Bool {
-        madeFullScreen && fullScreen && windowOn?.isTV != true
+    /// Full screen that Nightforge chose ends when the window is on a screen that doesn't want it
+    /// any more (TV unplugged, mirroring off). Full screen the player chose stays.
+    nonisolated static func leavesFullScreen(madeFullScreen: Bool, fullScreen: Bool, windowOn: Candidate?,
+                                             wantsFullScreen: Bool? = nil) -> Bool {
+        madeFullScreen && fullScreen && windowOn.map { wantsFullScreen ?? $0.isTV } != true
+    }
+
+    /// Whether the window goes full screen on `screen`: as the player last had it there, else on a TV.
+    private static func wantsFullScreen(_ screen: Candidate?) -> Bool? {
+        guard let screen, !screen.builtIn, let key = screenKey(screen.id, name: screen.name) else { return nil }
+        return TVSettings.fullScreen(key)
+    }
+
+    /// Full screen on or off, once: while the window is still on its way in or out it waits for
+    /// that rather than toggling again – two at once (place and leaveFullScreenOffTV as a screen
+    /// came) put it back in full screen on a monitor on 1.11.
+    private static func setFullScreen(_ on: Bool, _ window: NSWindow) async {
+        for _ in 0..<30 where Date() < ownFullScreenUntil { try? await Task.sleep(for: .milliseconds(100)) }
+        guard window.styleMask.contains(.fullScreen) != on else { return }
+        ownFullScreenUntil = Date().addingTimeInterval(3)
+        window.toggleFullScreen(nil)
+        for _ in 0..<30 where window.styleMask.contains(.fullScreen) != on { try? await Task.sleep(for: .milliseconds(100)) }
+        try? await Task.sleep(for: .milliseconds(300))  // the animation's end, and its notification
+        ownFullScreenUntil = .distantPast
     }
 
     private static func place() async {
@@ -153,18 +191,13 @@ enum GameDisplay {
         guard let window, !running,
               let picked = pick(screens).flatMap({ display in screens.first { $0.id == display } }),
               let plan = placement(picked: picked, windowOn: window.screen.flatMap(id), declined: declined,
-                                   fullScreen: window.styleMask.contains(.fullScreen)),
+                                   fullScreen: window.styleMask.contains(.fullScreen), wantsFullScreen: wantsFullScreen(picked)),
               let target = NSScreen.screens.first(where: { id($0) == picked.id })
         else { return }
         placing = true
         defer { placing = false }
         if plan.move {
-            if window.styleMask.contains(.fullScreen) {
-                window.toggleFullScreen(nil)
-                for _ in 0..<30 where window.styleMask.contains(.fullScreen) {
-                    try? await Task.sleep(for: .milliseconds(100))
-                }
-            }
+            await setFullScreen(false, window)
             let area = target.visibleFrame
             var frame = window.frame
             frame.size.width = min(frame.width, area.width)
@@ -178,24 +211,22 @@ enum GameDisplay {
             // The TV becomes the main display first, where games open: changed later, under the
             // full-screen window, the screens shift and macOS takes the window to the Mac's screen.
             if becomeMain(picked.id) { try? await Task.sleep(for: .milliseconds(500)) }
-            window.toggleFullScreen(nil)
+            await setFullScreen(true, window)
             madeFullScreen = true
         }
         window.makeKeyAndOrderFront(nil)
     }
 
     private static func leaveFullScreenOffTV() async {
+        let on = candidates().first { $0.id == window?.screen.flatMap(id) }
         guard let window, !running,
               leavesFullScreen(madeFullScreen: madeFullScreen, fullScreen: window.styleMask.contains(.fullScreen),
-                               windowOn: candidates().first { $0.id == window.screen.flatMap(id) })
+                               windowOn: on, wantsFullScreen: wantsFullScreen(on))
         else { return }
         madeFullScreen = false
         placing = true
         defer { placing = false }
-        window.toggleFullScreen(nil)
-        for _ in 0..<30 where window.styleMask.contains(.fullScreen) {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
+        await setFullScreen(false, window)
     }
 
     // MARK: - While a game runs
@@ -300,8 +331,7 @@ enum GameDisplay {
             window.setFrameOrigin(screen.frame.origin + offset)
             return
         }
-        window.toggleFullScreen(nil)
-        for _ in 0..<30 where window.styleMask.contains(.fullScreen) { try? await Task.sleep(for: .milliseconds(100)) }
+        await setFullScreen(false, window)
         let area = screen.visibleFrame
         var frame = window.frame
         frame.size.width = min(frame.width, area.width)
@@ -309,7 +339,7 @@ enum GameDisplay {
         frame.origin = CGPoint(x: area.midX - frame.width / 2, y: area.midY - frame.height / 2)
         window.setFrame(frame, display: true)
         try? await Task.sleep(for: .milliseconds(300))
-        window.toggleFullScreen(nil)
+        await setFullScreen(true, window)
     }
 
     private static func reconfigureMain(_ display: CGDirectDisplayID) -> Bool {
@@ -480,13 +510,17 @@ enum GameDisplay {
         // The TV itself: the window's screen, or the external one mirroring the Mac's.
         let tvDisplay = tv == nil ? nil : ([display] + others).first { CGDisplayIsBuiltin($0) == 0 }
         GameAudio.follow(moment ?? (tv == nil ? .left : .look), tv: tv,
-                         tvKey: tvDisplay.flatMap(tvKey) ?? tv.flatMap { $0.isEmpty ? nil : $0 })
+                         tvKey: tvDisplay.flatMap { screenKey($0, name: tv) })
     }
 
-    /// A screen's own ID, the same after unplugging and a restart (ColorSync's UUID from its EDID).
-    private static func tvKey(_ display: CGDirectDisplayID) -> String? {
-        guard let uuid = CGDisplayCreateUUIDFromDisplayID(display)?.takeRetainedValue() else { return nil }
-        return CFUUIDCreateString(nil, uuid) as String?
+    /// A screen's own ID, the same after unplugging and a restart (ColorSync's UUID from its EDID),
+    /// else its name: what TVSettings keeps things by.
+    private static func screenKey(_ display: CGDirectDisplayID, name: String?) -> String? {
+        if let uuid = CGDisplayCreateUUIDFromDisplayID(display)?.takeRetainedValue(),
+           let text = CFUUIDCreateString(nil, uuid) as String? {
+            return text
+        }
+        return name.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 

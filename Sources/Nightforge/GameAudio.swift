@@ -137,7 +137,7 @@ enum GameAudio {
     // MARK: - CoreAudio
 
     private static var tv: String?
-    /// The TV's own ID (GameDisplay.tvKey), for what's kept per TV.
+    /// The TV's own ID (GameDisplay.screenKey), for what's kept per TV.
     private static var tvKey: String?
     /// When outputs or screens last came or went: macOS moves the default itself then, which is
     /// no choice of the player's.
@@ -316,22 +316,36 @@ enum GameAudio {
     }
 }
 
-/// What Nightforge keeps per TV, by the screen's own ID (GameDisplay.tvKey) – for now whether its
-/// sound should come from it: a TV the player listens to through the Mac's speakers stays so, also
-/// after unplugging it, a restart or the screens changing as a game starts. In UserDefaults like the
-/// other settings.
+/// What Nightforge keeps per external screen, TV or monitor, by its own ID (GameDisplay.screenKey).
+/// In UserDefaults like the other settings.
 enum TVSettings {
     private static let key = "tvSettings"
 
-    static func soundOnTV(_ tv: String, in defaults: UserDefaults = .standard) -> Bool? {
-        (defaults.dictionary(forKey: key)?[tv] as? [String: Any])?["soundOnTV"] as? Bool
-    }
+    /// Whether its sound should come from it: a TV the player listens to through the Mac's
+    /// speakers stays so, also after unplugging it, a restart or the screens changing as a game starts.
+    static func soundOnTV(_ tv: String, in defaults: UserDefaults = .standard) -> Bool? { flag("soundOnTV", tv, defaults) }
 
     static func setSoundOnTV(_ on: Bool, for tv: String, in defaults: UserDefaults = .standard) {
+        setFlag("soundOnTV", on, tv, defaults)
+    }
+
+    /// Whether Nightforge's window goes full screen on it, as the player last had it there. Nil
+    /// before that: a TV does, a monitor not (one might only want to try something quickly).
+    static func fullScreen(_ screen: String, in defaults: UserDefaults = .standard) -> Bool? { flag("fullScreen", screen, defaults) }
+
+    static func setFullScreen(_ on: Bool, for screen: String, in defaults: UserDefaults = .standard) {
+        setFlag("fullScreen", on, screen, defaults)
+    }
+
+    private static func flag(_ name: String, _ screen: String, _ defaults: UserDefaults) -> Bool? {
+        (defaults.dictionary(forKey: key)?[screen] as? [String: Any])?[name] as? Bool
+    }
+
+    private static func setFlag(_ name: String, _ on: Bool, _ screen: String, _ defaults: UserDefaults) {
         var all = defaults.dictionary(forKey: key) ?? [:]
-        var settings = all[tv] as? [String: Any] ?? [:]
-        settings["soundOnTV"] = on
-        all[tv] = settings
+        var settings = all[screen] as? [String: Any] ?? [:]
+        settings[name] = on
+        all[screen] = settings
         defaults.set(all, forKey: key)
     }
 }

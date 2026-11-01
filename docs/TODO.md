@@ -365,6 +365,21 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       - „Spiel beenden“ im Overlay galt bei Sonic als Fehlstart. Jetzt merkt sich LaunchHealth das Beenden durch den
         Spieler (`playerQuit`): Der Startablauf, Steams Log beim nächsten Start (`review`) und der Rückfall von der
         Mac- auf die Windows-Version lernen daraus nichts, egal nach wie vielen Sekunden und mit welchem Exit-Code.
+    - Test am Monitor (ASUS MG278, 2560×1440, Deckel zu, Testbuild baff1f5) und behoben:
+      - Einmal Fenster, nach erneutem Anstecken Vollbild: Nightforge macht einen Monitor nie selbst zum Vollbild.
+        Wahrscheinlich griffen zwei Umschaltungen ineinander (`place` und `leaveFullScreenOffTV` bei derselben
+        Bildschirm-Meldung; die zweite sah das Fenster noch auf dem Weg hinaus und schaltete wieder hinein). Jetzt
+        läuft jedes Umschalten über `setFullScreen`, das eine laufende Umschaltung abwartet.
+      - Entscheidung des Nutzers: Ein Monitor kommt beim ersten Mal ins Fenster. Danach gilt pro Bildschirm, wie der
+        Spieler es dort zuletzt hatte (grüner Knopf, ⌃⌘F; `TVSettings.fullScreen`, gleiche Ablage wie der Ton). Ein
+        TV startet im Vollbild, solange nichts anderes gemerkt ist.
+      - Mafia II im Fenster oben links: `videoconfig.cfg` stand noch auf 1920×1080 vom TV. Das Profilfeld passte nur
+        Größen an, die der Bildschirm nicht hat. Wine stellte den Modus auf 1920×1080 um (4 Bildschirmwechsel unter
+        dem Vorhang in `wine.log`) und gab ihn zurück, als das Spiel die Front verlor. Jetzt bekommt ein Spiel im
+        Vollbild immer die Größe des Bildschirms, auf dem es startet. Ein Fenster bleibt ein Fenster.
+      - Warum die Claude-App dabei vorne stand, ist offen; ein erneutes Hochgehen des Vorhangs steht nicht im Log.
+        `handFocus` aktiviert Nightforge jetzt ohne Launch Services, dessen Aktivierung nach der Übergabe kommen
+        und dem Spiel die Front nehmen konnte.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.

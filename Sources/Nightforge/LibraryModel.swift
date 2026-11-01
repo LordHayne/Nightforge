@@ -894,7 +894,9 @@ final class LibraryModel: ObservableObject {
         else { return false }
         if app.isActive { return true }
         if !NSApp.isActive {
-            NSApp.comeToFront()
+            // Not through Launch Services here: its activation can land after the handover and take
+            // the front back from the game.
+            NSApp.activate(ignoringOtherApps: true)
             for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         }
         NSApp.yieldActivation(to: app)
