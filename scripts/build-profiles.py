@@ -90,6 +90,10 @@ STEAM_IDS_BY_SLUG = {
 
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
+# Anti-cheat that only a multiplayer server asks for (PunkBuster) or that only checks on the server
+# (FairFight): it never stops a game from starting. Where it's all a game has, a "Broken" or
+# "Denied" costs at most online play (Crysis, F.E.A.R. and their single player are fine).
+SERVER_ANTICHEATS = {"PunkBuster", "FairFight"}
 
 # Registry keys for Wine's Linux controller driver; under one shared prefix they'd change
 # controllers for every game.
@@ -224,7 +228,7 @@ def anticheat_block(game):
     if not names:
         return None
     if game.get("status") in BLOCKING_STATUSES:
-        return {"name": game.get("name"), "antiCheat": names}
+        return {"name": game.get("name"), "antiCheatOnline" if set(names) <= SERVER_ANTICHEATS else "antiCheat": names}
     if game.get("status") in ONLINE_BLOCKING_STATUSES and LINUX_MODULE_ANTICHEATS.intersection(names):
         return {"name": game.get("name"), "antiCheatOnline": names}
     return None

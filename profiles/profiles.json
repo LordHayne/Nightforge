@@ -89,7 +89,7 @@
   "9460": {
    "name": "Frontlines: Fuel of War",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -129,14 +129,14 @@
   "13140": {
    "name": "America's Army 3",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
   "15000": {
    "name": "Tom Clancy's Rainbow Six: Lockdown",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -193,14 +193,14 @@
   "17300": {
    "name": "Crysis",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
   "21090": {
    "name": "F.E.A.R.",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -591,7 +591,7 @@
   "201870": {
    "name": "Assassin's Creed: Revelations",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ],
    "geforceNow": "f10ec947-01d0-44c0-92d4-60d451dcc1fc"
@@ -5399,7 +5399,7 @@
   "3929740": {
    "name": "Tom Clancy's Splinter Cell: Pandora Tomorrow",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ],
    "geforceNow": "525082c7-30d9-4b5c-980b-d02dc2e9dd62"
@@ -5467,7 +5467,7 @@
   "epic.17a1f8585f9246808597b30780aaf4fb": {
    "name": "Crysis",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -5886,5 +5886,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-01T01:55:37Z"
+ "generated": "2026-11-01T01:56:55Z"
 }

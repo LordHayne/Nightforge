@@ -163,6 +163,20 @@ class AntiCheatTests(unittest.TestCase):
             "753650": {"name": "Due Process", "antiCheat": ["Easy Anti-Cheat"]},
         })
 
+    def test_server_side_anticheat_never_stops_a_start(self):
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "Crysis", "status": "Broken", "anticheats": ["PunkBuster"], "storeIds": {"steam": "17300"}},
+            {"name": "Only FairFight", "status": "Denied", "anticheats": ["FairFight"], "storeIds": {"steam": "2"}},
+            {"name": "Rainbow Six Siege", "status": "Denied", "anticheats": ["FairFight", "BattlEye"], "storeIds": {"steam": "359550"}},
+            {"name": "War Rock", "status": "Broken", "anticheats": ["PunkBuster", "Easy Anti-Cheat"], "storeIds": {"steam": "880850"}},
+        ])
+        self.assertEqual(blocks, {
+            "17300": {"name": "Crysis", "antiCheatOnline": ["PunkBuster"]},
+            "2": {"name": "Only FairFight", "antiCheatOnline": ["FairFight"]},
+            "359550": {"name": "Rainbow Six Siege", "antiCheat": ["FairFight", "BattlEye"]},
+            "880850": {"name": "War Rock", "antiCheat": ["PunkBuster", "Easy Anti-Cheat"]},
+        })
+
     def test_a_full_block_isnt_shrunk_by_a_second_entry(self):
         blocks = build_profiles.anticheat_blocks([
             {"name": "Post Scriptum", "status": "Denied", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "736220"}},
