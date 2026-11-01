@@ -1398,6 +1398,8 @@ enum Engine {
         if d3dMetalEngine, let dxvk = installedComponentNow(dxvkID) {
             placeDXVK(layer == .dxvk, dxvkDir: dxvk, installDir: installDir)
         }
+        // D3DMetal 3.0 presents itself as an AMD card whose driver Unreal warns about.
+        if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
         var sections = [crashDialogOff]
         for exe in exes {
@@ -1414,6 +1416,50 @@ enum Engine {
         }
         sections += (profile?.registry ?? []).compactMap(regSection)
         importRegistry(sections.joined(separator: "\n\n"), wine: wine)
+    }
+
+    // MARK: - Unreal's driver warning
+
+    /// The sections of an Unreal game's Hardware.ini that name the AMD drivers it warns about (the
+    /// plain one, and the one with the platform behind it).
+    static let unrealDriverSections = ["GPU_AMD", "GPU_AMD Windows"]
+    /// … and the keys for the list: DriverDenyList in Unreal 5, Blacklist before. "!" clears the list.
+    static let unrealDriverLists = ["!DriverDenyList", "!Blacklist"]
+
+    /// The Unreal projects in a game folder: the ones with <Project>/Binaries/Win64/<Name>-Shipping.exe.
+    static func unrealProjects(in installDir: URL) -> [URL] {
+        let projects = executableFiles(in: installDir).filter { exe in
+            let win64 = exe.deletingLastPathComponent()
+            return exe.lastPathComponent.hasSuffix("-Shipping.exe") && win64.lastPathComponent == "Win64"
+                && win64.deletingLastPathComponent().lastPathComponent == "Binaries"
+        }.map { $0.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() }
+        return Array(Set(projects)).filter { $0.lastPathComponent != "Engine" }.sorted { $0.path < $1.path }
+    }
+
+    /// D3DMetal 3.0 presents itself as an AMD card with driver 30.0.15.1233, which is on Unreal's own
+    /// list of drivers with known issues: the game opens "WARNING: Known issues with graphics driver",
+    /// and its Yes (to AMD's download page) ends the game. The list comes from the game's Hardware.ini,
+    /// and the player's file in Saved/Config is read last: it clears the AMD list. (The version can't
+    /// be changed from outside – D3DMetal states it itself.) Set before every start of an Unreal game
+    /// on D3DMetal, as the game may rewrite the file when it quits.
+    static func clearUnrealDriverDenyList(installDir: URL) {
+        let fm = FileManager.default
+        for project in unrealProjects(in: installDir) {
+            let config = project.appendingPathComponent("Saved/Config", isDirectory: true)
+            // Unreal 5 keeps its saved files under Windows, Unreal 4 under WindowsNoEditor (once it has run).
+            let platforms = ["Windows"] + (fm.fileExists(atPath: config.appendingPathComponent("WindowsNoEditor").path) ? ["WindowsNoEditor"] : [])
+            for platform in platforms {
+                let file = config.appendingPathComponent("\(platform)/Hardware.ini")
+                let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+                var merged = text
+                for section in unrealDriverSections {
+                    merged = mergingIni(merged, section: section, values: Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") }))
+                }
+                guard merged != text else { continue }
+                try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? merged.write(to: file, atomically: true, encoding: .utf8)
+            }
+        }
     }
 
     /// No "Program Error – … has encountered a serious problem" window: Wine's debugger (AeDebug's

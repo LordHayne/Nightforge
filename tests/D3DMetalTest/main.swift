@@ -35,6 +35,7 @@ struct D3DMetalTest {
         build()
         versions(work)
         engineFiles(work)
+        unrealWarning(work)
 
         print(failures == 0 ? "✓ D3DMetal" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -508,6 +509,77 @@ struct D3DMetalTest {
         check(left == ["wined3d.so"] && !fm.fileExists(atPath: lib.appendingPathComponent("external").path), "no link to it, no external/: \(left)")
         check(text(windows.appendingPathComponent("d3d12.dll.wine")) == "wine's d3d12.dll", "Wine's copies stay (the prefix's Direct3D 12 comes from them)")
         check(!fm.fileExists(atPath: lib.appendingPathComponent("wine/.nightforge-graphics").path) && !Engine.isD3DMetalDeployed(wine: wine), "stamp gone, not deployed")
+    }
+
+    // MARK: Unreal's driver warning
+
+    static func unrealWarning(_ work: URL) {
+        // The Black Myth: Wukong Benchmark Tool as it lies on disk (1.11.2026): its program beside the
+        // folders, the game under b1/, Unreal's helpers under Engine/. Its Hardware.ini holds only a blank line.
+        let game = fresh(work, "unreal-game")
+        for exe in ["b1_benchmark.exe", "b1/Binaries/Win64/b1-Win64-Shipping.exe", "Engine/Binaries/Win64/EpicWebHelper.exe",
+                    "Engine/Binaries/Win64/CrashReportClient.exe"] {
+            write("MZ", to: game.appendingPathComponent(exe))
+        }
+        let hardware = game.appendingPathComponent("b1/Saved/Config/Windows/Hardware.ini")
+        write("\r\n", to: hardware)
+        check(Engine.unrealProjects(in: game).map(\.lastPathComponent) == ["b1"], "the project is found, not the helpers under Engine/: \(Engine.unrealProjects(in: game))")
+
+        Engine.clearUnrealDriverDenyList(installDir: game)
+        let cleared = text(hardware) ?? ""
+        for section in ["[GPU_AMD]", "[GPU_AMD Windows]"] { check(cleared.contains(section), "section \(section) is there") }
+        check(cleared.components(separatedBy: "!DriverDenyList=ClearArray").count == 3 && cleared.components(separatedBy: "!Blacklist=ClearArray").count == 3,
+              "each clears the list under both names: \(cleared.debugDescription)")
+        check(cleared.replacingOccurrences(of: "\r\n", with: "").contains("\n") == false, "no stray line breaks: \(cleared.debugDescription)")
+        check(!fm.fileExists(atPath: game.appendingPathComponent("Engine/Saved").path)
+              && !fm.fileExists(atPath: game.appendingPathComponent("Saved").path), "nothing written for Unreal's helpers or beside the program")
+
+        let before = cleared
+        Engine.clearUnrealDriverDenyList(installDir: game)
+        check(text(hardware) == before, "doing it again changes nothing")
+
+        // A game that has not run yet has no Saved/ folder: it's made, so the very first start is spared too.
+        let fresh1 = fresh(work, "unreal-first-start")
+        write("MZ", to: fresh1.appendingPathComponent("Game/Binaries/Win64/Game-Win64-Shipping.exe"))
+        Engine.clearUnrealDriverDenyList(installDir: fresh1)
+        check(text(fresh1.appendingPathComponent("Game/Saved/Config/Windows/Hardware.ini"))?.hasPrefix("[GPU_AMD]\n!Blacklist=ClearArray\n!DriverDenyList=ClearArray\n") == true,
+              "a first start gets the file")
+        check(!fm.fileExists(atPath: fresh1.appendingPathComponent("Game/Saved/Config/WindowsNoEditor").path), "Unreal 4's folder isn't made")
+
+        // What the game or the player has in the file stays; the section it already has is added to, not repeated.
+        let kept = fresh(work, "unreal-kept")
+        write("MZ", to: kept.appendingPathComponent("Game/Binaries/Win64/Game-Win64-Shipping.exe"))
+        let file = kept.appendingPathComponent("Game/Saved/Config/Windows/Hardware.ini")
+        write("[Other]\nValue=1\n\n[GPU_AMD]\nSuggestedDriverVersion=\"22.2.2\"\n", to: file)
+        Engine.clearUnrealDriverDenyList(installDir: kept)
+        let merged = text(file) ?? ""
+        check(merged.contains("[Other]\nValue=1\n") && merged.contains("SuggestedDriverVersion=\"22.2.2\"")
+              && merged.components(separatedBy: "[GPU_AMD]").count == 2 && merged.contains("[GPU_AMD Windows]"), "the rest stays, one [GPU_AMD]: \(merged.debugDescription)")
+
+        // Unreal 4 keeps its saved files in WindowsNoEditor once it has run.
+        let old = fresh(work, "unreal-4")
+        write("MZ", to: old.appendingPathComponent("Game/Binaries/Win64/Game-Win64-Shipping.exe"))
+        write("", to: old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Engine.ini"))
+        Engine.clearUnrealDriverDenyList(installDir: old)
+        check(text(old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Hardware.ini"))?.contains("!Blacklist=ClearArray") == true
+              && fm.fileExists(atPath: old.appendingPathComponent("Game/Saved/Config/Windows/Hardware.ini").path), "Unreal 4: its folder as well")
+
+        // Games that aren't Unreal are left alone; so is a project's program that isn't the shipping one.
+        let other = fresh(work, "not-unreal")
+        write("MZ", to: other.appendingPathComponent("Game.exe"))
+        write("MZ", to: other.appendingPathComponent("Game/Binaries/Win64/Launcher.exe"))
+        write("MZ", to: other.appendingPathComponent("Unity/Game_Data/x.exe"))
+        Engine.clearUnrealDriverDenyList(installDir: other)
+        let leftovers = (fm.enumerator(atPath: other.path)?.allObjects as? [String] ?? []).filter { $0.contains("Hardware.ini") }
+        check(Engine.unrealProjects(in: other).isEmpty && leftovers.isEmpty, "no Unreal, no file: \(leftovers)")
+
+        // Two projects in one folder (a game and its benchmark), both done.
+        let two = fresh(work, "two-projects")
+        write("MZ", to: two.appendingPathComponent("A/Binaries/Win64/A-Win64-Shipping.exe"))
+        write("MZ", to: two.appendingPathComponent("B/Binaries/Win64/B-Win64-Shipping.exe"))
+        Engine.clearUnrealDriverDenyList(installDir: two)
+        check(Engine.unrealProjects(in: two).map(\.lastPathComponent) == ["A", "B"]
+              && ["A", "B"].allSatisfy { text(two.appendingPathComponent("\($0)/Saved/Config/Windows/Hardware.ini")) != nil }, "both projects")
     }
 
     // MARK: In the engine's list
