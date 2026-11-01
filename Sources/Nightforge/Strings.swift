@@ -670,6 +670,7 @@ enum L10n {
             "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
         "Keep Waiting": "Weiter warten",
         "Waiting for the first picture …": "Warte auf das erste Bild …",
+        "Preparing shaders for the first start …": "Shader werden beim ersten Start vorbereitet …",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
         "Sound now comes from %@": "Ton kommt jetzt aus %@",

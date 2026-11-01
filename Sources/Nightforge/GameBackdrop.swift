@@ -11,17 +11,19 @@ import SwiftUI
 ///   it never covers the game or another app; around a game in a window it's the page instead of
 ///   the desktop.
 ///
-/// It never takes a click, a key or the pad. A loading screen of its own: the Nightforge N with its
-/// light seam, the game's name and what's happening, on the app's night with the game's backdrop
-/// from Home's stage (already blurred) faint behind. While it's a curtain only the seam pulses,
-/// gently, as a layer of its own – nothing that redraws the whole screen or costs the game frames.
+/// It never takes a click, a key or the pad. A loading screen of its own, like the README's banner:
+/// the N in brushed metal with its blue light seam (BrandArt, drawn once per size and scale), the
+/// game's name under NIGHTFORGE and what's happening, on the night. While it's a curtain a light
+/// runs along the seam – a small picture moved, nothing that redraws the screen or costs the game
+/// frames; with "Reduce motion" the seam only breathes.
 @MainActor
 enum GameBackdrop {
     final class State: ObservableObject {
         @Published var game = ""
-        @Published var art: NSImage?
         @Published var stage = Stage.behind
-        /// What's happening, while a start takes its time ("Starting again with WineD3D …").
+        /// The step a start is at ("Starting Steam …"), from the first moment on.
+        @Published var step: String?
+        /// Why it takes a while, once a start takes its time ("Steam runs invisibly in the background …").
         @Published var detail: String?
     }
 
@@ -41,7 +43,7 @@ enum GameBackdrop {
     /// is in front (`hide(once:)`).
     private static var held = false
     private static var raisedAt = Date.distantPast
-    /// How long a start shows only "Starting …" before saying more.
+    /// How long a start shows only its step before saying why.
     static let detailAfter: TimeInterval = 3
 
     static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
@@ -61,16 +63,13 @@ enum GameBackdrop {
         put(game, on: screen, stage: .starting, gameOn: gameOn)
     }
 
-    /// A line on what's happening; it shows once the curtain has been up a few seconds, so a quick
-    /// start stays calm and a long one doesn't look stuck.
-    static func setDetail(_ text: String?) {
-        let shown = state.stage == .starting && Date().timeIntervalSince(raisedAt) >= detailAfter ? text : nil
+    /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
+    /// a quick start stays calm and a long one doesn't look stuck.
+    static func setStatus(_ step: String?, detail: String?) {
+        guard state.stage == .starting else { return }
+        if state.step != step { state.step = step }
+        let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
-    }
-
-    static func setArt(_ image: NSImage?, for game: String) {
-        guard state.game == game else { return }
-        state.art = image
     }
 
     /// The game is in front: the curtain fades and stays behind it.
@@ -154,10 +153,10 @@ enum GameBackdrop {
     private static func put(_ game: String, on screen: NSScreen?, stage: Stage, gameOn: @escaping @MainActor () -> Bool) {
         guard let screen = screen ?? NSScreen.main else { return }
         hiding?.cancel()
-        if state.game != game { state.art = nil }
         state.game = game
         if stage == .starting, state.stage != .starting || !isRaised {
             raisedAt = Date()
+            state.step = nil
             state.detail = nil
         }
         state.stage = stage
@@ -205,6 +204,18 @@ enum GameBackdrop {
         window.orderFrontRegardless()
     }
 
+    /// The brand's pictures (BrandArt), drawn once per size and scale: sharp on a 4K TV as on the
+    /// MacBook, and nothing to draw again after that.
+    private static var pictures: [String: CGImage] = [:]
+
+    static func picture(_ name: String, size: CGSize, scale: CGFloat, draw: (CGContext) -> Void) -> CGImage? {
+        let key = "\(name) \(Int(size.width))×\(Int(size.height)) @\(scale)"
+        if let picture = pictures[key] { return picture }
+        let picture = BrandArt.image(size: size, scale: scale, draw: draw)
+        pictures[key] = picture
+        return picture
+    }
+
     private static func make(_ frame: CGRect) -> NSWindow {
         // A panel that never activates Nightforge: only such a window may join other apps' full-screen Spaces.
         let window = CurtainPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -234,38 +245,36 @@ private struct BackdropView: View {
 
     var body: some View {
         ZStack {
-            Theme.night
-            if let art = state.art {
-                // Filling the whole screen whatever the picture's shape.
-                Color.clear
-                    .overlay { Image(nsImage: art).resizable().scaledToFill() }
-                    .clipped()
-                    .opacity(0.16)
-            }
-            // The app's night, a little lighter round the mark like under its lamp.
-            RadialGradient(colors: [Theme.slate.opacity(0.9), Theme.night.opacity(0)], center: .center, startRadius: 0, endRadius: 620)
+            BrandNight()
             VStack(spacing: 0) {
-                if state.stage.raised {
-                    PulsingMark()
-                } else {
-                    NightforgeMark(seamWidth: 4, seamGlow: 14).frame(height: 150)
-                }
-                Text(state.game)
-                    .font(size: 32, weight: .semibold)
-                    .foregroundStyle(Theme.ink)
+                BrandMark(moving: state.stage.raised)
+                // The banner's wordmark, and under it the game in the blue of its tagline.
+                Spaced(text: "NIGHTFORGE", kern: 15)
+                    .fontWidth(.expanded)
+                    .font(size: 50, weight: .light)
+                    .foregroundStyle(Color(nsColor: BrandArt.wordmark))
+                    .padding(.top, 40)
+                Spaced(text: state.game.uppercased(with: L10n.locale), kern: 8)
+                    .fontWidth(.expanded)
+                    .font(size: 22)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline))
                     .lineLimit(2)
-                    .padding(.top, 44)
-                Text(status)
-                    .font(size: 18, weight: .medium)
-                    .foregroundStyle(Theme.muted)
-                    .padding(.top, 12)
+                    .padding(.top, 18)
+                // What's happening; each step fades over the last.
+                ZStack {
+                    Text(status).id(status).transition(.opacity)
+                }
+                .font(size: 18, weight: .medium)
+                .foregroundStyle(Theme.muted)
+                .animation(.easeInOut(duration: 0.4), value: status)
+                .padding(.top, 34)
                 // Its own fade only, nothing else on the page moves with it.
                 Text(state.stage == .starting ? state.detail ?? " " : " ")
                     .font(size: 14)
                     .foregroundStyle(Theme.muted.opacity(0.75))
                     .lineLimit(2)
                     .frame(maxWidth: 560)
-                    .padding(.top, 18)
+                    .padding(.top, 14)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
             }
@@ -278,27 +287,95 @@ private struct BackdropView: View {
 
     private var status: String {
         switch state.stage {
-        case .starting: return L10n.t("Starting …")
+        case .starting: return state.step ?? L10n.t("Starting …")
         case .behind: return L10n.t("Nightforge waits here until you're done.")
         case .returning: return L10n.t("Back to Nightforge …")
         }
     }
 }
 
-/// The N while something happens: its light seam breathes, slowly. Still with "Reduce motion".
-private struct PulsingMark: View {
-    @Environment(\.reduceMotion) private var reduceMotion
-    @State private var bright = false
+/// Widely spaced capitals, as on the banner – still centred: the space after the last letter is
+/// made up for on the left.
+private struct Spaced: View {
+    let text: String
+    let kern: CGFloat
 
     var body: some View {
-        // Only the seam's light is animated – not the page, which would move with it.
-        NightforgeMark(seamWidth: 4, seamGlow: 14, seamOpacity: reduceMotion || bright ? 1 : 0.4,
-                       seamAnimation: reduceMotion ? nil : .easeInOut(duration: 1.8).repeatForever(autoreverses: true))
-            .frame(height: 150)
-            .task {
-                guard !reduceMotion else { return }
-                try? await Task.sleep(for: .milliseconds(300))  // once the page has its size
-                bright = true
+        Text(verbatim: text).kerning(kern).padding(.leading, kern)
+    }
+}
+
+/// The banner's night with its blue haze, drawn at a quarter of the screen's size – there's nothing
+/// finer in it – and stretched.
+private struct BrandNight: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let size = CGSize(width: (geometry.size.width / 4).rounded(), height: (geometry.size.height / 4).rounded())
+            if let night = GameBackdrop.picture("night", size: size, scale: 1, draw: {
+                BrandArt.nightBackground($0, in: CGRect(origin: .zero, size: size))
+            }) {
+                Image(decorative: night, scale: 1).resizable().interpolation(.high)
             }
+        }
+    }
+}
+
+/// The N in brushed metal, its seam a picture of its own on top. The layout counts the N alone;
+/// its shadow and the seam's glow reach beyond.
+private struct BrandMark: View {
+    /// The curtain is up: a light runs along the seam (with "Reduce motion" it breathes).
+    let moving: Bool
+    @Environment(\.displayScale) private var scale
+    @Environment(\.reduceMotion) private var reduceMotion
+    @State private var on = false
+    private static let height: CGFloat = 230
+
+    var body: some View {
+        let unit = Self.height / BrandArt.glyphSize.height
+        let reach = BrandArt.reach * unit
+        let size = CGSize(width: BrandArt.glyphSize.width * unit + 2 * reach, height: Self.height + 2 * reach)
+        let origin = CGPoint(x: reach, y: reach)
+        // Shadow and light in proportion to the N, as on the banner (0.78 × the design there).
+        let glow = unit / 0.78 * scale
+        let metal = GameBackdrop.picture("mark", size: size, scale: scale) {
+            BrandArt.drawMark($0, origin: origin, scale: unit, seam: false, glow: glow)
+        }
+        let seam = GameBackdrop.picture("seam", size: size, scale: scale) {
+            BrandArt.drawSeam($0, origin: origin, scale: unit, glow: glow)
+        }
+        let runs = moving && !reduceMotion
+        ZStack {
+            if let metal { Image(decorative: metal, scale: scale) }
+            if let seam {
+                Image(decorative: seam, scale: scale)
+                    .opacity(moving && reduceMotion ? (on ? 1 : 0.45) : runs ? 0.8 : 1)
+                if runs {
+                    // A light along the seam, in it only (the seam's own picture as the mask), and
+                    // a pause off its ends before the next run.
+                    let from = CGPoint(x: origin.x + BrandArt.seam.0.x * unit, y: origin.y + BrandArt.seam.0.y * unit)
+                    let to = CGPoint(x: origin.x + BrandArt.seam.1.x * unit, y: origin.y + BrandArt.seam.1.y * unit)
+                    let along: CGFloat = on ? 1.3 : -0.3
+                    Circle()
+                        .fill(RadialGradient(colors: [Color(red: 0.85, green: 0.93, blue: 1), Color(nsColor: BrandArt.seamBlue).opacity(0.5), .clear],
+                                             center: .center, startRadius: 0, endRadius: 45))
+                        .frame(width: 90, height: 90)
+                        .offset(x: from.x + (to.x - from.x) * along - size.width / 2,
+                                y: from.y + (to.y - from.y) * along - size.height / 2)
+                        .frame(width: size.width, height: size.height)
+                        .mask { Image(decorative: seam, scale: scale) }
+                        .blendMode(.plusLighter)
+                }
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .animation(moving ? (reduceMotion ? Animation.easeInOut(duration: 1.8) : .linear(duration: 2.6)).repeatForever(autoreverses: reduceMotion)
+                          : nil, value: on)
+        .padding(-reach)
+        .task(id: moving) {
+            on = false
+            guard moving else { return }
+            try? await Task.sleep(for: .milliseconds(300))  // once the page has its size
+            on = true
+        }
     }
 }

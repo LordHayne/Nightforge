@@ -795,11 +795,6 @@ final class LibraryModel: ObservableObject {
     private func raiseCurtain(for game: Game) {
         curtainWatch?.cancel()
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
-        let name = game.name
-        Task {
-            let art = await ArtworkStore.shared.stageBackdrop(for: game)
-            GameBackdrop.setArt(art?.image, for: name)
-        }
         curtainWatch = Task { await watchCurtain(game) }
     }
 
@@ -811,6 +806,8 @@ final class LibraryModel: ObservableObject {
         var frontSince: Date?
         var loweredAt: Date?
         var raisedAgain = 0
+        // The start builds its shaders: known before it's handed over, true until the first picture.
+        var buildsShaders = false
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
@@ -823,7 +820,7 @@ final class LibraryModel: ObservableObject {
                     return
                 }
             }
-            GameBackdrop.setDetail(launchHint)
+            buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let (pids, companion) = await Task.detached(priority: .utility) {
                 let table = GameProcesses.table()
@@ -831,6 +828,7 @@ final class LibraryModel: ObservableObject {
                         marker != nil && front.map { GameProcesses.windowsCompanion($0, in: table) } == true)
             }.value
             seenOnce = seenOnce || !pids.isEmpty
+            if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
                 if loweredAt != nil { return }  // ended: watchForGameEnd brings Nightforge back
@@ -845,9 +843,7 @@ final class LibraryModel: ObservableObject {
             let (here, anywhere) = await Task.detached(priority: .utility) {
                 (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true))
             }.value
-            if loweredAt == nil, !here, !anywhere {
-                GameBackdrop.setDetail(launchHint ?? L10n.t("Waiting for the first picture …"))
-            }
+            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders)
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     windowHere: here, windowAnywhere: anywhere,
                                     frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
@@ -879,6 +875,21 @@ final class LibraryModel: ObservableObject {
         }
     }
 
+    /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.
+    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool) {
+        let phase = launchingID == nil ? nil : launchPhase?.title
+        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown),
+                               detail: launchHint)
+    }
+
+    /// The step the curtain names: the start's own (`phase`, "Starting Steam …") while it has one,
+    /// then what the game does until its window shows. Nil: "Starting …".
+    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool) -> String? {
+        if let phase { return phase }
+        guard gameRuns, !windowShown else { return nil }
+        return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
+    }
+
     enum CurtainStep: Equatable { case wait, handOver, lower, raiseAgain, done }
 
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
@@ -907,7 +918,7 @@ final class LibraryModel: ObservableObject {
     private static let focusGuard: TimeInterval = 8
     /// How long the game has to keep the front before the curtain sinks a second time: a game
     /// building its window anew more than once made it come and go (Sonic Mania on 1.11.).
-    static let settleAgain: TimeInterval = 2.5
+    nonisolated static let settleAgain: TimeInterval = 2.5
 
     /// Hands the front to the game: its program with windows (a Windows game's .exe under Wine, a
     /// Mac game's app). Since macOS 14 only the app in front can pass it on – asking from behind

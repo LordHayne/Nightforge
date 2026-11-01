@@ -22,6 +22,8 @@ struct GameOverlayTest {
         windows()
         curtain()
         wayBack()
+        curtainLines()
+        brandArt()
         standIn()
         if failures == 0 { print("✓ GameOverlay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
@@ -169,6 +171,43 @@ struct GameOverlayTest {
         check(!LibraryModel.mayUncover(active: true, windowShown: true, page: .home, target: detail), "still on Home: the curtain waits for the page")
         check(!LibraryModel.mayUncover(active: false, windowShown: true, page: detail, target: detail), "not in front yet: waits")
         check(!LibraryModel.mayUncover(active: true, windowShown: false, page: detail, target: detail), "its window on another Space: waits")
+    }
+
+    /// The curtain's line follows the start: its own step while it has one, then the game's.
+    static func curtainLines() {
+        func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false, window: Bool = false) -> String? {
+            LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs, windowShown: window)
+        }
+        check(line() == nil, "nothing known yet: \"Starting …\"")
+        check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
+        check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
+        check(line(runs: true) == L10n.t("Waiting for the first picture …"), "the game runs, no window yet")
+        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
+        check(line(shaders: true, runs: true, window: true) == nil, "its window is there: nothing more to say")
+    }
+
+    /// The loading screen's N: drawn at the screen's scale, its seam left out for the layer on top.
+    static func brandArt() {
+        let unit: CGFloat = 0.5
+        let size = CGSize(width: BrandArt.glyphSize.width * unit, height: BrandArt.glyphSize.height * unit)
+        func picture(seam: Bool) -> CGImage? {
+            BrandArt.image(size: size, scale: 2) { BrandArt.drawMark($0, origin: .zero, scale: unit, seam: seam, glow: 2 * unit) }
+        }
+        guard let lit = picture(seam: true), let dark = picture(seam: false) else {
+            check(false, "the N drawn")
+            return
+        }
+        check(lit.width == 332 && lit.height == 440, "twice the points in pixels (\(lit.width)×\(lit.height))")
+        // Halfway along the seam, (49, 170) → (332, 440) in the design: blue light, or none.
+        func blue(_ image: CGImage) -> Int {
+            let point = CGPoint(x: (49 + 332) / 2 * unit * 2, y: (170 + 440) / 2 * unit * 2)
+            var pixel = [UInt8](repeating: 0, count: 4)
+            let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            context.draw(image, in: CGRect(x: -point.x, y: point.y - CGFloat(image.height) + 1, width: CGFloat(image.width), height: CGFloat(image.height)))
+            return Int(pixel[2]) - Int(pixel[0])
+        }
+        check(blue(lit) > blue(dark) + 30, "seam: false leaves the light to the layer on top (\(blue(lit)) against \(blue(dark)))")
     }
 
     /// A stand-in game: a shell named like a Windows game, which shrugs off SIGTERM, and its child.

@@ -454,6 +454,24 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       (`mayUncover`, nach 3 s ohnehin). Beim Start sinkt der Vorhang spätestens, wenn das Spiel 10 s vorne ist und
       sein Fenster irgendwo zeigt (`curtainLimit`); das Overlay liegt immer darüber. Live zu prüfen: Bleibt der
       Vorhang beim Start und beim Zurück ruhig stehen, auch wenn Steam oder das Spiel den Space wechseln?
+    - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
+      Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
+      (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
+      Nacht in einem Viertel der Bildschirmgröße (nur Verläufe). Darunter NIGHTFORGE und der Spielname in
+      gesperrten blauen Großbuchstaben; das schwache Spielbild ist weg. Bewegung: Ein Licht läuft an der Naht
+      entlang (kleiner Kreis, verschoben, mit der Naht als Maske), mit „Bewegung reduzieren“ atmet die Naht nur.
+      Die Statuszeile nennt von Anfang an den echten Schritt (`launchPhase`, „Shader werden beim ersten Start
+      vorbereitet …“, „Warte auf das erste Bild …“) und blendet über; die Begründung kommt wie bisher nach 3 s.
+      Offen: Die frische Wine-Sitzung nach einem Bildschirmwechsel läuft vor dem Vorhang (der Play-Knopf sagt
+      „Steam wird gestartet …“). Den Vorhang früher hochzuziehen würde ein Anmeldefenster von Steam verdecken.
+      Beim Zurück steht kein Cloud-Abgleich: Epic/GOG laden danach im Hintergrund hoch (die Spielseite zeigt es),
+      Steam meldet nichts.
+    - Befund 1.11. (Overwatch, Steam, Stick): `Overwatch.exe` lief ohne Fenster bei 0 % CPU. „Zum Spiel wechseln“
+      holte Steams Shop nach vorn, L3+R3 ging nicht, weil Nightforge vorne war (`reach == .app`); beenden ging
+      nur von Hand. Offen: Ein laufendes Spiel muss mit dem Pad immer zu beenden sein (L3+R3 auch aus Nightforge
+      oder „Spiel beenden“ auf der Spielseite und im ☰-Menü, mit Rückfrage). „Zum Spiel wechseln“ zeigt nie
+      Steams Fenster; ohne Fenster sagt Nightforge, dass das Spiel läuft, aber noch kein Bild zeigt, und bietet
+      Warten oder Beenden an.
 
 ## Anti-Cheat und GeForce Now
 
