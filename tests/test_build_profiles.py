@@ -1,7 +1,10 @@
 """Tests for scripts/build-profiles.py. Run: python3 -m unittest tests/test_build_profiles.py"""
 
 import importlib.util
+import json
 import pathlib
+import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -134,12 +137,59 @@ class AntiCheatTests(unittest.TestCase):
             {"name": "Paladins", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "badb"}}},
             {"name": "Warframe", "status": "Supported", "anticheats": ["Unknown (Custom)"], "storeIds": {"epic": {"namespace": "244a"}}},
             {"name": "Splitgate", "status": "Supported", "anticheats": ["EQU8"], "storeIds": {"epic": {"namespace": "47cb"}}},
+            {"name": "Wildgate", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "0ad0"}}},
             {"name": "Odd", "status": "Denied", "anticheats": ["BattlEye"], "storeIds": {"epic": {"namespace": "../x"}}},
-        ])
+        ], titles={"wildgate": "3504780"})
         self.assertEqual(blocks, {
             "epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]},
             "epic.9361c8c6d2f34b42b5f2f61093eedf48": {"name": "PUBG", "antiCheat": ["BattlEye"], "steam": "578080"},
             "epic.57df": {"name": "Back 4 Blood", "antiCheatOnline": ["Easy Anti-Cheat"]},
+            "epic.badb": {"name": "Paladins", "antiCheatOnline": ["Easy Anti-Cheat"]},
+            "epic.0ad0": {"name": "Wildgate", "antiCheatOnline": ["Easy Anti-Cheat"], "steam": "3504780"},
+        })
+
+    def test_running_loses_online_play_through_a_linux_module_too(self):
+        # "Running" under Proton with Easy Anti-Cheat or BattlEye means through their Linux module as
+        # well; "Planned" doesn't run there yet.
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "ARC Raiders", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "1808500"}},
+            {"name": "The Isle", "status": "Running", "anticheats": ["BattlEye"], "storeIds": {"steam": "376210"}},
+            {"name": "HELLDIVERS 2", "status": "Running", "anticheats": ["nProtect GameGuard"], "storeIds": {"steam": "553850"}},
+            {"name": "Due Process", "status": "Planned", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "753650"}},
+        ])
+        self.assertEqual(blocks, {
+            "1808500": {"name": "ARC Raiders", "antiCheatOnline": ["Easy Anti-Cheat"]},
+            "376210": {"name": "The Isle", "antiCheatOnline": ["BattlEye"]},
+            "753650": {"name": "Due Process", "antiCheat": ["Easy Anti-Cheat"]},
+        })
+
+    def test_a_full_block_isnt_shrunk_by_a_second_entry(self):
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "Post Scriptum", "status": "Denied", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "736220"}},
+            {"name": "Squad 44", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "736220"}},
+        ])
+        self.assertEqual(blocks, {"736220": {"name": "Post Scriptum", "antiCheat": ["Easy Anti-Cheat"]}})
+
+    def test_entries_without_steam_id_by_slug_or_exact_name(self):
+        titles = build_profiles.steam_titles([
+            {"id": "a", "title": "Warhammer 40,000: Space Marine 2", "variants": [{"appStore": "STEAM", "storeId": "2183900"}]},
+            {"id": "b", "title": "Counter-Strike 2", "variants": [{"appStore": "STEAM", "storeId": "730"}]},
+            {"id": "c", "title": "Twins", "variants": [{"appStore": "STEAM", "storeId": "1"}]},
+            {"id": "d", "title": "TWINS™", "variants": [{"appStore": "STEAM", "storeId": "2"}]},
+            {"id": "e", "title": "Epic Only", "variants": [{"appStore": "EPIC", "storeId": "06bd"}]},
+        ])
+        self.assertEqual(titles, {"warhammer 40 000 space marine 2": "2183900", "counter strike 2": "730"})
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "Warhammer 40,000: Space Marine 2", "slug": "w", "status": "Broken", "anticheats": ["Easy Anti-Cheat"], "storeIds": {}},
+            {"name": "EA SPORTS FC™ 26", "slug": "ea-sports-fc26", "status": "Denied", "anticheats": ["EA anticheat"], "storeIds": {}},
+            {"name": "EA SPORTS™ FC 26 (FACEIT)", "slug": "x", "status": "Broken", "anticheats": ["FACEIT"], "storeIds": {}},
+            # Counter-Strike 2's own entry says how it runs; a second one without an ID doesn't override it.
+            {"name": "Counter-Strike 2", "slug": "cs2", "status": "Supported", "anticheats": ["VAC"], "storeIds": {"steam": "730"}},
+            {"name": "Counter-Strike 2", "slug": "cs2-faceit", "status": "Denied", "anticheats": ["FACEIT"], "storeIds": {}},
+        ], titles)
+        self.assertEqual(blocks, {
+            "2183900": {"name": "Warhammer 40,000: Space Marine 2", "antiCheat": ["Easy Anti-Cheat"]},
+            "3405690": {"name": "EA SPORTS FC™ 26", "antiCheat": ["EA anticheat"]},
         })
 
     def test_geforce_now_ids_come_from_steam_variants(self):
@@ -161,6 +211,41 @@ class AntiCheatTests(unittest.TestCase):
             "gog.1816059595": mafia,
             "3907790": {"name": "OxyRail", "graphics": "dxmt", "source": "mac"},
         })
+
+
+class BuildTests(unittest.TestCase):
+    def test_a_run_from_all_sources(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = pathlib.Path(folder)
+            fixes = root / "umu" / "gamefixes-steam"
+            fixes.mkdir(parents=True)
+            for app_id, argument in (("1361210", "-eac-untrusted"), ("678950", "-eac-nop-loaded")):
+                (fixes / f"{app_id}.py").write_text(f"from protonfixes import util\n\ndef main() -> None:\n"
+                                                     f"    util.append_argument('{argument}')\n")
+            anticheat = [
+                {"name": "Darktide", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "1361210"}},
+                {"name": "DRAGON BALL FighterZ", "status": "Broken", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "678950"}},
+                {"name": "ARC Raiders", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "1808500"}},
+            ]
+            catalog = [
+                {"id": "gArc", "title": "ARC Raiders", "variants": [{"appStore": "STEAM", "storeId": "1808500"}]},
+                {"id": "gWar", "title": "WARDOGS", "variants": [{"appStore": "STEAM", "storeId": "1867240"}]},
+            ]
+            mac = {"games": {"1867240": {"name": "WARDOGS", "antiCheat": ["Elytra"]}}}
+            for name, content in (("anticheat.json", anticheat), ("gfn.json", catalog), ("mac.json", mac)):
+                (root / name).write_text(json.dumps(content))
+            subprocess.run([sys.executable, "-I", str(SCRIPT), str(root / "umu"), "--anticheat", str(root / "anticheat.json"),
+                            "--geforcenow", str(root / "gfn.json"), "--mac", str(root / "mac.json"), "--out", str(root / "out.json")],
+                           check=True, capture_output=True)
+            games = json.loads((root / "out.json").read_text())["games"]
+        # Its profile starts Darktide in untrusted mode, as umu does: online play isn't lost.
+        self.assertNotIn("antiCheatOnline", games["1361210"])
+        # -eac-nop-loaded starts it without the anti-cheat: it runs, only online play is gone.
+        self.assertEqual((games["678950"].get("antiCheat"), games["678950"].get("antiCheatOnline")), (None, ["Easy Anti-Cheat"]))
+        self.assertEqual(games["1808500"], {"name": "ARC Raiders", "source": "anticheat", "antiCheatOnline": ["Easy Anti-Cheat"],
+                                            "geforceNow": "gArc"})
+        # A block from profiles/mac.json gets its GeForce Now link as well.
+        self.assertEqual(games["1867240"]["geforceNow"], "gWar")
 
 
 if __name__ == "__main__":
