@@ -12,7 +12,7 @@
   <a href="#whats-next">What's next</a> ·
   <a href="#how-it-works">How it works</a>
   <br>
-  <sub>Free · Apple silicon (M1 or newer) · macOS 14 or later · English and German · GPL-3.0</sub>
+  <sub>Free · Apple silicon (M1 or newer) · macOS 26 (Tahoe) or later · English and German · GPL-3.0</sub>
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ When a game also comes for the Mac, Nightforge plays the Mac version – without
 
 ### Sharp & smooth, by itself
 
-Most Windows games get Apple's MetalFX upscaling to full Retina sharpness, and games get an even frame rate that fits your display – 60 FPS on a 120 Hz screen. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal, DirectX 9 through Wine's own WineD3D.
+Most Windows games get Apple's MetalFX upscaling to full Retina sharpness, and games get an even frame rate that fits your display – 60 FPS on a 120 Hz screen. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal (once you agree), DirectX 9 through Wine's own WineD3D.
 
 | Measured on an M5 with Nightforge 0.2 | DXMT (Nightforge) | Vulkan route |
 |---|---:|---:|
@@ -115,7 +115,7 @@ No dates – just an honest sort.
 
 ## Install
 
-You need a Mac with Apple silicon (M1 or newer) and macOS 14 or later. Open **Terminal** and paste:
+You need a Mac with Apple silicon (M1 or newer) and macOS 26 (Tahoe) or later – the Windows engine is built for it. Open **Terminal** and paste:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/LordHayne/Nightforge/main/scripts/install.sh | bash
@@ -155,13 +155,13 @@ On a trackpad, two fingers sideways go back, and pinching in the library makes t
 ## Good to know
 
 - **Online games with anti-cheat** (Easy Anti-Cheat, BattlEye) can't run on a Mac in their Windows versions – though some have a Mac version with anti-cheat. Nightforge says so before you download and offers **GeForce Now** when the game is there – with your copy from Steam or, where GeForce Now supports it, from Epic. When Steam offers a way to start a game without anti-cheat, Nightforge takes it. Single player and servers without anti-cheat work.
-- **DirectX 10 and 11** are well covered. **DirectX 9** runs through WineD3D, often slower and without MetalFX; KosmicKrisp should make it faster (see What's next). **DirectX 12** runs through Apple's D3DMetal; it's newer ground, so expect the odd game that doesn't.
+- **DirectX 10 and 11** are well covered. **DirectX 9** runs through WineD3D, often slower and without MetalFX; KosmicKrisp should make it faster (see What's next). **DirectX 12** runs through Apple's D3DMetal, which Nightforge fetches the first time a DirectX 12 game needs it, once you agree – Apple's licence allows it only for developing, testing and evaluating games. It's newer ground, so expect the odd game that doesn't.
 - **VR-only games** are marked as such; they can't run on a Mac.
 - Saves in the **Steam Cloud** sync as usual.
 
 ## How it works
 
-- **Engine:** a free Wine build with CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk), LGPL) runs Steam and the games in one Windows environment in `~/Library/Application Support/Nightforge`. DirectX 10/11 goes through [DXMT](https://github.com/3Shain/dxmt) (patched for Wine 11, built by `.github/workflows/graphics.yml`), DirectX 9 through Wine's own WineD3D (OpenGL; [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) with [MoltenVK](https://github.com/KhronosGroup/MoltenVK) only on the fallback engine), DirectX 12 through Apple's D3DMetal from the [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) – the only way DirectX 12 runs on a Mac, and the reason for the CrossOver-based engine: D3DMetal only runs on one. Nightforge picks the layer from what a game's files show, and moves on to the next one by itself if a game doesn't start. Games that use Vulkan themselves go to MoltenVK through a small layer (`wrapper/nightforge-vulkan-layer.c`) that leaves out what Metal can't do instead of letting the game stop at start.
+- **Engine:** a free Wine build with CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk), LGPL) runs Steam and the games in one Windows environment in `~/Library/Application Support/Nightforge`. DirectX 10/11 goes through [DXMT](https://github.com/3Shain/dxmt) (patched for Wine 11, built by `.github/workflows/graphics.yml`), DirectX 9 through Wine's own WineD3D (OpenGL; [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) with [MoltenVK](https://github.com/KhronosGroup/MoltenVK) only on the fallback engine), DirectX 12 through Apple's D3DMetal from the [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) – the only way DirectX 12 runs on a Mac, and the reason for the CrossOver-based engine: D3DMetal only runs on one. Nightforge fetches D3DMetal only after you agree (see Licence). Nightforge picks the layer from what a game's files show, and moves on to the next one by itself if a game doesn't start. Games that use Vulkan themselves go to MoltenVK through a small layer (`wrapper/nightforge-vulkan-layer.c`) that leaves out what Metal can't do instead of letting the game stop at start.
 - **Components:** `components/sources.json` lists what's used; a nightly workflow pins the newest releases with checksums in `components/manifest.json`, which the app downloads and verifies.
 - **Steam in the background:** Steam's browser runs through a small wrapper (`wrapper/`) so it draws under Wine, and a tiny library keeps its windows out of the Dock. Games are started with Steam's own `-applaunch`, so licences, cloud saves and updates work as usual.
 - **Epic Games:** [legendary](https://github.com/derrod/legendary) (GPL-3.0) signs in through Epic's own page, downloads Epic games and starts them directly in the same Windows environment – no Epic launcher.
@@ -201,7 +201,7 @@ The app ends up in `~/Applications/Nightforge.app` and starts right away. To pub
 
 Nightforge is free software under the [GNU General Public License v3.0](LICENSE): you may use, share and change it, and anything built from it that you pass on stays open under the same licence. The game fixes in `profiles/profiles.json` are derived from umu-protonfixes and keep their [BSD-2-Clause notice](profiles/LICENSE-umu-protonfixes); the anti-cheat status comes from AreWeAntiCheatYet ([MIT](profiles/LICENSE-areweanticheatyet)). These licence files ship inside the app, together with [THIRD_PARTY_NOTICES.txt](Resources/THIRD_PARTY_NOTICES.txt): the Vulkan headers in the Vulkan layer, the mingw-w64 runtime in the Steam browser wrapper, and the licences of everything Nightforge downloads.
 
-D3DMetal is Apple's software, not part of Nightforge and not under the GPL. Nightforge downloads Apple's files unmodified and signed by Apple (`scripts/package-d3dmetal.sh` packs them from Apple's toolkit), with Apple's `License.rtf` beside them. Apple's licence allows passing them on for non-commercial purposes only, on Apple hardware – which is one more reason Nightforge is and stays free: no price, no ads, no donations. Apple licenses the toolkit for developing, testing and evaluating games; that's the terms Nightforge's copy comes under too.
+D3DMetal is Apple's software, not part of Nightforge and not under the GPL. Nightforge doesn't download it on its own: the first time a DirectX 12 game needs it, Nightforge shows Apple's licence and asks – it can download Apple's Game Porting Toolkit from Apple and import D3DMetal from it (recommended), or load an unmodified copy, signed by Apple, from Nightforge (`scripts/package-d3dmetal.sh` packs it, with Apple's `License.rtf` beside it). Apple's licence allows passing it on for non-commercial purposes only, on Apple hardware – one more reason Nightforge is and stays free: no price, no ads, no donations. And it allows using D3DMetal only for developing, testing and evaluating games.
 
 ## Credits
 
