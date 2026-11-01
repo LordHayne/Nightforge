@@ -573,6 +573,9 @@ enum L10n {
             "„%@“ in deinem Downloads-Ordner sieht nach Apples Game Porting Toolkit aus. Importieren?",
         "Import": "Importieren",
         "Download a New One from Apple": "Neu bei Apple laden",
+        "Set Up the Finished D3DMetal …": "Fertiges D3DMetal einrichten …",
+        "This game ran on a D3DMetal beta (%@). Apple's finished version, %@, may start it.":
+            "Dieses Spiel lief auf einer D3DMetal-Beta (%@). Apples fertige Version, %@, startet es vielleicht.",
         "Remove D3DMetal?": "D3DMetal entfernen?",
         "Removing D3DMetal": "D3DMetal wird entfernt",
         "Removing D3DMetal …": "D3DMetal wird entfernt …",

@@ -617,6 +617,21 @@ struct FailedLaunchSheet: View {
                         .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
                         .padding(.top, 4)
                     }
+                    if offersFinishedD3DMetal {
+                        Button(action: finishedD3DMetal) {
+                            Label(L10n.t("Set Up the Finished D3DMetal …"), systemImage: "arrow.triangle.2.circlepath")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("failed.d3dmetal", cornerRadius: 21, activate: finishedD3DMetal)
+                        .padding(.top, 4)
+                        Text(L10n.t("This game ran on a D3DMetal beta (%@). Apple's finished version, %@, may start it.",
+                                    D3DMetalSupply.displayVersion(Engine.deployedD3DMetalVersion() ?? ""), D3DMetalSupply.finishedVersion))
+                            .font(size: 12.5)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
+                    }
                 }
             }
             HStack(alignment: .center, spacing: 12) {
@@ -644,6 +659,21 @@ struct FailedLaunchSheet: View {
     private var offersCompatible: Bool {
         failed.game.bottle.isBuiltIn && failed.game.platform == .windows
             && GameOptionsStore.load(failed.game.gameID).preset != .compatible
+    }
+
+    /// The game was tried on D3DMetal, and what is in the engine is a beta (kept from before the question):
+    /// the finished one is a way out that costs two clicks and nothing is changed behind the player's back.
+    private var offersFinishedD3DMetal: Bool {
+        failed.tried.contains(GraphicsLayer.d3dmetal.label) && model.d3dMetalIsBeta
+    }
+
+    private func finishedD3DMetal() {
+        model.failedLaunch = nil
+        // One sheet closes before the next opens.
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            model.askAboutD3DMetal(for: nil, change: true)
+        }
     }
 
     private func mostCompatible() { model.startMostCompatible(failed) }
