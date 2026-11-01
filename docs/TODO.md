@@ -35,6 +35,15 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     (zwei bis drei volle CPU-Threads). APEX, DirectSound, Schatten, Geometrie und AO helfen nicht. Der Weg ist DXVK
     auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
   - Landingpage und README.
+  - **Kleine Anzeigefehler kommen in späteren Releases** (Nutzer, 1.11. abends: „diese kleinen anzeige bugs …
+    können wir in weiteren releases dann auch beheben. der grundstein ist gelegt“). Damit gemeint sind:
+    - der Mauszeiger, der am Ladebildschirm aufblitzt bzw. bei Overcooked wieder sichtbar war (53b3346);
+    - ein Fenster des Spiels, das nicht auf dem Ladebildschirm landet (Wukongs Treiber-Warnung);
+    - Steams Hauptfenster, das nach dem Spielende kurz vor dem Ladebildschirm auftaucht (ShowInterstitials hatte es geöffnet);
+    - das Pad in „startet nicht?“.
+    Was die Sitzungen dazu am 1.11. noch committet haben, wird mit getestet. Für 0.3.0 blockiert davon nichts.
+    In 0.3.0 gehört dagegen Unreals Treiber-Warnung unter D3DMetal 3.0: Das ist kein Anzeigefehler, ihr „Yes“
+    beendet das Spiel. AMD-Liste erledigt (f177076), NVIDIA/Intel bei der Sicherheits-Sitzung.
 - **Release-Stand einfrieren:**
   - Alle Testreihen grün.
   - Ersteinrichtung mit leerem HOME (`build/fh`, siehe Notizen zum Fresh-Setup-Test).
