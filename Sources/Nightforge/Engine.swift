@@ -1420,9 +1420,10 @@ enum Engine {
 
     // MARK: - Unreal's driver warning
 
-    /// The sections of an Unreal game's Hardware.ini that name the AMD drivers it warns about (the
-    /// plain one, and the one with the platform behind it).
-    static let unrealDriverSections = ["GPU_AMD", "GPU_AMD Windows"]
+    /// The sections of an Unreal game's Hardware.ini that name the drivers it warns about: the three
+    /// vendors the engine knows (they stand side by side in its code: GPU_NVIDIA, GPU_AMD, GPU_Intel; the
+    /// other GPU_ names in it are shader defines), each plain and with the platform behind it.
+    static let unrealDriverSections = ["GPU_AMD", "GPU_NVIDIA", "GPU_Intel"].flatMap { [$0, $0 + " Windows"] }
     /// … and the keys for the list: DriverDenyList in Unreal 5, Blacklist before. "!" clears the list.
     static let unrealDriverLists = ["!DriverDenyList", "!Blacklist"]
 
@@ -1436,11 +1437,13 @@ enum Engine {
         return Array(Set(projects)).filter { $0.lastPathComponent != "Engine" }.sorted { $0.path < $1.path }
     }
 
-    /// D3DMetal 3.0 presents itself as an AMD card with driver 30.0.15.1233, which is on Unreal's own
-    /// list of drivers with known issues: the game opens "WARNING: Known issues with graphics driver",
-    /// and its Yes (to AMD's download page) ends the game. The list comes from the game's Hardware.ini,
-    /// and the player's file in Saved/Config is read last: it clears the AMD list. (The version can't
-    /// be changed from outside – D3DMetal states it itself.) Set before every start of an Unreal game
+    /// D3DMetal 3.0 presents itself as an AMD card ("AMD Compatibility Mode") with driver 30.0.15.1233, which
+    /// is on Unreal's own lists of drivers with known issues: the game opens "WARNING: Known issues with
+    /// graphics driver", and its Yes (to the vendor's download page) ends the game. It was seen with the
+    /// AMD list and, once that was cleared, with NVIDIA's – 30.0.15.1233 is 512.33 in NVIDIA's numbering, and
+    /// Unreal checks the version against more than the one vendor's list. The lists come from the game's
+    /// Hardware.ini, and the player's file in Saved/Config is read last: it clears them all. (The version
+    /// can't be changed from outside – D3DMetal states it itself.) Set before every start of an Unreal game
     /// on D3DMetal, as the game may rewrite the file when it quits.
     static func clearUnrealDriverDenyList(installDir: URL) {
         let fm = FileManager.default

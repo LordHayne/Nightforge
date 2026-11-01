@@ -543,8 +543,10 @@ struct D3DMetalTest {
 
         Engine.clearUnrealDriverDenyList(installDir: game)
         let cleared = text(hardware) ?? ""
-        for section in ["[GPU_AMD]", "[GPU_AMD Windows]"] { check(cleared.contains(section), "section \(section) is there") }
-        check(cleared.components(separatedBy: "!DriverDenyList=ClearArray").count == 3 && cleared.components(separatedBy: "!Blacklist=ClearArray").count == 3,
+        let sections = ["[GPU_AMD]", "[GPU_AMD Windows]", "[GPU_NVIDIA]", "[GPU_NVIDIA Windows]", "[GPU_Intel]", "[GPU_Intel Windows]"]
+        for section in sections { check(cleared.contains(section), "section \(section) is there") }
+        check(Engine.unrealDriverSections == sections.map { String($0.dropFirst().dropLast()) }, "the three vendors, each plain and with Windows: \(Engine.unrealDriverSections)")
+        check(cleared.components(separatedBy: "!DriverDenyList=ClearArray").count == 7 && cleared.components(separatedBy: "!Blacklist=ClearArray").count == 7,
               "each clears the list under both names: \(cleared.debugDescription)")
         check(cleared.replacingOccurrences(of: "\r\n", with: "").contains("\n") == false, "no stray line breaks: \(cleared.debugDescription)")
         check(!fm.fileExists(atPath: game.appendingPathComponent("Engine/Saved").path)
@@ -570,7 +572,18 @@ struct D3DMetalTest {
         Engine.clearUnrealDriverDenyList(installDir: kept)
         let merged = text(file) ?? ""
         check(merged.contains("[Other]\nValue=1\n") && merged.contains("SuggestedDriverVersion=\"22.2.2\"")
-              && merged.components(separatedBy: "[GPU_AMD]").count == 2 && merged.contains("[GPU_AMD Windows]"), "the rest stays, one [GPU_AMD]: \(merged.debugDescription)")
+              && merged.components(separatedBy: "[GPU_AMD]").count == 2 && merged.contains("[GPU_AMD Windows]")
+              && merged.contains("[GPU_NVIDIA]") && merged.contains("[GPU_Intel Windows]"), "the rest stays, one [GPU_AMD]: \(merged.debugDescription)")
+
+        // A file an earlier Nightforge wrote (AMD only) gets the others added, and none twice.
+        let earlier = fresh(work, "unreal-earlier")
+        write("MZ", to: earlier.appendingPathComponent("Game/Binaries/Win64/Game-Win64-Shipping.exe"))
+        let earlierFile = earlier.appendingPathComponent("Game/Saved/Config/Windows/Hardware.ini")
+        write("[GPU_AMD]\n!Blacklist=ClearArray\n!DriverDenyList=ClearArray\n\n[GPU_AMD Windows]\n!Blacklist=ClearArray\n!DriverDenyList=ClearArray\n", to: earlierFile)
+        Engine.clearUnrealDriverDenyList(installDir: earlier)
+        let upgraded = text(earlierFile) ?? ""
+        check(upgraded.components(separatedBy: "[GPU_AMD]").count == 2 && upgraded.contains("[GPU_NVIDIA]") && upgraded.contains("[GPU_Intel Windows]")
+              && upgraded.components(separatedBy: "!DriverDenyList=ClearArray").count == 7, "an AMD-only file is completed: \(upgraded.debugDescription)")
 
         // Unreal 4 keeps its saved files in WindowsNoEditor once it has run.
         let old = fresh(work, "unreal-4")
