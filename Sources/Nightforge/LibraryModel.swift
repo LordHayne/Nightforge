@@ -2314,6 +2314,14 @@ final class LibraryModel: ObservableObject {
                 }
                 launchingID = game.id
                 NSApp.activate()
+                // Nothing starts again while the game still runs – crashed behind a dialog, hanging, or
+                // not ended after a graphics error: a second copy is only turned away ("Game Already
+                // Running", Control, 1.11.2026). Every other way below starts it again.
+                let folders = Self.processFolders([game])
+                if await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value != nil {
+                    errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
+                    return
+                }
                 // It ran well this way on the engine before and ends at once on the newest: the newest
                 // broke it, so it starts with the one before – the way stays.
                 if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.gameID, build: build, way: way) {

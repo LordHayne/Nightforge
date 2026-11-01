@@ -1331,7 +1331,7 @@ enum Engine {
             placeDXVK(layer == .dxvk, dxvkDir: dxvk, installDir: installDir)
         }
         let exes = executables(in: installDir)
-        var sections: [String] = []
+        var sections = [crashDialogOff]
         for exe in exes {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
@@ -1345,9 +1345,15 @@ enum Engine {
             sections.append(section)
         }
         sections += (profile?.registry ?? []).compactMap(regSection)
-        guard !sections.isEmpty else { return }
         importRegistry(sections.joined(separator: "\n\n"), wine: wine)
     }
+
+    /// No "Program Error – … has encountered a serious problem" window: Wine's debugger (AeDebug's
+    /// "winedbg --auto", already the prefix's) writes the backtrace into the game log and ends the
+    /// crashed game at once. With the window open the game ran on, Nightforge didn't see it end, and
+    /// it held its "only one instance" lock (Control, 1.11.2026). winecx's winedbg reads the value.
+    /// Set before every start, so every prefix has it.
+    static let crashDialogOff = "[HKEY_CURRENT_USER\\Software\\Wine\\WineDbg]\n\"ShowCrashDialog\"=dword:00000000"
 
     /// A quoted .reg string. Line breaks and other control characters are dropped: in a .reg file
     /// they would end the line and start lines of their own.
