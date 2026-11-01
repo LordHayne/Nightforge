@@ -143,6 +143,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   dann wegen Platzmangel pausiert. Nightforge zeigt das an und bietet „Weiter laden“
   (`Engine.unpauseDownload`). Vor einem *Download* prüft Nightforge den Platz inzwischen (`SpaceCheck`, UX-Roadmap 4.1);
   vor *Updates*, die Steam von selbst startet, noch nicht (Steams `BytesToStage`, `UpdateState.pending`).
+- **Platzprüfung zählt laufende Downloads nicht mit, und die Reserve ist knapp** (Nutzer, 1.11.). Die Lage: Control
+  (Epic, 27,8 GB) und The Evil Within 2 (GOG, 35,2 GB) luden zugleich, 44 GB waren frei, CleanMyMac warnte
+  „Speicherplatz wird knapp“. Beide passen noch, danach bleiben etwa 10 GB.
+  - `SpaceCheck.shortfall` vergleicht aber nur das neue Spiel mit dem freien Platz plus 1 GB Reserve
+    (`LibraryModel.downloadIfRoom`). Was andere Downloads auf demselben Laufwerk noch brauchen, fehlt.
+  - Vorschlag: Die Reste aller laufenden und wartenden Downloads je Laufwerk abziehen. Dazu eine Reserve, die macOS Luft
+    lässt (etwa 10 GB statt 1 GB). Bleibt danach wenig übrig, sagt Nightforge vorher ruhig, wie viel frei bleibt.
 
 ## Controller
 
