@@ -22,6 +22,7 @@ final class LibraryModel: ObservableObject {
     @Published var searchText = "" {
         didSet {
             guard searchText != oldValue else { return }
+            libraryMenu = nil
             // Hits show in the library, wherever the search started.
             if !searchText.isEmpty, route != .library {
                 rememberSelection()
@@ -40,7 +41,12 @@ final class LibraryModel: ObservableObject {
     private var searchFocusPending = false
     /// Home, the library grid, or a game's page.
     @Published private(set) var route = Route.home {
-        didSet { if route != oldValue { history.moved(from: oldValue, to: route, by: historyStep) } }
+        didSet {
+            guard route != oldValue else { return }
+            history.moved(from: oldValue, to: route, by: historyStep)
+            libraryMenu = nil
+            lightbox = nil
+        }
     }
     /// What forward (the trackpad swipe) can retrace, and what kind of step changes the route now.
     private var history = NavigationHistory()
@@ -60,6 +66,10 @@ final class LibraryModel: ObservableObject {
     @Published var filters = LibraryFilters() {
         didSet { if filters != oldValue { applyFilter() } }
     }
+    /// The list one of the library's chips opened (stores, order, filters).
+    @Published var libraryMenu: LibraryMenu?
+    /// A game's screenshot shown big over the window.
+    @Published var lightbox: Lightbox?
     /// The game each level had selected, so going back to it finds it there again.
     private var homeGameID: String?
     private var libraryGameID: String?
@@ -104,6 +114,9 @@ final class LibraryModel: ObservableObject {
     private var analyses: [GameID: GameAnalysis] = [:]
     /// The profile list at hand, for how well each game runs (Compatibility), by Steam app ID.
     @Published private(set) var profiles: [Int: GameProfile] = [:]
+    /// What each game is, kept on the Mac (GameInfoStore): its page's text and facts, and for Epic and
+    /// GOG games the same game on Steam, which the filters and profiles go by.
+    @Published private(set) var gameInfo = GameInfoStore.load()
     @Published var showingOptions = false
     /// Settings, as a dialog over the library (also over it in full screen).
     @Published var showingSettings = false
@@ -898,7 +911,7 @@ final class LibraryModel: ObservableObject {
         found = LibraryScanner.sorted(found)
         let wasDownloading = Set(allGames.filter { Self.isDownloading($0.install) }.map(\.id))
         let wasRefused = Set(allGames.filter(\.downloadRefused).map(\.id))
-        allGames = withStorePrices(found)
+        allGames = withGameInfo(withStorePrices(found))
         lastScan = Date()
         measureDownloads()
         libraryLoaded = true
@@ -920,6 +933,7 @@ final class LibraryModel: ObservableObject {
         }
         watchDownloads()
         afterScan()
+        fillGameInfo()
         if scanAgain {
             scanAgain = false
             Task { await rescan() }
@@ -1228,7 +1242,12 @@ final class LibraryModel: ObservableObject {
             guard !Task.isCancelled else { return }
             let hits = await StoreSearch.shared.search(term)
             guard !Task.isCancelled, term == searchText.trimmingCharacters(in: .whitespaces) else { return }
-            storeResults = hits.map(storeGame)
+            storeResults = hits.map { storeGame($0, info: nil) }
+            applyFilter()
+            // Their covers: newer games keep them only at addresses Steam's store-browse API names.
+            let infos = await GameInfoStore.shared.storeInfos(hits.map(\.appID))
+            guard !Task.isCancelled, !infos.isEmpty, term == searchText.trimmingCharacters(in: .whitespaces) else { return }
+            storeResults = hits.map { storeGame($0, info: infos[$0.appID]) }
             applyFilter()
         }
     }
@@ -1236,7 +1255,7 @@ final class LibraryModel: ObservableObject {
     /// Games whose anti-cheat stops them on a Mac, so the store search can say so before buying.
     private var antiCheatBlocks: [Int: AntiCheatBlock] = [:]
 
-    private func storeGame(_ hit: StoreSearch.Hit) -> Game {
+    private func storeGame(_ hit: StoreSearch.Hit, info: GameInfo?) -> Game {
         var game = Game(
             appID: hit.appID, name: hit.name, bottle: Engine.bottle, steamRoot: Engine.steamRoot,
             steamExeWindowsPath: Engine.steamExeWindowsPath,
@@ -1245,7 +1264,10 @@ final class LibraryModel: ObservableObject {
         )
         game.install = .inStore
         game.macNative = hit.macNative ?? false
-        game.controller = hit.controller ?? .none
+        game.controller = hit.controller ?? info?.controller ?? .none
+        game.controllerKnown = true
+        game.playModes = info?.modes ?? []
+        if let info { game.art = StoreArt(info) }
         game.storePrice = hit.price
         game.metascore = hit.metascore
         // Store hits don't say whether there's single player, so only blocks that always hold.
@@ -1257,6 +1279,58 @@ final class LibraryModel: ObservableObject {
     private var storeDetailsRequested: Set<Int> = []
     /// Prices of the library's store entries, once looked up; every scan brings them back.
     private var storePrices: [Int: String] = [:]
+
+    // MARK: - What each game is
+
+    /// Each store's entry with what GameInfoStore knows: an Epic or GOG game's twin on Steam, its
+    /// controller support and ways to play; a Steam game's art at the addresses newer games need.
+    private func withGameInfo(_ games: [Game]) -> [Game] {
+        let known = gameInfo
+        return games.map { game in
+            var game = game
+            if game.provider != .steam, game.steamTwin == nil { game.steamTwin = known.twins[game.gameID.key]?.appID }
+            guard let info = GameInfoStore.info(for: game, in: known) else { return game }
+            if game.provider != .steam {
+                if let controller = info.controller {
+                    game.controller = controller
+                    game.controllerKnown = true
+                }
+                game.playModes = info.modes
+            } else {
+                if game.playModes.isEmpty { game.playModes = info.modes }
+                if game.art == nil, info.cover != nil || info.hero != nil { game.art = StoreArt(info) }
+            }
+            return game
+        }
+    }
+
+    /// Asks for what isn't known yet about the library (after a scan, in the background); the
+    /// filters, controller support and covers follow each step as it comes.
+    private func fillGameInfo() {
+        let entries = allGames
+        Task { [weak self] in
+            await GameInfoStore.shared.fill(entries) { known in self?.takeGameInfo(known) }
+        }
+    }
+
+    /// What its store or the same game on Steam says about a game (its page).
+    func info(for game: Game) -> GameInfo? {
+        GameInfoStore.info(for: game, in: gameInfo)
+    }
+
+    /// A game's page opens: Steam's info for it now, when the fill hasn't come to it yet (a store
+    /// hit, a game just added) or it's a month old.
+    func askInfo(for game: Game) async {
+        guard let known = await GameInfoStore.shared.ask(game) else { return }
+        takeGameInfo(known)
+    }
+
+    private func takeGameInfo(_ known: GameInfoStore.Known) {
+        guard known != gameInfo else { return }
+        gameInfo = known
+        allGames = withGameInfo(allGames)
+        applyFilter()
+    }
 
     private func withStorePrices(_ games: [Game]) -> [Game] {
         guard !storePrices.isEmpty else { return games }
@@ -1280,8 +1354,10 @@ final class LibraryModel: ObservableObject {
                 applyFilter()
                 return
             }
-            var updated = storeGame(hit)
+            var updated = storeGame(hit, info: nil)
             updated.metascore = hit.metascore ?? storeResults[index].metascore
+            updated.art = storeResults[index].art  // the cover Steam's store-browse API named
+            updated.playModes = storeResults[index].playModes
             storeResults[index] = updated
             applyFilter()
         }
@@ -1762,10 +1838,11 @@ final class LibraryModel: ObservableObject {
     private func applyFilter(selectBestMatch: Bool = false) {
         let previous = selected?.id
         let words = Search.key(searchText).split(separator: " ")
-        // Hidden games only show where they're brought back from; the filters only in the library.
+        // Hidden games only show where they're brought back from; the filters only in the library,
+        // and not during a search: it finds every game, whatever the filters leave out.
         var shelf = cards.filter { isHidden($0) == showingHidden }
         if route.level == .library {
-            shelf = shelf.filter { filters.admits($0) { compatibility(of: $0).level } }
+            if words.isEmpty { shelf = shelf.filter { filters.admits($0) { compatibility(of: $0).level } } }
             shelf = showingHidden ? LibraryFilters(sort: .name).sorted(shelf) : filters.sorted(shelf)
         }
         if words.isEmpty {
@@ -1777,10 +1854,10 @@ final class LibraryModel: ObservableObject {
             let ranked = shelf.compactMap { game in
                 game.entries.compactMap { Search.rank(name: $0.name, query: searchText) }.min().map { (game, $0) }
             }
+            // Store hits are games you don't own – in any store: not Overcooked! 2 on Steam when it's in your Epic library.
             let owned = Set(allGames.map(\.gameID))
-            // Store hits are games you don't own: only without filters that ask about your copy.
-            let storeHits = showingHidden || filters.status != .all || filters.controller || filters.mac ? []
-                : storeResults.filter { !owned.contains($0.gameID) && (!filters.great || compatibility(of: $0).level == .great) }
+            let ownedOnSteam = Set(allGames.compactMap(\.steamAppID))
+            let storeHits = showingHidden ? [] : storeResults.filter { !owned.contains($0.gameID) && !ownedOnSteam.contains($0.appID) }
             games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + storeHits
         }
         let first = route.level == .library ? gridLayout.order.first ?? 0 : 0
@@ -1997,9 +2074,9 @@ final class LibraryModel: ObservableObject {
         let score = game.metascore ?? steam.flatMap {
             SteamCatalog.storeFacts(appID: $0.appID, steamRoot: $0.steamRoot)?.metascore ?? Metascores.cached($0.appID)
         }
-        // Controller support only Steam knows; Epic and GOG don't say.
+        // Controller support where a store says it: Epic and GOG through the same game on Steam.
         return StarterFacts(installed: game.isInstalled, level: compatibility(of: game).level,
-                            controller: steam == nil ? nil : game.controller,
+                            controller: game.knownController,
                             mac: game.platform == .mac || (game.macNative && game.mac64), metascore: score,
                             size: game.downloadSize ?? game.sizeOnDisk)
     }
@@ -2060,6 +2137,31 @@ final class LibraryModel: ObservableObject {
     /// … of one store (a game from several stores counts in each).
     func visibleCount(of provider: Provider) -> Int {
         DuplicateGames.count(cards, hidden: hiddenGames, in: provider)
+    }
+
+    /// The stores with games in the library, in their own order: the store chip shows from two on.
+    var storesWithGames: [Provider] {
+        let found = Set(cards.lazy.filter(\.inLibrary).flatMap(\.providers))
+        return Provider.allCases.filter(found.contains)
+    }
+
+    /// Esc or B on an open list: it closes, and the pad's highlight goes back to its chip.
+    func closeLibraryMenu(_ menu: LibraryMenu) {
+        libraryMenu = nil
+        if PadFocus.shared.focused != nil { PadFocus.shared.focus(menu.chipID) }
+    }
+
+    /// A on the store chip: all stores → each store with games → all again.
+    func nextStore() {
+        let stores = [nil] + storesWithGames.map(Optional.some)
+        let place = stores.firstIndex(of: filters.store) ?? 0
+        filters.store = stores[(place + 1) % stores.count]
+    }
+
+    /// How many games `filter` leaves, with the store picked: the number beside it in the filter panel.
+    func count(with filter: LibraryFilters.Filter) -> Int {
+        let only = LibraryFilters(store: filters.store, on: [filter])
+        return cards.lazy.filter { !self.isHidden($0) && $0.counted && only.admits($0) { self.compatibility(of: $0).level } }.count
     }
 
     /// The hidden games, each once.
@@ -2246,7 +2348,7 @@ final class LibraryModel: ObservableObject {
             var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
-            let profile = viaSteam && game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.appID) : nil
+            let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.gameID) : nil
             let insight = await insight(of: game)
             let analysis = insight?.analysis
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
@@ -2472,7 +2574,7 @@ final class LibraryModel: ObservableObject {
         preparations[game.gameID] = Task {
             defer { preparations[game.gameID] = nil }
             guard let wine = await Engine.installedWine() else { return }
-            let profile = await ProfileStore.shared.profile(for: game.appID)
+            let profile = await ProfileStore.shared.profile(for: game.gameID)
             let analysis = await insight(of: game)?.analysis
             await installRuntimes(for: game, profile: profile, analysis: analysis, wine: wine, showStatus: false)
             if game.provider == .gog { await setUpGOG(game, wine: wine, showStatus: false) }
@@ -2775,7 +2877,7 @@ final class LibraryModel: ObservableObject {
             analyzing[game.gameID] = nil
             analyses[game.gameID] = analysis
         }
-        let profile = await ProfileStore.shared.profile(for: game.appID)
+        let profile = await ProfileStore.shared.profile(for: game.gameID)
         let insight = GameInsight(analysis: analysis, attempts: LaunchHealth.attempts(for: analysis, profile: profile))
         if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
@@ -2783,7 +2885,8 @@ final class LibraryModel: ObservableObject {
 
     /// How well it runs on a Mac, from the profile list and what this Mac learned about it.
     func compatibility(of game: Game) -> Compatibility {
-        Compatibility.of(game, profile: game.gameID.steamAppID.flatMap { profiles[$0] }, analysis: insights[game.gameID]?.analysis)
+        // Epic's and GOG's games by the same game on Steam, whose profile it is.
+        Compatibility.of(game, profile: game.steamAppID.flatMap { profiles[$0] }, analysis: insights[game.gameID]?.analysis)
     }
 
     /// The previous engine this game runs with, because the newest crashed it (EngineRollback).
@@ -2866,7 +2969,7 @@ final class LibraryModel: ObservableObject {
     func reportProblem(for game: Game, tried: [String] = []) {
         Task {
             ProblemReport.open(game: game, insight: await insight(of: game),
-                               profile: await ProfileStore.shared.profile(for: game.appID), tried: tried)
+                               profile: await ProfileStore.shared.profile(for: game.gameID), tried: tried)
         }
     }
 

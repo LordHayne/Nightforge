@@ -7,21 +7,33 @@ struct MetaLine: View {
     let facts: StoreFacts?
     /// The stores it's in ("Steam"), the one it starts through first.
     var stores = ["Steam"]
+    /// What its store or the same game on Steam says (GameInfo), where Steam's catalog on the Mac
+    /// doesn't have it: Epic's and GOG's games, store hits.
+    var info: GameInfo?
+
+    private var genre: String? { facts?.genre ?? info?.genres.first }
+    private var year: Int? { facts?.year ?? info?.released.map { Self.calendar.component(.year, from: $0) } }
+
+    private static let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }()
 
     var body: some View {
         HStack(spacing: 8) {
             CompatibilityBadge(compatibility: compatibility, small: true)
                 .padding(.trailing, 4)
-            if let genre = facts?.genre {
+            if let genre {
                 caps(genre.uppercased(with: L10n.locale))
                     .lineLimit(1)
             }
-            if facts?.genre != nil, facts?.year != nil {
+            if genre != nil, year != nil {
                 caps("/")
                     .foregroundStyle(Color.white.opacity(0.2))
                     .accessibilityHidden(true)
             }
-            if let year = facts?.year {
+            if let year {
                 caps(String(year))
                     .monospacedDigit()
             }

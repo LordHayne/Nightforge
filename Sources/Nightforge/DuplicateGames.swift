@@ -70,7 +70,12 @@ enum DuplicateGames {
         card.lastPlayed = ordered.compactMap(\.lastPlayed).max()
         let minutes = ordered.compactMap(\.playtimeMinutes)
         card.playtimeMinutes = minutes.isEmpty ? nil : minutes.reduce(0, +)
-        card.controller = ordered.map(\.controller).min { rank($0) < rank($1) } ?? card.controller
+        if let known = ordered.compactMap(\.knownController).min(by: { rank($0) < rank($1) }) {
+            card.controller = known
+            card.controllerKnown = true
+        }
+        card.playModes = ordered.reduce(into: Set<PlayMode>()) { $0.formUnion($1.playModes) }
+        if card.provider != .steam { card.steamTwin = card.steamTwin ?? ordered.lazy.compactMap(\.steamAppID).first }
         card.isVROnly = ordered.contains(where: \.isVROnly)
         return card
     }

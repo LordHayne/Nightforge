@@ -13,7 +13,8 @@ Sources, merged per Steam app ID:
     blocks those that have nothing else (no single player on Steam).
   * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which of those games can be
     streamed instead ("geforceNow", the game id its deep links take).
-  * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream.
+  * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
+    reach the GOG versions they name ("gog").
 
 Usage: build-profiles.py <umu-protonfixes checkout> [--anticheat games.json] [--geforcenow catalog.json]
                          [--out profiles/profiles.json]
@@ -240,6 +241,20 @@ def geforce_now_ids(games):
     return ids
 
 
+def merge_mac(games, mac_games):
+    """Nightforge's own profiles over upstream's, in place. A profile's "gog" list names the same
+    game's GOG product IDs: each gets the merged profile as "gog.<id>" (Nightforge's GOG games
+    carry their product ID), so a fix tested on one version reaches the other."""
+    for app_id, own in mac_games.items():
+        base = {} if own.get("ignoreUpstream") else games.get(app_id, {})
+        merged = {**base, **{k: v for k, v in own.items() if k not in ("ignoreUpstream", "gog")}}
+        merged["source"] = "mac" if not base else base["source"] + "+mac"
+        games[app_id] = merged
+        for product_id in own.get("gog", []):
+            if str(product_id).isdigit():
+                games["gog." + str(product_id)] = merged
+
+
 def git_commit(path: pathlib.Path) -> str:
     try:
         return subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"],
@@ -309,18 +324,14 @@ def main() -> int:
         sources["areweanticheatyet"] = {"url": "https://areweanticheatyet.com", "license": "MIT"}
 
     mac = json.loads(options.mac.read_text(encoding="utf-8"))
-    for app_id, own in mac.get("games", {}).items():
-        base = {} if own.get("ignoreUpstream") else games.get(app_id, {})
-        merged = {**base, **{k: v for k, v in own.items() if k != "ignoreUpstream"}}
-        merged["source"] = "mac" if not base else base["source"] + "+mac"
-        games[app_id] = merged
+    merge_mac(games, mac.get("games", {}))
 
     document = {
         "formatVersion": FORMAT_VERSION,
         "sources": sources | {
             "mac": {"url": "https://github.com/LordHayne/Nightforge/blob/main/profiles/mac.json"},
         },
-        # Steam app IDs by number, then the other stores' keys ("epic.<namespace>").
+        # Steam app IDs by number, then the other stores' keys ("epic.<namespace>", "gog.<product ID>").
         "games": dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0]))),
     }
     previous = None

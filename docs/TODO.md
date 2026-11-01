@@ -15,16 +15,25 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 
 - **Vorher fertig (jeweils live getestet, gemergt mit OK des Nutzers):**
   - 2.5 größere Schrift: erledigt (a55040a).
-  - GOG 7.3: offen ist der Live-Test von Mafia II auf „Automatisch“. Danach mergen, mit 4 Schrift-Konflikten
-    gegen 2.5.
-  - TV-Modus: Auflösung, Rückkehr wie bei einer Konsole und HDMI-Ton am Fernseher testen.
-  - L1/R1 zwischen Startseite und Bibliothek: gebaut auf `claude/tv-fullscreen-61ab1e`, mit dem TV-Test prüfen.
-  - Reichere Spieldaten, Phase 2, in zwei Teilen.
-  - Testabdeckung (Session test-coverage).
-  - Kleines Controller-Overlay: gebaut auf `claude/tv-fullscreen-61ab1e` (`GameOverlay.swift`), mit dem TV-Modus am
-    Fernseher testen (siehe „Controller“). Das schöne große Overlay kommt nach 0.3.0.
-  - Mafia II flüssig und mit sauberem Ton (Session mafia-ii-ruckeln-und-dop): DXVK auf KosmicKrisp,
-    APEX/PhysX-Profil, Ton unter Wine.
+  - GOG 7.3: gemergt (159acfa, Fixes d555778), live geprüft. Offen ist nur der Offline-Start.
+  - TV-Modus (live am 31.10./1.11.): L1/R1, Overlay, Ton über den Verstärker und die sofortige Rückkehr funktionieren.
+    Gebaut auf `claude/tv-fullscreen-61ab1e`, am Fernseher nachzutesten: Vollbild beim Anschließen im Spiegelbetrieb
+    (6eb8030), Overcooked im Fenster bzw. Mafia II mit 3024×1964 durch eine frische Wine-Sitzung, wenn sich die
+    Bildschirme geändert haben (7d8a440, 0d50047), und der **Lade-Vorhang** mit dem Nightforge-N beim Start und Ende,
+    damit kein Desktop und kein Steam-Fenster aufblitzt (dc507c4, 518701b; Nutzer: „für einen richtigen Big-Picture-Modus“).
+  - L1/R1 zwischen Startseite und Bibliothek: gebaut auf `claude/tv-fullscreen-61ab1e` (die TV-Session hat es mitgebaut,
+    weil sie `InputRouter` ohnehin ändert), live bestätigt.
+  - Reichere Spieldaten, Phase 2: Teil A und B gebaut. Das Layout der Spielseite wird nach dem Feedback vom 31.10. überarbeitet.
+  - Testabdeckung: gemergt (9becef2). Weitere Tests für TV und Spielinfos nach deren Merge.
+  - Kleines Controller-Overlay: beide Sticks 2 s drücken (L3 + R3, weil macOS 26 die PS-Taste fürs Game Overlay nutzt), dann
+    Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge. Gebaut auf `claude/tv-fullscreen-61ab1e`
+    (`GameOverlay.swift`), live in Overcooked 2 und Valheim bestätigt; es wird mit dem TV-Modus gemergt (siehe
+    „Controller“). Das schöne große Overlay kommt nach 0.3.0.
+  - GOG-Spiele bekommen Spielprofile, dazu das Mafia-II-Profil (Session mafia-ii, Zweig `claude/reverent-goldberg-46e548`,
+    95305e4 + 78997a3): mergen. Mafia II startet damit gleich mit WineD3D, ohne Echo.
+  - **Nach 0.3.0** (Nutzer, 31.10.): Mafia II flüssig und ohne Knacken. Ursache ist OpenGL im WoW64 für 32-Bit-Spiele
+    (zwei bis drei volle CPU-Threads). APEX, DirectSound, Schatten, Geometrie und AO helfen nicht. Der Weg ist DXVK
+    auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
   - Landingpage und README.
 - **Release-Stand einfrieren:**
   - Alle Testreihen grün.
@@ -57,6 +66,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
   einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
   „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
+  Der Ausweg ist KosmicKrisp (unten bei „Vulkan-Layer und winecx“): Er meldet `shaderCullDistance` schon lange und
+  `geometryShader` seit Mesa 14f59d06 (29.10.2026).
+  Die D3D9-Leiter in `LaunchHealth.attempts` fragt das Profil nicht. Ein Profil mit `graphics` ändert für D3D9-Spiele nur
+  „Am verträglichsten“ (`ladder`). Für Mafia II reicht das, weil winecx ohnehin mit WineD3D beginnt.
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
   Noch kein einziges getestet.
 - **Unreal-Spiele allgemein.** Bis 26.10. bekam kein Unreal-Spiel DXMT. Die Einstellungen reichten nur drei
@@ -94,6 +107,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Fortschritt aus `content_log.txt` lesen. Danach ist das Spiel von selbst gestartet. Der Grund, warum das Update
   am Nachmittag dreimal scheiterte, war ein hängendes Steam (Log stand seit 16:46). Die Erkennung dafür liegt auf
   dem GOG-Zweig (557c2c2).
+- **Steam bleibt nach dem Beenden von Nightforge noch etwa eine Minute** (Nutzer, 31.10., „hat nur gedauert, bis es
+  zu ging“): `steam-shutdown.sh` wartet immer 30 s auf Cloud-Spielstände (`sleep 30`), dann bis zu 20 s auf
+  Steams Ende, dann `wineserver -k`. Die 30 s nur, wenn kurz vorher ein Spiel lief (zum Beispiel in den letzten
+  5 Minuten, Zeitpunkt aus Nightforge übergeben). Sonst sofort `-shutdown`. Dann ist Steam in wenigen Sekunden weg.
 - **Windows-Steam ignoriert manchmal `steam.exe -shutdown`.** Dann hilft nur `wineserver -k`. Läuft Steam gar
   nicht, startet `-shutdown` ein neues Steam. Nightforges eigenes Beenden darauf prüfen.
 - **Angemeldete Steam nimmt keine Befehle mehr an** (31.10., OxyRail, Branch `claude/gog-7-3-e69c3b`): Seit etwa
@@ -199,11 +216,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
   - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
   - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
-- **L1/R1 zwischen Startseite und Bibliothek** (Nutzer, 31.10., gebaut auf `claude/tv-fullscreen-61ab1e`,
-  `InputRouter.section`): L1 führt immer zur Startseite, R1 immer zur Bibliothek, auch von einer Spielseite. In einem
-  Sheet, im Download-Panel, bei der Ersteinrichtung und im Spiel tun sie nichts. Die Chips „L1“/„R1“ (Xbox
-  „LB“/„RB“) neben „Startseite | Bibliothek“ erscheinen nur mit verbundenem Controller. Der Sprung um fünf Spiele ist
-  weg, L2/R2 und ☰ bleiben. Am Gerät prüfen: Chips und Beschriftungen im Controller-Test, mit DualSense und Xbox-Pad.
+- **L1/R1 zwischen Startseite und Bibliothek** (Nutzer, 31.10., gebaut auf `claude/tv-fullscreen-61ab1e` – die TV-Session
+  hat es mitgebaut, weil sie `InputRouter` für das Overlay ändert; `InputRouter.section`): L1 führt immer zur Startseite,
+  R1 immer zur Bibliothek, auch von einer Spielseite; kein Umschalten, die Richtung steht fest. In einem Sheet, im
+  Download-Panel, bei der Ersteinrichtung und im Spiel tun sie nichts. Die Chips „L1“/„R1“ (Xbox „LB“/„RB“) neben
+  „Startseite | Bibliothek“ erscheinen nur mit verbundenem Controller. Der Sprung um fünf Spiele ist weg, L2/R2 und ☰
+  bleiben; der Controller-Test sagt „Geht zur Startseite/Bibliothek“. Live bestätigt (1.11.). Am Gerät noch ansehen:
+  Chips und Beschriftungen im Controller-Test, mit DualSense und Xbox-Pad.
 - **Suche mit dem Controller** (Nutzer, 31.10., Idee, noch nicht besprochen): Heute erreicht man die Suche nur mit der
   Tastatur (⌘F oder /). Möglichkeiten:
   - Buchstaben-Sprung ohne Tippen: Bei Sortierung „Name“ springt eine Taste plus Stick oder Steuerkreuz von A nach B
@@ -331,6 +350,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     Rockstar-Spiel über Steam oder Epic nahtlos, also Launcher-Installation, Anmeldung, Start und Rückkehr zu
     Nightforge, ohne dass der Nutzer den Launcher sieht oder bedienen muss? Bei Epic beachten: Rockstar-Spiele
     erwarten `EpicGamesLauncher.exe` als Elternprozess (siehe Epic-Abschnitt).
+  - **Battle.net als eigener Store** (Nutzer, 1.11.: „wird ein Thema für die Zukunft … riesige Anzahl von Spielern“;
+    noch nicht anfangen): Overwatch 2, World of Warcraft und die anderen Blizzard-Spiele in der Bibliothek, wie Epic
+    und GOG.
+    - Mac zuerst: WoW, Hearthstone und StarCraft II gibt es nativ für den Mac (WoW auch für Apple Silicon). Sie
+      laufen über die Mac-App von Battle.net, ganz ohne Wine.
+    - Overwatch 2 und Diablo IV gibt es nur für Windows, aber auch auf Steam. Prüfen, ob der Steam-Weg reicht oder
+      Battle.net unter Wine nötig ist, und wie Blizzards Anti-Cheat unter Wine reagiert.
+    - Die Cloud-Recherche „Rockstar, EA, Battle.net, Ubisoft unter Wine“ (1.11.) liefert die Grundlage.
+    - Anmelden tut sich der Nutzer selbst, keine Anmeldeversuche durch Sessions.
 - **Rocket League:** Die Startoption ohne Anti-Cheat nutzt ein anderes Programm (`RocketLeague.exe`).
   `SteamCatalog.antiCheatOffArguments` übernimmt aber nur Optionen mit demselben Programm. Die Mac-Version ist
   der Stand von 2020 ohne Online-Spiel.
@@ -599,6 +627,38 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
       bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
       (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
+- [ ] **Mafia II ruckelt, der Ton klingt doppelt (WineD3D, 31.10.).** Befunde, Belege und Testanleitung in den
+      Notizen der Mafia-II-Sitzung (`mafia-ii.md`).
+      - Bis jetzt bekam kein GOG-Spiel ein Profil: Der Start fragte nur Steam-IDs ab. Jetzt gilt „gog.<Produkt-ID>“ in
+        `profiles.json`. `mac.json` nennt die GOG-Ausgabe beim Steam-Zwilling (`"gog": ["1816059595"]` bei 50130).
+      - Ton: FMOD Ex steckt fest im Programm und gibt unter Windows 10 über WASAPI aus. EAX und OpenAL gibt es nicht im
+        Prefix. Die Lautsprecher kommen vom System (MacBook: Stereo, 48 kHz), der Mixer läuft mit 44,1 kHz.
+      - Live-Test 31.10. 23:00, ohne Compiler daneben:
+        - Das Profil greift, Mafia II startet direkt mit WineD3D.
+        - Das Menü klingt sauber. Das Echo im Spiel ist weg, aber Knacken und Aussetzer bleiben.
+        - CPU: Menü ~120 %, im Spiel 230–440 %, und dabei zwei Threads mit je ~95 %. Kaum GPU-Last.
+        - APEX war schon aus. APEX an ändert nichts, und `windowsVersion: winxp` (DirectSound statt WASAPI) auch nicht.
+        - Ausgabeweg und PhysX sind damit ausgeschieden.
+        - Folgetest 23:15: Schatten Niedrig, Geometrie Niedrig, AO aus. Kein Unterschied beim Knacken, im Spiel
+          weiter 250–460 %, Threads bei 97/88/88/45 %. Die Hebel im Spiel sind damit ausgeschöpft.
+        - Für 0.3.0 bleibt Mafia II auf WineD3D: Das Echo ist weg, das Knacken bleibt. Der Weg ist DXVK auf
+          KosmicKrisp (Session kosmickrisp-dx9).
+      - Ursache, aus winecx gelesen: Mafia II ist ein 32-Bit-Spiel und läuft im neuen WoW64 (winecx hat kein
+        `i386-unix`). Jeder OpenGL-Aufruf von WineD3D wird übersetzt. `opengl32.so` kopiert gemappte Puffer um
+        („Copying %#zx from wow64 buffer“) und schaltet `GL_ARB_buffer_storage` ab („Disabling … on wow64“).
+        Dazu kommt Apples OpenGL unter Rosetta. Das passt zu zwei vollen Threads: Spiel-Thread und WineD3Ds CS-Thread.
+      - Ausweg: DXVK über Vulkan. winevulkan braucht für 32-Bit-Spiele `VK_EXT_map_memory_placed`. KosmicKrisp hat es,
+        bei MoltenVK ist es offen (Karte „DXVK auf KosmicKrisp“).
+      - WineD3D selbst bietet keinen Hebel:
+        - `csmt` bleibt an, aus legt beide Threads auf einen.
+        - `MaxVersionGL`: WoW64 deckelt bei 4.3, Apple liefert 4.1.
+        - `VideoMemorySize` und `strict_shader_math` betreffen die GPU.
+        - `OffscreenRenderingMode` gibt es in winecx' wined3d nicht mehr.
+        - Eine Bildratengrenze hat WineD3D nicht, das Spiel kennt nur VSync. 60 statt 120 Hz hilft nur, wenn das Spiel
+          über 60 FPS kommt.
+      - `profile.dat`: Bitfolge, LSB zuerst, mit 32-Bit-Prüfsumme 8 Bytes vor dem Ende (kein CRC32, Adler oder Summe).
+        - APEX an statt aus setzt die Bits 39337 und 39370, gleich nach den vier Lautstärken (1.0f).
+        - Schreiben kann Nightforge sie nicht. Seit dem Folgetest ist das für Mafia II auch nicht mehr nötig.
 - [ ] **Mac-Version, die GOG nicht übers Content-System liefert** oder 32-Bit ist: die Windows-Version muss kommen (Toast).
 - [x] **Deinstallieren** (A New Beginning: Ordner weg, Karte, Spielzeit und Bewertung bleiben), **Abbrechen** (Dishonored 2:
       nach 3 s kein gogdl mehr, Ordner weg, `downloads.json` leer) – live 31.10. (159acfa). Danach behoben: kein
@@ -666,6 +726,43 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
   Store-Wahl (7.4), Hinweise aus der Spielanalyse, Steam-für-Mac-Fortschritt, „Willkommen zurück“ mit Cloud-Zuständen.
 
 ## Ideen für später
+
+- **Tab „Entdecken“** (Nutzer, 31.10.; noch nicht anfangen): neben „Startseite | Bibliothek“ ein dritter Tab, in dem man
+  durch Steam, Epic und GOG stöbert und neue Spiele findet.
+  - Was Nightforge dabei besser kann als die Stores selbst: Jedes Spiel trägt gleich die Einschätzung für **diesen
+    Mac**, also Mac-Version, „läuft wahrscheinlich“ über Wine, Anti-Cheat blockiert oder nur über GeForce Now.
+    Dazu ein Filter „Läuft auf meinem Mac“.
+  - Inhalte: Angebote, Neu und beliebt, „ähnlich wie deine meistgespielten“, kostenlose Spiele (Epic-Gratisspiele).
+    Gekauft wird im Store selbst (Browser oder Store-Seite), danach taucht das Spiel von selbst in der Bibliothek auf.
+  - Anfangen bei `StoreSearch` (heute nur Steam), Steams store-browse-API und den Store-Treffern aus dem
+    Spielinfo-Design (Zweig `claude/game-metadata-a2cee0`, Commit 91d10a7), `Compatibility.rate` für die Einschätzung.
+  - Ganz mit dem Controller bedienbar, wie Startseite und Bibliothek.
+
+- **Mehr Infos pro Spiel („Über das Spiel“)** (Wunsch des Nutzers, 31.10.: „kurze Spielbeschreibung usw.“).
+  Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
+  Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). In Arbeit seit 31.10. (für 0.3.0) in zwei Abschnitten
+  (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
+  - **Nachbesserung nach dem ersten Live-Blick (31.10. nachts)**, Variante 1 nach Wahl des Nutzers: Beschreibung nur einmal
+    (unten), feste Spielleiste beim Scrollen, ruhiges Raster mit zwei Karten, deutsche Beschreibung und Screenshots von GOG,
+    wo Steam keine hat. Noch ohne Live-Test.
+  - **Abschnitt B gebaut (31.10.)**: Die Spielseite scrollt. Oben 2 Zeilen Beschreibung (weichen im kleinen Fenster),
+    unten „Über das Spiel“ mit Screenshot-Leiste, Großbild (← → / Pad, Esc/B/A/Return schließt), Genres, Spielmodi und
+    der Karte „Auf einen Blick“. Neu: `GameAbout.swift`. Altersfreigabe: Steam liefert sie je Land, in Österreich PEGI
+    (No Man's Sky hat dort keine), in Deutschland USK. Noch ohne Live-Test: Prüfliste „Live-Test B“.
+  - **Abschnitt A gebaut (31.10.)**, Branch `claude/game-metadata-a2cee0`; noch ohne Live-Test. Prüfliste: „Live-Test A“ in
+    `docs/ENTWURF-SPIELINFOS.md`. Neu: `GameInfo.swift`, `GameInfoStore.swift` (Cache `GameInfo/known.json`),
+    `LibraryFilterRow.swift`. Offen für den Live-Test: Ein Epic-/GOG-Spiel mit Steam-Profil zeigt jetzt dessen
+    „Läuft super“, der Start nimmt das Profil aber weiter nur über die eigene Steam-App-ID (`ProfileStore.profile(for: appID)`).
+    Ob das Steam-Profil auch beim Start gelten soll, je Spiel prüfen.
+  - Zusatzauftrag (31.10.): Store-Filter „Alle Stores ▾“ und eine einfachere Filterzeile (Sortier-Chip, „Filter ▾“-
+    Panel, aktive Filter als Chips, die Suche lässt die Filter ruhen). Entwurf und Bilder 8–13 im selben Dokument.
+  - Store-Treffer der Suche: Sie zeigen auch Spiele, die man schon bei Epic oder GOG hat. Neue Steam-Apps zeigen nur
+    ein Platzhalter-Cover (Bilder liegen unter einem Hash-Pfad, `ArtworkStore.remoteURLs` findet sie nicht). Namen
+    enthalten `&amp;`. Alles drei kommt in Phase 2.
+  - Dazu gehört dieser Fehler: Die Filter „Controller“ und „Läuft super“ greifen nur bei Steam-Spielen. Epic- und
+    GOG-Spiele sind immer „keine Controller“ (Overcooked! 2 von Epic zeigt „Maus & Tastatur“), und
+    `compatibility(of:)` sucht Profile nur per Steam-App-ID. Die Lösung ist dasselbe Spiel auf Steam: Epic-AppName
+    oder GOG-ID → GamesDB → Steam-App-ID, sonst ein genau gleicher Name.
 
 - **Echte Speicherverwaltung unter Einstellungen › Speicher** (Nutzer, 31.10.; noch nicht anfangen):
   - Heute zeigt der Tab ein Laufwerk nur, wenn Spiele oder ein Ordner `Nightforge Games` darauf liegen
@@ -830,6 +927,12 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   transform feedback“), DXVK 3.1.1 kann keine geteilten Ressourcen anlegen (`VK_KHR_external_memory_win32` fehlt) und das
   Spiel stürzt ab. Nächster Versuch: DXVK mit einem Patch, der geteilte Ressourcen ungeteilt anlegt, und ein Spiel ohne
   geteilte Texturen (DirectX 9–11). Nicht als Komponente ausgeliefert; Bau braucht Netz und LLVM (~2 GB).
+  Neu seit 29.10.2026 in Mesa main: Geometry-Shader über „poly“ (9a40f0c6, 5c145789, 531e208d, 14f59d06 „kk: Advertise
+  geometryShader“, MR 44786). `shaderCullDistance`, Tessellation und robustness2 waren schon da. Damit bekäme DXVKs
+  Direct3D 9 sein Gerät, also Mafia II, Left 4 Dead 2 und die Source-Spiele. Unser Bau vom 28.10. (063dfae) ist älter,
+  der nächste muss ≥ 14f59d06 sein. steamac (fxgl/steamac, `host/kosmickrisp/patches`) trägt dieselben vier als 0001–0004
+  und dazu Transform Feedback in der GS-Emulation (0010–0014), was vkd3d-proton fehlte. steamac nutzt KosmicKrisp aber
+  arm64 auf dem Host über Venus. Wir brauchen x86_64 unter winecx, gebaut in CI.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit

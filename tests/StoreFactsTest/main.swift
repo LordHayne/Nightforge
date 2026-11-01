@@ -113,6 +113,13 @@ struct StoreFactsTest {
         check(StoreFacts(tags: [1695]).genre == "Open World", "Open World stays")
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
 
+        // Every name in both tables: each its own, none empty (Steam's tag IDs go past a million).
+        let tagNames = (0...1_300_000).compactMap(StoreFacts.tagName)
+        check(tagNames.count == 75 && Set(tagNames).count == tagNames.count && !tagNames.contains(""), "75 tags, each its own name: \(tagNames.count)")
+        let genreNames = (0...100).compactMap(StoreFacts.genreName)
+        check(genreNames.count == 9 && Set(genreNames).count == 9 && !genreNames.contains(""), "9 genres, each its own name: \(genreNames.count)")
+        check([23, 37, 70].allSatisfy { StoreFacts.genreName($0) == nil }, "Indie, Free to Play and Early Access say nothing")
+
         // MARK: Read from the catalog
         let fm = FileManager.default
         let steam = fm.temporaryDirectory.appendingPathComponent("store-facts-\(UUID().uuidString)", isDirectory: true)

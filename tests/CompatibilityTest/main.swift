@@ -86,6 +86,55 @@ struct CompatibilityTest {
         check(level(Facts()) == .untested, "nothing known is untested")
         check(Compatibility.chips(in: "MetalFX on, 4K") == [], "no chips in an ordinary note")
 
+        // How it ran for the player beats what the files say, but not what stops the game.
+        let well = GameRating(good: true), badly = GameRating(good: false), choppy = GameRating(good: false, issues: [.stutters, .sound])
+        let said = Compatibility.rate(Facts(analysis: analysis([.d3d12]), ownRating: well))
+        check(said.level == .great && said.note == L10n.t("You said it runs well."), "\"runs well\" beats Direct3D 12 only")
+        check(Compatibility.rate(Facts(ownRating: badly)).note == L10n.t("You said it didn't run well."), "\"not well\" without chips")
+        let issues = Compatibility.rate(Facts(platform: .mac, ownRating: choppy))
+        check(issues.level == .tweaks && issues.note == L10n.t("You said: %@.", GameRating.Issue.stutters.label + ", " + GameRating.Issue.sound.label),
+              "\"not well\" names its chips in their order, even for a Mac version: \(issues.note ?? "nil")")
+        check(level(Facts(antiCheatBlock: blocked, ownRating: well)) == .no && level(Facts(vrOnly: true, ownRating: well)) == .no,
+              "what stops the game beats the player's word")
+
+        // What counts as a fix: anything that changes how the game starts.
+        let fixes = [#""graphics": "dxvk""#, #""arguments": ["-dx11"]"#, #""dllOverrides": {"xinput1_3": "n"}"#,
+                     #""registry": [{"key": "HKCU\\Software\\Game"}]"#, #""windowsVersion": "win7""#, #""winetricks": ["vcrun2019"]"#,
+                     #""metalFX": false"#, #""frameLimit": 30"#, #""vulkanSamplers": 1024"#, #""avx": false"#,
+                     #""fileEdits": [{"path": "a.ini", "find": "x", "replace": "y"}]"#,
+                     #""iniSettings": [{"root": "documents", "path": "a.ini", "section": "s", "values": {"k": "v"}}]"#, #""retina": true"#]
+        for fix in fixes {
+            check(profile("{" + fix + "}").hasFixes, "a fix: \(fix)")
+        }
+        let none = [#""arguments": []"#, #""winetricks": []"#, #""metalFX": true"#, #""avx": true"#, #""retina": false"#,
+                    #""saves": []"#, #""antiCheat": ["BattlEye"]"#, #""note": "Tested on M5""#]
+        for empty in none {
+            check(!profile("{" + empty + "}").hasFixes, "no fix: \(empty)")
+        }
+        check(profile(#"{"source": "mac"}"#).fromNightforge && profile(#"{"source": "umu+mac"}"#).fromNightforge,
+              "Nightforge's own profiles, alone or on top of umu")
+        check(!profile(#"{"source": "umu"}"#).fromNightforge && !profile(#"{"source": "macos"}"#).fromNightforge && !profile("{}").fromNightforge,
+              "not Nightforge's own")
+        let held = Compatibility.rate(Facts(profile: profile(#"{"source": "mac", "antiCheat": ["EAC"]}"#),
+                                            analysis: analysis([.d3d11], antiCheat: ["Easy Anti-Cheat"])))
+        check(held.level == .tweaks, "a Mac profile that keeps the anti-cheat doesn't clear it")
+        let dx12 = Compatibility.rate(Facts(profile: profile(#"{"source": "mac", "note": "M4 Max"}"#), analysis: analysis([.d3d12])))
+        check(dx12.level == .tweaks && dx12.testedOn == ["M4 Max"], "Direct3D 12 only keeps the chips it was tested on")
+        check(Compatibility.chips(in: "M1, M10, M2 Ultra, M3 Pro and M3 Max; not M0, XM5 or M5X") == ["M1", "M10", "M2 Ultra", "M3 Pro", "M3 Max"],
+              "every chip name, nothing that only looks like one: \(Compatibility.chips(in: "M1, M10, M2 Ultra, M3 Pro and M3 Max; not M0, XM5 or M5X"))")
+        check(Compatibility.chips(in: nil).isEmpty, "no note, no chips")
+        check(Set(Compatibility.Level.allCases.map(\.label)).count == 4, "every level has its own words")
+
+        // For a game in the library: what the game itself says goes in (nothing kept about it here).
+        var vr = Game(appID: 9_999_901, name: "VR", bottle: Engine.bottle, steamRoot: Engine.bottle.url, steamExeWindowsPath: "",
+                      installDir: Engine.bottle.url, sizeOnDisk: 0)
+        vr.isVROnly = true
+        check(Compatibility.of(vr, profile: nil, analysis: nil).level == .no, "a VR game in the library")
+        var macGame = vr
+        macGame.isVROnly = false
+        macGame.platform = .mac
+        check(Compatibility.of(macGame, profile: nil, analysis: analysis([.d3d12])).level == .great, "a Mac version in the library")
+
         // Every game in the shipped list gets a level, and the list's own Mac profiles run great.
         struct Document: Decodable { let games: [String: GameProfile] }
         let document = try JSONDecoder().decode(Document.self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))

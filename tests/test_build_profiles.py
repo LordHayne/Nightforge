@@ -128,6 +128,19 @@ class AntiCheatTests(unittest.TestCase):
         ])
         self.assertEqual(ids, {"1085660": "d176-uuid"})
 
+    def test_mac_profiles_reach_the_gog_versions_they_name(self):
+        games = {"50130": {"dllOverrides": {"xaudio2_7": "native"}, "source": "umu"}}
+        build_profiles.merge_mac(games, {
+            "50130": {"name": "Mafia II (Classic)", "graphics": "wined3d", "gog": ["1816059595", "../x"]},
+            "3907790": {"name": "OxyRail", "graphics": "dxmt"},
+        })
+        mafia = {"dllOverrides": {"xaudio2_7": "native"}, "name": "Mafia II (Classic)", "graphics": "wined3d", "source": "umu+mac"}
+        self.assertEqual(games, {
+            "50130": mafia,
+            "gog.1816059595": mafia,
+            "3907790": {"name": "OxyRail", "graphics": "dxmt", "source": "mac"},
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

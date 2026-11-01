@@ -77,6 +77,8 @@ struct GOGRelease: Codable, Equatable {
     var hero: URL?
     /// Product IDs of its add-ons (whether owned or not).
     var dlcs: [String] = []
+    /// The same game on Steam, as GamesDB lists its releases.
+    var steamAppID: Int?
 
     static func from(gamesDB json: Data) -> GOGRelease? {
         guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any] else { return nil }
@@ -96,6 +98,7 @@ struct GOGRelease: Codable, Equatable {
         release.cover = image(game["vertical_cover"])
         // The store's tile when there's no background: wide, but with the title on it.
         release.hero = image(game["background"]) ?? image(game["horizontal_artwork"]) ?? image(game["logo"]) ?? image(object["logo"])
+        release.steamAppID = GameInfo.steamTwin(gamesDBGame: object["game"])
         release.dlcs = (object["dlcs"] as? [[String: Any]] ?? []).compactMap { dlc in
             guard dlc["platform_id"] as? String ?? "gog" == "gog" else { return nil }
             let id = (dlc["external_id"] as? String) ?? (dlc["external_id"] as? NSNumber)?.stringValue
