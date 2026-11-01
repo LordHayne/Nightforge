@@ -127,6 +127,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   reagiert nicht – wird neu gestartet …“: `wineserver -k` ohne `-shutdown` (nur wenn kein Windows-Spiel läuft;
   ein Client-Update läuft vorher zu Ende), stiller Neustart, Anmeldung abwarten, Start noch einmal. Live prüfen,
   sobald Steam wieder so hängt. Ursache des Hängers selbst offen (letzte Zeile: `SlowJSMethodCall Messaging.PostMessage`).
+- **„Zuletzt gespielt: gerade eben“ direkt nach dem Hinzufügen** (1.11., Wukong-Benchmark über „Kostenlos
+  hinzufügen“): Steam setzt `LastPlayed` in `localconfig.vdf` schon beim Installieren auf jetzt (21:34:25, noch
+  während des Downloads). Nightforge zeigt das an und reiht das Spiel bei „Weiterspielen“ ein. Kandidat: ein
+  `LastPlayed` aus der Zeit des Installierens ohne gestiegene Spielzeit nicht als gespielt zählen.
 - **steam-shutdown.sh** hält jeden Prozess unter `\steamapps\common\` für ein Spiel, auch in
   Test-Prefixen, und holt Nightforge dann nach vorne.
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
