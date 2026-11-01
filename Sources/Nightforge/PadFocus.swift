@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 /// Controller focus for everything besides the game list: buttons, switches and pickers in every
@@ -53,11 +54,47 @@ final class PadFocus: ObservableObject {
     /// Puts the highlight on a control, as when a list closes and it goes back to its chip.
     func focus(_ id: String) { focused = id }
 
-    /// Brings the highlighted control into view where a scroll view hides it, with a row's room
-    /// around it so the next one shows too: for sheets whose content scrolls.
-    func reveal(_ id: String?) {
+    /// Brings the highlighted control into view where a scroll view hides it, with room around it
+    /// (`top` more where a bar covers the top, like a game page's) – smoothly, as the trackpad
+    /// would, not with a jump.
+    func reveal(_ id: String?, top: CGFloat = 48, bottom: CGFloat = 48) {
         guard let id, let view = items[id]?.view else { return }
-        view.scrollToVisible(view.bounds.insetBy(dx: 0, dy: -48))
+        guard let scroll = PageScroll(view.enclosingScrollView) else {
+            view.scrollToVisible(view.bounds.insetBy(dx: 0, dy: -48))
+            return
+        }
+        scroll.show(view.convert(view.bounds, to: scroll.clip), top: top, bottom: bottom)
+    }
+
+    /// Down (or up) a page past its first or last control, `fraction` of what shows at a time, or
+    /// false at its end. The pad on a game's page reaches what has no control of its own (the
+    /// description, the cards under the screenshots).
+    @discardableResult
+    func page(down: Bool, in window: NSWindow, fraction: CGFloat = 0.45) -> Bool {
+        guard let scroll = pageScroll(in: window) else { return false }
+        return scroll.move(by: (down ? 1 : -1) * scroll.visibleHeight * fraction, animated: true)
+    }
+
+    /// Scrolls `points` down (negative: up) at once – the right stick, frame by frame.
+    @discardableResult
+    func scroll(by points: CGFloat, in window: NSWindow) -> Bool {
+        pageScroll(in: window)?.move(by: points, animated: false) ?? false
+    }
+
+    /// What the pad scrolls in `window`: the scroll view around the highlighted control, else the
+    /// biggest one that has more than it shows (a game's page, the library's grid, Settings).
+    private func pageScroll(in window: NSWindow) -> PageScroll? {
+        if let focused, let view = items[focused]?.view, view.window === window, let scroll = PageScroll(view.enclosingScrollView), scroll.canScroll {
+            return scroll
+        }
+        var found: [NSScrollView] = []
+        func walk(_ view: NSView) {
+            if let scroll = view as? NSScrollView, !scroll.isHiddenOrHasHiddenAncestor { found.append(scroll) }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+        return found.compactMap(PageScroll.init).filter(\.canScroll)
+            .max { $0.clip.bounds.width * $0.clip.bounds.height < $1.clip.bounds.width * $1.clip.bounds.height }
     }
 
     /// Moves the highlight one step (dx: -1 left, 1 right; dy: -1 up, 1 down). With nothing
@@ -179,6 +216,78 @@ private struct PadAnchor: NSViewRepresentable {
     static func dismantleNSView(_ view: NSView, coordinator: ()) {
         MainActor.assumeIsolated {
             if let id = view.identifier?.rawValue { PadFocus.shared.unregister(id, view: view) }
+        }
+    }
+}
+
+/// A vertical scroll view as the pad moves it: in "down" and "up", whichever way its content is
+/// flipped, never past either end.
+@MainActor
+struct PageScroll {
+    let scroll: NSScrollView
+    let clip: NSClipView
+    let document: NSView
+
+    init?(_ scroll: NSScrollView?) {
+        guard let scroll, let document = scroll.documentView else { return nil }
+        self.scroll = scroll
+        self.clip = scroll.contentView
+        self.document = document
+    }
+
+    var visibleHeight: CGFloat { clip.bounds.height }
+    private var range: CGFloat { max(0, document.frame.height - clip.bounds.height) }
+    var canScroll: Bool { range > 1 }
+
+    /// How far down it is, 0 at the top.
+    private var down: CGFloat {
+        clip.isFlipped ? clip.bounds.origin.y : range - clip.bounds.origin.y
+    }
+
+    private func origin(down: CGFloat) -> NSPoint {
+        let clamped = min(max(down, 0), range)
+        return NSPoint(x: clip.bounds.origin.x, y: clip.isFlipped ? clamped : range - clamped)
+    }
+
+    /// False when it's at that end already.
+    @discardableResult
+    func move(by points: CGFloat, animated: Bool) -> Bool {
+        let target = min(max(down + points, 0), range)
+        guard abs(target - down) > 0.5 else { return false }
+        set(origin(down: target), animated: animated)
+        return true
+    }
+
+    /// Scrolls just enough that `rect` (in the clip view's coordinates) shows, with room above and below.
+    func show(_ rect: NSRect, top: CGFloat, bottom: CGFloat) {
+        let height = clip.bounds.height
+        // Distance from the content's top to the rect's top and bottom edge.
+        let rectTop = clip.isFlipped ? rect.minY : document.frame.height - rect.maxY
+        let rectBottom = rectTop + rect.height
+        var target = down
+        if rectTop - top < down {
+            target = rectTop - top
+        } else if rectBottom + bottom > down + height {
+            target = min(rectBottom + bottom - height, rectTop - top)
+        }
+        guard abs(target - down) > 0.5 else { return }
+        set(origin(down: target), animated: true)
+    }
+
+    private func set(_ origin: NSPoint, animated: Bool) {
+        let still = Prefs.reduceMotion(system: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                                       stored: UserDefaults.standard.string(forKey: Prefs.Keys.reduceMotion) ?? "")
+        if animated && !still {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.28
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                clip.animator().setBoundsOrigin(origin)
+            } completionHandler: { [scroll, clip] in
+                MainActor.assumeIsolated { scroll.reflectScrolledClipView(clip) }
+            }
+        } else {
+            clip.setBoundsOrigin(origin)
+            scroll.reflectScrolledClipView(clip)
         }
     }
 }

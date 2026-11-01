@@ -25,6 +25,10 @@ final class InputRouter {
     /// A button was down at the last look (for waking Nightforge on a fresh press).
     private var anyDown = false
     private var lastWake: TimeInterval = 0
+    /// The right stick scrolls what shows (a game's page, the grid, Settings), smoothly, as fast as
+    /// it's pushed: points per second, and the timer that moves it while it's held.
+    private var stickScroll: CGFloat = 0
+    private var stickScrollTimer: Timer?
 
     func start(model: LibraryModel) {
         self.model = model
@@ -320,6 +324,9 @@ final class InputRouter {
         pad.leftThumbstick.valueChangedHandler = { [weak self] _, x, y in
             MainActor.assumeIsolated { self?.steer(.stick, x: x, y: y) }
         }
+        pad.rightThumbstick.valueChangedHandler = { [weak self] _, _, y in
+            MainActor.assumeIsolated { self?.scrollWithStick(y) }
+        }
         // X: the selected game's page (A on Home plays it).
         pad.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
@@ -534,6 +541,38 @@ final class InputRouter {
         dpadStep = Step()
         stickStep = Step()
         setHeld(Step())
+        scrollWithStick(0)
+    }
+
+    /// The right stick, up or down: scrolls at a speed that grows with how far it's pushed (a little
+    /// for reading, fast for a long page), 60 times a second while it's held.
+    private func scrollWithStick(_ y: Float) {
+        // In a game the stick is the game's (`reach`), Nightforge's page stays where it is.
+        stickScroll = reach == .app ? Self.stickSpeed(y) : 0
+        guard stickScroll != 0 else {
+            stickScrollTimer?.invalidate()
+            stickScrollTimer = nil
+            return
+        }
+        guard stickScrollTimer == nil else { return }
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.stickScroll != 0, self.reach == .app, self.model?.lightbox == nil,
+                      let window = self.padWindow ?? Self.mainWindow else { return }
+                PadFocus.shared.scroll(by: self.stickScroll / 60, in: window)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        stickScrollTimer = timer
+    }
+
+    /// Points per second for the stick's position (up is +y, which scrolls up): nothing in the
+    /// middle, then growing with the square, up to 1 600.
+    static func stickSpeed(_ y: Float) -> CGFloat {
+        let dead: Float = 0.18
+        guard abs(y) > dead else { return 0 }
+        let push = CGFloat((abs(y) - dead) / (1 - dead))
+        return (y > 0 ? -1 : 1) * push * push * 1_600
     }
 
     private func primary() {
@@ -593,9 +632,17 @@ final class InputRouter {
             // Main window: the games have the pad until up on the start page enters the buttons
             // above them; down past the lowest button hands back to the games.
             if focus.focusedItem(in: window) != nil {
-                if !focus.move(dx: step.dx, dy: step.dy, in: window), step.dy > 0 {
-                    focus.clear()
-                    return true
+                if !focus.move(dx: step.dx, dy: step.dy, in: window), step.dy != 0 {
+                    // A game's page goes on down (and back up) past its first and last control, to
+                    // what has none: the description, the cards under the screenshots.
+                    if model.route.isDetail {
+                        focus.page(down: step.dy > 0, in: window)
+                        return false  // held, it goes on
+                    }
+                    if step.dy > 0 {
+                        focus.clear()
+                        return true
+                    }
                 }
                 return false
             }
