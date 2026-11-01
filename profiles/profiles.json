@@ -31,34 +31,6 @@
    ],
    "source": "umu"
   },
-  "2200": {
-   "name": "Quake III Arena",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
-  "2210": {
-   "name": "Quake 4",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
-  "2620": {
-   "name": "Call of Duty",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
-  "2630": {
-   "name": "Call of Duty 2",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
   "3590": {
    "name": "Plants vs. Zombies: Game of the Year\n\nFixes slowdown when Crazy Dave is on screen or when selecting plant loadout at start of level.\nThe fix replaces the incorrect game executable with the correct one from the prefix, which only appears after the main executable runs.\n\nYT Tutorial for slowdown fix: https://www.youtube.com/watch?v=EK1HyVGlHvY\nSource of previous changedir fix: https://github.com/JamesHealdUK/protonfixes/blob/master/fixes/3590.sh",
    "arguments": [
@@ -102,13 +74,6 @@
    ],
    "source": "umu"
   },
-  "7940": {
-   "name": "Call of Duty 4: Modern Warfare",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
   "8190": {
    "name": "Just Cause 2",
    "winetricks": [
@@ -124,7 +89,7 @@
   "9460": {
    "name": "Frontlines: Fuel of War",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -134,14 +99,6 @@
     "d3dcompiler_47"
    ],
    "source": "umu"
-  },
-  "10090": {
-   "name": "Call of Duty: World at War",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster",
-    "Treyarch Anti-Cheat"
-   ]
   },
   "10220": {
    "name": "Postal III",
@@ -172,14 +129,14 @@
   "13140": {
    "name": "America's Army 3",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
   "15000": {
    "name": "Tom Clancy's Rainbow Six: Lockdown",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -236,14 +193,14 @@
   "17300": {
    "name": "Crysis",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
   "21090": {
    "name": "F.E.A.R.",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -269,20 +226,6 @@
    "partial": true,
    "source": "umu"
   },
-  "24860": {
-   "name": "Battlefield 2",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
-  "24960": {
-   "name": "Battlefield: Bad Company 2",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ]
-  },
   "32770": {
    "name": "Joint Operations: Combined Arms Gold",
    "source": "anticheat",
@@ -303,6 +246,14 @@
    "antiCheat": [
     "BattlEye"
    ]
+  },
+  "33930": {
+   "name": "ArmA 2: Operation Arrowhead",
+   "source": "anticheat",
+   "antiCheat": [
+    "BattlEye"
+   ],
+   "geforceNow": "f2ee02c2-6f85-40d6-b8bf-686162f11f9a"
   },
   "34330": {
    "name": "Total War: Shogun 2",
@@ -383,14 +334,6 @@
     "directplay"
    ],
    "source": "umu"
-  },
-  "42700": {
-   "name": "Call of Duty: Black Ops",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Treyarch Anti-Cheat",
-    "PunkBuster"
-   ]
   },
   "42890": {
    "name": "Sword of the Stars",
@@ -657,17 +600,10 @@
   "201870": {
    "name": "Assassin's Creed: Revelations",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ],
    "geforceNow": "f10ec947-01d0-44c0-92d4-60d451dcc1fc"
-  },
-  "202970": {
-   "name": "Call of Duty: Black Ops II",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Treyarch Anti-Cheat"
-   ]
   },
   "205650": {
    "name": "The Testament of Sherlock Holmes",
@@ -873,14 +809,6 @@
    },
    "source": "umu"
   },
-  "230410": {
-   "name": "Warframe",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Unknown (Custom)"
-   ],
-   "geforceNow": "3b6c8822-d334-45d8-9dc9-b6efd59778ab"
-  },
   "231060": {
    "name": "Ragnarok Online 2",
    "source": "anticheat",
@@ -992,7 +920,6 @@
    "antiCheatOnline": [
     "Easy Anti-Cheat"
    ],
-   "geforceNow": "81810b31-1b34-4921-8ab3-c6c3485fe4ce",
    "graphics": "dxmt",
    "note": "Tested 2026-10-24 on M5: ~63 FPS with DXMT; with DXVK the game sees only 128 MB VRAM and drops to low textures and ~30 FPS. Steam's no-EAC launch option is picked automatically.",
    "saves": [
@@ -1006,7 +933,8 @@
      "path": "7DaysToDie/GeneratedWorlds",
      "mac": "MacAppSupport"
     }
-   ]
+   ],
+   "geforceNow": "81810b31-1b34-4921-8ab3-c6c3485fe4ce"
   },
   "252430": {
    "name": "Dusty Revenge: Co-Op Edition",
@@ -1159,14 +1087,6 @@
    "partial": true,
    "source": "umu"
   },
-  "282440": {
-   "name": "Quake Live",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster"
-   ],
-   "geforceNow": "50224571-ddb0-44c8-a44d-071475bcfa4b"
-  },
   "283310": {
    "name": "Soulbringer",
    "winetricks": [
@@ -1224,6 +1144,14 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "201dfa55-99a7-4e2c-838e-d3a35dd51179"
+  },
+  "292000": {
+   "name": "No More Room In Hell 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "f59ddc2a-8619-42a5-a658-9ce75ea2586c"
   },
   "292820": {
    "name": "Pajama Sam 4: Life is Rough When you Lose your Stuff!",
@@ -1336,13 +1264,6 @@
     "Easy Anti-Cheat"
    ]
   },
-  "311210": {
-   "name": "Call of Duty®: Black Ops III",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Treyarch Anti-Cheat"
-   ]
-  },
   "311240": {
    "name": "Zero Escape: Zero Time Dilemma",
    "dllOverrides": {
@@ -1425,6 +1346,14 @@
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
+  },
+  "333930": {
+   "name": "Dirty Bomb",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "62bd9d36-0961-4f7b-9d0e-c3eceffa8e06"
   },
   "337410": {
    "name": "Karos",
@@ -1543,14 +1472,6 @@
     "XIGNCODE3"
    ]
   },
-  "365590": {
-   "name": "Tom Clancy's The Division",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "FairFight"
-   ],
-   "geforceNow": "6086a01a-3e88-4632-a393-5e672f34c025"
-  },
   "366250": {
    "name": "Metal Slug",
    "winetricks": [
@@ -1582,22 +1503,34 @@
     "vcrun2013",
     "vcrun2022"
    ],
-   "source": "umu",
-   "antiCheatOnline": [
-    "Nexon Game Security"
-   ]
-  },
-  "374280": {
-   "name": "Hired Ops",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Saberclaw"
-   ]
+   "source": "umu"
   },
   "375230": {
    "name": "Warhammer 40,000: Eternal Crusade",
    "source": "anticheat",
    "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "376210": {
+   "name": "The Isle",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "5b66a05f-2693-4d01-bd2f-72c539950619"
+  },
+  "377140": {
+   "name": "Hide & Hold Out - H2o",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "378860": {
+   "name": "Project CARS 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
   },
@@ -1734,6 +1667,14 @@
    ],
    "source": "umu"
   },
+  "418460": {
+   "name": "Rising Storm 2: Vietnam",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "91b4cb11-6c87-4263-abf6-a5613f1d20f6"
+  },
   "419520": {
    "name": "Lifeless",
    "source": "anticheat",
@@ -1747,6 +1688,13 @@
     "-onethread"
    ],
    "source": "umu"
+  },
+  "436520": {
+   "name": "Line of Sight",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ]
   },
   "437220": {
    "name": "The Culling",
@@ -1762,6 +1710,14 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "a966486e-4bc1-497a-911b-403643db464b"
+  },
+  "438740": {
+   "name": "Friday The 13th: The Game",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "a3bb9733-0d26-4951-8fd4-96b8193db795"
   },
   "439370": {
    "name": "Midair",
@@ -1785,18 +1741,37 @@
     "nProtect GameGuard"
    ]
   },
+  "444090": {
+   "name": "Paladins",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "a342dc5e-b260-47cc-8efc-f531ec60fdd1"
+  },
   "447040": {
    "name": "Watch_Dogs 2",
    "arguments": [
     "-nosplash"
    ],
-   "source": "umu"
+   "source": "umu",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "dffa6d8f-6922-466e-a062-38244d8b9c75"
   },
   "447820": {
    "name": "Day of Infamy",
    "source": "anticheat",
    "antiCheatOnline": [
     "BattlEye"
+   ]
+  },
+  "454350": {
+   "name": "Days of War",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "454650": {
@@ -1820,6 +1795,14 @@
     "Mail.ru Anti-Cheat"
    ]
   },
+  "460930": {
+   "name": "Tom Clancy's Ghost Recon Wildlands",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "226cc2ab-ba1f-4fe8-9eca-197cc5fbb429"
+  },
   "465280": {
    "name": "Yesterday Origins",
    "windowsVersion": "win7",
@@ -1839,6 +1822,13 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "9deb9a49-e927-4240-b060-108a34e53d3e"
+  },
+  "471710": {
+   "name": "Rec Room",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "473690": {
    "name": "Absolver",
@@ -1871,6 +1861,13 @@
    ],
    "windowsVersion": "win7",
    "source": "umu"
+  },
+  "496240": {
+   "name": "Onward",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "497360": {
    "name": "Gabriel Knight 3: Blood of the Sacred, Blood of the Damned\nFix for Insert CD\nFixes graphical issues\nWidescreen supported (16:9/21:9, 32:9 not tested)",
@@ -1955,6 +1952,13 @@
    ],
    "geforceNow": "37b56bdc-829e-457c-8ec6-3d0accd3b9ec"
   },
+  "518150": {
+   "name": "Intruder",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "518660": {
    "name": "Zone4",
    "source": "anticheat",
@@ -1984,14 +1988,6 @@
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
-   ]
-  },
-  "528010": {
-   "name": "Eternal Return",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "XIGNCODE3",
-    "UNCHEATER"
    ]
   },
   "536950": {
@@ -2031,14 +2027,6 @@
     "nProtect GameGuard"
    ]
   },
-  "550470": {
-   "name": "NosTale",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "X-Trap",
-    "nProtect GameGuard"
-   ]
-  },
   "550650": {
    "name": "Black Squad",
    "source": "anticheat",
@@ -2047,6 +2035,14 @@
     "nProtect GameGuard"
    ]
   },
+  "552500": {
+   "name": "Warhammer: Vermintide 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "94584793-835e-419f-9df8-eb767f21bfe7"
+  },
   "552520": {
    "name": "Far Cry 5",
    "source": "anticheat",
@@ -2054,6 +2050,13 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "039e96dd-94a1-4721-a32c-a4142a2ad312"
+  },
+  "555160": {
+   "name": "Pavlov VR",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "555440": {
    "name": "Deathgarden: Bloodharvest",
@@ -2089,6 +2092,13 @@
    "source": "anticheat",
    "antiCheat": [
     "Nexon Game Security"
+   ]
+  },
+  "569530": {
+   "name": "Sky Noon",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "570940": {
@@ -2149,6 +2159,13 @@
    ],
    "geforceNow": "25cee06b-1f6d-4cf3-a390-7192d81cbf6b"
   },
+  "594770": {
+   "name": "Legends of Aria",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "601510": {
    "name": "Yu-Gi-Oh Duel Links needs vcrun2019",
    "winetricks": [
@@ -2163,11 +2180,11 @@
     "nProtect GameGuard"
    ]
   },
-  "611500": {
-   "name": "Quake Champions",
+  "611360": {
+   "name": "Video Horror Society",
    "source": "anticheat",
    "antiCheatOnline": [
-    "Unknown (Custom)"
+    "Easy Anti-Cheat"
    ]
   },
   "619080": {
@@ -2190,6 +2207,14 @@
    "antiCheat": [
     "XIGNCODE3"
    ]
+  },
+  "625340": {
+   "name": "XERA: Survival",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "a095ef15-0236-4fbe-b3ed-6cc62f7f6141"
   },
   "626690": {
    "name": "Sword Art Online: Fatal Bullet",
@@ -2219,7 +2244,22 @@
    ],
    "partial": true,
    "source": "umu",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "641080": {
+   "name": "Trials Rising",
+   "source": "anticheat",
    "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "f050f855-f160-4802-a6ad-2d24e8fda206"
+  },
+  "644290": {
+   "name": "Memories of Mars",
+   "source": "anticheat",
+   "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
   },
@@ -2288,6 +2328,14 @@
     "XIGNCODE3"
    ]
   },
+  "671860": {
+   "name": "BattleBit Remastered",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat",
+    "FACEIT"
+   ]
+  },
   "672890": {
    "name": "Sparkball",
    "source": "anticheat",
@@ -2295,13 +2343,12 @@
     "Easy Anti-Cheat"
    ]
   },
-  "677620": {
-   "name": "Splitgate",
+  "674020": {
+   "name": "World War 3",
    "source": "anticheat",
    "antiCheatOnline": [
-    "EQU8"
-   ],
-   "geforceNow": "39699fb7-5a05-41e6-86b2-3cd6fd6c459c"
+    "Easy Anti-Cheat"
+   ]
   },
   "678950": {
    "name": "DRAGON BALL FighterZ",
@@ -2310,9 +2357,17 @@
    ],
    "partial": true,
    "source": "umu",
-   "antiCheat": [
+   "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
+  },
+  "680420": {
+   "name": "Outriders",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "afd15b15-9dfe-4d6f-aaba-0c77be021a15"
   },
   "681660": {
    "name": "Bless Online",
@@ -2343,6 +2398,14 @@
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
+  },
+  "707010": {
+   "name": "Will To Live Online",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "8402f9b7-9f40-42e9-ab89-cb4864d11559"
   },
   "714080": {
    "name": "Black Clover: Quartet Knights",
@@ -2395,6 +2458,13 @@
    ],
    "geforceNow": "9e405dab-acf1-4c0f-8347-4da792be243a"
   },
+  "738530": {
+   "name": "New Gundam Breaker",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "747610": {
    "name": "Zula Global",
    "source": "anticheat",
@@ -2426,6 +2496,13 @@
   },
   "751240": {
    "name": "Fractured Lands",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "753650": {
+   "name": "Due Process",
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
@@ -2468,6 +2545,14 @@
     "BattlEye"
    ]
   },
+  "766370": {
+   "name": "Dying Light: Bad Blood",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "44eea10f-40bf-46ad-b753-f0fecfb05312"
+  },
   "773370": {
    "name": "Exo One",
    "winetricks": [
@@ -2488,6 +2573,13 @@
    "source": "anticheat",
    "antiCheat": [
     "XIGNCODE3"
+   ]
+  },
+  "798510": {
+   "name": "Super Dragon Ball Heroes World Mission",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "804810": {
@@ -2533,7 +2625,7 @@
    ],
    "partial": true,
    "source": "umu",
-   "antiCheat": [
+   "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
   },
@@ -2544,6 +2636,14 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "49c8a559-5bef-4cdd-af49-190b6424e2c7"
+  },
+  "820520": {
+   "name": "Deceive Inc.",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "8c02bc27-ae41-48b8-9500-6b44194bb5c6"
   },
   "823130": {
    "name": "Totally Accurate Battlegrounds",
@@ -2575,21 +2675,20 @@
     "nProtect GameGuard"
    ]
   },
-  "843380": {
-   "name": "Super Animal Royale",
+  "840800": {
+   "name": "Outlaws of the Old West",
    "source": "anticheat",
    "antiCheatOnline": [
-    "Unknown (Custom)"
-   ],
-   "geforceNow": "66e42c31-e619-49d3-9c4b-a2c48c1c5774"
+    "BattlEye"
+   ]
   },
-  "844870": {
-   "name": "KurtzPel",
+  "867400": {
+   "name": "Out of Reach: Treasure Royale",
    "source": "anticheat",
    "antiCheatOnline": [
-    "nProtect GameGuard"
+    "Easy Anti-Cheat"
    ],
-   "geforceNow": "d3fe274b-99d1-42ae-bcc0-86228850c291"
+   "geforceNow": "4fcc7c67-1723-426b-8836-fb3c9377fa8e"
   },
   "871120": {
    "name": "MilkChoco",
@@ -2710,6 +2809,14 @@
    ],
    "source": "umu"
   },
+  "915810": {
+   "name": "Midnight Ghost Hunt",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "25e3c75b-728c-414d-83c0-3f041087163c"
+  },
   "918570": {
    "name": "Century: Age of Ashes",
    "source": "anticheat",
@@ -2785,13 +2892,6 @@
    },
    "source": "umu"
   },
-  "960170": {
-   "name": "DJMAX RESPECT V",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "XIGNCODE3"
-   ]
-  },
   "961200": {
    "name": "Predecessor",
    "source": "anticheat",
@@ -2824,6 +2924,14 @@
     "Easy Anti-Cheat"
    ]
   },
+  "973580": {
+   "name": "Sniper Ghost Warrior Contracts",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "16f19ceb-5c97-4f19-88b6-cf420494041b"
+  },
   "976310": {
    "name": "Game fix Mortal Kombat 11",
    "winetricks": [
@@ -2841,14 +2949,6 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "0ac41d62-3786-4582-8975-04b819551d3a"
-  },
-  "985810": {
-   "name": "GrandChase",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "X-Trap",
-    "nProtect GameGuard"
-   ]
   },
   "991560": {
    "name": "One Punch Man: A Hero Nobody Knows",
@@ -2879,6 +2979,13 @@
    ],
    "source": "umu"
   },
+  "1008580": {
+   "name": "Overstep",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1009290": {
    "name": "SWORD ART ONLINE Alicization Lycoris",
    "source": "anticheat",
@@ -2907,12 +3014,27 @@
    ],
    "source": "umu"
   },
+  "1024890": {
+   "name": "Sector's Edge",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1025560": {
    "name": "Flea Madness",
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
+  },
+  "1029690": {
+   "name": "Sniper Elite 5",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "c450d5ff-8f19-48d0-a279-ec44345fa12b"
   },
   "1030830": {
    "name": "Mafia II Definitive Edition",
@@ -2929,11 +3051,11 @@
    ],
    "geforceNow": "c941579c-9e3a-4341-9ba8-3fcbff07cb81"
   },
-  "1056640": {
-   "name": "Phantasy Star Online 2 (NA)",
+  "1057240": {
+   "name": "Crucible",
    "source": "anticheat",
    "antiCheatOnline": [
-    "nProtect GameGuard"
+    "Easy Anti-Cheat"
    ]
   },
   "1058650": {
@@ -2958,6 +3080,13 @@
    ],
    "geforceNow": "d1768dc1-b451-449a-8f7f-cf5b20f98f6f"
   },
+  "1088090": {
+   "name": "Day of Dragons",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1093170": {
    "name": "Monstrum 2",
    "source": "anticheat",
@@ -2971,6 +3100,21 @@
    "antiCheat": [
     "nProtect GameGuard"
    ]
+  },
+  "1097150": {
+   "name": "Fall Guys: Ultimate Knockout",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1097840": {
+   "name": "Gears 5",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "ac15f041-c745-4aff-b2f8-c1292e53c67d"
   },
   "1106750": {
    "name": "Fault: Elder Orb",
@@ -3046,6 +3190,13 @@
     "XIGNCODE3"
    ]
   },
+  "1158940": {
+   "name": "Blazing Sails",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1163550": {
    "name": "Captain Tsubasa: Rise of New Champions",
    "source": "anticheat",
@@ -3076,6 +3227,14 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "3feed779-bbfa-4f86-b715-f111215e7846"
+  },
+  "1172710": {
+   "name": "Dune: Awakening",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "75f33d0b-3f71-4cf3-a541-10eb1a9e65b1"
   },
   "1174180": {
    "name": "Red Dead Redemption 2",
@@ -3116,13 +3275,6 @@
     "Easy Anti-Cheat"
    ]
   },
-  "1184140": {
-   "name": "KartRider: Drift",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Nexon Game Security"
-   ]
-  },
   "1184780": {
    "name": "Bots",
    "source": "anticheat",
@@ -3136,6 +3288,14 @@
    "antiCheat": [
     "XIGNCODE3"
    ]
+  },
+  "1186040": {
+   "name": "Worms Rumble",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "189e6826-7a19-452c-8707-cc0b64db451c"
   },
   "1189800": {
    "name": "Bleeding Edge",
@@ -3151,20 +3311,19 @@
     "BattlEye"
    ]
   },
+  "1194810": {
+   "name": "Meet Your Maker",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1195460": {
    "name": "Last Year",
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
-  },
-  "1203220": {
-   "name": "NARAKA: BLADEPOINT",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "NEAC Protect"
-   ],
-   "geforceNow": "4f399ae4-6fe9-415b-8c7f-bce41bb5fe14"
   },
   "1204040": {
    "name": "Shoot on Sight",
@@ -3180,14 +3339,6 @@
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
-  },
-  "1217060": {
-   "name": "Gunfire Reborn",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Unknown (Custom)"
-   ],
-   "geforceNow": "17b567ba-6c70-404d-8193-61b0b13f59d2"
   },
   "1218740": {
    "name": "Rakion Chaos Force",
@@ -3228,28 +3379,6 @@
     "Easy Anti-Cheat"
    ]
   },
-  "1237950": {
-   "name": "STAR WARS™ Battlefront™ II (2017)",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "FairFight"
-   ],
-   "geforceNow": "4f6b5d5e-0628-466c-8c59-13e5203e2a40"
-  },
-  "1237970": {
-   "name": "Titanfall 2",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "FairFight"
-   ]
-  },
-  "1237980": {
-   "name": "STAR WARS™ Battlefront™ (2015)",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "FairFight"
-   ]
-  },
   "1238810": {
    "name": "Battlefield V",
    "source": "anticheat",
@@ -3267,15 +3396,6 @@
     "EA anticheat"
    ],
    "geforceNow": "dd4fd889-9124-425f-8df5-1c121d61ae40"
-  },
-  "1238860": {
-   "name": "Battlefield 4",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "PunkBuster",
-    "FairFight"
-   ],
-   "geforceNow": "d7c8d993-d74d-46ea-abc9-d9fb66ea63d7"
   },
   "1239520": {
    "name": "Madden NFL 21 needs vcrun2019 for online mode to work",
@@ -3362,6 +3482,14 @@
     "EA anticheat"
    ]
   },
+  "1263550": {
+   "name": "Combat Arms: the Classic",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye",
+    "nProtect GameGuard"
+   ]
+  },
   "1268750": {
    "name": "Starship Troopers: Extermination",
    "source": "anticheat",
@@ -3390,6 +3518,14 @@
     "mfc140"
    ],
    "source": "umu"
+  },
+  "1286320": {
+   "name": "Exoprimal",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "a32220bc-efd1-4548-87a7-dc55344c2b1b"
   },
   "1286880": {
    "name": "Ship Graveyard Simulator",
@@ -3488,6 +3624,20 @@
    ],
    "geforceNow": "7ddee0fa-e073-4373-93df-ca5316da86a3"
   },
+  "1372110": {
+   "name": "JoJo's Bizarre Adventure: All-Star Battle R",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1377380": {
+   "name": "Night of the Dead",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1379750": {
    "name": "Ragnarok: The Lost Memories",
    "source": "anticheat",
@@ -3517,18 +3667,33 @@
     "Easy Anti-Cheat"
    ]
   },
+  "1401240": {
+   "name": "Project Xandata",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1419640": {
+   "name": "Project F",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1422450": {
    "name": "Deadlock",
    "graphics": "dxvk",
    "note": "Tested 2026-10-26 on M5: plays with DXVK at 60-120 FPS (the Vulkan layer's count). Steam may first ask about controller firmware; Nightforge shows that window.",
    "source": "mac"
   },
-  "1426440": {
-   "name": "MicroVolts: Recharged",
+  "1433140": {
+   "name": "The Texas Chain Saw Massacre",
    "source": "anticheat",
    "antiCheatOnline": [
-    "XIGNCODE3"
-   ]
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "20750abc-4cae-4fc6-92b0-f1e026e47336"
   },
   "1434950": {
    "name": "Game fix HighFleet",
@@ -3537,6 +3702,14 @@
     "d3dcompiler_47"
    ],
    "source": "umu"
+  },
+  "1436900": {
+   "name": "Sabotaj",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "e75a2222-787f-4213-88bf-268297e927ae"
   },
   "1442910": {
    "name": "Reign Of Dwarf",
@@ -3552,11 +3725,19 @@
    ],
    "source": "umu"
   },
-  "1454890": {
-   "name": "Titanfall",
+  "1456940": {
+   "name": "Level Zero: Extraction",
    "source": "anticheat",
    "antiCheatOnline": [
-    "FairFight"
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "f324ace4-eb76-4114-9c6e-c804f2be267c"
+  },
+  "1464970": {
+   "name": "Dread Hunger",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "1467450": {
@@ -3579,12 +3760,13 @@
     "Easy Anti-Cheat"
    ]
   },
-  "1477590": {
-   "name": "EZ2ON REBOOT : R",
+  "1473480": {
+   "name": "A.V.A Global",
    "source": "anticheat",
-   "antiCheatOnline": [
-    "XIGNCODE3"
-   ]
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "86f36078-ef1f-4a6f-8ada-20318880d200"
   },
   "1477730": {
    "name": "Extreme Soccer",
@@ -3675,11 +3857,48 @@
     "nProtect GameGuard"
    ]
   },
+  "1566880": {
+   "name": "Sword Art Online Last Recollection",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1568590": {
+   "name": "Goose Goose Duck",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1575680": {
+   "name": "BlasterBeat",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1587100": {
    "name": "Anarchy Legends Online",
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
+   ]
+  },
+  "1599340": {
+   "name": "Lost Ark",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat",
+    "AnyBrain"
+   ],
+   "geforceNow": "a7e571c0-89ab-4dd6-bf8b-e8ea5068c099"
+  },
+  "1600360": {
+   "name": "The Cycle: Frontier",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
    ]
   },
   "1607250": {
@@ -3705,6 +3924,13 @@
    ],
    "source": "umu"
   },
+  "1618710": {
+   "name": "Project Sparrow",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1623730": {
    "name": "Palworld",
    "graphics": "dxmt",
@@ -3717,6 +3943,21 @@
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
+  },
+  "1648190": {
+   "name": "Qanga",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1650010": {
+   "name": "RIDE 5",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "e3e61d87-a026-4ea0-bdf2-6877ec58f7fc"
   },
   "1657090": {
    "name": "Mini Royale",
@@ -3772,6 +4013,13 @@
    "source": "anticheat",
    "antiCheat": [
     "XIGNCODE3"
+   ]
+  },
+  "1691340": {
+   "name": "Steel Hunters",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "1692070": {
@@ -3844,6 +4092,20 @@
     "Anti-Cheat Expert"
    ]
   },
+  "1724660": {
+   "name": "New World: Aeternum",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1725420": {
+   "name": "Mortal Online 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1743770": {
    "name": "Propnight",
    "source": "anticheat",
@@ -3879,6 +4141,29 @@
     "Easy Anti-Cheat"
    ]
   },
+  "1785150": {
+   "name": "Friends vs Friends",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1789480": {
+   "name": "Marauders",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat",
+    "Denuvo Anti-Cheat"
+   ],
+   "geforceNow": "0db65e48-1db6-4270-9319-e01ff5a3585e"
+  },
+  "1790600": {
+   "name": "DRAGON BALL: Sparking! ZERO",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1797880": {
    "name": "Lost Light",
    "source": "anticheat",
@@ -3894,6 +4179,21 @@
     "Easy Anti-Cheat"
    ]
   },
+  "1803110": {
+   "name": "Ascendant.com",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "1808500": {
+   "name": "ARC Raiders",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "dfdbc357-7f61-45cc-bf64-ae7117da12d5"
+  },
   "1811260": {
    "name": "EA SPORTS™ FIFA 23",
    "source": "anticheat",
@@ -3908,12 +4208,27 @@
     "Easy Anti-Cheat"
    ]
   },
+  "1816670": {
+   "name": "Gundam Evolution",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1818750": {
    "name": "Multiversus",
    "source": "anticheat",
    "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
+  },
+  "1824220": {
+   "name": "Chivalry 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "5dbb12ed-fcda-43c9-82e3-52b214521a9f"
   },
   "1849250": {
    "name": "EA SPORTS™ WRC 24",
@@ -3922,11 +4237,25 @@
     "EA anticheat"
    ]
   },
+  "1858630": {
+   "name": "SWORD ART ONLINE Fractured Daydream",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1863390": {
    "name": "N-Age",
    "source": "anticheat",
    "antiCheat": [
     "nProtect GameGuard"
+   ]
+  },
+  "1867420": {
+   "name": "LEAP",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "1872760": {
@@ -3986,6 +4315,14 @@
     "Easy Anti-Cheat"
    ]
   },
+  "1913210": {
+   "name": "AEW Fight Forever",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "aa12e689-c9c3-445f-8266-a45f817bdea3"
+  },
   "1913730": {
    "name": "Chimeraland",
    "source": "anticheat",
@@ -3999,6 +4336,14 @@
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
+  },
+  "1924490": {
+   "name": "Gigantic: Rampage Edition",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "2fa4311d-b72f-4149-9994-9864812e8362"
   },
   "1928420": {
    "name": "Farlight 84",
@@ -4030,6 +4375,13 @@
     "MY.GAMES Anti-Cheat"
    ]
   },
+  "1961460": {
+   "name": "PROJECT: PLAYTIME",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "1962663": {
    "name": "Call of Duty: Warzone",
    "source": "anticheat",
@@ -4042,6 +4394,14 @@
    "source": "anticheat",
    "antiCheat": [
     "Anti-Cheat Expert"
+   ]
+  },
+  "1979310": {
+   "name": "Veiled Experts",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye",
+    "Nexon Game Security"
    ]
   },
   "1985820": {
@@ -4059,12 +4419,28 @@
     "Easy Anti-Cheat"
    ]
   },
+  "1995520": {
+   "name": "Pax Dei",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "89d3dd13-37a5-4269-8d86-9e124f81ec84"
+  },
   "2000270": {
    "name": "Dual Universe",
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
    ]
+  },
+  "2012510": {
+   "name": "Stormgate",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "c09fa144-2a26-42a0-a592-3e2529c7f5d9"
   },
   "2022330": {
    "name": "The Riflemen",
@@ -4073,6 +4449,14 @@
     "Easy Anti-Cheat"
    ]
   },
+  "2051120": {
+   "name": "Hot Wheels UNLEASHED 2 - Turbocharged",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "e91c30af-3155-432a-a1f0-4e77e9361598"
+  },
   "2051620": {
    "name": "Enlisted: Reinforced",
    "source": "anticheat",
@@ -4080,6 +4464,14 @@
     "Easy Anti-Cheat",
     "BattlEye"
    ]
+  },
+  "2064870": {
+   "name": "Deceit 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "254fa479-73b3-439a-b19b-560160ef8e23"
   },
   "2073620": {
    "name": "Arena Breakout: Infinite",
@@ -4105,10 +4497,34 @@
     "Easy Anti-Cheat"
    ]
   },
+  "2074920": {
+   "name": "The First Descendant",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Nexon Game Security",
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "b47f3577-faf4-4222-892e-d2379cf60d5d"
+  },
   "2077110": {
    "name": "Rise of Agon",
    "source": "anticheat",
    "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "2078450": {
+   "name": "Warhammer 40,000: Speed Freeks",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "7efd5e64-d075-44b5-bff9-cf6cf751876f"
+  },
+  "2083800": {
+   "name": "Trimurti Online",
+   "source": "anticheat",
+   "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
   },
@@ -4127,6 +4543,13 @@
     "XIGNCODE3"
    ]
   },
+  "2091110": {
+   "name": "Hell is Others",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "2111630": {
    "name": "JR East Train Simulator",
    "winetricks": [
@@ -4134,6 +4557,13 @@
     "vcrun2008"
    ],
    "source": "umu"
+  },
+  "2119490": {
+   "name": "TRAHA Global",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "2129370": {
    "name": "Fix for S\\&box Editor",
@@ -4164,6 +4594,14 @@
     "GuardenAC"
    ]
   },
+  "2138720": {
+   "name": "REMATCH",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "57109028-d7b7-4a4b-8164-a3a1b9ebb240"
+  },
   "2139090": {
    "name": "Project ETHOS",
    "source": "anticheat",
@@ -4192,6 +4630,15 @@
     "nProtect GameGuard"
    ]
   },
+  "2169200": {
+   "name": "Sniper Elite: Resistance",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Denuvo Anti-Cheat",
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "82e8a963-1dcc-4440-95c0-b707ce8ebaa2"
+  },
   "2170050": {
    "name": "WolfTeam: Reboot",
    "source": "anticheat",
@@ -4219,6 +4666,14 @@
    "antiCheat": [
     "SARD"
    ]
+  },
+  "2183900": {
+   "name": "Warhammer 40,000: Space Marine 2",
+   "source": "anticheat",
+   "antiCheat": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "7961b141-5ded-427f-bf57-a31229a6151d"
   },
   "2203070": {
    "name": "Dragonheir: Silent Gods",
@@ -4250,6 +4705,14 @@
    ],
    "geforceNow": "7ef4a125-560f-4a6c-94c1-cc8ca9523809"
   },
+  "2239550": {
+   "name": "Watch Dogs®: Legion",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "bb59bacf-0897-44f0-84d3-00ec8c1e5431"
+  },
   "2247220": {
    "name": "Revenblade",
    "source": "anticheat",
@@ -4277,6 +4740,15 @@
    "antiCheat": [
     "XIGNCODE3"
    ]
+  },
+  "2285150": {
+   "name": "The Front",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Anti-Cheat Expert",
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "5829a5ca-4787-4417-bb22-8fb58d507d3e"
   },
   "2287920": {
    "name": "Battle Crush",
@@ -4322,20 +4794,27 @@
    ],
    "geforceNow": "3b80b8a4-e861-482e-b0c1-578f382afe6f"
   },
+  "2350280": {
+   "name": "Monster Jam™ Showdown",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "c3526a4b-c737-4360-bfe2-97ce57512b0d"
+  },
+  "2353050": {
+   "name": "WTF: Waifu Tactical Force",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "2356310": {
    "name": "Continent of the Ninth Golden",
    "source": "anticheat",
    "antiCheat": [
     "XIGNCODE3"
    ]
-  },
-  "2357570": {
-   "name": "Overwatch 2",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Warden"
-   ],
-   "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
   },
   "2359600": {
    "name": "Perfect New World",
@@ -4380,6 +4859,14 @@
     "Easy Anti-Cheat"
    ]
   },
+  "2429640": {
+   "name": "Throne and Liberty",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "affbf4a1-9490-4aa1-9c31-ea80628e72ab"
+  },
   "2437170": {
    "name": "Smite 2",
    "source": "anticheat",
@@ -4418,6 +4905,15 @@
    ],
    "geforceNow": "1f8b6f1e-fff3-4ebb-b870-6a45bdaf59c7"
   },
+  "2479810": {
+   "name": "Gray Zone Warfare",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat",
+    "AnyBrain"
+   ],
+   "geforceNow": "58f4a5d8-f751-4cce-a232-01ac3bb9e715"
+  },
   "2484250": {
    "name": "ASTRA: Knights of Veda",
    "source": "anticheat",
@@ -4432,6 +4928,22 @@
     "EA anticheat"
    ]
   },
+  "2507950": {
+   "name": "Delta Force: Hawk Ops",
+   "source": "anticheat",
+   "antiCheat": [
+    "Anti-Cheat Expert"
+   ],
+   "geforceNow": "71d1fe74-f490-4340-9957-baa64beabc7b"
+  },
+  "2523720": {
+   "name": "Gears of War: Reloaded",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "06edb15d-7f49-4074-ab46-8bbbfc09aaf8"
+  },
   "2552340": {
    "name": "TEMPEST: Tower of Probatio",
    "source": "anticheat",
@@ -4444,6 +4956,28 @@
    "source": "anticheat",
    "antiCheat": [
     "BattlEye"
+   ]
+  },
+  "2581700": {
+   "name": "MotoGP™24",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "0d4f87c1-684b-4274-9902-55e2a9d8d77a"
+  },
+  "2590150": {
+   "name": "Faaast Penguin",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "2622380": {
+   "name": "Elden Ring: Nightreign",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "2641470": {
@@ -4512,6 +5046,14 @@
     "Easy Anti-Cheat"
    ]
   },
+  "2795540": {
+   "name": "The Midnight Walkers",
+   "source": "anticheat",
+   "antiCheat": [
+    "Anti-Cheat Expert"
+   ],
+   "geforceNow": "bb7a2d95-1c3a-4008-a217-f6655a4cc026"
+  },
   "2799860": {
    "name": "INAZUMA ELEVEN: Victory Road",
    "source": "anticheat",
@@ -4519,6 +5061,13 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "48a20451-6d49-4c26-a24d-e87069f895f5"
+  },
+  "2803360": {
+   "name": "Project L33T",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "2805060": {
    "name": "Diabotical Rogue",
@@ -4535,6 +5084,28 @@
    ],
    "geforceNow": "cb4e2225-1c30-456b-ac8e-1424f3218329"
   },
+  "2818260": {
+   "name": "Vigor",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "2827230": {
+   "name": "Wild Assault",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "2853730": {
+   "name": "Skull and Bones",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "BattlEye"
+   ],
+   "geforceNow": "0d67700f-158a-4d1f-af08-48e50dc7ca05"
+  },
   "2854480": {
    "name": "Blindfire",
    "source": "anticheat",
@@ -4544,6 +5115,13 @@
   },
   "2878600": {
    "name": "Harry Potter: Quidditch Champions",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "2878980": {
+   "name": "NBA 2K25",
    "source": "anticheat",
    "antiCheatOnline": [
     "Easy Anti-Cheat"
@@ -4576,6 +5154,20 @@
    "source": "anticheat",
    "antiCheat": [
     "Anti-Cheat Expert"
+   ]
+  },
+  "3004100": {
+   "name": "Freedom Wars Remastered",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "3059520": {
+   "name": "F1® 25",
+   "source": "anticheat",
+   "antiCheat": [
+    "EA anticheat"
    ]
   },
   "3065800": {
@@ -4634,6 +5226,28 @@
     "EA anticheat"
    ]
   },
+  "3354750": {
+   "name": "skate.",
+   "source": "anticheat",
+   "antiCheat": [
+    "EA anticheat"
+   ]
+  },
+  "3405690": {
+   "name": "EA SPORTS FC™ 26",
+   "source": "anticheat",
+   "antiCheat": [
+    "EA anticheat"
+   ]
+  },
+  "3504780": {
+   "name": "Wildgate",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "746f12b8-5978-480c-9ee6-536a73bf93b9"
+  },
   "3513350": {
    "name": "Wuthering Waves - ID 3513350\nhttps://www.protondb.com/app/3513350",
    "winetricks": [
@@ -4663,6 +5277,13 @@
    "source": "anticheat",
    "antiCheat": [
     "Anti-Cheat Solution"
+   ]
+  },
+  "3659280": {
+   "name": "Off The Grid",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
    ]
   },
   "3669060": {
@@ -4784,6 +5405,14 @@
    "note": "Tested 2026-10-28 on M5 (Unreal 5.7.4). DirectX 11 fails on every layer: DXMT stays black while its graphics memory grows by ~400 MB/s, DXVK 3 on KosmicKrisp and D3DMetal crash. DirectX 12 through D3DMetal plays; with Rosetta's AVX hint it crashes after ~2 min (illegal instruction while precompiling shaders). Nanite and virtual shadow maps cost D3DMetal half the frame rate (30 -> 64 FPS without them, Engine.ini). With full Retina output (3024x1964), Low, FSR Performance and FSR frame generation: 50-55 FPS, sharp. Ray tracing and MegaLights stay off. The menu's background video stays black.",
    "source": "mac"
   },
+  "3929740": {
+   "name": "Tom Clancy's Splinter Cell: Pandora Tomorrow",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "PunkBuster"
+   ],
+   "geforceNow": "525082c7-30d9-4b5c-980b-d02dc2e9dd62"
+  },
   "3932890": {
    "name": "Escape From Tarkov\nInstall BattlEye Service - does not permit online play",
    "winetricks": [
@@ -4793,7 +5422,10 @@
     "--disable-software-rasterizer"
    ],
    "partial": true,
-   "source": "umu"
+   "source": "umu",
+   "antiCheat": [
+    "BattlEye"
+   ]
   },
   "3950020": {
    "name": "Duet Night Abyss",
@@ -4802,14 +5434,6 @@
    },
    "partial": true,
    "source": "umu"
-  },
-  "epic.03ecca4e19a9483aa05b3d99948c43ce": {
-   "name": "Tom Clancy's The Division",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "FairFight"
-   ],
-   "geforceNow": "6086a01a-3e88-4632-a393-5e672f34c025"
   },
   "epic.0584d2013f0149a791e7b9bad0eec102": {
    "name": "Grand Theft Auto V",
@@ -4831,20 +5455,28 @@
    "source": "anticheat",
    "antiCheatOnline": [
     "BattlEye"
-   ]
+   ],
+   "geforceNow": "bb59bacf-0897-44f0-84d3-00ec8c1e5431"
   },
-  "epic.0c6aee83b9b64372bf44a043001325f2": {
-   "name": "NARAKA: BLADEPOINT",
+  "epic.0ad0ed7b851c46378f9fcac07b72b548": {
+   "name": "Wildgate",
    "source": "anticheat",
    "antiCheatOnline": [
-    "NEAC Protect"
+    "Easy Anti-Cheat"
    ],
-   "geforceNow": "4f399ae4-6fe9-415b-8c7f-bce41bb5fe14"
+   "geforceNow": "746f12b8-5978-480c-9ee6-536a73bf93b9"
+  },
+  "epic.0e70be0cea0446599acb4c26d2e925f9": {
+   "name": "Hell is Others",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "epic.17a1f8585f9246808597b30780aaf4fb": {
    "name": "Crysis",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "PunkBuster"
    ]
   },
@@ -4860,15 +5492,8 @@
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
-   ]
-  },
-  "epic.244aaaa06bfa49d088205b13b9d2d115": {
-   "name": "Warframe",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Unknown (Custom)"
    ],
-   "geforceNow": "3b6c8822-d334-45d8-9dc9-b6efd59778ab"
+   "geforceNow": "189e6826-7a19-452c-8707-cc0b64db451c"
   },
   "epic.24b9b5e323bc40eea252a10cdd3b2f10": {
    "name": "League of Legends",
@@ -4893,6 +5518,21 @@
    ],
    "geforceNow": "7ef4a125-560f-4a6c-94c1-cc8ca9523809"
   },
+  "epic.3542a1df211e492bb2abecb7c734f7f9": {
+   "name": "Rising Storm 2: Vietnam",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "91b4cb11-6c87-4263-abf6-a5613f1d20f6"
+  },
+  "epic.36336ee97ec543bbae85abaca618182b": {
+   "name": "Diabotical",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
+  },
   "epic.3a212c0da4f1438e840c21565df4b6fe": {
    "name": "Multiversus",
    "source": "anticheat",
@@ -4916,13 +5556,20 @@
    ],
    "geforceNow": "d1768dc1-b451-449a-8f7f-cf5b20f98f6f"
   },
-  "epic.47cba32bce2f4b1e9da0eee33bbb489a": {
-   "name": "Splitgate",
+  "epic.456f53b28c384f02865874299f956501": {
+   "name": "Midnight Ghost Hunt",
    "source": "anticheat",
    "antiCheatOnline": [
-    "EQU8"
+    "Easy Anti-Cheat"
    ],
-   "geforceNow": "39699fb7-5a05-41e6-86b2-3cd6fd6c459c"
+   "geforceNow": "25e3c75b-728c-414d-83c0-3f041087163c"
+  },
+  "epic.50118b7f954e450f8823df1614b24e80": {
+   "name": "Fall Guys: Ultimate Knockout",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "epic.52f57f57120c440fad9bfa0e6c279317": {
    "name": "Battlefield™ 2042",
@@ -4951,6 +5598,13 @@
    "name": "Hood: Outlaws & Legends",
    "source": "anticheat",
    "antiCheat": [
+    "Easy Anti-Cheat"
+   ]
+  },
+  "epic.5a82d5954a1943d79dc6b49cde2fe972": {
+   "name": "Predator: Hunting Grounds",
+   "source": "anticheat",
+   "antiCheatOnline": [
     "Easy Anti-Cheat"
    ]
   },
@@ -5046,12 +5700,21 @@
    ],
    "geforceNow": "0f4350c2-04c9-4cde-8195-832205df269a"
   },
+  "epic.angelonia": {
+   "name": "Watch_Dogs® 2",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "dffa6d8f-6922-466e-a062-38244d8b9c75"
+  },
   "epic.argyle": {
    "name": "Trials Rising",
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
-   ]
+   ],
+   "geforceNow": "f050f855-f160-4802-a6ad-2d24e8fda206"
   },
   "epic.ark": {
    "name": "ARK: Survival Evolved",
@@ -5061,13 +5724,13 @@
    ],
    "geforceNow": "7479a1d8-1303-4ece-9573-1bdc5815b9dd"
   },
-  "epic.b156c3365a5b4cb9a01a5e1108b4e3f4": {
-   "name": "STAR WARS™ Battlefront™ II (2017)",
+  "epic.b4bb52a95d0b43d9af543c6ec3c54e04": {
+   "name": "ARC Raiders",
    "source": "anticheat",
    "antiCheatOnline": [
-    "FairFight"
+    "Easy Anti-Cheat"
    ],
-   "geforceNow": "4f6b5d5e-0628-466c-8c59-13e5203e2a40"
+   "geforceNow": "dfdbc357-7f61-45cc-bf64-ae7117da12d5"
   },
   "epic.b6ab3ae326064cd0884d7df16f69b9cb": {
    "name": "Infinity Nikki",
@@ -5075,6 +5738,14 @@
    "antiCheat": [
     "Anti-Cheat Expert"
    ]
+  },
+  "epic.badb0ee71b474ed591ec43212547cfc8": {
+   "name": "Paladins",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "a342dc5e-b260-47cc-8efc-f531ec60fdd1"
   },
   "epic.bc2b0372eaa448469cb9a769f27acea1": {
    "name": "STAR WARS™: Squadrons",
@@ -5084,12 +5755,13 @@
    ],
    "geforceNow": "eb19da32-8d6e-4f6d-a739-ed17cb68dfb2"
   },
-  "epic.bf333e6236914222a95a536389c05813": {
-   "name": "Phantasy Star Online 2 (NA)",
+  "epic.bd46d4ce259349e5bd8b3ded20274737": {
+   "name": "Chivalry 2",
    "source": "anticheat",
    "antiCheatOnline": [
-    "nProtect GameGuard"
-   ]
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "5dbb12ed-fcda-43c9-82e3-52b214521a9f"
   },
   "epic.bf5708c386744107b8a8a24ac707dd0e": {
    "name": "Battlefield V",
@@ -5112,7 +5784,8 @@
    "source": "anticheat",
    "antiCheatOnline": [
     "Easy Anti-Cheat"
-   ]
+   ],
+   "geforceNow": "afd15b15-9dfe-4d6f-aaba-0c77be021a15"
   },
   "epic.carnation": {
    "name": "Tom Clancy's Rainbow Six® Siege X",
@@ -5130,6 +5803,14 @@
    "antiCheat": [
     "Vanguard"
    ]
+  },
+  "epic.cccdbadd66124f609ba706a9c4c73756": {
+   "name": "Deceive Inc.",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "8c02bc27-ae41-48b8-9500-6b44194bb5c6"
   },
   "epic.conanexiles": {
    "name": "Conan Exiles",
@@ -5162,13 +5843,6 @@
    ],
    "geforceNow": "7780c752-eca2-4dd0-8ef6-f93e28e6e01e"
   },
-  "epic.fefe1db11f534484987ef50ec1e25225": {
-   "name": "STAR WARS™ Battlefront™ (2015)",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "FairFight"
-   ]
-  },
   "epic.fn": {
    "name": "Fortnite",
    "source": "anticheat",
@@ -5181,7 +5855,8 @@
    "source": "anticheat",
    "antiCheat": [
     "Easy Anti-Cheat"
-   ]
+   ],
+   "geforceNow": "226cc2ab-ba1f-4fe8-9eca-197cc5fbb429"
   },
   "epic.impala": {
    "name": "Tom Clancy's The Division 2",
@@ -5190,6 +5865,13 @@
     "Easy Anti-Cheat"
    ],
    "geforceNow": "c035d87d-fff6-4869-abcd-429595c4ceba"
+  },
+  "epic.jackal": {
+   "name": "Dauntless",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ]
   },
   "epic.newt": {
    "name": "Spellbreak",
@@ -5222,5 +5904,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-10-27T20:21:54Z"
+ "generated": "2026-11-01T01:56:55Z"
 }

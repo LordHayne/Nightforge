@@ -35,7 +35,8 @@ struct GameProfile: Decodable, Equatable {
     /// Anti-cheat that stops the game's Windows version on a Mac ("BattlEye", …), from
     /// AreWeAntiCheatYet; an empty list (a Mac profile) means it runs after all.
     var antiCheat: [String]?
-    /// Anti-cheat that only stops online play on a Mac: it blocks games that have nothing else.
+    /// Anti-cheat that only stops online play on a Mac (Easy Anti-Cheat, BattlEye: Proton runs them
+    /// through their Linux module): it blocks games that have nothing else.
     var antiCheatOnline: [String]?
     /// Its game id on GeForce Now, NVIDIA's cloud gaming, where such a game can be streamed instead.
     var geforceNow: String?
@@ -190,7 +191,9 @@ private struct ProfileDocument: Decodable {
 }
 
 /// Keeps the profile list current: the online copy (`NightforgeProfilesURL`) once per app run,
-/// else the last one fetched, else the copy bundled with the app.
+/// else the last one fetched, else the copy bundled with the app. The bundled copy wins over the
+/// other two when it was built later ("generated"): a local build or an update can bring profiles
+/// the online list doesn't have yet.
 actor ProfileStore {
     static let shared = ProfileStore()
     static let supportedFormat = 1
@@ -198,12 +201,18 @@ actor ProfileStore {
     private let remoteURL = (Bundle.main.object(forInfoDictionaryKey: "NightforgeProfilesURL") as? String)
         .flatMap { $0.isEmpty ? nil : URL(string: $0) }
     private var cachedURL: URL { Engine.supportDir.appendingPathComponent("profiles.json") }
+    private let bundledURL: URL?
     private var profiles: [Int: GameProfile]?
     /// Epic games' entries ("epic.<namespace>" in the list), by catalog namespace.
     private var epicProfiles: [String: GameProfile] = [:]
     /// GOG games' entries ("gog.<product ID>" in the list), by product ID.
     private var gogProfiles: [String: GameProfile] = [:]
     private var refreshed = false
+
+    /// `bundledURL`: the copy that comes with the app; a test hands in its own.
+    init(bundledURL: URL? = Bundle.main.url(forResource: "profiles", withExtension: "json")) {
+        self.bundledURL = bundledURL
+    }
 
     func profile(for appID: Int) async -> GameProfile? {
         if !refreshed { await refresh() }
@@ -266,17 +275,37 @@ actor ProfileStore {
 
     private func loadLocalIfNeeded() {
         guard profiles == nil else { return }
-        for local in [cachedURL, Bundle.main.url(forResource: "profiles", withExtension: "json")].compactMap({ $0 }) {
-            if let data = try? Data(contentsOf: local), let decoded = decode(data) {
-                profiles = decoded
-                epicProfiles = Self.decodeEpic(data)
-                gogProfiles = Self.decodeGOG(data)
-                return
-            }
-        }
+        let cached = try? Data(contentsOf: cachedURL)
+        let bundled = bundledURL.flatMap { try? Data(contentsOf: $0) }
+        // The newer one first; the other still serves when it can't be read.
+        let lists = cached.map { Self.isOlder($0, than: bundled) } == true ? [bundled, cached] : [cached, bundled]
+        for data in lists.compactMap({ $0 }) where use(data) { return }
     }
 
-    /// Fetches the online list; keeps what's there when offline or when the list is too new.
+    /// Makes `data` the list at hand; false when it isn't one this Nightforge reads.
+    private func use(_ data: Data) -> Bool {
+        guard let decoded = decode(data) else { return false }
+        profiles = decoded
+        epicProfiles = Self.decodeEpic(data)
+        gogProfiles = Self.decodeGOG(data)
+        return true
+    }
+
+    /// Whether `list` was built before `other` (their "generated"); a list without that date counts
+    /// as older than one with it.
+    static func isOlder(_ list: Data, than other: Data?) -> Bool {
+        guard let theirs = other.flatMap(generated) else { return false }
+        guard let ours = generated(list) else { return true }
+        return ours < theirs
+    }
+
+    private static func generated(_ data: Data) -> Date? {
+        struct Stamp: Decodable { let generated: String? }
+        return (try? JSONDecoder().decode(Stamp.self, from: data))?.generated.flatMap { ISO8601DateFormatter().date(from: $0) }
+    }
+
+    /// Fetches the online list; keeps what's there when offline, when the list is too new for this
+    /// Nightforge, or when it's older than the bundled one.
     func refresh() async {
         refreshed = true
         guard let remoteURL else { return }
@@ -285,11 +314,9 @@ actor ProfileStore {
         request.cachePolicy = .reloadIgnoringLocalCacheData
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
-              let decoded = decode(data)
+              !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }),
+              use(data)
         else { return }
-        profiles = decoded
-        epicProfiles = Self.decodeEpic(data)
-        gogProfiles = Self.decodeGOG(data)
         try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
         try? data.write(to: cachedURL, options: .atomic)
     }
