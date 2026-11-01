@@ -37,6 +37,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - Kurzer Live-Durchlauf: Windows-Spiel über Steam, Mac-Version, Epic, GOG, TV.
   - Version 0.2.1-dev → 0.3.0.
   - Release-Notizen seit v0.2.0 auf Deutsch und Englisch.
+  - Kleine Punkte aus der Gatekeeper-Recherche (unten, „Recherchen vom 1.11.“).
 - **Veröffentlichen, nur mit ausdrücklichem OK des Nutzers:**
   - Integrationszweig pushen und über einen PR nach `main` bringen.
   - Tag `v0.3.0` löst `release.yml` aus.
@@ -804,6 +805,79 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
     - Weg: CI baut pro winecx-Version ein Archiv als Komponente, geladen parallel zur Engine. Erwartet: −40…45 s. Dann
       bleibt weniger Zeit fürs Vorabladen; der 32-Bit-Schritt (~12 s) passt noch.
     - Eine lokale Vorlage pro Engine hilft nur bei einer zweiten Einrichtung: verworfen.
+
+## Recherchen vom 1.11. (Cloud, Berichte in `docs/recherche/`)
+
+Sieben Cloud-Recherchen, nur gelesen und gesucht, nichts davon am Mac getestet. Sie gingen vom alten `main` (v0.2.0) aus,
+deshalb halten manche Berichte Epic und GOG noch für geplant. Den vollen Text hat jeweils die Datei, den Link zur
+Cloud-Session ihre erste Zeile.
+
+- **Verteilung und Gatekeeper** (`gatekeeper.md`):
+  - 0.3.0: Der Weg bleibt, wie er ist (ad-hoc-Signatur, curl-Einzeiler, DMG). Apple hat nichts angekündigt, was ihn
+    schließt.
+  - Klein für 0.3.0: Texte an die Terminal-Einfügewarnung seit macOS 26.4 anpassen. Auf GitHub „Immutable Releases“
+    einschalten. Der Updater soll eine klare Meldung zeigen, wenn macOS die App aus einem schreibgeschützten Ort
+    startet (Translocation). Die Ed25519-Prüfung der Update-ZIPs kommt nur, wenn sie sich vorher testen lässt, sonst
+    in 0.3.1.
+  - Bis etwa Q1 2027 entscheiden: Apple Developer Program (99 $ im Jahr). Damit gäbe es ein notarisiertes DMG ohne
+    Warnung, eine stabile Identität (keine neuen Freigabe-Abfragen nach Updates) und eine echte Herkunftsprüfung.
+    Homebrew und Sparkle lohnen sich erst danach.
+- **Spiele automatisch aktuell halten** (`updates.md`):
+  - Wahrscheinliche Ursache der Verzögerung: `AutoUpdateBehavior 0` heißt seit Ende 2024 „globale Einstellung“, also
+    „Steam entscheidet“. Gespielt in den letzten 72 h → sofort, sonst um etwa 4 Uhr früh, verteilt über bis zu
+    14 Tage. **2 = sofort.** Vorschlag: im eigenen Prefix alle Spiele auf 2 setzen, bei beendetem Steam; Nightforge
+    steuert das Wann über das Laufen von Steam. Die Tests T1–T5 im Bericht bestätigen das.
+  - Einen „Jetzt aktualisieren“-Befehl von außen gibt es nicht. Der CEF-Debug-Port ist rot, weil jedes lokale
+    Programm damit Steam fernsteuern könnte.
+  - Epic (legendary) und GOG (gogdl) sind grün. Achtung: `legendary … -y` ohne `--skip-dlcs` installiert alle DLCs.
+    gogdl führt keine Liste installierter Spiele, also speichert Nightforge buildId und ETag selbst, wie Heroic.
+  - Steam für Mac und Wine-Steam nur abwechselnd laufen lassen („Session Replaced“).
+- **Engines und Wege** (`engines.md`):
+  - Die Aufteilung stimmt: DX12 → D3DMetal, DX10/11 → DXMT, DX9 → WineD3D. DXVK 3 auf KosmicKrisp ist für
+    CPU-gebundene 32-Bit-DX9-Spiele schneller, ruckelt aber.
+  - Vorschläge:
+    - Wine 7.7 abschalten, es fehlen alle Audio-Fixes.
+    - Ein Frame-Limiter nur mit Teilern der Bildwiederholrate.
+    - Getrennte Shader-Caches.
+    - D3DMetal-Version pro Spiel.
+    - Offene Daten (highball-db, umu-database) neben den eigenen Profilen.
+  - **Ton am AV-Receiver:** Wines winecoreaudio rundet Heimkino-7.1 laut Code auf das alte „7.1 wide“. Das passt
+    zur Kanalmaske 0xFF, die der DENON hier meldet. Apple empfiehlt in Audio-MIDI-Setup „7.1 Rear Surround“. Wine 11
+    behebt vertauschte Center-/LFE-Kanäle, Knacksen (11.16) und den Downmix (11.21). Idee: ein „Audio-Doktor“ vor dem
+    Start, der vor 7.1 wide und Stereo-Aushandlung warnt.
+  - Risiken:
+    - Rosetta gibt es als Allzweckwerkzeug nur bis macOS 27. Ab macOS 28 (Herbst 2027) bleibt ein Spiele-Subset,
+      ob Wine dazugehört, ist offen.
+    - MoltenVK soll am 13.10.2026 abgekündigt worden sein (unbestätigt).
+    - Die Lizenz von D3DMetal erlaubt die Nutzung nur zum Entwickeln, Testen und Bewerten von Spielen. Rechtlich das
+      größte Fragezeichen.
+    - Bei DXMT widersprechen sich Nightforges Hinweisdatei und Manifest. Leicht zu beheben.
+- **Die 200 meistgespielten Spiele** (`top200.md`): 119 von 200 sind auf dem Mac spielbar (57 nativ, 62 über Wine).
+  Funde am Build-Skript, an die Anti-Cheat-Session gegeben:
+  - AWACY-Einträge ohne Steam-ID gehen verloren: FiveM, Delta Force, EA FC 26, Space Marine 2, Tarkov, F1 25, skate.
+  - EAC/BattlEye mit „Running“ brauchen die Linux-Laufzeit genauso: ARC Raiders, Elden Ring Nightreign, Gray Zone,
+    The Isle.
+  - Gesperrte Spiele aus `mac.json` bekommen keinen GeForce-Now-Link.
+  - Weitere Vorschläge:
+    - Startfixes: Helldivers 2 `--use-d3d11`, Witcher 3 `--launcher-skip`, RDR2 über D3DMetal, GTA V Story mit
+      `-nobattleye`.
+    - Ein Profilfeld für Umgebungsvariablen.
+  - Die JSON-Liste aller 200 steht nur in der Cloud-Session.
+- **Fremd-Launcher** (`launcher.md`): Reihenfolge:
+  1. Steam-Fassungen ohne Launcher freischalten.
+  2. Rockstar über Steam, dann über Epic. Nur Story, Online sperrt BattlEye.
+  3. Battle.net-Client.
+  4. EA app (die Sportspiele sperrt Javelin).
+  5. Ubisoft Connect (unsicher).
+- **Battle.net als Store** (`battlenet.md`): machbar nach dem Steam-Muster. Die Battle.net-App bleibt Pflicht.
+  - Installierte Spiele stehen in `product.db`. Gestartet wird mit `--exec="launch <Code>"`, das Spielende zeigen
+    die Prozesse im Installationsordner.
+  - Mac-Versionen: WoW, Diablo III, Hearthstone, StarCraft, Heroes, Warcraft III.
+  - Overwatch, Diablo IV und D2R gibt es auf Steam, mit bloßer Kontoverknüpfung. Call of Duty ist rot (Ricochet).
+  - Die Battle.net-App für den Mac ist noch eine Intel-App (Rosetta-Frist).
+- **Entdecken** (`entdecken.md`): eine Tabelle Rubrik × Store mit allen Endpunkten (Angebote, Charts, Neu,
+  Gratisspiele, Suche, Genres, Mac- und Controller-Kennzeichen). Gekauft wird immer im Store. Die Cloud-Umgebung
+  konnte die Store-Hosts nicht erreichen, deshalb vor dem Einbau live prüfen.
 
 ## Aus dem Code-Audit
 
