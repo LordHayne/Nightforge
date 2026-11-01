@@ -256,6 +256,11 @@ struct EpicTest {
         let binary = dir.appendingPathComponent("tool/legendary")
         try? fm.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? good.write(to: binary)
+        // The folder with a program's sign-in tokens is the player's alone, whatever mask the program writes with.
+        let tokens = dir.appendingPathComponent("tokens")
+        try? fm.createDirectory(at: tokens, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+        PackedApp.keepPrivate(tokens)
+        check((try? fm.attributesOfItem(atPath: tokens.path))?[.posixPermissions] as? Int == 0o700, "the tokens' folder is private")
         check(PackedApp.entries(in: good)?.entries.map(\.name) == ["Python.framework/Versions/3.14/Python", "certifi/cacert.pem", "Python", "PYZ.pyz"],
               "the archive's table")
         check(PackedApp.environment(binary: binary).isEmpty, "nothing unpacked yet: it unpacks itself as usual")

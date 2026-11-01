@@ -96,7 +96,7 @@ enum GOGDL {
         } else {
             binary = try await self.program()
         }
-        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        PackedApp.keepPrivate(configDir)
         return try await PackedApp.run(binary, arguments: arguments(command), directory: configDir, timeout: timeout) {
             environment(program: binary)
         }
@@ -111,6 +111,7 @@ enum GOGDL {
     static func start(_ command: [String], log: URL) async throws -> DetachedProcess {
         let binary = try await program()
         if !PackedApp.knowsHowToRun(binary) { _ = try? await run(["--version"], program: binary) }
+        PackedApp.keepPrivate(configDir)
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
