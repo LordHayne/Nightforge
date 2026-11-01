@@ -326,6 +326,21 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Overlay liegen auf dem Spielbildschirm (`GameDisplay.gameScreen`), nicht beim Fenster. Der Titel wanderte, weil
       das Pulsieren das erste Layout mitanimierte; jetzt ist nur die Naht animiert. Der Vorhang hatte unten einen
       Streifen (`NSHostingView` passte die Fenstergröße an den Inhalt an); jetzt `sizingOptions = []`.
+    - Nachtest 1.11. ~03:15 und behoben:
+      - **Falsche App vorne:** Seit macOS 14 kann nur die App vorne die Front weitergeben. Fragt eine App von hinten,
+        wird das ignoriert, und macOS gibt die Front der nächsten App im Stapel, hier der Claude-App. Unity baut sein
+        Fenster für Vollbild neu auf und verliert dabei die Front. Jetzt sinkt der Vorhang erst, wenn das Spiel eine
+        Sekunde vorne ist (`LibraryModel.curtainStep`). Ist ein anderes vorne, holt sich Nightforge (unter dem
+        Vorhang) die Front und gibt sie an das Programm des Spiels mit Fenster weiter (`handFocus`). Danach achtet es
+        8 s darauf und hebt den Vorhang wieder, wenn eine andere App dem Spiel die Front nimmt. „Zum Spiel wechseln“
+        geht denselben Weg statt über `activate(options:)`.
+      - **Flackern beim Beenden:** Bisher ging der Vorhang hoch, das Overlay-Panel blieb bis zu 5 s mit „Wird
+        beendet …“ darüber. Nach dem Spielende senkte `playing()` den Vorhang, sobald ein Prozess aus dem Spielordner
+        nachhing oder neu auftauchte; man sah Nightforge, dann ging er wieder hoch. Das Ausblenden lief nach 0,9 s
+        auf Zeit, auch wenn der Space-Wechsel noch lief. Jetzt bei „Spiel beenden“: Vorhang hoch und festgehalten,
+        Panel sofort weg, dann das Ende. Der Vorhang kommt nach jedem Space-Wechsel wieder nach vorne und geht erst,
+        wenn Nightforges Fenster auf dem gezeigten Space vorne ist (`GameBackdrop.hide(once:)`). Hängt er doch, geht
+        er nach 20 s.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.

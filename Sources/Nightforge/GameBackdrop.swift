@@ -33,9 +33,15 @@ enum GameBackdrop {
     private static var window: NSWindow?
     private static var hiding: Task<Void, Never>?
     private static var observer: NSObjectProtocol?
+    private static var spaceObserver: NSObjectProtocol?
     private static var gameOn: @MainActor () -> Bool = { false }
+    /// The player quit the game: the curtain stays up, whatever its processes do, until Nightforge
+    /// is in front (`hide(once:)`).
+    private static var held = false
 
     static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
+    /// Up for the game's end: Nightforge's way back has it now.
+    static var isReturning: Bool { isRaised && state.stage == .returning }
 
     /// Behind `game`, on the screen it plays on – unless the curtain is up, which stays.
     /// `gameOn`: whether it still runs – when Nightforge comes to the front without it (a game
@@ -71,26 +77,45 @@ enum GameBackdrop {
         }
     }
 
-    /// The game's processes are gone: the curtain at once, "Back to Nightforge …".
-    static func returning() {
+    /// The game's processes are gone, or the player quit it (`held`): the curtain at once,
+    /// "Back to Nightforge …".
+    static func returning(held: Bool = false) {
         guard !state.game.isEmpty else { return }
+        if held {
+            self.held = true
+            // Never stuck: should the way back not come (a game that never counted as running).
+            Task {
+                try? await Task.sleep(for: .seconds(20))
+                if self.held, isReturning { hide(after: .zero) }
+            }
+        }
         put(state.game, on: GameDisplay.gameScreen, stage: .returning, gameOn: gameOn)
     }
 
-    /// They came back (a launcher handed over to the game): the game runs on.
+    /// They came back (a launcher handed over to the game): the game runs on – not after Quit Game,
+    /// where a process lingering a moment mustn't drop the curtain halfway.
     static func playing() {
-        guard state.stage == .returning else { return }
+        guard state.stage == .returning, !held else { return }
         state.stage = .behind
         if let window { arrange(window) }
     }
 
-    /// Gone, once Nightforge is in front: a moment later, so a switch of Spaces has finished by then.
-    static func hide(after delay: Duration = .milliseconds(900)) {
+    /// Gone, once Nightforge is in front – `ready` says so (its window on the Space shown) – and a
+    /// moment later, so the switch of Spaces has settled.
+    static func hide(once ready: @escaping @MainActor () -> Bool) {
+        hide(after: .milliseconds(350), waitingFor: ready)
+    }
+
+    static func hide(after delay: Duration = .milliseconds(900), waitingFor ready: (@MainActor () -> Bool)? = nil) {
         guard let window, window.isVisible else { return }
         hiding?.cancel()
         hiding = Task {
+            if let ready {
+                for _ in 0..<60 where !ready() { try? await Task.sleep(for: .milliseconds(50)) }  // up to 3 s
+            }
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
+            held = false
             await NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
                 window.animator().alphaValue = 0
@@ -116,6 +141,14 @@ enum GameBackdrop {
         }
         let window = self.window ?? make(screen.frame)
         self.window = window
+        // A curtain is ordered into the Space shown; after a switch of Spaces (Nightforge's full
+        // screen, the game's) it's put in front there at once.
+        if spaceObserver == nil {
+            spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                                              object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { if GameBackdrop.isRaised { GameBackdrop.window?.orderFrontRegardless() } }
+            }
+        }
         let appearing = !window.isVisible
         window.setFrame(screen.frame, display: true)
         window.alphaValue = appearing ? 0 : 1

@@ -629,7 +629,10 @@ final class LibraryModel: ObservableObject {
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
             Task { @MainActor in
                 GameDisplay.backFromGame()
-                GameBackdrop.hide()
+                // Not on a timer: once Nightforge's window is in front on the Space shown.
+                GameBackdrop.hide(once: {
+                    NSApp.isActive && NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false
+                })
             }
         }
         reload(quiet: true)  // play time, last played
@@ -789,13 +792,19 @@ final class LibraryModel: ObservableObject {
         let folder = game.platform == .mac ? game.installDir.path : nil
         var askAt = Date().addingTimeInterval(Self.curtainPatience)
         var seenOnce = false
+        var frontSince: Date?
+        var loweredAt: Date?
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled, GameBackdrop.isRaised else { return }
-            // Steam asks something in its window, or the start went wrong: the player has to see it.
-            if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
-                GameBackdrop.hide(after: .zero)
-                return
+            // The game's end has the curtain now (watchForGameEnd, Quit Game).
+            guard !Task.isCancelled, !GameBackdrop.isReturning else { return }
+            if loweredAt == nil {
+                guard GameBackdrop.isRaised else { return }
+                // Steam asks something in its window, or the start went wrong: the player has to see it.
+                if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
+                    GameBackdrop.hide(after: .zero)
+                    return
+                }
             }
             let pids = await Task.detached(priority: .utility) {
                 Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
@@ -803,22 +812,82 @@ final class LibraryModel: ObservableObject {
             seenOnce = seenOnce || !pids.isEmpty
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
+                if loweredAt != nil { return }  // ended: watchForGameEnd brings Nightforge back
                 if launchingID == nil { GameBackdrop.hide(after: .zero) }
                 if launchingID == nil { return }
                 continue
             }
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            if let front, pids.contains(front), await Task.detached(priority: .utility, operation: { GameProcesses.showsWindow(pids) }).value {
-                try? await Task.sleep(for: .seconds(1))  // its first frames
+            let gameFront = front.map(pids.contains) ?? false
+            frontSince = gameFront ? (frontSince ?? Date()) : nil
+            let window = await Task.detached(priority: .utility) { GameProcesses.showsWindow(pids) }.value
+            switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
+                                    gameWindow: window, frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                    guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
+            case .wait:
+                break
+            case .handOver:
+                _ = await handFocus(to: pids)
+            case .lower:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
+                loweredAt = Date()
+            case .raiseAgain:
+                // Another app took the front from the game – Unity builds its window anew for full
+                // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
+                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                loweredAt = nil
+                frontSince = nil
+            case .done:
                 return
             }
-            if !pids.isEmpty, Date() >= askAt, !GameOverlay.isOpen {
+            if loweredAt == nil, !pids.isEmpty, Date() >= askAt, !GameOverlay.isOpen {
                 askAt = Date().addingTimeInterval(Self.curtainPatience)
                 askAboutStart(game)
             }
         }
+    }
+
+    enum CurtainStep: Equatable { case wait, handOver, lower, raiseAgain, done }
+
+    /// What the curtain does at a look. Up: it waits for the game's window, hands the front to the
+    /// game when another app has it, and sinks once the game has been in front for a second. Down,
+    /// for `focusGuard`: another app taking the front raises it again; Nightforge in front (Go to
+    /// Nightforge) ends the watch.
+    nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, gameWindow: Bool,
+                                        frontFor: TimeInterval, guardOver: Bool) -> CurtainStep {
+        if lowered {
+            if guardOver || nightforgeFront { return .done }
+            return gameFront ? .wait : .raiseAgain
+        }
+        guard gameWindow else { return .wait }
+        guard gameFront else { return .handOver }
+        return frontFor >= 1 ? .lower : .wait
+    }
+
+    /// How long after the curtain sinks the game's front is still watched.
+    private static let focusGuard: TimeInterval = 8
+
+    /// Hands the front to the game: its program with windows (a Windows game's .exe under Wine, a
+    /// Mac game's app). Since macOS 14 only the app in front can pass it on – asking from behind
+    /// is ignored, and macOS gives the front to whatever app is next – so Nightforge comes to the
+    /// front first when it isn't (under the curtain, or from its own page).
+    @discardableResult
+    private func handFocus(to pids: Set<pid_t>) async -> Bool {
+        guard let app = pids.sorted().compactMap({ NSRunningApplication(processIdentifier: $0) })
+            .first(where: { $0.activationPolicy == .regular })
+        else { return false }
+        if app.isActive { return true }
+        if !NSApp.isActive {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+            for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+        }
+        NSApp.yieldActivation(to: app)
+        app.activate(from: .current, options: [])
+        for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+        return app.isActive
     }
 
     /// How long a running game may show nothing before the curtain asks.
@@ -829,7 +898,6 @@ final class LibraryModel: ObservableObject {
         let folder = game.platform == .mac ? game.installDir.path : nil
         let actions = GameOverlay.Actions(
             quit: {
-                GameBackdrop.returning()
                 await Task.detached(priority: .userInitiated) {
                     GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
                 }.value
@@ -860,7 +928,6 @@ final class LibraryModel: ObservableObject {
             }.value
             let actions = GameOverlay.Actions(
                 quit: {
-                    GameBackdrop.returning()
                     // Looked up again: the game may have started more processes since.
                     await Task.detached(priority: .userInitiated) {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
@@ -876,8 +943,15 @@ final class LibraryModel: ObservableObject {
 
     /// Brings the running game's window to the front.
     func switchToGame(_ game: Game) {
-        guard let pid = game.entries.lazy.compactMap({ self.running[$0.id] }).first else { return }
-        NSRunningApplication(processIdentifier: pid)?.activate(options: [.activateAllWindows])
+        guard let entry = game.entries.first(where: { running[$0.id] != nil }) else { return }
+        let marker = entry.platform == .mac ? nil : entry.windowsFolderMarker
+        let folder = entry.platform == .mac ? entry.installDir.path : nil
+        Task {
+            let pids = await Task.detached(priority: .userInitiated) {
+                Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+            }.value
+            await handFocus(to: pids)
+        }
     }
 
     /// The player asked to rescan (⌘R, the button): the stores are asked again too, not only once

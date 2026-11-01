@@ -81,11 +81,12 @@ enum GameOverlay {
         case .close:
             close()
         case .quit:
+            // One curtain from here until Nightforge is in front: the panel goes at once, the
+            // curtain holds whatever the game's processes do while they end.
             guard let actions else { return }
-            Task {
-                await actions.quit()
-                close()
-            }
+            GameBackdrop.returning(held: true)
+            close()
+            Task { await actions.quit() }
         case .nightforge:
             let actions = self.actions
             close()
