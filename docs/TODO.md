@@ -86,9 +86,17 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
 - **Echtes DX12-Spiel aus den Top 100 testen.** Gemessen ist bisher nur der Wukong-Benchmark
   (D3DMetal 69 FPS im Schnitt). Kandidaten: Elden Ring (offline, ohne EAC),
   Resident Evil 4, Monster Hunter Wilds, Street Fighter 6, Space Marine 2, Planet Zoo 2.
-- **Bekannte Stolpersteine, die automatisch abgefangen werden sollen** (Plan in den Notizen der DX12-Sitzung):
-  `ROSETTA_ADVERTISE_AVX=1` lässt Wukong abstürzen; Unreals Hinweis „AMD driver has known issues“
-  (D3DMetal meldet sich als AMD); Frame Generation und DLSS schalten sich beim ersten Start ein und stürzen ab.
+- **Bekannte Stolpersteine** (Stand 1.11., der Wukong-Benchmark ist das Beispiel):
+  - `ROSETTA_ADVERTISE_AVX=1` lässt Wukong abstürzen. Das Profil sagt `avx: false`; bei anderen Spielen lernt Nightforge es
+    nach einem „illegal instruction“ von selbst (`LearnedFixes.setNoAVX`).
+  - Frame Generation schaltet sich beim ersten Start von selbst ein und stürzt das Spiel sofort ab (Absturzbericht: 0 s,
+    GameThread). Das Profil dreht `InsertFrame` in `GameUserSettings.ini` auf 0, und der Start wird nach dem Absturz von
+    selbst wiederholt (`LibraryModel`, nach `Engine.applyFileEdits`). Die zwei Abstürze vom 1.11., 21:42 und 21:44, sind
+    genau das: der erste ist dieser, der zweite (88 s nach dem Start, `InsertFrame=0`) ein anderer. Für andere Spiele gibt
+    es das nur mit einem eigenen Profileintrag: Name und Datei der Einstellung sind je Spiel anders.
+  - Unreals Warnung „Known issues with graphics driver“: D3DMetal 3.0 meldet AMD 30.0.15.1233, das Unreal auf seiner
+    Sperrliste hat, und das „Yes“ beendet das Spiel. `Engine.clearUnrealDriverDenyList` leert die AMD-Liste in
+    `Saved/Config/Windows/Hardware.ini` vor jedem Start eines Unreal-Spiels auf D3DMetal. Noch nicht live bestätigt.
 - **MTL_HUD** erscheint unter D3DMetal 4.0 nicht (Metal-4-Backend?).
 - **Lizenz:** GPTK 4.0b3 erlaubt die Weitergabe nur nicht-kommerziell und unverändert. Nightforge muss
   kostenlos bleiben, D3DMetal.framework wird nur ganz und unverändert weitergegeben. Kein Streaming-Dienst
