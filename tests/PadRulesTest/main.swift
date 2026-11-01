@@ -44,6 +44,12 @@ struct PadRulesTest {
         check(PadRules.homeLeaves(.top, dy: 1) && !PadRules.homeLeaves(.top, dy: -1), "down from the top bar back to the games, up stays")
         check(!PadRules.homeLeaves(.game, dy: 0) && !PadRules.homeLeaves(nil, dy: -1), "sideways stays; nothing else leaves")
 
+        // The pointer: hidden while the pad is used in front of Nightforge or its overlay, never over a game.
+        check(PadRules.hidesPointer(inFront: true, overlay: false, inUse: true), "the pad in Nightforge: the pointer hides")
+        check(PadRules.hidesPointer(inFront: false, overlay: true, inUse: true), "over a game in the overlay too")
+        check(!PadRules.hidesPointer(inFront: false, overlay: false, inUse: true), "a game in front: the pointer is the game's")
+        check(!PadRules.hidesPointer(inFront: true, overlay: false, inUse: false), "a resting pad doesn't hide it")
+
         // Settings: L1/R1 step through the tabs and stop at either end.
         check(PadRules.settingsTab(.r1, current: 1, count: 5) == 2 && PadRules.settingsTab(.l1, current: 1, count: 5) == 0, "L1/R1: the tab before and after")
         check(PadRules.settingsTab(.l1, current: 0, count: 5) == nil && PadRules.settingsTab(.r1, current: 4, count: 5) == nil, "no wrap at the ends")

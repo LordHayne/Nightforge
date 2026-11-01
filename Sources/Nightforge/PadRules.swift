@@ -55,6 +55,12 @@ enum PadRules {
         (zone == .game && dy < 0) || (zone == .top && dy > 0)
     }
 
+    /// The pointer hides while the pad is used with Nightforge (or its overlay) in front, until the
+    /// mouse moves; with a game in front it's the game's.
+    static func hidesPointer(inFront: Bool, overlay: Bool, inUse: Bool) -> Bool {
+        inUse && (inFront || overlay)
+    }
+
     /// L1/R1 in Settings: the tab before or after `current`, nil at either end.
     static func settingsTab(_ shoulder: PadPart, current: Int, count: Int) -> Int? {
         let next = current + (shoulder == .l1 ? -1 : shoulder == .r1 ? 1 : 0)

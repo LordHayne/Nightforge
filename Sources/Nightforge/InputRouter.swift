@@ -437,6 +437,11 @@ final class InputRouter {
     private func watchHold(_ pad: GCExtendedGamepad) {
         let now = ProcessInfo.processInfo.systemUptime
         if reach == .app { lastPadUse = now }
+        // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
+        // moves, as on a console. In a game it's the game's.
+        if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)) {
+            NSCursor.setHiddenUntilMouseMoves(true)
+        }
         wakeIfIdle(pad, now: now)
         let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
                                         menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
@@ -500,6 +505,15 @@ final class InputRouter {
         lastWake = now
         model.comeForward()
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+    }
+
+    /// A button down or a stick or the d-pad pushed – not a resting stick's noise.
+    private static func inUse(_ pad: GCExtendedGamepad) -> Bool {
+        let buttons: [GCControllerButtonInput?] = [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY, pad.buttonMenu,
+                                                   pad.buttonOptions, pad.leftShoulder, pad.rightShoulder, pad.leftTrigger,
+                                                   pad.rightTrigger, pad.leftThumbstickButton, pad.rightThumbstickButton]
+        let axes = [pad.dpad, pad.leftThumbstick, pad.rightThumbstick].flatMap { [$0.xAxis.value, $0.yAxis.value] }
+        return buttons.contains { $0?.isPressed == true } || axes.contains { abs($0) > 0.3 }
     }
 
     nonisolated static func wakes(inFront: Bool, overlayOpen: Bool, gameOn: Bool, frontIsGame: Bool) -> Bool {
