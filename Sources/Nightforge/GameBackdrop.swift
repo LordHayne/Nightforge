@@ -190,7 +190,13 @@ enum GameBackdrop {
             frontObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                                               object: nil, queue: .main) { note in
                 let app = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.localizedName ?? "?"
-                MainActor.assumeIsolated { if GameBackdrop.isRaised { GameLog.note("In front under the curtain: \(app)") } }
+                MainActor.assumeIsolated {
+                    guard GameBackdrop.isRaised else { return }
+                    GameLog.note("In front under the curtain: \(app)")
+                    // On the way back each app coming forward brought the pointer back. The start
+                    // hides it once the game has had the front a moment (LibraryModel.watchCurtain).
+                    if GameBackdrop.isReturning { InputRouter.hidePointerSoon() }
+                }
             }
         }
         let appearing = !window.isVisible

@@ -521,10 +521,10 @@ final class InputRouter {
         NSCursor.setHiddenUntilMouseMoves(true)
     }
 
-    /// The same with a game in front, under the curtain: macOS hides it only for the app with the
-    /// keys and the window under the pointer. So Nightforge has both for a moment – a sheer panel
-    /// over the pointer's screen, as the overlay is when Continue Playing closes it – and the game
-    /// is without its keys for 50 ms. A one-point panel, one the mouse passes through (as the
+    /// The same with another app in front – the game, under the curtain or handed the front: macOS
+    /// hides it only for the app with the keys and the window under the pointer. So Nightforge has
+    /// both for a moment – a sheer panel over the pointer's screen, as the overlay is when Continue
+    /// Playing closes it – and the game is without its keys for 50 ms. A one-point panel, one the mouse passes through (as the
     /// curtain), no keys or no wait: the pointer stayed (probe on 1.11.).
     static func hidePointerOverGame() {
         let mouse = NSEvent.mouseLocation
@@ -540,6 +540,15 @@ final class InputRouter {
             try? await Task.sleep(for: .milliseconds(50))
             NSCursor.setHiddenUntilMouseMoves(true)
             panel.orderOut(nil)
+        }
+    }
+
+    /// An app coming to the front brings the pointer back – the game handed the front, the next app
+    /// and Nightforge on the way back (1.11.): hidden again a moment later, over whichever it is.
+    static func hidePointerSoon() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            if NSApp.isFrontmost { hidePointerForGame() } else { hidePointerOverGame() }
         }
     }
 

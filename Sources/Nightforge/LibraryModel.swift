@@ -644,7 +644,10 @@ final class LibraryModel: ObservableObject {
                     Self.mayUncover(active: NSApp.isActive,
                                     windowShown: NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false,
                                     page: self?.route ?? page, target: page)
-                }, then: then)
+                }, then: {
+                    InputRouter.hidePointerSoon()  // in Nightforge as before the game, when the pad was last
+                    then()
+                })
             }
         }
         reload(quiet: true)  // play time, last played
@@ -951,6 +954,9 @@ final class LibraryModel: ObservableObject {
         // All its windows: with only the key one, Wine's full-screen window stayed under others.
         app.activate(from: .current, options: [.activateAllWindows])
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+        // Its coming forward brought the pointer back (Switch to Game, 1.11.). Under the curtain
+        // its watch hides it.
+        if app.isActive, !GameBackdrop.isRaised { InputRouter.hidePointerSoon() }
         return app.isActive
     }
 
@@ -976,6 +982,7 @@ final class LibraryModel: ObservableObject {
                          + "\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front now")
         }
         window?.makeKeyAndOrderFront(nil)
+        InputRouter.hidePointerSoon()
     }
 
     /// Nightforge in front within half a second.
@@ -3255,10 +3262,14 @@ final class LibraryModel: ObservableObject {
                 guard NSApp.isActive else { return }  // the player has moved on to something else
                 // Already there while macOS changes to the game's Space (on a TV it has one of its own).
                 GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                InputRouter.hidePointerForGame()
                 NSApp.yieldActivation(to: app)
                 app.activate(from: .current, options: [.activateAllWindows])
                 try? await Task.sleep(for: .milliseconds(600))
-                if app.isActive { return }
+                if app.isActive {
+                    if !GameBackdrop.isRaised { InputRouter.hidePointerSoon() }  // as handFocus
+                    return
+                }
             }
             try? await Task.sleep(for: .seconds(1))
         }

@@ -516,6 +516,12 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Maus oben und wieder weg, ⌘-Tab zurück, Esc/⌃⌘F/Menü, Tasten und Suchfeld im Vollbild; „Zurück zu
       Nightforge“ (zeigt Nightforge, „Zum Spiel wechseln“ bringt das Spiel samt Bild zurück; was `wine.log` dazu
       sagt); Zeiger im Ladebildschirm und im Spiel weg, das Spiel ohne Stocken durch die 50 ms.
+      Live-Test 3463b89 (1.11. 21:28): Vollbild, ⌘F, „Zurück zu Nightforge“ (ohne Ausblenden) und der Zeiger beim
+      Start bestätigt. Der Zeiger kam noch zurück nach „Zum Spiel wechseln“ und auf dem Rückweg (Overlay ›
+      Beenden, ebenso jedes normale Spielende: derselbe Vorhang und `comeBack`) bis in Nightforge. Jedes Wechseln
+      der App vorne bringt ihn zurück. Jetzt `InputRouter.hidePointerSoon` (300 ms danach, über Nightforge direkt,
+      über einer anderen App mit dem Panel): nach `handFocus` und `bringToFront` ohne Vorhang, bei jeder App,
+      die unter dem Rückweg-Vorhang nach vorne kommt, wenn der Vorhang geht, und nach „Zurück zu Nightforge“.
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
