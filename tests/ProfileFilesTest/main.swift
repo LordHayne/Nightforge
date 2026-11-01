@@ -31,6 +31,12 @@ struct ProfileFilesTest {
                            {"path": "b1/Settings.ini", "find": "B=1", "replace": "B=0"}]}
             """)
         check(decoded?.retina == true, "retina is read")
+        let saved = profile(#"{"resolution": {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg", "fields": {"width": 2, "height": 3, "fullscreen": 4}}}"#)?.resolution
+        check(saved?.root == "WinAppDataLocal" && saved?.fields?.width == 2 && saved?.fields?.fullscreen == 4 && saved?.keys == nil,
+              "a resolution in a line of values is read")
+        let savedIni = profile(#"{"resolution": {"path": "settings.ini", "section": "Video", "keys": {"width": "ResX", "height": "ResY"}, "fullscreenOn": ["true"]}}"#)?.resolution
+        check(savedIni?.root == nil && savedIni?.keys?.height == "ResY" && savedIni?.keys?.fullscreen == nil && savedIni?.fullscreenOn == ["true"],
+              "a resolution in an .ini is read")
         check(decoded?.iniSettings?.first?.values == ["r.Nanite": "0"], "iniSettings are read")
         check(decoded?.fileEdits?.first?.root == "WinAppDataLocal" && decoded?.fileEdits?.first?.once == true,
               "a file edit's root and once are read")

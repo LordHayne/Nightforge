@@ -50,6 +50,36 @@ struct GameProfile: Decodable, Equatable {
     /// true: the game sees the screen's full Retina resolution instead of half of it. Wine sets that
     /// for a whole session, so Steam starts afresh when it changes from one game to the next.
     var retina: Bool?
+    /// Where the game keeps the resolution it starts in, so it's fitted to the screen it plays on
+    /// (GameResolution), as Unity's and Unreal's are without a profile.
+    var resolution: SavedResolution?
+
+    /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
+    ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
+    /// counted from 0; or for an .ini file {"section": "Video", "keys": {"width": "ResX", …}}.
+    struct SavedResolution: Decodable, Equatable {
+        /// A Windows root as in `saves`; nil, the game folder.
+        var root: String?
+        let path: String
+        var fields: Fields?
+        var section: String?
+        var keys: Keys?
+        /// The full-screen value's settings that mean "on"; "1" when not given. Without a
+        /// full-screen value the game counts as full screen.
+        var fullscreenOn: [String]?
+
+        struct Fields: Decodable, Equatable {
+            let width: Int
+            let height: Int
+            var fullscreen: Int?
+        }
+
+        struct Keys: Decodable, Equatable {
+            let width: String
+            let height: String
+            var fullscreen: String?
+        }
+    }
 
     struct FileEdit: Decodable, Equatable {
         let path: String
@@ -81,7 +111,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, avx, fileEdits
-        case iniSettings, retina
+        case iniSettings, retina, resolution
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -121,6 +151,7 @@ struct GameProfile: Decodable, Equatable {
         fileEdits = try? container.decodeIfPresent([FileEdit].self, forKey: .fileEdits)
         iniSettings = try? container.decodeIfPresent([IniSetting].self, forKey: .iniSettings)
         retina = try? container.decodeIfPresent(Bool.self, forKey: .retina)
+        resolution = try? container.decodeIfPresent(SavedResolution.self, forKey: .resolution)
     }
 }
 
