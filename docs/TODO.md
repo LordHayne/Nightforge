@@ -1643,6 +1643,21 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
       der installierten Nightforge (WineD3D) einmal über den DENON und einmal über die MacBook-Lautsprecher. Hängt das
       Echo am DENON, gibt es zwei Wege: in „Audio-MIDI-Setup“ für den DENON 2 Kanäle einstellen (Gegenprobe), oder
       Nightforge meldet Spielen am Fernseher Stereo bzw. echtes 7.1.
+    - Nachgeprüft (1.11.):
+      - winecx 4.7.3 ist Wine 11.17 (`ntdll.so`). Drin sind der Center/LFE-Fix aus 11.0 (7d1fd7ba, „Couldn't set
+        channel layout“) und der Knackfix für die Puffergröße aus 11.16 (07c7fcc8, „Failed to set device buffer frame
+        size“). Es fehlen der SpatialMixer-Downmix aus 11.21 (0c61795b) und dessen mmdevapi-Nachtrag (8891603b).
+      - macOS hat für den DENON keine Lautsprecheranordnung gespeichert. In `/Library/Preferences/Audio/
+        com.apple.audio.DeviceSettings.plist` stehen nur Lautstärken (EDID-Kennung `11EE…` = „DON“). Wine kann das
+        Layout deshalb nicht lesen, schätzt es aus 8 Kanälen als „7.1 wide“ und meldet Maske 0xFF.
+      - Für den Vergleich in Audio-MIDI-Setup › DENON-AVR nacheinander testen:
+        a) wie jetzt;
+        b) „Format“ auf 2 Kanäle, 48 kHz;
+        c) „Lautsprecher konfigurieren“ › „7.1 Rear Surround“, wie Apple für Heimkino empfiehlt. Wines Label-Tabelle
+           kennt „Rear Surround“ allerdings nicht, das kann also wieder auf 0xFF fallen.
+
+        Jeweils Mafia neu starten. Was Wine gemeldet hat, steht danach in `system.reg` unter `"DENON-AVR"`, Eigenschaft
+        `{E4870E26-…},3`: Byte 3 = Kanäle, Bytes 21–24 = Maske.
     - Welcher Thread voll läuft, sagt der nächste Lauf: `tests/kosmickrisp/thread-cpu.py <pid> 5 [sample.txt]` liest
       die CPU-Zeit pro Thread mit Namen (DXVKs heißen `dxvk-cs`, `dxvk-submit` …, die des Spiels haben keinen), `sample`
       dazu die Module. In Frage kommen Mafias Hauptthread (Spiel und DXVKs D3D9-Seite, 32-Bit-Code unter Rosetta) und
