@@ -46,6 +46,8 @@ final class LibraryModel: ObservableObject {
             history.moved(from: oldValue, to: route, by: historyStep)
             libraryMenu = nil
             lightbox = nil
+            // The pad's highlight stays with the level it was on (a chip kept behind a game's page).
+            PadFocus.shared.clear()
         }
     }
     /// What forward (the trackpad swipe) can retrace, and what kind of step changes the route now.

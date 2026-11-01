@@ -31,6 +31,7 @@ struct LibraryView: View {
                             .modifier(SwipeLevel(route: .library, shown: model.showingLibrary))
                             .allowsHitTesting(model.showingLibrary)
                             .accessibilityHidden(!model.showingLibrary)
+                            .padReachable(model.showingLibrary)
                     }
                     switch model.route {
                     case .home:
