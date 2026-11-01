@@ -382,6 +382,8 @@ struct Segmented<Value: Hashable>: View {
     let options: [(value: Value, title: String, count: Int?)]
     let selection: Value
     let id: String
+    /// The pad starts on the chosen segment (Settings' tabs).
+    var preferSelected = false
     let select: (Value) -> Void
 
     var body: some View {
@@ -405,7 +407,7 @@ struct Segmented<Value: Hashable>: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(on ? .isSelected : [])
-                .padFocus("\(id).\(place)", cornerRadius: 13, activate: { select(option.value) })
+                .padFocus("\(id).\(place)", cornerRadius: 13, preferred: preferSelected && on, activate: { select(option.value) })
             }
         }
         .padding(3)
