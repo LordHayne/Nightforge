@@ -30,6 +30,11 @@ struct PadRulesTest {
         check(PadRules.back(Open(sheet: true, modal: true, options: true)) == .sheet,
               "a question over the options answers B, not the options behind it")
         check(PadRules.back(Open(overlay: true, sheet: true, downloads: true)) == .overlay, "over a game the overlay has B")
+        // The curtain while a game loads (1.11.: B took it away, and Steam started the game anyway).
+        check(PadRules.back(Open(awaitingSteam: true, curtain: true)) == .nothing, "on the curtain B doesn't call the start off")
+        check(PadRules.back(Open(highlight: true, gamePage: true, curtain: true)) == .nothing, "nor changes the page hidden under it")
+        check(PadRules.back(Open(overlay: true, curtain: true)) == .overlay, "\"Not starting?\" over the curtain takes B")
+        check(PadRules.back(Open(awaitingSteam: true)) == .cancelLaunch, "without the curtain a waiting start is still called off")
 
         // X, Y, ☰ and L2/R2 only with nothing in front of the levels.
         check(PadRules.actsOnGames(inFront: true, sheet: false, panel: false), "the levels free: they act")

@@ -44,6 +44,15 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     Was die Sitzungen dazu am 1.11. noch committet haben, wird mit getestet. Für 0.3.0 blockiert davon nichts.
     In 0.3.0 gehört dagegen Unreals Treiber-Warnung unter D3DMetal 3.0: Das ist kein Anzeigefehler, ihr „Yes“
     beendet das Spiel. AMD-Liste erledigt (f177076), NVIDIA/Intel bei der Sicherheits-Sitzung.
+  - **Kurz gespielt und beendet galt als Fehlstart** (1.11. 23:26, OxyRail und Mafia II; Zweig
+    `claude/quick-quit-fix-fcdb40`): Nightforge startete das Spiel danach ungefragt mit der nächsten Grafik neu, bei
+    OxyRail über den Vorhang von Valheim, das gerade startete. Jetzt gilt ein Start mit Bild als gelungen und der Weg
+    als bestätigt, auch wenn das Spiel in den ersten 30 s endet. Bild heißt: Der Vorhang ist für das Spiel gesunken
+    (`LaunchHealth.pictureShown`, auch für Steams Log beim nächsten Start) oder Bildraten stehen im Log. Nur eine
+    Grafik-Fehlermeldung rückt dann noch weiter; ein Ende ohne Bild wie bisher. Ein Druck auf „Spielen“ beendet, was
+    der Start davor noch tut (die ersten Sekunden beobachten oder das Spiel anders neu starten), und der alte Ablauf
+    fasst den neuen Vorhang nicht mehr an. B auf dem Vorhang tut nichts mehr, außer bei „startet nicht?“: Bisher brach
+    es nur Nightforges Warten ab, und Steam startete das Spiel trotzdem. Live zu prüfen.
 - **Release-Stand einfrieren:**
   - Alle Testreihen grün.
   - Ersteinrichtung mit leerem HOME (`build/fh`, siehe Notizen zum Fresh-Setup-Test).

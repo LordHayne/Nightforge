@@ -142,6 +142,23 @@ struct LaunchHealthTest {
         LaunchHealth.reset(app)
         check(!LaunchHealth.quitByPlayer(app, since: now), "reset forgets it")
 
+        // The curtain sank, then the player quit a few seconds in (OxyRail on 1.11., started again on DXVK).
+        LaunchHealth.recordStart(app, ladder, at: now)
+        session(seconds: 6, startedAt: now)
+        check(!LaunchHealth.showedPicture(app, since: now), "no picture yet")
+        LaunchHealth.pictureShown(app, at: now.addingTimeInterval(4))
+        check(LaunchHealth.showedPicture(app, since: now), "the curtain sank 4 s after its start")
+        check(!LaunchHealth.showedPicture(app, since: now.addingTimeInterval(60)), "that was an earlier start's picture")
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == (0, true), "a 6 s session after a picture: it started, the way is confirmed")
+        LaunchHealth.reset(app)
+        check(!LaunchHealth.showedPicture(app, since: now), "reset forgets the picture")
+        LaunchHealth.recordStart(app, ladder, at: now)
+        LaunchHealth.pictureShown(app, at: now.addingTimeInterval(-30))
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == (1, false), "a picture from a start before doesn't count: 6 s moves on")
+        LaunchHealth.reset(app)
+
         // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
         let mafia = GameID.gog("1816059595")
         let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)
@@ -172,14 +189,28 @@ struct LaunchHealthTest {
               "one short start without a picture: kept")
         check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 1) == .unconfirm,
               "the second in a row: unconfirmed")
-        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 1) == .keep,
-              "one that drew was quit by the player")
+        check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 1) == .confirm,
+              "one that drew was quit by the player: confirmed, the count starts over")
         check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: true, drew: false, shortEndsBefore: 0) == .unconfirm,
               "a crash in the log: unconfirmed")
         check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: true, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
               "a graphics error: the next way")
         check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
-              "a way not confirmed yet moves on, as before")
+              "a way not confirmed yet without a picture moves on, as before")
+        // A picture – the curtain sank, or frame lines in the log – then the end within 30 s (OxyRail, Mafia II, 1.11.).
+        check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 0) == .confirm,
+              "a way not confirmed yet that showed a picture: confirmed, no start again")
+        check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: true, drew: true, shortEndsBefore: 0) == .confirm,
+              "an end after the picture isn't a start that didn't take")
+        check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: true, crashed: false, drew: true, shortEndsBefore: 0) == .nextWay,
+              "a graphics error still moves on, picture or not")
+        check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: true, drew: false, shortEndsBefore: 0) == .nextWay,
+              "a crash without a picture moves on, as before")
+
+        // MARK: A Play while a start before still runs (Valheim started while OxyRail's first seconds were watched, 1.11.)
+        check(LibraryModel.mayStart(launching: false, startsAgain: false), "nothing starting: Play starts")
+        check(!LibraryModel.mayStart(launching: true, startsAgain: false), "the player's own start in progress: one at a time")
+        check(LibraryModel.mayStart(launching: true, startsAgain: true), "Nightforge starting a game again another way gives way to a Play")
         // The player plays 2 minutes on D3DMetal (no frame lines), then quits.
         check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 120)) == .keep,
               "two minutes without a frame line: the confirmation stays")
