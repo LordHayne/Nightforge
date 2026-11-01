@@ -55,8 +55,18 @@ wenn sie einer Version zugeordnet sind.
       Engine-Arbeit“). Anlass: Overwatch hängt beim Start (0 % CPU, kein Fenster). Die Ursache ist Blizzards Anti-Cheat
       unter Rosetta. Das läuft erst mit den Wine-Änderungen aus CrossOver 26.1 und macOS 26.5, unsere Engine winecx
       4.7.3 ist älter (`docs/recherche/battlenet.md`, `docs/recherche/engines.md`). Der Reihe nach:
-      - Eine Engine auf dem Stand von CrossOver 26.x bauen oder übernehmen. Dann Overwatch, Diablo IV und D2R über
-        Steam freischalten.
+      - **Korrektur nach der Recherche vom 1.11. abends** (`docs/recherche/engine-crossover26.md`): winecx 4.7.3
+        enthält CrossOver 26.3 (der neueste veröffentlichte Quellstand) plus Wine 11.17. Der Mac hat macOS 27.0.1, also
+        über 26.5. Der Overwatch-Hänger liegt deshalb nicht an einer alten Engine. Zuerst Overwatch mit DXMT statt
+        D3DMetal testen und ohne msync. Im CX-26.3-Baum gibt es einen nachgewiesenen msync-Fehler: `alert_fd` wird
+        beim Thread-Ende geschlossen.
+      - Eigene Unix-Module über die gepinnte winecx 4.7.3, nach dem Vorbild von `gamepad.yml`:
+        - `ntdll.so` mit dem msync-Fix
+        - `winecoreaudio.so` mit dem SpatialMixer-Downmix aus Wine 11.21 (gegen den Hall am AV-Receiver)
+        - als Release mit Quell-Asset, neue Komponente `enginefix`.
+      - Den Pin erst auf winecx 4.7.4 oder 4.8.1 heben, wenn Issue #24 geklärt ist. Ein Issue bei dappermint
+        (msync-Fix, 11.21-Downmix). Plan B: ein eigener Engine-Build aus dappermint/winecx, falls das Projekt stehen
+        bleibt.
       - DirectX 9 über DXVK auf KosmicKrisp (Zweig `claude/quirky-clarke-81fd65`, Live-Test offen). Dazu der Plan, weil
         MoltenVK abgekündigt ist.
       - D3DMetal je nach Ergebnis der Lizenz-Recherche (Cloud, 1.11.).
@@ -104,6 +114,16 @@ wenn sie einer Version zugeordnet sind.
 
       Dazu die Bildschirm-Ablage pro Gerät aus dem TV-Zweig (`TVSettings`): Vollbild und Ton pro Bildschirm gemerkt. Ein
       Monitor startet beim ersten Mal im Fenster, weil man dort vielleicht nur kurz etwas testet.
+      **Grundlage ist die Big-Picture-Recherche** (`docs/recherche/big-picture.md`):
+      - Das smarte Menü hat zwei Ebenen. Ein kurzer Druck öffnet ein Schnellmenü als Seitenleiste: Fortsetzen, Spiel
+        beenden, Lautstärke, Tonausgabe, Controller. Ein langer Druck öffnet das Ein/Aus-Menü: Ruhezustand,
+        Nightforge neu starten oder beenden, Mac neu starten, ausschalten.
+      - Auslöser ist sicher L3+R3. Die Home-/PS-Taste nur zusätzlich, weil macOS 26 sie für sich beansprucht.
+      - Den Mac per Controller aus dem echten Ruhezustand wecken geht laut Quellen nicht. Stattdessen ein
+        „Couch-Standby“: Der Mac bleibt wach, das Display schläft, eine Pad-Eingabe weckt es.
+      - Möglichst wenige Freigaben von macOS (Neustart und Ausschalten brauchen Automation). Die Ad-hoc-Signatur
+        verliert Freigaben nach Updates, also hängt das mit der Entscheidung zum Apple-Konto zusammen (Q1 2027).
+      - Bewusst weglassen: Freunde/Chat, Store-Feeds, Videohintergründe, Umbelegung pro Spiel, Browser.
 
 ### 0.5: „Mehr Stores“
 - [ ] Battle.net: die offizielle App bleibt, Nightforge liest `product.db` und startet über `--exec`. Zuerst die
