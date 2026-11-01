@@ -51,7 +51,7 @@ actor StoreSearch {
               let name = data["name"] as? String
         else { return nil }
 
-        var hit = Hit(appID: appID, name: name)
+        var hit = Hit(appID: appID, name: HTMLText.plain(name))
         if data["is_free"] as? Bool == true {
             hit.price = L10n.t("Free")
         } else if let price = data["price_overview"] as? [String: Any] {
@@ -83,7 +83,8 @@ actor StoreSearch {
                   let range = logo.range(of: #"/apps/(\d+)/"#, options: .regularExpression)
             else { return nil }
             let digits = logo[range].dropFirst("/apps/".count).dropLast()
-            return Int(digits).map { Hit(appID: $0, name: name) }
+            // The store writes names with HTML's entities ("Optimierungs- &amp; Infrastruktur").
+            return Int(digits).map { Hit(appID: $0, name: HTMLText.plain(name)) }
         }
     }
 
@@ -94,7 +95,7 @@ actor StoreSearch {
         guard let items = (await json(components.url) as? [String: Any])?["items"] as? [[String: Any]] else { return nil }
         return items.compactMap { item in
             guard let id = item["id"] as? Int, let name = item["name"] as? String else { return nil }
-            var hit = Hit(appID: id, name: name)
+            var hit = Hit(appID: id, name: HTMLText.plain(name))
             if let price = item["price"] as? [String: Any], let cents = price["final"] as? Int,
                let currency = price["currency"] as? String {
                 hit.price = (Double(cents) / 100).formatted(.currency(code: currency).locale(L10n.locale))

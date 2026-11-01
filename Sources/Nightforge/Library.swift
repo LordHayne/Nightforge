@@ -61,6 +61,13 @@ struct Game: Identifiable, Hashable {
     var windowsBuild = true
     /// Playable with a controller (from the couch) – or only in part, or not.
     var controller = ControllerSupport.none
+    /// … and a store said so: Steam always does, Epic and GOG only through the same game on Steam
+    /// (GameInfoStore) or GOG's own page.
+    var controllerKnown = false
+    /// How it's played: single-player, online or local co-op, split screen (GameInfo).
+    var playModes: Set<PlayMode> = []
+    /// An Epic or GOG game's twin on Steam: its profile, art and store data go by that app ID.
+    var steamTwin: Int?
     /// Its anti-cheat stops it on a Mac (Windows versions only).
     var antiCheatBlock: AntiCheatBlock?
     /// Steam lists no single-player mode: there's nothing to play without going online.
@@ -171,6 +178,10 @@ struct Game: Identifiable, Hashable {
         if case .downloading = install { return self }
         return others.first { if case .downloading = $0.install { return true } else { return false } } ?? self
     }
+    /// Controller support as a store says it; nil when none does.
+    var knownController: ControllerSupport? { provider == .steam || controllerKnown ? controller : nil }
+    /// Its Steam app ID, or that of the same game on Steam: what profiles and Steam's data go by.
+    var steamAppID: Int? { gameID.steamAppID ?? steamTwin }
 }
 
 extension Game {
@@ -178,6 +189,8 @@ extension Game {
     mutating func adoptCatalogFacts(_ app: CatalogApp) {
         isVROnly = app.vrOnly
         controller = app.controller
+        controllerKnown = true
+        playModes = app.modes
         onlineOnly = !app.singlePlayer
         macNative = app.macNative
         mac64 = app.mac64

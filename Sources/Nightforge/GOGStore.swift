@@ -169,6 +169,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         game.macNative = entry.mac
         game.addOns = entry.dlcs.map(\.title)
         game.art = StoreArt(cover: entry.cover, hero: entry.hero, logo: nil)
+        game.steamTwin = releases.items[entry.id]?.steamAppID
         if isDownloading {
             game.install = .downloading(progress?.fraction)
         } else if let install {
