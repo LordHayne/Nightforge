@@ -62,6 +62,7 @@ struct LibraryView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { model.showingDownloads = false }
                 DownloadsPanel()
+                    .padZone(.panel)
                     .padding(.top, 84)  // below the top bar (36 + 38), right under the downloads ring
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)

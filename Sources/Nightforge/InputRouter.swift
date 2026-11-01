@@ -331,7 +331,7 @@ final class InputRouter {
         pad.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
+                guard self?.levelsFree == true else { return }
                 self?.model?.openDetail()
             }
         }
@@ -365,14 +365,17 @@ final class InputRouter {
                     return
                 }
                 let main = Self.mainWindow
-                if model.lightbox != nil, NSApp.modalWindow == nil, self.dialog == nil {
+                // One press, one level: the innermost thing open goes first.
+                let overLevels = NSApp.modalWindow == nil && self.dialog == nil
+                if model.lightbox != nil, overLevels {
                     model.lightbox = nil
-                } else if let menu = model.libraryMenu, NSApp.modalWindow == nil, self.dialog == nil {
+                } else if let menu = model.libraryMenu, overLevels {
                     model.closeLibraryMenu(menu)
-                } else if let key = NSApp.keyWindow, key === main, PadFocus.shared.focusedItem(in: key) != nil {
-                    PadFocus.shared.clear()  // from the buttons back to the games
-                } else if model.showingDownloads, NSApp.modalWindow == nil, self.dialog == nil {
-                    model.showingDownloads = false
+                } else if model.showingDownloads, overLevels {
+                    model.closeDownloads()
+                } else if !model.route.isDetail, let key = NSApp.keyWindow, key === main, PadFocus.shared.focusedItem(in: key) != nil {
+                    // From the buttons back to the games. A game's page has none: B goes back at once.
+                    PadFocus.shared.clear()
                 } else if model.showingOptions, NSApp.modalWindow == nil {
                     model.showingOptions = false
                 } else if let dialog = self.dialog {
@@ -400,7 +403,7 @@ final class InputRouter {
         pad.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil, self?.model?.showsFirstStart == false else { return }
+                guard self?.levelsFree == true, self?.model?.showsFirstStart == false else { return }
                 self?.model?.toggleLibrary()
             }
         }
@@ -417,14 +420,14 @@ final class InputRouter {
         pad.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
+                guard self?.levelsFree == true else { return }
                 self?.model?.jump(toStart: true)
             }
         }
         pad.rightTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
+                guard self?.levelsFree == true else { return }
                 self?.model?.jump(toStart: false)
             }
         }
@@ -517,6 +520,12 @@ final class InputRouter {
 
     private static var mainWindow: NSWindow? { NSApp.windows.first { $0.title == "Nightforge" } }
 
+    /// Nightforge in front with nothing over its levels: no sheet, no dialog, no downloads panel.
+    /// X, Y, ☰ and L2/R2 act on the games only then, not behind something open.
+    private var levelsFree: Bool {
+        reach == .app && dialog == nil && model?.showingDownloads == false
+    }
+
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
     private var padWindow: NSWindow? {
         if let overlay = GameOverlay.window { return overlay }
@@ -583,7 +592,7 @@ final class InputRouter {
     private func toggleOptions() {
         guard let model, let game = model.heroGame, game.install != .inStore else { return }
         // Opens over the library only; closes its own sheet but never one behind a question.
-        guard model.showingOptions ? NSApp.modalWindow == nil : dialog == nil else { return }
+        guard model.showingOptions ? NSApp.modalWindow == nil : levelsFree else { return }
         model.showingOptions.toggle()
     }
 
@@ -622,6 +631,11 @@ final class InputRouter {
         if model.lightbox != nil, padWindow == nil || padWindow === Self.mainWindow {
             if step.dx != 0 { model.lightbox?.step(step.dx) }
             return true
+        }
+        // The downloads panel keeps the pad: its controls only, entering it from wherever the highlight was.
+        if model.showingDownloads, let main = Self.mainWindow, padWindow === main {
+            PadFocus.shared.move(dx: step.dx, dy: step.dy, in: main, within: .panel)
+            return false
         }
         if let window = padWindow {
             let focus = PadFocus.shared

@@ -2234,6 +2234,12 @@ final class LibraryModel: ObservableObject {
         return Provider.allCases.filter(found.contains)
     }
 
+    /// B on the open downloads panel: it closes, and the pad's highlight goes back to its ring.
+    func closeDownloads() {
+        showingDownloads = false
+        if PadFocus.shared.focused != nil, !downloads.isEmpty || move != nil { PadFocus.shared.focus("top.downloads") }
+    }
+
     /// Esc or B on an open list: it closes, and the pad's highlight goes back to its chip.
     func closeLibraryMenu(_ menu: LibraryMenu) {
         libraryMenu = nil
