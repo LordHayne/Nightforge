@@ -74,6 +74,14 @@ enum ProblemReport {
             lines += ["", "<details><summary>Errors from the last start</summary>", "", "```"] + errors + ["```", "</details>"]
         }
 
+        // A GOG download that stopped: how gogdl ended it.
+        if game.provider == .gog, let text = try? String(contentsOf: GOGDL.failedLog(for: game.gameID.id), encoding: .utf8) {
+            let failure = GOGDL.failureLines(inLog: text)
+            if !failure.isEmpty {
+                lines += ["", "<details><summary>Its last download stopped</summary>", "", "```"] + failure + ["```", "</details>"]
+            }
+        }
+
         var components = URLComponents(string: "https://github.com/LordHayne/Nightforge/issues/new")
         components?.queryItems = [
             URLQueryItem(name: "title", value: "\(game.name): doesn't run properly"),

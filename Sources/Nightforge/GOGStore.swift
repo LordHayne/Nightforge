@@ -487,10 +487,14 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     }
 
     /// A download gogdl has ended: done – the game is recorded – or stopped, with its reason. Its
-    /// log goes: what comes next for the game (the Windows version, a new try) writes its own.
+    /// log goes: what comes next for the game (the Windows version, a new try) writes its own. One
+    /// that stopped is kept as <id>.failed.log for a problem report, until a download finishes.
     private func ended(_ job: GOGJob, progress: GOGDL.Progress) {
         wanted.removeAll { $0.id == job.id }
-        try? FileManager.default.removeItem(at: GOGDL.log(for: job.id))
+        let fm = FileManager.default
+        try? fm.removeItem(at: GOGDL.failedLog(for: job.id))
+        if !progress.finished { try? fm.moveItem(at: GOGDL.log(for: job.id), to: GOGDL.failedLog(for: job.id)) }
+        try? fm.removeItem(at: GOGDL.log(for: job.id))
         guard progress.finished else {
             save(wanted, to: Self.wantedFile)
             downloadFailed(title(of: job.id), progress.failure ?? L10n.t("gogdl stopped (code %d)", progress.exitCode ?? -1))
