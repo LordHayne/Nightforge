@@ -24,6 +24,15 @@ enum ProblemReport {
         if let url = url(game: game, insight: insight, profile: profile, tried: tried) { NSWorkspace.shared.open(url) }
     }
 
+    /// Which game it is: Steam's links to its store page; Epic's and GOG's say store and ID (there's
+    /// no page Nightforge knows by ID – a Steam link with app ID 0 led nowhere).
+    static func storeReference(_ game: Game) -> String {
+        switch game.provider {
+        case .steam: return "[\(game.appID)](https://store.steampowered.com/app/\(game.appID))"
+        case .epic, .gog: return "\(game.provider.label) \(game.gameID.id)"
+        }
+    }
+
     static func url(game: Game, insight: GameInsight?, profile: GameProfile? = nil, tried: [String] = []) -> URL? {
         // English in the report, whatever the app's language: it's read on GitHub.
         let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: GameDisplay.screen?.maximumFramesPerSecond ?? 60,
@@ -46,7 +55,7 @@ enum ProblemReport {
             "",
             "| | |",
             "|---|---|",
-            "| Game | \(game.name) ([\(game.appID)](https://store.steampowered.com/app/\(game.appID))) |",
+            "| Game | \(game.name) (\(storeReference(game))) |",
             "| Nightforge | \(Updater.currentVersion) |",
             "| Mac | \(chip) · macOS \(osVersion) |",
             "| Detected | \(detected) |",
@@ -54,7 +63,7 @@ enum ProblemReport {
             "| Frame limit / MetalFX | \(options.frameLimit.map(String.init) ?? "automatic") / \(options.upscaling.rawValue) |",
         ]
         if !tried.isEmpty { lines.append("| Tried, each ended right away | \(tried.joined(separator: " → ")) |") }
-        if !options.extraArgs.isEmpty { lines.append("| Launch options | `\(options.extraArgs)` |") }
+        if !options.extraArgs.isEmpty { lines.append("| Launch options | `\(GameLog.redacted(options.extraArgs))` |") }
         let learned = LearnedFixes.winetricks(game.gameID)
         if !learned.isEmpty { lines.append("| Installed by itself | \(learned.joined(separator: ", ")) |") }
 
@@ -63,6 +72,14 @@ enum ProblemReport {
         while !errors.isEmpty, errors.joined(separator: "\n").count > 3500 { errors.removeFirst() }
         if !errors.isEmpty {
             lines += ["", "<details><summary>Errors from the last start</summary>", "", "```"] + errors + ["```", "</details>"]
+        }
+
+        // A GOG download that stopped: how gogdl ended it.
+        if game.provider == .gog, let text = try? String(contentsOf: GOGDL.failedLog(for: game.gameID.id), encoding: .utf8) {
+            let failure = GOGDL.failureLines(inLog: text)
+            if !failure.isEmpty {
+                lines += ["", "<details><summary>Its last download stopped</summary>", "", "```"] + failure + ["```", "</details>"]
+            }
         }
 
         var components = URLComponents(string: "https://github.com/LordHayne/Nightforge/issues/new")

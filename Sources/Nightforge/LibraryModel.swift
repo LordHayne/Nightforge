@@ -46,6 +46,8 @@ final class LibraryModel: ObservableObject {
             history.moved(from: oldValue, to: route, by: historyStep)
             libraryMenu = nil
             lightbox = nil
+            // The pad's highlight stays with the level it was on (a chip kept behind a game's page).
+            PadFocus.shared.clear()
         }
     }
     /// What forward (the trackpad swipe) can retrace, and what kind of step changes the route now.
@@ -134,13 +136,19 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The downloads panel under the top bar's ring (D).
-    @Published var showingDownloads = false
+    @Published var showingDownloads = false {
+        didSet { if showingDownloads && !oldValue { refreshLowSpace() } }
+    }
     /// What Steam is downloading now, in the library's order.
     var downloads: [Game] { allGames.filter { Self.isDownloading($0.install) } }
     /// Speed and time left of each download.
     @Published private(set) var downloadRates: [GameID: DownloadRate] = [:]
     /// A download that wouldn't fit: which games could make room (SpaceCheck) – or a drive to put it on.
     @Published var pendingSpace: SpaceRequest?
+    /// A volume with games that has run low on room (SpaceCheck.lowest): a calm note on Home and in the
+    /// downloads, with the way to Settings › Storage. Looked at when Nightforge starts, after a download
+    /// and when the downloads open – not all the time.
+    @Published private(set) var lowSpace: SpaceCheck.Place?
     /// A game moving to another drive (DriveMoves), shown with the downloads.
     @Published var move: GameMove?
     /// Settings › Storage's "Move to …": asking where the game goes.
@@ -1013,6 +1021,7 @@ final class LibraryModel: ObservableObject {
         libraryLoaded = true
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
+        if !finished.isEmpty || !spaceLooked { refreshLowSpace() }
         applyFilter()
         MacIntegration.announceFinished(finished)
         KeepAwake.update(downloading: found.filter { Self.isDownloading($0.install) && $0.downloadNeedsSpace == nil }.map(\.name))
@@ -1524,10 +1533,18 @@ final class LibraryModel: ObservableObject {
         let folder = game.installDir
         let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: folder))
         let drives = driveChoices(for: game, needed: needed)
-        guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free) else {
+        // What the other downloads on this volume still need counts as taken, and the Mac's own disk keeps more over.
+        let committed = SpaceCheck.committed(by: allGames, except: game) { SpaceCheck.sameVolume($0.installDir, folder) }
+        let margin = SpaceCheck.margin(for: folder)
+        guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free, committed: committed, margin: margin) else {
+            // It fits; on the Mac with little to spare after all downloads, the player hears that first.
+            let kept = SpaceCheck.kept(needed: needed, free: free, committed: committed)
+            let tight = needed > 0 && SpaceCheck.isMacDisk(folder) && SpaceCheck.isTight(kept: kept)
+            let request = SpaceRequest(game: game, needed: needed, free: free, shortfall: 0, candidates: [], drives: drives,
+                                       committed: committed, margin: margin, kept: tight ? kept : nil)
             // A drive the player has put games on before: where this one goes is theirs to say.
-            if drives.contains(where: { $0.usable && $0.drive.hasLibrary }) {
-                pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: 0, candidates: [], drives: drives)
+            if request.asksWhere || tight {
+                pendingSpace = request
             } else {
                 download(game)
             }
@@ -1535,7 +1552,8 @@ final class LibraryModel: ObservableObject {
         }
         let removable = allGames.filter { canUninstall($0) && !isRunning($0) && SpaceCheck.sameVolume($0.installDir, folder) }
         pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: shortfall,
-                                    candidates: SpaceCheck.candidates(removable, except: game), drives: drives)
+                                    candidates: SpaceCheck.candidates(removable, except: game), drives: drives,
+                                    committed: committed, margin: margin)
     }
 
     /// The space sheet's button: uninstall the picked games one after another, then download.
@@ -1549,11 +1567,11 @@ final class LibraryModel: ObservableObject {
             }
             reload(quiet: true)
             let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: request.game.installDir))
-            if SpaceCheck.shortfall(needed: request.needed, free: free) == nil {
+            if SpaceCheck.shortfall(needed: request.needed, free: free, committed: request.committed, margin: request.margin) == nil {
                 download(request.game)
             } else {
                 errorMessage = L10n.t("There's still not enough space: %@ needs %@, your Mac has %@ free.",
-                                      request.game.name, Format.bytes(request.needed + SpaceCheck.margin), Format.bytes(free))
+                                      request.game.name, Format.bytes(request.required), Format.bytes(free))
             }
         }
     }
@@ -1583,6 +1601,44 @@ final class LibraryModel: ObservableObject {
                 }
             }
             reload(quiet: true)
+        }
+    }
+
+    private var spaceLooked = false
+
+    /// Looks at the room on the Mac and on the drives plugged in that hold games, and sets `lowSpace`.
+    func refreshLowSpace() {
+        spaceLooked = true
+        var places: [SpaceCheck.Place] = []
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        if allGames.contains(where: { ($0.isInstalled || Self.isDownloading($0.install)) && SpaceCheck.isMacDisk($0.installDir) }) {
+            places.append(SpaceCheck.Place(name: "Mac", free: Self.freeSpace(at: home),
+                                           floor: SpaceCheck.macReserve, isMac: true))
+        }
+        for drive in ExternalDrive.connected() where drive.hasLibrary {
+            places.append(SpaceCheck.Place(name: drive.name, free: drive.free, floor: SpaceCheck.margin, isMac: false))
+        }
+        let low = SpaceCheck.lowest(in: places)
+        if low != lowSpace { lowSpace = low }
+    }
+
+    /// The note's button: Settings › Storage, where games move to a drive or go.
+    func makeRoom() {
+        openSettings(tab: .storage)
+    }
+
+    /// The tight-room sheet's "Download Anyway".
+    func downloadTight(_ request: SpaceRequest) {
+        pendingSpace = nil
+        download(request.game)
+    }
+
+    /// The tight-room sheet's "Make Room …": Settings › Storage, once the sheet is gone.
+    func makeRoomInstead() {
+        pendingSpace = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))  // one sheet closes before the next opens
+            makeRoom()
         }
     }
 
@@ -2242,17 +2298,27 @@ final class LibraryModel: ObservableObject {
         return Provider.allCases.filter(found.contains)
     }
 
+    /// B on the open downloads panel: it closes, and the pad's highlight goes back to its ring.
+    func closeDownloads() {
+        showingDownloads = false
+        if PadFocus.shared.focused != nil, !downloads.isEmpty || move != nil { PadFocus.shared.focus("top.downloads") }
+    }
+
     /// Esc or B on an open list: it closes, and the pad's highlight goes back to its chip.
     func closeLibraryMenu(_ menu: LibraryMenu) {
         libraryMenu = nil
         if PadFocus.shared.focused != nil { PadFocus.shared.focus(menu.chipID) }
     }
 
-    /// A on the store chip: all stores → each store with games → all again.
-    func nextStore() {
-        let stores = [nil] + storesWithGames.map(Optional.some)
-        let place = stores.firstIndex(of: filters.store) ?? 0
-        filters.store = stores[(place + 1) % stores.count]
+    /// A on a chip of the library's row: its list opens, the pad's highlight on what's chosen now (the
+    /// first switch in the filter panel). B closes it again (closeLibraryMenu).
+    func openLibraryMenu(_ menu: LibraryMenu) {
+        libraryMenu = menu
+        switch menu {
+        case .store: PadFocus.shared.focus("store.\(filters.store?.rawValue ?? "all")")
+        case .sort: PadFocus.shared.focus("sort.\(filters.sort)")
+        case .filters: PadFocus.shared.focus(LibraryFilters.Filter.allCases.first.map { "filter.\($0)" } ?? "filter.off")
+        }
     }
 
     /// How many games `filter` leaves, with the store picked: the number beside it in the filter panel.
@@ -2567,7 +2633,7 @@ final class LibraryModel: ObservableObject {
                 guard watchFirstSeconds else { break }
 
                 // The first start with this way: is the game still there after its first seconds?
-                if await survivesFirstSeconds(game, logMark: logMark) {
+                if await survivesFirstSeconds(game, logMark: logMark, layer: layer) {
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
@@ -2577,7 +2643,7 @@ final class LibraryModel: ObservableObject {
                 // It ended within its first seconds. A confirmed way loses its confirmation only on
                 // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
                 // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
-                let graphicsFailed = GameLog.graphicsFailed(since: logMark)
+                let graphicsFailed = GameLog.graphicsFailed(since: logMark, layer: layer)
                 if wayConfirmed {
                     let installDir = game.installDir
                     let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
@@ -2596,6 +2662,14 @@ final class LibraryModel: ObservableObject {
                 }
                 launchingID = game.id
                 NSApp.activate()
+                // Nothing starts again while the game still runs – crashed behind a dialog, hanging, or
+                // not ended after a graphics error: a second copy is only turned away ("Game Already
+                // Running", Control, 1.11.2026). Every other way below starts it again.
+                let folders = Self.processFolders([game])
+                if await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value != nil {
+                    errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
+                    return
+                }
                 // It ran well this way on the engine before and ends at once on the newest: the newest
                 // broke it, so it starts with the one before – the way stays.
                 if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.gameID, build: build, way: way) {
@@ -2933,7 +3007,8 @@ final class LibraryModel: ObservableObject {
     /// A launcher handing over to the game leaves a gap of a few seconds, so only a longer absence
     /// counts as the game having ended. A game whose Direct3D layer failed (GameLog) is ended here:
     /// it would only sit behind its own error box.
-    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil) async -> Bool {
+    /// `layer`: the way it started with – only that layer's failure ends it (GameLog.graphicsFailed).
+    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil, layer: GraphicsLayer? = nil) async -> Bool {
         let folders = Self.processFolders([game])
         let started = Date()
         var absent = 0
@@ -2942,7 +3017,7 @@ final class LibraryModel: ObservableObject {
             let pid = await Task.detached(priority: .utility) { Self.runningGames(folders)[game.id] }.value
             absent = pid == nil ? absent + 1 : 0
             if absent >= 10 { return false }
-            if let pid, let logMark, GameLog.graphicsFailed(since: logMark) {
+            if let pid, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
                 kill(pid, SIGTERM)
                 // Steam has to see it gone before the next way can start.
                 for _ in 0..<15 {
@@ -3040,8 +3115,24 @@ final class LibraryModel: ObservableObject {
         play(failed.game)
     }
 
-    func openSettings() {
+    /// L1/R1 in Settings: a tab to the left or right (SettingsView takes it, PadRules.settingsTab).
+    struct SettingsTabStep: Equatable {
+        var count = 0
+        var shoulder = PadPart.r1
+    }
+
+    @Published private(set) var settingsTabStep = SettingsTabStep()
+
+    func stepSettingsTab(_ shoulder: PadPart) {
+        settingsTabStep = SettingsTabStep(count: settingsTabStep.count + 1, shoulder: shoulder)
+    }
+
+    /// The tab Settings opens on (set by `openSettings`).
+    private(set) var settingsStart = SettingsView.Tab.general
+
+    func openSettings(tab: SettingsView.Tab = .general) {
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+        settingsStart = tab
         showingSettings = true
     }
 
@@ -3167,6 +3258,78 @@ final class LibraryModel: ObservableObject {
             }
         } catch {
             errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
+        }
+    }
+
+    // MARK: - A drive that's gone
+
+    /// Nothing runs, downloads, moves or uninstalls: the lists of what's installed where can change.
+    var canForgetDrive: Bool {
+        move == nil && uninstallingID == nil && launchingID == nil && !anyRunning(.windows) && !anyRunning(.mac)
+            && !epic.isBusy && !gog.isBusy && downloads.isEmpty
+    }
+
+    /// Settings › Storage's "Forget Drive": `name` isn't unplugged for a while, it's gone. Its games count
+    /// as not installed then (`only`: just that one's copy), and download again. Steam is stopped for it, the
+    /// way a move does, and comes back. Only the stores' lists change; the Windows environment and its saves stay.
+    @discardableResult
+    func forgetDrive(_ name: String, only game: Game? = nil) async -> Bool {
+        guard canForgetDrive else {
+            errorMessage = L10n.t("Nothing can be forgotten while a game runs or a download or move is under way – wait a moment.")
+            return false
+        }
+        let appID = game?.provider == .steam ? game?.appID : nil
+        let bottle = Engine.bottle, macBottle = MacSteam.bottle
+        let steamRoot = Engine.steamRoot, macRoot = MacSteam.root
+        let wantsWindows = (game == nil || (game?.provider == .steam && game?.platform == .windows))
+            && SteamLibraries.holds(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle)
+        let wantsMac = (game == nil || (game?.provider == .steam && game?.platform == .mac))
+            && SteamLibraries.holds(drive: name, appID: appID, steamRoot: macRoot, bottle: macBottle)
+        do {
+            if wantsWindows, let wine = await Engine.installedWine() {
+                let wasRunning = Engine.isSteamRunning
+                try await Engine.stopSteam(wine)
+                guard !Engine.isSteamRunning else { throw DriveError.steamStarted }
+                defer { if wasRunning { Task { try? await Engine.restartSteamInBackground(wine) } } }
+                try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle) }
+            }
+            if wantsMac {
+                let wasRunning = MacSteam.isRunning, ours = MacSteam.startedByNightforge
+                if wasRunning { await MacSteam.quit() }
+                guard !MacSteam.isRunning else { throw DriveError.steamStarted }
+                defer {
+                    if wasRunning {
+                        MacSteam.start(visible: !ours)  // the player's own Steam comes back as they had it
+                        MacSteam.startedByNightforge = ours
+                    }
+                }
+                try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: macRoot, bottle: macBottle) }
+            }
+        } catch {
+            errorMessage = L10n.t("%@ couldn't be forgotten: %@", name, error.localizedDescription)
+            return false
+        }
+        if game == nil || game?.provider == .epic { epic.forgetDrive(name, only: game?.gameID.id) }
+        if game == nil || game?.provider == .gog { gog.forgetDrive(name, only: game?.gameID.id) }
+        reload(quiet: true)
+        refreshLowSpace()
+        return true
+    }
+
+    /// The game page's "Download Again": a game on a drive that isn't plugged in is forgotten there and
+    /// downloads as any other, with the usual check for room and the choice of where it goes.
+    func redownload(_ game: Game) {
+        guard game.onUnpluggedDrive, let drive = game.missingDrive else { return }
+        Task {
+            guard await forgetDrive(drive, only: game) else { return }
+            // The scan after it says where the game would go now; its old place was on the drive.
+            for _ in 0..<50 {
+                try? await Task.sleep(for: .milliseconds(100))
+                if let fresh = allGames.first(where: { $0.id == game.id }), fresh.missingDrive == nil, fresh.install == .notInstalled {
+                    downloadIfRoom(fresh)
+                    return
+                }
+            }
         }
     }
 

@@ -242,6 +242,27 @@ struct ProfileFilesTest {
               && ProfileStore.decodeEpic(Data("not json".utf8)).isEmpty, "nor its Epic entries, nor a broken file")
         try? Data("{".utf8).write(to: cached)
         check(await ProfileStore().antiCheatBlocks().isEmpty, "a broken file: nothing stopped")
+
+        // The list bundled with the app against the one fetched before: the one built later counts.
+        let bundled = Engine.supportDir.appendingPathComponent("bundled.json")
+        func dated(_ generated: String?, _ name: String, format: Int = 1) -> Data {
+            Data((#"{"formatVersion": \#(format), "# + (generated.map { #""generated": "\#($0)", "# } ?? "")
+                  + #""games": {"50130": {"name": "\#(name)"}}}"#).utf8)
+        }
+        func mafia() async -> String? { await ProfileStore(bundledURL: bundled).knownProfiles()[50130]?.name }
+        try? dated("2026-10-27T20:21:54Z", "bundled").write(to: bundled)
+        try? dated("2026-10-26T16:32:00Z", "cached").write(to: cached)
+        check(await mafia() == "bundled", "an older cached list: the bundled one counts")
+        try? dated("2026-11-01T04:37:00Z", "cached").write(to: cached)
+        check(await mafia() == "cached", "a newer cached list counts")
+        try? dated("2026-10-27T20:21:54Z", "cached").write(to: cached)
+        check(await mafia() == "cached", "one from the same run too")
+        try? dated(nil, "cached").write(to: cached)
+        check(await mafia() == "bundled", "a cached list without a date counts as older")
+        try? dated("2026-10-26T16:32:00Z", "cached").write(to: cached)
+        try? dated("2026-12-01T00:00:00Z", "bundled", format: 2).write(to: bundled)
+        check(await mafia() == "cached", "a bundled list this Nightforge can't read: the cached one still serves")
+        try? fm.removeItem(at: bundled)
         try? fm.removeItem(at: cached)
         check(await ProfileStore().preferWindows().isEmpty, "no list at all")
     }

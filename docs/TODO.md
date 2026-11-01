@@ -41,6 +41,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - Kurzer Live-Durchlauf: Windows-Spiel über Steam, Mac-Version, Epic, GOG, TV.
   - Version 0.2.1-dev → 0.3.0.
   - Release-Notizen seit v0.2.0 auf Deutsch und Englisch.
+  - Kleine Punkte aus der Gatekeeper-Recherche (unten, „Recherchen vom 1.11.“).
 - **Veröffentlichen, nur mit ausdrücklichem OK des Nutzers:**
   - Integrationszweig pushen und über einen PR nach `main` bringen.
   - Tag `v0.3.0` löst `release.yml` aus.
@@ -64,8 +65,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
   `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
-  einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
-  „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
+  einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter nur
+  noch „WineD3D“ (seit 1.11.; vorher „WineD3D, DXVK“, und ein frühes Ende schaltete Mafia II auf DXVK weiter, das hier nie
+  geht). Mit KosmicKrisp (Branch `claude/quirky-clarke-81fd65`) kommt DXVK für D3D9 zurück auf die Leiter. DXVKs Fehlerzeilen
+  zählen nur noch für einen Start auf DXVK (`GameLog.graphicsFailed(…, layer:)`) – das Log ist geteilt.
   Der Ausweg ist KosmicKrisp (unten bei „Vulkan-Layer und winecx“): Er meldet `shaderCullDistance` schon lange und
   `geometryShader` seit Mesa 14f59d06 (29.10.2026).
   Die D3D9-Leiter in `LaunchHealth.attempts` fragt das Profil nicht. Ein Profil mit `graphics` ändert für D3D9-Spiele nur
@@ -146,6 +149,26 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   dann wegen Platzmangel pausiert. Nightforge zeigt das an und bietet „Weiter laden“
   (`Engine.unpauseDownload`). Vor einem *Download* prüft Nightforge den Platz inzwischen (`SpaceCheck`, UX-Roadmap 4.1);
   vor *Updates*, die Steam von selbst startet, noch nicht (Steams `BytesToStage`, `UpdateState.pending`).
+- **Ein Laufwerk, das es nicht mehr gibt** (Nutzer, 1.11.). Sonic Mania lag auf dem alten Stick „Spiele test“, und
+  Nightforge wartet, dass er wieder angesteckt wird („schließ es an, um es zu spielen oder zu verschieben“). Ist der Stick
+  weg, kaputt oder neu formatiert, hängt das Spiel fest. Es gibt kein „Vergessen“, und Deinstallieren braucht das
+  Laufwerk.
+  - Vorschlag: In Einstellungen › Speicher bei einem nicht angeschlossenen Laufwerk „Laufwerk vergessen“, mit
+    Rückfrage. Seine Spiele gelten danach als nicht installiert und lassen sich neu laden, auf den Mac oder ein anderes
+    Laufwerk. Dafür die Einträge bei Steam (`libraryfolders.vdf`), Epic (legendary) und GOG (`installed.json`) entfernen.
+    Spielstände liegen im Prefix auf dem Mac und bleiben.
+  - Auf der Spielseite zusätzlich „Neu laden“, das die alte Kopie vergisst.
+- **Platzprüfung zählt laufende Downloads nicht mit, und die Reserve ist knapp** (Nutzer, 1.11.). Die Lage: Control
+  (Epic, 27,8 GB) und The Evil Within 2 (GOG, 35,2 GB) luden zugleich, 44 GB waren frei, CleanMyMac warnte
+  „Speicherplatz wird knapp“. Beide passen noch, danach bleiben etwa 10 GB.
+  - `SpaceCheck.shortfall` vergleicht aber nur das neue Spiel mit dem freien Platz plus 1 GB Reserve
+    (`LibraryModel.downloadIfRoom`). Was andere Downloads auf demselben Laufwerk noch brauchen, fehlt.
+  - Vorschlag: Die Reste aller laufenden und wartenden Downloads je Laufwerk abziehen. Dazu eine Reserve, die macOS Luft
+    lässt (etwa 10 GB statt 1 GB). Bleibt danach wenig übrig, sagt Nightforge vorher ruhig, wie viel frei bleibt.
+  - Dazu eine kleine Meldung, wenn ein Laufwerk mit Spielen knapp wird (Nutzer, 1.11.: „Macintosh HD nur noch wenig
+    Speicherplatz“). Am 1.11. waren noch 6,1 GB frei. Ruhig auf der Startseite oder im Download-Panel, mit dem Weg zur
+    Lösung: Spiele auf ein externes Laufwerk verschieben oder lange nicht gespielte entfernen (das Platz-Sheet gibt es
+    schon).
 
 ## Controller
 
@@ -225,8 +248,8 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   hat es mitgebaut, weil sie `InputRouter` für das Overlay ändert; `InputRouter.section`): L1 führt immer zur Startseite,
   R1 immer zur Bibliothek, auch von einer Spielseite; kein Umschalten, die Richtung steht fest. In einem Sheet, im
   Download-Panel, bei der Ersteinrichtung und im Spiel tun sie nichts. Die Chips „L1“/„R1“ (Xbox „LB“/„RB“) neben
-  „Startseite | Bibliothek“ erscheinen nur mit verbundenem Controller. Der Sprung um fünf Spiele ist weg, L2/R2 und ☰
-  bleiben; der Controller-Test sagt „Geht zur Startseite/Bibliothek“. Live bestätigt (1.11.). Am Gerät noch ansehen:
+  „Startseite | Bibliothek“ erscheinen nur mit verbundenem Controller. Der Sprung um fünf Spiele ist weg, L2/R2
+  bleiben, ☰ öffnet seit 1.11. die Optionen (`docs/ENTWURF-CONTROLLER.md`); der Controller-Test sagt „Geht zur Startseite/Bibliothek“. Live bestätigt (1.11.). Am Gerät noch ansehen:
   Chips und Beschriftungen im Controller-Test, mit DualSense und Xbox-Pad.
 - **Suche mit dem Controller** (Nutzer, 31.10., Idee, noch nicht besprochen): Heute erreicht man die Suche nur mit der
   Tastatur (⌘F oder /). Möglichkeiten:
@@ -719,6 +742,11 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       („DxvkAdapter: Failed to create device“, MoltenVK ohne `geometryShader`/`shaderCullDistance`, siehe oben bei L4D2).
       Seit dem Fix danach: Die alte Bestätigung (ohne Bild-Nachweis) gilt nicht mehr, der Start wird beobachtet und geht nach
       dem Grafikfehler von selbst auf WineD3D – und seit danach beginnt die D3D9-Leiter unter winecx ohnehin mit WineD3D.
+      1.11. (TV-Build, nur der TV): Der WineD3D-Start endete nach ~14 s, zwei DXVK-Fehlerzeilen im geteilten Log ließen
+      Nightforge ihn als Grafikfehler beenden und auf DXVK weiterschalten (scheitert immer). Behoben: DXVK-Zeilen zählen nur
+      auf DXVK, D3D9 unter winecx nur WineD3D. Offen für die TV-Session: `videoconfig.cfg` steht auf 1512×982 Vollbild
+      (`0 0 1512 982 1 0 0 1`), den Modus hat der TV nicht – DXVK loggte unter KosmicKrisp um 00:20 genau das
+      („D3D9: EnterFullscreenMode: Failed to change display mode“).
       Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
       bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
       (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.
@@ -837,6 +865,10 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
   Recherche und Entwurf mit Bildern liegen in `docs/ENTWURF-SPIELINFOS.md` (Branch `claude/game-metadata-a2cee0`).
   Der Nutzer hat am 31.10. entschieden (alle vier Empfehlungen). In Arbeit seit 31.10. (für 0.3.0) in zwei Abschnitten
   (A: Daten, Filter, Bibliothek; B: Spielseite), jeder mit eigenem Live-Test.
+  - **Pad auf der Spielseite (TV-Test 1.11.)**: Es scrollte nicht weich, sprang von Punkt zu Punkt und kam nicht bis unten.
+    Behoben: Fokuswechsel scrollen weich mit (Platz für die Spielleiste), ↓/↑ hinter dem letzten/ersten Bedienelement
+    scrollen seitenweise bis ans Ende, der rechte Stick scrollt stufenlos (alle Seiten mit Scrollbereich), der Rahmen
+    beginnt auf „Spielen“ statt auf den Screenshots. Noch am TV zu prüfen.
   - **Nachbesserung nach dem ersten Live-Blick (31.10. nachts)**, Variante 1 nach Wahl des Nutzers: Beschreibung nur einmal
     (unten), feste Spielleiste beim Scrollen, ruhiges Raster mit zwei Karten, deutsche Beschreibung und Screenshots von GOG,
     wo Steam keine hat. Noch ohne Live-Test.
@@ -994,6 +1026,79 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
     - Weg: CI baut pro winecx-Version ein Archiv als Komponente, geladen parallel zur Engine. Erwartet: −40…45 s. Dann
       bleibt weniger Zeit fürs Vorabladen; der 32-Bit-Schritt (~12 s) passt noch.
     - Eine lokale Vorlage pro Engine hilft nur bei einer zweiten Einrichtung: verworfen.
+
+## Recherchen vom 1.11. (Cloud, Berichte in `docs/recherche/`)
+
+Sieben Cloud-Recherchen, nur gelesen und gesucht, nichts davon am Mac getestet. Sie gingen vom alten `main` (v0.2.0) aus,
+deshalb halten manche Berichte Epic und GOG noch für geplant. Den vollen Text hat jeweils die Datei, den Link zur
+Cloud-Session ihre erste Zeile.
+
+- **Verteilung und Gatekeeper** (`gatekeeper.md`):
+  - 0.3.0: Der Weg bleibt, wie er ist (ad-hoc-Signatur, curl-Einzeiler, DMG). Apple hat nichts angekündigt, was ihn
+    schließt.
+  - Klein für 0.3.0: Texte an die Terminal-Einfügewarnung seit macOS 26.4 anpassen. Auf GitHub „Immutable Releases“
+    einschalten. Der Updater soll eine klare Meldung zeigen, wenn macOS die App aus einem schreibgeschützten Ort
+    startet (Translocation). Die Ed25519-Prüfung der Update-ZIPs kommt nur, wenn sie sich vorher testen lässt, sonst
+    in 0.3.1.
+  - Bis etwa Q1 2027 entscheiden: Apple Developer Program (99 $ im Jahr). Damit gäbe es ein notarisiertes DMG ohne
+    Warnung, eine stabile Identität (keine neuen Freigabe-Abfragen nach Updates) und eine echte Herkunftsprüfung.
+    Homebrew und Sparkle lohnen sich erst danach.
+- **Spiele automatisch aktuell halten** (`updates.md`):
+  - Wahrscheinliche Ursache der Verzögerung: `AutoUpdateBehavior 0` heißt seit Ende 2024 „globale Einstellung“, also
+    „Steam entscheidet“. Gespielt in den letzten 72 h → sofort, sonst um etwa 4 Uhr früh, verteilt über bis zu
+    14 Tage. **2 = sofort.** Vorschlag: im eigenen Prefix alle Spiele auf 2 setzen, bei beendetem Steam; Nightforge
+    steuert das Wann über das Laufen von Steam. Die Tests T1–T5 im Bericht bestätigen das.
+  - Einen „Jetzt aktualisieren“-Befehl von außen gibt es nicht. Der CEF-Debug-Port ist rot, weil jedes lokale
+    Programm damit Steam fernsteuern könnte.
+  - Epic (legendary) und GOG (gogdl) sind grün. Achtung: `legendary … -y` ohne `--skip-dlcs` installiert alle DLCs.
+    gogdl führt keine Liste installierter Spiele, also speichert Nightforge buildId und ETag selbst, wie Heroic.
+  - Steam für Mac und Wine-Steam nur abwechselnd laufen lassen („Session Replaced“).
+- **Engines und Wege** (`engines.md`):
+  - Die Aufteilung stimmt: DX12 → D3DMetal, DX10/11 → DXMT, DX9 → WineD3D. DXVK 3 auf KosmicKrisp ist für
+    CPU-gebundene 32-Bit-DX9-Spiele schneller, ruckelt aber.
+  - Vorschläge:
+    - Wine 7.7 abschalten, es fehlen alle Audio-Fixes.
+    - Ein Frame-Limiter nur mit Teilern der Bildwiederholrate.
+    - Getrennte Shader-Caches.
+    - D3DMetal-Version pro Spiel.
+    - Offene Daten (highball-db, umu-database) neben den eigenen Profilen.
+  - **Ton am AV-Receiver:** Wines winecoreaudio rundet Heimkino-7.1 laut Code auf das alte „7.1 wide“. Das passt
+    zur Kanalmaske 0xFF, die der DENON hier meldet. Apple empfiehlt in Audio-MIDI-Setup „7.1 Rear Surround“. Wine 11
+    behebt vertauschte Center-/LFE-Kanäle, Knacksen (11.16) und den Downmix (11.21). Idee: ein „Audio-Doktor“ vor dem
+    Start, der vor 7.1 wide und Stereo-Aushandlung warnt.
+  - Risiken:
+    - Rosetta gibt es als Allzweckwerkzeug nur bis macOS 27. Ab macOS 28 (Herbst 2027) bleibt ein Spiele-Subset,
+      ob Wine dazugehört, ist offen.
+    - MoltenVK soll am 13.10.2026 abgekündigt worden sein (unbestätigt).
+    - Die Lizenz von D3DMetal erlaubt die Nutzung nur zum Entwickeln, Testen und Bewerten von Spielen. Rechtlich das
+      größte Fragezeichen.
+    - Bei DXMT widersprechen sich Nightforges Hinweisdatei und Manifest. Leicht zu beheben.
+- **Die 200 meistgespielten Spiele** (`top200.md`): 119 von 200 sind auf dem Mac spielbar (57 nativ, 62 über Wine).
+  Funde am Build-Skript, an die Anti-Cheat-Session gegeben:
+  - AWACY-Einträge ohne Steam-ID gehen verloren: FiveM, Delta Force, EA FC 26, Space Marine 2, Tarkov, F1 25, skate.
+  - EAC/BattlEye mit „Running“ brauchen die Linux-Laufzeit genauso: ARC Raiders, Elden Ring Nightreign, Gray Zone,
+    The Isle.
+  - Gesperrte Spiele aus `mac.json` bekommen keinen GeForce-Now-Link.
+  - Weitere Vorschläge:
+    - Startfixes: Helldivers 2 `--use-d3d11`, Witcher 3 `--launcher-skip`, RDR2 über D3DMetal, GTA V Story mit
+      `-nobattleye`.
+    - Ein Profilfeld für Umgebungsvariablen.
+  - Die JSON-Liste aller 200 steht nur in der Cloud-Session.
+- **Fremd-Launcher** (`launcher.md`): Reihenfolge:
+  1. Steam-Fassungen ohne Launcher freischalten.
+  2. Rockstar über Steam, dann über Epic. Nur Story, Online sperrt BattlEye.
+  3. Battle.net-Client.
+  4. EA app (die Sportspiele sperrt Javelin).
+  5. Ubisoft Connect (unsicher).
+- **Battle.net als Store** (`battlenet.md`): machbar nach dem Steam-Muster. Die Battle.net-App bleibt Pflicht.
+  - Installierte Spiele stehen in `product.db`. Gestartet wird mit `--exec="launch <Code>"`, das Spielende zeigen
+    die Prozesse im Installationsordner.
+  - Mac-Versionen: WoW, Diablo III, Hearthstone, StarCraft, Heroes, Warcraft III.
+  - Overwatch, Diablo IV und D2R gibt es auf Steam, mit bloßer Kontoverknüpfung. Call of Duty ist rot (Ricochet).
+  - Die Battle.net-App für den Mac ist noch eine Intel-App (Rosetta-Frist).
+- **Entdecken** (`entdecken.md`): eine Tabelle Rubrik × Store mit allen Endpunkten (Angebote, Charts, Neu,
+  Gratisspiele, Suche, Genres, Mac- und Controller-Kennzeichen). Gekauft wird immer im Store. Die Cloud-Umgebung
+  konnte die Store-Hosts nicht erreichen, deshalb vor dem Einbau live prüfen.
 
 ## Aus dem Code-Audit
 

@@ -106,6 +106,36 @@ enum L10n {
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
+        "Games fit": "Spiele passen",
+        "exFAT: most games run": "exFAT: die meisten Spiele laufen",
+        "FAT32: no files over 4 GB": "FAT32: keine Dateien über 4 GB",
+        "Read-only": "nur lesbar",
+        "Games on %@": "Spiele auf %@",
+        "Forget Drive …": "Laufwerk vergessen …",
+        "Forget Drive": "Laufwerk vergessen",
+        "Forget %@?": "%@ vergessen?",
+        "Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.":
+            "Seine Spiele gelten danach als nicht installiert und lassen sich neu laden, auf deinen Mac oder ein anderes Laufwerk. Sie bleiben in deinen Store-Bibliotheken, auf deinem Mac wird nichts gelöscht, und Spielstände in der Windows-Umgebung bleiben. Steckst du %@ später wieder an, gilt es als neues Laufwerk.",
+        "%@ is forgotten – its games can be downloaded again": "%@ ist vergessen – seine Spiele lassen sich neu laden",
+        "%@ couldn't be forgotten: %@": "%1$@ konnte nicht vergessen werden: %2$@",
+        "Nothing can be forgotten while a game runs or a download or move is under way – wait a moment.":
+            "Solange ein Spiel läuft oder ein Download oder Umzug im Gang ist, lässt sich nichts vergessen – einen Moment bitte.",
+        "%@ isn't connected. If it isn't coming back, download the game again: that forgets the copy there and installs it on your Mac or another drive.":
+            "%@ ist nicht angeschlossen. Kommt es nicht wieder, lade das Spiel neu: Das vergisst die Kopie dort und installiert es auf deinem Mac oder einem anderen Laufwerk.",
+        "Download Again": "Neu laden",
+        "Downloads already running still need %@ of that.": "Laufende Downloads brauchen davon noch %@.",
+        "%@ leaves little room": "%@ lässt wenig Platz",
+        "After %@ and the downloads already running, about %@ stay free on your Mac. macOS slows down and can't update when it gets this low.":
+            "Nach %@ und den schon laufenden Downloads bleiben auf deinem Mac etwa %@ frei. Bei so wenig Platz wird macOS langsam und kann sich nicht mehr aktualisieren.",
+        "Make Room …": "Platz schaffen …",
+        "Download Anyway": "Trotzdem laden",
+        "Only %@ would stay free on this Mac.": "Auf diesem Mac blieben nur %@ frei.",
+        "Make Room": "Platz schaffen",
+        "Your Mac has only %@ free – macOS slows down and can't update when it runs this low.":
+            "Dein Mac hat nur noch %@ frei – bei so wenig Platz wird macOS langsam und kann sich nicht aktualisieren.",
+        "%@ has only %@ free.": "%1$@ hat nur noch %2$@ frei.",
+        "Nightforge runs from a protected place (macOS does that to an app opened straight from a download or a disk image), so it can't update itself. Drag Nightforge into the Applications folder, open it from there and update again.":
+            "Nightforge läuft von einem geschützten Ort (macOS macht das bei einer App, die direkt aus dem Download oder aus einem Disk-Image geöffnet wird) und kann sich deshalb nicht selbst aktualisieren. Ziehe Nightforge in den Programme-Ordner, öffne es von dort und aktualisiere noch einmal.",
         "This game didn't start the usual way, so Nightforge now starts it another way, automatically.":
             "Dieses Spiel ist auf dem üblichen Weg nicht gestartet, deshalb startet Nightforge es jetzt automatisch anders.",
         "Starting again with %@ …": "Neuer Start mit %@ …",
@@ -861,7 +891,6 @@ enum L10n {
         "Only on this Mac": "Nur auf diesem Mac",
         "Installed or downloading": "Installiert oder lädt gerade",
         "All filters off": "Alle Filter aus",
-        "B closes": "B schließt",
         "Remove this filter": "Diesen Filter entfernen",
         "Remove filter %@": "Filter %@ entfernen",
         "Games in several stores count in each.": "Spiele in mehreren Stores zählen bei jedem.",
@@ -1050,6 +1079,8 @@ enum L10n {
         "Checking the size …": "Größe wird geprüft …",
         "On your Mac": "Auf dem Mac",
         "On %@": "Auf %@",
+        "%@ is still running, or it hangs. Quit it first, then press Play again.":
+            "%@ läuft noch oder hängt. Beende es zuerst und drück dann noch einmal auf Spielen.",
         "Make room – these haven't been played for a while. They stay in your store's library, and saves in its cloud are kept.":
             "Platz schaffen – diese wurden länger nicht gespielt. Sie bleiben in der Bibliothek ihres Stores, Spielstände in dessen Cloud bleiben erhalten.",
         "There's still not enough space: %@ needs %@, your Mac has %@ free.": "Noch immer zu wenig Platz: %@ braucht %@, dein Mac hat %@ frei.",
@@ -1137,11 +1168,11 @@ enum L10n {
         "D-pad": "Steuerkreuz",
         "Left stick": "Linker Stick",
         "Right stick": "Rechter Stick",
-        "Selects – on Home it starts the game": "Auswählen – auf der Startseite startet es das Spiel",
+        "Presses what's highlighted – without a highlight, Home starts the game": "Drückt, was markiert ist – ohne Markierung startet die Startseite das Spiel",
+        "Searches your library": "Sucht in deiner Bibliothek",
         "Back, one level up – like Esc": "Zurück, eine Ebene hoch – wie Esc",
         "Opens the selected game's page": "Öffnet die Seite des gewählten Spiels",
         "Options for the selected game": "Optionen für das gewählte Spiel",
-        "Switches between Home and the library": "Wechselt zwischen Startseite und Bibliothek",
         "Goes to Home": "Geht zur Startseite",
         "Goes to the library": "Geht zur Bibliothek",
         "Works – both sticks held for 2 seconds in a game bring Nightforge's menu":
@@ -1149,9 +1180,13 @@ enum L10n {
         "Jumps to the first game": "Springt zum ersten Spiel",
         "Jumps to the last game": "Springt zum letzten Spiel",
         "Moves the selection": "Bewegt die Auswahl",
-        "Moves the selection – on Home, down goes into the library": "Bewegt die Auswahl – auf der Startseite geht’s nach unten in die Bibliothek",
+        "Moves the selection – on Home, up goes to the top bar": "Bewegt die Auswahl – auf der Startseite nach oben zur oberen Leiste",
+        "Moves the selection – on Home, down goes to the game's buttons": "Bewegt die Auswahl – auf der Startseite nach unten zu den Knöpfen des Spiels",
         "Moves the selection, like the d-pad": "Bewegt die Auswahl, wie das Steuerkreuz",
-        "Works – in games it's mostly the camera": "Funktioniert – in Spielen meist die Kamera",
+        "Scrolls pages and lists – in games it's mostly the camera": "Scrollt Seiten und Listen – in Spielen meist die Kamera",
+        "Scroll": "Scrollen",
+        "To the games": "Zu den Spielen",
+        "Browse": "Blättern",
         "Works – Nightforge doesn't need this button, games do": "Funktioniert – Nightforge braucht diese Taste nicht, Spiele schon",
         "Works – it belongs to macOS, Nightforge leaves it alone": "Funktioniert – sie gehört macOS, Nightforge lässt sie in Ruhe",
         "Works – Nightforge doesn't need the touchpad, games do": "Funktioniert – Nightforge braucht das Touchpad nicht, Spiele schon",

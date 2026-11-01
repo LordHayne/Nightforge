@@ -7,6 +7,7 @@ if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/Command
   export SDKROOT="$CLT_SDK"
 fi
 WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT  # the test program and its home go with it
 # Two stand-in games: an old one reading HID itself (universal, like most ports) and a modern one.
 echo 'int main(void) { return 0; }' > "$WORK/game.c"
 clang -arch x86_64 -arch arm64 -o "$WORK/old" "$WORK/game.c" -framework IOKit

@@ -45,7 +45,13 @@ struct DownloadsButton: View {
         .buttonStyle(GlassGroupButtonStyle())
         .help(count == 1 ? L10n.t("1 download (D)") : L10n.t("%ld downloads (D)", count))
         .accessibilityLabel(count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", count))
-        .padFocus("top.downloads", cornerRadius: 15, activate: { model.showingDownloads.toggle() })
+        // With the pad, the highlight goes into the panel it opens.
+        .padFocus("top.downloads", cornerRadius: 15, activate: {
+            if model.showingDownloads { model.closeDownloads() } else {
+                model.showingDownloads = true
+                PadFocus.shared.focus("downloads.close")
+            }
+        })
     }
 
     static func progress(_ downloads: [Game], move: GameMove? = nil) -> Double {
@@ -77,8 +83,9 @@ struct DownloadsPanel: View {
                 }
                 .buttonStyle(GlassButtonStyle(shape: Circle()))
                 .help(L10n.t("Close"))
-                .padFocus("downloads.close", cornerRadius: 14, activate: { model.showingDownloads = false })
+                .padFocus("downloads.close", cornerRadius: 14, activate: { model.closeDownloads() })
             }
+            LowSpaceNote()
             if model.downloads.isEmpty && model.move == nil {
                 Text(L10n.t("Nothing is downloading."))
                     .font(size: 13)

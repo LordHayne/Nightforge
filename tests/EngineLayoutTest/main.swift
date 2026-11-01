@@ -284,7 +284,13 @@ struct EngineLayoutTest {
         check(GameLog.text(since: start).hasPrefix("err:module") && !GameLog.text(since: start).contains("[Steam] starting"),
               "a start reads only what came after it")
         check(GameLog.missingRuntimes(since: start, gameFolder: #"C:\Games\Odd"#) == ["vcrun2013"], "the runtime its program missed")
-        check(GameLog.graphicsFailed(since: start) && !GameLog.graphicsFailed(since: GameLog.mark()), "DXVK gave up, since that start only")
+        check(GameLog.graphicsFailed(since: start, layer: .dxvk) && !GameLog.graphicsFailed(since: GameLog.mark(), layer: .dxvk),
+              "DXVK gave up, since that start only")
+        check(!GameLog.graphicsFailed(since: start, layer: .wined3d), "which isn't a WineD3D start failing")
+        // Before every start: Wine's debugger ends a crashed game at once, with no "Program Error" window
+        // (Control 1.11.2026 ran on behind it, so its next start was turned away as "already running").
+        check(Engine.crashDialogOff == "[HKEY_CURRENT_USER\\Software\\Wine\\WineDbg]\n\"ShowCrashDialog\"=dword:00000000",
+              "Wine's crash window off, as a .reg section")
         check(GameLog.errors(since: start).contains { $0.contains("DxvkAdapter") }, "the errors for a problem report")
         check(GameLog.illegalInstruction(since: start, installDir: FileManager.default.temporaryDirectory, startedAt: Date()),
               "the crash Rosetta's AVX hint causes")

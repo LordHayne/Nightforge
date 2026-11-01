@@ -32,6 +32,13 @@ struct UpdateStateTest {
               "downloading without sizes: running, no percentage")
         check(UpdateState(flags: 1024, toDownload: 100, downloaded: 100).fraction == 0.99, "never shows 100 % before it's done")
 
+        // The app's own update: an app opened from its download runs translocated and can't be replaced.
+        check(Updater.isTranslocated("/private/var/folders/ab/c_d1/T/AppTranslocation/6F1D2A3B-0000-4000-8000-0123456789AB/d/Nightforge.app"),
+              "a translocated app is recognised")
+        check(!Updater.isTranslocated("/Applications/Nightforge.app") && !Updater.isTranslocated("/Users/a/Applications/Nightforge.app"),
+              "an app in Applications isn't")
+        check(!Updater.runsFromProtectedPlace(URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)), "the home folder is no protected place")
+
         do { try scanner() } catch { check(false, "the made-up bottle: \(error)") }
         try? FileManager.default.removeItem(at: root)
 

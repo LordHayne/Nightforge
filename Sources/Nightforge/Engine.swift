@@ -360,14 +360,19 @@ enum Engine {
     }
 
     /// Wine helpers (winedevice.exe in particular) sometimes outlive `wineserver -k` and then
-    /// hang around for days. Anything still running with its working directory in our prefix
-    /// after the server is gone is such a leftover.
+    /// hang around for days. A Wine program still running with its working directory in our
+    /// prefix after the server is gone is such a leftover – only Wine's: Nightforge's downloaders
+    /// (gogdl, legendary) work there too and carry on (The Evil Within 2, ended at 84 % by a GOG
+    /// game's fresh Wine session, 1.11.2026).
     static func killLeftovers() {
-        let root = prefix.resolvingSymlinksInPath().path
+        // As the kernel reports them: /private/var/… stays (resolvingSymlinksInPath drops /private).
+        let root = realPath(prefix)
+        let engines = engineFolders.map(realPath)
         var pids = [pid_t](repeating: 0, count: 4096)
         let bytes = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
         guard bytes > 0 else { return }
         for pid in pids.prefix(Int(bytes)) where pid > 0 {
+            guard let path = executablePath(pid), isWineProgram(path, engines: engines) else { continue }
             var info = proc_vnodepathinfo()
             let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
             guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { continue }
@@ -378,7 +383,28 @@ enum Engine {
         }
         // Wine processes working somewhere else (Steam's own folder resolved differently, …)
         // still run Nightforge's engine.
-        for process in ownProcesses() where process.pid != getpid() { kill(process.pid, SIGKILL) }
+        for process in ownProcesses() where process.pid != getpid() {
+            guard let path = executablePath(process.pid), isWineProgram(path, engines: engines) else { continue }
+            kill(process.pid, SIGKILL)
+        }
+    }
+
+    static func realPath(_ url: URL) -> String {
+        guard let resolved = realpath(url.path, nil) else { return url.resolvingSymlinksInPath().path }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+
+    /// The engines Wine runs from (the game-mode loader `Nightforge Game.app` lives inside them).
+    static var engineFolders: [URL] {
+        [engineID, winecxEngineID, "wine-staging"].map { ComponentStore.shared.root.appendingPathComponent($0, isDirectory: true) }
+    }
+
+    /// A Wine program: run from one of the engines, or a Wine binary by name. Nightforge's other
+    /// components (gogdl, legendary) aren't.
+    static func isWineProgram(_ path: String, engines: [String]) -> Bool {
+        engines.contains { path.hasPrefix($0 + "/") }
+            || ["wine", "wine64", "wineserver", "wine-preloader", "wine64-preloader"].contains((path as NSString).lastPathComponent)
     }
 
     /// Puts the bundled steamwebhelper wrapper in place of Steam's own (which becomes
@@ -759,8 +785,10 @@ enum Engine {
         reopened && exit 0
         "$(dirname "$WINE")/wineserver" -k
         sleep 2
-        # Wine helpers that outlive the server, recognisable by their working directory in the prefix.
-        lsof -a -d cwd -Fpn 2>/dev/null           | awk -v root="$PREFIX" '/^p/ { pid = substr($0, 2) } /^n/ { if (index(substr($0, 2), root) == 1) print pid }'           | while read -r pid; do kill -9 "$pid" 2>/dev/null; done
+        # Wine helpers that outlive the server, recognisable by their working directory in the prefix –
+        # Wine's only, which map the engine's files (Nightforge's downloaders work there too).
+        is_wine() { lsof -a -p "$1" -d txt -Fn 2>/dev/null | grep -qE '/Components/(winecx|wine|wine-staging)/'; }
+        lsof -a -d cwd -Fpn 2>/dev/null           | awk -v root="$PREFIX" '/^p/ { pid = substr($0, 2) } /^n/ { if (index(substr($0, 2), root) == 1) print pid }'           | while read -r pid; do is_wine "$pid" && kill -9 "$pid" 2>/dev/null; done
         """#
 
     /// Installed engine binary, if setup has got that far. While the engine the component list
@@ -1306,7 +1334,7 @@ enum Engine {
             placeDXVK(layer == .dxvk, dxvkDir: dxvk, installDir: installDir)
         }
         let exes = executables(in: installDir)
-        var sections: [String] = []
+        var sections = [crashDialogOff]
         for exe in exes {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
@@ -1320,9 +1348,15 @@ enum Engine {
             sections.append(section)
         }
         sections += (profile?.registry ?? []).compactMap(regSection)
-        guard !sections.isEmpty else { return }
         importRegistry(sections.joined(separator: "\n\n"), wine: wine)
     }
+
+    /// No "Program Error – … has encountered a serious problem" window: Wine's debugger (AeDebug's
+    /// "winedbg --auto", already the prefix's) writes the backtrace into the game log and ends the
+    /// crashed game at once. With the window open the game ran on, Nightforge didn't see it end, and
+    /// it held its "only one instance" lock (Control, 1.11.2026). winecx's winedbg reads the value.
+    /// Set before every start, so every prefix has it.
+    static let crashDialogOff = "[HKEY_CURRENT_USER\\Software\\Wine\\WineDbg]\n\"ShowCrashDialog\"=dword:00000000"
 
     /// A quoted .reg string. Line breaks and other control characters are dropped: in a .reg file
     /// they would end the line and start lines of their own.

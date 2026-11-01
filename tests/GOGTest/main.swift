@@ -16,6 +16,11 @@ struct GOGTest {
 
     @MainActor
     static func main() async {
+        // A stand-in program for `leftovers` (a copy of this one): it only waits.
+        if CommandLine.arguments.dropFirst().first == "--stand-in" {
+            try? await Task.sleep(for: .seconds(30))
+            exit(0)
+        }
         guard FileManager.default.homeDirectoryForCurrentUser.path.contains("/home") else {
             print("✗ runs only in its own home (tests/GOGTest/run.sh)")
             exit(1)
@@ -40,6 +45,7 @@ struct GOGTest {
         await playing()
         redistFormats()
         await redistSetUp()
+        leftovers()
         await realProgram()
 
         print(failures == 0 ? "✓ GOG" : "\(failures) failed")
@@ -334,6 +340,48 @@ struct GOGTest {
         check(!GOGRedist.hasWork(other), "another game with the same parts: nothing to do")
         _ = await GOGRedist.setUp(other, versionName: nil, wine: wine) { _ in }
         check(!fm.fileExists(atPath: calls.path), "and nothing runs")
+    }
+
+    /// After `wineserver -k` the sweep ends Wine's programs in the prefix only: a downloader working
+    /// there (gogdl into Program Files\GOG Games) carries on – The Evil Within 2 was ended at 84 %
+    /// (code 137) by a GOG game's fresh Wine session on 1.11.2026.
+    static func leftovers() {
+        let fm = FileManager.default
+        let engines = Engine.engineFolders.map { $0.path }
+        check(Engine.isWineProgram(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine64-preloader").path, engines: engines)
+              && Engine.isWineProgram(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine").path, engines: engines),
+              "the engine's programs and its game-mode loader are Wine's")
+        check(!Engine.isWineProgram(ComponentStore.shared.root.appendingPathComponent("gogdl/1.4.0/gogdl_macos_arm64").path, engines: engines)
+              && !Engine.isWineProgram(ComponentStore.shared.root.appendingPathComponent("legendary/0.21.1/legendary_macOS_arm64").path, engines: engines),
+              "gogdl and legendary aren't")
+
+        // Two stand-ins (copies of this test, which wait – macOS won't run a moved /bin/sleep)
+        // working in the game's folder in the prefix.
+        let folder = GOGDL.windowsGamesDir.appendingPathComponent("The Evil Within 2", isDirectory: true)
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        func start(_ program: URL) -> Process {
+            try? fm.createDirectory(at: program.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fm.removeItem(at: program)
+            if let me = Bundle.main.executableURL { try? fm.copyItem(at: me, to: program) }
+            let process = Process()
+            process.executableURL = program
+            process.arguments = ["--stand-in"]
+            process.currentDirectoryURL = folder
+            try? process.run()
+            return process
+        }
+        // A folder of its own without .sha256: never taken for the installed gogdl, which run.sh may
+        // have copied in for `realProgram` (overwriting that made it run this test instead, c1eeaac).
+        let download = start(ComponentStore.shared.root.appendingPathComponent("gogdl/0.0.0-stand-in/gogdl_macos_arm64"))
+        let leftover = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine"))
+        Thread.sleep(forTimeInterval: 0.5)
+        check(download.isRunning && leftover.isRunning, "both run before the sweep")
+        Engine.killLeftovers()
+        Thread.sleep(forTimeInterval: 0.5)
+        check(download.isRunning, "a download working in the prefix outlives the sweep")
+        check(!leftover.isRunning, "a Wine program left there doesn't")
+        download.terminate()
+        if leftover.isRunning { leftover.terminate() }
     }
 
     /// The real gogdl, when run.sh found it installed on this Mac: started the way Nightforge starts
@@ -660,6 +708,9 @@ struct GOGTest {
         _ = await third.library()
         check(failed == ["1999: Failed to get secure link"], "a stopped download says why: \(failed)")
         check(!fm.fileExists(atPath: GOGDL.log(for: "1999").path), "once: its log goes, so a new try isn't taken for this one")
+        let kept = (try? String(contentsOf: GOGDL.failedLog(for: "1999"), encoding: .utf8)) ?? ""
+        check(GOGDL.failureLines(inLog: kept) == ["[V2] ERROR: Failed to get secure link", "\(GOGDL.endMark)1"],
+              "but it's kept as 1999.failed.log for a problem report: \(GOGDL.failureLines(inLog: kept))")
         _ = await third.library()
         check(failed.count == 1, "and it isn't said again")
 
@@ -785,6 +836,9 @@ struct GOGTest {
         check(unplugged?.onUnpluggedDrive == true && unplugged?.sizeOnDisk == 50_000 && unplugged?.downloadSize == nil,
               "the game page says \"On <drive>\" with what it takes there, no download size")
         check(unplugged?.hasFolder == false, "and offers no folder to show")
+        if let unplugged {
+            check(ProblemReport.storeReference(unplugged) == "GOG 1207664663", "a problem report names store and ID, no Steam link with app ID 0")
+        }
 
         // Moved: the record follows, the game plays from its new place.
         let moved = GOGStore()
@@ -793,6 +847,58 @@ struct GOGTest {
         let back = await moved.library().first { $0.gameID == .gog("1207664663") }
         check(back?.install == .installed && back?.installDir == here && back?.missingDrive == nil, "after a move it's installed where it went")
         check(!fm.fileExists(atPath: goneFolder.path), "(the drive really isn't there)")
+
+        // A drive that's gone: its games leave Nightforge's list with gogdl's manifest and the support files, the
+        // Mac's stay (and so does everything in the Windows environment: saves).
+        let installed = gogFolder.appendingPathComponent("installed.json"), wantedFile = gogFolder.appendingPathComponent("downloads.json")
+        let macFolder = GOGDL.windowsGamesDir.appendingPathComponent("Mafia II", isDirectory: true)
+        let driveBase = "/Volumes/\(gone)/Nightforge Games/GOG Games"
+        func setUp() {
+            try? JSONEncoder().encode([
+                "111": GOGInstall(id: "111", path: URL(fileURLWithPath: driveBase + "/Gone One", isDirectory: true), platform: .windows,
+                                  build: "1", language: "en-US", size: 5),
+                "112": GOGInstall(id: "112", path: URL(fileURLWithPath: driveBase + "/Gone Two", isDirectory: true), platform: .mac,
+                                  build: "1", language: "en-US", size: 5),
+                "222": GOGInstall(id: "222", path: macFolder, platform: .windows, build: "1", language: "en-US", size: 5),
+            ]).write(to: installed)
+            try? JSONEncoder().encode([GOGJob(id: "333", platform: .windows, base: driveBase), GOGJob(id: "444", platform: .windows)]).write(to: wantedFile)
+            for id in ["111", "112", "222"] {
+                try? fm.createDirectory(at: GOGDL.manifest(for: id).deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? Data("m".utf8).write(to: GOGDL.manifest(for: id))
+                try? fm.createDirectory(at: GOGDL.supportDir(for: id), withIntermediateDirectories: true)
+                try? Data("s".utf8).write(to: GOGDL.supportDir(for: id).appendingPathComponent("setup.exe"))
+            }
+        }
+        func ids() -> [String] {
+            ((try? JSONDecoder().decode([String: GOGInstall].self, from: Data(contentsOf: installed))) ?? [:]).keys.sorted()
+        }
+        func jobs() -> [String] { ((try? JSONDecoder().decode([GOGJob].self, from: Data(contentsOf: wantedFile))) ?? []).map(\.id) }
+        let save = macFolder.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("users/save.dat")
+        try? fm.createDirectory(at: save.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("save".utf8).write(to: save)
+
+        setUp()
+        check(GOGStore().forgetDrive(gone, only: "222") == 0 && ids() == ["111", "112", "222"], "a game that isn't on the drive isn't forgotten")
+        check(GOGStore().forgetDrive(gone, only: "111") == 1, "one game forgotten")
+        check(ids() == ["112", "222"], "Nightforge's list without it: \(ids())")
+        check(!fm.fileExists(atPath: GOGDL.manifest(for: "111").path) && !fm.fileExists(atPath: GOGDL.supportDir(for: "111").path), "its manifest and support files go")
+        check(fm.fileExists(atPath: GOGDL.manifest(for: "112").path) && fm.fileExists(atPath: GOGDL.supportDir(for: "112").path), "the other game's stay")
+        check(jobs() == ["333", "444"], "downloads waiting are other games': \(jobs())")
+
+        setUp()
+        check(GOGStore().forgetDrive(gone) == 2, "the whole drive")
+        check(ids() == ["222"], "only the Mac's game is left: \(ids())")
+        check(jobs() == ["444"], "a download waiting for the drive is dropped, the one for the Mac stays: \(jobs())")
+        check(fm.fileExists(atPath: GOGDL.manifest(for: "222").path) && fm.fileExists(atPath: GOGDL.supportDir(for: "222").appendingPathComponent("setup.exe").path),
+              "the Mac game's manifest and support files stay")
+        check((try? String(contentsOf: save, encoding: .utf8)) == "save" && fm.fileExists(atPath: macFolder.deletingLastPathComponent().path),
+              "nothing in the Windows environment is touched, saves included")
+        check(GOGStore().forgetDrive(gone) == 0, "nothing is left to forget")
+        for id in ["111", "112", "222"] {
+            try? fm.removeItem(at: GOGDL.manifest(for: id))
+            try? fm.removeItem(at: GOGDL.supportDir(for: id))
+        }
+        try? fm.removeItem(at: wantedFile)
     }
 }
 

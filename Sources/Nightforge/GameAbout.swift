@@ -347,12 +347,21 @@ struct ScreenshotLightbox: View {
                     }
                 }
                 Spacer()
-                Text("\(index + 1) / \(lightbox.screenshots.count)")
-                    .font(size: 13, weight: .semibold).monospacedDigit()
-                    .foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(GlassBackground(glass: .regular, shape: Capsule()))
+                HStack(spacing: 22) {
+                    Text("\(index + 1) / \(lightbox.screenshots.count)")
+                        .font(size: 13, weight: .semibold).monospacedDigit()
+                        .foregroundStyle(Theme.muted)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(GlassBackground(glass: .regular, shape: Capsule()))
+                    // The hint bar is under the picture: what the pad does here, beside the count.
+                    if model.controllerConnected {
+                        if lightbox.screenshots.count > 1 {
+                            Hint(.pad(model.padSymbols.stick), text: L10n.t("Browse"))
+                        }
+                        Hint(.pad(model.padSymbols.back), text: L10n.t("Close"))
+                    }
+                }
             }
             .padding(.top, 30)
             .padding(.trailing, 36)

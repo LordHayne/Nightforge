@@ -487,10 +487,14 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     }
 
     /// A download gogdl has ended: done – the game is recorded – or stopped, with its reason. Its
-    /// log goes: what comes next for the game (the Windows version, a new try) writes its own.
+    /// log goes: what comes next for the game (the Windows version, a new try) writes its own. One
+    /// that stopped is kept as <id>.failed.log for a problem report, until a download finishes.
     private func ended(_ job: GOGJob, progress: GOGDL.Progress) {
         wanted.removeAll { $0.id == job.id }
-        try? FileManager.default.removeItem(at: GOGDL.log(for: job.id))
+        let fm = FileManager.default
+        try? fm.removeItem(at: GOGDL.failedLog(for: job.id))
+        if !progress.finished { try? fm.moveItem(at: GOGDL.log(for: job.id), to: GOGDL.failedLog(for: job.id)) }
+        try? fm.removeItem(at: GOGDL.log(for: job.id))
         guard progress.finished else {
             save(wanted, to: Self.wantedFile)
             downloadFailed(title(of: job.id), progress.failure ?? L10n.t("gogdl stopped (code %d)", progress.exitCode ?? -1))
@@ -587,6 +591,33 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// The folders GOG games may lie in: the Mac's two, and the one on the drive `folder` is on.
     nonisolated static func gamesFolders(of folder: URL) -> [URL] {
         [GOGDL.windowsGamesDir, GOGDL.macGamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.gog(on: $0)] } ?? [])
+    }
+
+    // MARK: - A drive that's gone
+
+    /// Nightforge's list of GOG installs without the games on a drive that isn't plugged in (or just `id`'s),
+    /// gogdl's manifest and the support files of each (all in Nightforge's own folder, never the Windows
+    /// environment), and the downloads waiting for that drive. Returns how many installs went.
+    @discardableResult
+    func forgetDrive(_ name: String, only id: String? = nil) -> Int {
+        loadFromDisk()
+        let (kept, removed) = ForgetDrive.gog(installs, drive: name, id: id, bottle: Engine.bottle)
+        if !removed.isEmpty {
+            installs = kept
+            save(installs, to: Self.installedFile)
+            for install in removed {
+                try? FileManager.default.removeItem(at: GOGDL.manifest(for: install.id))
+                try? FileManager.default.removeItem(at: GOGDL.supportDir(for: install.id))
+            }
+        }
+        let waiting = wanted.filter { job in
+            (id == nil || job.id == id) && job.base.map { ForgetDrive.isOn($0, drive: name, bottle: Engine.bottle) } == true
+        }
+        if !waiting.isEmpty {
+            wanted.removeAll { job in waiting.contains(job) }
+            save(wanted, to: Self.wantedFile)
+        }
+        return removed.count
     }
 
     // MARK: - Moving
