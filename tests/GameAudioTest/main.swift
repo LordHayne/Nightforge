@@ -140,6 +140,10 @@ struct GameAudioTest {
             check(TVSettings.soundOnTV("LG TV SSCR2", in: defaults) == true, "another TV keeps its own")
             TVSettings.setSoundOnTV(true, for: key, in: defaults)
             check(TVSettings.soundOnTV(key, in: defaults) == true, "changed back: kept so")
+            check(TVSettings.fullScreen(key, in: defaults) == nil, "full screen on it: nothing kept yet")
+            TVSettings.setFullScreen(true, for: key, in: defaults)
+            check(TVSettings.fullScreen(key, in: defaults) == true && TVSettings.soundOnTV(key, in: defaults) == true,
+                  "full screen kept beside its sound")
             defaults.removePersistentDomain(forName: suite)
         } else {
             check(false, "a defaults suite of its own")

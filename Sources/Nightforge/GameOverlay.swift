@@ -29,13 +29,15 @@ enum GameOverlay {
     struct Actions {
         /// Ends the game's processes (`GameProcesses.end`), off the main thread.
         var quit: () async -> Void
-        /// Nightforge in front, the game left running behind it.
-        var nightforge: () -> Void
+        /// Nightforge in front, the game left running behind it; done once it's there or can't be.
+        var nightforge: () async -> Void
     }
 
     private static let state = State()
     private static var panel: NSPanel?
     private static var actions: Actions?
+    /// On the way to Nightforge: the panel stays until it's there, and takes no more presses.
+    private static var leaving = false
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
@@ -66,7 +68,19 @@ enum GameOverlay {
         panel.orderFrontRegardless()
         panel.makeKey()
         focusDefault()
+        heard = false
+        GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front")
     }
+
+    /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
+    /// 1.11. (Black Myth: Wukong), and wine.log tells whether they reached Nightforge at all.
+    static func padHeard() {
+        guard isOpen, !heard else { return }
+        heard = true
+        GameLog.note("Overlay: the pad reaches Nightforge (\(state.step))")
+    }
+
+    private static var heard = false
 
     /// B: from the question back to the choice, from the choice back to the game.
     static func back() { handle(.back) }
@@ -77,12 +91,14 @@ enum GameOverlay {
     static func toNightforge() { handle(.nightforge) }
 
     private static func handle(_ event: OverlayEvent) {
+        guard !leaving else { return }
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
         case .none:
             break
         case .close:
+            InputRouter.hidePointerForGame()  // while the panel still has the keys
             close()
         case .quit:
             // One curtain from here until Nightforge is in front: the panel goes at once, the
@@ -92,11 +108,17 @@ enum GameOverlay {
             close()
             Task { await actions.quit() }
         case .nightforge:
-            // Nightforge in front first, then the panel goes: gone first, macOS gave the front to
-            // the next app with a window on the Space shown, and the game stayed behind it.
-            let actions = self.actions
-            actions?.nightforge()
-            close()
+            // The game runs again first: stopped, Wine can neither hand over the front nor hide.
+            // Then Nightforge in front (LibraryModel.leaveGame), then the panel goes: the game
+            // doesn't show in between.
+            guard let actions else { return }
+            cont()
+            leaving = true
+            Task {
+                await actions.nightforge()
+                leaving = false
+                close()
+            }
         }
     }
 
@@ -465,6 +487,52 @@ enum GameProcesses {
         }
     }
 
+    /// A window of the game's that waits for an answer – a driver warning, an EULA, a launcher's
+    /// question (Black Myth: Wukong's driver warning, about 380 × 330, lay under the curtain on
+    /// 1.11.): on the Space shown, smaller than a picture (`showsWindow`) but more than a sliver, a
+    /// window up to a modal panel's level – Wine lifts a topmost one (that warning, seen over
+    /// Nightforge's page) to the floating level; menus lie higher. Its number, the frontmost first.
+    /// Its title, which would tell it from a splash, can't be read without Screen Recording.
+    nonisolated static func question(_ windows: [[String: Any]], pids: Set<pid_t>) -> Int? {
+        let asking = windows.first { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  (0...Int(CGWindowLevelForKey(.modalPanelWindow))).contains((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return false }
+            return width >= 200 && height >= 100 && !(width >= 640 && height >= 360)
+        }
+        return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    nonisolated static func question(_ pids: Set<pid_t>) -> Int? {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        return question(windows, pids: pids)
+    }
+
+    /// The game's windows as the curtain sees them, for wine.log: "380×332 L3, 1512×982 L0, 2 hidden".
+    nonisolated static func windowList(_ pids: Set<pid_t>) -> String {
+        guard !pids.isEmpty,
+              let all = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+              let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return "none" }
+        func number(_ window: [String: Any]) -> Int { (window[kCGWindowNumber as String] as? NSNumber)?.intValue ?? 0 }
+        let onScreen = Set(shown.map(number))
+        let mine = all.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false }
+        let listed = mine.filter { onScreen.contains(number($0)) }.compactMap { window -> String? in
+            guard let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.intValue, let height = (bounds["Height"] as? NSNumber)?.intValue
+            else { return nil }
+            let alpha = (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            return "\(width)×\(height) L\((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)" + (alpha > 0 ? "" : " clear")
+        }
+        let hidden = mine.count - listed.count
+        let parts = listed + (hidden > 0 ? ["\(hidden) hidden"] : [])
+        return parts.isEmpty ? "none" : parts.joined(separator: ", ")
+    }
+
     /// On the Space shown, or (`anySpace`) wherever it is: a game's window opens in its own Space
     /// or the desktop's while Nightforge's full screen is shown, and only the list of all windows
     /// has it then.
@@ -473,6 +541,20 @@ enum GameProcesses {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
         else { return false }
         return showsWindow(windows, pids: pids)
+    }
+
+    /// The biggest window of `pids` on the Space shown, for wine.log ("1512×945").
+    nonisolated static func windowSize(_ pids: Set<pid_t>) -> String? {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        let sizes = windows.compactMap { window -> CGSize? in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return nil }
+            return CGSize(width: width, height: height)
+        }
+        return sizes.max { $0.width * $0.height < $1.width * $1.height }.map { "\(Int($0.width))×\(Int($0.height))" }
     }
 
     /// A display taken by a game for a mode change: its shield window lies above every other.

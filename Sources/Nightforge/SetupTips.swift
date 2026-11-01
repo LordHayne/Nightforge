@@ -18,9 +18,13 @@ struct SetupTip: Identifiable {
             SetupTip(id: "geforce-now", symbol: "cloud", title: L10n.t("Anti-cheat? Then through GeForce Now")) { _ in
                 L10n.t("Games whose anti-cheat needs Windows itself stream through GeForce Now – with your copy from Steam.")
             },
-            SetupTip(id: "menu-button", symbol: "gamecontroller", title: L10n.t("The menu button switches the view")) { playstation in
-                playstation ? L10n.t("Options goes between Home and the library, △ opens a game's options, ○ goes back.")
-                    : L10n.t("Menu goes between Home and the library, Y opens a game's options, B goes back.")
+            SetupTip(id: "menu-button", symbol: "gamecontroller", title: L10n.t("Your controller in Nightforge")) { playstation in
+                playstation ? L10n.t("The Options button opens a game's options, △ searches, L1 and R1 go to Home and the library, ○ goes back one step. Every button: Settings › Controller.")
+                    : L10n.t("The Menu button opens a game's options, Y searches, LB and RB go to Home and the library, B goes back one step. Every button: Settings › Controller.")
+            },
+            SetupTip(id: "overlay", symbol: "pause.circle", title: L10n.t("Nightforge's menu in a game")) { playstation in
+                L10n.t("Hold %@ – both sticks pressed – for 2 seconds: continue, quit the game (also one that hangs) or go to Nightforge.",
+                       LaunchTip.chord(playstation ? .playstation : .xbox))
             },
             SetupTip(id: "trackpad", symbol: "hand.draw", title: L10n.t("Swipe and pinch")) { _ in
                 L10n.t("Two fingers sideways go back. In the library, two fingers apart or together make the covers bigger or smaller.")

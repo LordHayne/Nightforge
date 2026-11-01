@@ -414,6 +414,21 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       - „Spiel beenden“ im Overlay galt bei Sonic als Fehlstart. Jetzt merkt sich LaunchHealth das Beenden durch den
         Spieler (`playerQuit`): Der Startablauf, Steams Log beim nächsten Start (`review`) und der Rückfall von der
         Mac- auf die Windows-Version lernen daraus nichts, egal nach wie vielen Sekunden und mit welchem Exit-Code.
+    - Test am Monitor (ASUS MG278, 2560×1440, Deckel zu, Testbuild baff1f5) und behoben:
+      - Einmal Fenster, nach erneutem Anstecken Vollbild: Nightforge macht einen Monitor nie selbst zum Vollbild.
+        Wahrscheinlich griffen zwei Umschaltungen ineinander (`place` und `leaveFullScreenOffTV` bei derselben
+        Bildschirm-Meldung; die zweite sah das Fenster noch auf dem Weg hinaus und schaltete wieder hinein). Jetzt
+        läuft jedes Umschalten über `setFullScreen`, das eine laufende Umschaltung abwartet.
+      - Entscheidung des Nutzers: Ein Monitor kommt beim ersten Mal ins Fenster. Danach gilt pro Bildschirm, wie der
+        Spieler es dort zuletzt hatte (grüner Knopf, ⌃⌘F; `TVSettings.fullScreen`, gleiche Ablage wie der Ton). Ein
+        TV startet im Vollbild, solange nichts anderes gemerkt ist.
+      - Mafia II im Fenster oben links: `videoconfig.cfg` stand noch auf 1920×1080 vom TV. Das Profilfeld passte nur
+        Größen an, die der Bildschirm nicht hat. Wine stellte den Modus auf 1920×1080 um (4 Bildschirmwechsel unter
+        dem Vorhang in `wine.log`) und gab ihn zurück, als das Spiel die Front verlor. Jetzt bekommt ein Spiel im
+        Vollbild immer die Größe des Bildschirms, auf dem es startet. Ein Fenster bleibt ein Fenster.
+      - Warum die Claude-App dabei vorne stand, ist offen; ein erneutes Hochgehen des Vorhangs steht nicht im Log.
+        `handFocus` aktiviert Nightforge jetzt ohne Launch Services, dessen Aktivierung nach der Übergabe kommen
+        und dem Spiel die Front nehmen konnte.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.
@@ -455,6 +470,138 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Receiver, gilt das. Was macOS in den 3 s nach einem Anstecken selbst umstellt, zählt nicht als Wahl.
       Für das Vorhang-Flackern nach dem Wiederanstecken stehen jetzt in `wine.log` die Bildschirmwechsel unter dem
       Vorhang und jede Umstellung des Hauptbildschirms.
+    - Befund 1.11. mit Video (Mafia II am ASUS, Spiel beenden): Für etwa ein Bild Nightforges Startseite vor dem
+      Vorhang, dann wieder Vorhang, dann die Spielseite. Mit 15 Bildern pro Sekunde sieht man das Gleiten eines
+      Space-Wechsels: Der Vorhang glitt mit dem Space des Spiels hinaus, Nightforges Vollbild-Space mit der alten
+      Seite herein. Die Ebene war es nicht (der Vorhang lag schon auf `screenSaver − 1`). Ein normales Fenster darf
+      nicht in die Vollbild-Spaces anderer Apps. Jetzt ist der Vorhang ein nicht aktivierendes Panel mit
+      `.canJoinAllApplications`, das nie Key wird. Auf dem Rückweg ist die Seite fertig (300 ms), bevor Nightforge
+      nach vorne kommt, und der Vorhang geht erst, wenn das Fenster auf genau dieser Seite steht
+      (`mayUncover`, nach 3 s ohnehin). Live-Test 1.11. abends (Overcooked 2, MacBook, zwei Videos): Der Vorhang
+      gleitet trotzdem mit, sobald zwischen Nightforges Vollbild-Space und dem Schreibtisch-Space des Spiels
+      gewechselt wird; dabei ist Nightforges Seite zu sehen. `.canJoinAllApplications` und `.stationary` halten ihn
+      nicht. Ursache ist der eigene Vollbild-Space von Nightforge: Das Spiel liegt in einem anderen Space (dem
+      Schreibtisch oder einem eigenen), also gleitet jede Übergabe. Vorschlag: Nightforges Vollbild ohne
+      eigenen Space (randloses Fenster über den ganzen Bildschirm, Menüleiste und Dock per presentationOptions aus,
+      solange Nightforge vorne ist), dann liegen Nightforge, Vorhang und Spiel im selben Space. `CaptureDisplaysFor
+      Fullscreen` (winecx kennt es) löst das nicht: Die Aktivierung wechselt den Space trotzdem, und die Abschirmung
+      läge über Overlay und Vorhang. Die 10-s-Grenze aus e6aa24e ist wieder weg: Sie deckte Nightforges Seite auf,
+      wenn das Fenster des Spiels in einem anderen Space lag. In `wine.log` stehen jetzt, wer unter dem Vorhang nach
+      vorne kommt, jeder Space-Wechsel unter ihm und beim Senken die Front und die Fenstergröße des Spiels.
+      Overlay „Zu Nightforge“ ohne Wirkung: Das Spiel war dabei noch angehalten (SIGSTOP); es läuft jetzt zuerst
+      weiter, bleibt die Front trotzdem beim Spiel, steht es in `wine.log`.
+      Entscheidung des Nutzers 1.11.: Vollbild ohne eigenen Space (`FullScreen.swift`). Das Fenster liegt über dem
+      ganzen Bildschirm, Menüleiste und Dock sind per presentationOptions automatisch ausgeblendet, solange
+      Nightforge vorne ist (sie kommen mit der Maus am Rand). Der grüne Knopf (umgeleitet), ⌃⌘F (Darstellung ›
+      Vollbild, macOS' eigener Eintrag ist aus) und Esc ohne Zurück schalten es. Das Merken pro Bildschirm bleibt.
+      Ein Bildschirmwechsel setzt das Fenster auf die neue Größe; beim Beenden geht es ins Fenster zurück. Live zu
+      prüfen: kein Gleiten bei Start und Ende eines Windows-Spiels, ⌘-Tab weg und zurück (Menüleiste und Dock
+      wieder aus), Anstecken/Abstecken/Deckel, die Menüleiste am oberen Rand, der Titelbereich ohne Knöpfe.
+      Mauszeiger im Spiel: Nur die App vorne kann ihn ausblenden, aber `setHiddenUntilMouseMoves` hält über den
+      Wechsel hinaus (Beobachtung des Nutzers). Nightforge ruft es jetzt auf, solange es oder das Overlay noch
+      vorne ist (beim Übergeben ans Spiel, beim Schließen des Overlays), wenn zuletzt das Pad benutzt wurde
+      (`PadRules.padUsedLast`: in der letzten Minute, Maus seither nicht bewegt). Mitten im Spiel ginge es nur
+      über eine private Schnittstelle (CGS „SetsCursorInBackground“) oder indem man die Maus verschiebt, was das
+      Spiel als Mausbewegung sieht.
+      Live-Test 794b3e4 (1.11. 20:06, MacBook 14", Overcooked 2): kein Gleiten mehr, rein wie raus; Tippzeile da;
+      Zeiger in Nightforge weg. Drei Fehler, alle zuerst mit eigenen AppKit-Proben auf dem MacBook nachgestellt:
+      1) Vollbild mit Menüleiste, Fenster erst darunter, runde Ecken: Ein Fenster mit Titelleiste drückt macOS
+         auf 1512×950 unter den Notch-Streifen, und `.autoHideMenuBar` blendet die Leiste hier nicht aus, weder
+         ohne noch nach einem Zeiger-Warp (`menuBarVisible()` sagt trotzdem nein). Jetzt: im Vollbild ohne
+         `.titled` (randlos, keine Ecken, ganzer Bildschirm), Menüleiste und Dock per `.hideMenuBar/.hideDock`
+         aus. Die Leiste kommt, wenn der Zeiger oben anstößt (`FullScreen.menuBarShown`, dann nur
+         `.autoHideDock`), und geht, wenn er sie verlässt und kein Menü offen ist. Der Inhalt bleibt unter der
+         Notch (`additionalSafeAreaInsets`), daneben die Nacht der Seite. SwiftUIs Fensterklasse lässt sich
+         randlos nicht Key machen; ihre `canBecomeKey/Main`-Antwort ist für Nightforges Fenster erweitert
+         (eine eigene Unterklasse per `object_setClass` brachte SwiftUIs KVO zum Absturz). Nach dem Zurück sind
+         die Fensterknöpfe neue, der grüne wird wieder umgeleitet.
+      2) „Zurück zu Nightforge“ ohne Wirkung: Solange das Overlay-Panel die Tasten hat, meldet `NSApp.isActive`
+         ja, obwohl das Spiel vorne ist (Probe: lsappinfo und NSWorkspace sagen „Spiel“). `comeForward()` stieg
+         deshalb aus, Nightforge hat nie gefragt. Jetzt `NSApp.isFrontmost`; `leaveGame` holt Nightforges Fenster
+         vor und bittet um die Front. Behält das Spiel sie 0,5 s, wird es ausgeblendet (`hide`), und macOS gibt
+         die Front der App davor; landet sie bei einer dritten, kommt das Spiel wieder. Das Overlay bleibt bis
+         dahin stehen. „Zum Spiel wechseln“ blendet es wieder ein (`handFocus`). Probe: Ausblenden + Einblenden +
+         Übergabe zurück klappt; ausgeblendet gibt macOS die Front der App, die vor dem Spiel vorne war.
+      3) Zeiger im Ladebildschirm und im Spiel: Probe mit Bildschirmfoto samt Zeiger, Maus ruhig. Er geht nur
+         weg, wenn ein Nightforge-Panel die Tasten hat, unter dem Zeiger liegt, Mausereignisse annimmt und ~50 ms
+         Zeit hat; dann bleibt er über dem Spiel weg. Ein 1-pt-Panel, ein Panel, durch das die Maus fällt (wie
+         der Vorhang), ohne Tasten oder ohne Warten: Er blieb. Jetzt `InputRouter.hidePointerOverGame` (fast
+         durchsichtiges Panel über dem Bildschirm des Zeigers, 50 ms Tasten), unter dem Vorhang, sobald das Spiel
+         1 s vorne ist, je Mal, dass es nach vorne kommt (vor dem Senken). Beim Hochgehen ist Nightforge noch
+         vorne und blendet direkt aus.
+      Live zu prüfen: Vollbild-Bild (keine Leiste, keine Ecken, an der Notch nur ein Streifen Nacht), Leiste bei
+      Maus oben und wieder weg, ⌘-Tab zurück, Esc/⌃⌘F/Menü, Tasten und Suchfeld im Vollbild; „Zurück zu
+      Nightforge“ (zeigt Nightforge, „Zum Spiel wechseln“ bringt das Spiel samt Bild zurück; was `wine.log` dazu
+      sagt); Zeiger im Ladebildschirm und im Spiel weg, das Spiel ohne Stocken durch die 50 ms.
+      Live-Test 3463b89 (1.11. 21:28): Vollbild, ⌘F, „Zurück zu Nightforge“ (ohne Ausblenden) und der Zeiger beim
+      Start bestätigt. Der Zeiger kam noch zurück nach „Zum Spiel wechseln“ und auf dem Rückweg (Overlay ›
+      Beenden, ebenso jedes normale Spielende: derselbe Vorhang und `comeBack`) bis in Nightforge. Jedes Wechseln
+      der App vorne bringt ihn zurück. Jetzt `InputRouter.hidePointerSoon` (300 ms danach, über Nightforge direkt,
+      über einer anderen App mit dem Panel): nach `handFocus` und `bringToFront` ohne Vorhang, bei jeder App,
+      die unter dem Rückweg-Vorhang nach vorne kommt, wenn der Vorhang geht, und nach „Zurück zu Nightforge“.
+      Live-Test Wukong-Benchmark (1.11. 21:42–22:05, D3DMetal): 1) Unreals Treiber-Warnung (eigenes Fenster des
+      Spiels, ~380×330, Ja/Nein) lag unter dem Vorhang. Sie zählte nicht als Fenster des Spiels (ab 640×360), also
+      bekam das Spiel nie die Front. Jetzt `GameProcesses.question`: ein normales Fenster des Spiels auf dem
+      gezeigten Space, ab 200×100 und kleiner als ein Bild. Das Spiel bekommt die Front, der Vorhang geht
+      direkt darunter (`GameBackdrop.makeWay`, normale Fensterebene, fängt Klicks daneben ab), der Zeiger kommt
+      zurück, die Statuszeile sagt „Das Spiel fragt etwas – antworte mit Maus oder Trackpad.“, keine
+      „startet nicht?“-Frage darüber. Beantwortet und noch kein Bild: Vorhang wieder über alles. Probe (Stand-ins):
+      Frage gefunden, auf dem Vorhang sichtbar, Spiel vorne, Zeiger da; danach deckt der Vorhang wieder alles.
+      Den Titel kann Nightforge ohne Bildschirmaufnahme nicht lesen, ein Splash ohne Titel gilt also auch als
+      Frage (dann steht er auf dem Vorhang, mit Zeiger). Solange die Frage steht, sind Menüleiste und Dock des
+      Spiels über dem Vorhang zu sehen. 2) „startet nicht?“ nahm keine Pad-Tasten: Im Code kennt InputRouter die
+      Frage (`reach` = .overlay, A geht an das Panel, Steuerkreuz an PadFocus darin), D3DMetal und winecx binden
+      GameController nicht ein. Ursache offen; `wine.log` sagt jetzt, wer beim Öffnen des Overlays vorne ist und
+      ob das Pad Nightforge danach erreicht („Overlay: the pad reaches Nightforge“).
+      Live-Test 2770d2e (22:51): Pad im Overlay geht. Die Warnung kam wieder nicht auf den Vorhang, ohne eine
+      Zeile des Vorhangs dazu. Nach „Zu Nightforge“ lag sie über Nightforges Seite, obwohl Nightforge vorne war.
+      Das kann nur ein Fenster auf höherer Ebene: Wine hebt topmost-Fenster auf die Floating-Ebene (Layer 3), und
+      `question` nahm nur Layer 0. Jetzt Layer 0 bis Modal-Panel (8); Menüs (101) nicht. Offen bleibt, warum
+      unter dem Vorhang nicht einmal „In front under the curtain: Nightforge Game“ stand. Dafür schreibt der
+      Wächter jetzt seinen Beginn, jedes Ende mit Grund und bei jeder Änderung eine Zeile „Curtain look at …“
+      (Prozesse, wer vorne ist mit PID und ob das Spiel, die Fenster des Spiels mit Größe und Layer, Bild,
+      asks, Vorhang). „In front under the curtain“ nennt die PID, weil Steams Wine und das Spiel beide
+      „Nightforge Game“ heißen.
+      Offen nach 0.3.0 (Entscheidung des Nutzers 1.11. abends: „kleine Anzeigefehler in weiteren Releases“),
+      Stand der Analyse am Code, nichts davon gebaut:
+      - Steam-Frage beim Start (Wukong 22:51, console_log: „waiting for user response to ShowInterstitials“):
+        Wartet Steam ≥ 3 s, setzt Nightforge `launchNeedsConfirmation` und öffnet Steams Hauptfenster selbst
+        (`showSteamWindow`, steam.exe ohne -silent; ebenso bei „Steam will die Anmeldung erneut“). Der
+        Vorhang-Wächter senkt dann den Vorhang und endet (`end("Steam asks something")`). Antwortet Steam
+        (`.continued`), hebt ihn niemand wieder: Der Rest des Starts läuft ohne Vorhang und ohne Wächter. Das
+        erklärt die fehlenden Vorhang-Zeilen und die nicht behandelte Treiber-Warnung in diesem Lauf. Steams
+        Hauptfenster bleibt offen und kommt nach dem Spielende vor Nightforges Vorhang nach vorne. Ohne
+        Steam-Frage öffnet Nightforge das Fenster nie (Steam läuft mit -silent), dann tritt das nicht auf.
+        Zu bauen: nach `.continued` den Vorhang samt Wächter wieder hoch; Steams Fenster wieder ausblenden,
+        sobald die Frage beantwortet ist (z. B. `hide()` der Steam-App, nicht beenden); beim Spielende den
+        Vorhang vor jedem anderen Fenster (Steam meldet „Game process removed“ in console_log, früher als
+        die Prozessliste). Mit Probe belegen.
+      - Zeiger bei Overcooked 2 mit 53b3346 im Ladebildschirm und im Spiel sichtbar, die Zeile „Curtain under a
+        window … asks something“ fehlt. 2770d2e hat das Verstecken nur dort ausgesetzt, wo das Spiel ein
+        kleines Fenster zeigt (`asks`) oder der Vorhang unter einer Frage liegt (`madeWay`). Ohne die Zeile
+        war `madeWay` nie gesetzt; `asks` hätte nur kurz greifen können, solange das Spiel nicht vorne war.
+        Wahrscheinlicher: `PadRules.padUsedLast` gilt nur 60 s nach dem letzten Pad-Druck. Ein längerer Start
+        (Steam neu, Shader) überschreitet das, dann versteckt Nightforge nichts. Prüfen mit den neuen
+        „Curtain look at“-Zeilen; ggf. die 60 s ab dem Start zählen, nicht ab dem letzten Druck.
+      - Pad bei „startet nicht?“: Ursache offen, Log-Zeilen sind da (siehe oben).
+    - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
+      Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
+      (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
+      Nacht in einem Viertel der Bildschirmgröße (nur Verläufe). Darunter NIGHTFORGE und der Spielname in
+      gesperrten blauen Großbuchstaben; das schwache Spielbild ist weg. Bewegung: Ein Licht läuft an der Naht
+      entlang (kleiner Kreis, verschoben, mit der Naht als Maske), mit „Bewegung reduzieren“ atmet die Naht nur.
+      Die Statuszeile nennt von Anfang an den echten Schritt (`launchPhase`, „Shader werden beim ersten Start
+      vorbereitet …“, „Warte auf das erste Bild …“) und blendet über; die Begründung kommt wie bisher nach 3 s.
+      Offen: Die frische Wine-Sitzung nach einem Bildschirmwechsel läuft vor dem Vorhang (der Play-Knopf sagt
+      „Steam wird gestartet …“). Den Vorhang früher hochzuziehen würde ein Anmeldefenster von Steam verdecken.
+      Beim Zurück steht kein Cloud-Abgleich: Epic/GOG laden danach im Hintergrund hoch (die Spielseite zeigt es),
+      Steam meldet nichts.
+    - Befund 1.11. (Overwatch, Steam, Stick): `Overwatch.exe` lief ohne Fenster bei 0 % CPU. „Zum Spiel wechseln“
+      holte Steams Shop nach vorn, L3+R3 ging nicht, weil Nightforge vorne war (`reach == .app`); beenden ging
+      nur von Hand. Offen: Ein laufendes Spiel muss mit dem Pad immer zu beenden sein (L3+R3 auch aus Nightforge
+      oder „Spiel beenden“ auf der Spielseite und im ☰-Menü, mit Rückfrage). „Zum Spiel wechseln“ zeigt nie
+      Steams Fenster; ohne Fenster sagt Nightforge, dass das Spiel läuft, aber noch kein Bild zeigt, und bietet
+      Warten oder Beenden an.
 
 ## Anti-Cheat und GeForce Now
 

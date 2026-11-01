@@ -122,6 +122,15 @@ struct LibraryFiltersTest {
         let layout = GridLayout(sections: named.map(\.items), columns: 3)
         check(layout.rows == [[0, 1, 2], [3, 4, 6], [5]], "rows follow the groups: \(layout.rows)")
 
+        // "Clear filters" in the row: there while something narrows or a search runs; the order stays.
+        check(!LibraryFilters.clearable(LibraryFilters(), search: ""), "nothing narrows: no Clear filters")
+        check(!LibraryFilters.clearable(LibraryFilters(sort: .size), search: ""), "an order isn't a filter")
+        check(LibraryFilters.clearable(LibraryFilters(store: .gog), search: ""), "one store: Clear filters")
+        check(LibraryFilters.clearable(LibraryFilters(on: [.couch]), search: ""), "a filter on: Clear filters")
+        check(LibraryFilters.clearable(LibraryFilters(), search: "witcher"), "a search: Clear filters")
+        check(LibraryFilters(store: .epic, on: [.mac, .great], sort: .name).cleared == LibraryFilters(sort: .name),
+              "clearing takes store and filters back to the start, the order stays")
+
         print(failures == 0 ? "✓ LibraryFilters" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

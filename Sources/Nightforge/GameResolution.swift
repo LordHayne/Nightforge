@@ -37,14 +37,6 @@ enum GameResolution {
                         pixels: Size(width: mode.pixelWidth, height: mode.pixelHeight), retina: retina)
     }
 
-    /// The sizes the main display can show, as Wine lists them: what a game may change the screen to.
-    static func mainScreenModes(retina: Bool) -> Set<Size> {
-        let options = [kCGDisplayShowDuplicateLowResolutionModes: kCFBooleanTrue] as CFDictionary
-        guard let modes = CGDisplayCopyAllDisplayModes(CGDisplayPrimaryDisplay(CGMainDisplayID()), options) as? [CGDisplayMode]
-        else { return [] }
-        return Set(modes.map { retina ? Size(width: $0.pixelWidth, height: $0.pixelHeight) : Size(width: $0.width, height: $0.height) })
-    }
-
     /// Before a Windows game starts on Nightforge's engine. `retina`: Wine's Retina mode for it.
     /// Never while the game runs: Wine holds the registry then, and the game writes its own
     /// settings back when it ends.
@@ -69,7 +61,7 @@ enum GameResolution {
             let file = base.appendingPathComponent(saved.path).standardizedFileURL
             if file.path.hasPrefix(base.standardizedFileURL.path + "/"),
                let text = try? String(contentsOf: file, encoding: .utf8),
-               let fitted = savedFitted(text, saved, size: size, modes: mainScreenModes(retina: retina)),
+               let fitted = savedFitted(text, saved, size: size),
                (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil {
                 notes.append("\(file.lastPathComponent): \(size)")
             }
@@ -222,17 +214,18 @@ enum GameResolution {
 
     // MARK: - A profile's own format
 
-    /// A game's own resolution file (`GameProfile.resolution`) set to `size`: only when it's set to
-    /// full screen at a size the screen doesn't have (`modes`) – there the game can't get its mode
-    /// ("Failed to change display mode") or ends up in a corner. A window, or a size the screen
-    /// has, stays as the player chose. Nil when nothing changes.
-    static func savedFitted(_ text: String, _ saved: GameProfile.SavedResolution, size: Size, modes: Set<Size>) -> String? {
+    /// A game's own resolution file (`GameProfile.resolution`) set to `size` when it's set to full
+    /// screen at another size: one the screen lacks the game can't get ("Failed to change display
+    /// mode"), and one it has Wine gives back as soon as the game loses the front – Mafia II at
+    /// 1920×1080 sat in the corner of a 2560×1440 monitor on 1.11. A window stays as the player
+    /// chose. Nil when nothing changes.
+    static func savedFitted(_ text: String, _ saved: GameProfile.SavedResolution, size: Size) -> String? {
         guard size.width > 0, size.height > 0 else { return nil }
         let on = Set((saved.fullscreenOn ?? ["1"]).map { $0.lowercased() })
         func needs(width: String?, height: String?, fullscreen: String?) -> Bool {
             guard let width = width.flatMap(Int.init), let height = height.flatMap(Int.init) else { return false }
             let stored = Size(width: width, height: height)
-            return (fullscreen.map { on.contains($0.lowercased()) } ?? true) && stored != size && !modes.contains(stored)
+            return (fullscreen.map { on.contains($0.lowercased()) } ?? true) && stored != size
         }
         if let fields = saved.fields {
             // The first line with values; the line end it had stays.

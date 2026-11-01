@@ -32,16 +32,9 @@ enum Theme {
 }
 
 /// The N beside the name in the top bar: the app icon's three pieces in brushed silver, with the
-/// blue light seam along the slab (scripts/render-brand.swift draws the big one). Bigger, on the
-/// loading screen (GameBackdrop), the seam is wider and glows further.
+/// blue light seam along the slab. BrandArt draws the big one, in brushed metal (the loading
+/// screen, GameBackdrop; the app icon).
 struct NightforgeMark: View {
-    var seamWidth: CGFloat = 1
-    var seamGlow: CGFloat = 2
-    /// The seam's light alone, so it can pulse without the pieces being drawn again.
-    var seamOpacity: Double = 1
-    /// How a change of `seamOpacity` goes – for the seam only.
-    var seamAnimation: Animation?
-
     static let seamColor = Color(red: 0.18, green: 0.48, blue: 1)
 
     var body: some View {
@@ -49,31 +42,22 @@ struct NightforgeMark: View {
             NightforgeMarkShape()
                 .fill(LinearGradient(colors: [Theme.ink, Theme.muted], startPoint: .top, endPoint: .bottom))
             NightforgeMarkShape.Seam()
-                .stroke(Self.seamColor, style: StrokeStyle(lineWidth: seamWidth, lineCap: .round))
-                .shadow(color: Self.seamColor.opacity(0.8), radius: seamGlow)
-                .opacity(seamOpacity)
-                .animation(seamAnimation, value: seamOpacity)
+                .stroke(Self.seamColor, style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                .shadow(color: Self.seamColor.opacity(0.8), radius: 2)
         }
-        .aspectRatio(332 / 440, contentMode: .fit)
+        .aspectRatio(BrandArt.glyphSize.width / BrandArt.glyphSize.height, contentMode: .fit)
         .accessibilityHidden(true)
     }
 }
 
 private struct NightforgeMarkShape: Shape {
-    /// In a 332 × 440 box, origin top left.
-    private static let pieces: [[CGPoint]] = [
-        [CGPoint(x: 0, y: 0), CGPoint(x: 332, y: 308), CGPoint(x: 332, y: 440), CGPoint(x: 49, y: 170), CGPoint(x: 0, y: 128)],
-        [CGPoint(x: 0, y: 170), CGPoint(x: 82, y: 236), CGPoint(x: 82, y: 338), CGPoint(x: 0, y: 432)],
-        [CGPoint(x: 249, y: 100), CGPoint(x: 332, y: 24), CGPoint(x: 332, y: 280), CGPoint(x: 249, y: 204)],
-    ]
-
     static func point(_ p: CGPoint, in rect: CGRect) -> CGPoint {
-        CGPoint(x: rect.minX + p.x / 332 * rect.width, y: rect.minY + p.y / 440 * rect.height)
+        CGPoint(x: rect.minX + p.x / BrandArt.glyphSize.width * rect.width, y: rect.minY + p.y / BrandArt.glyphSize.height * rect.height)
     }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        for piece in Self.pieces {
+        for piece in BrandArt.pieces {
             path.addLines(piece.map { Self.point($0, in: rect) })
             path.closeSubpath()
         }
@@ -84,8 +68,8 @@ private struct NightforgeMarkShape: Shape {
     struct Seam: Shape {
         func path(in rect: CGRect) -> Path {
             var path = Path()
-            path.move(to: NightforgeMarkShape.point(CGPoint(x: 49, y: 170), in: rect))
-            path.addLine(to: NightforgeMarkShape.point(CGPoint(x: 332, y: 440), in: rect))
+            path.move(to: NightforgeMarkShape.point(BrandArt.seam.0, in: rect))
+            path.addLine(to: NightforgeMarkShape.point(BrandArt.seam.1, in: rect))
             return path
         }
     }

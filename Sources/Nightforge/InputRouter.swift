@@ -27,6 +27,8 @@ final class InputRouter {
     private var lastWake: TimeInterval = 0
     /// When the pad last changed with Nightforge in front: a sheet opening soon after shows its highlight.
     private var lastPadUse: TimeInterval = 0
+    /// When the pad was last in use, anywhere, and where the mouse was then (PadRules.padUsedLast).
+    private static var padUse: (time: TimeInterval, mouse: CGPoint)?
     /// The right stick scrolls what shows (a game's page, the grid, Settings), smoothly, as fast as
     /// it's pushed: points per second, and the timer that moves it while it's held.
     private var stickScroll: CGFloat = 0
@@ -127,7 +129,11 @@ final class InputRouter {
             if model.showingDownloads { model.showingDownloads = false; return true }
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
             if model.awaitingSteam { model.cancelLaunch(); return true }
-            return model.back()
+            if model.back() { return true }
+            // Nothing to go back from: Esc leaves full screen, as in macOS's.
+            guard FullScreen.isOn else { return false }
+            FullScreen.toggle()
+            return true
         default: break
         }
         switch chars.lowercased() {
@@ -437,6 +443,10 @@ final class InputRouter {
     private func watchHold(_ pad: GCExtendedGamepad) {
         let now = ProcessInfo.processInfo.systemUptime
         if reach == .app { lastPadUse = now }
+        if Self.inUse(pad) {
+            Self.padUse = (now, NSEvent.mouseLocation)
+            GameOverlay.padHeard()
+        }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
         // moves, as on a console. In a game it's the game's.
         if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)) {
@@ -505,6 +515,70 @@ final class InputRouter {
         lastWake = now
         model.comeForward()
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+    }
+
+    /// The pointer hidden until the mouse moves, when the pad was used last: called while Nightforge
+    /// or its overlay still has the front, it stays hidden over the game that gets it.
+    static func hidePointerForGame() {
+        guard padUsedLast else { return }
+        NSCursor.setHiddenUntilMouseMoves(true)
+    }
+
+    /// The same with another app in front – the game, under the curtain or handed the front: macOS
+    /// hides it only for the app with the keys and the window under the pointer. So Nightforge has
+    /// both for a moment – a sheer panel over the pointer's screen, as the overlay is when Continue
+    /// Playing closes it – and the game is without its keys for 50 ms. A one-point panel, one the mouse passes through (as the
+    /// curtain), no keys or no wait: the pointer stayed (probe on 1.11.).
+    static func hidePointerOverGame() { pointerOverGame(hidden: true) }
+
+    /// Shown again over the game, for a question of its own that only the mouse answers.
+    static func showPointerOverGame() { pointerOverGame(hidden: false) }
+
+    private static func pointerOverGame(hidden: Bool) {
+        let mouse = NSEvent.mouseLocation
+        guard !hidden || padUsedLast, !GameOverlay.isOpen,
+              let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
+        else { return }
+        let panel = pointerPanel ?? makePointerPanel()
+        pointerPanel = panel
+        panel.setFrame(screen.frame, display: false)
+        panel.orderFrontRegardless()
+        panel.makeKey()
+        Task {
+            try? await Task.sleep(for: .milliseconds(50))
+            NSCursor.setHiddenUntilMouseMoves(hidden)
+            panel.orderOut(nil)
+        }
+    }
+
+    /// An app coming to the front brings the pointer back – the game handed the front, the next app
+    /// and Nightforge on the way back (1.11.): hidden again a moment later, over whichever it is.
+    static func hidePointerSoon() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            if NSApp.isFrontmost { hidePointerForGame() } else { hidePointerOverGame() }
+        }
+    }
+
+    private static var padUsedLast: Bool {
+        PadRules.padUsedLast(at: padUse?.time, mouseThen: padUse?.mouse ?? .zero,
+                             now: ProcessInfo.processInfo.systemUptime, mouseNow: NSEvent.mouseLocation)
+    }
+
+    private static var pointerPanel: NSPanel?
+
+    private static func makePointerPanel() -> NSPanel {
+        let panel = PointerPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.level = .screenSaver
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.isOpaque = false
+        panel.backgroundColor = NSColor.black.withAlphaComponent(0.01)  // clear, the mouse would pass through
+        panel.hasShadow = false
+        panel.animationBehavior = .none
+        panel.isExcludedFromWindowsMenu = true
+        return panel
     }
 
     /// A button down or a stick or the d-pad pushed – not a resting stick's noise.
@@ -773,6 +847,11 @@ final class InputRouter {
     }
 }
 
+/// Takes the keys without making Nightforge the active app (InputRouter.hidePointerOverGame).
+private final class PointerPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 /// The SF Symbols a controller gives its own buttons: ✕ ○ □ △ on a PlayStation pad, A B X Y on
 /// Xbox, the Nintendo layout on a Switch pad. The defaults are Xbox's.
 struct PadSymbols: Equatable {
@@ -795,7 +874,7 @@ struct PadSymbols: Equatable {
     var details = "x.circle.fill"
     /// Y: search.
     var search = "y.circle.fill"
-    /// ☰: the selected game's options.
+    /// ☰: the selected game's options. On a PlayStation pad the drawn capsule (PadGlyph).
     var menu = "line.3.horizontal.circle.fill"
     var stick = "l.joystick.fill"
     /// The right stick: it scrolls.
@@ -804,17 +883,21 @@ struct PadSymbols: Equatable {
     var overlayChord = ["l.joystick.press.down.fill", "r.joystick.press.down.fill"]
     /// L1 and R1 as the controller prints them, for the chips beside Home | Library.
     var shoulders = ["LB", "RB"]
+    /// Whose names the other buttons go by (PadGuideRow, LaunchTip).
+    var layout = PadLayout.xbox
 
     init() {}
 
     /// Always one maker's labels, whatever controller is in use.
     init(style: Style) {
         guard style == .playstation else { return }
+        layout = .playstation
         shoulders = ["L1", "R1"]
         confirm = "xmark.circle.fill"
         back = "circle.circle.fill"
         details = "square.circle.fill"
         search = "triangle.circle.fill"
+        menu = Self.optionsCapsule
     }
 
     @MainActor
@@ -823,10 +906,11 @@ struct PadSymbols: Equatable {
         back = Self.filled(pad.buttonB.sfSymbolsName) ?? back
         details = Self.filled(pad.buttonX.sfSymbolsName) ?? details
         search = Self.filled(pad.buttonY.sfSymbolsName) ?? search
-        menu = Self.filled(pad.buttonMenu.sfSymbolsName) ?? menu
+        menu = Self.menuSymbol(pad.buttonMenu.sfSymbolsName)
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
         scroll = Self.filled(pad.rightThumbstick.sfSymbolsName) ?? scroll
-        if PadLayout(pad) == .playstation { shoulders = ["L1", "R1"] }
+        layout = PadLayout(pad)
+        if layout == .playstation { shoulders = ["L1", "R1"] }
         if let left = pad.leftThumbstickButton, let right = pad.rightThumbstickButton {
             overlayChord = [Self.filled(left.sfSymbolsName) ?? overlayChord[0], Self.filled(right.sfSymbolsName) ?? overlayChord[1]]
         } else {
@@ -835,11 +919,32 @@ struct PadSymbols: Equatable {
         }
     }
 
-    /// The filled variant where one exists (they read better at hint size), else the symbol itself.
-    private static func filled(_ name: String?) -> String? {
-        guard let name, NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil else { return nil }
+    /// The Options button as PlayStation pads have it, a slim capsule with three lines: no SF Symbol
+    /// shows it, PadGlyph draws it.
+    static let optionsCapsule = "nightforge.options.capsule"
+
+    /// ☰ as the controller shows it. A DualSense reports a bare capsule, a blank at hint size: the
+    /// drawn one instead. Missing: Xbox's.
+    static func menuSymbol(_ name: String?) -> String {
+        if let name, isBare(name) { return optionsCapsule }
+        return filled(name) ?? PadSymbols().menu
+    }
+
+    /// The filled variant where one exists (they read better at hint size), else the symbol itself;
+    /// nil for a name that isn't a symbol or is a bare shape.
+    static func filled(_ name: String?) -> String? {
+        guard let name, !isBare(name), NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil else { return nil }
         let fill = name.hasSuffix(".fill") ? name : name + ".fill"
         return NSImage(systemSymbolName: fill, accessibilityDescription: nil) != nil ? fill : name
+    }
+
+    /// One shape and nothing on it ("capsule.portrait", "circle.fill"): filled, it's a blank. Two
+    /// shapes are a mark ("circle.circle" is ○).
+    static func isBare(_ name: String) -> Bool {
+        let shapes: Set = ["capsule", "circle", "square", "rectangle", "oval", "diamond", "hexagon", "octagon", "seal", "shield"]
+        let plain: Set = ["portrait", "roundedtop", "roundedbottom", "inset", "fill"]
+        let parts = name.split(separator: ".").map(String.init)
+        return parts.filter(shapes.contains).count == 1 && parts.allSatisfy { shapes.contains($0) || plain.contains($0) }
     }
 }
 

@@ -77,6 +77,33 @@ enum PadPart: String, CaseIterable {
     }
 }
 
+/// A button of the pad as the hints show it: its SF Symbol, or the Options capsule no symbol has
+/// (PadSymbols.optionsCapsule), the lines cut out like a filled symbol's mark.
+struct PadGlyph: View {
+    let name: String
+    let size: CGFloat
+
+    init(_ name: String, size: CGFloat) {
+        self.name = name
+        self.size = size
+    }
+
+    var body: some View {
+        if name == PadSymbols.optionsCapsule {
+            Image(systemName: "capsule.portrait.fill")
+                .font(size: size, weight: .semibold)
+                .overlay {
+                    Image(systemName: "line.3.horizontal")
+                        .font(size: size * 0.5, weight: .heavy)
+                        .blendMode(.destinationOut)
+                }
+                .compositingGroup()
+        } else {
+            Image(systemName: name).font(size: size, weight: .semibold)
+        }
+    }
+}
+
 /// Which outline to draw: the DualSense (also for a DualShock 4) or the Xbox Wireless Controller.
 enum PadLayout: Equatable {
     case playstation, xbox

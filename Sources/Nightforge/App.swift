@@ -12,6 +12,8 @@ struct NightforgeApp: App {
     init() {
         LegacyMigration.run()  // before anything reads settings or the data folder
         GameIDMigration.run()  // settings kept per game: from Steam app IDs to store and ID
+        // macOS's "Enter Full Screen" out of the View menu: Nightforge's own takes ⌃⌘F (FullScreen).
+        UserDefaults.standard.register(defaults: ["NSFullScreenMenuItemEverywhere": false])
     }
 
     var body: some Scene {
@@ -34,6 +36,11 @@ struct NightforgeApp: App {
             CommandGroup(replacing: .appSettings) {
                 Button(L10n.t("Settings …")) { model.openSettings() }
                     .keyboardShortcut(",")
+            }
+            // Without a Space of its own: starting a game slides nothing (FullScreen).
+            CommandGroup(after: .toolbar) {
+                Button(L10n.t("Full Screen")) { FullScreen.toggle() }
+                    .keyboardShortcut("f", modifiers: [.control, .command])
             }
         }
     }

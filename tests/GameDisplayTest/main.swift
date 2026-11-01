@@ -75,6 +75,20 @@ struct GameDisplayTest {
         check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: denon), "still on the TV: stays")
         check(!GameDisplay.leavesFullScreen(madeFullScreen: false, fullScreen: true, windowOn: macBook), "the player's own full screen stays")
         check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: false, windowOn: macBook), "not full screen: nothing")
+        // Per screen (the user's choice on 1.11.): a monitor in a window the first time, then as last had there.
+        let asus = screen(5, "ASUS MG278")
+        check(GameDisplay.placement(picked: asus, windowOn: 1, declined: nil, fullScreen: false) == GameDisplay.Placement(move: true, fullScreen: false),
+              "a monitor the first time: over, in a window")
+        check(GameDisplay.placement(picked: asus, windowOn: 1, declined: nil, fullScreen: false, wantsFullScreen: true)
+              == GameDisplay.Placement(move: true, fullScreen: true), "one the player had in full screen: full screen again")
+        check(GameDisplay.placement(picked: asus, windowOn: 5, declined: nil, fullScreen: false, wantsFullScreen: true)
+              == GameDisplay.Placement(move: false, fullScreen: true), "already there in a window: full screen")
+        check(GameDisplay.placement(picked: denon, windowOn: 1, declined: nil, fullScreen: false, wantsFullScreen: false)
+              == GameDisplay.Placement(move: true, fullScreen: false), "a TV the player left full screen on: a window")
+        check(!GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: asus, wantsFullScreen: true),
+              "full screen Nightforge made on a monitor that wants it: stays")
+        check(GameDisplay.leavesFullScreen(madeFullScreen: true, fullScreen: true, windowOn: denon, wantsFullScreen: false),
+              "on a TV the player wants in a window: a window")
 
         // Wine keeps the screens its session began with: a fresh session when they changed since.
         typealias W = GameDisplay.WineScreen
@@ -136,6 +150,30 @@ struct GameDisplayTest {
             check(!screen(9, name).isTV, "\(name) is no TV")
         }
 
+        // Back from Nightforge's full screen (FullScreen): the old size and place, within the screen it's on now.
+        let mac = NSRect(x: 0, y: 0, width: 1512, height: 945)
+        let kept = NSRect(x: 40, y: 30, width: 1200, height: 800)
+        check(FullScreen.windowedFrame(kept, in: mac) == kept, "its old frame where it still fits")
+        let fromTV = FullScreen.windowedFrame(NSRect(x: 1600, y: 200, width: 1800, height: 1000), in: mac)
+        check(fromTV.size == mac.size && mac.contains(fromTV), "from a TV that went: as big as the MacBook allows, on it (\(fromTV))")
+        let first = FullScreen.defaultFrame(in: NSRect(x: 0, y: 0, width: 2560, height: 1415))
+        check(first.size == CGSize(width: 1440, height: 880) && first.midX == 1280, "a window that filled the screen: the opening size, centred")
+
+        // The menu bar in full screen: it comes with the pointer at the top edge, stays while it's on it.
+        do {
+            let notched = CGRect(x: 0, y: 0, width: 1512, height: 982)
+            func bar(_ x: CGFloat, _ y: CGFloat, shown: Bool, on screen: CGRect = notched) -> Bool {
+                FullScreen.menuBarShown(pointer: CGPoint(x: x, y: y), on: screen, bar: 32, shown: shown)
+            }
+            check(!bar(700, 500, shown: false), "pointer in the middle: hidden")
+            check(bar(700, 982, shown: false) && bar(700, 981.5, shown: false), "at the top edge: shown")
+            check(!bar(700, 960, shown: false), "near the top, not at the edge: still hidden")
+            check(bar(700, 960, shown: true) && bar(700, 940, shown: true), "on the bar or just below: stays")
+            check(!bar(700, 900, shown: true), "further down: gone again")
+            let tv = CGRect(x: 1512, y: -200, width: 1920, height: 1080)
+            check(!bar(700, 982, shown: false, on: tv), "the pointer on the MacBook: not the TV's bar")
+            check(bar(2000, 880, shown: false, on: tv), "the TV's top edge: shown")
+        }
         if failures == 0 { print("✓ GameDisplay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
     }
