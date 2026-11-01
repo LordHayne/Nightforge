@@ -3241,6 +3241,78 @@ final class LibraryModel: ObservableObject {
         }
     }
 
+    // MARK: - A drive that's gone
+
+    /// Nothing runs, downloads, moves or uninstalls: the lists of what's installed where can change.
+    var canForgetDrive: Bool {
+        move == nil && uninstallingID == nil && launchingID == nil && !anyRunning(.windows) && !anyRunning(.mac)
+            && !epic.isBusy && !gog.isBusy && downloads.isEmpty
+    }
+
+    /// Settings › Storage's "Forget Drive": `name` isn't unplugged for a while, it's gone. Its games count
+    /// as not installed then (`only`: just that one's copy), and download again. Steam is stopped for it, the
+    /// way a move does, and comes back. Only the stores' lists change; the Windows environment and its saves stay.
+    @discardableResult
+    func forgetDrive(_ name: String, only game: Game? = nil) async -> Bool {
+        guard canForgetDrive else {
+            errorMessage = L10n.t("Nothing can be forgotten while a game runs or a download or move is under way – wait a moment.")
+            return false
+        }
+        let appID = game?.provider == .steam ? game?.appID : nil
+        let bottle = Engine.bottle, macBottle = MacSteam.bottle
+        let steamRoot = Engine.steamRoot, macRoot = MacSteam.root
+        let wantsWindows = (game == nil || (game?.provider == .steam && game?.platform == .windows))
+            && SteamLibraries.holds(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle)
+        let wantsMac = (game == nil || (game?.provider == .steam && game?.platform == .mac))
+            && SteamLibraries.holds(drive: name, appID: appID, steamRoot: macRoot, bottle: macBottle)
+        do {
+            if wantsWindows, let wine = await Engine.installedWine() {
+                let wasRunning = Engine.isSteamRunning
+                try await Engine.stopSteam(wine)
+                guard !Engine.isSteamRunning else { throw DriveError.steamStarted }
+                defer { if wasRunning { Task { try? await Engine.restartSteamInBackground(wine) } } }
+                try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle) }
+            }
+            if wantsMac {
+                let wasRunning = MacSteam.isRunning, ours = MacSteam.startedByNightforge
+                if wasRunning { await MacSteam.quit() }
+                guard !MacSteam.isRunning else { throw DriveError.steamStarted }
+                defer {
+                    if wasRunning {
+                        MacSteam.start(visible: !ours)  // the player's own Steam comes back as they had it
+                        MacSteam.startedByNightforge = ours
+                    }
+                }
+                try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: macRoot, bottle: macBottle) }
+            }
+        } catch {
+            errorMessage = L10n.t("%@ couldn't be forgotten: %@", name, error.localizedDescription)
+            return false
+        }
+        if game == nil || game?.provider == .epic { epic.forgetDrive(name, only: game?.gameID.id) }
+        if game == nil || game?.provider == .gog { gog.forgetDrive(name, only: game?.gameID.id) }
+        reload(quiet: true)
+        refreshLowSpace()
+        return true
+    }
+
+    /// The game page's "Download Again": a game on a drive that isn't plugged in is forgotten there and
+    /// downloads as any other, with the usual check for room and the choice of where it goes.
+    func redownload(_ game: Game) {
+        guard game.onUnpluggedDrive, let drive = game.missingDrive else { return }
+        Task {
+            guard await forgetDrive(drive, only: game) else { return }
+            // The scan after it says where the game would go now; its old place was on the drive.
+            for _ in 0..<50 {
+                try? await Task.sleep(for: .milliseconds(100))
+                if let fresh = allGames.first(where: { $0.id == game.id }), fresh.missingDrive == nil, fresh.install == .notInstalled {
+                    downloadIfRoom(fresh)
+                    return
+                }
+            }
+        }
+    }
+
     /// Opens Steam in Nightforge's prefix, e.g. to install a game.
     func openSteam() {
         Task {

@@ -67,6 +67,7 @@ struct ExternalDriveTest {
         check(marked[2].missingDrive == nil, "on no drive at all: Download")
 
         checkLibraryList(root)
+        checkForgetDrive(root)
         checkPaths(bottle)
         checkDriveCheck()
         await checkSteamMove(root)
@@ -160,6 +161,62 @@ struct ExternalDriveTest {
         let list = nodes.first?.children ?? []
         let holding = list.filter { $0["apps"]?[String(appID)] != nil }.map(\.key)
         return holding.count == 1 ? holding[0] : holding.isEmpty ? nil : "several: \(holding)"
+    }
+
+    // MARK: - A drive that's gone
+
+    /// Steam's libraries on a drive that's gone (a Mac path as Steam for Mac writes it, a Windows one through Z:)
+    /// leave the list, or one game leaves them; a drive that is back, and Steam's own library, are left alone.
+    static func checkForgetDrive(_ root: URL) {
+        let fm = FileManager.default
+        let fixture = steamFixture(root, "forget")
+        let volumes = root.appendingPathComponent("forget-volumes", isDirectory: true)  // what's "mounted"
+        try? fm.createDirectory(at: volumes.appendingPathComponent("Plugged"), withIntermediateDirectories: true)
+        let list = """
+        "libraryfolders"
+        {
+        \t"0"\n\t{\n\t\t"path"\t\t"C:\\\\Program Files (x86)\\\\Steam"\n\t\t"apps"\n\t\t{\n\t\t\t"550"\t\t"3000"\n\t\t}\n\t}
+        \t"1"\n\t{\n\t\t"path"\t\t"Z:\\\\Volumes\\\\Gone Stick\\\\Nightforge Games\\\\Steam"\n\t\t"apps"\n\t\t{\n\t\t\t"620"\t\t"100"\n\t\t\t"730"\t\t"200"\n\t\t}\n\t}
+        \t"2"\n\t{\n\t\t"path"\t\t"/Volumes/Gone Stick/Mac Steam"\n\t\t"apps"\n\t\t{\n\t\t\t"10"\t\t"5"\n\t\t}\n\t}
+        \t"3"\n\t{\n\t\t"path"\t\t"Z:\\\\Volumes\\\\Plugged\\\\Library"\n\t\t"apps"\n\t\t{\n\t\t\t"99"\t\t"1"\n\t\t}\n\t}
+        }
+
+        """
+        let files = ["config/libraryfolders.vdf", "steamapps/libraryfolders.vdf"].map { fixture.steamRoot.appendingPathComponent($0) }
+        func write() { for file in files { try? list.write(to: file, atomically: true, encoding: .utf8) } }
+        func apps(_ file: URL) -> [String: [String]] {
+            let libraries = VDF.nodes((try? String(contentsOf: file, encoding: .utf8)) ?? "")?.first?.children ?? []
+            return Dictionary(uniqueKeysWithValues: libraries.map { ($0.key, ($0["apps"]?.children ?? []).map(\.key)) })
+        }
+        write()
+        check(SteamLibraries.holds(drive: "Gone Stick", steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes), "a library on the gone drive is found")
+        check(SteamLibraries.holds(drive: "Gone Stick", appID: 730, steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes)
+              && !SteamLibraries.holds(drive: "Gone Stick", appID: 550, steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes),
+              "and which game is on it")
+        check(!SteamLibraries.holds(drive: "Plugged", steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes), "a drive that is plugged in isn't gone")
+
+        // One game only: it leaves the libraries on that drive, the others stay.
+        do { check(try SteamLibraries.forget(drive: "Gone Stick", appID: 620, steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes), "one game forgotten") }
+        catch { check(false, "one game: \(error)") }
+        for file in files {
+            check(apps(file) == ["0": ["550"], "1": ["730"], "2": ["10"], "3": ["99"]], "\(file.lastPathComponent): only 620 is gone: \(apps(file))")
+        }
+        do { check(!(try SteamLibraries.forget(drive: "Gone Stick", appID: 620, steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes)),
+                   "nothing more to forget") }
+        catch { check(false, "again: \(error)") }
+
+        // The whole drive: both its libraries, in both lists; Steam's own and the plugged drive's stay.
+        write()
+        do { check(try SteamLibraries.forget(drive: "Gone Stick", steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes), "the drive forgotten") }
+        catch { check(false, "drive: \(error)") }
+        for file in files {
+            check(apps(file) == ["0": ["550"], "3": ["99"]], "\(file.lastPathComponent): libraries 1 and 2 are gone, 0 and 3 stay: \(apps(file))")
+        }
+        write()
+        do { check(!(try SteamLibraries.forget(drive: "Plugged", steamRoot: fixture.steamRoot, bottle: fixture.bottle, volumes: volumes)), "a drive that's back isn't forgotten") }
+        catch { check(false, "plugged: \(error)") }
+        check(apps(files[0]).count == 4, "its list is as it was")
+        check(fm.fileExists(atPath: fixture.steamapps.appendingPathComponent("appmanifest_550.acf").path), "Steam's own game files aren't touched")
     }
 
     // MARK: - libraryfolders.vdf

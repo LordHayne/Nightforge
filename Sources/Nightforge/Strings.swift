@@ -106,6 +106,18 @@ enum L10n {
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
+        "Forget Drive …": "Laufwerk vergessen …",
+        "Forget Drive": "Laufwerk vergessen",
+        "Forget %@?": "%@ vergessen?",
+        "Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.":
+            "Seine Spiele gelten danach als nicht installiert und lassen sich neu laden, auf deinen Mac oder ein anderes Laufwerk. Sie bleiben in deinen Store-Bibliotheken, auf deinem Mac wird nichts gelöscht, und Spielstände in der Windows-Umgebung bleiben. Steckst du %@ später wieder an, gilt es als neues Laufwerk.",
+        "%@ is forgotten – its games can be downloaded again": "%@ ist vergessen – seine Spiele lassen sich neu laden",
+        "%@ couldn't be forgotten: %@": "%1$@ konnte nicht vergessen werden: %2$@",
+        "Nothing can be forgotten while a game runs or a download or move is under way – wait a moment.":
+            "Solange ein Spiel läuft oder ein Download oder Umzug im Gang ist, lässt sich nichts vergessen – einen Moment bitte.",
+        "%@ isn't connected. If it isn't coming back, download the game again: that forgets the copy there and installs it on your Mac or another drive.":
+            "%@ ist nicht angeschlossen. Kommt es nicht wieder, lade das Spiel neu: Das vergisst die Kopie dort und installiert es auf deinem Mac oder einem anderen Laufwerk.",
+        "Download Again": "Neu laden",
         "Downloads already running still need %@ of that.": "Laufende Downloads brauchen davon noch %@.",
         "%@ leaves little room": "%@ lässt wenig Platz",
         "After %@ and the downloads already running, about %@ stay free on your Mac. macOS slows down and can't update when it gets this low.":

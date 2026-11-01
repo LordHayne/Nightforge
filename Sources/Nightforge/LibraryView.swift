@@ -1412,6 +1412,20 @@ private struct GameDetail: View {
                     }
                 }
             }
+            // A drive that may never come back: the way out is to forget this copy and download it again.
+            if !compact, game.onUnpluggedDrive, let drive = game.missingDrive {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.t("%@ isn't connected. If it isn't coming back, download the game again: that forgets the copy there and installs it on your Mac or another drive.", drive))
+                        .font(size: 13, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                        .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(L10n.t("Download Again")) { model.redownload(game) }
+                        .buttonStyle(GlassTextButtonStyle(small: true))
+                        .fixedSize()
+                        .padFocus("detail.redownload", cornerRadius: 15, activate: { model.redownload(game) })
+                }
+            }
             if let starter, game.install == .notInstalled, model.launchingID != game.id {
                 Text(starter.mac && game.platform != .mac
                      ? L10n.t("Comes as its Mac version – the first time, Nightforge sets up Steam for Mac for it, once, in a few minutes.")

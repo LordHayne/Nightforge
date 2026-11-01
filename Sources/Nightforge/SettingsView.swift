@@ -488,6 +488,8 @@ private struct StorageSettings: View {
     @State private var measuringRemoval = false
     @State private var removing = false
     @State private var removalError: String?
+    /// A drive that isn't coming back: asking whether to forget it.
+    @State private var forgetting: String?
 
     private struct RemovalPlan: Identifiable {
         let id = UUID()
@@ -608,6 +610,10 @@ private struct StorageSettings: View {
                                           : L10n.t("%@ – plug it in to play or move them.", names.joined(separator: ", ")))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    // Lost, broken or formatted anew: its games stop waiting for it and download again.
+                    Button(L10n.t("Forget Drive …")) { forgetting = drive }
+                        .disabled(!model.canForgetDrive)
+                        .padFocus("storage.forget.\(drive)", enabled: model.canForgetDrive, activate: { forgetting = drive })
                 } header: {
                     SectionTitle(L10n.t("%@ · not connected", drive))
                 }
@@ -667,6 +673,18 @@ private struct StorageSettings: View {
                     .padFocus("removeAll.confirm", cornerRadius: 21, activate: removeEverything)
             }
         }
+        .sheet(item: DialogMessage.item($forgetting)) { drive in
+            GlassQuestion(L10n.t("Forget %@?", drive.text), message: L10n.t("Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.", drive.text), id: "forgetDrive") {
+                // Return keeps the drive in the list; forgetting takes a deliberate click or a pad move first.
+                Button(L10n.t("Cancel")) { forgetting = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("forgetDrive.cancel", cornerRadius: 21, preferred: true, activate: { forgetting = nil })
+                Button(L10n.t("Forget Drive")) { forgetDrive(drive.text) }
+                    .buttonStyle(GlassTextButtonStyle(destructive: true))
+                    .padFocus("forgetDrive.confirm", cornerRadius: 21, activate: { forgetDrive(drive.text) })
+            }
+        }
         .sheet(item: DialogMessage.item($removalError)) { error in
             GlassQuestion(L10n.t("Nothing was removed"), message: error.text, id: "removeAllFailed") {
                 Button(L10n.t("OK")) { removalError = nil }
@@ -715,6 +733,11 @@ private struct StorageSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func forgetDrive(_ name: String) {
+        forgetting = nil
+        Task { if await model.forgetDrive(name) { Toasts.shared.show(L10n.t("%@ is forgotten – its games can be downloaded again", name)) } }
     }
 
     /// A game running or starting has its shaders open.

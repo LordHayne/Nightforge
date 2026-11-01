@@ -310,6 +310,58 @@ enum SteamLibraries {
         }
     }
 
+    /// The keys of the libraries that lie on the drive `name`, which is not plugged in.
+    private static func unplugged(_ nodes: [VDFNode], drive name: String, bottle: Bottle, volumes: URL) -> Set<String> {
+        Set(entries(nodes, bottle: bottle).filter { ForgetDrive.isOn($0.path, drive: name, bottle: bottle, volumes: volumes) }.map(\.key))
+    }
+
+    /// Whether the list names a library on the unplugged drive `name` – with `appID`, one that lists that game.
+    static func holds(drive name: String, appID: Int? = nil, steamRoot: URL, bottle: Bottle,
+                      volumes: URL = URL(fileURLWithPath: "/Volumes")) -> Bool {
+        for file in files(steamRoot: steamRoot) {
+            guard let data = try? Data(contentsOf: file), let nodes = VDF.nodes(String(decoding: data, as: UTF8.self)),
+                  let list = nodes.first(where: { $0.key.lowercased() == "libraryfolders" })
+            else { continue }
+            let keys = unplugged(nodes, drive: name, bottle: bottle, volumes: volumes)
+            for place in list.children where keys.contains(place.key) {
+                if appID.map({ id in place["apps"]?.children.contains { $0.key == String(id) } == true }) ?? true { return true }
+            }
+        }
+        return false
+    }
+
+    /// Takes the libraries on an unplugged drive out of the list – or, with `appID`, only that game
+    /// out of them – so the game counts as not installed. Only with that Steam stopped (it writes its
+    /// own list over this one when it quits). True when a list changed.
+    @discardableResult
+    static func forget(drive name: String, appID: Int? = nil, steamRoot: URL, bottle: Bottle,
+                       volumes: URL = URL(fileURLWithPath: "/Volumes")) throws -> Bool {
+        var changedAny = false
+        for file in files(steamRoot: steamRoot) where FileManager.default.fileExists(atPath: file.path) {
+            var nodes = try read(file, rootPath: nil, contentID: nil)
+            guard let index = nodes.firstIndex(where: { $0.key.lowercased() == "libraryfolders" }) else { continue }
+            let keys = unplugged(nodes, drive: name, bottle: bottle, volumes: volumes)
+            var changed = false
+            if let appID {
+                for place in nodes[index].children.indices where keys.contains(nodes[index].children[place].key) {
+                    guard let slot = nodes[index].children[place].children.firstIndex(where: { $0.key.lowercased() == "apps" }),
+                          nodes[index].children[place].children[slot].children.contains(where: { $0.key == String(appID) })
+                    else { continue }
+                    nodes[index].children[place].children[slot].children.removeAll { $0.key == String(appID) }
+                    changed = true
+                }
+            } else if !keys.isEmpty {
+                nodes[index].children.removeAll { keys.contains($0.key) }
+                changed = true
+            }
+            if changed {
+                try write(nodes, to: file)
+                changedAny = true
+            }
+        }
+        return changedAny
+    }
+
     /// The games installed in a library folder (`steamapps`), from their manifests.
     static func installedApps(in steamapps: URL) -> [(appID: Int, size: Int64)] {
         let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []

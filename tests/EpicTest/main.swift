@@ -31,6 +31,7 @@ struct EpicTest {
         await refusesUnpacked()
         profiles()
         legendaryRuns()
+        forgetDrive()
         await store()
 
         print(failures == 0 ? "✓ Epic" : "\(failures) failed")
@@ -237,6 +238,61 @@ struct EpicTest {
         check(EpicSignIn.code(fromPage: #"{"authorizationCode": null}"#) == nil, "no code yet")
         check(EpicSignIn.code(fromPage: #"{"authorizationCode": "a b;rm"}"#) == nil, "only a plain code goes to legendary")
         check(EpicSignIn.signInURL.absoluteString.hasPrefix("https://www.epicgames.com/id/login?redirectUrl="), "Epic's own sign-in page")
+    }
+
+    /// A drive that's gone (Sonic Mania on the old stick): its games leave legendary's list with their manifests, the
+    /// Mac's stay. Files before and after.
+    @MainActor
+    static func forgetDrive() {
+        let fm = FileManager.default
+        let gone = "NightforgeGone-\(UUID().uuidString.prefix(8))"
+        let manifests = Legendary.configDir.appendingPathComponent("manifests", isDirectory: true)
+        let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
+        let destinationsFile = Engine.supportDir.appendingPathComponent("Epic/destinations.json")
+        try? fm.createDirectory(at: manifests, withIntermediateDirectories: true)
+        let onDrive = "/Volumes/\(gone)/Nightforge Games/Epic Games/SonicMania"
+        let here = Legendary.gamesDir.appendingPathComponent("Calluna").path
+        func entry(_ app: String, _ path: String, version: String, dlc: Bool = false) -> String {
+            #""\#(app)": {"app_name": "\#(app)", "install_path": "\#(path)", "platform": "Windows", "version": "\#(version)", "is_dlc": \#(dlc), "install_size": 5}"#
+        }
+        func setUp() {
+            let json = "{" + [entry("Mania", onDrive, version: "1.07"), entry("ManiaDLC", onDrive, version: "2.0", dlc: true),
+                              entry("Other", "/Volumes/\(gone)/Nightforge Games/Epic Games/Other", version: "3"),
+                              entry("Calluna", here, version: "1.33")].joined(separator: ", ") + "}"
+            try? Data(json.utf8).write(to: installedFile)
+            for name in ["Mania_Windows_1.07", "ManiaDLC_Windows_2.0", "Other_Windows_3", "Calluna_Windows_1.33"] {
+                fm.createFile(atPath: manifests.appendingPathComponent(name + ".manifest").path, contents: Data("m".utf8))
+            }
+            try? Data(#"{"Mania": "/Volumes/\#(gone)/Nightforge Games/Epic Games", "Calluna": "\#(Legendary.gamesDir.path)"}"#.utf8).write(to: destinationsFile)
+        }
+        func installed() -> [String] {
+            ((try? JSONSerialization.jsonObject(with: Data(contentsOf: installedFile))) as? [String: Any])?.keys.sorted() ?? []
+        }
+        func manifestNames() -> [String] { ((try? fm.contentsOfDirectory(atPath: manifests.path)) ?? []).sorted() }
+        func destinations() -> [String] {
+            ((try? JSONSerialization.jsonObject(with: Data(contentsOf: destinationsFile))) as? [String: String])?.keys.sorted() ?? []
+        }
+
+        setUp()
+        check(EpicStore().forgetDrive(gone, only: "Calluna") == 0 && installed() == ["Calluna", "Mania", "ManiaDLC", "Other"],
+              "a game that isn't on the drive isn't forgotten")
+        check(EpicStore().forgetDrive(gone, only: "Mania") == 2, "one game, and its add-on, forgotten")
+        check(installed() == ["Calluna", "Other"], "legendary's list without Sonic Mania and its add-on: \(installed())")
+        check(manifestNames() == ["Calluna_Windows_1.33.manifest", "Other_Windows_3.manifest"], "their manifests went with them: \(manifestNames())")
+        check(destinations() == ["Calluna"], "where it was to be downloaded on the drive is forgotten: \(destinations())")
+
+        setUp()
+        check(EpicStore().forgetDrive(gone) == 3, "the whole drive")
+        check(installed() == ["Calluna"], "only the Mac's game is left: \(installed())")
+        check(manifestNames() == ["Calluna_Windows_1.33.manifest"], "and its manifest: \(manifestNames())")
+        check(destinations() == ["Calluna"] && fm.fileExists(atPath: Legendary.configDir.path), "the Mac's place stays")
+        check(EpicStore().forgetDrive(gone) == 0, "nothing is left to forget")
+        // The returned bytes still make a list legendary reads: the entries came through as they were.
+        let kept = (try? JSONSerialization.jsonObject(with: Data(contentsOf: installedFile)) as? [String: [String: Any]])?["Calluna"]
+        check(kept?["install_path"] as? String == here && kept?["version"] as? String == "1.33", "the entry that stays is as it was")
+        try? fm.removeItem(at: installedFile)
+        try? fm.removeItem(at: manifests)
+        try? fm.removeItem(at: destinationsFile)
     }
 
     /// A program packed like legendary: a few files, a link, an archive it reads in place – and a
