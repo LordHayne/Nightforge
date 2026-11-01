@@ -30,6 +30,12 @@ wenn sie einer Version zugeordnet sind.
       Veröffentlichen nur mit ausdrücklichem OK.
 
 ### 0.4: „Wie eine Konsole“
+- [ ] **Zuerst Codequalität** (Idee des Nutzers, 1.11.):
+  - Direkt nach dem Release, wenn `main` den aktuellen Stand hat. Cloud-Sessions sehen nur `main`.
+  - Erst eine Prüfung, nur lesen: Vereinfachungen, doppelter Code, Risiken und ein Plan, wie sich die großen
+    Dateien aufteilen lassen (`LibraryModel` ca. 2 900, `LibraryView` 2 300, `Engine` 2 000 Zeilen; Projektregel
+    unter 500).
+  - Dann der Umbau in einer ruhigen Phase, in der keine andere Session dieselben Dateien ändert.
 - [ ] Spiele im Hintergrund aktuell halten: Steam über `AutoUpdateBehavior` und die Zeit, in der Steam läuft, Epic
       und GOG selbst über legendary und gogdl. Pause im Spiel, nur am Netzteil, ruhig sichtbar auf der Startseite
       (`docs/recherche/updates.md`, Phase 4.4).
