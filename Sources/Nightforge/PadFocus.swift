@@ -84,6 +84,11 @@ final class PadFocus: ObservableObject {
         return scroll.move(by: (down ? 1 : -1) * scroll.visibleHeight * fraction, animated: true)
     }
 
+    /// All the way down (or up) a page, smoothly: L2/R2 on a game's page.
+    func pageEnd(down: Bool, in window: NSWindow) {
+        pageScroll(in: window)?.move(by: down ? 1_000_000 : -1_000_000, animated: true)
+    }
+
     /// Scrolls `points` down (negative: up) at once – the right stick, frame by frame.
     @discardableResult
     func scroll(by points: CGFloat, in window: NSWindow) -> Bool {
@@ -155,7 +160,8 @@ final class PadFocus: ObservableObject {
 }
 
 /// A part of a window the pad moves within: an open panel keeps the highlight to itself.
-enum PadZone: Equatable { case panel }
+/// `top` and `game` are Home's top bar and the selected game's buttons (PadRules.homeEntry).
+enum PadZone: Equatable { case panel, top, game }
 
 private struct PadReachableKey: EnvironmentKey { static let defaultValue = true }
 private struct PadZoneKey: EnvironmentKey { static let defaultValue: PadZone? = nil }

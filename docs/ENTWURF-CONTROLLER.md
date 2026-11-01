@@ -1,7 +1,9 @@
 # Entwurf: Die Controller-Steuerung als Ganzes
 
-Stand 1.11.2026. Nur Analyse und Vorschlag. Am Code der Steuerung ist nichts geändert. Gebaut wird erst nach dem OK
-des Nutzers und nach dem Merge des TV-Zweigs.
+Stand 1.11.2026. **Entschieden 1.11.:** Der Nutzer hat alle fünf Fragen (Abschnitt 7) mit der Empfehlung beantwortet.
+**Gebaut** auf `claude/sharp-shtern-1ec323`: Schritt 1 (S1, S4, S5) in 9fe855d und 4261c9a, Schritt 2 im Commit danach.
+Den Live-Test mit dem Pad macht der Koordinator mit dem Nutzer. Abweichung beim rechten Stick in der Bibliothek: Die
+Auswahl folgt reihenweise (eine Reihe je 220 Punkte), und das Raster scrollt mit ihr.
 
 **Anlass:** Beim TV-Test am 1.11. öffnete ↓ auf der Startseite die Bibliothek. Der Nutzer wünscht: „die ganze
 Controllersteuerung in Nightforge nochmal überprüfen und schauen, ob sie logisch ist“.

@@ -2246,11 +2246,15 @@ final class LibraryModel: ObservableObject {
         if PadFocus.shared.focused != nil { PadFocus.shared.focus(menu.chipID) }
     }
 
-    /// A on the store chip: all stores → each store with games → all again.
-    func nextStore() {
-        let stores = [nil] + storesWithGames.map(Optional.some)
-        let place = stores.firstIndex(of: filters.store) ?? 0
-        filters.store = stores[(place + 1) % stores.count]
+    /// A on a chip of the library's row: its list opens, the pad's highlight on what's chosen now (the
+    /// first switch in the filter panel). B closes it again (closeLibraryMenu).
+    func openLibraryMenu(_ menu: LibraryMenu) {
+        libraryMenu = menu
+        switch menu {
+        case .store: PadFocus.shared.focus("store.\(filters.store?.rawValue ?? "all")")
+        case .sort: PadFocus.shared.focus("sort.\(filters.sort)")
+        case .filters: PadFocus.shared.focus(LibraryFilters.Filter.allCases.first.map { "filter.\($0)" } ?? "filter.off")
+        }
     }
 
     /// How many games `filter` leaves, with the store picked: the number beside it in the filter panel.
@@ -3034,6 +3038,18 @@ final class LibraryModel: ObservableObject {
         GameOptionsStore.choose(.compatible, for: failed.game.gameID)
         LaunchHealth.reset(failed.game.gameID)
         play(failed.game)
+    }
+
+    /// L1/R1 in Settings: a tab to the left or right (SettingsView takes it, PadRules.settingsTab).
+    struct SettingsTabStep: Equatable {
+        var count = 0
+        var shoulder = PadPart.r1
+    }
+
+    @Published private(set) var settingsTabStep = SettingsTabStep()
+
+    func stepSettingsTab(_ shoulder: PadPart) {
+        settingsTabStep = SettingsTabStep(count: settingsTabStep.count + 1, shoulder: shoulder)
     }
 
     func openSettings() {

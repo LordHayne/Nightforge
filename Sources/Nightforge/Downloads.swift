@@ -83,7 +83,7 @@ struct DownloadsPanel: View {
                 }
                 .buttonStyle(GlassButtonStyle(shape: Circle()))
                 .help(L10n.t("Close"))
-                .padFocus("downloads.close", cornerRadius: 14, activate: { model.showingDownloads = false })
+                .padFocus("downloads.close", cornerRadius: 14, activate: { model.closeDownloads() })
             }
             if model.downloads.isEmpty && model.move == nil {
                 Text(L10n.t("Nothing is downloading."))

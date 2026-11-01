@@ -41,16 +41,13 @@ struct LibraryFilterRow: View {
             } else {
                 if model.storesWithGames.count > 1 {
                     ChoiceChip(symbol: "square.stack", title: model.filters.store?.label ?? L10n.t("All Stores"),
-                               on: model.filters.store != nil, menu: .store, help: L10n.t("Games of one store"),
-                               step: model.nextStore)
+                               on: model.filters.store != nil, menu: .store, help: L10n.t("Games of one store"))
                 }
                 ChoiceChip(symbol: "arrow.up.arrow.down", title: model.filters.sort.label, menu: .sort,
-                           help: L10n.t("Order")) { model.filters.sort = model.filters.sort.next }
+                           help: L10n.t("Order"))
                 ChoiceChip(symbol: "line.3.horizontal.decrease", title: L10n.t("Filter"),
                            badge: model.filters.on.isEmpty ? nil : model.filters.on.count, menu: .filters,
-                           help: L10n.t("Only some games: running great, with a controller, two on one Mac …")) {
-                    model.libraryMenu = .filters
-                }
+                           help: L10n.t("Only some games: running great, with a controller, two on one Mac …"))
                 let active = LibraryFilters.Filter.allCases.filter(model.filters.has)
                 if !active.isEmpty {
                     Rectangle().fill(Color.white.opacity(0.15)).frame(width: 1, height: 18)
@@ -74,8 +71,8 @@ struct LibraryFilterRow: View {
     }
 }
 
-/// A choice in one chip: "All Stores ▾", "Recently played ▾", "Filter ▾". A click opens its list;
-/// A on the pad steps to the next choice (the filters' chip opens its panel).
+/// A choice in one chip: "All Stores ▾", "Recently played ▾", "Filter ▾". A click or A on the pad
+/// opens its list.
 private struct ChoiceChip: View {
     let symbol: String
     let title: String
@@ -83,7 +80,6 @@ private struct ChoiceChip: View {
     var badge: Int?
     let menu: LibraryMenu
     let help: String
-    let step: () -> Void
     @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
@@ -109,7 +105,7 @@ private struct ChoiceChip: View {
         .help(help)
         .accessibilityValue(title)
         .anchorPreference(key: LibraryMenuAnchors.self, value: .bounds) { [menu: $0] }
-        .padFocus(menu.chipID, cornerRadius: 16, activate: step)
+        .padFocus(menu.chipID, cornerRadius: 16, activate: { model.openLibraryMenu(menu) })
         .fixedSize()
     }
 }
@@ -164,6 +160,7 @@ struct LibraryMenuLayer: View {
                         }
                     }
                     .fixedSize()
+                    .padZone(.panel)  // it keeps the pad while it's open
                     .offset(x: chip.minX, y: chip.maxY + 8)
                     .transition(.opacity.combined(with: .offset(y: -6)))
                 }
@@ -242,9 +239,17 @@ private struct FilterPanel: View {
                         model.filters = model.filters.switchesOff
                     }
                 Spacer()
-                Text(L10n.t("B closes"))
-                    .font(size: 11.5, weight: .medium)
-                    .foregroundStyle(Theme.muted)
+                // The pad's own button (○ on a DualSense), else the key.
+                HStack(spacing: 5) {
+                    if model.controllerConnected {
+                        Image(systemName: model.padSymbols.back)
+                    } else {
+                        Text("esc")
+                    }
+                    Text(L10n.t("Close"))
+                }
+                .font(size: 11.5, weight: .medium)
+                .foregroundStyle(Theme.muted)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
@@ -277,7 +282,7 @@ private struct StoreList: View {
     private func row(_ store: Provider?, _ title: String, _ count: Int) -> some View {
         let pick = {
             model.filters.store = store
-            model.libraryMenu = nil
+            model.closeLibraryMenu(.store)  // the pad's highlight back on the chip
         }
         return Button(action: pick) {
             MenuRow(title: title, count: count, on: model.filters.store == store)
@@ -296,7 +301,7 @@ private struct SortList: View {
             ForEach(LibraryFilters.Sort.allCases, id: \.self) { sort in
                 let pick = {
                     model.filters.sort = sort
-                    model.libraryMenu = nil
+                    model.closeLibraryMenu(.sort)
                 }
                 Button(action: pick) {
                     MenuRow(title: sort.label, count: nil, on: model.filters.sort == sort)

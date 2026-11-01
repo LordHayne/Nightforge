@@ -20,6 +20,7 @@ struct SettingsView: View {
     }
 
     @State private var tab: Tab
+    @EnvironmentObject private var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var padFocus = PadFocus.shared
 
@@ -32,7 +33,9 @@ struct SettingsView: View {
             GlassDialogHeader(title: L10n.t("Settings"), id: "settings") { dismiss() }
                 .padding(.horizontal, 28)
                 .padding(.top, 28)
-            Segmented(options: Tab.allCases.map { ($0, $0.label, nil) }, selection: tab, id: "settings.tab") { tab = $0 }
+            // The pad starts on the tab that's open, not on the × above; L1/R1 go through the tabs.
+            Segmented(options: Tab.allCases.map { ($0, $0.label, nil) }, selection: tab, id: "settings.tab",
+                      preferSelected: true) { tab = $0 }
                 .padding(.horizontal, 28)
                 .padding(.top, 14)
                 .padding(.bottom, 2)
@@ -59,6 +62,14 @@ struct SettingsView: View {
         .frame(maxHeight: DialogRoom.height)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: padFocus.focused) { _, id in padFocus.reveal(id) }
+        .onChange(of: model.settingsTabStep) { _, step in
+            let tabs = Tab.allCases
+            guard let current = tabs.firstIndex(of: tab),
+                  let next = PadRules.settingsTab(step.shoulder, current: current, count: tabs.count) else { return }
+            tab = tabs[next]
+            // The highlight was in the tab that's gone: it shows on the new one.
+            if padFocus.focused != nil { padFocus.focus("settings.tab.\(next)") }
+        }
         // The design's dialog: thick glass over the dimmed library, not a window of its own.
         .glassDialogBackground()
     }
