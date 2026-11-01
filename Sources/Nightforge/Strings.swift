@@ -106,6 +106,8 @@ enum L10n {
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
+        "Nightforge runs from a protected place (macOS does that to an app opened straight from a download or a disk image), so it can't update itself. Drag Nightforge into the Applications folder, open it from there and update again.":
+            "Nightforge läuft von einem geschützten Ort (macOS macht das bei einer App, die direkt aus dem Download oder aus einem Disk-Image geöffnet wird) und kann sich deshalb nicht selbst aktualisieren. Ziehe Nightforge in den Programme-Ordner, öffne es von dort und aktualisiere noch einmal.",
         "This game didn't start the usual way, so Nightforge now starts it another way, automatically.":
             "Dieses Spiel ist auf dem üblichen Weg nicht gestartet, deshalb startet Nightforge es jetzt automatisch anders.",
         "Starting again with %@ …": "Neuer Start mit %@ …",
