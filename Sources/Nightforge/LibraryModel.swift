@@ -136,13 +136,19 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The downloads panel under the top bar's ring (D).
-    @Published var showingDownloads = false
+    @Published var showingDownloads = false {
+        didSet { if showingDownloads && !oldValue { refreshLowSpace() } }
+    }
     /// What Steam is downloading now, in the library's order.
     var downloads: [Game] { allGames.filter { Self.isDownloading($0.install) } }
     /// Speed and time left of each download.
     @Published private(set) var downloadRates: [GameID: DownloadRate] = [:]
     /// A download that wouldn't fit: which games could make room (SpaceCheck) – or a drive to put it on.
     @Published var pendingSpace: SpaceRequest?
+    /// A volume with games that has run low on room (SpaceCheck.lowest): a calm note on Home and in the
+    /// downloads, with the way to Settings › Storage. Looked at when Nightforge starts, after a download
+    /// and when the downloads open – not all the time.
+    @Published private(set) var lowSpace: SpaceCheck.Place?
     /// A game moving to another drive (DriveMoves), shown with the downloads.
     @Published var move: GameMove?
     /// Settings › Storage's "Move to …": asking where the game goes.
@@ -1006,6 +1012,7 @@ final class LibraryModel: ObservableObject {
         libraryLoaded = true
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
+        if !finished.isEmpty || !spaceLooked { refreshLowSpace() }
         applyFilter()
         MacIntegration.announceFinished(finished)
         KeepAwake.update(downloading: found.filter { Self.isDownloading($0.install) && $0.downloadNeedsSpace == nil }.map(\.name))
@@ -1517,10 +1524,18 @@ final class LibraryModel: ObservableObject {
         let folder = game.installDir
         let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: folder))
         let drives = driveChoices(for: game, needed: needed)
-        guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free) else {
+        // What the other downloads on this volume still need counts as taken, and the Mac's own disk keeps more over.
+        let committed = SpaceCheck.committed(by: allGames, except: game) { SpaceCheck.sameVolume($0.installDir, folder) }
+        let margin = SpaceCheck.margin(for: folder)
+        guard let shortfall = SpaceCheck.shortfall(needed: needed, free: free, committed: committed, margin: margin) else {
+            // It fits; on the Mac with little to spare after all downloads, the player hears that first.
+            let kept = SpaceCheck.kept(needed: needed, free: free, committed: committed)
+            let tight = needed > 0 && SpaceCheck.isMacDisk(folder) && SpaceCheck.isTight(kept: kept)
+            let request = SpaceRequest(game: game, needed: needed, free: free, shortfall: 0, candidates: [], drives: drives,
+                                       committed: committed, margin: margin, kept: tight ? kept : nil)
             // A drive the player has put games on before: where this one goes is theirs to say.
-            if drives.contains(where: { $0.usable && $0.drive.hasLibrary }) {
-                pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: 0, candidates: [], drives: drives)
+            if request.asksWhere || tight {
+                pendingSpace = request
             } else {
                 download(game)
             }
@@ -1528,7 +1543,8 @@ final class LibraryModel: ObservableObject {
         }
         let removable = allGames.filter { canUninstall($0) && !isRunning($0) && SpaceCheck.sameVolume($0.installDir, folder) }
         pendingSpace = SpaceRequest(game: game, needed: needed, free: free, shortfall: shortfall,
-                                    candidates: SpaceCheck.candidates(removable, except: game), drives: drives)
+                                    candidates: SpaceCheck.candidates(removable, except: game), drives: drives,
+                                    committed: committed, margin: margin)
     }
 
     /// The space sheet's button: uninstall the picked games one after another, then download.
@@ -1542,11 +1558,11 @@ final class LibraryModel: ObservableObject {
             }
             reload(quiet: true)
             let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: request.game.installDir))
-            if SpaceCheck.shortfall(needed: request.needed, free: free) == nil {
+            if SpaceCheck.shortfall(needed: request.needed, free: free, committed: request.committed, margin: request.margin) == nil {
                 download(request.game)
             } else {
                 errorMessage = L10n.t("There's still not enough space: %@ needs %@, your Mac has %@ free.",
-                                      request.game.name, Format.bytes(request.needed + SpaceCheck.margin), Format.bytes(free))
+                                      request.game.name, Format.bytes(request.required), Format.bytes(free))
             }
         }
     }
@@ -1576,6 +1592,44 @@ final class LibraryModel: ObservableObject {
                 }
             }
             reload(quiet: true)
+        }
+    }
+
+    private var spaceLooked = false
+
+    /// Looks at the room on the Mac and on the drives plugged in that hold games, and sets `lowSpace`.
+    func refreshLowSpace() {
+        spaceLooked = true
+        var places: [SpaceCheck.Place] = []
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        if allGames.contains(where: { ($0.isInstalled || Self.isDownloading($0.install)) && SpaceCheck.isMacDisk($0.installDir) }) {
+            places.append(SpaceCheck.Place(name: "Mac", free: Self.freeSpace(at: home),
+                                           floor: SpaceCheck.macReserve, isMac: true))
+        }
+        for drive in ExternalDrive.connected() where drive.hasLibrary {
+            places.append(SpaceCheck.Place(name: drive.name, free: drive.free, floor: SpaceCheck.margin, isMac: false))
+        }
+        let low = SpaceCheck.lowest(in: places)
+        if low != lowSpace { lowSpace = low }
+    }
+
+    /// The note's button: Settings › Storage, where games move to a drive or go.
+    func makeRoom() {
+        openSettings(tab: .storage)
+    }
+
+    /// The tight-room sheet's "Download Anyway".
+    func downloadTight(_ request: SpaceRequest) {
+        pendingSpace = nil
+        download(request.game)
+    }
+
+    /// The tight-room sheet's "Make Room …": Settings › Storage, once the sheet is gone.
+    func makeRoomInstead() {
+        pendingSpace = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))  // one sheet closes before the next opens
+            makeRoom()
         }
     }
 
@@ -3053,8 +3107,12 @@ final class LibraryModel: ObservableObject {
         settingsTabStep = SettingsTabStep(count: settingsTabStep.count + 1, shoulder: shoulder)
     }
 
-    func openSettings() {
+    /// The tab Settings opens on (set by `openSettings`).
+    private(set) var settingsStart = SettingsView.Tab.general
+
+    func openSettings(tab: SettingsView.Tab = .general) {
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+        settingsStart = tab
         showingSettings = true
     }
 

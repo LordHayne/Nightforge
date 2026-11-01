@@ -106,6 +106,17 @@ enum L10n {
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
+        "Downloads already running still need %@ of that.": "Laufende Downloads brauchen davon noch %@.",
+        "%@ leaves little room": "%@ lässt wenig Platz",
+        "After %@ and the downloads already running, about %@ stay free on your Mac. macOS slows down and can't update when it gets this low.":
+            "Nach %@ und den schon laufenden Downloads bleiben auf deinem Mac etwa %@ frei. Bei so wenig Platz wird macOS langsam und kann sich nicht mehr aktualisieren.",
+        "Make Room …": "Platz schaffen …",
+        "Download Anyway": "Trotzdem laden",
+        "Only %@ would stay free on this Mac.": "Auf diesem Mac blieben nur %@ frei.",
+        "Make Room": "Platz schaffen",
+        "Your Mac has only %@ free – macOS slows down and can't update when it runs this low.":
+            "Dein Mac hat nur noch %@ frei – bei so wenig Platz wird macOS langsam und kann sich nicht aktualisieren.",
+        "%@ has only %@ free.": "%1$@ hat nur noch %2$@ frei.",
         "Nightforge runs from a protected place (macOS does that to an app opened straight from a download or a disk image), so it can't update itself. Drag Nightforge into the Applications folder, open it from there and update again.":
             "Nightforge läuft von einem geschützten Ort (macOS macht das bei einer App, die direkt aus dem Download oder aus einem Disk-Image geöffnet wird) und kann sich deshalb nicht selbst aktualisieren. Ziehe Nightforge in den Programme-Ordner, öffne es von dort und aktualisiere noch einmal.",
         "This game didn't start the usual way, so Nightforge now starts it another way, automatically.":
