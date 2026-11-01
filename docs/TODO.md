@@ -143,6 +143,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   dann wegen Platzmangel pausiert. Nightforge zeigt das an und bietet „Weiter laden“
   (`Engine.unpauseDownload`). Vor einem *Download* prüft Nightforge den Platz inzwischen (`SpaceCheck`, UX-Roadmap 4.1);
   vor *Updates*, die Steam von selbst startet, noch nicht (Steams `BytesToStage`, `UpdateState.pending`).
+- **Ein Laufwerk, das es nicht mehr gibt** (Nutzer, 1.11.). Sonic Mania lag auf dem alten Stick „Spiele test“, und
+  Nightforge wartet, dass er wieder angesteckt wird („schließ es an, um es zu spielen oder zu verschieben“). Ist der Stick
+  weg, kaputt oder neu formatiert, hängt das Spiel fest. Es gibt kein „Vergessen“, und Deinstallieren braucht das
+  Laufwerk.
+  - Vorschlag: In Einstellungen › Speicher bei einem nicht angeschlossenen Laufwerk „Laufwerk vergessen“, mit
+    Rückfrage. Seine Spiele gelten danach als nicht installiert und lassen sich neu laden, auf den Mac oder ein anderes
+    Laufwerk. Dafür die Einträge bei Steam (`libraryfolders.vdf`), Epic (legendary) und GOG (`installed.json`) entfernen.
+    Spielstände liegen im Prefix auf dem Mac und bleiben.
+  - Auf der Spielseite zusätzlich „Neu laden“, das die alte Kopie vergisst.
 - **Platzprüfung zählt laufende Downloads nicht mit, und die Reserve ist knapp** (Nutzer, 1.11.). Die Lage: Control
   (Epic, 27,8 GB) und The Evil Within 2 (GOG, 35,2 GB) luden zugleich, 44 GB waren frei, CleanMyMac warnte
   „Speicherplatz wird knapp“. Beide passen noch, danach bleiben etwa 10 GB.
