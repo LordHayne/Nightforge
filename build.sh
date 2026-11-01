@@ -32,6 +32,8 @@ cp profiles/profiles.json "$OUT/Contents/Resources/profiles.json"
 cp LICENSE "$OUT/Contents/Resources/LICENSE"
 cp profiles/LICENSE-umu-protonfixes "$OUT/Contents/Resources/LICENSE-umu-protonfixes"
 cp profiles/LICENSE-areweanticheatyet "$OUT/Contents/Resources/LICENSE-areweanticheatyet"
+# Apple's licence for D3DMetal, which the dialog shows before anything of Apple's is set up.
+cp Resources/Apple-GPTK-License.rtf "$OUT/Contents/Resources/Apple-GPTK-License.rtf"
 # What else is inside the app (Vulkan headers in the layer, the mingw runtime in the wrapper) and
 # what Nightforge downloads, with their licences.
 cp Resources/THIRD_PARTY_NOTICES.txt "$OUT/Contents/Resources/THIRD_PARTY_NOTICES.txt"

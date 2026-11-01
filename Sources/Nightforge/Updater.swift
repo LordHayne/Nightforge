@@ -55,6 +55,8 @@ enum Updater {
 
     enum Failure: LocalizedError {
         case download, unpack, signature, notWritable, protectedPlace
+        /// The new version needs a newer macOS than this Mac has: it would not open after the swap.
+        case needsNewerMac(required: String)
 
         var errorDescription: String? {
             switch self {
@@ -62,6 +64,10 @@ enum Updater {
             case .unpack: return L10n.t("The update download is damaged. Please try again.")
             case .signature: return L10n.t("The update isn't signed correctly, so it wasn't installed.")
             case .notWritable: return L10n.t("Nightforge can't replace itself in this folder. Download the update from the release page instead.")
+            case .needsNewerMac(let required):
+                let running = ProcessInfo.processInfo.operatingSystemVersion
+                return L10n.t("This version of Nightforge needs macOS %@ or newer, and this Mac runs macOS %@. Nightforge stays on the version you have.",
+                              required.hasSuffix(".0") ? String(required.dropLast(2)) : required, "\(running.majorVersion).\(running.minorVersion)")
             case .protectedPlace:
                 return L10n.t("Nightforge runs from a protected place (macOS does that to an app opened straight from a download or a disk image), so it can't update itself. Drag Nightforge into the Applications folder, open it from there and update again.")
             }
@@ -76,6 +82,14 @@ enum Updater {
     }
 
     static func isTranslocated(_ path: String) -> Bool { path.contains("/AppTranslocation/") }
+
+    /// Whether a macOS older than `minimum` ("26.0", an app's LSMinimumSystemVersion) is what runs.
+    static func needsNewerMac(minimum: String?, running: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion) -> Bool {
+        guard let minimum else { return false }
+        let parts = minimum.split(separator: ".").map { Int($0) ?? 0 }
+        let needed = (parts.first ?? 0, parts.count > 1 ? parts[1] : 0, parts.count > 2 ? parts[2] : 0)
+        return needed > (running.majorVersion, running.minorVersion, running.patchVersion)
+    }
 
     /// Downloads and installs `update` over the running app, then restarts it.
     static func install(_ update: AppUpdate) async throws {
@@ -99,6 +113,9 @@ enum Updater {
         let fresh = unpacked.appendingPathComponent("Nightforge.app", isDirectory: true)
         guard Bundle(url: fresh)?.bundleIdentifier == Bundle.main.bundleIdentifier else { throw Failure.unpack }
         guard run("/usr/bin/codesign", ["--verify", "--deep", fresh.path]) else { throw Failure.signature }
+        // A release that raises the macOS it needs would not open after the swap: this copy stays.
+        let minimum = Bundle(url: fresh)?.object(forInfoDictionaryKey: "LSMinimumSystemVersion") as? String
+        if needsNewerMac(minimum: minimum) { throw Failure.needsNewerMac(required: minimum ?? "") }
 
         // Swap in one step; the running copy keeps working from memory until the restart.
         _ = try fm.replaceItemAt(app, withItemAt: fresh)

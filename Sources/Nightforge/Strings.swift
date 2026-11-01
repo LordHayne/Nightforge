@@ -137,6 +137,8 @@ enum L10n {
         "Your Mac has only %@ free – macOS slows down and can't update when it runs this low.":
             "Dein Mac hat nur noch %@ frei – bei so wenig Platz wird macOS langsam und kann sich nicht aktualisieren.",
         "%@ has only %@ free.": "%1$@ hat nur noch %2$@ frei.",
+        "This version of Nightforge needs macOS %@ or newer, and this Mac runs macOS %@. Nightforge stays on the version you have.":
+            "Diese Version von Nightforge braucht macOS %@ oder neuer, und dieser Mac hat macOS %@. Nightforge bleibt auf der Version, die du hast.",
         "Nightforge runs from a protected place (macOS does that to an app opened straight from a download or a disk image), so it can't update itself. Drag Nightforge into the Applications folder, open it from there and update again.":
             "Nightforge läuft von einem geschützten Ort (macOS macht das bei einer App, die direkt aus dem Download oder aus einem Disk-Image geöffnet wird) und kann sich deshalb nicht selbst aktualisieren. Ziehe Nightforge in den Programme-Ordner, öffne es von dort und aktualisiere noch einmal.",
         "This game didn't start the usual way, so Nightforge now starts it another way, automatically.":
@@ -170,8 +172,8 @@ enum L10n {
         "CrossOver, Whisky and your own Wine": "CrossOver, Whisky und eigenes Wine",
         "Nightforge brings everything it needs. Fill this in only to also show games from CrossOver or Whisky bottles: leave Wine empty for CrossOver, or enter the path to the wine binary of Whisky or your own Wine.":
             "Nightforge bringt alles selbst mit. Nur ausfüllen, wenn auch Spiele aus CrossOver- oder Whisky-Bottles erscheinen sollen: Wine leer lassen für CrossOver, sonst den Pfad zur wine-Datei von Whisky oder deinem eigenen Wine eintragen.",
-        "Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options.":
-            "Jedes Spiel bekommt Apples MetalFX-Hochskalierung auf volle Retina-Schärfe und eine gleichmäßige Bildrate passend zum Bildschirm (60 FPS auf einem 120-Hz-Display). Pro Spiel in dessen Optionen änderbar.",
+        "Most Windows games get Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Older DirectX 9 games and Mac versions run as they are. Change it per game in its options.":
+            "Die meisten Windows-Spiele bekommen Apples MetalFX-Hochskalierung auf volle Retina-Schärfe und eine gleichmäßige Bildrate passend zum Bildschirm (60 FPS auf einem 120-Hz-Display). Ältere DirectX-9-Spiele und Mac-Versionen laufen so, wie sie sind. Pro Spiel in dessen Optionen änderbar.",
         "Low Power Mode is on – games run much slower with it.": "Der Stromsparmodus ist an – Spiele laufen damit deutlich langsamer.",
         "The charger gives only %@ W – too little for games: the battery drains while you play. A stronger one helps.":
             "Das Netzteil liefert nur %@ W – zu wenig für Spiele: Beim Spielen entlädt sich der Akku. Ein stärkeres hilft.",
@@ -392,9 +394,21 @@ enum L10n {
         "Plays on GeForce Now – its anti-cheat doesn't run on a Mac": "Läuft über GeForce Now – sein Anti-Cheat läuft nicht auf dem Mac",
         "Play %@ on GeForce Now?": "%@ über GeForce Now spielen?",
         "Continue to GeForce Now": "Weiter zu GeForce Now",
-        "Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam. The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more.":
-            "Sein Anti-Cheat läuft nicht auf dem Mac, deshalb läuft das Spiel auf NVIDIAs Servern und wird auf deinen Mac gestreamt – mit deinem Steam-Spiel. Beim ersten Mal meldest du dich bei GeForce Now mit einem NVIDIA-Konto an und verknüpfst dort Steam. Kostenlos geht es je eine Stunde, mit Werbung und Warteschlange; die Bezahl-Tarife von GeForce Now heben das auf. Beim Anmelden vergisst GeForce Now das Spiel: Klick danach hier noch einmal auf „Über GeForce Now spielen“.",
+        "Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam.":
+            "Sein Anti-Cheat läuft nicht auf dem Mac, deshalb läuft das Spiel auf NVIDIAs Servern und wird auf deinen Mac gestreamt – mit deinem Steam-Spiel.",
+        "It doesn't start on a Mac yet, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam.":
+            "Es startet auf dem Mac noch nicht, deshalb läuft das Spiel auf NVIDIAs Servern und wird auf deinen Mac gestreamt – mit deinem Steam-Spiel.",
+        "The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more.":
+            "Beim ersten Mal meldest du dich bei GeForce Now mit einem NVIDIA-Konto an und verknüpfst dort Steam. Kostenlos geht es je eine Stunde, mit Werbung und Warteschlange; die Bezahl-Tarife von GeForce Now heben das auf. Beim Anmelden vergisst GeForce Now das Spiel: Klick danach hier noch einmal auf „Über GeForce Now spielen“.",
         "Anti-cheat stops this game on a Mac": "Anti-Cheat verhindert dieses Spiel auf dem Mac",
+        // A game that doesn't start on a Mac yet (profile field "notYet"; each reason is a key of its own)
+        "Doesn't start on a Mac yet": "Startet auf dem Mac noch nicht",
+        "Doesn't start on a Mac yet: %@": "Startet auf dem Mac noch nicht: %@",
+        "Plays on GeForce Now – it doesn't start on a Mac yet": "Läuft über GeForce Now – startet auf dem Mac noch nicht",
+        "Playable on GeForce Now instead.": "Stattdessen auf GeForce Now spielbar.",
+        "Play Anyway": "Trotzdem starten",
+        "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.":
+            "Overwatch hängt bei Nightforge noch beim Start (kein Bild). Nightforge untersucht die Ursache.",
         "Needs a VR headset – this game can't be played on a Mac.": "Braucht eine VR-Brille – dieses Spiel läuft nicht auf dem Mac.",
 
         // Search & library
@@ -488,7 +502,8 @@ enum L10n {
         "Not signed in · %@": "Nicht angemeldet · %@",
         "No controller connected.": "Kein Controller verbunden.",
         "Controller battery": "Akku des Controllers",
-        "Connected · works in every game and in Nightforge": "Verbunden · funktioniert in jedem Spiel und in Nightforge",
+        "Connected · works in Nightforge and in games with controller support":
+            "Verbunden · funktioniert in Nightforge und in Spielen mit Controller-Unterstützung",
         "Pair a Controller …": "Controller koppeln …",
         "PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings.":
             "PlayStation: PS und Create halten, bis das Licht blinkt. Xbox: die Kopplungstaste oben halten, bis das Logo blinkt. Nintendo: die Sync-Taste halten. Dann in den Bluetooth-Einstellungen auswählen.",
@@ -508,6 +523,81 @@ enum L10n {
         "Wine with DXMT": "Wine mit DXMT",
         "Runs Windows games on the Mac": "Lässt Windows-Spiele auf dem Mac laufen",
         "DirectX 12 on Metal (Apple)": "DirectX 12 auf Metal (Apple)",
+        // Apple's D3DMetal: the question, the import, the line in Settings
+        "Set Up DirectX 12": "DirectX 12 einrichten",
+        "Setting Up DirectX 12": "DirectX 12 wird eingerichtet",
+        "Download from Apple": "Bei Apple laden",
+        "DirectX 12 isn't set up": "DirectX 12 ist nicht eingerichtet",
+        "%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.":
+            "%@ zeichnet mit DirectX 12, das ein Mac über Apples D3DMetal ausführt.",
+        "DirectX 12 games run on a Mac through Apple's D3DMetal.": "DirectX-12-Spiele laufen auf dem Mac über Apples D3DMetal.",
+        "D3DMetal is Apple's software, from the Game Porting Toolkit. Apple's licence lets you use it only for developing, testing or evaluating video games, on Apple hardware, and lets Nightforge pass it on only because Nightforge is free and non-commercial. By going on you accept Apple's licence. Nightforge asks this once.":
+            "D3DMetal ist Apples Software, aus dem Game Porting Toolkit. Apples Lizenz erlaubt, es nur zum Entwickeln, Testen oder Bewerten von Spielen zu nutzen, auf Apple-Geräten, und erlaubt Nightforge die Weitergabe nur, weil Nightforge kostenlos und nicht kommerziell ist. Wenn du weitermachst, akzeptierst du Apples Lizenz. Nightforge fragt das nur einmal.",
+        "Read Apple's Licence": "Apples Lizenz lesen",
+        "Nightforge's own download of D3DMetal isn't available at the moment.":
+            "Nightforges eigener Download von D3DMetal ist im Moment nicht verfügbar.",
+        "Download from Apple and Import": "Bei Apple laden und importieren",
+        "Download from Nightforge": "Von Nightforge laden",
+        "Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and imports it by itself.":
+            "Apples Download-Seite ist in deinem Browser geöffnet. Melde dich mit deiner Apple-Kennung an und lade das Game Porting Toolkit herunter – die .dmg-Datei. Nightforge bemerkt sie in deinem Downloads-Ordner und importiert sie von selbst.",
+        "Waiting for the download …": "Warte auf den Download …",
+        "Choose File …": "Datei wählen …",
+        "Open Apple's Page Again": "Apples Seite noch einmal öffnen",
+        "Downloading D3DMetal … %ld %%": "D3DMetal wird geladen … %ld %%",
+        "Setting up D3DMetal …": "D3DMetal wird eingerichtet …",
+        "Importing %@ …": "%@ wird importiert …",
+        "Nothing arrived in your Downloads folder within half an hour. Try again once the download is done, or choose the file yourself.":
+            "Innerhalb einer halben Stunde ist nichts in deinem Downloads-Ordner angekommen. Versuch es noch einmal, wenn der Download fertig ist, oder wähle die Datei selbst aus.",
+        "Choose the Game Porting Toolkit you downloaded from Apple (the .dmg file, or the folder it opens to).":
+            "Wähle das Game Porting Toolkit, das du bei Apple geladen hast (die .dmg-Datei oder den Ordner, in den sie sich öffnet).",
+        "DirectX 12 is ready": "DirectX 12 ist bereit",
+        "D3DMetal is ready and goes into the engine once no game is running. Close the game, then press Play again.":
+            "D3DMetal ist bereit und kommt in die Engine, sobald kein Spiel mehr läuft. Beende das Spiel und klick dann noch einmal auf „Spielen“.",
+        "D3DMetal didn't go into the engine. What was there before is still there. A problem report from the game's page helps.":
+            "D3DMetal ist nicht in die Engine gekommen. Was vorher da war, ist noch da. Ein Problembericht von der Seite des Spiels hilft.",
+        "D3DMetal couldn't be set up. Check your internet connection and try again.":
+            "D3DMetal konnte nicht eingerichtet werden. Prüfe deine Internetverbindung und versuch es noch einmal.",
+        "%@ needs DirectX 12, which runs through Apple's D3DMetal. Without it the game doesn't start – set it up in Settings.":
+            "%@ braucht DirectX 12, das auf dem Mac über Apples D3DMetal läuft. Ohne startet das Spiel nicht – richte es in den Einstellungen ein.",
+        "Not set up": "Nicht eingerichtet",
+        "Set up": "Eingerichtet",
+        "D3DMetal %@": "D3DMetal %@",
+        "D3DMetal %@, from Nightforge": "D3DMetal %@, von Nightforge",
+        "D3DMetal %@, imported from Apple": "D3DMetal %@, von Apple importiert",
+        "Change DirectX 12": "DirectX 12 ändern",
+        "Set up now: %@.": "Eingerichtet ist jetzt: %@.",
+        "That is a beta. Apple's finished version is %@ – you can set it up here.":
+            "Das ist eine Beta. Apples fertige Version ist %@ – hier kannst du sie einrichten.",
+        "A new one replaces it only once it is complete and checked.":
+            "Eine neue ersetzt sie erst, wenn sie vollständig und geprüft ist.",
+        "This is a beta. Apple's finished version, %@, is under Change ….":
+            "Das ist eine Beta. Apples fertige Version, %@, gibt es unter „Ändern …“.",
+        "“%@” in your Downloads folder looks like Apple's Game Porting Toolkit. Import it?":
+            "„%@“ in deinem Downloads-Ordner sieht nach Apples Game Porting Toolkit aus. Importieren?",
+        "Import": "Importieren",
+        "Download a New One from Apple": "Neu bei Apple laden",
+        "Set Up the Finished D3DMetal …": "Fertiges D3DMetal einrichten …",
+        "This game ran on a D3DMetal beta (%@). Apple's finished version, %@, may start it.":
+            "Dieses Spiel lief auf einer D3DMetal-Beta (%@). Apples fertige Version, %@, startet es vielleicht.",
+        "Remove D3DMetal?": "D3DMetal entfernen?",
+        "Removing D3DMetal": "D3DMetal wird entfernt",
+        "Removing D3DMetal …": "D3DMetal wird entfernt …",
+        "D3DMetal comes off this Mac: Nightforge deletes its copies of Apple's files. DirectX 12 games don't start until you set it up again.":
+            "D3DMetal verschwindet von diesem Mac: Nightforge löscht seine Kopien von Apples Dateien. DirectX-12-Spiele starten erst wieder, wenn du es neu einrichtest.",
+        "A game is running. Close it, then remove D3DMetal.": "Ein Spiel läuft. Beende es und entferne D3DMetal dann.",
+        "D3DMetal is removed": "D3DMetal ist entfernt",
+        "Set Up …": "Einrichten …",
+        "DirectX 12 (Apple's D3DMetal)": "DirectX 12 (Apples D3DMetal)",
+        "DirectX 12 games run through Apple's D3DMetal, which Nightforge sets up when you say so – at the first game that needs it, or here.":
+            "DirectX-12-Spiele laufen über Apples D3DMetal. Nightforge richtet es ein, wenn du es sagst – beim ersten Spiel, das es braucht, oder hier.",
+        "This isn't Apple's Game Porting Toolkit: Nightforge found no D3DMetal in it.":
+            "Das ist nicht Apples Game Porting Toolkit: Nightforge hat darin kein D3DMetal gefunden.",
+        "Apple didn't sign this D3DMetal, so Nightforge doesn't use it.":
+            "Dieses D3DMetal ist nicht von Apple signiert, deshalb nutzt Nightforge es nicht.",
+        "Nightforge couldn't open this download. Try downloading it again.":
+            "Nightforge konnte diesen Download nicht öffnen. Lade ihn noch einmal herunter.",
+        "Nightforge couldn't copy D3DMetal. Check that your Mac has room.":
+            "Nightforge konnte D3DMetal nicht kopieren. Prüfe, ob auf deinem Mac genug Platz ist.",
         "DirectX 10 and 11 on Metal": "DirectX 10 und 11 auf Metal",
         "DirectX 9 to 11 on Vulkan": "DirectX 9 bis 11 auf Vulkan",
         "Vulkan on Metal": "Vulkan auf Metal",
@@ -838,8 +928,8 @@ enum L10n {
         "Custom": "Eigene",
         "What the profile for this game says and what Nightforge learns while you play – the best choice for most games.":
             "Was das Profil für dieses Spiel sagt und was Nightforge beim Spielen lernt – für die meisten Spiele das Beste.",
-        "MetalFX sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen).":
-            "MetalFX-Schärfe und eine gleichmäßige Bildrate passend zum Display (60 FPS auf einem 120-Hz-Bildschirm).",
+        "MetalFX sharpness where the game can use it, and an even frame rate that fits your display (60 FPS on a 120 Hz screen).":
+            "MetalFX-Schärfe, wo das Spiel sie nutzen kann, und eine gleichmäßige Bildrate passend zum Display (60 FPS auf einem 120-Hz-Bildschirm).",
         "The highest frame rate: MetalFX upscaling, no frame limit.": "Die höchste Bildrate: MetalFX-Hochskalierung, kein FPS-Limit.",
         "The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.":
             "Der langsamere, sicherste Grafikweg: ohne MetalFX, 60 FPS. Für Spiele, die abstürzen oder schwarz bleiben.",
@@ -999,6 +1089,9 @@ enum L10n {
         "Runs with tweaks": "Läuft mit Anpassungen",
         "Not tested yet": "Noch nicht getestet",
         "Needs a VR headset.": "Braucht eine VR-Brille.",
+        "Doesn't start yet": "Startet noch nicht",
+        "Nightforge doesn't start them yet and is working on it. Some play on GeForce Now meanwhile.":
+            "Nightforge startet sie noch nicht und arbeitet daran. Manche laufen solange über GeForce Now.",
         "Its anti-cheat needs Windows itself.": "Sein Anti-Cheat braucht Windows selbst.",
         "Its anti-cheat needs Windows – playable on GeForce Now instead.":
             "Sein Anti-Cheat braucht Windows – stattdessen auf GeForce Now spielbar.",
@@ -1205,8 +1298,8 @@ enum L10n {
         "When a game also comes for the Mac, Nightforge takes the Mac version – without any Windows translation.":
             "Gibt es ein Spiel auch für den Mac, nimmt Nightforge die Mac-Version – ganz ohne Windows-Übersetzung.",
         "Sharp and smooth by itself": "Schön & flüssig, von selbst",
-        "Every game gets MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.":
-            "Jedes Spiel bekommt MetalFX-Schärfe und eine gleichmäßige Bildrate – 60 FPS auf einem 120-Hz-Display.",
+        "Most Windows games get MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.":
+            "Die meisten Windows-Spiele bekommen MetalFX-Schärfe und eine gleichmäßige Bildrate – 60 FPS auf einem 120-Hz-Display.",
         "Anti-cheat? Then through GeForce Now": "Anti-Cheat? Dann über GeForce Now",
         "Games whose anti-cheat needs Windows itself stream through GeForce Now – with your copy from Steam.":
             "Spiele, deren Anti-Cheat Windows selbst braucht, streamt Nightforge über GeForce Now – mit deinem Steam-Spiel.",

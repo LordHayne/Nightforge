@@ -38,11 +38,12 @@ struct StageTest {
             game(6),                       // great, partial controller
             game(7),                       // not tested
             game(8),                       // great, full, Mac, 89, but bigger than 2
+            game(10),                      // doesn't start yet
         ]
         var known: [Int: StarterFacts] = [
             0: facts(score: 95, gb: 11), 1: facts(mac: true, score: 87, gb: 9), 2: facts(mac: true, score: 89, gb: 1),
             3: facts(true, .tweaks), 4: facts(false, .no), 5: facts(score: 99), 6: facts(false, .great, .partial, score: 91),
-            7: facts(false, .untested, score: 70), 8: facts(mac: true, score: 89, gb: 30),
+            7: facts(false, .untested, score: 70), 8: facts(mac: true, score: 89, gb: 30), 10: facts(true, .notYet, score: 99),
         ]
         var vr = game(9)
         vr.isVROnly = true
@@ -50,7 +51,8 @@ struct StageTest {
         let all = games + [vr]
         let order = StarterPicks.order(all) { known[$0.appID]! }
         check(order == [3, 2, 8, 1, 0, 6, 7], "installed, great, controller, Mac, score, size: \(order)")
-        check(!order.contains(4) && !order.contains(5) && !order.contains(9), "no games that don't run, aren't owned or need VR")
+        check(!order.contains(4) && !order.contains(5) && !order.contains(9) && !order.contains(10),
+              "no games that don't run (for good or not yet), aren't owned or need VR")
 
         // Nothing played yet: "To start with" fills the stage, its first is "Recommended to start".
         let starters = { order }

@@ -38,6 +38,20 @@ struct UpdateStateTest {
         check(!Updater.isTranslocated("/Applications/Nightforge.app") && !Updater.isTranslocated("/Users/a/Applications/Nightforge.app"),
               "an app in Applications isn't")
         check(!Updater.runsFromProtectedPlace(URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)), "the home folder is no protected place")
+        // A release that raises the macOS it needs doesn't replace a copy that couldn't open it.
+        func mac(_ major: Int, _ minor: Int = 0, _ patch: Int = 0) -> OperatingSystemVersion {
+            OperatingSystemVersion(majorVersion: major, minorVersion: minor, patchVersion: patch)
+        }
+        check(Updater.needsNewerMac(minimum: "26.0", running: mac(15, 6)) && Updater.needsNewerMac(minimum: "26.0", running: mac(14, 8, 1)),
+              "macOS 14 and 15 stay on the version they have")
+        check(!Updater.needsNewerMac(minimum: "26.0", running: mac(26)) && !Updater.needsNewerMac(minimum: "26.0", running: mac(27, 1)),
+              "macOS 26 and 27 take it")
+        check(Updater.needsNewerMac(minimum: "26.1", running: mac(26)) && !Updater.needsNewerMac(minimum: "26.1", running: mac(26, 1))
+              && Updater.needsNewerMac(minimum: "26.1.1", running: mac(26, 1)) && !Updater.needsNewerMac(minimum: "14", running: mac(14)),
+              "minor and patch versions count; a bare 14 is 14.0")
+        check(!Updater.needsNewerMac(minimum: nil, running: mac(14)), "no minimum named, nothing in the way")
+        check(Updater.Failure.needsNewerMac(required: "26.0").errorDescription?.contains("26 ") == true
+              && Updater.Failure.needsNewerMac(required: "26.0").errorDescription?.contains("26.0") == false, "the message says 26, not 26.0")
 
         do { try scanner() } catch { check(false, "the made-up bottle: \(error)") }
         try? FileManager.default.removeItem(at: root)
@@ -250,5 +264,11 @@ struct UpdateStateTest {
                                                    blocks: [1623730: battlEye, 6100: battlEye, 6200: onlineOnly, 6300: onlineOnly])
         check(blocked.map(\.antiCheatBlock) == [battlEye, nil, nil, onlineOnly, nil],
               "the Windows version is stopped, not the Mac one nor a store hit; online-only anti-cheat only stops online-only games")
+        // A game that doesn't start yet is marked the same way, but not for good: it can be tried, and streams when GeForce Now has it.
+        let later = AntiCheatBlock(antiCheat: [], geforceNow: "g2", notYet: "Not yet.")
+        let held = LibraryScanner.markAntiCheat([windows, macVersion, online], blocks: [1623730: later, 6200: later])
+        check(held.map(\.antiCheatBlock) == [later, nil, later], "not yet stops the Windows version, even when it isn't online only")
+        check(held[0].playsInCloud && held[0].antiCheatBlock?.notYet != nil && blocked[0].antiCheatBlock?.notYet == nil,
+              "a game that doesn't start yet streams from GeForce Now when it can, and says it isn't ruled out for good")
     }
 }

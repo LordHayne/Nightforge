@@ -279,7 +279,7 @@ private struct GeneralSettings: View {
                 Toggle(isOn: $sharpAndSmooth) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Sharp & smooth"))
-                        Text(L10n.t("Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options."))
+                        Text(L10n.t("Most Windows games get Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Older DirectX 9 games and Mac versions run as they are. Change it per game in its options."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
@@ -332,6 +332,33 @@ private struct GeneralSettings: View {
             }
 
             Section {
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        Text(model.d3dMetalStatus)
+                            .font(size: 12)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                        Button(Engine.d3dMetalReady ? L10n.t("Change …") : L10n.t("Set Up …"), action: setUpDirectX12)
+                            .padFocus("settings.d3dmetal", activate: setUpDirectX12)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("DirectX 12 (Apple's D3DMetal)"))
+                        Text(L10n.t("DirectX 12 games run through Apple's D3DMetal, which Nightforge sets up when you say so – at the first game that needs it, or here."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                        if model.d3dMetalIsBeta {
+                            Text(L10n.t("This is a beta. Apple's finished version, %@, is under Change ….", D3DMetalSupply.finishedVersion))
+                                .font(size: 10)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                SectionTitle(L10n.t("Graphics"))
+            }
+
+            Section {
                 Toggle(isOn: reduceMotion) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Reduce motion"))
@@ -354,6 +381,11 @@ private struct GeneralSettings: View {
                 SectionTitle(L10n.t("Accessibility"))
             }
         }
+    }
+
+    private func setUpDirectX12() {
+        let change = Engine.d3dMetalReady
+        model.closeSettings { model.askAboutD3DMetal(for: nil, change: change) }
     }
 
     /// Shows what applies now; set back to what macOS says, it follows macOS again.
@@ -489,7 +521,7 @@ private struct ControllerSettings: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(pad.vendorName ?? pad.productCategory)
                     .font(size: 13.5, weight: .semibold)
-                Text(L10n.t("Connected · works in every game and in Nightforge"))
+                Text(L10n.t("Connected · works in Nightforge and in games with controller support"))
                     .font(size: 10)
                     .foregroundStyle(.secondary)
             }
@@ -975,7 +1007,11 @@ private struct AboutSettings: View {
     /// From the component list at hand (the last one fetched, else the app's own) – no network.
     private var credits: [Credit] {
         let components = ComponentStore.localManifest()?.components ?? []
+        // Apple's D3DMetal comes from the player's choice, not always from the list.
+        let apple = components.contains { $0.id == Engine.d3dMetalID } || !Engine.d3dMetalReady ? []
+            : [Credit(name: "D3DMetal", version: nil, role: L10n.t("DirectX 12 on Metal (Apple)"), license: "Apple Game Porting Toolkit licence")]
         return components.map { Credit(name: Self.name(of: $0), version: $0.version, role: Self.role(of: $0), license: $0.license) }
+            + apple
             + [Credit(name: "umu-protonfixes", version: nil, role: L10n.t("Fixes for single games"), license: "BSD-2-Clause"),
                Credit(name: "AreWeAntiCheatYet", version: nil, role: L10n.t("Which games' anti-cheat runs where"), license: "MIT")]
     }
@@ -1020,7 +1056,7 @@ private struct AboutSettings: View {
     }
 
     private func showLicences() {
-        let files = ["LICENSE", "LICENSE-umu-protonfixes", "LICENSE-areweanticheatyet"]
+        let files = ["LICENSE", "LICENSE-umu-protonfixes", "LICENSE-areweanticheatyet", "Apple-GPTK-License.rtf"]
             .compactMap { Bundle.main.url(forResource: $0, withExtension: nil) }
         if files.isEmpty {
             NSWorkspace.shared.open(URL(string: "https://github.com/LordHayne/Nightforge")!)

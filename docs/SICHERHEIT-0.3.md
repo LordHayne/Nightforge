@@ -22,7 +22,7 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
 | H2 | hoch | Update-ZIP, `manifest.json`, `profiles.json`, `install.sh` ohne Signatur | Vorschlag 0.3.1, Entscheidung nötig |
 | M1 | mittel | Epic-/GOG-Token-Dateien für alle lesbar (644 in 755) | behoben (`c9ceb49`) |
 | M2 | mittel | Anmeldecodes in Kommandozeilen (für andere Nutzer des Macs per `ps` sichtbar) | Hinweis, nicht abstellbar |
-| M3 | mittel | winetricks und DXMT folgen ungeprüft dem neuesten Upstream, Bot pusht direkt auf `main` | Vorschlag |
+| M3 | mittel | winetricks und DXMT folgen ungeprüft dem neuesten Upstream, Bot pusht direkt auf `main` | erledigt (`2f53abc`) |
 | M4 | mittel | Komponenten-URL: jeder HTTPS-Host erlaubt, Prüfsumme aus derselben Quelle | Vorschlag |
 | M5 | mittel | Update-ZIP: kein Abgleich mit GitHubs Digest, Adresse nicht auf das eigene Repo geprüft | Vorschlag (klein) |
 | M6 | mittel | Windows-Spiele sehen über `Z:\` den ganzen Mac | Design, Vorschlag |
@@ -118,6 +118,11 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
   dass ein Mensch es sieht.
 - Vorschlag: beide wie die sechs anderen mit `tag` festnageln (die Daten, nicht der Code, ändern sich) und neue Versionen über
   einen Pull Request des Bots freigeben (`peter-evans/create-pull-request` oder `gh pr create` im Workflow).
+- **Erledigt (`2f53abc`):** Beide sind auf `20260125` (winetricks) und `v0.80` (DXMT) festgenagelt. `update-components.py --propose`
+  schlägt die jeweils neueste stabile Version vor; der Workflow legt sie als Pull Request auf dem Zweig `bot/components` ab
+  (`gh pr create`) und pusht nie auf `main`. Die Beschreibung nennt jede Version, die sich bewegt, und hebt eine Datei hervor,
+  die unter gleicher Version ersetzt wurde. Voraussetzung: die Repository-Einstellung „Allow GitHub Actions to create and approve
+  pull requests" (Settings › Actions › General).
 
 ### M4 – Komponenten-URL: nur „https“ wird verlangt
 

@@ -157,6 +157,10 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
+    /// The question about Apple's D3DMetal, while it's asked (D3DMetalFlow).
+    @Published var d3dMetalDialog: D3DMetalDialog?
+    /// What is going on behind it: the import or download, and the game whose start waits for the answer.
+    var d3dMetalRun = D3DMetalRun()
     /// A demo or free game about to get its licence in Steam's install window: what that takes is said first.
     @Published var pendingDemoLicense: Game?
     private var macSteamPrewarmed = false
@@ -1259,6 +1263,18 @@ final class LibraryModel: ObservableObject {
         }
     }
 
+    /// The engine built again from what the component list and the player's D3DMetal now say, queued
+    /// behind a Steam start that may still be at it. False when it couldn't (offline, a broken download).
+    func rebuildEngine(report: (@Sendable (Engine.SetupStep) -> Void)? = nil) async -> Bool {
+        let previous = steamStartup
+        let build = Task { () -> Bool in
+            await previous?.value
+            return (try? await Engine.ensureEngine(gameRunning: !running.isEmpty, report: report)) != nil
+        }
+        steamStartup = Task { _ = await build.value }
+        return await withTaskCancellationHandler { await build.value } onCancel: { build.cancel() }
+    }
+
     /// After a setting games get from Steam changed: restart it now if no game would be cut off.
     func applySteamSettings() {
         guard SetupModel.isComplete else { return }
@@ -1390,13 +1406,27 @@ final class LibraryModel: ObservableObject {
         // On a drive that's unplugged: plugging it in plays it; downloading would make a second copy.
         if game.install == .notInstalled && game.missingDrive != nil { return }
         switch game.install {
-        case .installed: launchSelected()
+        // What anti-cheat stops does nothing here (the button says why); a game that doesn't start yet has `tryAnyway`.
         case .installed where game.antiCheatBlock != nil: break
+        case .installed: launchSelected()
         case .notInstalled where game.isVROnly || game.antiCheatBlock != nil: break
         case .notInstalled: downloadIfRoom(game)
         case .downloading: if game.downloadNeedsSpace != nil { resumeDownload(game) }
         case .inStore where game.storeFree: pendingDemoLicense = freeEntry(game)
         case .inStore: openStorePage(game)
+        }
+    }
+
+    /// "Download Anyway" / "Play Anyway": a game that doesn't start on a Mac yet isn't ruled out – it
+    /// may work for this player – so it stays possible, only not as the big button. Room and the
+    /// drive are asked as for any download.
+    func tryAnyway() {
+        guard let game = selected, game.antiCheatBlock?.notYet != nil, !isRunning(game),
+              uninstallingID != game.id, launchingID != game.id, !waitsForMove(game), game.missingDrive == nil else { return }
+        switch game.install {
+        case .installed: launchSelected()
+        case .notInstalled: downloadIfRoom(game)
+        case .downloading, .inStore: break
         }
     }
 
@@ -2590,13 +2620,16 @@ final class LibraryModel: ObservableObject {
         launchTask?.cancel()
     }
 
-    private func launch(_ game: Game) {
+    /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
+    func launch(_ game: Game, d3dMetalChecked: Bool = false) {
         guard game.isInstalled, launchingID == nil else { return }
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
             return
         }
+        // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
+        if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         launchingID = game.id

@@ -139,9 +139,15 @@ struct LibraryView: View {
         .sheet(item: $model.pendingDemoLicense) { game in
             DemoLicenseSheet(game: game)
         }
+        .sheet(item: $model.d3dMetalDialog, onDismiss: { model.d3dMetalDismissed() }) { dialog in
+            D3DMetalSheet(opened: dialog)
+        }
         .sheet(item: $model.pendingCloudGame) { game in
             GlassQuestion(L10n.t("Play %@ on GeForce Now?", game.name),
-                          message: L10n.t("Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam. The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more."),
+                          message: (game.antiCheatBlock?.notYet != nil
+                                    ? L10n.t("It doesn't start on a Mac yet, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam.")
+                                    : L10n.t("Its anti-cheat doesn't run on a Mac, so it runs on NVIDIA's servers and streams to your Mac – with the copy you own on Steam."))
+                              + " " + L10n.t("The first time, sign in to GeForce Now with an NVIDIA account and link Steam there. Free play lasts an hour at a time, with ads and a queue; GeForce Now's paid plans lift that. GeForce Now forgets the game while you sign in: afterwards, press Play on GeForce Now here once more."),
                           id: "cloud") {
                 Button(L10n.t("Cancel")) { model.pendingCloudGame = nil }
                     .buttonStyle(GlassTextButtonStyle())
@@ -611,6 +617,21 @@ struct FailedLaunchSheet: View {
                         .padFocus("failed.options", cornerRadius: 21, activate: chooseByHand)
                         .padding(.top, 4)
                     }
+                    if offersFinishedD3DMetal {
+                        Button(action: finishedD3DMetal) {
+                            Label(L10n.t("Set Up the Finished D3DMetal …"), systemImage: "arrow.triangle.2.circlepath")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("failed.d3dmetal", cornerRadius: 21, activate: finishedD3DMetal)
+                        .padding(.top, 4)
+                        Text(L10n.t("This game ran on a D3DMetal beta (%@). Apple's finished version, %@, may start it.",
+                                    D3DMetalSupply.displayVersion(Engine.deployedD3DMetalVersion() ?? ""), D3DMetalSupply.finishedVersion))
+                            .font(size: 12.5)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
+                    }
                 }
             }
             HStack(alignment: .center, spacing: 12) {
@@ -638,6 +659,21 @@ struct FailedLaunchSheet: View {
     private var offersCompatible: Bool {
         failed.game.bottle.isBuiltIn && failed.game.platform == .windows
             && GameOptionsStore.load(failed.game.gameID).preset != .compatible
+    }
+
+    /// The game was tried on D3DMetal, and what is in the engine is a beta (kept from before the question):
+    /// the finished one is a way out that costs two clicks and nothing is changed behind the player's back.
+    private var offersFinishedD3DMetal: Bool {
+        failed.tried.contains(GraphicsLayer.d3dmetal.label) && model.d3dMetalIsBeta
+    }
+
+    private func finishedD3DMetal() {
+        model.failedLaunch = nil
+        // One sheet closes before the next opens.
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            model.askAboutD3DMetal(for: nil, change: true)
+        }
     }
 
     private func mostCompatible() { model.startMostCompatible(failed) }
@@ -1287,7 +1323,8 @@ private struct GameDetail: View {
             }
 
             if !compact {
-                CompatibilityNote(compatibility: model.compatibility(of: game))
+                CompatibilityNote(compatibility: model.compatibility(of: game),
+                                  reasonShownBelow: game.antiCheatBlock?.notYet != nil)
             }
             if !compact, !game.addOns.isEmpty {
                 Label(AddOns.line(game.addOns), systemImage: "puzzlepiece.extension")
@@ -1302,7 +1339,7 @@ private struct GameDetail: View {
                     .foregroundStyle(Theme.muted)
             }
             if let block = game.antiCheatBlock {
-                AntiCheatNote(block: block)
+                AntiCheatNote(block: block, game: game)
             }
             if game.demoOf != nil {
                 DemoNote(game: game)
@@ -1503,8 +1540,9 @@ extension PlayButton {
             return .init(title: L10n.t("Connect %@ to Play", drive), symbol: "externaldrive.badge.xmark")
         }
         if game.isVROnly && game.install == .notInstalled { return .init(title: L10n.t("VR only"), symbol: "visionpro") }
-        if game.antiCheatBlock != nil && !game.playsInCloud {
-            return .init(title: L10n.t("Doesn't run on a Mac"), symbol: "shield.slash")
+        if let block = game.antiCheatBlock, !game.playsInCloud {
+            return block.notYet != nil ? .init(title: L10n.t("Doesn't start on a Mac yet"), symbol: "hourglass")
+                : .init(title: L10n.t("Doesn't run on a Mac"), symbol: "shield.slash")
         }
         return nil
     }
@@ -1581,10 +1619,12 @@ private struct StoreChoiceRow: View {
 /// On a game's page, what its badge above the title means for this game, and where it was tested.
 private struct CompatibilityNote: View {
     let compatibility: Compatibility
+    /// The page says why in its own note (AntiCheatNote): the reason isn't said twice.
+    var reasonShownBelow = false
 
     var body: some View {
         let tested = compatibility.testedOn.isEmpty ? nil : L10n.t("Tested on %@", compatibility.testedOn.joined(separator: ", "))
-        let parts = [compatibility.note, tested].compactMap { $0 }
+        let parts = [reasonShownBelow ? nil : compatibility.note, tested].compactMap { $0 }
         if !parts.isEmpty {
             Label(parts.joined(separator: " · "), systemImage: compatibility.level.symbol)
                 .font(size: 13, weight: .medium)
@@ -1619,18 +1659,32 @@ private struct HeldEngineNote: View {
     }
 }
 
-/// Why a game with anti-cheat can't be played on a Mac, and where it can be streamed instead.
+/// Why a game with anti-cheat can't be played on a Mac, and where it can be streamed instead. A game
+/// that doesn't start *yet* says why in the profile's words, and can still be loaded or started.
 private struct AntiCheatNote: View {
     let block: AntiCheatBlock
+    let game: Game
+    @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(L10n.t("This game's anti-cheat (%@) stops it on a Mac: it needs Windows itself, and getting around it would get your account banned.",
-                         block.antiCheat.joined(separator: ", ")),
-                  systemImage: "shield.slash")
+            if let reason = block.notYet {
+                Label(L10n.t("Doesn't start on a Mac yet: %@", L10n.t(reason)), systemImage: "hourglass")
+            } else {
+                Label(L10n.t("This game's anti-cheat (%@) stops it on a Mac: it needs Windows itself, and getting around it would get your account banned.",
+                             block.antiCheat.joined(separator: ", ")),
+                      systemImage: "shield.slash")
+            }
             if block.geforceNow != nil {
                 Label(L10n.t("Nightforge plays it on GeForce Now, NVIDIA's cloud gaming, with your Steam copy (own NVIDIA account; free sessions last an hour)."),
                       systemImage: "cloud")
+            }
+            // Not the big button, which is the cloud's or says why not: this one is for the curious.
+            if block.notYet != nil, game.install == .notInstalled || game.install == .installed, game.missingDrive == nil,
+               !model.isRunning(game) {
+                Button(game.install == .installed ? L10n.t("Play Anyway") : L10n.t("Download Anyway")) { model.tryAnyway() }
+                    .buttonStyle(GlassTextButtonStyle(small: true))
+                    .padFocus("detail.tryAnyway", activate: { model.tryAnyway() })
             }
         }
         .font(size: 13, weight: .medium)
@@ -1807,6 +1861,10 @@ struct GameContextMenu: ViewModifier {
             default:
                 EmptyView()
             }
+            if game.antiCheatBlock?.notYet != nil, !model.isRunning(game), game.missingDrive == nil,
+               game.install == .installed || game.install == .notInstalled {
+                Button(game.install == .installed ? L10n.t("Play Anyway") : L10n.t("Download Anyway")) { select(); model.tryAnyway() }
+            }
             if game.hasFolder {
                 Button(L10n.t("Show game folder in Finder")) { select(); model.revealSelected() }
             }
@@ -1969,6 +2027,16 @@ struct CoverCard: View {
         return parts.joined(separator: ", ")
     }
 
+    /// What the badge of a cover held back by anti-cheat, or "not yet", says.
+    private static func blockHelp(_ block: AntiCheatBlock) -> String {
+        switch (block.notYet != nil, block.geforceNow != nil) {
+        case (true, true): return L10n.t("Plays on GeForce Now – it doesn't start on a Mac yet")
+        case (true, false): return L10n.t("Doesn't start on a Mac yet")
+        case (false, true): return L10n.t("Plays on GeForce Now – its anti-cheat doesn't run on a Mac")
+        case (false, false): return L10n.t("Anti-cheat stops this game on a Mac")
+        }
+    }
+
     @ViewBuilder private var installBadge: some View {
         switch shown.install {
         case .installed where game.pendingUpdate != nil:
@@ -2003,15 +2071,14 @@ struct CoverCard: View {
                 Spacer()
                 if let block = game.antiCheatBlock {
                     // Instead of the download sign: this one won't run here, or only in the cloud.
-                    Image(systemName: block.geforceNow != nil ? "cloud" : "shield.slash")
+                    Image(systemName: block.geforceNow != nil ? "cloud" : block.notYet != nil ? "hourglass" : "shield.slash")
                         .font(size: 14, weight: .bold, scales: false)
                         .foregroundStyle(Theme.ink)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 5)
                         .background(Theme.night.opacity(0.82), in: Capsule())
                         .padding(7)
-                        .help(block.geforceNow != nil ? L10n.t("Plays on GeForce Now – its anti-cheat doesn't run on a Mac")
-                              : L10n.t("Anti-cheat stops this game on a Mac"))
+                        .help(Self.blockHelp(block))
                 } else {
                     Image(systemName: game.install == .inStore ? "cart.circle.fill" : "arrow.down.circle.fill")
                         .font(size: 20, weight: .semibold, scales: false)
@@ -2100,9 +2167,11 @@ private struct HintBar: View {
                          text: !model.searchText.isEmpty ? L10n.t("Clear search") : model.showingHidden ? L10n.t("All games") : L10n.t("Home"))
                 case .detail(_, let from):
                     if let game = model.selected, game.install != .inStore {
-                        // What Return does here: the big button's word, short.
-                        Hint(controller ? .pad(pad.confirm) : .key("↵"),
-                             text: game.install == .notInstalled && !game.playsInCloud ? L10n.t("Download") : L10n.t("Play"))
+                        // What Return does here: the big button's word, short – nothing when it only says why not.
+                        if game.antiCheatBlock == nil || game.playsInCloud {
+                            Hint(controller ? .pad(pad.confirm) : .key("↵"),
+                                 text: game.install == .notInstalled && !game.playsInCloud ? L10n.t("Download") : L10n.t("Play"))
+                        }
                         Hint(controller ? .pad(pad.menu) : .key("O"), text: L10n.t("Options"))
                         if !controller {
                             Hint(.key("H"), text: model.isHidden(game) ? L10n.t("Show") : L10n.t("Hide"))

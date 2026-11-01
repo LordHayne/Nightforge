@@ -10,8 +10,12 @@ on:
       - "scripts/*components*.py"
       - "scripts/validate-manifest.py"
 
+# The nightly run proposes its changes in a pull request (branch bot/components) and never pushes to
+# main. The repository setting Actions › General › "Allow GitHub Actions to create and approve pull
+# requests" has to be on for that.
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -22,24 +26,45 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Pinned sources stay as they are; --propose moves the pin of winetricks and DXMT to their newest
+      # stable release, for the pull request to show.
       - name: Rebuild manifest from upstream releases
         if: github.event_name != 'pull_request'
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/update-components.py
+        run: python3 scripts/update-components.py --propose | tee "$RUNNER_TEMP/changes.txt"
 
       - name: Validate manifest
         run: python3 scripts/validate-manifest.py
 
-      - name: Commit changes
+      - name: Propose the change in a pull request
         if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet components/manifest.json; then
+          if git diff --quiet components/; then
             echo "No component updates."
             exit 0
           fi
+          branch=bot/components
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add components/manifest.json
+          git checkout -B "$branch"
+          git add components/manifest.json components/sources.json
           git commit -m "Update components"
-          git push
+          # The bot's own branch: this night's proposal replaces yesterday's if it wasn't merged.
+          git push --force origin "$branch"
+          {
+            echo "The nightly run found these changes. Nothing reaches the app until this is merged."
+            echo "Read the diff first: winetricks is a script that runs as the player's user, DXMT's files run under Wine."
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/changes.txt"
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$branch" --title "Update components" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          fi

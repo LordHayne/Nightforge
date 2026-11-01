@@ -1,6 +1,7 @@
 """Every text shown through L10n.t has a German entry, and the German table has no key twice
-(a duplicate key crashes Nightforge at launch)."""
-import pathlib, re, sys
+(a duplicate key crashes Nightforge at launch). A profile's "notYet" reason is shown through L10n.t
+as well, so it needs its German entry too."""
+import json, pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
 sources = sorted(root.glob("Sources/Nightforge/*.swift"))
@@ -26,6 +27,18 @@ for key in keys:
 same = {"OK", "Metascore", "GeForce Now", "Mac", "Windows", "HUD", "MetalFX", "Steam", "FPS", "Nightforge"}
 missing = sorted((where, key) for key, where in used.items() if key not in seen and key not in same)
 
+# Reasons in the profile lists (the key in Swift's escaping).
+reasons = 0
+for name in ("mac.json", "profiles.json"):
+    for app_id, game in json.loads((root / "profiles" / name).read_text())["games"].items():
+        reason = game.get("notYet")
+        if not reason:
+            continue
+        reasons += 1
+        key = reason.replace("\\", "\\\\").replace('"', '\\"')
+        if key not in seen:
+            missing.append((f"profiles/{name} {app_id}", key))
+
 for key in duplicates:
     print(f"✗ twice in the German table: {key!r}")
 for where, key in missing:
@@ -33,4 +46,4 @@ for where, key in missing:
 if duplicates or missing:
     print(f"{len(duplicates)} duplicate, {len(missing)} missing")
     sys.exit(1)
-print(f"✓ Strings ({len(used)} texts, all in German)")
+print(f"✓ Strings ({len(used)} texts and {reasons} profile reasons, all in German)")

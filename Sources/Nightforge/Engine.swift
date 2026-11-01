@@ -541,7 +541,8 @@ enum Engine {
         // On winecx, D3DMetal takes the engine's Direct3D builtins and DXMT and DXVK move into the
         // prefix as native DLLs (see `layerOverrides`).
         let gptk = isGPTKCapable(wine: wine)
-        let d3dMetal = gptk ? manifest.component(d3dMetalID) : nil
+        // Apple's D3DMetal only once the player has said how it comes (D3DMetalSupply) – or had it before.
+        let d3dMetal = gptk ? D3DMetalSupply.current(manifest: manifest, componentsRoot: store.root) : nil
         let gamepad = gptk ? manifest.component(gamepadID) : nil
         // Copying the graphics files again would give them new inodes and so rebuild the game
         // bundle Steam runs from, and every regedit starts Wine: each part is only redone when what
@@ -553,8 +554,8 @@ enum Engine {
         let graphicsWanted = "\(graphics.id) \(graphics.version) engine-match \(matchesEngine) moltenvk \(moltenVK?.version ?? "engine")"
             + " d3dmetal \(d3dMetal?.version ?? "-") gamepad \(gamepad?.version ?? "-")"
         let dxvk = manifest.component(dxvkID)
-        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, d3dMetal, gamepad, dxvk].compactMap { $0 },
-                                stamp: graphicsWanted)
+        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, dxvk].compactMap { $0 },
+                                d3dMetal: d3dMetal?.version, stamp: graphicsWanted)
         // Before anything of the engine changes, the build games last ran well on stays as a copy:
         // a game the new one breaks starts with it instead (EngineRollback).
         if !gameRunning, !windowsGameRunning {
@@ -566,7 +567,11 @@ enum Engine {
             var moltenVKDir: URL?
             if let moltenVK { moltenVKDir = try await install(moltenVK) }
             var d3dMetalDir: URL?
-            if let d3dMetal { d3dMetalDir = try await install(d3dMetal) }
+            switch d3dMetal?.origin {
+            case .download(let component)?: d3dMetalDir = try await install(component)
+            case .kept(let dir)?, .imported(let dir)?: d3dMetalDir = dir
+            case nil: break
+            }
             var gamepadDir: URL?
             if let gamepad { gamepadDir = try await install(gamepad) }
             report?(.graphics)
@@ -588,7 +593,7 @@ enum Engine {
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
-            removeUnusedComponents(keeping: manifest, store: store)
+            removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal)
             rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
         }
         return wine
@@ -627,11 +632,14 @@ enum Engine {
     /// Versions the component list no longer names, and components it dropped (an older engine
     /// line, say), take space for nothing – a gigabyte and more after a few updates. Anything
     /// still running from a folder stays, like the old engine a game keeps until it ends.
-    private static func removeUnusedComponents(keeping manifest: ComponentManifest, store: ComponentStore) {
+    private static func removeUnusedComponents(keeping manifest: ComponentManifest, store: ComponentStore,
+                                                d3dMetal: D3DMetalSupply.Current?) {
         let fm = FileManager.default
         // What only the app's own list names (legendary before the online list has it) stays too.
         let bundled = ComponentStore.bundledManifest()?.components ?? []
-        let wanted = Dictionary((manifest.components + bundled).map { ($0.id, $0.version) }, uniquingKeysWith: { first, _ in first })
+        var wanted = Dictionary((manifest.components + bundled).map { ($0.id, $0.version) }, uniquingKeysWith: { first, _ in first })
+        // A D3DMetal from before the question stays as long as it's the one in use.
+        if case .kept(let dir)? = d3dMetal?.origin { wanted[d3dMetalID] = dir.lastPathComponent }
         let ids = (try? fm.contentsOfDirectory(at: store.root, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
         for id in ids where !id.lastPathComponent.hasPrefix(".")
             && (try? id.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
@@ -933,20 +941,20 @@ enum Engine {
     /// half as a symlink to external/libd3dshared.dylib – a copy would move the dylib's
     /// @loader_path away from the D3DMetal framework it loads – and external/ beside them.
     /// Only files Apple signed are installed; nothing of them is changed (Apple's licence).
+    /// What is there stays until the new files are all copied and checked: a copy that fails or isn't
+    /// Apple's leaves the engine as it was.
     static func installD3DMetal(_ payloadDir: URL, into wine: URL) throws {
         let fm = FileManager.default
         guard let payload = d3dMetalPayloadRoot(in: payloadDir) else { throw SetupError.engineBroken }
         let external = payload.appendingPathComponent("external", isDirectory: true)
-        for code in ["libd3dshared.dylib", "D3DMetal.framework"] where !isAppleSigned(external.appendingPathComponent(code)) {
+        let codes = ["libd3dshared.dylib", "D3DMetal.framework"]
+        for code in codes where !isAppleSigned(external.appendingPathComponent(code)) {
             throw SetupError.engineBroken
         }
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
         let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
         let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
 
-        let installedExternal = lib.appendingPathComponent("external", isDirectory: true)
-        try? fm.removeItem(at: installedExternal)
-        try fm.copyItem(at: external, to: installedExternal)
         // Apple's front ends are the DLLs with a unix half; a toolkit that brings no unix folder
         // (the bridges are only links anyway) has nothing but them.
         let payloadUnix = payload.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
@@ -958,6 +966,25 @@ enum Engine {
         // DLSS → MetalFX: Apple's readme has nvngx-on-metalfx installed under NVIDIA's name, nvngx.
         let names = frontEnds.map { ($0, $0.lastPathComponent) }
             + frontEnds.filter { $0.lastPathComponent == "nvngx-on-metalfx.dll" }.map { ($0, "nvngx.dll") }
+
+        // Everything copied beside the engine's files first, and checked.
+        let staging = lib.appendingPathComponent(".d3dmetal-staging", isDirectory: true)
+        try? fm.removeItem(at: staging)
+        try fm.createDirectory(at: staging.appendingPathComponent("windows"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        let stagedExternal = staging.appendingPathComponent("external", isDirectory: true)
+        try fm.copyItem(at: external, to: stagedExternal)
+        for code in codes where !isAppleSigned(stagedExternal.appendingPathComponent(code)) {
+            throw SetupError.engineBroken
+        }
+        for (dll, name) in names {
+            try fm.copyItem(at: dll, to: staging.appendingPathComponent("windows/\(name)"))
+        }
+
+        // Then the swap: renames on one volume, with nothing left to fail but the disk itself.
+        let installedExternal = lib.appendingPathComponent("external", isDirectory: true)
+        try? fm.removeItem(at: installedExternal)
+        try fm.moveItem(at: stagedExternal, to: installedExternal)
         for (dll, name) in names {
             let target = windows.appendingPathComponent(name)
             let original = target.appendingPathExtension("wine")
@@ -965,13 +992,51 @@ enum Engine {
                 try fm.copyItem(at: target, to: original)
             }
             try? fm.removeItem(at: target)
-            try fm.copyItem(at: dll, to: target)
+            try fm.moveItem(at: staging.appendingPathComponent("windows/\(name)"), to: target)
             let bridge = unix.appendingPathComponent((name as NSString).deletingPathExtension + ".so")
             if fm.fileExists(atPath: bridge.path) || (try? fm.destinationOfSymbolicLink(atPath: bridge.path)) != nil {
                 try fm.removeItem(at: bridge)
             }
             try fm.createSymbolicLink(atPath: bridge.path, withDestinationPath: "../../external/libd3dshared.dylib")
         }
+    }
+
+    /// The D3DMetal in the engine: the version its framework says ("3.0", "4.0b3"), nil when there is none.
+    static func deployedD3DMetalVersion(wine: URL? = installedWineNow()) -> String? {
+        guard let wine, isD3DMetalDeployed(wine: wine) else { return nil }
+        let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
+        return D3DMetalSupply.version(ofFramework: lib.appendingPathComponent("external/D3DMetal.framework"))
+    }
+
+    /// What `ensureEngine` last put in as D3DMetal, by the engine's stamp: "3.0", "apple-3.0"; nil for none.
+    static func deployedD3DMetalLabel(wine: URL? = installedWineNow()) -> String? {
+        guard let wine, let text = readStamp(graphicsStampFile(wine: wine)),
+              let range = text.range(of: #"d3dmetal [^\s]+"#, options: .regularExpression) else { return nil }
+        let label = String(text[range].dropFirst("d3dmetal ".count))
+        return label == "-" ? nil : label
+    }
+
+    /// Takes Apple's D3DMetal out of the engine again, as `installD3DMetal` put it in: its front ends go
+    /// (Wine's own come back from the *.wine copies, which stay for the prefix's Direct3D 12), so do the
+    /// unix links to it and external/. The graphics stamp goes too, so the next `ensureEngine` sets the
+    /// rest up again without it.
+    static func removeD3DMetal(from wine: URL) {
+        let fm = FileManager.default
+        let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
+        let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
+        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let links = ((try? fm.contentsOfDirectory(atPath: unix.path)) ?? []).filter {
+            (try? fm.destinationOfSymbolicLink(atPath: unix.appendingPathComponent($0).path)) == "../../external/libd3dshared.dylib"
+        }
+        for link in links {
+            try? fm.removeItem(at: unix.appendingPathComponent(link))
+            let dll = windows.appendingPathComponent((link as NSString).deletingPathExtension + ".dll")
+            let original = dll.appendingPathExtension("wine")
+            try? fm.removeItem(at: dll)
+            if fm.fileExists(atPath: original.path) { try? fm.copyItem(at: original, to: dll) }
+        }
+        try? fm.removeItem(at: lib.appendingPathComponent("external"))
+        try? fm.removeItem(at: graphicsStampFile(wine: wine))
     }
 
     /// Puts the gamepad package's winebus.so in place of the engine's (kept as winebus.so.engine)
@@ -1333,6 +1398,8 @@ enum Engine {
         if d3dMetalEngine, let dxvk = installedComponentNow(dxvkID) {
             placeDXVK(layer == .dxvk, dxvkDir: dxvk, installDir: installDir)
         }
+        // D3DMetal 3.0 presents itself as an AMD card whose driver Unreal warns about.
+        if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
         var sections = [crashDialogOff]
         for exe in exes {
@@ -1349,6 +1416,53 @@ enum Engine {
         }
         sections += (profile?.registry ?? []).compactMap(regSection)
         importRegistry(sections.joined(separator: "\n\n"), wine: wine)
+    }
+
+    // MARK: - Unreal's driver warning
+
+    /// The sections of an Unreal game's Hardware.ini that name the drivers it warns about: the three
+    /// vendors the engine knows (they stand side by side in its code: GPU_NVIDIA, GPU_AMD, GPU_Intel; the
+    /// other GPU_ names in it are shader defines), each plain and with the platform behind it.
+    static let unrealDriverSections = ["GPU_AMD", "GPU_NVIDIA", "GPU_Intel"].flatMap { [$0, $0 + " Windows"] }
+    /// … and the keys for the list: DriverDenyList in Unreal 5, Blacklist before. "!" clears the list.
+    static let unrealDriverLists = ["!DriverDenyList", "!Blacklist"]
+
+    /// The Unreal projects in a game folder: the ones with <Project>/Binaries/Win64/<Name>-Shipping.exe.
+    static func unrealProjects(in installDir: URL) -> [URL] {
+        let projects = executableFiles(in: installDir).filter { exe in
+            let win64 = exe.deletingLastPathComponent()
+            return exe.lastPathComponent.hasSuffix("-Shipping.exe") && win64.lastPathComponent == "Win64"
+                && win64.deletingLastPathComponent().lastPathComponent == "Binaries"
+        }.map { $0.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() }
+        return Array(Set(projects)).filter { $0.lastPathComponent != "Engine" }.sorted { $0.path < $1.path }
+    }
+
+    /// D3DMetal 3.0 presents itself as an AMD card ("AMD Compatibility Mode") with driver 30.0.15.1233, which
+    /// is on Unreal's own lists of drivers with known issues: the game opens "WARNING: Known issues with
+    /// graphics driver", and its Yes (to the vendor's download page) ends the game. It was seen with the
+    /// AMD list and, once that was cleared, with NVIDIA's – 30.0.15.1233 is 512.33 in NVIDIA's numbering, and
+    /// Unreal checks the version against more than the one vendor's list. The lists come from the game's
+    /// Hardware.ini, and the player's file in Saved/Config is read last: it clears them all. (The version
+    /// can't be changed from outside – D3DMetal states it itself.) Set before every start of an Unreal game
+    /// on D3DMetal, as the game may rewrite the file when it quits.
+    static func clearUnrealDriverDenyList(installDir: URL) {
+        let fm = FileManager.default
+        for project in unrealProjects(in: installDir) {
+            let config = project.appendingPathComponent("Saved/Config", isDirectory: true)
+            // Unreal 5 keeps its saved files under Windows, Unreal 4 under WindowsNoEditor (once it has run).
+            let platforms = ["Windows"] + (fm.fileExists(atPath: config.appendingPathComponent("WindowsNoEditor").path) ? ["WindowsNoEditor"] : [])
+            for platform in platforms {
+                let file = config.appendingPathComponent("\(platform)/Hardware.ini")
+                let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+                var merged = text
+                for section in unrealDriverSections {
+                    merged = mergingIni(merged, section: section, values: Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") }))
+                }
+                guard merged != text else { continue }
+                try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? merged.write(to: file, atomically: true, encoding: .utf8)
+            }
+        }
     }
 
     /// No "Program Error – … has encountered a serious problem" window: Wine's debugger (AeDebug's

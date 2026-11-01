@@ -12,9 +12,10 @@ struct EngineBuild: Codable, Equatable {
     /// folder that still holds this build.
     var stamp: String
 
-    init(engine: Component, graphics: [Component], stamp: String) {
+    /// `d3dMetal`: the version of Apple's D3DMetal in it, which isn't always a component (D3DMetalSupply).
+    init(engine: Component, graphics: [Component], d3dMetal: String? = nil, stamp: String) {
         self.engine = "\(engine.id)@\(engine.version)"
-        self.graphics = graphics.map { "\($0.id)@\($0.version)" }.sorted()
+        self.graphics = (graphics.map { "\($0.id)@\($0.version)" } + (d3dMetal.map { ["\(Engine.d3dMetalID)@\($0)"] } ?? [])).sorted()
         self.stamp = stamp
     }
 

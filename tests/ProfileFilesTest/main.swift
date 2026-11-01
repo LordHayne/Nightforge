@@ -158,6 +158,9 @@ struct ProfileFilesTest {
         check(stream.geforceNowURL?.absoluteString == "https://play.geforcenow.com/games?game-id=e1b2c3&utm_source=nightforge&utm_campaign=library",
               "GeForce Now's link to the game: \(stream.geforceNowURL?.absoluteString ?? "nil")")
         check(AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: nil).geforceNowURL == nil, "no game ID, no link")
+        check(profile(#"{"notYet": "Hangs under Rosetta."}"#)?.notYet == "Hangs under Rosetta.", "the reason a game doesn't start yet is read")
+        check(profile(#"{"notYet": ""}"#)?.notYet == nil && profile(#"{"notYet": 5, "note": "x"}"#)?.notYet == nil
+              && profile(#"{"note": "x"}"#)?.notYet == nil, "an empty or odd reason is none; the rest of the entry stays")
 
         // MARK: The profile list Nightforge keeps
         // Only in a home of the test's own (run.sh): never the player's Application Support.
@@ -217,20 +220,26 @@ struct ProfileFilesTest {
               "100": {"antiCheat": [], "antiCheatOnline": []},
               "300": "an entry from a newer list",
               "Sugar": {"name": "not a Steam app ID"},
+              "2357570": {"name": "Overwatch", "notYet": "Hangs under Rosetta.", "geforceNow": "gOw"},
+              "2": {"notYet": "Both say it.", "antiCheat": ["BattlEye"]},
               "epic.Sugar": {"antiCheat": ["Easy Anti-Cheat"], "geforceNow": "gSugar"},
               "epic.Online": {"antiCheatOnline": ["BattlEye"]},
+              "epic.Later": {"notYet": "Needs a newer engine."},
               "epic.Fine": {"note": "Tested on M5"}}}
             """#
         try? Data(list.utf8).write(to: cached)
         let store = ProfileStore()
         let known = await store.knownProfiles()
-        check(Set(known.keys) == [570, 730, 440, 100], "Steam games by app ID; an odd entry costs only itself: \(known.keys.sorted())")
+        check(Set(known.keys) == [570, 730, 440, 100, 2357570, 2], "Steam games by app ID; an odd entry costs only itself: \(known.keys.sorted())")
         check(await store.preferWindows() == [570], "kept on the Windows version")
         check(await store.antiCheatBlocks() == [730: AntiCheatBlock(antiCheat: ["VAC"], geforceNow: "g730"),
-                                                440: AntiCheatBlock(antiCheat: ["Easy Anti-Cheat"], geforceNow: nil, onlineOnly: true)],
-              "what anti-cheat stops, online only or not; an empty list stops nothing")
+                                                440: AntiCheatBlock(antiCheat: ["Easy Anti-Cheat"], geforceNow: nil, onlineOnly: true),
+                                                2357570: AntiCheatBlock(antiCheat: [], geforceNow: "gOw", notYet: "Hangs under Rosetta."),
+                                                2: AntiCheatBlock(antiCheat: [], geforceNow: nil, notYet: "Both say it.")],
+              "what anti-cheat stops, online only or not; an empty list stops nothing; a reason it doesn't start yet comes first")
         check(await store.epicAntiCheatBlocks() == ["Sugar": AntiCheatBlock(antiCheat: ["Easy Anti-Cheat"], geforceNow: "gSugar"),
-                                                    "Online": AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: nil, onlineOnly: true)],
+                                                    "Online": AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: nil, onlineOnly: true),
+                                                    "Later": AntiCheatBlock(antiCheat: [], geforceNow: nil, notYet: "Needs a newer engine.")],
               "Epic games by catalog namespace")
         let dota = await store.profile(for: 570), unknown = await store.profile(for: 1)
         check(dota?.name == "Dota 2" && unknown == nil, "a game's profile, with no online copy to ask (the test has no app bundle)")

@@ -173,7 +173,7 @@ enum GraphicsPreset: String, Codable, CaseIterable, Identifiable {
     var help: String {
         switch self {
         case .automatic: return L10n.t("What the profile for this game says and what Nightforge learns while you play – the best choice for most games.")
-        case .balanced: return L10n.t("MetalFX sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen).")
+        case .balanced: return L10n.t("MetalFX sharpness where the game can use it, and an even frame rate that fits your display (60 FPS on a 120 Hz screen).")
         case .fastest: return L10n.t("The highest frame rate: MetalFX upscaling, no frame limit.")
         case .compatible: return L10n.t("The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.")
         case .custom: return L10n.t("Custom: your own choice in the expert options below.")

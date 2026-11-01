@@ -4816,6 +4816,13 @@
     "XIGNCODE3"
    ]
   },
+  "2357570": {
+   "name": "Overwatch",
+   "notYet": "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.",
+   "note": "Tested 2026-11-01 on M5, macOS 27.0.1, winecx 4.7.3 with D3DMetal 4.0b3: Overwatch.exe starts, 0 % CPU, no window. Not yet tried: DXMT instead of D3DMetal, a run without msync.",
+   "source": "mac",
+   "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
+  },
   "2359600": {
    "name": "Perfect New World",
    "source": "anticheat",
@@ -5209,7 +5216,7 @@
      "replace": "(\"InsertFrame\", \"0\")"
     }
    ],
-   "note": "Tested 2026-10-26 on M5 with D3DMetal 4.0b3 on winecx 4.7.3. DirectX 12 through D3DMetal: 70 FPS average, 56 in the slowest fifth (Niedrig, 1512x982, FSR), clean picture. DirectX 11 (-dx11) through DXMT: ~45 FPS with heavy texture noise. Crashes on an illegal instruction ~30 s in with ROSETTA_ADVERTISE_AVX=1, and at start with frame generation (InsertFrame), which it switches on by itself at its first start.",
+   "note": "Tested 2026-10-26 on M5 with D3DMetal 4.0b3 on winecx 4.7.3. DirectX 12 through D3DMetal: 70 FPS average, 56 in the slowest fifth (Niedrig, 1512x982, FSR), clean picture. DirectX 11 (-dx11) through DXMT: ~45 FPS with heavy texture noise. Crashes on an illegal instruction ~30 s in with ROSETTA_ADVERTISE_AVX=1, and at start with frame generation (InsertFrame), which it switches on by itself at its first start. Again 2026-11-01 on M5, macOS 27.0, with D3DMetal 3.0 imported from Apple (winecx 4.7.3): 68 FPS average, 83 at most, 55 in the slowest fifth (Niedrig, 1512x982, FSR), a few hitches at the start and one in the middle (shaders on the first run). Unreal's \"Known issues with graphics driver\" warning shows with 3.0 (it reports an AMD driver, 30.0.15.1233): Nightforge clears the AMD list in Hardware.ini.",
    "source": "mac"
   },
   "3218230": {
@@ -5919,5 +5926,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-01T01:56:55Z"
+ "generated": "2026-11-01T21:36:49Z"
 }

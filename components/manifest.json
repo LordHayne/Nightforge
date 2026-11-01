@@ -23,16 +23,6 @@
       "source": "https://github.com/dappermint/winecx-gptk"
     },
     {
-      "id": "d3dmetal",
-      "kind": "graphics",
-      "version": "4.0b3",
-      "url": "https://github.com/LordHayne/Nightforge/releases/download/d3dmetal-4.0b3/nightforge-d3dmetal-4.0b3.tar.gz",
-      "sha256": "6fc51897f848454ed7f4b0f2e39c56b08d33fc235483b9560c8fdeb3c3ecd3f3",
-      "size": 24033436,
-      "license": "LicenseRef-Apple-Game-Porting-Toolkit (non-commercial, Apple hardware only)",
-      "source": "https://github.com/LordHayne/Nightforge"
-    },
-    {
       "id": "gamepad",
       "kind": "graphics",
       "version": "4.7.3-7",
