@@ -1,6 +1,7 @@
 // Checks PadFocus: entering, moving by position, adjusting, and staying in its own window:
 // tests/PadFocusTest/run.sh
 import AppKit
+import SwiftUI
 
 @main
 struct PadFocusTest {
@@ -91,6 +92,7 @@ struct PadFocusTest {
         check(grid.index(from: 3, steps: 1) == 3, "→ stops at the end")
 
         scrolling()
+        levels()
 
         print(failures == 0 ? "✓ PadFocus" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -139,6 +141,61 @@ struct PadFocusTest {
         check(InputRouter.stickSpeed(0.1) == 0 && InputRouter.stickSpeed(-0.1) == 0, "the stick's middle doesn't scroll")
         check(InputRouter.stickSpeed(1) == -1_600 && InputRouter.stickSpeed(-1) == 1_600, "pushed all the way: 1 600 points a second, up and down")
         check(abs(InputRouter.stickSpeed(-0.59)) < 400 && InputRouter.stickSpeed(-0.59) > 0, "half way: much slower, for reading")
+    }
+}
+
+extension PadFocusTest {
+    /// SwiftUI: a level kept out of sight (the library behind a game's page, at opacity 0) is off the
+    /// map, though AppKit still sees its views; an open panel keeps the highlight to itself.
+    @MainActor
+    static func levels() {
+        struct Page: View {
+            var body: some View {
+                ZStack(alignment: .topLeading) {
+                    VStack(alignment: .leading) {
+                        Spacer().frame(height: 120)
+                        Button("Store") {}.padFocus("behind.chip", activate: {})
+                        Spacer()
+                    }
+                    .opacity(0)
+                    .padReachable(false)
+                    VStack(alignment: .leading) {
+                        HStack(alignment: .top) {
+                            Button("Back") {}.padFocus("page.back", activate: {})
+                            Spacer()
+                            // Like the downloads panel, at the top right.
+                            VStack {
+                                Button("Close") {}.padFocus("panel.close", activate: {})
+                                Button("Cancel") {}.padFocus("panel.cancel", activate: {})
+                            }
+                            .padZone(.panel)
+                        }
+                        Spacer()
+                        Button("Play") {}.padFocus("page.play", preferred: true, activate: {})
+                    }
+                    .padding(20)
+                }
+                .frame(width: 600, height: 400)
+            }
+        }
+        // Off screen: laid out like a real window, never seen.
+        let window = NSWindow(contentRect: NSRect(x: -6_000, y: -6_000, width: 600, height: 400), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.contentView = NSHostingView(rootView: Page())
+        window.orderFrontRegardless()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        let focus = PadFocus.shared
+        focus.clear()
+        check(focus.move(dx: 0, dy: -1, in: window) && focus.focused == "page.play", "the page starts on Play: \(focus.focused ?? "nil")")
+        focus.move(dx: 0, dy: -1, in: window)
+        check(focus.focused == "page.back", "up from Play skips what's out of sight behind the page: \(focus.focused ?? "nil")")
+        check(focus.move(dx: 0, dy: 1, in: window, within: .panel) && focus.focusedZone(in: window) == .panel,
+              "a step in an open panel enters it: \(focus.focused ?? "nil")")
+        focus.move(dx: 0, dy: 1, in: window, within: .panel)
+        check(focus.focused == "panel.cancel" && !focus.move(dx: -1, dy: 0, in: window, within: .panel),
+              "the panel keeps the highlight: nothing beside it counts")
+        focus.clear()
+        window.orderOut(nil)
     }
 }
 

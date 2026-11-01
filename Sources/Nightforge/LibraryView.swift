@@ -20,6 +20,7 @@ struct LibraryView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 TopBar()
+                    .padZone(.top)
 
                 ZStack(alignment: .topLeading) {
                     // The grid stays behind a game's page opened from it, so going back finds it
@@ -31,6 +32,7 @@ struct LibraryView: View {
                             .modifier(SwipeLevel(route: .library, shown: model.showingLibrary))
                             .allowsHitTesting(model.showingLibrary)
                             .accessibilityHidden(!model.showingLibrary)
+                            .padReachable(model.showingLibrary)
                     }
                     switch model.route {
                     case .home:
@@ -61,6 +63,7 @@ struct LibraryView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { model.showingDownloads = false }
                 DownloadsPanel()
+                    .padZone(.panel)
                     .padding(.top, 84)  // below the top bar (36 + 38), right under the downloads ring
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -72,7 +75,9 @@ struct LibraryView: View {
                     .transition(.opacity)
             }
 
+            // Not for the pad: what a message offers is also where it belongs (Home, the library, the downloads).
             ToastHost()
+                .padReachable(false)
         }
         .animation(.easeOut(duration: 0.2), value: model.lightbox)
         // A list a chip of the library's row opened, under that chip and over the grid.
@@ -238,6 +243,7 @@ private struct HomeLevel: View {
                     .frame(width: max(360, min(600, geo.size.width * 0.36 + 24 - Theme.gutter)), alignment: .leading)
                     .padding(.leading, Theme.gutter)
                     .padding(.bottom, 40)
+                    .padZone(.game)  // ↓ from the games comes here, ↑ goes back (PadRules)
                 }
             }
         }
@@ -1309,7 +1315,7 @@ private struct GameDetail: View {
             FlowRow(spacing: 14, lineSpacing: 14, centered: true) {
                 // On its page the pad starts here, not on the lowest row (the screenshots further down).
                 PlayButton.of(game, model: model)
-                    .padFocus("play", cornerRadius: 34, preferred: !compact, activate: { model.primaryAction() })
+                    .padFocus("play", cornerRadius: 34, preferred: true, activate: { model.primaryAction() })
                 if compact {
                     RoundIconButton(symbol: "info", help: L10n.t("Details (I)")) {
                         model.openDetail()
@@ -1987,14 +1993,15 @@ private struct HintBar: View {
             }
             Spacer()
             let pad = model.padSymbols
-            if let action = toasts.current?.action, focus.focused != Toasts.padID {
-                Hint(model.controllerConnected ? .pad(pad.stick) : .key("⌘↩"), text: action.label)
-            }
             let controller = model.controllerConnected
+            // A message's button is the keyboard's and the pointer's; the pad finds the same where it belongs.
+            if !controller, let action = toasts.current?.action {
+                Hint(.key("⌘↩"), text: action.label)
+            }
             if controller && focus.focused != nil {
                 Hint(.pad(pad.confirm), text: L10n.t("Select"))
                 Hint(.pad(pad.stick), text: L10n.t("Move"))
-                Hint(.pad(pad.back), text: L10n.t("Back"))
+                Hint(.pad(pad.back), text: backWithHighlight)
             } else {
                 switch model.route {
                 case .home where model.showsFirstStart:
@@ -2006,21 +2013,25 @@ private struct HintBar: View {
                         Hint(controller ? .pad(pad.back) : .key("esc"), text: action.label)
                     }
                 case .home:
-                    if model.heroGame != nil {
+                    if let game = model.heroGame {
                         Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Play"))
-                        Hint(controller ? .pad(pad.library) : .key("I"), text: L10n.t("Details"))
+                        Hint(controller ? .pad(pad.details) : .key("I"), text: L10n.t("Details"))
+                        if controller && game.install != .inStore {
+                            Hint(.pad(pad.menu), text: L10n.t("Options"))
+                        }
                     } else {
                         Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Open"))
                     }
-                    Hint(controller ? .pad("line.3.horizontal.circle.fill") : .key("L"), text: L10n.t("Library"))
+                    // With a pad the library is R1, beside "Home | Library" above.
+                    if !controller {
+                        Hint(.key("L"), text: L10n.t("Library"))
+                    }
                     Hint(controller ? .pad(pad.stick) : .key("← →"), text: L10n.t("Select"))
                 case .library:
                     Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Open"))
                     Hint(controller ? .pad(pad.stick) : .key("← ↑ →"),
                          text: L10n.t("Select"))
-                    if !controller {
-                        Hint(.key("⌘F"), text: L10n.t("Search"))
-                    }
+                    Hint(controller ? .pad(pad.search) : .key("⌘F"), text: L10n.t("Search"))
                     Hint(controller ? .pad(pad.back) : .key("esc"),
                          text: !model.searchText.isEmpty ? L10n.t("Clear search") : model.showingHidden ? L10n.t("All games") : L10n.t("Home"))
                 case .detail(_, let from):
@@ -2028,10 +2039,13 @@ private struct HintBar: View {
                         // What Return does here: the big button's word, short.
                         Hint(controller ? .pad(pad.confirm) : .key("↵"),
                              text: game.install == .notInstalled && !game.playsInCloud ? L10n.t("Download") : L10n.t("Play"))
-                        Hint(controller ? .pad(pad.options) : .key("O"), text: L10n.t("Options"))
+                        Hint(controller ? .pad(pad.menu) : .key("O"), text: L10n.t("Options"))
                         if !controller {
                             Hint(.key("H"), text: model.isHidden(game) ? L10n.t("Show") : L10n.t("Hide"))
                         }
+                    }
+                    if controller {
+                        Hint(.pad(pad.scroll), text: L10n.t("Scroll"))
                     }
                     Hint(controller ? .pad(pad.back) : .key("esc"), text: from == .home ? L10n.t("Home") : L10n.t("Library"))
                 }
@@ -2039,9 +2053,20 @@ private struct HintBar: View {
         }
         .opacity(model.games.isEmpty && !model.showsFirstStart ? 0 : 1)
     }
+
+    /// Where B goes with a control highlighted: an open panel closes, a game's page goes back, Home
+    /// and the library go back to their games.
+    private var backWithHighlight: String {
+        if model.showingDownloads || model.libraryMenu != nil { return L10n.t("Close") }
+        switch model.route {
+        case .detail(_, let from): return from == .home ? L10n.t("Home") : L10n.t("Library")
+        case .home, .library: return L10n.t("To the games")
+        }
+    }
 }
 
-private struct Hint: View {
+/// A key or a pad button and what it does here (the hint bar, the big screenshot).
+struct Hint: View {
     /// A key on a glass keycap, or the controller's own button.
     enum Glyph {
         case key(String)

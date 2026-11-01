@@ -25,10 +25,14 @@ final class InputRouter {
     /// A button was down at the last look (for waking Nightforge on a fresh press).
     private var anyDown = false
     private var lastWake: TimeInterval = 0
+    /// When the pad last changed with Nightforge in front: a sheet opening soon after shows its highlight.
+    private var lastPadUse: TimeInterval = 0
     /// The right stick scrolls what shows (a game's page, the grid, Settings), smoothly, as fast as
     /// it's pushed: points per second, and the timer that moves it while it's held.
     private var stickScroll: CGFloat = 0
     private var stickScrollTimer: Timer?
+    /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
+    private var stickRows: CGFloat = 0
 
     func start(model: LibraryModel) {
         self.model = model
@@ -73,6 +77,12 @@ final class InputRouter {
         // release of a held stick – without this the selection would run on by itself.
         observers.append(center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.letGo() }
+        })
+        // A sheet or dialog opened while the pad is in use shows its highlight at once, on its safe
+        // default answer (PadFocus.Item.preferred), so the first A already answers.
+        observers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] note in
+            let window = note.object as? NSWindow
+            MainActor.assumeIsolated { self?.highlightDefault(in: window) }
         })
         // The pad last touched becomes current: its own button labels go into the hints.
         observers.append(center.addObserver(forName: .GCControllerDidBecomeCurrent, object: nil, queue: .main) { [weak self] _ in
@@ -331,7 +341,7 @@ final class InputRouter {
         pad.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
+                guard self?.levelsFree == true else { return }
                 self?.model?.openDetail()
             }
         }
@@ -360,49 +370,45 @@ final class InputRouter {
             guard pressed else { return }
             MainActor.assumeIsolated {
                 guard let self, let model = self.model, self.reach != .none else { return }
-                if self.reach == .overlay {
-                    GameOverlay.back()
-                    return
-                }
                 let main = Self.mainWindow
-                if model.lightbox != nil, NSApp.modalWindow == nil, self.dialog == nil {
-                    model.lightbox = nil
-                } else if let menu = model.libraryMenu, NSApp.modalWindow == nil, self.dialog == nil {
-                    model.closeLibraryMenu(menu)
-                } else if let key = NSApp.keyWindow, key === main, PadFocus.shared.focusedItem(in: key) != nil {
-                    PadFocus.shared.clear()  // from the buttons back to the games
-                } else if model.showingDownloads, NSApp.modalWindow == nil, self.dialog == nil {
-                    model.showingDownloads = false
-                } else if model.showingOptions, NSApp.modalWindow == nil {
-                    model.showingOptions = false
-                } else if let dialog = self.dialog {
+                let highlight = NSApp.keyWindow.map { $0 === main && PadFocus.shared.focusedItem(in: $0) != nil } ?? false
+                // One press, one level: the innermost thing open goes first.
+                let open = PadRules.Open(overlay: self.reach == .overlay, sheet: self.dialog != nil, modal: NSApp.modalWindow != nil,
+                                         lightbox: model.lightbox != nil, list: model.libraryMenu != nil,
+                                         downloads: model.showingDownloads, options: model.showingOptions, highlight: highlight,
+                                         gamePage: model.route.isDetail, awaitingSteam: model.awaitingSteam)
+                switch PadRules.back(open) {
+                case .overlay: GameOverlay.back()
+                case .lightbox: model.lightbox = nil
+                case .list: model.libraryMenu.map(model.closeLibraryMenu)
+                case .downloads: model.closeDownloads()
+                case .highlight: PadFocus.shared.clear()  // from the buttons back to the games
+                case .options: model.showingOptions = false
+                case .sheet:
+                    guard let dialog = self.dialog else { return }
                     // A window of its own (Settings) closes; a sheet or alert cancels.
                     if dialog.sheetParent == nil, NSApp.modalWindow == nil {
                         dialog.performClose(nil)
                     } else {
                         Self.press(53, "\u{1B}", in: dialog)
                     }
-                } else if model.awaitingSteam {
-                    model.cancelLaunch()  // stop waiting for a game Steam hasn't started
-                } else {
-                    model.back()  // like Esc: a level up, a search dropped first
+                case .cancelLaunch: model.cancelLaunch()  // stop waiting for a game Steam hasn't started
+                case .level: model.back()  // like Esc: a level up, a search dropped first
                 }
             }
         }
+        // Y: search, in the library's header (from Home too).
         pad.buttonY.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.reach == .app else { return }
-                self?.toggleOptions()
+                guard self?.levelsFree == true, self?.model?.showsFirstStart == false else { return }
+                self?.model?.focusSearch()
             }
         }
-        // ☰: between Home and the library, like L.
+        // ☰: the selected game's options, as on Xbox and PlayStation.
         pad.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil, self?.model?.showsFirstStart == false else { return }
-                self?.model?.toggleLibrary()
-            }
+            MainActor.assumeIsolated { self?.openOptions() }
         }
         // L1 always to Home, R1 always to the library (the chips beside the top bar's switch).
         pad.leftShoulder.pressedChangedHandler = { [weak self] _, _, pressed in
@@ -416,17 +422,11 @@ final class InputRouter {
         // L2/R2: first and last game, like Home and End on the keyboard.
         pad.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
-                self?.model?.jump(toStart: true)
-            }
+            MainActor.assumeIsolated { self?.jump(toStart: true) }
         }
         pad.rightTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.reach == .app, self?.dialog == nil else { return }
-                self?.model?.jump(toStart: false)
-            }
+            MainActor.assumeIsolated { self?.jump(toStart: false) }
         }
         // Both sticks held for two seconds open the overlay over a game, and close it again.
         pad.valueChangedHandler = { [weak self] gamepad, _ in
@@ -436,6 +436,12 @@ final class InputRouter {
 
     private func watchHold(_ pad: GCExtendedGamepad) {
         let now = ProcessInfo.processInfo.systemUptime
+        if reach == .app { lastPadUse = now }
+        // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
+        // moves, as on a console. In a game it's the game's.
+        if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)) {
+            NSCursor.setHiddenUntilMouseMoves(true)
+        }
         wakeIfIdle(pad, now: now)
         let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
                                         menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
@@ -456,11 +462,25 @@ final class InputRouter {
     }
 
     private func goSection(_ shoulder: PadPart) {
-        guard let model,
-              let target = Self.section(for: shoulder, route: model.route, inFront: reach == .app,
-                                        dialog: dialog != nil || model.showingDownloads, firstStart: model.showsFirstStart)
+        guard let model else { return }
+        // Settings in front: its tabs.
+        if reach == .app, model.showingSettings, NSApp.modalWindow == nil, let sheet = Self.mainWindow?.attachedSheet,
+           NSApp.keyWindow === sheet {
+            model.stepSettingsTab(shoulder)
+            return
+        }
+        guard let target = Self.section(for: shoulder, route: model.route, inFront: reach == .app,
+                                        dialog: dialog != nil || panelOpen, firstStart: model.showsFirstStart)
         else { return }
         target == .home ? model.goHome() : model.goLibrary()
+    }
+
+    /// L2/R2: the first and last game; on a game's page its top (Play) and its end.
+    private func jump(toStart: Bool) {
+        guard levelsFree, let model else { return }
+        guard model.route.isDetail, let main = Self.mainWindow else { return model.jump(toStart: toStart) }
+        PadFocus.shared.pageEnd(down: !toStart, in: main)
+        if toStart { PadFocus.shared.focus("play") } else { PadFocus.shared.clear() }
     }
 
     /// Where L1 and R1 go: L1 always Home, R1 always the library – from a game's page too. Nowhere
@@ -474,7 +494,8 @@ final class InputRouter {
     /// No game, another app in front: a fresh press brings Nightforge, as Big Picture does from the
     /// sofa. Not while a game runs, nor over another app that's a game – the pad is the game's.
     private func wakeIfIdle(_ pad: GCExtendedGamepad, now: TimeInterval) {
-        let down = [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY, pad.buttonMenu].contains { $0.isPressed }
+        let down = [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY, pad.buttonMenu, pad.leftShoulder, pad.rightShoulder]
+            .contains { $0.isPressed }
             || abs(pad.dpad.xAxis.value) > 0.5 || abs(pad.dpad.yAxis.value) > 0.5
         defer { anyDown = down }
         guard down, !anyDown, now - lastWake > 2, let model,
@@ -484,6 +505,15 @@ final class InputRouter {
         lastWake = now
         model.comeForward()
         NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+    }
+
+    /// A button down or a stick or the d-pad pushed – not a resting stick's noise.
+    private static func inUse(_ pad: GCExtendedGamepad) -> Bool {
+        let buttons: [GCControllerButtonInput?] = [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY, pad.buttonMenu,
+                                                   pad.buttonOptions, pad.leftShoulder, pad.rightShoulder, pad.leftTrigger,
+                                                   pad.rightTrigger, pad.leftThumbstickButton, pad.rightThumbstickButton]
+        let axes = [pad.dpad, pad.leftThumbstick, pad.rightThumbstick].flatMap { [$0.xAxis.value, $0.yAxis.value] }
+        return buttons.contains { $0?.isPressed == true } || axes.contains { abs($0) > 0.3 }
     }
 
     nonisolated static func wakes(inFront: Bool, overlayOpen: Bool, gameOn: Bool, frontIsGame: Bool) -> Bool {
@@ -496,6 +526,15 @@ final class InputRouter {
               let category = Bundle(url: url)?.infoDictionary?["LSApplicationCategoryType"] as? String
         else { return false }
         return category.contains("games")
+    }
+
+    private func highlightDefault(in window: NSWindow?) {
+        guard let window, window !== Self.mainWindow, window !== GameOverlay.window, reach == .app,
+              ProcessInfo.processInfo.systemUptime - lastPadUse < 60 else { return }
+        DispatchQueue.main.async {  // its controls are on the map once it's laid out
+            guard PadFocus.shared.focusedItem(in: window) == nil else { return }
+            PadFocus.shared.move(dx: 0, dy: 1, in: window)
+        }
     }
 
     private func openOverlay() {
@@ -516,6 +555,19 @@ final class InputRouter {
     }
 
     private static var mainWindow: NSWindow? { NSApp.windows.first { $0.title == "Nightforge" } }
+
+    /// Nightforge in front with nothing over its levels: no sheet, no dialog, no downloads panel.
+    /// X, Y, ☰ and L2/R2 act on the games only then, not behind something open.
+    private var levelsFree: Bool {
+        PadRules.actsOnGames(inFront: reach == .app, sheet: dialog != nil, panel: panelOpen)
+    }
+
+    /// Something over the main window's levels that keeps the pad: the downloads panel, a chip's list,
+    /// a big screenshot.
+    private var panelOpen: Bool {
+        guard let model else { return false }
+        return model.showingDownloads || model.libraryMenu != nil || model.lightbox != nil
+    }
 
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
     private var padWindow: NSWindow? {
@@ -547,9 +599,10 @@ final class InputRouter {
     /// The right stick, up or down: scrolls at a speed that grows with how far it's pushed (a little
     /// for reading, fast for a long page), 60 times a second while it's held.
     private func scrollWithStick(_ y: Float) {
-        // In a game the stick is the game's (`reach`), Nightforge's page stays where it is.
+        // In a game or over the overlay the stick isn't Nightforge's.
         stickScroll = reach == .app ? Self.stickSpeed(y) : 0
         guard stickScroll != 0 else {
+            stickRows = 0
             stickScrollTimer?.invalidate()
             stickScrollTimer = nil
             return
@@ -557,8 +610,18 @@ final class InputRouter {
         guard stickScrollTimer == nil else { return }
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.stickScroll != 0, self.reach == .app, self.model?.lightbox == nil,
+                guard let self, self.stickScroll != 0, self.reach == .app, let model = self.model, model.lightbox == nil,
                       let window = self.padWindow ?? Self.mainWindow else { return }
+                // The library's grid: the selection follows, a row at a time, and the grid with it.
+                if model.route == .library, window === Self.mainWindow, !self.panelOpen {
+                    let (rows, left) = PadRules.stickRows(self.stickRows + self.stickScroll / 60)
+                    self.stickRows = left
+                    if rows != 0 {
+                        PadFocus.shared.clear()
+                        model.moveRow(rows)
+                    }
+                    return
+                }
                 PadFocus.shared.scroll(by: self.stickScroll / 60, in: window)
             }
         }
@@ -580,11 +643,10 @@ final class InputRouter {
         model.activate()
     }
 
-    private func toggleOptions() {
-        guard let model, let game = model.heroGame, game.install != .inStore else { return }
-        // Opens over the library only; closes its own sheet but never one behind a question.
-        guard model.showingOptions ? NSApp.modalWindow == nil : dialog == nil else { return }
-        model.showingOptions.toggle()
+    /// ☰: opens over the levels only; inside the sheet it does nothing (B cancels, A saves).
+    private func openOptions() {
+        guard levelsFree, let model, !model.showingOptions, let game = model.heroGame, game.install != .inStore else { return }
+        model.showingOptions = true
     }
 
     private enum Source { case dpad, stick }
@@ -612,8 +674,8 @@ final class InputRouter {
         setHeld(step.isNone ? (source == .dpad ? stickStep : dpadStep) : step)
     }
 
-    /// Down on Home opens the library; up from Home's rail or the grid's top row enters the
-    /// buttons above, and on a game's page every direction moves between its buttons. Returns
+    /// Home: up to the top bar, down to the game's buttons; up from the grid's top row enters the
+    /// buttons above it, and on a game's page every direction moves between its buttons. Returns
     /// true when the view or the focus changed: holding on then mustn't run on through it.
     @discardableResult
     private func perform(_ step: Step) -> Bool {
@@ -623,14 +685,37 @@ final class InputRouter {
             if step.dx != 0 { model.lightbox?.step(step.dx) }
             return true
         }
+        // An open panel (downloads, a chip's list) keeps the pad: its controls only, entering it from
+        // wherever the highlight was.
+        if model.showingDownloads || model.libraryMenu != nil, let main = Self.mainWindow, padWindow === main {
+            PadFocus.shared.move(dx: step.dx, dy: step.dy, in: main, within: .panel)
+            return false
+        }
         if let window = padWindow {
             let focus = PadFocus.shared
             if window !== Self.mainWindow {
                 focus.move(dx: step.dx, dy: step.dy, in: window)
                 return false
             }
-            // Main window: the games have the pad until up on the start page enters the buttons
-            // above them; down past the lowest button hands back to the games.
+            // Home in three parts (PadRules): the top bar, the games, the game's buttons – up and down
+            // go from part to part as they lie on screen.
+            if model.route == .home, !model.showsFirstStart, !model.allGames.isEmpty {
+                if focus.focusedItem(in: window) != nil {
+                    let zone = focus.focusedZone(in: window)
+                    if !focus.move(dx: step.dx, dy: step.dy, in: window, within: zone), PadRules.homeLeaves(zone, dy: step.dy) {
+                        focus.clear()
+                        return true
+                    }
+                    return false
+                }
+                if let zone = PadRules.homeEntry(dy: step.dy) {
+                    // The top bar on its "Home"; the game's buttons on Play.
+                    if zone == .top { focus.focus("top.home") } else { focus.move(dx: 0, dy: -1, in: window, within: zone) }
+                    return true
+                }
+            }
+            // Elsewhere the games have the pad until up from the grid's top row (or a page's first
+            // step) enters the buttons; down past the lowest button hands back to the games.
             if focus.focusedItem(in: window) != nil {
                 if !focus.move(dx: step.dx, dy: step.dy, in: window), step.dy != 0 {
                     // A game's page goes on down (and back up) past its first and last control, to
@@ -656,10 +741,6 @@ final class InputRouter {
         // The first start has nothing to move through (its controller test reads the pad itself).
         if model.showsFirstStart { return false }
         if step.dx != 0 { model.move(step.dx) }
-        if step.dy > 0, model.route == .home {
-            model.goLibrary()
-            return true
-        }
         if step.dy != 0 { model.moveRow(step.dy) }
         return false
     }
@@ -710,9 +791,15 @@ struct PadSymbols: Equatable {
 
     var confirm = "a.circle.fill"
     var back = "b.circle.fill"
-    var library = "x.circle.fill"
-    var options = "y.circle.fill"
+    /// X: the selected game's page.
+    var details = "x.circle.fill"
+    /// Y: search.
+    var search = "y.circle.fill"
+    /// ☰: the selected game's options.
+    var menu = "line.3.horizontal.circle.fill"
     var stick = "l.joystick.fill"
+    /// The right stick: it scrolls.
+    var scroll = "r.joystick.fill"
     /// The overlay's buttons (GameOverlay): both sticks pressed, or ☰ and ⧉ on a pad without stick buttons.
     var overlayChord = ["l.joystick.press.down.fill", "r.joystick.press.down.fill"]
     /// L1 and R1 as the controller prints them, for the chips beside Home | Library.
@@ -726,17 +813,19 @@ struct PadSymbols: Equatable {
         shoulders = ["L1", "R1"]
         confirm = "xmark.circle.fill"
         back = "circle.circle.fill"
-        library = "square.circle.fill"
-        options = "triangle.circle.fill"
+        details = "square.circle.fill"
+        search = "triangle.circle.fill"
     }
 
     @MainActor
     init(_ pad: GCExtendedGamepad) {
         confirm = Self.filled(pad.buttonA.sfSymbolsName) ?? confirm
         back = Self.filled(pad.buttonB.sfSymbolsName) ?? back
-        library = Self.filled(pad.buttonX.sfSymbolsName) ?? library
-        options = Self.filled(pad.buttonY.sfSymbolsName) ?? options
+        details = Self.filled(pad.buttonX.sfSymbolsName) ?? details
+        search = Self.filled(pad.buttonY.sfSymbolsName) ?? search
+        menu = Self.filled(pad.buttonMenu.sfSymbolsName) ?? menu
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
+        scroll = Self.filled(pad.rightThumbstick.sfSymbolsName) ?? scroll
         if PadLayout(pad) == .playstation { shoulders = ["L1", "R1"] }
         if let left = pad.leftThumbstickButton, let right = pad.rightThumbstickButton {
             overlayChord = [Self.filled(left.sfSymbolsName) ?? overlayChord[0], Self.filled(right.sfSymbolsName) ?? overlayChord[1]]
