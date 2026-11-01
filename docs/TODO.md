@@ -150,6 +150,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
     (`LibraryModel.downloadIfRoom`). Was andere Downloads auf demselben Laufwerk noch brauchen, fehlt.
   - Vorschlag: Die Reste aller laufenden und wartenden Downloads je Laufwerk abziehen. Dazu eine Reserve, die macOS Luft
     lässt (etwa 10 GB statt 1 GB). Bleibt danach wenig übrig, sagt Nightforge vorher ruhig, wie viel frei bleibt.
+  - Dazu eine kleine Meldung, wenn ein Laufwerk mit Spielen knapp wird (Nutzer, 1.11.: „Macintosh HD nur noch wenig
+    Speicherplatz“). Am 1.11. waren noch 6,1 GB frei. Ruhig auf der Startseite oder im Download-Panel, mit dem Weg zur
+    Lösung: Spiele auf ein externes Laufwerk verschieben oder lange nicht gespielte entfernen (das Platz-Sheet gibt es
+    schon).
 
 ## Controller
 
