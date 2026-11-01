@@ -64,6 +64,12 @@ struct LibraryFilters: Equatable {
     /// Without what leaves games out (the order stays).
     var cleared: LibraryFilters { LibraryFilters(sort: sort) }
 
+    /// The row's "Clear filters" shows while something leaves games out or a search runs; it clears
+    /// both (`cleared`, and the search).
+    static func clearable(_ filters: LibraryFilters, search: String) -> Bool {
+        filters.narrows || !Search.key(search).isEmpty
+    }
+
     /// The panel's "All filters off": the store stays.
     var switchesOff: LibraryFilters { LibraryFilters(store: store, sort: sort) }
 

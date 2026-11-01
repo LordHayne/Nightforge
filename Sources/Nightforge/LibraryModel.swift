@@ -2310,6 +2310,15 @@ final class LibraryModel: ObservableObject {
 
     /// A on a chip of the library's row: its list opens, the pad's highlight on what's chosen now (the
     /// first switch in the filter panel). B closes it again (closeLibraryMenu).
+    /// The library row's "Clear filters": store, filters and search back to the start, the order
+    /// stays. The button goes with them, so the pad's highlight moves to the Filter chip.
+    func clearFilters() {
+        let highlighted = PadFocus.shared.focused != nil
+        searchText = ""
+        filters = filters.cleared
+        if highlighted { PadFocus.shared.focus(LibraryMenu.filters.chipID) }
+    }
+
     func openLibraryMenu(_ menu: LibraryMenu) {
         libraryMenu = menu
         switch menu {

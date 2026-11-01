@@ -24,8 +24,9 @@ struct LibraryMenuAnchors: PreferenceKey {
 }
 
 /// The library's row under its title: the store (with games from two stores or more), the order and
-/// the filters as chips, then the filters that are on, each with its ✕. One line also at 980 pt.
-/// During a search everything rests and the row says so.
+/// the filters as chips, then the filters that are on, each with its ✕, and "Clear filters" while
+/// anything narrows the games. One line also at 980 pt. During a search everything rests and the
+/// row says so.
 struct LibraryFilterRow: View {
     @EnvironmentObject private var model: LibraryModel
 
@@ -38,6 +39,8 @@ struct LibraryFilterRow: View {
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
                     .frame(height: 32)
+                ClearFiltersChip()
+                Spacer(minLength: 0)
             } else {
                 if model.storesWithGames.count > 1 {
                     ChoiceChip(symbol: "square.stack", title: model.filters.store?.label ?? L10n.t("All Stores"),
@@ -64,6 +67,9 @@ struct LibraryFilterRow: View {
                         }
                         EmptyView()
                     }
+                }
+                if LibraryFilters.clearable(model.filters, search: model.searchText) {
+                    ClearFiltersChip()
                 }
                 Spacer(minLength: 0)
             }
@@ -106,6 +112,30 @@ private struct ChoiceChip: View {
         .accessibilityValue(title)
         .anchorPreference(key: LibraryMenuAnchors.self, value: .bounds) { [menu: $0] }
         .padFocus(menu.chipID, cornerRadius: 16, activate: { model.openLibraryMenu(menu) })
+        .fixedSize()
+    }
+}
+
+/// Store, filters and search back to the start in one press (the order stays).
+private struct ClearFiltersChip: View {
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        Button { model.clearFilters() } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.counterclockwise").font(size: 11, weight: .bold)
+                Text(L10n.t("Clear filters"))
+            }
+            .font(size: 13, weight: .semibold)
+            .foregroundStyle(Theme.ink.opacity(0.88))
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(L10n.t("Store, filters and search back to the start – the order stays"))
+        .padFocus("library.clear", cornerRadius: 16) { model.clearFilters() }
         .fixedSize()
     }
 }

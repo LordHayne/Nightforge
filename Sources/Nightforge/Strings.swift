@@ -877,6 +877,7 @@ enum L10n {
         "Games you hid from your library": "Spiele, die du aus der Bibliothek ausgeblendet hast",
         "No games match these filters": "Keine Spiele passen zu diesen Filtern",
         "Clear filters": "Filter zurücksetzen",
+        "Store, filters and search back to the start – the order stays": "Store, Filter und Suche zurück auf Anfang – die Sortierung bleibt",
 
         // The library's row: store, order, filters (LibraryFilterRow)
         "All Stores": "Alle Stores",
