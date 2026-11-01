@@ -33,6 +33,8 @@ struct D3DMetalTest {
         await downloads(work)
         games()
         build()
+        versions(work)
+        engineFiles(work)
 
         print(failures == 0 ? "✓ D3DMetal" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -347,6 +349,12 @@ struct D3DMetalTest {
         make("Evaluation_environment_for_Windows_games_3.0.DMG", at: since.addingTimeInterval(20))
         check(Supply.newToolkitDownload(in: folder, since: since)?.lastPathComponent == "Evaluation_environment_for_Windows_games_3.0.DMG",
               "the newest of several, whatever the case of its ending")
+        let lying = fresh(work, "lying-downloads")
+        write("x", to: lying.appendingPathComponent("Game_Porting_Toolkit_3.0.dmg"))
+        try? fm.setAttributes([.creationDate: old, .modificationDate: old], ofItemAtPath: lying.appendingPathComponent("Game_Porting_Toolkit_3.0.dmg").path)
+        check(Supply.newToolkitDownload(in: lying, since: since) == nil
+              && Supply.newToolkitDownload(in: lying, since: .distantPast)?.lastPathComponent == "Game_Porting_Toolkit_3.0.dmg",
+              "one lying there already is found when the time doesn't matter")
         check(Supply.newToolkitDownload(in: fresh(work, "no-downloads"), since: since) == nil
               && Supply.newToolkitDownload(in: work.appendingPathComponent("missing"), since: since) == nil, "an empty or missing folder")
 
@@ -375,6 +383,131 @@ struct D3DMetalTest {
         check(!Supply.needed(by: analysis([.d3d11]), picked: .automatic) && !Supply.needed(by: analysis([.d3d9]), picked: .dxvk)
               && !Supply.needed(by: nil, picked: .automatic), "other games don't ask, nor one not yet looked at")
         check(Supply.needed(by: analysis([.d3d11]), picked: .d3dmetal) && Supply.needed(by: nil, picked: .d3dmetal), "the player's own pick does")
+    }
+
+    // MARK: Versions
+
+    static func versions(_ work: URL) {
+        check(Supply.isBeta("4.0b3") && Supply.isBeta("4.0 beta 3") && Supply.isBeta("3.0rc1") && Supply.isBeta("2.0a1"), "betas")
+        check(!Supply.isBeta("3.0") && !Supply.isBeta("2.1") && !Supply.isBeta("4.0"), "finished versions")
+        check(Supply.displayVersion("4.0b3") == "4.0 beta 3" && Supply.displayVersion("3.0") == "3.0" && Supply.displayVersion("2.0a1") == "2.0 alpha 1",
+              "for people: \(Supply.displayVersion("4.0b3"))")
+        check(Supply.finishedVersion == "3.0", "the finished one Nightforge's download is pinned to")
+
+        // Taking it all away: the answer, the imports, the copies Nightforge downloaded.
+        let components = fresh(work, "remove-components")
+        let folder = fresh(work, "remove-folder")
+        write("hash", to: components.appendingPathComponent("d3dmetal/3.0/.sha256"))
+        write("x", to: components.appendingPathComponent("winecx/4.7.3/keep.txt"))
+        write("x", to: Supply.importedFolder(in: folder).appendingPathComponent("3.0/lib/a"))
+        Supply.save(.init(source: .apple, version: "3.0", accepted: Date()), in: folder)
+        Supply.removeAll(componentsRoot: components, folder: folder)
+        check(!fm.fileExists(atPath: components.appendingPathComponent("d3dmetal").path)
+              && !fm.fileExists(atPath: Supply.importedFolder(in: folder).path) && Supply.choice(in: folder) == nil
+              && fm.fileExists(atPath: components.appendingPathComponent("winecx/4.7.3/keep.txt").path),
+              "removed: copies, imports, answer – and nothing else")
+        check(Supply.current(manifest: manifest(d3dmetal: "3.0"), componentsRoot: components, folder: folder) == nil,
+              "and nothing is adopted again")
+
+        // An import that has taken over leaves the older ones no use.
+        let imports = fresh(work, "prune")
+        for version in ["3.0", "4.0b3", "4.0b2"] { write("x", to: Supply.importedFolder(in: imports).appendingPathComponent("\(version)/lib/a")) }
+        Supply.pruneImports(keeping: "3.0", in: imports)
+        check(((try? fm.contentsOfDirectory(atPath: Supply.importedFolder(in: imports).path)) ?? []) == ["3.0"], "only the one in use stays")
+        Supply.pruneImports(keeping: nil, in: imports)
+        check(((try? fm.contentsOfDirectory(atPath: Supply.importedFolder(in: imports).path)) ?? []).isEmpty, "none when another way is in use")
+    }
+
+    // MARK: The engine's files
+
+    /// A stand-in engine: a wine binary, Wine's own Direct3D front ends, the stamp.
+    static func engine(_ work: URL, _ name: String) -> (wine: URL, lib: URL) {
+        let root = fresh(work, name)
+        let wine = root.appendingPathComponent("Libraries/Wine/bin/wine")
+        write("wine", to: wine)
+        let lib = root.appendingPathComponent("Libraries/Wine/lib", isDirectory: true)
+        for dll in ["d3d12.dll", "d3d11.dll", "dxgi.dll"] { write("wine's \(dll)", to: lib.appendingPathComponent("wine/x86_64-windows/\(dll)")) }
+        write("wined3d", to: lib.appendingPathComponent("wine/x86_64-unix/wined3d.so"))
+        return (wine, lib)
+    }
+
+    static func text(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+
+    static func engineFiles(_ work: URL) {
+        // Apple's files, as far as the signature check goes: a binary Apple signed stands in for the framework and the dylib.
+        let payload = fresh(work, "payload")
+        let external = payload.appendingPathComponent("lib/external", isDirectory: true)
+        try? fm.createDirectory(at: external, withIntermediateDirectories: true)
+        for name in ["libd3dshared.dylib", "D3DMetal.framework"] { try? fm.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: external.appendingPathComponent(name)) }
+        for dll in ["d3d12.dll", "d3d11.dll", "nvngx-on-metalfx.dll"] { write("apple's \(dll)", to: payload.appendingPathComponent("lib/wine/x86_64-windows/\(dll)")) }
+        let unix = payload.appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+        try? fm.createDirectory(at: unix, withIntermediateDirectories: true)
+        for so in ["d3d12.so", "d3d11.so", "nvngx-on-metalfx.so"] {
+            try? fm.createSymbolicLink(atPath: unix.appendingPathComponent(so).path, withDestinationPath: "../../external/libd3dshared.dylib")
+        }
+        check(Engine.isAppleSigned(external.appendingPathComponent("libd3dshared.dylib")), "(the stand-in passes the signature check)")
+
+        let (wine, lib) = engine(work, "engine")
+        let windows = lib.appendingPathComponent("wine/x86_64-windows")
+        do { try Engine.installD3DMetal(payload, into: wine) } catch { check(false, "installing: \(error)") }
+        check(text(windows.appendingPathComponent("d3d12.dll")) == "apple's d3d12.dll" && text(windows.appendingPathComponent("d3d11.dll")) == "apple's d3d11.dll"
+              && text(windows.appendingPathComponent("dxgi.dll")) == "wine's dxgi.dll", "Apple's front ends are in, the others stay")
+        check(text(windows.appendingPathComponent("d3d12.dll.wine")) == "wine's d3d12.dll" && !fm.fileExists(atPath: windows.appendingPathComponent("dxgi.dll.wine").path),
+              "Wine's own kept where they were replaced")
+        check(text(windows.appendingPathComponent("nvngx.dll")) == "apple's nvngx-on-metalfx.dll", "DLSS under NVIDIA's name")
+        check((try? fm.destinationOfSymbolicLink(atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d12.so").path)) == "../../external/libd3dshared.dylib"
+              && fm.fileExists(atPath: lib.appendingPathComponent("wine/x86_64-unix/wined3d.so").path), "the unix halves link to the dylib; Wine's stays")
+        check(Engine.isD3DMetalDeployed(wine: wine), "deployed")
+        check(!fm.fileExists(atPath: lib.appendingPathComponent(".d3dmetal-staging").path), "no staging left")
+
+        // Another copy over it: Wine's own aren't lost, Apple's are replaced.
+        write("apple's d3d12.dll, newer", to: payload.appendingPathComponent("lib/wine/x86_64-windows/d3d12.dll"))
+        do { try Engine.installD3DMetal(payload, into: wine) } catch { check(false, "installing again: \(error)") }
+        check(text(windows.appendingPathComponent("d3d12.dll")) == "apple's d3d12.dll, newer" && text(windows.appendingPathComponent("d3d12.dll.wine")) == "wine's d3d12.dll",
+              "installed over: the newer one, Wine's own still the first")
+
+        // What isn't Apple's changes nothing – not a file of what is there.
+        let unsigned = fresh(work, "unsigned-payload")
+        try? fm.copyItem(at: payload.appendingPathComponent("lib"), to: unsigned.appendingPathComponent("lib"))
+        try? fm.removeItem(at: unsigned.appendingPathComponent("lib/external/D3DMetal.framework"))
+        write("not Apple's", to: unsigned.appendingPathComponent("lib/external/D3DMetal.framework"))
+        write("apple's d3d12.dll, from a stranger", to: unsigned.appendingPathComponent("lib/wine/x86_64-windows/d3d12.dll"))
+        do {
+            try Engine.installD3DMetal(unsigned, into: wine)
+            check(false, "an unsigned framework was installed")
+        } catch {
+            check(text(windows.appendingPathComponent("d3d12.dll")) == "apple's d3d12.dll, newer" && Engine.isD3DMetalDeployed(wine: wine)
+                  && !fm.fileExists(atPath: lib.appendingPathComponent(".d3dmetal-staging").path), "refused: the engine is as it was")
+        }
+
+        // The version it says, by its framework (a real one has the plist; the stand-in doesn't) and by the stamp.
+        check(Engine.deployedD3DMetalVersion(wine: wine) == nil, "no version where the framework doesn't say")
+        let versioned = engine(work, "versioned-engine")
+        write("dylib", to: versioned.lib.appendingPathComponent("external/libd3dshared.dylib"))
+        try? fm.createSymbolicLink(atPath: versioned.lib.appendingPathComponent("wine/x86_64-unix/d3d12.so").path, withDestinationPath: "../../external/libd3dshared.dylib")
+        let plist = versioned.lib.appendingPathComponent("external/D3DMetal.framework/Versions/A/Resources/Info.plist")
+        try? fm.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
+        (["CFBundleShortVersionString": "4.0b3"] as NSDictionary).write(to: plist, atomically: true)
+        check(Engine.deployedD3DMetalVersion(wine: versioned.wine) == "4.0b3", "the version the framework says")
+        let stamp = versioned.lib.appendingPathComponent("wine/.nightforge-graphics")
+        write("graphics 11.18 engine-match true moltenvk 1.4.2 d3dmetal apple-3.0 gamepad 4.7.3-7", to: stamp)
+        check(Engine.deployedD3DMetalLabel(wine: versioned.wine) == "apple-3.0", "and the stamp's")
+        write("graphics 11.18 d3dmetal - gamepad 4.7.3-7", to: stamp)
+        check(Engine.deployedD3DMetalLabel(wine: versioned.wine) == nil, "none in the stamp: none")
+        try? fm.removeItem(at: stamp)
+        check(Engine.deployedD3DMetalLabel(wine: versioned.wine) == nil && Engine.deployedD3DMetalVersion(wine: engine(work, "bare").wine) == nil, "no stamp, no engine files: none")
+
+        // Taking it out: Wine's own come back, Apple's go, and the stamp, so the next setup starts clean.
+        write("graphics d3dmetal 3.0", to: lib.appendingPathComponent("wine/.nightforge-graphics"))
+        Engine.removeD3DMetal(from: wine)
+        check(text(windows.appendingPathComponent("d3d12.dll")) == "wine's d3d12.dll" && text(windows.appendingPathComponent("d3d11.dll")) == "wine's d3d11.dll"
+              && text(windows.appendingPathComponent("dxgi.dll")) == "wine's dxgi.dll", "Wine's front ends are back")
+        check(!fm.fileExists(atPath: windows.appendingPathComponent("nvngx.dll").path) && !fm.fileExists(atPath: windows.appendingPathComponent("nvngx-on-metalfx.dll").path),
+              "what only Apple's had goes")
+        let left = (try? fm.contentsOfDirectory(atPath: lib.appendingPathComponent("wine/x86_64-unix").path)) ?? []
+        check(left == ["wined3d.so"] && !fm.fileExists(atPath: lib.appendingPathComponent("external").path), "no link to it, no external/: \(left)")
+        check(text(windows.appendingPathComponent("d3d12.dll.wine")) == "wine's d3d12.dll", "Wine's copies stay (the prefix's Direct3D 12 comes from them)")
+        check(!fm.fileExists(atPath: lib.appendingPathComponent("wine/.nightforge-graphics").path) && !Engine.isD3DMetalDeployed(wine: wine), "stamp gone, not deployed")
     }
 
     // MARK: In the engine's list

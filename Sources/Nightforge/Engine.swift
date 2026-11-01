@@ -941,20 +941,20 @@ enum Engine {
     /// half as a symlink to external/libd3dshared.dylib – a copy would move the dylib's
     /// @loader_path away from the D3DMetal framework it loads – and external/ beside them.
     /// Only files Apple signed are installed; nothing of them is changed (Apple's licence).
+    /// What is there stays until the new files are all copied and checked: a copy that fails or isn't
+    /// Apple's leaves the engine as it was.
     static func installD3DMetal(_ payloadDir: URL, into wine: URL) throws {
         let fm = FileManager.default
         guard let payload = d3dMetalPayloadRoot(in: payloadDir) else { throw SetupError.engineBroken }
         let external = payload.appendingPathComponent("external", isDirectory: true)
-        for code in ["libd3dshared.dylib", "D3DMetal.framework"] where !isAppleSigned(external.appendingPathComponent(code)) {
+        let codes = ["libd3dshared.dylib", "D3DMetal.framework"]
+        for code in codes where !isAppleSigned(external.appendingPathComponent(code)) {
             throw SetupError.engineBroken
         }
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
         let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
         let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
 
-        let installedExternal = lib.appendingPathComponent("external", isDirectory: true)
-        try? fm.removeItem(at: installedExternal)
-        try fm.copyItem(at: external, to: installedExternal)
         // Apple's front ends are the DLLs with a unix half; a toolkit that brings no unix folder
         // (the bridges are only links anyway) has nothing but them.
         let payloadUnix = payload.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
@@ -966,6 +966,25 @@ enum Engine {
         // DLSS → MetalFX: Apple's readme has nvngx-on-metalfx installed under NVIDIA's name, nvngx.
         let names = frontEnds.map { ($0, $0.lastPathComponent) }
             + frontEnds.filter { $0.lastPathComponent == "nvngx-on-metalfx.dll" }.map { ($0, "nvngx.dll") }
+
+        // Everything copied beside the engine's files first, and checked.
+        let staging = lib.appendingPathComponent(".d3dmetal-staging", isDirectory: true)
+        try? fm.removeItem(at: staging)
+        try fm.createDirectory(at: staging.appendingPathComponent("windows"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        let stagedExternal = staging.appendingPathComponent("external", isDirectory: true)
+        try fm.copyItem(at: external, to: stagedExternal)
+        for code in codes where !isAppleSigned(stagedExternal.appendingPathComponent(code)) {
+            throw SetupError.engineBroken
+        }
+        for (dll, name) in names {
+            try fm.copyItem(at: dll, to: staging.appendingPathComponent("windows/\(name)"))
+        }
+
+        // Then the swap: renames on one volume, with nothing left to fail but the disk itself.
+        let installedExternal = lib.appendingPathComponent("external", isDirectory: true)
+        try? fm.removeItem(at: installedExternal)
+        try fm.moveItem(at: stagedExternal, to: installedExternal)
         for (dll, name) in names {
             let target = windows.appendingPathComponent(name)
             let original = target.appendingPathExtension("wine")
@@ -973,13 +992,51 @@ enum Engine {
                 try fm.copyItem(at: target, to: original)
             }
             try? fm.removeItem(at: target)
-            try fm.copyItem(at: dll, to: target)
+            try fm.moveItem(at: staging.appendingPathComponent("windows/\(name)"), to: target)
             let bridge = unix.appendingPathComponent((name as NSString).deletingPathExtension + ".so")
             if fm.fileExists(atPath: bridge.path) || (try? fm.destinationOfSymbolicLink(atPath: bridge.path)) != nil {
                 try fm.removeItem(at: bridge)
             }
             try fm.createSymbolicLink(atPath: bridge.path, withDestinationPath: "../../external/libd3dshared.dylib")
         }
+    }
+
+    /// The D3DMetal in the engine: the version its framework says ("3.0", "4.0b3"), nil when there is none.
+    static func deployedD3DMetalVersion(wine: URL? = installedWineNow()) -> String? {
+        guard let wine, isD3DMetalDeployed(wine: wine) else { return nil }
+        let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
+        return D3DMetalSupply.version(ofFramework: lib.appendingPathComponent("external/D3DMetal.framework"))
+    }
+
+    /// What `ensureEngine` last put in as D3DMetal, by the engine's stamp: "3.0", "apple-3.0"; nil for none.
+    static func deployedD3DMetalLabel(wine: URL? = installedWineNow()) -> String? {
+        guard let wine, let text = readStamp(graphicsStampFile(wine: wine)),
+              let range = text.range(of: #"d3dmetal [^\s]+"#, options: .regularExpression) else { return nil }
+        let label = String(text[range].dropFirst("d3dmetal ".count))
+        return label == "-" ? nil : label
+    }
+
+    /// Takes Apple's D3DMetal out of the engine again, as `installD3DMetal` put it in: its front ends go
+    /// (Wine's own come back from the *.wine copies, which stay for the prefix's Direct3D 12), so do the
+    /// unix links to it and external/. The graphics stamp goes too, so the next `ensureEngine` sets the
+    /// rest up again without it.
+    static func removeD3DMetal(from wine: URL) {
+        let fm = FileManager.default
+        let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
+        let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
+        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let links = ((try? fm.contentsOfDirectory(atPath: unix.path)) ?? []).filter {
+            (try? fm.destinationOfSymbolicLink(atPath: unix.appendingPathComponent($0).path)) == "../../external/libd3dshared.dylib"
+        }
+        for link in links {
+            try? fm.removeItem(at: unix.appendingPathComponent(link))
+            let dll = windows.appendingPathComponent((link as NSString).deletingPathExtension + ".dll")
+            let original = dll.appendingPathExtension("wine")
+            try? fm.removeItem(at: dll)
+            if fm.fileExists(atPath: original.path) { try? fm.copyItem(at: original, to: dll) }
+        }
+        try? fm.removeItem(at: lib.appendingPathComponent("external"))
+        try? fm.removeItem(at: graphicsStampFile(wine: wine))
     }
 
     /// Puts the gamepad package's winebus.so in place of the engine's (kept as winebus.so.engine)

@@ -278,7 +278,7 @@ private struct GeneralSettings: View {
                 Toggle(isOn: $sharpAndSmooth) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Sharp & smooth"))
-                        Text(L10n.t("Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options."))
+                        Text(L10n.t("Most Windows games get Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Older DirectX 9 games and Mac versions run as they are. Change it per game in its options."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
@@ -336,10 +336,9 @@ private struct GeneralSettings: View {
                         Text(model.d3dMetalStatus)
                             .font(size: 12)
                             .foregroundStyle(.secondary)
-                        if !Engine.d3dMetalReady {
-                            Button(L10n.t("Set Up …"), action: setUpDirectX12)
-                                .padFocus("settings.d3dmetal", activate: setUpDirectX12)
-                        }
+                            .multilineTextAlignment(.trailing)
+                        Button(Engine.d3dMetalReady ? L10n.t("Change …") : L10n.t("Set Up …"), action: setUpDirectX12)
+                            .padFocus("settings.d3dmetal", activate: setUpDirectX12)
                     }
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
@@ -347,6 +346,11 @@ private struct GeneralSettings: View {
                         Text(L10n.t("DirectX 12 games run through Apple's D3DMetal, which Nightforge sets up when you say so – at the first game that needs it, or here."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
+                        if model.d3dMetalIsBeta {
+                            Text(L10n.t("This is a beta. Apple's finished version, %@, is under Change ….", D3DMetalSupply.finishedVersion))
+                                .font(size: 10)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             } header: {
@@ -379,7 +383,8 @@ private struct GeneralSettings: View {
     }
 
     private func setUpDirectX12() {
-        model.closeSettings { model.askAboutD3DMetal(for: nil) }
+        let change = Engine.d3dMetalReady
+        model.closeSettings { model.askAboutD3DMetal(for: nil, change: change) }
     }
 
     /// Shows what applies now; set back to what macOS says, it follows macOS again.
@@ -467,7 +472,7 @@ private struct ControllerSettings: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(pad.vendorName ?? pad.productCategory)
                     .font(size: 13.5, weight: .semibold)
-                Text(L10n.t("Connected · works in every game and in Nightforge"))
+                Text(L10n.t("Connected · works in Nightforge and in games with controller support"))
                     .font(size: 10)
                     .foregroundStyle(.secondary)
             }

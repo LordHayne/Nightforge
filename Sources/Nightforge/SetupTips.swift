@@ -13,7 +13,7 @@ struct SetupTip: Identifiable {
                 L10n.t("When a game also comes for the Mac, Nightforge takes the Mac version – without any Windows translation.")
             },
             SetupTip(id: "sharp", symbol: "sparkles", title: L10n.t("Sharp and smooth by itself")) { _ in
-                L10n.t("Every game gets MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.")
+                L10n.t("Most Windows games get MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.")
             },
             SetupTip(id: "geforce-now", symbol: "cloud", title: L10n.t("Anti-cheat? Then through GeForce Now")) { _ in
                 L10n.t("Games whose anti-cheat needs Windows itself stream through GeForce Now – with your copy from Steam.")

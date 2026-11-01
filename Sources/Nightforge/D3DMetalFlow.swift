@@ -12,7 +12,12 @@ struct D3DMetalDialog: Identifiable {
         case settingUp(Double?)
         /// Apple's page is open and Nightforge watches the Downloads folder.
         case waitingForApple
+        /// The toolkit is in the Downloads folder already (its file name): use that one?
+        case found(String)
         case importing(String)
+        /// "Remove" was pressed: asked once more, the safe answer first.
+        case confirmRemoval
+        case removing
         case failed(String)
     }
 
@@ -24,6 +29,9 @@ struct D3DMetalDialog: Identifiable {
     var licenseAccepted: Bool
     /// Nightforge's own download is on offer; false when the component list has no D3DMetal.
     var downloadable: Bool
+    /// Changing what is set up: what is in the engine now ("D3DMetal 4.0 beta 3, from Nightforge").
+    var installed: String?
+    var installedIsBeta = false
 }
 
 /// What is going on behind the dialog.
@@ -35,6 +43,8 @@ struct D3DMetalRun {
     /// An answer was recorded that goes away again with a cancel.
     var choiceChanged = false
     var finished = false
+    /// A toolkit that lay in the Downloads folder already.
+    var found: URL?
 }
 
 extension LibraryModel {
@@ -62,18 +72,24 @@ extension LibraryModel {
     }
 
     /// Opens the question – or, when it was answered before and D3DMetal only isn't in the engine
-    /// (a new engine, a download that failed), goes straight to setting it up.
-    func askAboutD3DMetal(for game: Game?) {
-        guard d3dMetalDialog == nil, !Engine.d3dMetalReady else { return }
+    /// (a new engine, a download that failed), goes straight to setting it up. `change`: Settings'
+    /// "Change …" for a D3DMetal that is set up.
+    func askAboutD3DMetal(for game: Game?, change: Bool = false) {
+        guard d3dMetalDialog == nil, change || !Engine.d3dMetalReady else { return }
         let choice = D3DMetalSupply.choice()
         d3dMetalRun = D3DMetalRun(game: game, choiceBefore: choice)
-        d3dMetalDialog = D3DMetalDialog(game: game, licenseAccepted: choice != nil,
-                                        downloadable: D3DMetalSupply.canDownload(ComponentStore.localManifest()))
+        var dialog = D3DMetalDialog(game: game, licenseAccepted: choice != nil,
+                                    downloadable: D3DMetalSupply.canDownload(ComponentStore.localManifest()))
+        if change, Engine.d3dMetalReady {
+            dialog.installed = d3dMetalStatus
+            dialog.installedIsBeta = d3dMetalIsBeta
+        }
+        d3dMetalDialog = dialog
         Task {
             let manifest = try? await ComponentStore.shared.manifest()
             d3dMetalDialog?.downloadable = D3DMetalSupply.canDownload(manifest)
             let atHand = D3DMetalSupply.current(manifest: manifest, componentsRoot: ComponentStore.shared.root)
-            if atHand != nil, d3dMetalDialog?.step == .choose { setUpD3DMetal() }
+            if !change, atHand != nil, d3dMetalDialog?.step == .choose { setUpD3DMetal() }
         }
     }
 
@@ -102,16 +118,38 @@ extension LibraryModel {
         }
     }
 
-    /// "Download from Apple and Import": Apple's page opens, and the toolkit is imported from the
-    /// Downloads folder as soon as it is there.
+    private var downloadsFolder: URL {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+    }
+
+    /// "Download from Apple and Import": a toolkit already lying in the Downloads folder is offered
+    /// first; else Apple's page opens, and the toolkit is imported as soon as it arrives there.
     func importD3DMetalFromApple() {
+        guard d3dMetalDialog != nil else { return }
+        if let have = D3DMetalSupply.newToolkitDownload(in: downloadsFolder, since: .distantPast) {
+            d3dMetalRun.found = have
+            d3dMetalDialog?.step = .found(have.lastPathComponent)
+            return
+        }
+        waitForAppleDownload()
+    }
+
+    /// "Import" on the one found.
+    func importFoundD3DMetal() {
+        guard let file = d3dMetalRun.found else { return }
+        d3dMetalRun.task?.cancel()
+        d3dMetalRun.task = Task { await importD3DMetal(from: file) }
+    }
+
+    /// Apple's page opens and the Downloads folder is watched.
+    func waitForAppleDownload() {
         guard d3dMetalDialog != nil else { return }
         d3dMetalDialog?.step = .waitingForApple
         NSWorkspace.shared.open(D3DMetalSupply.appleDownloadURL)
         // A download that finished a moment ago counts; an old one in the folder doesn't.
         let since = Date().addingTimeInterval(-120)
-        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+        let downloads = downloadsFolder
         d3dMetalRun.task?.cancel()
         d3dMetalRun.task = Task {
             guard let file = await D3DMetalSupply.waitForToolkit(in: downloads, since: since) else {
@@ -132,7 +170,7 @@ extension LibraryModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
-        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        panel.directoryURL = downloadsFolder
         guard panel.runModal() == .OK, let url = panel.url, d3dMetalDialog != nil else { return }
         d3dMetalRun.task?.cancel()
         d3dMetalRun.task = Task { await importD3DMetal(from: url) }
@@ -149,8 +187,8 @@ extension LibraryModel {
             guard !Task.isCancelled else { return }
             D3DMetalSupply.save(D3DMetalSupply.Choice(source: .apple, version: version,
                                                       accepted: D3DMetalSupply.choice()?.accepted ?? Date()))
-            // Imported and kept; the engine takes it now or at the next start.
-            d3dMetalRun.choiceChanged = false
+            // Stands only once it is in the engine (finishD3DMetal); until then a cancel gives the old answer back.
+            d3dMetalRun.choiceChanged = true
             setUpD3DMetal()
         } catch {
             guard !Task.isCancelled else { return }
@@ -159,21 +197,60 @@ extension LibraryModel {
     }
 
     private func finishD3DMetal(engineBuilt: Bool) {
-        if Engine.d3dMetalReady {
+        let wanted = D3DMetalSupply.current(manifest: ComponentStore.localManifest(), componentsRoot: ComponentStore.shared.root)
+        // The engine's own stamp says what it was given – the answer that was just asked for, or an older one.
+        if Engine.d3dMetalReady, wanted == nil || Engine.deployedD3DMetalLabel() == wanted?.version {
             let game = d3dMetalRun.game
             d3dMetalRun = D3DMetalRun(finished: true)
+            // The older copies of Apple's files have no use now.
+            let choice = D3DMetalSupply.choice()
+            D3DMetalSupply.pruneImports(keeping: choice?.source == .apple ? choice?.version : nil)
             d3dMetalDialog = nil
             Toasts.shared.show(L10n.t("DirectX 12 is ready"))
             if let game { launch(allGames.first { $0.id == game.id } ?? game, d3dMetalChecked: true) }
+        } else if !running.isEmpty {
+            // A game runs: the engine's files wait until it ends (ensureEngine). What was chosen stays.
+            d3dMetalRun.choiceChanged = false
+            d3dMetalDialog?.step = .failed(L10n.t("D3DMetal is ready and goes into the engine once no game is running. Close the game, then press Play again."))
+        } else {
+            // Not what was asked for: what was in the engine before still is, and a cancel gives the old answer back.
+            d3dMetalDialog?.step = .failed(engineBuilt
+                ? L10n.t("D3DMetal didn't go into the engine. What was there before is still there. A problem report from the game's page helps.")
+                : L10n.t("D3DMetal couldn't be set up. Check your internet connection and try again."))
+        }
+    }
+
+    // MARK: Taking it away
+
+    /// "Remove": asks once more first.
+    func askToRemoveD3DMetal() {
+        guard d3dMetalDialog != nil else { return }
+        d3dMetalDialog?.step = .confirmRemoval
+    }
+
+    /// Takes Apple's D3DMetal off the Mac: the engine's copy, the imported toolkits, the downloaded
+    /// copies and the answer. Not while a game runs; Windows Steam is restarted afterwards.
+    func removeD3DMetal() {
+        guard d3dMetalDialog != nil else { return }
+        guard running.isEmpty, !Engine.windowsGameRunning else {
+            d3dMetalDialog?.step = .failed(L10n.t("A game is running. Close it, then remove D3DMetal."))
             return
         }
-        // A game runs: the engine's files wait until it ends (ensureEngine).
-        if !running.isEmpty {
-            d3dMetalDialog?.step = .failed(L10n.t("D3DMetal is ready and goes into the engine once no game is running. Close the game, then press Play again."))
-        } else if engineBuilt {
-            d3dMetalDialog?.step = .failed(L10n.t("D3DMetal didn't go into the engine. A problem report from the game's page helps."))
-        } else {
-            d3dMetalDialog?.step = .failed(L10n.t("D3DMetal couldn't be set up. Check your internet connection and try again."))
+        d3dMetalDialog?.step = .removing
+        d3dMetalRun.task?.cancel()
+        d3dMetalRun.task = Task {
+            if let wine = await Engine.installedWine() {
+                try? await Engine.stopSteam(wine)
+                await Engine.offMain { Engine.stopAll(wine) }
+                await Engine.offMain { Engine.removeD3DMetal(from: wine) }
+            }
+            D3DMetalSupply.removeAll(componentsRoot: ComponentStore.shared.root)
+            // The rest of the engine's graphics are set up again without it.
+            _ = await rebuildEngine()
+            d3dMetalRun = D3DMetalRun(finished: true)
+            d3dMetalDialog = nil
+            Toasts.shared.show(L10n.t("D3DMetal is removed"))
+            applySteamSettings()
         }
     }
 
@@ -192,14 +269,21 @@ extension LibraryModel {
         }
     }
 
-    /// Settings › General's line about DirectX 12.
+    /// Settings › General's line about DirectX 12: what is in the engine and where it came from.
     var d3dMetalStatus: String {
         guard Engine.d3dMetalReady else { return L10n.t("Not set up") }
+        guard let version = Engine.deployedD3DMetalVersion() else { return L10n.t("Set up") }
+        let shown = D3DMetalSupply.displayVersion(version)
         switch D3DMetalSupply.choice()?.source {
-        case .apple?: return L10n.t("Set up, imported from Apple")
-        case .nightforge?: return L10n.t("Set up, from Nightforge")
-        case nil: return L10n.t("Set up")
+        case .apple?: return L10n.t("D3DMetal %@, imported from Apple", shown)
+        case .nightforge?: return L10n.t("D3DMetal %@, from Nightforge", shown)
+        case nil: return L10n.t("D3DMetal %@", shown)
         }
+    }
+
+    /// What is in the engine is a beta: Settings points to the finished one.
+    var d3dMetalIsBeta: Bool {
+        Engine.deployedD3DMetalVersion().map(D3DMetalSupply.isBeta) ?? false
     }
 }
 
@@ -214,9 +298,11 @@ struct D3DMetalSheet: View {
 
     private var title: String {
         switch dialog.step {
-        case .choose: return L10n.t("Set Up DirectX 12")
+        case .choose: return dialog.installed == nil ? L10n.t("Set Up DirectX 12") : L10n.t("Change DirectX 12")
         case .settingUp, .importing: return L10n.t("Setting Up DirectX 12")
-        case .waitingForApple: return L10n.t("Download from Apple")
+        case .waitingForApple, .found: return L10n.t("Download from Apple")
+        case .confirmRemoval: return L10n.t("Remove D3DMetal?")
+        case .removing: return L10n.t("Removing D3DMetal")
         case .failed: return L10n.t("DirectX 12 isn't set up")
         }
     }
@@ -228,7 +314,10 @@ struct D3DMetalSheet: View {
             case .settingUp(let fraction): progress(fraction.map { L10n.t("Downloading D3DMetal … %ld %%", Int($0 * 100)) }
                                                     ?? L10n.t("Setting up D3DMetal …"), fraction: fraction)
             case .waitingForApple: waiting
+            case .found(let name): found(name)
             case .importing(let name): progress(L10n.t("Importing %@ …", name), fraction: nil)
+            case .confirmRemoval: confirmRemoval
+            case .removing: progress(L10n.t("Removing D3DMetal …"), fraction: nil, cancellable: false)
             case .failed(let message): failed(message)
             }
         }
@@ -237,9 +326,23 @@ struct D3DMetalSheet: View {
     // MARK: Steps
 
     @ViewBuilder private var choose: some View {
-        Text(dialog.game.map { L10n.t("%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.", $0.name) }
-             ?? L10n.t("DirectX 12 games run on a Mac through Apple's D3DMetal."))
-            .modifier(BodyText())
+        if let installed = dialog.installed {
+            Text(L10n.t("Set up now: %@.", installed)).modifier(BodyText())
+            if dialog.installedIsBeta {
+                Label {
+                    Text(L10n.t("That is a beta. Apple's finished version is %@ – you can set it up here.", D3DMetalSupply.finishedVersion))
+                        .modifier(BodyText())
+                } icon: {
+                    Image(systemName: "info.circle").foregroundStyle(Theme.muted)
+                }
+            }
+            Text(L10n.t("A new one replaces it only once it is complete and checked."))
+                .modifier(BodyText(muted: true))
+        } else {
+            Text(dialog.game.map { L10n.t("%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.", $0.name) }
+                 ?? L10n.t("DirectX 12 games run on a Mac through Apple's D3DMetal."))
+                .modifier(BodyText())
+        }
         if !dialog.licenseAccepted {
             VStack(alignment: .leading, spacing: 8) {
                 Label {
@@ -255,13 +358,38 @@ struct D3DMetalSheet: View {
             Text(L10n.t("Nightforge's own download of D3DMetal isn't available at the moment."))
                 .modifier(BodyText(muted: true))
         }
-        HStack(spacing: 8) {
-            Spacer()
-            button(L10n.t("Cancel"), id: "cancel") { model.d3dMetalDialog = nil }
-            button(L10n.t("Download from Apple and Import"), id: "apple", prominent: !dialog.downloadable) { model.importD3DMetalFromApple() }
+        // The words are long: the buttons go onto a second line rather than out of the dialog.
+        FlowRow(spacing: 8, lineSpacing: 8) {
             if dialog.downloadable {
                 button(L10n.t("Download from Nightforge"), id: "nightforge", prominent: true) { model.downloadD3DMetal() }
             }
+            button(L10n.t("Download from Apple and Import"), id: "apple", prominent: !dialog.downloadable) { model.importD3DMetalFromApple() }
+            if dialog.installed != nil {
+                button(L10n.t("Remove"), id: "remove") { model.askToRemoveD3DMetal() }
+            }
+            button(L10n.t("Cancel"), id: "cancel") { model.d3dMetalDialog = nil }
+        }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder private func found(_ name: String) -> some View {
+        Text(L10n.t("“%@” in your Downloads folder looks like Apple's Game Porting Toolkit. Import it?", name))
+            .modifier(BodyText())
+        FlowRow(spacing: 8, lineSpacing: 8) {
+            button(L10n.t("Import"), id: "import", prominent: true) { model.importFoundD3DMetal() }
+            button(L10n.t("Download a New One from Apple"), id: "new") { model.waitForAppleDownload() }
+            button(L10n.t("Cancel"), id: "cancel") { model.d3dMetalDialog = nil }
+        }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder private var confirmRemoval: some View {
+        Text(L10n.t("D3DMetal comes off this Mac: Nightforge deletes its copies of Apple's files. DirectX 12 games don't start until you set it up again."))
+            .modifier(BodyText())
+        HStack(spacing: 8) {
+            Spacer()
+            button(L10n.t("Cancel"), id: "cancel", preferred: true) { model.d3dMetalDialog = nil }
+            button(L10n.t("Remove"), id: "remove", destructive: true) { model.removeD3DMetal() }
         }
         .padding(.top, 4)
     }
@@ -273,16 +401,15 @@ struct D3DMetalSheet: View {
             ProgressView().controlSize(.small)
             Text(L10n.t("Waiting for the download …")).modifier(BodyText(muted: true))
         }
-        HStack(spacing: 8) {
-            Spacer()
-            button(L10n.t("Cancel"), id: "cancel", preferred: true) { model.d3dMetalDialog = nil }
+        FlowRow(spacing: 8, lineSpacing: 8) {
             button(L10n.t("Choose File …"), id: "file") { model.chooseD3DMetalFile() }
             button(L10n.t("Open Apple's Page Again"), id: "again") { NSWorkspace.shared.open(D3DMetalSupply.appleDownloadURL) }
+            button(L10n.t("Cancel"), id: "cancel", preferred: true) { model.d3dMetalDialog = nil }
         }
         .padding(.top, 4)
     }
 
-    @ViewBuilder private func progress(_ text: String, fraction: Double?) -> some View {
+    @ViewBuilder private func progress(_ text: String, fraction: Double?, cancellable: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             if let fraction {
                 ProgressView(value: fraction)
@@ -291,11 +418,13 @@ struct D3DMetalSheet: View {
             }
             Text(text).modifier(BodyText(muted: true)).monospacedDigit()
         }
-        HStack(spacing: 8) {
-            Spacer()
-            button(L10n.t("Cancel"), id: "cancel", preferred: true) { model.d3dMetalDialog = nil }
+        if cancellable {
+            HStack(spacing: 8) {
+                Spacer()
+                button(L10n.t("Cancel"), id: "cancel", preferred: true) { model.d3dMetalDialog = nil }
+            }
+            .padding(.top, 4)
         }
-        .padding(.top, 4)
     }
 
     @ViewBuilder private func failed(_ message: String) -> some View {
@@ -312,10 +441,10 @@ struct D3DMetalSheet: View {
         .padding(.top, 4)
     }
 
-    private func button(_ label: String, id: String, prominent: Bool = false, preferred: Bool = false, small: Bool = false,
-                        action: @escaping () -> Void) -> some View {
+    private func button(_ label: String, id: String, prominent: Bool = false, destructive: Bool = false, preferred: Bool = false,
+                        small: Bool = false, action: @escaping () -> Void) -> some View {
         Button(label, action: action)
-            .buttonStyle(GlassTextButtonStyle(prominent: prominent, small: small))
+            .buttonStyle(GlassTextButtonStyle(prominent: prominent, destructive: destructive, small: small))
             .fixedSize()
             .padFocus("d3dmetal.\(id)", cornerRadius: small ? 18 : 21, preferred: prominent || preferred, activate: action)
     }

@@ -136,6 +136,39 @@ enum D3DMetalSupply {
         return dir
     }
 
+    /// The version of Apple's toolkit that is no beta, which the Settings line points a beta's owner to
+    /// (components/sources.json pins Nightforge's download to the same).
+    static let finishedVersion = "3.0"
+
+    /// A pre-release: "4.0b3", "4.0 beta 3".
+    static func isBeta(_ version: String) -> Bool {
+        version.range(of: #"(?i)((beta|alpha|rc) ?\d*|\d[ab]\d+)$"#, options: .regularExpression) != nil
+    }
+
+    /// For people: "4.0b3" is "4.0 beta 3".
+    static func displayVersion(_ version: String) -> String {
+        version.replacingOccurrences(of: #"(\d)b(\d+)$"#, with: "$1 beta $2", options: .regularExpression)
+            .replacingOccurrences(of: #"(\d)a(\d+)$"#, with: "$1 alpha $2", options: .regularExpression)
+    }
+
+    /// Takes the answer, the imported toolkits and the copies Nightforge downloaded away: no copy of
+    /// Apple's D3DMetal is left in Nightforge's own places (the engine's is `Engine.removeD3DMetal`).
+    static func removeAll(componentsRoot: URL, folder: URL = D3DMetalSupply.folder) {
+        let fm = FileManager.default
+        try? fm.removeItem(at: componentsRoot.appendingPathComponent(Engine.d3dMetalID, isDirectory: true))
+        try? fm.removeItem(at: importedFolder(in: folder))
+        forget(in: folder)
+    }
+
+    /// The imported toolkits but the one in use: an import that has taken over leaves the older ones no use.
+    static func pruneImports(keeping version: String?, in folder: URL = D3DMetalSupply.folder) {
+        let fm = FileManager.default
+        let imported = importedFolder(in: folder)
+        for old in (try? fm.contentsOfDirectory(atPath: imported.path)) ?? [] where old != version {
+            try? fm.removeItem(at: imported.appendingPathComponent(old))
+        }
+    }
+
     /// Nightforge's download is on offer: the component list has a D3DMetal (a final one; the list
     /// leaves it out while there is none).
     static func canDownload(_ manifest: ComponentManifest?) -> Bool {

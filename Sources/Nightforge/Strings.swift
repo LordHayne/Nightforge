@@ -169,8 +169,8 @@ enum L10n {
         "CrossOver, Whisky and your own Wine": "CrossOver, Whisky und eigenes Wine",
         "Nightforge brings everything it needs. Fill this in only to also show games from CrossOver or Whisky bottles: leave Wine empty for CrossOver, or enter the path to the wine binary of Whisky or your own Wine.":
             "Nightforge bringt alles selbst mit. Nur ausfüllen, wenn auch Spiele aus CrossOver- oder Whisky-Bottles erscheinen sollen: Wine leer lassen für CrossOver, sonst den Pfad zur wine-Datei von Whisky oder deinem eigenen Wine eintragen.",
-        "Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Change it per game in its options.":
-            "Jedes Spiel bekommt Apples MetalFX-Hochskalierung auf volle Retina-Schärfe und eine gleichmäßige Bildrate passend zum Bildschirm (60 FPS auf einem 120-Hz-Display). Pro Spiel in dessen Optionen änderbar.",
+        "Most Windows games get Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen). Older DirectX 9 games and Mac versions run as they are. Change it per game in its options.":
+            "Die meisten Windows-Spiele bekommen Apples MetalFX-Hochskalierung auf volle Retina-Schärfe und eine gleichmäßige Bildrate passend zum Bildschirm (60 FPS auf einem 120-Hz-Display). Ältere DirectX-9-Spiele und Mac-Versionen laufen so, wie sie sind. Pro Spiel in dessen Optionen änderbar.",
         "Low Power Mode is on – games run much slower with it.": "Der Stromsparmodus ist an – Spiele laufen damit deutlich langsamer.",
         "The charger gives only %@ W – too little for games: the battery drains while you play. A stronger one helps.":
             "Das Netzteil liefert nur %@ W – zu wenig für Spiele: Beim Spielen entlädt sich der Akku. Ein stärkeres hilft.",
@@ -499,7 +499,8 @@ enum L10n {
         "Not signed in · %@": "Nicht angemeldet · %@",
         "No controller connected.": "Kein Controller verbunden.",
         "Controller battery": "Akku des Controllers",
-        "Connected · works in every game and in Nightforge": "Verbunden · funktioniert in jedem Spiel und in Nightforge",
+        "Connected · works in Nightforge and in games with controller support":
+            "Verbunden · funktioniert in Nightforge und in Spielen mit Controller-Unterstützung",
         "Pair a Controller …": "Controller koppeln …",
         "PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings.":
             "PlayStation: PS und Create halten, bis das Licht blinkt. Xbox: die Kopplungstaste oben halten, bis das Logo blinkt. Nintendo: die Sync-Taste halten. Dann in den Bluetooth-Einstellungen auswählen.",
@@ -549,16 +550,36 @@ enum L10n {
         "DirectX 12 is ready": "DirectX 12 ist bereit",
         "D3DMetal is ready and goes into the engine once no game is running. Close the game, then press Play again.":
             "D3DMetal ist bereit und kommt in die Engine, sobald kein Spiel mehr läuft. Beende das Spiel und klick dann noch einmal auf „Spielen“.",
-        "D3DMetal didn't go into the engine. A problem report from the game's page helps.":
-            "D3DMetal ist nicht in die Engine gekommen. Ein Problembericht von der Seite des Spiels hilft.",
+        "D3DMetal didn't go into the engine. What was there before is still there. A problem report from the game's page helps.":
+            "D3DMetal ist nicht in die Engine gekommen. Was vorher da war, ist noch da. Ein Problembericht von der Seite des Spiels hilft.",
         "D3DMetal couldn't be set up. Check your internet connection and try again.":
             "D3DMetal konnte nicht eingerichtet werden. Prüfe deine Internetverbindung und versuch es noch einmal.",
         "%@ needs DirectX 12, which runs through Apple's D3DMetal. Without it the game doesn't start – set it up in Settings.":
             "%@ braucht DirectX 12, das auf dem Mac über Apples D3DMetal läuft. Ohne startet das Spiel nicht – richte es in den Einstellungen ein.",
         "Not set up": "Nicht eingerichtet",
         "Set up": "Eingerichtet",
-        "Set up, imported from Apple": "Eingerichtet, von Apple importiert",
-        "Set up, from Nightforge": "Eingerichtet, von Nightforge",
+        "D3DMetal %@": "D3DMetal %@",
+        "D3DMetal %@, from Nightforge": "D3DMetal %@, von Nightforge",
+        "D3DMetal %@, imported from Apple": "D3DMetal %@, von Apple importiert",
+        "Change DirectX 12": "DirectX 12 ändern",
+        "Set up now: %@.": "Eingerichtet ist jetzt: %@.",
+        "That is a beta. Apple's finished version is %@ – you can set it up here.":
+            "Das ist eine Beta. Apples fertige Version ist %@ – hier kannst du sie einrichten.",
+        "A new one replaces it only once it is complete and checked.":
+            "Eine neue ersetzt sie erst, wenn sie vollständig und geprüft ist.",
+        "This is a beta. Apple's finished version, %@, is under Change ….":
+            "Das ist eine Beta. Apples fertige Version, %@, gibt es unter „Ändern …“.",
+        "“%@” in your Downloads folder looks like Apple's Game Porting Toolkit. Import it?":
+            "„%@“ in deinem Downloads-Ordner sieht nach Apples Game Porting Toolkit aus. Importieren?",
+        "Import": "Importieren",
+        "Download a New One from Apple": "Neu bei Apple laden",
+        "Remove D3DMetal?": "D3DMetal entfernen?",
+        "Removing D3DMetal": "D3DMetal wird entfernt",
+        "Removing D3DMetal …": "D3DMetal wird entfernt …",
+        "D3DMetal comes off this Mac: Nightforge deletes its copies of Apple's files. DirectX 12 games don't start until you set it up again.":
+            "D3DMetal verschwindet von diesem Mac: Nightforge löscht seine Kopien von Apples Dateien. DirectX-12-Spiele starten erst wieder, wenn du es neu einrichtest.",
+        "A game is running. Close it, then remove D3DMetal.": "Ein Spiel läuft. Beende es und entferne D3DMetal dann.",
+        "D3DMetal is removed": "D3DMetal ist entfernt",
         "Set Up …": "Einrichten …",
         "DirectX 12 (Apple's D3DMetal)": "DirectX 12 (Apples D3DMetal)",
         "DirectX 12 games run through Apple's D3DMetal, which Nightforge sets up when you say so – at the first game that needs it, or here.":
@@ -898,8 +919,8 @@ enum L10n {
         "Custom": "Eigene",
         "What the profile for this game says and what Nightforge learns while you play – the best choice for most games.":
             "Was das Profil für dieses Spiel sagt und was Nightforge beim Spielen lernt – für die meisten Spiele das Beste.",
-        "MetalFX sharpness and an even frame rate that fits your display (60 FPS on a 120 Hz screen).":
-            "MetalFX-Schärfe und eine gleichmäßige Bildrate passend zum Display (60 FPS auf einem 120-Hz-Bildschirm).",
+        "MetalFX sharpness where the game can use it, and an even frame rate that fits your display (60 FPS on a 120 Hz screen).":
+            "MetalFX-Schärfe, wo das Spiel sie nutzen kann, und eine gleichmäßige Bildrate passend zum Display (60 FPS auf einem 120-Hz-Bildschirm).",
         "The highest frame rate: MetalFX upscaling, no frame limit.": "Die höchste Bildrate: MetalFX-Hochskalierung, kein FPS-Limit.",
         "The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.":
             "Der langsamere, sicherste Grafikweg: ohne MetalFX, 60 FPS. Für Spiele, die abstürzen oder schwarz bleiben.",
@@ -1264,8 +1285,8 @@ enum L10n {
         "When a game also comes for the Mac, Nightforge takes the Mac version – without any Windows translation.":
             "Gibt es ein Spiel auch für den Mac, nimmt Nightforge die Mac-Version – ganz ohne Windows-Übersetzung.",
         "Sharp and smooth by itself": "Schön & flüssig, von selbst",
-        "Every game gets MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.":
-            "Jedes Spiel bekommt MetalFX-Schärfe und eine gleichmäßige Bildrate – 60 FPS auf einem 120-Hz-Display.",
+        "Most Windows games get MetalFX sharpness and an even frame rate – 60 FPS on a 120 Hz display.":
+            "Die meisten Windows-Spiele bekommen MetalFX-Schärfe und eine gleichmäßige Bildrate – 60 FPS auf einem 120-Hz-Display.",
         "Anti-cheat? Then through GeForce Now": "Anti-Cheat? Dann über GeForce Now",
         "Games whose anti-cheat needs Windows itself stream through GeForce Now – with your copy from Steam.":
             "Spiele, deren Anti-Cheat Windows selbst braucht, streamt Nightforge über GeForce Now – mit deinem Steam-Spiel.",
