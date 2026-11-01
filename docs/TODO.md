@@ -473,6 +473,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       vorne kommt, jeder Space-Wechsel unter ihm und beim Senken die Front und die Fenstergröße des Spiels.
       Overlay „Zu Nightforge“ ohne Wirkung: Das Spiel war dabei noch angehalten (SIGSTOP); es läuft jetzt zuerst
       weiter, bleibt die Front trotzdem beim Spiel, steht es in `wine.log`.
+      Entscheidung des Nutzers 1.11.: Vollbild ohne eigenen Space (`FullScreen.swift`). Das Fenster liegt über dem
+      ganzen Bildschirm, Menüleiste und Dock sind per presentationOptions automatisch ausgeblendet, solange
+      Nightforge vorne ist (sie kommen mit der Maus am Rand). Der grüne Knopf (umgeleitet), ⌃⌘F (Darstellung ›
+      Vollbild, macOS' eigener Eintrag ist aus) und Esc ohne Zurück schalten es. Das Merken pro Bildschirm bleibt.
+      Ein Bildschirmwechsel setzt das Fenster auf die neue Größe; beim Beenden geht es ins Fenster zurück. Live zu
+      prüfen: kein Gleiten bei Start und Ende eines Windows-Spiels, ⌘-Tab weg und zurück (Menüleiste und Dock
+      wieder aus), Anstecken/Abstecken/Deckel, die Menüleiste am oberen Rand, der Titelbereich ohne Knöpfe.
       Mauszeiger im Spiel: Nur die App vorne kann ihn ausblenden, aber `setHiddenUntilMouseMoves` hält über den
       Wechsel hinaus (Beobachtung des Nutzers). Nightforge ruft es jetzt auf, solange es oder das Overlay noch
       vorne ist (beim Übergeben ans Spiel, beim Schließen des Overlays), wenn zuletzt das Pad benutzt wurde

@@ -671,6 +671,7 @@ enum L10n {
         "Keep Waiting": "Weiter warten",
         "Waiting for the first picture …": "Warte auf das erste Bild …",
         "Preparing shaders for the first start …": "Shader werden beim ersten Start vorbereitet …",
+        "Full Screen": "Vollbild",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
         "Sound now comes from %@": "Ton kommt jetzt aus %@",

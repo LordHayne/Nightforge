@@ -635,8 +635,8 @@ final class LibraryModel: ObservableObject {
             // at that moment (Home flashed before the game's page on 1.11.).
             try? await Task.sleep(for: .milliseconds(300))
             // Nightforge to the front (NSApp.comeToFront), then its window over the page behind the
-            // game – on a TV it's in Nightforge's own full-screen Space – and only then may the
-            // screens change (GameDisplay.backFromGame), where nobody sees it.
+            // game – on a TV over the whole screen (FullScreen) – and only then may the screens
+            // change (GameDisplay.backFromGame), where nobody sees it.
             NSApp.comeToFront {
                 GameDisplay.backFromGame()
                 // Not on a timer: once Nightforge's window is in front on the Space shown, on that page.

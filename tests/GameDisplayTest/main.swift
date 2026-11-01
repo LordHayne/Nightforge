@@ -150,6 +150,14 @@ struct GameDisplayTest {
             check(!screen(9, name).isTV, "\(name) is no TV")
         }
 
+        // Back from Nightforge's full screen (FullScreen): the old size and place, within the screen it's on now.
+        let mac = NSRect(x: 0, y: 0, width: 1512, height: 945)
+        let kept = NSRect(x: 40, y: 30, width: 1200, height: 800)
+        check(FullScreen.windowedFrame(kept, in: mac) == kept, "its old frame where it still fits")
+        let fromTV = FullScreen.windowedFrame(NSRect(x: 1600, y: 200, width: 1800, height: 1000), in: mac)
+        check(fromTV.size == mac.size && mac.contains(fromTV), "from a TV that went: as big as the MacBook allows, on it (\(fromTV))")
+        let first = FullScreen.defaultFrame(in: NSRect(x: 0, y: 0, width: 2560, height: 1415))
+        check(first.size == CGSize(width: 1440, height: 880) && first.midX == 1280, "a window that filled the screen: the opening size, centred")
         if failures == 0 { print("✓ GameDisplay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
     }
