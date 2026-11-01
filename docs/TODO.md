@@ -43,8 +43,12 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - Release-Notizen seit v0.2.0 auf Deutsch und Englisch.
   - Kleine Punkte aus der Gatekeeper-Recherche (unten, „Recherchen vom 1.11.“).
 - **Veröffentlichen, nur mit ausdrücklichem OK des Nutzers:**
+  - Vorher das Release `d3dmetal-3.0` anlegen, mit `scripts/package-d3dmetal.sh` aus dem Game Porting Toolkit 3.0. Der
+    Nutzer hat die DMG am 1.11. geladen.
   - Integrationszweig pushen und über einen PR nach `main` bringen.
   - Tag `v0.3.0` löst `release.yml` aus.
+  - Danach das Beta-Release `d3dmetal-4.0b3` samt Tag löschen (Nutzer, 1.11.: „entfernen wir es“). Erst dann, denn
+    `main` (0.2.0) lädt D3DMetal bis zum Release noch von dort.
   - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
 
 ## Nach dem Engine-Wechsel neu prüfen
