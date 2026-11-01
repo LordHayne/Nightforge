@@ -73,13 +73,13 @@ enum GameDisplay {
                 let now = Set(candidates().map(\.id))
                 let connected = !now.subtracting(known).isEmpty
                 known = now
-                followSound()  // also when a TV goes, or mirroring starts or ends
+                followSound(connected ? .plugged : nil)  // also when a TV goes, or mirroring starts or ends
                 Task { await leaveFullScreenOffTV() }
                 guard connected else { return }
                 UserDefaults.standard.removeObject(forKey: Keys.declined)  // plugged in again: try it
                 Task {
                     await place()
-                    followSound()
+                    followSound(.plugged)
                 }
             }
         }
@@ -95,7 +95,8 @@ enum GameDisplay {
         guard let moved, moved === window, let now = moved.screen.flatMap(id) else { return }
         defer {
             lastScreen = now
-            followSound()
+            // Not while Nightforge itself moves it (full screen, rearranging): only where it lands.
+            if !placing, !rearranging { followSound() }
         }
         // Away from the screen a game made main: the main display goes back now (leaveGame).
         if !running, !placing, !rearranging, !onMain { restoreLeftover() }
@@ -190,7 +191,7 @@ enum GameDisplay {
     /// Before a game starts: the game screen becomes the main display (on a TV it is already).
     static func enterGame() {
         running = true
-        followSound()  // before the game: Wine takes the output when it starts
+        followSound(.gameStarts)  // before the game: Wine takes the output when it starts
         guard let game = screen.flatMap(id) else { return }
         becomeMain(game)
     }
@@ -454,12 +455,14 @@ enum GameDisplay {
         return screen.builtIn ? "" : screen.name
     }
 
-    private static func followSound() {
+    /// `moment`: why (GameAudio.Moment); by default the window leaving a TV, or just a look.
+    private static func followSound(_ moment: GameAudio.Moment? = nil) {
         guard let display = window?.screen.flatMap(id) else { return }
         let set = CGDisplayPrimaryDisplay(display)
         let mirroredWith = activeDisplays().filter { $0 != display && CGDisplayPrimaryDisplay($0) == set }
             .map { CGDisplayIsBuiltin($0) != 0 }
-        GameAudio.follow(tv: soundScreen(candidates().first { $0.id == display }, mirroredWith: mirroredWith))
+        let tv = soundScreen(candidates().first { $0.id == display }, mirroredWith: mirroredWith)
+        GameAudio.follow(moment ?? (tv == nil ? .left : .look), tv: tv)
     }
 }
 

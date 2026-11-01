@@ -614,11 +614,13 @@ final class LibraryModel: ObservableObject {
         }
         // Back on the game's page, as from a console's game.
         if let game = endedGames.first(where: { $0.inLibrary }), reveal(game), !route.isDetail { openDetail() }
-        comeBack()
-        sessionSummary = sessions.max { $0.minutes < $1.minutes }
+        // "Welcome back" once the curtain is gone, not under it while the Spaces change.
+        let summary = sessions.max { $0.minutes < $1.minutes }
+        comeBack { [weak self] in self?.sessionSummary = summary }
     }
 
-    private func comeBack() {
+    /// `then`: once the curtain is gone.
+    private func comeBack(then: @escaping @MainActor () -> Void = {}) {
         MacSteam.hide()
         // Since macOS 14 an app can't push itself to the front; opening it through Launch
         // Services can, and unhides it too. Then its window comes forward over the page behind the
@@ -632,7 +634,7 @@ final class LibraryModel: ObservableObject {
                 // Not on a timer: once Nightforge's window is in front on the Space shown.
                 GameBackdrop.hide(once: {
                     NSApp.isActive && NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false
-                })
+                }, then: then)
             }
         }
         reload(quiet: true)  // play time, last played
@@ -806,6 +808,7 @@ final class LibraryModel: ObservableObject {
                     return
                 }
             }
+            GameBackdrop.setDetail(launchHint)
             let pids = await Task.detached(priority: .utility) {
                 Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
             }.value
@@ -820,9 +823,15 @@ final class LibraryModel: ObservableObject {
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let gameFront = front.map(pids.contains) ?? false
             frontSince = gameFront ? (frontSince ?? Date()) : nil
-            let window = await Task.detached(priority: .utility) { GameProcesses.showsWindow(pids) }.value
+            let (here, anywhere) = await Task.detached(priority: .utility) {
+                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true))
+            }.value
+            if loweredAt == nil, !here, !anywhere {
+                GameBackdrop.setDetail(launchHint ?? L10n.t("Waiting for the first picture …"))
+            }
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
-                                    gameWindow: window, frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                    windowHere: here, windowAnywhere: anywhere,
+                                    frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
             case .wait:
                 break
@@ -850,19 +859,20 @@ final class LibraryModel: ObservableObject {
 
     enum CurtainStep: Equatable { case wait, handOver, lower, raiseAgain, done }
 
-    /// What the curtain does at a look. Up: it waits for the game's window, hands the front to the
-    /// game when another app has it, and sinks once the game has been in front for a second. Down,
-    /// for `focusGuard`: another app taking the front raises it again; Nightforge in front (Go to
-    /// Nightforge) ends the watch.
-    nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, gameWindow: Bool,
-                                        frontFor: TimeInterval, guardOver: Bool) -> CurtainStep {
+    /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
+    /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
+    /// hands the front to the game when another app has it, and sinks once the game has been in
+    /// front with its window shown for a second. Down, for `focusGuard`: another app taking the
+    /// front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
+    nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
+                                        windowAnywhere: Bool, frontFor: TimeInterval, guardOver: Bool) -> CurtainStep {
         if lowered {
             if guardOver || nightforgeFront { return .done }
             return gameFront ? .wait : .raiseAgain
         }
-        guard gameWindow else { return .wait }
+        guard windowHere || windowAnywhere else { return .wait }
         guard gameFront else { return .handOver }
-        return frontFor >= 1 ? .lower : .wait
+        return windowHere && frontFor >= 1 ? .lower : .wait
     }
 
     /// How long after the curtain sinks the game's front is still watched.

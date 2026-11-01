@@ -639,6 +639,7 @@ enum L10n {
         "It runs, but hasn't shown a picture yet. Some games take long the first time.":
             "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
         "Keep Waiting": "Weiter warten",
+        "Waiting for the first picture …": "Warte auf das erste Bild …",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
         "Sound now comes from %@": "Ton kommt jetzt aus %@",

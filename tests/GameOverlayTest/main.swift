@@ -123,17 +123,19 @@ struct GameOverlayTest {
     /// The curtain at each look: down only once the game itself is in front, and up again when
     /// another app takes the front from it (the TV test on 1.11.: the Claude app came up instead).
     static func curtain() {
-        func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, window: Bool = false,
-                  frontFor: TimeInterval = 0, guardOver: Bool = false) -> LibraryModel.CurtainStep {
-            LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, gameWindow: window,
-                                     frontFor: frontFor, guardOver: guardOver)
+        func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, here: Bool = false,
+                  anywhere: Bool = false, frontFor: TimeInterval = 0, guardOver: Bool = false) -> LibraryModel.CurtainStep {
+            LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, windowHere: here,
+                                     windowAnywhere: anywhere || here, frontFor: frontFor, guardOver: guardOver)
         }
         check(step() == .wait, "no window yet: the curtain waits")
-        check(step(window: true) == .handOver, "its window is there, another app in front: the game gets the front")
-        check(step(nightforgeFront: true, window: true) == .handOver, "Nightforge still in front: handed over too")
-        check(step(gameFront: true, window: true, frontFor: 0.5) == .wait, "the game in front only just: a moment more")
-        check(step(gameFront: true, window: true, frontFor: 1) == .lower, "the game in front for a second: the curtain sinks")
-        check(step(gameFront: true, window: false, frontFor: 3) == .wait, "in front without a window of a game's size: waits")
+        check(step(here: true) == .handOver, "its window is there, another app in front: the game gets the front")
+        check(step(anywhere: true) == .handOver, "Mafia II's first start: its window in another Space, behind – handed over too")
+        check(step(nightforgeFront: true, here: true) == .handOver, "Nightforge still in front: handed over too")
+        check(step(gameFront: true, here: true, frontFor: 0.5) == .wait, "the game in front only just: a moment more")
+        check(step(gameFront: true, here: true, frontFor: 1) == .lower, "the game in front for a second: the curtain sinks")
+        check(step(gameFront: true, anywhere: true, frontFor: 3) == .wait, "in front, its window not on the Space shown yet: waits")
+        check(step(gameFront: true, frontFor: 3) == .wait, "in front without a window of a game's size: waits")
         check(step(lowered: true, gameFront: true) == .wait, "down and the game in front: all well")
         check(step(lowered: true) == .raiseAgain, "down and another app took the front: up again, back to the game")
         check(step(lowered: true, nightforgeFront: true) == .done, "Go to Nightforge: the player's choice, the watch ends")

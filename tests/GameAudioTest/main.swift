@@ -54,53 +54,62 @@ struct GameAudioTest {
 
         // The live test: TV behind a DENON receiver, sound still on the MacBook.
         let home = setups["macbook-denon"] ?? []
-        var (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: home, current: speakers, switched: .none)
+        func decide(_ moment: GameAudio.Moment, tv: String? = "DENON-AVR", _ devices: [Device], current: String?,
+                    _ switched: GameAudio.Switched) -> (GameAudio.Action, GameAudio.Switched) {
+            GameAudio.decide(moment, tv: tv, devices: devices, current: current, switched: switched)
+        }
+        var (action, state) = decide(.plugged, home, current: speakers, .none)
         check(action == .switchTo(home[1]) && state == .moved(from: speakers, to: denon),
-              "on the TV the sound goes from the MacBook's speakers to the receiver")
-        (action, state) = GameAudio.decide(tv: "", devices: home, current: speakers, switched: .none)
+              "the TV plugged in: the sound goes from the MacBook's speakers to the receiver")
+        (action, state) = decide(.gameStarts, home, current: speakers, .none)
+        check(action == .switchTo(home[1]), "a game starting on the TV with the speakers still on: switched (Wine takes it now)")
+        (action, state) = decide(.plugged, tv: "", home, current: speakers, .none)
         check(action == .switchTo(home[1]), "mirrored onto it, without a name: the only HDMI output")
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: home, current: denon, switched: .moved(from: speakers, to: denon))
+        (action, state) = decide(.look, home, current: speakers, .none)
+        check(action == .none && state == .none, "just a look (Nightforge in front, its window between Spaces): nothing switches")
+        (action, state) = decide(.gameStarts, home, current: denon, .moved(from: speakers, to: denon))
         check(action == .none && state == .moved(from: speakers, to: denon), "switched already: nothing more")
 
+        // The live test on 1.11.: the player puts the speakers back to compare – it stays so.
+        (action, state) = decide(.look, home, current: speakers, .moved(from: speakers, to: denon))
+        check(action == .none && state == .declined, "the player chose the speakers: noted, nothing switched")
+        for moment in [GameAudio.Moment.look, .gameStarts, .look] {
+            (action, state) = decide(moment, home, current: speakers, state)
+            check(action == .none && state == .declined, "and it stays so (\(moment)) – Nightforge in front again, a game starting")
+        }
+        (action, state) = decide(.left, tv: nil, home, current: speakers, .declined)
+        check(action == .none && state == .declined, "the window off the TV for a moment: the choice still stands")
+        (action, state) = decide(.plugged, home, current: speakers, .declined)
+        check(action == .switchTo(home[1]) && state == .moved(from: speakers, to: denon), "until the TV is plugged in again")
+
         // Back.
-        (action, state) = GameAudio.decide(tv: nil, devices: home, current: denon, switched: .moved(from: speakers, to: denon))
+        (action, state) = decide(.left, tv: nil, home, current: denon, .moved(from: speakers, to: denon))
         check(action == .restore(uid: speakers) && state == .none, "off the TV: back to the speakers")
-        (action, state) = GameAudio.decide(tv: nil, devices: home, current: speakers, switched: .none)
+        (action, state) = decide(.left, tv: nil, home, current: speakers, .none)
         check(action == .none && state == .none, "never switched: nothing to put back")
         let gone = (setups["speakers-only"] ?? [])
-        (action, state) = GameAudio.decide(tv: nil, devices: gone, current: speakers, switched: .moved(from: speakers, to: denon))
+        (action, state) = decide(.left, tv: nil, gone, current: speakers, .moved(from: speakers, to: denon))
         check(action == .none && state == .none, "TV unplugged: macOS has moved the sound already")
-        (action, state) = GameAudio.decide(tv: nil, devices: home, current: denon,
-                                           switched: .moved(from: "AppleUSBAudioEngine:gone", to: denon))
+        (action, state) = decide(.left, tv: nil, home, current: denon, .moved(from: "AppleUSBAudioEngine:gone", to: denon))
         check(action == .none && state == .none, "the speakers it came from are gone: left as it is")
-
-        // The player's own choice stays.
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: home, current: speakers,
-                                           switched: .moved(from: speakers, to: denon))
-        check(action == .none && state == .declined, "switched back to the speakers on the TV: the player's choice")
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: home, current: speakers, switched: .declined)
-        check(action == .none && state == .declined, "and it stays so while the TV is there")
-        (action, state) = GameAudio.decide(tv: nil, devices: home, current: speakers, switched: .declined)
-        check(action == .none && state == .none, "until the TV goes")
-        (action, state) = GameAudio.decide(tv: nil, devices: home, current: "70-F9-4A-11-22-33:output",
-                                           switched: .moved(from: speakers, to: denon))
-        check(action == .none && state == .none, "AirPods picked meanwhile: leaving the TV leaves them")
+        (action, state) = decide(.left, tv: nil, home, current: "70-F9-4A-11-22-33:output", .moved(from: speakers, to: denon))
+        check(action == .none && state == .declined, "AirPods picked meanwhile: leaving the TV leaves them")
 
         let jack = setups["headphones"] ?? []
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: jack, current: headphones, switched: .none)
+        (action, state) = decide(.plugged, jack, current: headphones, .none)
         check(action == .none && state == .none, "headphones on the Mac stay")
         let others = setups["airpods-usb"] ?? []
         for current in ["70-F9-4A-11-22-33:output", "AppleUSBAudioEngine:Focusrite:Scarlett 2i2:1"] {
-            (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: others, current: current, switched: .none)
+            (action, state) = decide(.gameStarts, others, current: current, .none)
             check(action == .none && state == .none, "\(current) stays")
         }
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: others, current: speakers, switched: .none)
+        (action, state) = decide(.plugged, others, current: speakers, .none)
         check(action == .switchTo(others[3]), "with AirPods and an interface around, still the receiver from the speakers")
 
-        // A receiver switched off and on: the TV's output went and comes back.
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: gone, current: speakers, switched: .moved(from: speakers, to: denon))
+        // A receiver switched off and on: its output went and comes back (a new HDMI output counts as plugged in).
+        (action, state) = decide(.look, gone, current: speakers, .moved(from: speakers, to: denon))
         check(action == .none && state == .none, "receiver off: nothing to switch to, nothing declined")
-        (action, state) = GameAudio.decide(tv: "DENON-AVR", devices: home, current: speakers, switched: state)
+        (action, state) = decide(.plugged, home, current: speakers, state)
         check(action == .switchTo(home[1]), "receiver on again: back to it")
 
         // Which output is the TV's.
@@ -113,9 +122,9 @@ struct GameAudioTest {
         check(GameAudio.output(for: "", in: two) == nil, "a mirror without a name and two outputs: none")
         check(GameAudio.output(for: "SAMSUNG", in: home)?.uid == denon, "a single HDMI output is the TV's, whatever its name")
         check(GameAudio.output(for: "DENON-AVR", in: gone) == nil, "no HDMI output, no switch")
-        (action, state) = GameAudio.decide(tv: "LG TV SSCR2", devices: two, current: speakers, switched: .none)
+        (action, state) = decide(.plugged, tv: "LG TV SSCR2", two, current: speakers, .none)
         check(action == .switchTo(two[1]), "the TV's output, not the monitor's")
-        (action, state) = GameAudio.decide(tv: nil, devices: gone, current: speakers, switched: .none)
+        (action, state) = decide(.gameStarts, tv: nil, gone, current: speakers, .none)
         check(action == .none && state == .none, "a MacBook alone: nothing happens")
 
         if failures == 0 { print("✓ GameAudio: all checks passed") }

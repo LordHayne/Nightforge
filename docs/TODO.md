@@ -341,6 +341,14 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
         Panel sofort weg, dann das Ende. Der Vorhang kommt nach jedem Space-Wechsel wieder nach vorne und geht erst,
         wenn Nightforges Fenster auf dem gezeigten Space vorne ist (`GameBackdrop.hide(once:)`). Hängt er doch, geht
         er nach 20 s.
+    - Nachtest mit 9319ca3 und behoben:
+      - Mafia II öffnete beim ersten Start hinten. Sein Fenster lag in einem anderen Space, und die Fenstersuche sah
+        nur den gezeigten. Jetzt reicht ein Fenster in irgendeinem Space für die Übergabe; gesenkt wird erst, wenn es
+        vorne auf dem gezeigten Space ist.
+      - „Willkommen zurück“ blitzte zwischen zwei Vorhängen auf. Es kommt jetzt erst, wenn der Vorhang weg ist.
+        Während des Space-Wechsels wird der Vorhang laufend nach vorne geholt.
+      - Nach 3 s zeigt der Vorhang eine ruhige Zeile, was passiert: den Start-Hinweis („Neuer Start mit WineD3D …“,
+        Shader beim ersten Start) bzw. „Warte auf das erste Bild …“.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.
@@ -360,6 +368,11 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       „Lautsprecher konfigurieren“), sonst die 8 Kanäle als 7.1. Fehlt etwas, dort „Stereo“ einstellen.
     - Fenster zurück aufs MacBook bzw. TV abziehen: Ton wieder aus den MacBook-Lautsprechern.
     - Am TV in den Systemeinstellungen auf die Lautsprecher stellen: Nightforge schaltet nicht wieder um.
+    - Befund 1.11.: Nightforge schaltete doch wieder um, sobald man zu ihm zurückkam. Jeder Fensterwechsel (Spaces,
+      Vollbild) galt als „TV verlassen“ und vergaß die Wahl. Jetzt schaltet Nightforge nur zu zwei Anlässen um:
+      wenn ein TV angesteckt wird (Bild oder HDMI-Ton kommt dazu) und wenn ein Spiel auf dem TV startet, beide Male
+      nur von den eingebauten Lautsprechern aus (`GameAudio.Moment`). Die eigene Wahl gilt bis zum nächsten
+      Anstecken. Zurück geht es nur, wenn das Fenster wirklich auf einem Nicht-TV landet oder der TV weg ist.
 
 ## Anti-Cheat und GeForce Now
 
