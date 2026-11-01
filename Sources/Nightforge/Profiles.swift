@@ -35,7 +35,8 @@ struct GameProfile: Decodable, Equatable {
     /// Anti-cheat that stops the game's Windows version on a Mac ("BattlEye", …), from
     /// AreWeAntiCheatYet; an empty list (a Mac profile) means it runs after all.
     var antiCheat: [String]?
-    /// Anti-cheat that only stops online play on a Mac: it blocks games that have nothing else.
+    /// Anti-cheat that only stops online play on a Mac (Easy Anti-Cheat, BattlEye: Proton runs them
+    /// through their Linux module): it blocks games that have nothing else.
     var antiCheatOnline: [String]?
     /// Its game id on GeForce Now, NVIDIA's cloud gaming, where such a game can be streamed instead.
     var geforceNow: String?

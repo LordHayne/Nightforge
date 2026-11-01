@@ -9,8 +9,8 @@ Sources, merged per Steam app ID:
   * AreWeAntiCheatYet (MIT, https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet), optional:
     games whose anti-cheat stops them even under Proton. On a Mac they don't start at all, so
     Nightforge says so before a download ("antiCheat"). Games it runs under Proton only through
-    the anti-cheat's own Linux build lose their online play on a Mac ("antiCheatOnline"); the app
-    blocks those that have nothing else (no single player on Steam).
+    the anti-cheat's own Linux build (Easy Anti-Cheat, BattlEye) lose their online play on a Mac
+    ("antiCheatOnline"); the app blocks those that have nothing else (no single player on Steam).
   * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which of those games can be
     streamed instead ("geforceNow", the game id its deep links take).
   * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
@@ -57,9 +57,14 @@ IGNORED_ARGUMENTS = {"-battleye", "-eac_launcher"}
 
 # AreWeAntiCheatYet statuses for games that don't run even under Proton.
 BLOCKING_STATUSES = {"Broken", "Denied"}
-# Runs under Proton because the anti-cheat ships a Linux build, which a Mac can't use: online play
-# is gone, single player often still works. ("Running" games run under Wine without that help.)
+# "Supported" only says the developer allows Proton. With Easy Anti-Cheat and BattlEye that works
+# because Proton loads the anti-cheat's Linux module in its place (Steam's "Proton EasyAntiCheat
+# Runtime" and "Proton BattlEye Runtime"); a Mac has no such module, so online play is gone, single
+# player often still works. Every other anti-cheat (Warden, PunkBuster, Treyarch Anti-Cheat,
+# nProtect GameGuard, XIGNCODE3, …) runs inside Wine itself, on a Mac as under Proton, so such a
+# game counts as "Running": no block. FairFight only checks on the server and never blocks anything.
 ONLINE_BLOCKING_STATUSES = {"Supported"}
+LINUX_MODULE_ANTICHEATS = {"Easy Anti-Cheat", "BattlEye"}
 
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
@@ -190,19 +195,28 @@ def translate(path: pathlib.Path):
     return profile, partial
 
 
+def anticheat_block(game):
+    """{"name", and "antiCheat" or "antiCheatOnline": anti-cheat names} for an AreWeAntiCheatYet
+    game that can't run on a Mac, or not online; None for one that runs."""
+    names = [n for n in game.get("anticheats") or [] if n not in HARMLESS_ANTICHEATS]
+    if not names:
+        return None
+    if game.get("status") in BLOCKING_STATUSES:
+        return {"name": game.get("name"), "antiCheat": names}
+    if game.get("status") in ONLINE_BLOCKING_STATUSES and LINUX_MODULE_ANTICHEATS.intersection(names):
+        return {"name": game.get("name"), "antiCheatOnline": names}
+    return None
+
+
 def anticheat_blocks(games):
-    """Steam app ID → {"name", and "antiCheat" or "antiCheatOnline": anti-cheat names}, for the
-    AreWeAntiCheatYet games that can't run on a Mac, or not online."""
+    """Steam app ID → `anticheat_block`, for the AreWeAntiCheatYet games that can't run on a Mac,
+    or not online."""
     blocks = {}
     for game in games:
         app_id = str((game.get("storeIds") or {}).get("steam") or "")
-        names = [n for n in game.get("anticheats") or [] if n not in HARMLESS_ANTICHEATS]
-        if not (app_id.isdigit() and names):
-            continue
-        if game.get("status") in BLOCKING_STATUSES:
-            blocks[app_id] = {"name": game.get("name"), "antiCheat": names}
-        elif game.get("status") in ONLINE_BLOCKING_STATUSES:
-            blocks[app_id] = {"name": game.get("name"), "antiCheatOnline": names}
+        block = anticheat_block(game)
+        if app_id.isdigit() and block:
+            blocks[app_id] = block
     return blocks
 
 
@@ -214,16 +228,10 @@ def epic_anticheat_blocks(games):
     for game in games:
         store_ids = game.get("storeIds") or {}
         namespace = str((store_ids.get("epic") or {}).get("namespace") or "")
-        names = [n for n in game.get("anticheats") or [] if n not in HARMLESS_ANTICHEATS]
-        if not (namespace.isalnum() and names):
+        block = anticheat_block(game)
+        if not (namespace.isalnum() and block):
             continue
         steam = str(store_ids.get("steam") or "")
-        if game.get("status") in BLOCKING_STATUSES:
-            block = {"name": game.get("name"), "antiCheat": names}
-        elif game.get("status") in ONLINE_BLOCKING_STATUSES:
-            block = {"name": game.get("name"), "antiCheatOnline": names}
-        else:
-            continue
         if steam.isdigit():
             block["steam"] = steam
         blocks["epic." + namespace] = block

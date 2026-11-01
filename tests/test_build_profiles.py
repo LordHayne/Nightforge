@@ -106,6 +106,25 @@ class AntiCheatTests(unittest.TestCase):
             "1245620": {"name": "Elden Ring", "antiCheatOnline": ["Easy Anti-Cheat"]},
         })
 
+    def test_supported_loses_online_play_only_through_a_linux_module(self):
+        # Proton runs Easy Anti-Cheat and BattlEye through their Linux module, which a Mac lacks;
+        # every other anti-cheat runs inside Wine, on a Mac as well.
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "Overwatch 2", "status": "Supported", "anticheats": ["Warden"], "storeIds": {"steam": "2357570"}},
+            {"name": "Battlefield 4", "status": "Supported", "anticheats": ["PunkBuster", "FairFight"], "storeIds": {"steam": "1238860"}},
+            {"name": "Call of Duty: Black Ops", "status": "Supported", "anticheats": ["Treyarch Anti-Cheat", "PunkBuster"],
+             "storeIds": {"steam": "42700"}},
+            {"name": "Elden Ring", "status": "Supported", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "1245620"}},
+            {"name": "DayZ", "status": "Supported", "anticheats": ["BattlEye"], "storeIds": {"steam": "221100"}},
+            {"name": "THE FINALS", "status": "Supported", "anticheats": ["Easy Anti-Cheat", "Denuvo Anti-Cheat", "AnyBrain"],
+             "storeIds": {"steam": "2073850"}},
+        ])
+        self.assertEqual(blocks, {
+            "1245620": {"name": "Elden Ring", "antiCheatOnline": ["Easy Anti-Cheat"]},
+            "221100": {"name": "DayZ", "antiCheatOnline": ["BattlEye"]},
+            "2073850": {"name": "THE FINALS", "antiCheatOnline": ["Easy Anti-Cheat", "Denuvo Anti-Cheat", "AnyBrain"]},
+        })
+
     def test_epic_games_are_blocked_by_namespace(self):
         blocks = build_profiles.epic_anticheat_blocks([
             {"name": "Fortnite", "status": "Denied", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "fn", "slug": "fortnite"}}},
@@ -113,6 +132,8 @@ class AntiCheatTests(unittest.TestCase):
              "storeIds": {"steam": "578080", "epic": {"namespace": "9361c8c6d2f34b42b5f2f61093eedf48"}}},
             {"name": "Back 4 Blood", "status": "Supported", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "57df"}}},
             {"name": "Paladins", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"epic": {"namespace": "badb"}}},
+            {"name": "Warframe", "status": "Supported", "anticheats": ["Unknown (Custom)"], "storeIds": {"epic": {"namespace": "244a"}}},
+            {"name": "Splitgate", "status": "Supported", "anticheats": ["EQU8"], "storeIds": {"epic": {"namespace": "47cb"}}},
             {"name": "Odd", "status": "Denied", "anticheats": ["BattlEye"], "storeIds": {"epic": {"namespace": "../x"}}},
         ])
         self.assertEqual(blocks, {
