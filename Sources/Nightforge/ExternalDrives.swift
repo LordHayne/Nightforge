@@ -1,3 +1,4 @@
+import DiskArbitration
 import Foundation
 
 /// A drive plugged into the Mac that games can go on: a USB stick, an external SSD.
@@ -37,12 +38,42 @@ struct ExternalDrive: Identifiable, Hashable {
     static func connected() -> [ExternalDrive] {
         let keys: [URLResourceKey] = [.volumeIsInternalKey, .volumeIsLocalKey]
         let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
-        return volumes.compactMap { volume in
+        let drives = volumes.compactMap { volume -> ExternalDrive? in
             let values = try? volume.resourceValues(forKeys: Set(keys))
             guard values?.volumeIsInternal != true, values?.volumeIsLocal != false else { return nil }
             return at(volume)
         }
-        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return listed(drives, isBackup: { isBackupVolume($0.url) }, isImage: { isDiskImage($0.url) })
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// The drives games can go on: not a Time Machine disk, not a disk image someone opened.
+    static func listed(_ drives: [ExternalDrive], isBackup: (ExternalDrive) -> Bool, isImage: (ExternalDrive) -> Bool) -> [ExternalDrive] {
+        drives.filter { !isBackup($0) && !isImage($0) }
+    }
+
+    /// A Time Machine backup disk: its backups are in Backups.backupdb.
+    static func isBackupVolume(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.appendingPathComponent("Backups.backupdb").path)
+    }
+
+    private static let imageLock = NSLock()
+    private nonisolated(unsafe) static var images: [String: Bool] = [:]
+
+    /// A disk image (a .dmg opened in Finder) is a volume too; DiskArbitration says it comes through
+    /// a "Virtual Interface". Asked once per mounted device.
+    static func isDiskImage(_ url: URL) -> Bool {
+        var info = statfs()
+        guard statfs(url.path, &info) == 0 else { return false }
+        let device = withUnsafeBytes(of: info.f_mntfromname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        if let known = imageLock.withLock({ images[device] }) { return known }
+        guard let session = DASessionCreate(kCFAllocatorDefault),
+              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, url as CFURL),
+              let description = DADiskCopyDescription(disk) as? [String: Any]
+        else { return false }
+        let image = description[kDADiskDescriptionDeviceProtocolKey as String] as? String == "Virtual Interface"
+        imageLock.withLock { images[device] = image }
+        return image
     }
 
     /// The drive mounted at `url`; nil for the Mac's own disk, a network share, or a folder that
@@ -126,6 +157,16 @@ enum DriveCheck: Equatable {
 
     var allowed: Bool { self == .fine || self == .caution }
 
+    /// The verdict in a few words, beside the drive's format (Settings › Storage).
+    var verdict: String {
+        switch self {
+        case .fine: return L10n.t("Games fit")
+        case .caution: return L10n.t("exFAT: most games run")
+        case .fat: return L10n.t("FAT32: no files over 4 GB")
+        case .readOnly: return L10n.t("Read-only")
+        }
+    }
+
     /// What the player reads about it; nil when there's nothing to say.
     func note(_ drive: String) -> String? {
         switch self {
@@ -136,6 +177,17 @@ enum DriveCheck: Equatable {
             return L10n.t("%@ is formatted as FAT32, which can't hold files over 4 GB – most games have some. Erase it as APFS in Disk Utility to put games on it.", drive)
         case .readOnly:
             return L10n.t("Your Mac can only read from %@, not write to it.", drive)
+        }
+    }
+}
+
+extension ExternalDrive {
+    /// Settings › Storage: every drive that's plugged in (an empty one too), each with the installed and
+    /// downloading games on it, biggest first.
+    static func withGames(_ drives: [ExternalDrive], games: [Game]) -> [(drive: ExternalDrive, games: [Game])] {
+        let installed = games.filter { $0.install != .notInstalled && $0.install != .inStore }
+        return drives.map { drive in
+            (drive, installed.filter { DriveLibrary.drive(of: $0.installDir)?.path == drive.url.path }.sorted { $0.sizeOnDisk > $1.sizeOnDisk })
         }
     }
 }

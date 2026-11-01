@@ -68,6 +68,7 @@ struct ExternalDriveTest {
 
         checkLibraryList(root)
         checkForgetDrive(root)
+        checkDriveList(root)
         checkPaths(bottle)
         checkDriveCheck()
         await checkSteamMove(root)
@@ -161,6 +162,48 @@ struct ExternalDriveTest {
         let list = nodes.first?.children ?? []
         let holding = list.filter { $0["apps"]?[String(appID)] != nil }.map(\.key)
         return holding.count == 1 ? holding[0] : holding.isEmpty ? nil : "several: \(holding)"
+    }
+
+    // MARK: - The drives Settings › Storage shows
+
+    /// Every drive plugged in, an empty one too; not a Time Machine disk or a disk image.
+    static func checkDriveList(_ root: URL) {
+        let fm = FileManager.default
+        let backup = root.appendingPathComponent("tm-disk", isDirectory: true)
+        try? fm.createDirectory(at: backup.appendingPathComponent("Backups.backupdb/Mac"), withIntermediateDirectories: true)
+        let plain = root.appendingPathComponent("plain-disk", isDirectory: true)
+        try? fm.createDirectory(at: plain, withIntermediateDirectories: true)
+        check(ExternalDrive.isBackupVolume(backup) && !ExternalDrive.isBackupVolume(plain), "Backups.backupdb marks a Time Machine disk")
+        check(!ExternalDrive.isDiskImage(URL(fileURLWithPath: "/")) , "the Mac's own disk is no disk image")
+
+        func drive(_ name: String, _ url: URL? = nil, format: String = "apfs", readOnly: Bool = false) -> ExternalDrive {
+            ExternalDrive(name: name, url: url ?? URL(fileURLWithPath: "/Volumes/\(name)", isDirectory: true), format: format,
+                          readOnly: readOnly, free: 236 << 30, total: 250 << 30)
+        }
+        let stick = drive("Nightforge Games"), t7 = drive("T7"), tm = drive("Backups", backup), image = drive("Installer", format: "hfs", readOnly: true)
+        let listed = ExternalDrive.listed([stick, t7, tm, image], isBackup: { ExternalDrive.isBackupVolume($0.url) }, isImage: { $0.name == "Installer" })
+        check(listed.map(\.name) == ["Nightforge Games", "T7"], "a Time Machine disk and a disk image aren't drives for games: \(listed.map(\.name))")
+
+        var onT7 = Game(gameID: .steam(620), name: "Portal 2", bottle: Engine.bottle, steamRoot: Engine.steamRoot, steamExeWindowsPath: "",
+                        installDir: URL(fileURLWithPath: "/Volumes/T7/Nightforge Games/steamapps/common/Portal 2"), sizeOnDisk: 12)
+        onT7.install = .installed
+        var gone = onT7
+        gone = Game(gameID: .steam(10), name: "Elsewhere", bottle: Engine.bottle, steamRoot: Engine.steamRoot, steamExeWindowsPath: "",
+                    installDir: URL(fileURLWithPath: "/Volumes/Other/steamapps/common/Elsewhere"), sizeOnDisk: 3)
+        gone.install = .installed
+        var notYet = onT7
+        notYet = Game(gameID: .steam(30), name: "Not there", bottle: Engine.bottle, steamRoot: Engine.steamRoot, steamExeWindowsPath: "",
+                      installDir: URL(fileURLWithPath: "/Volumes/T7/Nightforge Games/steamapps/common/Not there"), sizeOnDisk: 3)
+        notYet.install = .notInstalled
+        let shown = ExternalDrive.withGames(listed, games: [onT7, gone, notYet])
+        check(shown.map(\.drive.name) == ["Nightforge Games", "T7"], "both drives are listed, the empty stick too")
+        check(shown[0].games.isEmpty && shown[1].games.map(\.name) == ["Portal 2"], "with their games only (not a game on another drive, nor one not installed)")
+
+        // What each format means for games, in a few words.
+        check(DriveCheck(format: "apfs", readOnly: false).verdict == L10n.t("Games fit")
+              && DriveCheck(format: "exfat", readOnly: false).verdict == L10n.t("exFAT: most games run")
+              && DriveCheck(format: "msdos", readOnly: false).verdict == L10n.t("FAT32: no files over 4 GB")
+              && DriveCheck(format: "apfs", readOnly: true).verdict == L10n.t("Read-only"), "the verdicts")
     }
 
     // MARK: - A drive that's gone

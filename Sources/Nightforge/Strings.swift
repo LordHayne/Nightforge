@@ -106,6 +106,11 @@ enum L10n {
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
+        "Games fit": "Spiele passen",
+        "exFAT: most games run": "exFAT: die meisten Spiele laufen",
+        "FAT32: no files over 4 GB": "FAT32: keine Dateien über 4 GB",
+        "Read-only": "nur lesbar",
+        "Games on %@": "Spiele auf %@",
         "Forget Drive …": "Laufwerk vergessen …",
         "Forget Drive": "Laufwerk vergessen",
         "Forget %@?": "%@ vergessen?",

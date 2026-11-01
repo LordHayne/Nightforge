@@ -521,13 +521,9 @@ private struct StorageSettings: View {
             .sorted { $0.sizeOnDisk > $1.sizeOnDisk }
     }
 
-    /// External drives plugged in with games on them (or Nightforge's folder), each with its games.
+    /// Every external drive plugged in, an empty one too, each with its games (not Time Machine disks or disk images).
     private var drives: [(drive: ExternalDrive, games: [Game])] {
-        let installed = model.allGames.filter { $0.install != .notInstalled && $0.install != .inStore }
-        return ExternalDrive.connected().compactMap { drive in
-            let games = installed.filter { DriveLibrary.drive(of: $0.installDir)?.path == drive.url.path }.sorted { $0.sizeOnDisk > $1.sizeOnDisk }
-            return games.isEmpty && !drive.hasLibrary ? nil : (drive, games)
-        }
+        ExternalDrive.withGames(ExternalDrive.connected(), games: model.allGames)
     }
 
     /// Games on drives that aren't plugged in, by drive.
@@ -570,16 +566,7 @@ private struct StorageSettings: View {
                 }
             }
 
-            Section {
-                if games.isEmpty {
-                    Text(L10n.t("No games on this Mac yet.")).foregroundStyle(.secondary)
-                }
-                ForEach(games) { game in row(game) }
-            } header: {
-                SectionTitle(L10n.t("Games on this Mac"))
-            }
-
-            // Each drive plugged in that has games: its bar and its games, which move like the Mac's.
+            // Each drive plugged in, an empty one too, under the Mac's disk: its bar, its format and what that means for games.
             ForEach(drives, id: \.drive.id) { drive, games in
                 Section {
                     let size = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
@@ -589,7 +576,7 @@ private struct StorageSettings: View {
                         legend(L10n.t("Games"), size, Theme.sodium)
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
-                        Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName)
+                        Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName + " · " + drive.check.verdict)
                             .font(size: 10).monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
@@ -599,11 +586,29 @@ private struct StorageSettings: View {
                     if games.isEmpty {
                         Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
                     }
-                    ForEach(games) { game in row(game) }
                 } header: {
                     SectionTitle(drive.name)
                 }
             }
+
+            Section {
+                if games.isEmpty {
+                    Text(L10n.t("No games on this Mac yet.")).foregroundStyle(.secondary)
+                }
+                ForEach(games) { game in row(game) }
+            } header: {
+                SectionTitle(L10n.t("Games on this Mac"))
+            }
+
+            // Then the games, drive by drive: they move like the Mac's.
+            ForEach(drives.filter { !$0.games.isEmpty }, id: \.drive.id) { drive, games in
+                Section {
+                    ForEach(games) { game in row(game) }
+                } header: {
+                    SectionTitle(L10n.t("Games on %@", drive.name))
+                }
+            }
+
             ForEach(unplugged, id: \.drive) { drive, names in
                 Section {
                     Text(names.count == 1 ? L10n.t("%@ – plug it in to play or move it.", names[0])
