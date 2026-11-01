@@ -172,6 +172,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
 
 ## Controller
 
+- **Die meistgenutzten Controller durchgehen** (Nutzer, 1.11.). In Nightforge ist bisher nur der DualSense live
+  bestätigt. Prüfen:
+  - Welche Controller verbreitet sind: Xbox Series/One, DualShock 4, DualSense Edge, Switch Pro und Joy-Cons, 8BitDo,
+    Steam Controller, günstige XInput-/DirectInput-Pads, MFi.
+  - Was macOS' GameController je Modell meldet: Tastennamen, Symbole (beim DualSense ist ☰ nur `capsule.portrait`),
+    Akku, Licht, Vibration, Gyro.
+  - Wie sie in Windows-Spielen unter Wine ankommen (winebus/SDL, Xbox-IDs).
+  - Was Nightforge daraus braucht: Hinweis-Symbole je Stil, Belegung (Nintendo hat A und B vertauscht), Tests.
+  - Am besten zuerst als Recherche, dann mit den Geräten, die der Nutzer oder Bekannte haben.
 - **DualSense in Windows-Spielen auf winecx:** OxyRail funktioniert seit dem Xbox-360-ID-Patch (PR #8).
   Noch offen: Hotplug auf winecx (auf 11.18 geprüft: SDL nimmt den Pad nach Aus/An wieder auf) und weitere
   Spiele (reine XInput-Spiele, Unreal, DirectInput-Spiele).
@@ -565,6 +574,7 @@ weil die Bildschirmfreigabe abgelehnt war.
 - **Navigation mit Maus, Tastatur und DualSense** durchspielen: Startseite ↔ Bibliothek ↔ Spielseite, Esc/B,
   Doppelklick auf nicht installierte Cover, ↑ aus der Leiste und der obersten Rasterzeile in die Knöpfe,
   Filter- und Sortier-Segmente mit dem Pad, Zurück in die Bibliothek an dieselbe Scroll-Position.
+- **Live bestätigt am 1.11.:** die Mitteilung „<Spiel> ist bereit zum Spielen“ (Asphalt Legends, Overwatch, Mafia II, Overcooked 2 …), der Download-Ring, das Wachhalten bei einem echten Download (Overwatch, 82 GB über Nacht), „Willkommen zurück“ und das Fehlstart-Sheet.
 - **Einmal echt erleben:** Dock-Menü (Rechtsklick aufs Dock-Symbol), Mitteilung „<Spiel> is ready to play“ mit
   „Play“ (macOS fragt beim ersten Mal), `nightforge://play/<id>` und „Add to Applications“ (findet Spotlight die
   App?), „Update & Play“ bei einem echten Update, Download-Ring und Wachhalten bei einem echten Download,
@@ -1143,6 +1153,31 @@ Cloud-Session ihre erste Zeile.
 - **Entdecken** (`entdecken.md`): eine Tabelle Rubrik × Store mit allen Endpunkten (Angebote, Charts, Neu,
   Gratisspiele, Suche, Genres, Mac- und Controller-Kennzeichen). Gekauft wird immer im Store. Die Cloud-Umgebung
   konnte die Store-Hosts nicht erreichen, deshalb vor dem Einbau live prüfen.
+- **macOS-Version** (`macos-14-15.md`, Nachmittag): „macOS 14 oder neuer“ stimmt nicht. winecx 4.7.3 ist für macOS
+  26.0 und neuer gebaut. Ab 14.4 fehlt zwar kein Symbol, getestet ist es dort aber nicht. Unter 14.4 startet es sicher
+  nicht. AVX braucht macOS 15, KosmicKrisp braucht 26. Die App selbst ist sauber für 14.
+  - Für 0.3.0: `LSMinimumSystemVersion` 26.0, die Prüfung in `install.sh`, README und Landingpage auf „macOS 26 oder
+    neuer“.
+  - Später die weiche Grenze: Unter macOS 26 bleibt die App startbar, mit Mac-Versionen und Cloud-Spielen.
+- **D3DMetal-Lizenz** (`d3dmetal-lizenz.md`):
+  - Weitergabe ist erlaubt (nicht-kommerziell, unverändert). Die Nutzung ist an „developing, testing, or evaluating
+    video games“ gebunden, und das gilt für jeden Spieler. Ob Spielen darunter fällt, ist ungeklärt. Viele Projekte
+    liefern es seit 2023 mit, Abmahnungen sind keine bekannt.
+  - Eigenes Risiko: Wir verteilen **4.0 beta 3**, eine Vorabversion. Das Release `d3dmetal-4.0b3` ist öffentlich.
+  - Empfehlung für 0.3.0: kein stiller Download mehr. Beim ersten DX12-Spiel ein Dialog mit Apples Lizenz und zwei
+    Wegen: „Bei Apple laden und importieren“ (empfohlen) und „Von Nightforge laden“. Keine Beta weitergeben, sondern das
+    finale 3.0, falls winecx damit läuft. Das Paket in ein eigenes Repo legen.
+- **Mac-Kompatibilitätsdaten** (`mac-kompatibilitaet.md`):
+  - Keine Quelle kennt genau unsere Technik. Fremde Bewertungen füllen nur „Nicht getestet“ und legen die
+    Reihenfolge der Grafikwege fest.
+  - Reihenfolge der Quellen:
+    1. Wikidata als Brücke zwischen den IDs (CC0).
+    2. Links zu AppleGamingWiki, CodeWeavers und MacGamingDB auf der Spielseite.
+    3. AppleGamingWiki nächtlich übernehmen (CC BY-NC-SA 3.0, vorher das Team anschreiben).
+    4. MacGamingDB um Erlaubnis bitten (neo773, nennt den Grafikweg).
+    5. CodeWeavers um Zusammenarbeit bitten.
+    6. Parallel eigene Berichte über GitHub-Issue-Formulare und eine Action.
+  - Control läuft laut allen Mac-Quellen nur über DX12 mit D3DMetal, nicht über DX11. Das passt zum Absturz.
 
 ## Aus dem Code-Audit
 

@@ -24,6 +24,8 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
+        static let launchTipShown = "launchTipShown"
         static let notifyDownloads = "notifyDownloads"
         static let reduceMotion = "reduceMotion"
         static let largerText = "largerText"

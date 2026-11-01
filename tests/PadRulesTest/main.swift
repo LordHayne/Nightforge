@@ -1,5 +1,6 @@
-// Checks the pad's rules from docs/ENTWURF-CONTROLLER.md (PadRules): tests/PadRulesTest/run.sh
-import Foundation
+// Checks the pad's rules from docs/ENTWURF-CONTROLLER.md (PadRules) and the hints' button symbols
+// (PadSymbols): tests/PadRulesTest/run.sh
+import AppKit
 
 @main
 struct PadRulesTest {
@@ -73,6 +74,32 @@ struct PadRulesTest {
               "R1 on Home: the library")
         check(InputRouter.section(for: .l1, route: .library, inFront: true, dialog: true, firstStart: false) == nil,
               "not behind a panel or sheet")
+
+        // The hints' symbols: each shows its button's mark – a real symbol that isn't a bare shape, or
+        // the drawn Options capsule – in every style.
+        func shows(_ name: String) -> Bool {
+            name == PadSymbols.optionsCapsule
+                || (NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil && !PadSymbols.isBare(name))
+        }
+        for style in PadSymbols.Style.allCases {
+            let pad = PadSymbols(style: style)
+            for name in [pad.confirm, pad.back, pad.details, pad.search, pad.menu, pad.stick, pad.scroll] + pad.overlayChord {
+                check(shows(name), "\(style): \(name) shows a mark")
+            }
+        }
+        check(PadSymbols(style: .playstation).menu == PadSymbols.optionsCapsule, "PlayStation: ☰ is the Options capsule")
+        check(PadSymbols(style: .xbox).menu == "line.3.horizontal.circle.fill", "Xbox: ☰ is the menu button's lines")
+
+        // What a DualSense reports (1.11.): ☰ and ⧉ as a bare capsule, the rest with their marks.
+        check(PadSymbols.menuSymbol("capsule.portrait") == PadSymbols.optionsCapsule, "a DualSense's ☰: the drawn capsule, not a blank")
+        check(PadSymbols.filled("capsule.portrait") == nil, "a bare capsule is no symbol for a hint")
+        for name in ["xmark.circle", "circle.circle", "square.circle", "triangle.circle", "l.joystick", "r.joystick"] {
+            check(PadSymbols.filled(name).map(shows) == true, "a DualSense's \(name) is used, filled")
+        }
+        check(PadSymbols.menuSymbol(nil) == "line.3.horizontal.circle.fill", "no symbol for ☰: Xbox's")
+        check(PadSymbols.menuSymbol("line.3.horizontal.circle") == "line.3.horizontal.circle.fill", "an Xbox pad's own ☰")
+        check(PadSymbols.isBare("circle.fill") && !PadSymbols.isBare("circle.circle") && !PadSymbols.isBare("l1.rectangle.roundedbottom"),
+              "one shape is bare, a shape with a mark isn't")
 
         print(failures == 0 ? "✓ PadRules" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

@@ -878,6 +878,7 @@ enum L10n {
         "Games you hid from your library": "Spiele, die du aus der Bibliothek ausgeblendet hast",
         "No games match these filters": "Keine Spiele passen zu diesen Filtern",
         "Clear filters": "Filter zurücksetzen",
+        "Store, filters and search back to the start – the order stays": "Store, Filter und Suche zurück auf Anfang – die Sortierung bleibt",
 
         // The library's row: store, order, filters (LibraryFilterRow)
         "All Stores": "Alle Stores",
@@ -1204,11 +1205,16 @@ enum L10n {
         "Anti-cheat? Then through GeForce Now": "Anti-Cheat? Dann über GeForce Now",
         "Games whose anti-cheat needs Windows itself stream through GeForce Now – with your copy from Steam.":
             "Spiele, deren Anti-Cheat Windows selbst braucht, streamt Nightforge über GeForce Now – mit deinem Steam-Spiel.",
-        "The menu button switches the view": "Die Menütaste wechselt die Ansicht",
-        "Options goes between Home and the library, △ opens a game's options, ○ goes back.":
-            "Options springt zwischen Startseite und Bibliothek, △ öffnet die Optionen eines Spiels, ○ geht zurück.",
-        "Menu goes between Home and the library, Y opens a game's options, B goes back.":
-            "Menü springt zwischen Startseite und Bibliothek, Y öffnet die Optionen eines Spiels, B geht zurück.",
+        "Your controller in Nightforge": "Dein Controller in Nightforge",
+        "The Options button opens a game's options, △ searches, L1 and R1 go to Home and the library, ○ goes back one step. Every button: Settings › Controller.":
+            "Die Options-Taste öffnet die Optionen eines Spiels, △ sucht, L1 und R1 wechseln zwischen Startseite und Bibliothek, ○ geht einen Schritt zurück. Alle Tasten: Einstellungen › Controller.",
+        "The Menu button opens a game's options, Y searches, LB and RB go to Home and the library, B goes back one step. Every button: Settings › Controller.":
+            "Die Menütaste öffnet die Optionen eines Spiels, Y sucht, LB und RB wechseln zwischen Startseite und Bibliothek, B geht einen Schritt zurück. Alle Tasten: Einstellungen › Controller.",
+        "Nightforge's menu in a game": "Nightforges Menü im Spiel",
+        "Hold %@ – both sticks pressed – for 2 seconds: continue, quit the game (also one that hangs) or go to Nightforge.":
+            "%@ – beide Sticks gedrückt – 2 Sekunden halten: weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
+        "Tip: hold %@ to open the menu in a game": "Tipp: %@ halten öffnet im Spiel das Menü",
+        "Every button": "Alle Tasten",
         "Swipe and pinch": "Wischen und Zoomen",
         "Two fingers sideways go back. In the library, two fingers apart or together make the covers bigger or smaller.":
             "Zwei Finger zur Seite wischen geht zurück. In der Bibliothek machst du die Cover mit zwei Fingern größer oder kleiner.",

@@ -38,7 +38,24 @@ wenn sie einer Version zugeordnet sind.
       Veröffentlichen nur mit ausdrücklichem OK.
 
 ### 0.4: „Wie eine Konsole“
-- [ ] **Zuerst Codequalität** (Idee des Nutzers, 1.11.):
+- [ ] **Zuerst die Engine, mit voller Kraft** (Nutzer, 1.11.: „sobald das 0.3 draußen ist, geben wir richtig Gas mit
+      Engine-Arbeit“). Anlass: Overwatch hängt beim Start (0 % CPU, kein Fenster). Die Ursache ist Blizzards Anti-Cheat
+      unter Rosetta. Das läuft erst mit den Wine-Änderungen aus CrossOver 26.1 und macOS 26.5, unsere Engine winecx
+      4.7.3 ist älter (`docs/recherche/battlenet.md`, `docs/recherche/engines.md`). Der Reihe nach:
+      - Eine Engine auf dem Stand von CrossOver 26.x bauen oder übernehmen. Dann Overwatch, Diablo IV und D2R über
+        Steam freischalten.
+      - DirectX 9 über DXVK auf KosmicKrisp (Zweig `claude/quirky-clarke-81fd65`, Live-Test offen). Dazu der Plan, weil
+        MoltenVK abgekündigt ist.
+      - D3DMetal je nach Ergebnis der Lizenz-Recherche (Cloud, 1.11.).
+      - Spiele mit DX11- und DX12-Fassung (Control, Tomb Raider, Hitman …): DX12 mit D3DMetal wählbar machen.
+        Heute bietet Nightforge D3DMetal nur von selbst an, und nur für reine DX12-Spiele (`choosableLayers`,
+        `onlyD3D12`). Epic startet bei Control `Control_DX11.exe`. Laut allen Mac-Quellen läuft Control aber nur über
+        `Control_DX12.exe` mit D3DMetal (`docs/recherche/mac-kompatibilitaet.md`). Dafür braucht es die Wahl der
+        Programmdatei pro Spiel (legendary `--override-exe`, GOG, Steam-Startoption) als Profilfeld und in den
+        Optionen.
+      - Die getesteten Spiele auf der neuen Engine gegenprüfen, die FPS der Landingpage neu messen, Wine 7.7 abschalten.
+      - Die Codequalität (nächster Punkt) prüft parallel, nur lesend, die Engine-Dateien zuletzt umbauen.
+- [ ] **Codequalität** (Idee des Nutzers, 1.11.):
   - Direkt nach dem Release, wenn `main` den aktuellen Stand hat. Cloud-Sessions sehen nur `main`.
   - Erst eine Prüfung, nur lesen: Vereinfachungen, doppelter Code, Risiken und ein Plan, wie sich die großen
     Dateien aufteilen lassen (`LibraryModel` ca. 2 900, `LibraryView` 2 300, `Engine` 2 000 Zeilen; Projektregel
@@ -53,6 +70,15 @@ wenn sie einer Version zugeordnet sind.
 - [ ] Spiele, die einen Fremd-Launcher brauchen, als Steam-Fassung ohne Launcher freischalten (Overwatch 2,
       Diablo IV, D2R). Danach Rockstar über Steam (nur Story), dann über Epic (`docs/recherche/launcher.md`).
 - [ ] Das große Controller-Overlay (heute die kleine Fassung mit L3+R3).
+- [ ] **Suchen mit dem Controller** (Nutzer, 1.11.). Heute springt Y ins Suchfeld, getippt wird noch mit der Tastatur.
+  - Eigene Bildschirmtastatur im Glas-Stil, unten eingeblendet: Steuerkreuz/Stick wählt, A tippt, X löscht, Y setzt ein
+    Leerzeichen, B schließt.
+  - Treffer erscheinen schon beim Tippen, nach jedem Buchstaben. Dazu Vorschläge aus den Spielenamen, ↓ springt direkt
+    in die Treffer. Meist reichen zwei, drei Buchstaben.
+  - Ein Buchstaben-Sprung ohne Tippen: Eine Taste blendet eine A–Z-Leiste am Rand ein, die Bibliothek springt zum
+    Anfangsbuchstaben, wie bei PlayStation und Xbox.
+  - Spracheingabe (macOS-Diktat) erst später, wenn klar ist, ob das Mikrofon des Controllers am Mac geht.
+  - Grundlage ist auch die Big-Picture-Recherche vom 1.11. (Tastaturen von Steam, Xbox, PlayStation).
 - [ ] Speicherverwaltung unter Einstellungen › Speicher: neue Laufwerke erkennen und vorbereiten, angesteckte
       Laufwerke oben.
 - [ ] Wine 7.7 abschalten, wenn alles auf winecx läuft (`docs/recherche/engines.md`).
