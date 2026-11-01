@@ -15,7 +15,7 @@ import Foundation
 /// every store, and arguments would also ride along in Steam's -applaunch, count as another way
 /// in LaunchHealth and could clash with the player's own.
 enum GameResolution {
-    struct Size: Equatable, CustomStringConvertible {
+    struct Size: Hashable, CustomStringConvertible {
         var width: Int
         var height: Int
 
@@ -37,10 +37,19 @@ enum GameResolution {
                         pixels: Size(width: mode.pixelWidth, height: mode.pixelHeight), retina: retina)
     }
 
+    /// The sizes the main display can show, as Wine lists them: what a game may change the screen to.
+    static func mainScreenModes(retina: Bool) -> Set<Size> {
+        let options = [kCGDisplayShowDuplicateLowResolutionModes: kCFBooleanTrue] as CFDictionary
+        guard let modes = CGDisplayCopyAllDisplayModes(CGDisplayPrimaryDisplay(CGMainDisplayID()), options) as? [CGDisplayMode]
+        else { return [] }
+        return Set(modes.map { retina ? Size(width: $0.pixelWidth, height: $0.pixelHeight) : Size(width: $0.width, height: $0.height) })
+    }
+
     /// Before a Windows game starts on Nightforge's engine. `retina`: Wine's Retina mode for it.
     /// Never while the game runs: Wine holds the registry then, and the game writes its own
     /// settings back when it ends.
-    static func fit(_ game: Game, retina: Bool, wine: URL, places: SaveTransfer.Places = SaveTransfer.Places()) {
+    static func fit(_ game: Game, profile: GameProfile? = nil, retina: Bool, wine: URL,
+                    places: SaveTransfer.Places = SaveTransfer.Places()) {
         guard let size = mainScreen(retina: retina) else { return }
         let marker = game.windowsFolderMarker.lowercased()
         guard !Engine.ownProcesses().contains(where: { $0.command.lowercased().contains(marker) }) else { return }
@@ -53,6 +62,17 @@ enum GameResolution {
             let changes = unityChanges(values, size: size)
             guard !changes.isEmpty, Engine.importRegistry(registryImport(key: key, values: changes), wine: wine) else { continue }
             notes.append("\(key.split(separator: "\\").last ?? ""): \(unitySize(values).map { "\($0) → " } ?? "")\(size)")
+        }
+        // A game whose profile says where it keeps its resolution (its own format).
+        if let saved = profile?.resolution,
+           let base = saved.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? game.installDir {
+            let file = base.appendingPathComponent(saved.path).standardizedFileURL
+            if file.path.hasPrefix(base.standardizedFileURL.path + "/"),
+               let text = try? String(contentsOf: file, encoding: .utf8),
+               let fitted = savedFitted(text, saved, size: size, modes: mainScreenModes(retina: retina)),
+               (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil {
+                notes.append("\(file.lastPathComponent): \(size)")
+            }
         }
         for file in unrealSettings(installDir: game.installDir, places: places) {
             guard let text = try? String(contentsOf: file, encoding: .utf8), let fitted = unrealFitted(text, size: size),
@@ -198,6 +218,55 @@ enum GameResolution {
             }
         }
         return (result, nil)
+    }
+
+    // MARK: - A profile's own format
+
+    /// A game's own resolution file (`GameProfile.resolution`) set to `size`: only when it's set to
+    /// full screen at a size the screen doesn't have (`modes`) – there the game can't get its mode
+    /// ("Failed to change display mode") or ends up in a corner. A window, or a size the screen
+    /// has, stays as the player chose. Nil when nothing changes.
+    static func savedFitted(_ text: String, _ saved: GameProfile.SavedResolution, size: Size, modes: Set<Size>) -> String? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let on = Set((saved.fullscreenOn ?? ["1"]).map { $0.lowercased() })
+        func needs(width: String?, height: String?, fullscreen: String?) -> Bool {
+            guard let width = width.flatMap(Int.init), let height = height.flatMap(Int.init) else { return false }
+            let stored = Size(width: width, height: height)
+            return (fullscreen.map { on.contains($0.lowercased()) } ?? true) && stored != size && !modes.contains(stored)
+        }
+        if let fields = saved.fields {
+            // The first line with values; the line end it had stays.
+            var lines = text.components(separatedBy: "\n")
+            guard let index = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return nil }
+            let carriage = lines[index].hasSuffix("\r")
+            var values = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(whereSeparator: \.isWhitespace).map(String.init)
+            guard max(fields.width, fields.height, fields.fullscreen ?? 0) < values.count,
+                  needs(width: values[fields.width], height: values[fields.height], fullscreen: fields.fullscreen.map { values[$0] })
+            else { return nil }
+            values[fields.width] = String(size.width)
+            values[fields.height] = String(size.height)
+            lines[index] = values.joined(separator: " ") + (carriage ? "\r" : "")
+            return lines.joined(separator: "\n")
+        }
+        if let section = saved.section, let keys = saved.keys {
+            var current: String?
+            var found: [String: String] = [:]
+            for line in text.components(separatedBy: "\n") {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                    current = String(trimmed.dropFirst().dropLast())
+                    continue
+                }
+                guard current?.caseInsensitiveCompare(section) == .orderedSame, let equals = trimmed.firstIndex(of: "=") else { continue }
+                let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
+                if found[key] == nil { found[key] = trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces) }
+            }
+            guard needs(width: found[keys.width], height: found[keys.height], fullscreen: keys.fullscreen.map { found[$0] ?? "" })
+            else { return nil }
+            return Engine.mergingIni(text, section: section, values: [keys.width: String(size.width), keys.height: String(size.height)])
+        }
+        return nil
     }
 
     // MARK: - Unreal

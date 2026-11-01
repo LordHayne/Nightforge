@@ -24,6 +24,7 @@ struct GameResolutionTest {
         registry()
         unity()
         unreal()
+        ownFormat()
         folders()
         if failures == 0 { print("✓ GameResolution: all checks passed") }
         exit(failures == 0 ? 0 : 1)
@@ -168,6 +169,48 @@ struct GameResolutionTest {
               "no FullscreenMode yet (before the game's first start): nothing to go by")
         check(GameResolution.unrealFitted("[/Script/Engine.GameUserSettings]\nFullscreenMode=1\n", size: tv) == nil,
               "nothing invented: no resolution stored, none written")
+    }
+
+    /// A profile's own format (`GameProfile.resolution`): Mafia II's videoconfig.cfg and an .ini.
+    static func ownFormat() {
+        typealias Saved = GameProfile.SavedResolution
+        let mafia = Saved(root: "WinAppDataLocal", path: "2K Games/Mafia II/Saves/videoconfig.cfg",
+                          fields: .init(width: 2, height: 3, fullscreen: 4))
+        let tvModes: Set<Size> = [tv, Size(width: 1600, height: 900), Size(width: 1280, height: 720), Size(width: 1024, height: 768)]
+        let macModes: Set<Size> = [macBook, Size(width: 1512, height: 945), Size(width: 1280, height: 800)]
+
+        // The live test on 1.11.: full screen at the MacBook's size, now on the 1080p TV alone.
+        check(GameResolution.savedFitted(fixture("videoconfig-macbook.cfg"), mafia, size: tv, modes: tvModes) == "0 0 1920 1080 1 0 0 1",
+              "Mafia II full screen at 1512×982 on the TV: 1920×1080, the other values kept")
+        check(GameResolution.savedFitted(fixture("videoconfig-macbook.cfg"), mafia, size: macBook, modes: macModes) == nil,
+              "on the MacBook its own size stays")
+        check(GameResolution.savedFitted(fixture("videoconfig-window.cfg"), mafia, size: tv, modes: tvModes) == nil,
+              "in a window: left as the player chose")
+        check(GameResolution.savedFitted(fixture("videoconfig-720p.cfg"), mafia, size: tv, modes: tvModes) == nil,
+              "full screen at 1280×720, which the TV has: left as the player chose")
+        check(GameResolution.savedFitted("0 0 3024 1964 1 0 0 1\r\n", mafia, size: tv, modes: tvModes) == "0 0 1920 1080 1 0 0 1\r\n",
+              "the Retina size from a stale session: fitted, the Windows line end kept")
+        check(GameResolution.savedFitted("0 0 1512", mafia, size: tv, modes: tvModes) == nil, "too few values: nothing touched")
+        check(GameResolution.savedFitted("", mafia, size: tv, modes: tvModes) == nil, "an empty file: nothing")
+        check(GameResolution.savedFitted("0 0 wide 982 1 0 0 1", mafia, size: tv, modes: tvModes) == nil, "not a number: nothing")
+        let alwaysFull = Saved(path: "res.txt", fields: .init(width: 0, height: 1))
+        check(GameResolution.savedFitted("1512 982", alwaysFull, size: tv, modes: tvModes) == "1920 1080",
+              "no full-screen value: a full-screen game")
+
+        // An .ini file, with true/false.
+        let ini = Saved(path: "settings.ini", section: "Video", keys: .init(width: "ResX", height: "ResY", fullscreen: "Fullscreen"),
+                        fullscreenOn: ["true"])
+        let text = fixture("settings-ini.ini")
+        if let fitted = GameResolution.savedFitted(text, ini, size: tv, modes: tvModes) {
+            let lines = fitted.components(separatedBy: "\r\n")
+            check(lines.contains("ResX=1920") && lines.contains("ResY=1080"), "the .ini's width and height")
+            check(lines.contains("Fullscreen=true") && lines.contains("VSync=1") && lines.contains("Volume=80"), "everything else stays")
+            check(!fitted.contains("1512"), "no old size left")
+        } else {
+            check(false, "an .ini set to full screen at a size the TV lacks gets the TV's")
+        }
+        check(GameResolution.savedFitted(text.replacingOccurrences(of: "Fullscreen=true", with: "Fullscreen=false"), ini, size: tv, modes: tvModes) == nil,
+              "an .ini set to a window stays")
     }
 
     /// Where the settings are found: app.info next to a Unity program, GameUserSettings.ini in the prefix.

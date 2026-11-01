@@ -490,7 +490,7 @@ enum Launcher {
             Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
             Engine.applyIniSettings(profile?.iniSettings ?? [])
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
-            GameResolution.fit(game, retina: Engine.launchRetina, wine: runner)
+            GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
             // This call starts Steam when it isn't running: in the Retina mode the game wants, and
             // with the Guide button left to Nightforge (SteamGuideButton).
             if !Engine.isSteamRunning {
@@ -545,7 +545,7 @@ enum Launcher {
         Engine.applyIniSettings(profile?.iniSettings ?? [])
         Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
         // It joins the Wine session that runs, or starts one in the Retina mode the prefix has.
-        GameResolution.fit(game, retina: Engine.retinaModeApplied, wine: runner)
+        GameResolution.fit(game, profile: profile, retina: Engine.retinaModeApplied, wine: runner)
 
         var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
         // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D

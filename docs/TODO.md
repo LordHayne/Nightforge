@@ -272,6 +272,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Sitzung hilft. Prüfen: TV anstecken, ein Unity-Spiel mit „Use Native“ starten (20 Minutes Till Dawn) und
       danach in `user.reg` nachsehen, ob 1920×1080 drinsteht.
     - Ein Unreal-Spiel (Palworld) am TV, danach zurück am MacBook: wieder bildschirmfüllend 1512×982?
+    - **Gespeicherte Auflösung in eigenem Format** (1.11., Profilfeld `resolution`, `GameResolution.savedFitted`):
+      Ein Profil sagt, wo ein Spiel seine Auflösung speichert, entweder als Zeile mit Werten
+      (`fields: {width, height, fullscreen}`, gezählt ab 0) oder in einer .ini (`section`, `keys`). Vor dem Start
+      bekommt das Spiel die Größe des Spielbildschirms, aber nur bei Vollbild in einer Größe, die der Bildschirm
+      nicht hat. Ein Fenster oder eine vorhandene Größe bleibt. Erster Eintrag: Mafia II (`mac.json` 50130, auch
+      gog.1816059595), `AppData/Local/2K Games/Mafia II/Saves/videoconfig.cfg`, `0 0 1512 982 1 0 0 1`. Am TV prüfen:
+      Mafia II nur am TV startet in 1920×1080, im Log `[nightforge] Full screen videoconfig.cfg: 1920×1080`.
     - **Frische Wine-Sitzung bei geänderten Bildschirmen** (1.11., `GameDisplay.wineSessionStale`): Wines Zwischenspeicher
       hatte im Spiegelbetrieb noch das MacBook als eigene Primär-Quelle (Altlast der Sitzung). Eine frische Sitzung
       sieht nur den DENON (winecx' `macdrv_get_adapters` überspringt Spiegel). Am TV prüfen: Der erste Start nach dem
