@@ -247,7 +247,7 @@
           <div class="bar-row" title="Vulkan: ≈ 30 FPS"><span class="bar bar-grey" style="--v:30"></span><span class="bar-val">≈&nbsp;30</span></div>
         </div>
       </div>
-      <p class="panel-foot"><span lang="de">DirectX&nbsp;12 läuft über Apples D3DMetal, nach deiner Zustimmung. DirectX&nbsp;9 läuft über Wines eigenes WineD3D.</span><span lang="en">DirectX&nbsp;12 runs through Apple’s D3DMetal, once you agree. DirectX&nbsp;9 runs through Wine’s own WineD3D.</span></p>
+      <p class="panel-foot"><span lang="de">DirectX&nbsp;12 läuft über Apples D3DMetal, nach deiner Zustimmung: Das Benchmark-Tool von Black Myth: Wukong schafft damit im Schnitt 68&nbsp;FPS (Niedrig, FSR, 1512&nbsp;×&nbsp;982, M5, Nightforge 0.3). DirectX&nbsp;9 läuft über Wines eigenes WineD3D.</span><span lang="en">DirectX&nbsp;12 runs through Apple’s D3DMetal, once you agree: the Black Myth: Wukong Benchmark Tool averages 68&nbsp;FPS with it (Low, FSR, 1512&nbsp;×&nbsp;982, M5, Nightforge 0.3). DirectX&nbsp;9 runs through Wine’s own WineD3D.</span></p>
     </figure>
   </div>
 </section>
@@ -269,11 +269,11 @@
     </div>
     <div>
       <h3><span lang="de">Vom Sofa aus bedienbar</span><span lang="en">Run it from the couch</span></h3>
-      <p><span lang="de">Spielen, Laden, Optionen und Einstellungen gehen mit dem Controller, mit L1/R1 wechselst du zwischen Startseite und Bibliothek. Ein Abzeichen auf jedem Cover zeigt, welche Spiele sich damit spielen lassen. Zum Anmelden und Suchen brauchst du noch eine Tastatur.</span><span lang="en">Playing, downloading, options and settings work with a controller, and L1/R1 switch between Home and the library. A badge on every cover shows which games play with one. Signing in and searching still need a keyboard.</span></p>
+      <p><span lang="de">Spielen, Laden, Optionen und Einstellungen gehen mit dem Controller, mit L1/R1 wechselst du zwischen Startseite und Bibliothek, und der Mauszeiger verschwindet, bis du die Maus wieder bewegst. Ein Abzeichen auf jedem Cover zeigt, welche Spiele sich damit spielen lassen. Zum Anmelden und Suchen brauchst du noch eine Tastatur.</span><span lang="en">Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, and the pointer hides until you move the mouse again. A badge on every cover shows which games play with one. Signing in and searching still need a keyboard.</span></p>
     </div>
     <div>
       <h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3>
-      <p><span lang="de">Am Fernseher starten Spiele im Vollbild in seiner Auflösung, der Ton geht über HDMI, und nach dem Spiel geht es zurück wie bei einer Konsole – kein Desktop, kein Steam-Fenster dazwischen.</span><span lang="en">On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you’re back like on a console – no desktop, no Steam window in between.</span></p>
+      <p><span lang="de">Am Fernseher starten Spiele im Vollbild in seiner Auflösung, der Ton geht über HDMI, und nach dem Spiel bist du zurück in Nightforge wie bei einer Konsole statt auf dem Desktop. Das Vollbild braucht keinen eigenen Space, beim Start und Ende rutscht nichts zur Seite, und ein Ladebildschirm überbrückt das Warten.</span><span lang="en">On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you’re back in Nightforge like on a console, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait.</span></p>
     </div>
   </div>
   <!-- Picture spot (0.3.0): Nightforge on a real TV, once TV mode has been tested on one. -->
@@ -355,7 +355,7 @@
       <li class="tile">
         <svg class="tile-i" aria-hidden="true"><use href="#i-search"/></svg>
         <h3><span lang="de">Suche bis in den Store</span><span lang="en">Search into the store</span></h3>
-        <p><span lang="de">Findet auch Spiele im Steam-Store, mit Preis und Metascore.</span><span lang="en">Also finds games in the Steam store, with price and Metascore.</span></p>
+        <p><span lang="de">Findet auch Spiele im Steam-Store, mit Preis und Metascore. Kostenlose fügst du gleich hinzu, Steam fragt einmal im eigenen Fenster.</span><span lang="en">Also finds games in the Steam store, with price and Metascore. Free ones you add right away; Steam asks once in its own window.</span></p>
       </li>
       <li class="tile">
         <svg class="tile-i" aria-hidden="true"><use href="#i-display"/></svg>
@@ -411,7 +411,11 @@
       </li>
       <li>
         <h3>DirectX</h3>
-        <p><span lang="de">DirectX&nbsp;10 und 11 sind gut abgedeckt. DirectX&nbsp;9 läuft über WineD3D, oft langsamer und ohne MetalFX – schneller soll es mit KosmicKrisp werden (siehe „Geplant“). DirectX&nbsp;12 läuft über Apples D3DMetal. Das holt Nightforge beim ersten DirectX-12-Spiel nach deiner Zustimmung, weil Apples Lizenz es nur zum Entwickeln, Testen und Ausprobieren von Spielen freigibt. Es ist neueres Terrain, rechne mit dem einen oder anderen Spiel, das nicht will.</span><span lang="en">DirectX&nbsp;10 and 11 are well covered. DirectX&nbsp;9 runs through WineD3D, often slower and without MetalFX – KosmicKrisp should make it faster (see “Planned”). DirectX&nbsp;12 runs through Apple’s D3DMetal. Nightforge fetches it the first time a DirectX&nbsp;12 game needs it, once you agree, because Apple’s licence allows it only for developing, testing and evaluating games. It’s newer ground, so expect the odd game that doesn’t.</span></p>
+        <p><span lang="de">DirectX&nbsp;10 und 11 sind gut abgedeckt. DirectX&nbsp;9 läuft über WineD3D, oft langsamer und ohne MetalFX – schneller soll es mit KosmicKrisp werden (siehe „Geplant“). DirectX&nbsp;12 läuft über Apples D3DMetal. Das richtet Nightforge beim ersten DirectX-12-Spiel erst nach deiner Zustimmung ein, weil Apples Lizenz es nur zum Entwickeln, Testen und Ausprobieren von Spielen freigibt – den Lizenztext bringt Nightforge selbst mit, D3DMetal kommt aus Apples eigenem Toolkit. Die Treiber-Warnung, die Unreal-Spiele darunter zeigen, fängt Nightforge ab. Es ist neueres Terrain, rechne mit dem einen oder anderen Spiel, das nicht will.</span><span lang="en">DirectX&nbsp;10 and 11 are well covered. DirectX&nbsp;9 runs through WineD3D, often slower and without MetalFX – KosmicKrisp should make it faster (see “Planned”). DirectX&nbsp;12 runs through Apple’s D3DMetal. Nightforge sets it up the first time a DirectX&nbsp;12 game needs it, and only once you agree, because Apple’s licence allows it only for developing, testing and evaluating games – the licence text ships with Nightforge, D3DMetal comes from Apple’s own toolkit. The driver warning Unreal games show on it, Nightforge heads off. It’s newer ground, so expect the odd game that doesn’t.</span></p>
+      </li>
+      <li>
+        <h3><span lang="de">Ladebildschirm</span><span lang="en">Loading screen</span></h3>
+        <p><span lang="de">Rund um den Ladebildschirm gibt es noch kleine Anzeigefehler, etwa einen Mauszeiger, der kurz aufblitzt, oder ein Fenster, das kurz davor auftaucht. Am Spielen ändern sie nichts, sie kommen in den nächsten Versionen dran.</span><span lang="en">There are still small display glitches around the loading screen, like a pointer that flashes up briefly or a window that shows up just before it. They don’t get in the way of playing and are next in line for the coming versions.</span></p>
       </li>
       <li>
         <h3><span lang="de">VR und Spielstände</span><span lang="en">VR and saves</span></h3>
@@ -437,7 +441,7 @@
       <li><time datetime="2026-10-28"><span lang="de">28.&nbsp;Okt.</span><span lang="en">Oct&nbsp;28</span></time><div><h3>Epic Games</h3><p><span lang="de">Epic-Spiele ohne Epic-Launcher, doppelt gekaufte Spiele zusammengeführt, Trackpad-Gesten.</span><span lang="en">Epic games without the Epic launcher, games owned twice merged into one, trackpad gestures.</span></p></div></li>
       <li><time datetime="2026-10-29"><span lang="de">29.&nbsp;Okt.</span><span lang="en">Oct&nbsp;29</span></time><div><h3><span lang="de">Ein neuer erster Start</span><span lang="en">A new first start</span></h3><p><span lang="de">Einrichtung mit Controller-Test und Tipps, die Startseite als Bühne mit „Weiterspielen“.</span><span lang="en">Setup with a controller test and tips, Home as a stage with “Continue playing”.</span></p></div></li>
       <li><time datetime="2026-10-31"><span lang="de">31.&nbsp;Okt.</span><span lang="en">Oct&nbsp;31</span></time><div><h3><span lang="de">GOG und externe Laufwerke</span><span lang="en">GOG and external drives</span></h3><p><span lang="de">GOG-Spiele ohne Galaxy, Spiele auf externen Laufwerken, größere Schrift auf Wunsch, eine schnellere Ersteinrichtung.</span><span lang="en">GOG games without Galaxy, games on external drives, larger text if you like, a faster first setup.</span></p></div></li>
-      <li class="now"><time datetime="2026-11-01"><span lang="de">1.&nbsp;Nov.</span><span lang="en">Nov&nbsp;1</span></time><div><h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise und GOG-Spiele am Fernseher.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes and GOG games on the TV.</span></p></div></li>
+      <li class="now"><time datetime="2026-11-01"><span lang="de">1.&nbsp;Nov.</span><span lang="en">Nov&nbsp;1</span></time><div><h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise, D3DMetal&nbsp;3.0 aus Apples Toolkit und kostenlose Steam-Spiele direkt aus der Suche.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes, D3DMetal&nbsp;3.0 from Apple’s toolkit and free Steam games straight from search.</span></p></div></li>
     </ol>
   </div>
 </section>
