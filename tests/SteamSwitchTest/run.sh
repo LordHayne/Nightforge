@@ -8,6 +8,7 @@ if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/Command
   export SDKROOT="$CLT_SDK"
 fi
 WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT  # the test program and its home go with it
 OUT="$WORK/steam-switch-test"
 # The whole app except its entry point, plus the test driver.
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')

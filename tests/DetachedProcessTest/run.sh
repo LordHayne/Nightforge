@@ -8,6 +8,7 @@ if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/Command
   export SDKROOT="$CLT_SDK"
 fi
 DIR="$(mktemp -d)"
+trap 'rm -rf "$DIR"' EXIT  # the test program and its home go with it
 OUT="$DIR/detached-process-test"
 clang -arch arm64 -mmacosx-version-min=14.0 -O2 -Wall -o "$DIR/nightforge-helper" wrapper/nightforge-helper.c
 # The whole app except its entry point, plus the test driver.
