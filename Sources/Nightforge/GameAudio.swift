@@ -54,8 +54,10 @@ enum GameAudio {
     }
 
     /// What to do with the output. `tv`: the TV showing Nightforge, by its screen's name ("" when
-    /// only a mirror shows it, nil without one). `current`: the default output's ID.
-    static func decide(_ moment: Moment, tv: String?, devices: [Device], current: String?, switched: Switched) -> (Action, Switched) {
+    /// only a mirror shows it, nil without one). `current`: the default output's ID. `wantsTV`:
+    /// what the player chose for this TV before (TVSettings) – false keeps the sound off it.
+    static func decide(_ moment: Moment, tv: String?, devices: [Device], current: String?, switched: Switched,
+                       wantsTV: Bool? = nil) -> (Action, Switched) {
         var state = switched
         // A new TV: what the player chose for the last one is over.
         if moment == .plugged, state == .declined { state = .none }
@@ -66,7 +68,7 @@ enum GameAudio {
         }
         switch moment {
         case .plugged, .gameStarts:
-            guard state == .none, let tv, let now = devices.first(where: { $0.uid == current }), now.speakers,
+            guard state == .none, wantsTV != false, let tv, let now = devices.first(where: { $0.uid == current }), now.speakers,
                   let target = output(for: tv, in: devices)
             else { return (.none, state) }
             return (.switchTo(target), .moved(from: now.uid, to: target.uid))
@@ -85,6 +87,15 @@ enum GameAudio {
         case .look:
             return (.none, state)
         }
+    }
+
+    /// What a change of the default output says about the player's wish for this TV's sound: true
+    /// for its own output, false for another one (the speakers to compare). Nil for anything else –
+    /// a look, Nightforge's own switch, no TV or no output of its own.
+    static func remembered(_ moment: Moment, tv: String?, devices: [Device], current: String?, switched: Switched) -> Bool? {
+        guard moment == .chosen, let tv, let current, let target = output(for: tv, in: devices) else { return nil }
+        if case .moved(_, let to) = switched, current == to { return nil }
+        return current == target.uid
     }
 
     /// How long an output (or a screen) may be away and still count as the same when it's back: an
@@ -126,6 +137,11 @@ enum GameAudio {
     // MARK: - CoreAudio
 
     private static var tv: String?
+    /// The TV's own ID (GameDisplay.tvKey), for what's kept per TV.
+    private static var tvKey: String?
+    /// When outputs or screens last came or went: macOS moves the default itself then, which is
+    /// no choice of the player's.
+    private static var settling = Date.distantPast
     private static var listening = false
     /// The HDMI and DisplayPort outputs seen last: a new one is a TV's sound arriving.
     private static var screenOutputs: Set<String> = []
@@ -137,8 +153,10 @@ enum GameAudio {
 
     /// Where the output should be with `tv` showing Nightforge (GameDisplay). Also when outputs
     /// come and go: a TV's HDMI sound shows up a moment after its picture, and counts as it coming.
-    static func follow(_ moment: Moment, tv: String?) {
+    static func follow(_ moment: Moment, tv: String?, tvKey: String? = nil) {
         self.tv = tv
+        self.tvKey = tv == nil ? nil : tvKey
+        if moment == .plugged || moment == .left { settling = Date() }
         if !listening {
             listening = true
             screenOutputs = Set(outputDevices().map(\.device).filter { $0.transport == .hdmi || $0.transport == .displayPort }.map(\.uid))
@@ -147,6 +165,7 @@ enum GameAudio {
                 MainActor.assumeIsolated {
                     let now = Set(outputDevices().map(\.device).filter { $0.transport == .hdmi || $0.transport == .displayPort }.map(\.uid))
                     let arrived = plugged(now, before: screenOutputs, gone: &screenOutputsGone, at: Date())
+                    if now != screenOutputs { settling = Date() }
                     screenOutputs = now
                     apply(arrived ? .plugged : .look)
                 }
@@ -160,7 +179,7 @@ enum GameAudio {
                         ownChange = nil
                         if current == own { return }
                     }
-                    apply(.chosen)
+                    apply(Date().timeIntervalSince(settling) < 3 ? .look : .chosen)
                 }
             }
         }
@@ -178,7 +197,12 @@ enum GameAudio {
     private static func apply(_ moment: Moment) {
         let outputs = outputDevices()
         let current = deviceUID(defaultOutput())
-        let (action, switched) = decide(moment, tv: tv, devices: outputs.map(\.device), current: current, switched: stored)
+        let devices = outputs.map(\.device)
+        let wants = tvKey.flatMap { TVSettings.soundOnTV($0) }
+        if let tvKey, let wish = remembered(moment, tv: tv, devices: devices, current: current, switched: stored) {
+            TVSettings.setSoundOnTV(wish, for: tvKey)
+        }
+        let (action, switched) = decide(moment, tv: tv, devices: devices, current: current, switched: stored, wantsTV: wants)
         switch action {
         case .none:
             break
@@ -289,5 +313,25 @@ enum GameAudio {
         var id = device
         return AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil,
                                           UInt32(MemoryLayout<AudioObjectID>.size), &id) == noErr
+    }
+}
+
+/// What Nightforge keeps per TV, by the screen's own ID (GameDisplay.tvKey) – for now whether its
+/// sound should come from it: a TV the player listens to through the Mac's speakers stays so, also
+/// after unplugging it, a restart or the screens changing as a game starts. In UserDefaults like the
+/// other settings.
+enum TVSettings {
+    private static let key = "tvSettings"
+
+    static func soundOnTV(_ tv: String, in defaults: UserDefaults = .standard) -> Bool? {
+        (defaults.dictionary(forKey: key)?[tv] as? [String: Any])?["soundOnTV"] as? Bool
+    }
+
+    static func setSoundOnTV(_ on: Bool, for tv: String, in defaults: UserDefaults = .standard) {
+        var all = defaults.dictionary(forKey: key) ?? [:]
+        var settings = all[tv] as? [String: Any] ?? [:]
+        settings["soundOnTV"] = on
+        all[tv] = settings
+        defaults.set(all, forKey: key)
     }
 }

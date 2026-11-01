@@ -249,14 +249,30 @@ enum LaunchHealth {
 
     /// Choosing a layer by hand starts over: the player wants to try for themselves.
     static func reset(_ game: GameID) {
+        UserDefaults.standard.removeObject(forKey: quitKey(game))
         UserDefaults.standard.removeObject(forKey: key(game))
         UserDefaults.standard.removeObject(forKey: "health.dxmtFailed.\(game.key)")
     }
 
+    /// Quit Game in the overlay: that end is the player's, whatever its timing or exit code – never
+    /// a start that didn't take, here or in Steam's log later (`review`). Sonic Mania, quit so on
+    /// 1.11., counted as one, and its next start would have gone another way.
+    static func playerQuit(_ game: GameID, at date: Date = Date()) {
+        UserDefaults.standard.set(date, forKey: quitKey(game))
+    }
+
+    /// Whether the player quit the game in the overlay since `start`.
+    static func quitByPlayer(_ game: GameID, since start: Date) -> Bool {
+        guard let quit = UserDefaults.standard.object(forKey: quitKey(game)) as? Date else { return false }
+        return quit >= start
+    }
+
+    private static func quitKey(_ game: GameID) -> String { "launchHealth.playerQuit.\(game.key)" }
+
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
     static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
         let state = load(game, attempts)
-        guard !state.trusted, let started = state.startedAt,
+        guard !state.trusted, let started = state.startedAt, !quitByPlayer(game, since: started),
               let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
         if span < failureWindow {

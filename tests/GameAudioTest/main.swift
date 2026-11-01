@@ -110,6 +110,41 @@ struct GameAudioTest {
         check(!GameAudio.plugged([denon], before: [denon], gone: &away, at: t0.addingTimeInterval(150)), "still there: nothing new")
         check(GameAudio.plugged([denon, lg], before: [denon], gone: &away, at: t0.addingTimeInterval(160)), "a second TV next to it")
 
+        // Per TV (the user's idea on 1.11.): what the player chose for it stays, whatever comes.
+        check(GameAudio.remembered(.chosen, tv: "DENON-AVR", devices: home, current: speakers, switched: .moved(from: speakers, to: denon)) == false,
+              "the speakers picked with the receiver there: this TV's sound off it")
+        check(GameAudio.remembered(.chosen, tv: "DENON-AVR", devices: home, current: denon, switched: .declined) == true,
+              "the receiver picked again later: kept too")
+        check(GameAudio.remembered(.chosen, tv: "DENON-AVR", devices: home, current: denon, switched: .moved(from: speakers, to: denon)) == nil,
+              "Nightforge's own switch says nothing")
+        check(GameAudio.remembered(.look, tv: "DENON-AVR", devices: home, current: speakers, switched: .none) == nil, "a look says nothing")
+        check(GameAudio.remembered(.chosen, tv: nil, devices: home, current: speakers, switched: .none) == nil, "no TV showing Nightforge: nothing kept")
+        check(GameAudio.remembered(.chosen, tv: "DENON-AVR", devices: alone, current: speakers, switched: .none) == nil,
+              "its output gone (unplugged): nothing kept")
+        for moment in [GameAudio.Moment.plugged, .gameStarts] {
+            (action, state) = GameAudio.decide(moment, tv: "DENON-AVR", devices: home, current: speakers, switched: .none, wantsTV: false)
+            check(action == .none && state == .none, "a known TV the player hears through the speakers: \(moment) leaves them")
+            (action, state) = GameAudio.decide(moment, tv: "DENON-AVR", devices: home, current: speakers, switched: .none, wantsTV: true)
+            check(action == .switchTo(home[1]), "one whose sound they want: \(moment) puts it there")
+        }
+        (action, state) = GameAudio.decide(.plugged, tv: "DENON-AVR", devices: home, current: speakers, switched: .none, wantsTV: nil)
+        check(action == .switchTo(home[1]), "a TV never seen: its sound, as before")
+        // Kept in their own suite here, never in Nightforge's settings (HOME doesn't move UserDefaults).
+        let suite = "nightforge.game-audio-test.\(getpid())"
+        if let defaults = UserDefaults(suiteName: suite) {
+            let key = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
+            check(TVSettings.soundOnTV(key, in: defaults) == nil, "a TV not seen before: nothing kept")
+            TVSettings.setSoundOnTV(false, for: key, in: defaults)
+            TVSettings.setSoundOnTV(true, for: "LG TV SSCR2", in: defaults)
+            check(TVSettings.soundOnTV(key, in: defaults) == false, "the speakers for it, kept")
+            check(TVSettings.soundOnTV("LG TV SSCR2", in: defaults) == true, "another TV keeps its own")
+            TVSettings.setSoundOnTV(true, for: key, in: defaults)
+            check(TVSettings.soundOnTV(key, in: defaults) == true, "changed back: kept so")
+            defaults.removePersistentDomain(forName: suite)
+        } else {
+            check(false, "a defaults suite of its own")
+        }
+
         // The overlay's line: Wine keeps the device the game opened.
         check(GameAudio.inGameHint(gameOutput: denon, current: speakers, devices: home) == "DENON-AVR",
               "the speakers picked during a game: it plays on the receiver until its next start")

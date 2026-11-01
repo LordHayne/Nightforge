@@ -362,6 +362,9 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
         vorne (Launcher, Overlay, Dialog, nicht Steam) zählt jetzt als Seite des Spiels. Ging der Vorhang einmal wieder
         hoch, sinkt er erst nach 2,5 s statt 1 s Front. Jedes erneute Hochgehen steht in `wine.log`
         („Curtain up again for … in front“), so zeigt der nächste Test, wer die Front nahm.
+      - „Spiel beenden“ im Overlay galt bei Sonic als Fehlstart. Jetzt merkt sich LaunchHealth das Beenden durch den
+        Spieler (`playerQuit`): Der Startablauf, Steams Log beim nächsten Start (`review`) und der Rückfall von der
+        Mac- auf die Windows-Version lernen daraus nichts, egal nach wie vielen Sekunden und mit welchem Exit-Code.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.
@@ -394,6 +397,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       HDMI-Ausgang, nicht der eingebaute beim Aufklappen und nicht einer, der nach unter 30 s wiederkommt.
       Wechselt die Ausgabe während eines Windows-Spiels, sagt das Overlay „Das Spiel spielt seinen Ton bis zum
       nächsten Start über …“: winecoreaudio bleibt beim Gerät, das es beim Start geöffnet hat.
+    - Befund 1.11. nachmittags: HDMI ab und wieder an, auf die Lautsprecher gestellt, Mafia II gestartet: wieder
+      DENON. Wahrscheinlicher Weg: Beim Umstellen der Bildschirme zum Spielstart verschwand der HDMI-Ton kurz, kam
+      wieder und galt als angesteckt; das löschte die Wahl. Seither zählt das nicht mehr (30 s). Dazu die Idee des
+      Nutzers: Nightforge merkt sich die Tonwahl pro TV (`TVSettings`, UserDefaults `tvSettings`, Schlüssel die
+      UUID des Bildschirms, sonst sein Name). Ein neuer TV bekommt seinen Ton; einer, bei dem der Spieler die
+      Lautsprecher gewählt hat, behält sie, auch nach Abstecken, Neustart oder Umstellung; wählt er wieder den
+      Receiver, gilt das. Was macOS in den 3 s nach einem Anstecken selbst umstellt, zählt nicht als Wahl.
+      Für das Vorhang-Flackern nach dem Wiederanstecken stehen jetzt in `wine.log` die Bildschirmwechsel unter dem
+      Vorhang und jede Umstellung des Hauptbildschirms.
 
 ## Anti-Cheat und GeForce Now
 

@@ -1,4 +1,5 @@
 import AppKit
+import ColorSync
 import CoreGraphics
 
 /// The screen games are played on: the one Nightforge's window is on. When a TV or another
@@ -82,6 +83,10 @@ enum GameDisplay {
                 let screens = Set(all.filter { !$0.builtIn }.map { String($0.id) })
                 let plugged = GameAudio.plugged(screens, before: externals, gone: &externalsGone, at: Date())
                 externals = screens
+                // For the live test: the curtain coming and going after a TV was plugged in again.
+                if GameBackdrop.isRaised {
+                    GameLog.note("Screens changed under the curtain\(connected ? ", one connected" : "")\(plugged ? ", a new TV" : "")")
+                }
                 followSound(plugged ? .plugged : nil)  // also when a TV goes, or mirroring starts or ends
                 Task { await leaveFullScreenOffTV() }
                 guard connected else { return }
@@ -272,6 +277,7 @@ enum GameDisplay {
             window.screen.flatMap { screen in id(screen).map { ($0, window.frame.origin - screen.frame.origin) } }
         }
         rearranging = true
+        GameLog.note("Main display: \(NSScreen.screens.first { id($0) == display }?.localizedName ?? String(display))")
         guard reconfigureMain(display) else {
             rearranging = false
             return false
@@ -469,10 +475,18 @@ enum GameDisplay {
     private static func followSound(_ moment: GameAudio.Moment? = nil) {
         guard let display = window?.screen.flatMap(id) else { return }
         let set = CGDisplayPrimaryDisplay(display)
-        let mirroredWith = activeDisplays().filter { $0 != display && CGDisplayPrimaryDisplay($0) == set }
-            .map { CGDisplayIsBuiltin($0) != 0 }
-        let tv = soundScreen(candidates().first { $0.id == display }, mirroredWith: mirroredWith)
-        GameAudio.follow(moment ?? (tv == nil ? .left : .look), tv: tv)
+        let others = activeDisplays().filter { $0 != display && CGDisplayPrimaryDisplay($0) == set }
+        let tv = soundScreen(candidates().first { $0.id == display }, mirroredWith: others.map { CGDisplayIsBuiltin($0) != 0 })
+        // The TV itself: the window's screen, or the external one mirroring the Mac's.
+        let tvDisplay = tv == nil ? nil : ([display] + others).first { CGDisplayIsBuiltin($0) == 0 }
+        GameAudio.follow(moment ?? (tv == nil ? .left : .look), tv: tv,
+                         tvKey: tvDisplay.flatMap(tvKey) ?? tv.flatMap { $0.isEmpty ? nil : $0 })
+    }
+
+    /// A screen's own ID, the same after unplugging and a restart (ColorSync's UUID from its EDID).
+    private static func tvKey(_ display: CGDirectDisplayID) -> String? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(display)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
     }
 }
 

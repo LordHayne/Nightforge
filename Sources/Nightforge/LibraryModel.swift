@@ -912,6 +912,7 @@ final class LibraryModel: ObservableObject {
         let folder = game.platform == .mac ? game.installDir.path : nil
         let actions = GameOverlay.Actions(
             quit: {
+                LaunchHealth.playerQuit(game.gameID)
                 await Task.detached(priority: .userInitiated) {
                     GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
                 }.value
@@ -942,6 +943,7 @@ final class LibraryModel: ObservableObject {
             }.value
             let actions = GameOverlay.Actions(
                 quit: {
+                    LaunchHealth.playerQuit(game.gameID)
                     // Looked up again: the game may have started more processes since.
                     await Task.detached(priority: .userInitiated) {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
@@ -1766,7 +1768,8 @@ final class LibraryModel: ObservableObject {
                 }.value
                 if await survivesFirstSeconds(game) {
                     MacHealth.confirm(game.appID)
-                } else if let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
+                } else if !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
+                          let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
                     return
                 }
             }
@@ -2567,6 +2570,8 @@ final class LibraryModel: ObservableObject {
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
                 }
+                // Quit Game in the overlay: the player's end, nothing learned from it.
+                if LaunchHealth.quitByPlayer(game.gameID, since: startedAt) { return }
                 // It ended within its first seconds. A confirmed way loses its confirmation only on
                 // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
                 // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
