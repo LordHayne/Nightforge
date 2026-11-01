@@ -68,7 +68,19 @@ enum GameOverlay {
         panel.orderFrontRegardless()
         panel.makeKey()
         focusDefault()
+        heard = false
+        GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front")
     }
+
+    /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
+    /// 1.11. (Black Myth: Wukong), and wine.log tells whether they reached Nightforge at all.
+    static func padHeard() {
+        guard isOpen, !heard else { return }
+        heard = true
+        GameLog.note("Overlay: the pad reaches Nightforge (\(state.step))")
+    }
+
+    private static var heard = false
 
     /// B: from the question back to the choice, from the choice back to the game.
     static func back() { handle(.back) }
@@ -473,6 +485,30 @@ enum GameProcesses {
             else { return false }
             return width >= 640 && height >= 360
         }
+    }
+
+    /// A window of the game's that waits for an answer – a driver warning, an EULA, a launcher's
+    /// question (Black Myth: Wukong's driver warning, about 380 × 330, lay under the curtain on
+    /// 1.11.): a normal window on the Space shown, smaller than a picture (`showsWindow`) but more
+    /// than a sliver. Its number, the frontmost first. Its title, which would tell it from a splash,
+    /// can't be read without Screen Recording.
+    nonisolated static func question(_ windows: [[String: Any]], pids: Set<pid_t>) -> Int? {
+        let asking = windows.first { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 == 0,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return false }
+            return width >= 200 && height >= 100 && !(width >= 640 && height >= 360)
+        }
+        return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    nonisolated static func question(_ pids: Set<pid_t>) -> Int? {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        return question(windows, pids: pids)
     }
 
     /// On the Space shown, or (`anySpace`) wherever it is: a game's window opens in its own Space

@@ -443,7 +443,10 @@ final class InputRouter {
     private func watchHold(_ pad: GCExtendedGamepad) {
         let now = ProcessInfo.processInfo.systemUptime
         if reach == .app { lastPadUse = now }
-        if Self.inUse(pad) { Self.padUse = (now, NSEvent.mouseLocation) }
+        if Self.inUse(pad) {
+            Self.padUse = (now, NSEvent.mouseLocation)
+            GameOverlay.padHeard()
+        }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
         // moves, as on a console. In a game it's the game's.
         if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)) {
@@ -526,9 +529,14 @@ final class InputRouter {
     /// both for a moment – a sheer panel over the pointer's screen, as the overlay is when Continue
     /// Playing closes it – and the game is without its keys for 50 ms. A one-point panel, one the mouse passes through (as the
     /// curtain), no keys or no wait: the pointer stayed (probe on 1.11.).
-    static func hidePointerOverGame() {
+    static func hidePointerOverGame() { pointerOverGame(hidden: true) }
+
+    /// Shown again over the game, for a question of its own that only the mouse answers.
+    static func showPointerOverGame() { pointerOverGame(hidden: false) }
+
+    private static func pointerOverGame(hidden: Bool) {
         let mouse = NSEvent.mouseLocation
-        guard padUsedLast, !GameOverlay.isOpen,
+        guard !hidden || padUsedLast, !GameOverlay.isOpen,
               let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
         else { return }
         let panel = pointerPanel ?? makePointerPanel()
@@ -538,7 +546,7 @@ final class InputRouter {
         panel.makeKey()
         Task {
             try? await Task.sleep(for: .milliseconds(50))
-            NSCursor.setHiddenUntilMouseMoves(true)
+            NSCursor.setHiddenUntilMouseMoves(hidden)
             panel.orderOut(nil)
         }
     }

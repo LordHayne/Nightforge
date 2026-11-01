@@ -814,6 +814,8 @@ final class LibraryModel: ObservableObject {
         var raisedAgain = 0
         /// The game's time in front the pointer was hidden for.
         var pointerHidden: Date?
+        /// The curtain under a question of the game's (makeWay), until it's answered or the picture comes.
+        var madeWay = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         while !Task.isCancelled {
@@ -848,18 +850,25 @@ final class LibraryModel: ObservableObject {
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
+            let (here, anywhere, question) = await Task.detached(priority: .utility) {
+                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.question(pids))
+            }.value
+            let asks = loweredAt == nil && question != nil && !here
             // The game coming to the front brought the pointer back over the curtain (1.11.):
-            // hidden again once it has had the front a moment, before the curtain goes.
-            if loweredAt == nil, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
+            // hidden again once it has had the front a moment, before the curtain goes – not while
+            // it asks something, which takes the mouse.
+            if loweredAt == nil, !asks, !madeWay, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
                 pointerHidden = since
                 InputRouter.hidePointerOverGame()
             }
-            let (here, anywhere) = await Task.detached(priority: .utility) {
-                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true))
-            }.value
-            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders)
+            // Its question answered, no picture yet: the curtain over everything again until there is one.
+            if madeWay, !asks, !here, loweredAt == nil {
+                madeWay = false
+                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+            }
+            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks)
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
-                                    windowHere: here, windowAnywhere: anywhere,
+                                    windowHere: here, windowAnywhere: anywhere, asks: asks,
                                     frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     settle: raisedAgain == 0 ? 1 : Self.settleAgain,
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
@@ -867,10 +876,20 @@ final class LibraryModel: ObservableObject {
                 break
             case .handOver:
                 _ = await handFocus(to: pids)
+            case .makeWay:
+                if GameOverlay.asksAboutStart { GameOverlay.close() }
+                if let question { GameBackdrop.makeWay(under: question) }  // again at each look: nothing gets between
+                if !madeWay {
+                    madeWay = true
+                    InputRouter.showPointerOverGame()
+                    GameLog.note("Curtain under a window of \(game.name)'s: it asks something")
+                }
+                askAt = Date().addingTimeInterval(Self.curtainPatience)  // no "Not starting?" over its question
             case .lower:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
                 loweredAt = Date()
+                madeWay = false
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
                 GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
@@ -893,34 +912,41 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool) {
+    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
-        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown),
-                               detail: launchHint)
+        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown,
+                                                  asks: asks),
+                               detail: asks ? nil : launchHint)
     }
 
-    /// The step the curtain names: the start's own (`phase`, "Starting Steam …") while it has one,
-    /// then what the game does until its window shows. Nil: "Starting …".
-    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool) -> String? {
+    /// The step the curtain names: a question of the game's on it (`asks`), else the start's own
+    /// (`phase`, "Starting Steam …") while it has one, then what the game does until its window
+    /// shows. Nil: "Starting …".
+    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool,
+                                          asks: Bool = false) -> String? {
+        if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
         guard gameRuns, !windowShown else { return nil }
         return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
     }
 
-    enum CurtainStep: Equatable { case wait, handOver, lower, raiseAgain, done }
+    enum CurtainStep: Equatable { case wait, handOver, makeWay, lower, raiseAgain, done }
 
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
     /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
     /// hands the front to the game when another app has it, and sinks once the game has been in
     /// front with its window shown for `settle` seconds. Down, for `focusGuard`: another app taking
-    /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
+    /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch. A window of
+    /// the game's that asks something (`asks`) before any picture gets the front too, over the
+    /// curtain (`makeWay`): under it the player could never answer (Black Myth: Wukong, 1.11.).
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
-                                        windowAnywhere: Bool, frontFor: TimeInterval, settle: TimeInterval = 1,
-                                        guardOver: Bool) -> CurtainStep {
+                                        windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
+                                        settle: TimeInterval = 1, guardOver: Bool) -> CurtainStep {
         if lowered {
             if guardOver || nightforgeFront { return .done }
             return gameFront ? .wait : .raiseAgain
         }
+        if asks, !windowHere { return gameFront ? .makeWay : .handOver }
         guard windowHere || windowAnywhere else { return .wait }
         guard gameFront else { return .handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's

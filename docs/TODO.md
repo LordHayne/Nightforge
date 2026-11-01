@@ -522,6 +522,20 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       der App vorne bringt ihn zurück. Jetzt `InputRouter.hidePointerSoon` (300 ms danach, über Nightforge direkt,
       über einer anderen App mit dem Panel): nach `handFocus` und `bringToFront` ohne Vorhang, bei jeder App,
       die unter dem Rückweg-Vorhang nach vorne kommt, wenn der Vorhang geht, und nach „Zurück zu Nightforge“.
+      Live-Test Wukong-Benchmark (1.11. 21:42–22:05, D3DMetal): 1) Unreals Treiber-Warnung (eigenes Fenster des
+      Spiels, ~380×330, Ja/Nein) lag unter dem Vorhang. Sie zählte nicht als Fenster des Spiels (ab 640×360), also
+      bekam das Spiel nie die Front. Jetzt `GameProcesses.question`: ein normales Fenster des Spiels auf dem
+      gezeigten Space, ab 200×100 und kleiner als ein Bild. Das Spiel bekommt die Front, der Vorhang geht
+      direkt darunter (`GameBackdrop.makeWay`, normale Fensterebene, fängt Klicks daneben ab), der Zeiger kommt
+      zurück, die Statuszeile sagt „Das Spiel fragt etwas – antworte mit Maus oder Trackpad.“, keine
+      „startet nicht?“-Frage darüber. Beantwortet und noch kein Bild: Vorhang wieder über alles. Probe (Stand-ins):
+      Frage gefunden, auf dem Vorhang sichtbar, Spiel vorne, Zeiger da; danach deckt der Vorhang wieder alles.
+      Den Titel kann Nightforge ohne Bildschirmaufnahme nicht lesen, ein Splash ohne Titel gilt also auch als
+      Frage (dann steht er auf dem Vorhang, mit Zeiger). Solange die Frage steht, sind Menüleiste und Dock des
+      Spiels über dem Vorhang zu sehen. 2) „startet nicht?“ nahm keine Pad-Tasten: Im Code kennt InputRouter die
+      Frage (`reach` = .overlay, A geht an das Panel, Steuerkreuz an PadFocus darin), D3DMetal und winecx binden
+      GameController nicht ein. Ursache offen; `wine.log` sagt jetzt, wer beim Öffnen des Overlays vorne ist und
+      ob das Pad Nightforge danach erreicht („Overlay: the pad reaches Nightforge“).
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die

@@ -670,6 +670,7 @@ enum L10n {
             "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
         "Keep Waiting": "Weiter warten",
         "Waiting for the first picture …": "Warte auf das erste Bild …",
+        "The game is asking something – answer it with the mouse or trackpad.": "Das Spiel fragt etwas – antworte mit Maus oder Trackpad.",
         "Preparing shaders for the first start …": "Shader werden beim ersten Start vorbereitet …",
         "Full Screen": "Vollbild",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",

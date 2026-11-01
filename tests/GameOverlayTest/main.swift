@@ -116,9 +116,9 @@ struct GameOverlayTest {
 
     /// What the curtain waits for: a window of a game's size from one of the game's processes.
     static func windows() {
-        func window(_ pid: Int32, _ width: Double, _ height: Double, layer: Int = 0, alpha: Double = 1) -> [String: Any] {
+        func window(_ pid: Int32, _ width: Double, _ height: Double, layer: Int = 0, alpha: Double = 1, number: Int = 1) -> [String: Any] {
             [kCGWindowOwnerPID as String: NSNumber(value: pid), kCGWindowLayer as String: NSNumber(value: layer),
-             kCGWindowAlpha as String: NSNumber(value: alpha),
+             kCGWindowAlpha as String: NSNumber(value: alpha), kCGWindowNumber as String: NSNumber(value: number),
              kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": width, "Height": height] as [String: Any]]
         }
         let game: Set<pid_t> = [7000, 7010]
@@ -129,16 +129,28 @@ struct GameOverlayTest {
         check(!GameProcesses.showsWindow([window(7000, 1920, 1080, alpha: 0)], pids: game), "an invisible window doesn't count")
         check(!GameProcesses.showsWindow([], pids: game), "nothing on screen yet")
         check(!GameProcesses.showsWindow([window(7000, 1920, 1080)], pids: []), "no processes, no window")
+
+        // A window that asks something: Black Myth: Wukong's driver warning lay under the curtain (1.11.).
+        check(GameProcesses.question([window(7000, 380, 330, number: 88)], pids: game) == 88, "the driver warning: its window")
+        check(GameProcesses.question([window(7010, 800, 300, number: 89)], pids: game) == 89, "a wide, low launcher question")
+        check(GameProcesses.question([window(7000, 1920, 1080)], pids: game) == nil, "a picture asks nothing")
+        check(GameProcesses.question([window(7000, 120, 60)], pids: game) == nil, "a sliver (a hidden helper window) doesn't")
+        check(GameProcesses.question([window(7000, 380, 330, layer: 3)], pids: game) == nil, "a floating tooltip or menu doesn't")
+        check(GameProcesses.question([window(7000, 380, 330, alpha: 0)], pids: game) == nil, "an invisible one doesn't")
+        check(GameProcesses.question([window(401, 380, 330)], pids: game) == nil, "Nightforge's or Steam's own doesn't")
+        check(GameProcesses.question([window(7000, 380, 330, number: 90), window(7000, 500, 200, number: 91)], pids: game) == 90,
+              "two: the frontmost")
     }
 
     /// The curtain at each look: down only once the game itself is in front, and up again when
     /// another app takes the front from it (the TV test on 1.11.: the Claude app came up instead).
     static func curtain() {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, here: Bool = false,
-                  anywhere: Bool = false, frontFor: TimeInterval = 0, settle: TimeInterval = 1,
+                  anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0, settle: TimeInterval = 1,
                   guardOver: Bool = false) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, windowHere: here,
-                                     windowAnywhere: anywhere || here, frontFor: frontFor, settle: settle, guardOver: guardOver)
+                                     windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor, settle: settle,
+                                     guardOver: guardOver)
         }
         check(step() == .wait, "no window yet: the curtain waits")
         check(step(here: true) == .handOver, "its window is there, another app in front: the game gets the front")
@@ -158,6 +170,13 @@ struct GameOverlayTest {
         check(step(gameFront: true, here: true, frontFor: again, settle: again) == .lower, "the game kept the front a while: it sinks")
         // Its window elsewhere, however long: sinking showed Nightforge's page under the game (1.11.).
         check(step(gameFront: true, anywhere: true, frontFor: 30) == .wait, "its window in another Space: the curtain stays")
+        // A question of the game's before any picture: the game gets the front, its window goes over the curtain.
+        check(step(asks: true) == .handOver, "a question, another app in front: the game gets the front")
+        check(step(nightforgeFront: true, asks: true) == .handOver, "Nightforge in front: handed over too")
+        check(step(gameFront: true, asks: true) == .makeWay, "the game in front with its question: over the curtain")
+        check(step(gameFront: true, anywhere: true, asks: true) == .makeWay, "a picture elsewhere doesn't keep it under")
+        check(step(gameFront: true, here: true, asks: true, frontFor: 1) == .lower, "the picture is there: the curtain sinks as ever")
+        check(step(lowered: true, gameFront: true, asks: true) == .wait, "down already: nothing more")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes
@@ -181,6 +200,8 @@ struct GameOverlayTest {
         check(line(runs: true) == L10n.t("Waiting for the first picture …"), "the game runs, no window yet")
         check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
         check(line(shaders: true, runs: true, window: true) == nil, "its window is there: nothing more to say")
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true)
+              == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
     }
 
     /// The loading screen's N: drawn at the screen's scale, its seam left out for the layer on top.

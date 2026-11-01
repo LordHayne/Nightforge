@@ -91,6 +91,17 @@ enum GameBackdrop {
         }
     }
 
+    /// A window of the game's asks something (GameProcesses.question): the curtain stays, right
+    /// under it – the game has the front – and over everything else, so the question shows on the
+    /// curtain as on a console. A click beside it lands on the curtain, not on Nightforge's page,
+    /// which would come to the front over the question. Back over everything with `raise`.
+    static func makeWay(under question: Int) {
+        guard let window, isRaised else { return }
+        window.level = .normal
+        window.ignoresMouseEvents = false
+        window.order(.below, relativeTo: question)
+    }
+
     /// The game's processes are gone, or the player quit it (`held`): the curtain at once,
     /// "Back to Nightforge …".
     static func returning(held: Bool = false) {
@@ -217,6 +228,7 @@ enum GameBackdrop {
     /// next: without, it slid out with the Space it was in and Nightforge's page slid in (the
     /// monitor test on 1.11.). Behind, above the desktop's icons only.
     private static func arrange(_ window: NSWindow) {
+        window.ignoresMouseEvents = true  // taken under a question (makeWay)
         if state.stage.raised {
             window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
