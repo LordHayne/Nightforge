@@ -90,7 +90,58 @@ struct PadFocusTest {
         check(grid.index(from: 11, steps: 1) == 3, "→ from the last owned game reaches the store hit")
         check(grid.index(from: 3, steps: 1) == 3, "→ stops at the end")
 
+        scrolling()
+
         print(failures == 0 ? "✓ PadFocus" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
+
+    /// The pad on a long page (a game's): a page step down and up, never past either end, the
+    /// highlighted control brought into view with room around it, and the right stick's speed.
+    @MainActor
+    static func scrolling() {
+        for flipped in [true, false] {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
+            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 600, height: 600))
+            let document = flipped ? FlippedView(frame: NSRect(x: 0, y: 0, width: 600, height: 2_000)) : NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 2_000))
+            scroll.documentView = document
+            window.contentView = scroll
+            let page = PageScroll(scroll)!
+            let name = flipped ? "flipped" : "not flipped"
+            // How far down the page shows, 0 at the top.
+            func down() -> CGFloat { flipped ? scroll.contentView.bounds.origin.y : 1_400 - scroll.contentView.bounds.origin.y }
+            page.move(by: -10_000, animated: false)
+            check(abs(down()) < 1 && page.canScroll && page.visibleHeight == 600, "\(name): at the top, more below")
+            check(page.move(by: 270, animated: false) && abs(down() - 270) < 1, "\(name): down by 270: \(down())")
+            check(PadFocus.shared.scroll(by: 130, in: window) && abs(down() - 400) < 1, "\(name): the stick scrolls the page: \(down())")
+            page.move(by: 10_000, animated: false)
+            check(abs(down() - 1_400) < 1, "\(name): never past the end: \(down())")
+            check(!page.move(by: 50, animated: false) && !PadFocus.shared.page(down: true, in: window), "\(name): at the end, nothing more")
+            page.move(by: -10_000, animated: false)
+            check(!page.move(by: -50, animated: false), "\(name): at the top, nothing above")
+
+            // A control 1 500 points down shows with 48 points below it; one at 100 with 96 above
+            // (the game bar's room).
+            let control = NSView(frame: flipped ? NSRect(x: 20, y: 1_500, width: 100, height: 40)
+                                               : NSRect(x: 20, y: 2_000 - 1_540, width: 100, height: 40))
+            document.addSubview(control)
+            page.show(control.convert(control.bounds, to: scroll.contentView), top: 96, bottom: 48)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.5))  // smoothly, then there
+            check(abs(down() - (1_540 + 48 - 600)) < 1, "\(name): the control below shows with room under it: \(down())")
+            let high = NSView(frame: flipped ? NSRect(x: 20, y: 100, width: 100, height: 40) : NSRect(x: 20, y: 2_000 - 140, width: 100, height: 40))
+            document.addSubview(high)
+            page.show(high.convert(high.bounds, to: scroll.contentView), top: 96, bottom: 48)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+            check(abs(down() - 4) < 1, "\(name): the one above shows with the game bar's room over it: \(down())")
+            page.show(high.convert(high.bounds, to: scroll.contentView), top: 96, bottom: 48)
+            check(abs(down() - 4) < 1, "\(name): already in sight: nothing moves")
+        }
+        check(InputRouter.stickSpeed(0.1) == 0 && InputRouter.stickSpeed(-0.1) == 0, "the stick's middle doesn't scroll")
+        check(InputRouter.stickSpeed(1) == -1_600 && InputRouter.stickSpeed(-1) == 1_600, "pushed all the way: 1 600 points a second, up and down")
+        check(abs(InputRouter.stickSpeed(-0.59)) < 400 && InputRouter.stickSpeed(-0.59) > 0, "half way: much slower, for reading")
+    }
+}
+
+final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
