@@ -804,12 +804,15 @@ struct PadSymbols: Equatable {
     var overlayChord = ["l.joystick.press.down.fill", "r.joystick.press.down.fill"]
     /// L1 and R1 as the controller prints them, for the chips beside Home | Library.
     var shoulders = ["LB", "RB"]
+    /// Whose names the other buttons go by (PadGuideRow, LaunchTip).
+    var layout = PadLayout.xbox
 
     init() {}
 
     /// Always one maker's labels, whatever controller is in use.
     init(style: Style) {
         guard style == .playstation else { return }
+        layout = .playstation
         shoulders = ["L1", "R1"]
         confirm = "xmark.circle.fill"
         back = "circle.circle.fill"
@@ -827,7 +830,8 @@ struct PadSymbols: Equatable {
         menu = Self.menuSymbol(pad.buttonMenu.sfSymbolsName)
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
         scroll = Self.filled(pad.rightThumbstick.sfSymbolsName) ?? scroll
-        if PadLayout(pad) == .playstation { shoulders = ["L1", "R1"] }
+        layout = PadLayout(pad)
+        if layout == .playstation { shoulders = ["L1", "R1"] }
         if let left = pad.leftThumbstickButton, let right = pad.rightThumbstickButton {
             overlayChord = [Self.filled(left.sfSymbolsName) ?? overlayChord[0], Self.filled(right.sfSymbolsName) ?? overlayChord[1]]
         } else {
