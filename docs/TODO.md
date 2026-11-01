@@ -172,6 +172,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
 
 ## Controller
 
+- **Die meistgenutzten Controller durchgehen** (Nutzer, 1.11.). In Nightforge ist bisher nur der DualSense live
+  bestätigt. Prüfen:
+  - Welche Controller verbreitet sind: Xbox Series/One, DualShock 4, DualSense Edge, Switch Pro und Joy-Cons, 8BitDo,
+    Steam Controller, günstige XInput-/DirectInput-Pads, MFi.
+  - Was macOS' GameController je Modell meldet: Tastennamen, Symbole (beim DualSense ist ☰ nur `capsule.portrait`),
+    Akku, Licht, Vibration, Gyro.
+  - Wie sie in Windows-Spielen unter Wine ankommen (winebus/SDL, Xbox-IDs).
+  - Was Nightforge daraus braucht: Hinweis-Symbole je Stil, Belegung (Nintendo hat A und B vertauscht), Tests.
+  - Am besten zuerst als Recherche, dann mit den Geräten, die der Nutzer oder Bekannte haben.
 - **DualSense in Windows-Spielen auf winecx:** OxyRail funktioniert seit dem Xbox-360-ID-Patch (PR #8).
   Noch offen: Hotplug auf winecx (auf 11.18 geprüft: SDL nimmt den Pad nach Aus/An wieder auf) und weitere
   Spiele (reine XInput-Spiele, Unreal, DirectInput-Spiele).
