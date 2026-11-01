@@ -56,6 +56,15 @@ wenn sie einer Version zugeordnet sind.
 - [ ] Speicherverwaltung unter Einstellungen › Speicher: neue Laufwerke erkennen und vorbereiten, angesteckte
       Laufwerke oben.
 - [ ] Wine 7.7 abschalten, wenn alles auf winecx läuft (`docs/recherche/engines.md`).
+- [ ] **Konsolenmodus** (Idee des Nutzers, 1.11.): ein Mac mini am Schreibtisch-Monitor oder am TV als Konsole, wie Steams
+      Big Picture. Ein Schalter in den Einstellungen:
+      - Nightforge startet beim Anmelden (Anmeldeobjekt über `SMAppService.mainApp`, die App selbst, kein Dienst).
+      - Es öffnet im Vollbild, ohne Dock und Menüleiste.
+      - Nach jedem Spiel kommt es zurück.
+      - Der Controller weckt den Mac.
+
+      Dazu die Bildschirm-Ablage pro Gerät aus dem TV-Zweig (`TVSettings`): Vollbild und Ton pro Bildschirm gemerkt. Ein
+      Monitor startet beim ersten Mal im Fenster, weil man dort vielleicht nur kurz etwas testet.
 
 ### 0.5: „Mehr Stores“
 - [ ] Battle.net: die offizielle App bleibt, Nightforge liest `product.db` und startet über `--exec`. Zuerst die
