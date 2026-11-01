@@ -43,7 +43,8 @@ struct SettingsView: View {
                 switch tab {
                 case .stores: StoresSettings()
                 case .general: GeneralSettings()
-                case .controller: ControllerSettings()
+                case .controller: ScrollView { ControllerSettings() }
+                        .frame(idealHeight: 480)  // every button's row scrolls
                 case .storage: StorageSettings()
                         .frame(idealHeight: 480)  // the list of games scrolls
                 case .about: AboutSettings()
@@ -366,6 +367,32 @@ private struct GeneralSettings: View {
 
 // MARK: - Controller
 
+/// A button in Settings › Controller › Every button: its symbol (two with "+" for a chord), or its
+/// printed name on a small cap.
+private struct PadGuideGlyph: View {
+    let glyph: PadGuideRow.Glyph
+
+    var body: some View {
+        switch glyph {
+        case .symbols(let names, let chord):
+            HStack(spacing: 3) {
+                ForEach(Array(names.enumerated()), id: \.offset) { index, name in
+                    if chord, index > 0 { Text("+").font(size: 12, weight: .semibold) }
+                    PadGlyph(name, size: 17)
+                }
+            }
+            .foregroundStyle(Theme.ink.opacity(0.88))
+        case .label(let name):
+            Text(name)
+                .font(size: 10.5, weight: .bold)
+                .foregroundStyle(Theme.ink.opacity(0.88))
+                .padding(.horizontal, 7)
+                .frame(height: 20)
+                .background(Color.white.opacity(0.12), in: Capsule())
+        }
+    }
+}
+
 private struct ControllerSettings: View {
     @EnvironmentObject private var model: LibraryModel
     @AppStorage(Prefs.Keys.padGlyphs) private var padGlyphs = PadSymbols.Style.automatic.rawValue
@@ -421,6 +448,28 @@ private struct ControllerSettings: View {
                     .font(size: 12)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Every button, to look up any time. Each row takes the pad's highlight, so ↓ walks the
+            // list and it scrolls along.
+            SectionTitle(L10n.t("Every button"))
+                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 0) {
+                let present = GCController.current?.extendedGamepad.map { PadPart.present(on: $0) }
+                ForEach(PadGuideRow.all(model.padSymbols, present: present), id: \.id) { row in
+                    HStack(spacing: 12) {
+                        PadGuideGlyph(glyph: row.glyph)
+                            .frame(width: 84, alignment: .leading)
+                        Text(row.meaning)
+                            .font(size: 12)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .padFocus("settings.button.\(row.id)", cornerRadius: 10, activate: {})
+                }
             }
         }
         .padding(.horizontal, 20)
