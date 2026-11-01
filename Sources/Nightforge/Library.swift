@@ -92,6 +92,8 @@ struct Game: Identifiable, Hashable {
     /// Store hits only: price as shown in the store, and the Metacritic score.
     var storePrice: String?
     var metascore: Int?
+    /// … and it costs nothing: Steam adds its licence when asked to install it, as for a demo.
+    var storeFree = false
     /// A demo, standing in for the game it's the demo of (that game's app ID): the account doesn't own it.
     var demoOf: Int?
     /// … and Steam still has to add the demo's free licence to the account, which takes one click in Steam.

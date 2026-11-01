@@ -1,0 +1,18 @@
+{
+ "total": 1,
+ "items": [
+  {
+   "type": "app",
+   "name": "Black Myth: Wukong Benchmark Tool",
+   "id": 3132990,
+   "tiny_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3132990/221eee125e878ef3c25f5a2dfff1e866c0e8d9a6/capsule_231x87.jpg?t=1723513926",
+   "metascore": "",
+   "platforms": {
+    "windows": true,
+    "mac": false,
+    "linux": false
+   },
+   "streamingvideo": false
+  }
+ ]
+}
