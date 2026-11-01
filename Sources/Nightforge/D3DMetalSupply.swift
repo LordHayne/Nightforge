@@ -52,9 +52,20 @@ enum D3DMetalSupply {
         }
     }
 
-    /// Apple's licence for the toolkit as plain text (a copy of the License.rtf that comes with it,
-    /// the same file in every version since 2023). The toolkit's own page needs an Apple Account.
-    static let licenseTextURL = URL(string: "https://raw.githubusercontent.com/gauthierpiarrette/highball/HEAD/spike/d3dmetal-license.txt")!
+    /// Apple's licence for the toolkit, the License.rtf that comes with it (the same file in every version
+    /// since 2023), ships inside the app so that nobody else decides which text the player accepts.
+    /// Resources/Apple-GPTK-License.rtf is byte for byte the one in Apple's toolkit 3.0:
+    static let licenseSHA256 = "5abb2d059be217663b00e8fd37e14411d374e11d17e3b744eebd49b8d17118c8"
+    static let licenseFileName = "Apple-GPTK-License"
+
+    /// The licence file to show, if it is the one it should be (a copy that doesn't match isn't shown as Apple's).
+    static func licenseDocument(at file: URL? = Bundle.main.url(forResource: licenseFileName, withExtension: "rtf")) -> URL? {
+        guard let file, (try? ComponentStore.sha256(of: file)) == licenseSHA256 else { return nil }
+        return file
+    }
+
+    /// Apple's page on the toolkit, where the licence can be read too (the download itself needs an Apple Account).
+    static let toolkitPageURL = URL(string: "https://developer.apple.com/games/game-porting-toolkit/")!
     /// Where Apple hands out the toolkit (a free Apple Account is enough).
     static let appleDownloadURL = URL(string: "https://developer.apple.com/download/all/?q=game%20porting%20toolkit")!
 

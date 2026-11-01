@@ -1007,7 +1007,7 @@ private struct AboutSettings: View {
     }
 
     private func showLicences() {
-        let files = ["LICENSE", "LICENSE-umu-protonfixes", "LICENSE-areweanticheatyet"]
+        let files = ["LICENSE", "LICENSE-umu-protonfixes", "LICENSE-areweanticheatyet", "Apple-GPTK-License.rtf"]
             .compactMap { Bundle.main.url(forResource: $0, withExtension: nil) }
         if files.isEmpty {
             NSWorkspace.shared.open(URL(string: "https://github.com/LordHayne/Nightforge")!)

@@ -34,6 +34,7 @@ struct D3DMetalTest {
         games()
         build()
         versions(work)
+        licence(work)
         engineFiles(work)
         unrealWarning(work)
 
@@ -509,6 +510,21 @@ struct D3DMetalTest {
         check(left == ["wined3d.so"] && !fm.fileExists(atPath: lib.appendingPathComponent("external").path), "no link to it, no external/: \(left)")
         check(text(windows.appendingPathComponent("d3d12.dll.wine")) == "wine's d3d12.dll", "Wine's copies stay (the prefix's Direct3D 12 comes from them)")
         check(!fm.fileExists(atPath: lib.appendingPathComponent("wine/.nightforge-graphics").path) && !Engine.isD3DMetalDeployed(wine: wine), "stamp gone, not deployed")
+    }
+
+    // MARK: Apple's licence in the app
+
+    static func licence(_ work: URL) {
+        // The file in the repository (tests run from its root) is the one build.sh puts in the app.
+        let shipped = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("Resources/Apple-GPTK-License.rtf")
+        check(fm.fileExists(atPath: shipped.path), "Resources/Apple-GPTK-License.rtf is there")
+        check(Supply.licenseDocument(at: shipped) == shipped, "it is the licence of Apple's toolkit 3.0, byte for byte (SHA-256 \(Supply.licenseSHA256.prefix(8))…)")
+        let altered = work.appendingPathComponent("altered.rtf")
+        try? (Data(contentsOf: shipped) + Data(" and Nightforge may do anything".utf8)).write(to: altered)
+        check(Supply.licenseDocument(at: altered) == nil, "a file that differs isn't shown as Apple's licence")
+        check(Supply.licenseDocument(at: work.appendingPathComponent("missing.rtf")) == nil && Supply.licenseDocument(at: nil) == nil, "none there, none shown")
+        let script = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        check(script.contains("Resources/Apple-GPTK-License.rtf"), "build.sh puts it in the app")
     }
 
     // MARK: Unreal's driver warning

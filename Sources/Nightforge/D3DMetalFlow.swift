@@ -351,7 +351,9 @@ struct D3DMetalSheet: View {
                 } icon: {
                     Image(systemName: "doc.text").foregroundStyle(Theme.muted)
                 }
-                button(L10n.t("Read Apple's Licence"), id: "licence", small: true) { NSWorkspace.shared.open(D3DMetalSupply.licenseTextURL) }
+                button(L10n.t("Read Apple's Licence"), id: "licence", small: true) {
+                    NSWorkspace.shared.open(D3DMetalSupply.licenseDocument() ?? D3DMetalSupply.toolkitPageURL)
+                }
             }
         }
         if !dialog.downloadable {
