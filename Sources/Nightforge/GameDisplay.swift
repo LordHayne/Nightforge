@@ -49,6 +49,8 @@ enum GameDisplay {
     private static var known: Set<CGDirectDisplayID> = []
     private static var lastScreen: CGDirectDisplayID?
     private static var placing = false
+    /// The screens are being rearranged (makeMain): the window's moves meanwhile say nothing.
+    private static var rearranging = false
     /// Nightforge put the window in full screen for a TV (so it leaves it when the TV goes).
     private static var madeFullScreen = false
 
@@ -96,8 +98,8 @@ enum GameDisplay {
             followSound()
         }
         // Away from the screen a game made main: the main display goes back now (leaveGame).
-        if !running, !placing, !onMain { restoreLeftover() }
-        guard !placing, let before = lastScreen, before != now,
+        if !running, !placing, !rearranging, !onMain { restoreLeftover() }
+        guard !placing, !rearranging, let before = lastScreen, before != now,
               NSScreen.screens.contains(where: { id($0) == before }),
               let picked = pick(candidates())
         else { return }
@@ -158,6 +160,9 @@ enum GameDisplay {
             try? await Task.sleep(for: .milliseconds(300))  // let the move land first
         }
         if plan.fullScreen, !window.styleMask.contains(.fullScreen) {
+            // The TV becomes the main display first, where games open: changed later, under the
+            // full-screen window, the screens shift and macOS takes the window to the Mac's screen.
+            if becomeMain(picked.id) { try? await Task.sleep(for: .milliseconds(500)) }
             window.toggleFullScreen(nil)
             madeFullScreen = true
         }
@@ -182,16 +187,31 @@ enum GameDisplay {
 
     private static var running = false
 
-    /// Before a game starts: the game screen becomes the main display.
+    /// Before a game starts: the game screen becomes the main display (on a TV it is already).
     static func enterGame() {
         running = true
         followSound()  // before the game: Wine takes the output when it starts
         guard let game = screen.flatMap(id) else { return }
+        becomeMain(game)
+    }
+
+    /// The screen games open on: the main display (a mirror set's master), which `enterGame` made
+    /// the one Nightforge's window is on. Nightforge's pages around a game go there.
+    static var gameScreen: NSScreen? {
+        let main = CGDisplayPrimaryDisplay(CGMainDisplayID())
+        return NSScreen.screens.first { id($0) == main } ?? screen
+    }
+
+    /// Makes `display` the main one, remembering the one before for later. True when it's main now.
+    @discardableResult
+    private static func becomeMain(_ display: CGDirectDisplayID) -> Bool {
         let main = CGMainDisplayID()
-        guard let wanted = newMain(for: game, main: main, primary: CGDisplayPrimaryDisplay), makeMain(wanted) else { return }
+        guard let wanted = newMain(for: display, main: main, primary: CGDisplayPrimaryDisplay) else { return true }
+        guard makeMain(wanted) else { return false }
         if UserDefaults.standard.object(forKey: Keys.restoreMain) == nil {
             UserDefaults.standard.set(Int(main), forKey: Keys.restoreMain)
         }
+        return true
     }
 
     /// After the game. Its screen stays the main one for as long as Nightforge's window is there:
@@ -233,8 +253,49 @@ enum GameDisplay {
     }
 
     /// The main display is the one at the origin: shift every screen so `display` lands there.
-    /// For this login session only, so a restart puts things back anyway.
+    /// For this login session only, so a restart puts things back anyway. Windows keep their place
+    /// in the shared coordinates, so Nightforge's would land on another screen: it's put back on
+    /// its own (`keepWindow`).
     private static func makeMain(_ display: CGDirectDisplayID) -> Bool {
+        let kept = window.flatMap { window in
+            window.screen.flatMap { screen in id(screen).map { ($0, window.frame.origin - screen.frame.origin) } }
+        }
+        rearranging = true
+        guard reconfigureMain(display) else {
+            rearranging = false
+            return false
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))  // AppKit's screens follow a moment later
+            if let kept { await keepWindow(on: kept.0, at: kept.1) }
+            rearranging = false
+        }
+        return true
+    }
+
+    /// Puts Nightforge's window back on `display`, at `offset` from its corner. A full-screen
+    /// window can't simply move: out of full screen, over, back in.
+    private static func keepWindow(on display: CGDirectDisplayID, at offset: CGPoint) async {
+        guard let window, let screen = NSScreen.screens.first(where: { id($0) == display }),
+              window.screen.flatMap(id) != display || !window.styleMask.contains(.fullScreen)
+        else { return }
+        guard window.styleMask.contains(.fullScreen) else {
+            window.setFrameOrigin(screen.frame.origin + offset)
+            return
+        }
+        window.toggleFullScreen(nil)
+        for _ in 0..<30 where window.styleMask.contains(.fullScreen) { try? await Task.sleep(for: .milliseconds(100)) }
+        let area = screen.visibleFrame
+        var frame = window.frame
+        frame.size.width = min(frame.width, area.width)
+        frame.size.height = min(frame.height, area.height)
+        frame.origin = CGPoint(x: area.midX - frame.width / 2, y: area.midY - frame.height / 2)
+        window.setFrame(frame, display: true)
+        try? await Task.sleep(for: .milliseconds(300))
+        window.toggleFullScreen(nil)
+    }
+
+    private static func reconfigureMain(_ display: CGDirectDisplayID) -> Bool {
         let shift = CGDisplayBounds(display).origin
         let displays = activeDisplays()
         guard !displays.isEmpty else { return false }
@@ -411,4 +472,9 @@ extension GameDisplay.Candidate {
                                       "AVR", "DENON", "MARANTZ", "ONKYO"]
         return words.contains { brands.contains($0) }
     }
+}
+
+private extension CGPoint {
+    static func + (a: CGPoint, b: CGPoint) -> CGPoint { CGPoint(x: a.x + b.x, y: a.y + b.y) }
+    static func - (a: CGPoint, b: CGPoint) -> CGPoint { CGPoint(x: a.x - b.x, y: a.y - b.y) }
 }

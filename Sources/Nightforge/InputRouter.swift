@@ -22,6 +22,9 @@ final class InputRouter {
     private var stickStep = Step()
     private var overlayHold = OverlayHold()
     private var holdTimer: Timer?
+    /// A button was down at the last look (for waking Nightforge on a fresh press).
+    private var anyDown = false
+    private var lastWake: TimeInterval = 0
 
     func start(model: LibraryModel) {
         self.model = model
@@ -426,6 +429,7 @@ final class InputRouter {
 
     private func watchHold(_ pad: GCExtendedGamepad) {
         let now = ProcessInfo.processInfo.systemUptime
+        wakeIfIdle(pad, now: now)
         let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
                                         menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
         if overlayHold.update(pressed: pressed, now: now) {
@@ -458,6 +462,33 @@ final class InputRouter {
         guard inFront, !dialog, !firstStart, shoulder == .l1 || shoulder == .r1 else { return nil }
         let target: Route.Level = shoulder == .l1 ? .home : .library
         return route == (target == .home ? .home : .library) ? nil : target
+    }
+
+    /// No game, another app in front: a fresh press brings Nightforge, as Big Picture does from the
+    /// sofa. Not while a game runs, nor over another app that's a game – the pad is the game's.
+    private func wakeIfIdle(_ pad: GCExtendedGamepad, now: TimeInterval) {
+        let down = [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY, pad.buttonMenu].contains { $0.isPressed }
+            || abs(pad.dpad.xAxis.value) > 0.5 || abs(pad.dpad.yAxis.value) > 0.5
+        defer { anyDown = down }
+        guard down, !anyDown, now - lastWake > 2, let model,
+              Self.wakes(inFront: NSApp.isActive, overlayOpen: GameOverlay.isOpen, gameOn: model.gameOnScreen,
+                         frontIsGame: Self.frontAppIsGame())
+        else { return }
+        lastWake = now
+        model.comeForward()
+        NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+    }
+
+    nonisolated static func wakes(inFront: Bool, overlayOpen: Bool, gameOn: Bool, frontIsGame: Bool) -> Bool {
+        !inFront && !overlayOpen && !gameOn && !frontIsGame
+    }
+
+    /// The app in front says it's a game (LSApplicationCategoryType), Wine's "Nightforge Game" too.
+    private static func frontAppIsGame() -> Bool {
+        guard let url = NSWorkspace.shared.frontmostApplication?.bundleURL,
+              let category = Bundle(url: url)?.infoDictionary?["LSApplicationCategoryType"] as? String
+        else { return false }
+        return category.contains("games")
     }
 
     private func openOverlay() {

@@ -74,7 +74,7 @@ enum GameBackdrop {
     /// The game's processes are gone: the curtain at once, "Back to Nightforge …".
     static func returning() {
         guard !state.game.isEmpty else { return }
-        put(state.game, on: GameDisplay.screen, stage: .returning, gameOn: gameOn)
+        put(state.game, on: GameDisplay.gameScreen, stage: .returning, gameOn: gameOn)
     }
 
     /// They came back (a launcher handed over to the game): the game runs on.
@@ -114,12 +114,19 @@ enum GameBackdrop {
                                                           object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { if !GameBackdrop.gameOn(), !GameBackdrop.isRaised { hide() } }
         }
-        let window = self.window ?? make()
+        let window = self.window ?? make(screen.frame)
         self.window = window
-        window.alphaValue = 1
-        window.setFrame(screen.frame, display: false)
+        let appearing = !window.isVisible
+        window.setFrame(screen.frame, display: true)
+        window.alphaValue = appearing ? 0 : 1
         arrange(window)
-        window.orderFrontRegardless()
+        // Faded in where it wasn't up; from behind the game it's there at once, as it covers its end.
+        if appearing {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                window.animator().alphaValue = 1
+            }
+        }
     }
 
     /// The curtain above the other windows and over full-screen Spaces too; behind, above the
@@ -135,8 +142,8 @@ enum GameBackdrop {
         window.orderFrontRegardless()
     }
 
-    private static func make() -> NSWindow {
-        let window = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+    private static func make(_ frame: CGRect) -> NSWindow {
+        let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.ignoresMouseEvents = true
         window.hasShadow = false
@@ -144,7 +151,9 @@ enum GameBackdrop {
         window.backgroundColor = NSColor(Theme.night)
         window.isExcludedFromWindowsMenu = true
         window.animationBehavior = .none
-        window.contentView = NSHostingView(rootView: BackdropView(state: state).modifier(AccessibilityFromSettings()))
+        let host = NSHostingView(rootView: BackdropView(state: state).modifier(AccessibilityFromSettings()))
+        host.sizingOptions = []  // the screen's size, not the content's
+        window.contentView = host
         return window
     }
 }
@@ -156,9 +165,10 @@ private struct BackdropView: View {
         ZStack {
             Theme.night
             if let art = state.art {
-                Image(nsImage: art)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                // Filling the whole screen whatever the picture's shape.
+                Color.clear
+                    .overlay { Image(nsImage: art).resizable().scaledToFill() }
+                    .clipped()
                     .opacity(0.16)
             }
             // The app's night, a little lighter round the mark like under its lamp.
@@ -201,11 +211,14 @@ private struct PulsingMark: View {
     @State private var bright = false
 
     var body: some View {
-        NightforgeMark(seamWidth: 4, seamGlow: 14, seamOpacity: reduceMotion || bright ? 1 : 0.4)
+        // Only the seam's light is animated – not the page, which would move with it.
+        NightforgeMark(seamWidth: 4, seamGlow: 14, seamOpacity: reduceMotion || bright ? 1 : 0.4,
+                       seamAnimation: reduceMotion ? nil : .easeInOut(duration: 1.8).repeatForever(autoreverses: true))
             .frame(height: 150)
-            .onAppear {
+            .task {
                 guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) { bright = true }
+                try? await Task.sleep(for: .milliseconds(300))  // once the page has its size
+                bright = true
             }
     }
 }

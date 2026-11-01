@@ -163,6 +163,11 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
   in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
   Mac-Spielen damit noch aufgeht.
+- **Pad holt Nightforge nach vorne** (Nutzer, 1.11., „ja unbedingt“, gebaut auf `claude/tv-fullscreen-61ab1e`,
+  `InputRouter.wakeIfIdle`): Läuft kein Spiel und ist eine andere App vorne, holt ein frischer Druck (A, B, X, Y, ☰,
+  Steuerkreuz) Nightforge nach vorne, wie Big Picture. Nicht während ein Spiel aus der Bibliothek läuft oder startet,
+  und nicht über einer anderen App, die sich als Spiel ausweist (`LSApplicationCategoryType` games). Am TV prüfen:
+  Safari vorne, Druck auf A, Nightforge kommt; ein Spiel vorne, nichts passiert.
 - **Kleines Controller-Overlay** (0.3.0, Branch `claude/tv-fullscreen-61ab1e`, `GameOverlay.swift`; Anlass: Left 4 Dead 2
   hing am 31.10. im Ladebildschirm, „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
   - **Gebaut:** Beide Sticks drücken (L3 + R3) und 2 s halten. Dann kommt ein ruhiges Panel über das Spiel:
@@ -307,6 +312,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       60 s lang nichts, fragt das Overlay „<Spiel> startet nicht?“: Weiter warten, Zu Nightforge, Spiel beenden.
     - Am Ende ist der Vorhang sofort da („Zurück zu Nightforge …“), auch schon bei „Spiel beenden“ im Overlay.
       Steam für Mac wird gleich ausgeblendet, danach kommt die Spielseite des Spiels.
+    - Nachtest 1.11. (erweitert) und behoben: Beim Start sprang Nightforges Vollbildfenster aufs MacBook, weil das
+      Umsetzen des Hauptbildschirms die Ursprünge verschiebt und das Fenster seine Koordinaten behält. Der TV wird
+      jetzt Hauptbildschirm, bevor Nightforge dort ins Vollbild geht (`GameDisplay.place`). Nach jedem Umsetzen kommt
+      das Fenster auf seinen Bildschirm zurück (`keepWindow`), notfalls aus dem Vollbild und wieder hinein. Vorhang und
+      Overlay liegen auf dem Spielbildschirm (`GameDisplay.gameScreen`), nicht beim Fenster. Der Titel wanderte, weil
+      das Pulsieren das erste Layout mitanimierte; jetzt ist nur die Naht animiert. Der Vorhang hatte unten einen
+      Streifen (`NSHostingView` passte die Fenstergröße an den Inhalt an); jetzt `sizingOptions = []`.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.

@@ -39,6 +39,8 @@ struct NightforgeMark: View {
     var seamGlow: CGFloat = 2
     /// The seam's light alone, so it can pulse without the pieces being drawn again.
     var seamOpacity: Double = 1
+    /// How a change of `seamOpacity` goes – for the seam only.
+    var seamAnimation: Animation?
 
     static let seamColor = Color(red: 0.18, green: 0.48, blue: 1)
 
@@ -50,6 +52,7 @@ struct NightforgeMark: View {
                 .stroke(Self.seamColor, style: StrokeStyle(lineWidth: seamWidth, lineCap: .round))
                 .shadow(color: Self.seamColor.opacity(0.8), radius: seamGlow)
                 .opacity(seamOpacity)
+                .animation(seamAnimation, value: seamOpacity)
         }
         .aspectRatio(332 / 440, contentMode: .fit)
         .accessibilityHidden(true)

@@ -101,6 +101,14 @@ struct NavigationTest {
         check(PadSymbols().shoulders == ["LB", "RB"] && PadSymbols(style: .playstation).shoulders == ["L1", "R1"],
               "the chips say LB/RB, or L1/R1 for PlayStation")
 
+        // A press on the sofa brings Nightforge when another app is in front – never over a game.
+        check(InputRouter.wakes(inFront: false, overlayOpen: false, gameOn: false, frontIsGame: false),
+              "no game, Safari in front: the pad brings Nightforge")
+        check(!InputRouter.wakes(inFront: false, overlayOpen: false, gameOn: true, frontIsGame: false), "a game of the library runs: it's the game's")
+        check(!InputRouter.wakes(inFront: false, overlayOpen: false, gameOn: false, frontIsGame: true), "another app that's a game: it's that game's")
+        check(!InputRouter.wakes(inFront: true, overlayOpen: false, gameOn: false, frontIsGame: false), "Nightforge in front already")
+        check(!InputRouter.wakes(inFront: false, overlayOpen: true, gameOn: false, frontIsGame: false), "the overlay has the pad")
+
         print(failures == 0 ? "✓ Navigation" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

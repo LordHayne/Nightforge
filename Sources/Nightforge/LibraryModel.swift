@@ -641,9 +641,12 @@ final class LibraryModel: ObservableObject {
     private func stepBack(behind game: Game, _ behavior: AfterLaunch) {
         switch behavior {
         case .quit: NSApp.terminate(nil)
-        case .hide, .stay: GameBackdrop.show(game.name, on: GameDisplay.screen) { [weak self] in self?.playing.isEmpty == false }
+        case .hide, .stay: GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
         }
     }
+
+    /// A game runs or starts: the pad belongs to it (InputRouter doesn't wake Nightforge meanwhile).
+    var gameOnScreen: Bool { !running.isEmpty || !playing.isEmpty || launchingID != nil }
 
     /// Nightforge in front again after a Steam window had it (its sign-in), the way it comes back
     /// after a game (comeBack): keys and the pad only reach the app in front.
@@ -772,7 +775,7 @@ final class LibraryModel: ObservableObject {
     /// minute gets the overlay's "Not starting?".
     private func raiseCurtain(for game: Game) {
         curtainWatch?.cancel()
-        GameBackdrop.raise(game.name, on: GameDisplay.screen) { [weak self] in self?.playing.isEmpty == false }
+        GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
         let name = game.name
         Task {
             let art = await ArtworkStore.shared.stageBackdrop(for: game)
@@ -837,7 +840,7 @@ final class LibraryModel: ObservableObject {
                 self?.comeForward()
                 NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
             })
-        GameOverlay.open(game.name, pause: [], on: GameDisplay.screen, symbols: padSymbols, step: .notStarting, actions: actions)
+        GameOverlay.open(game.name, pause: [], on: GameDisplay.gameScreen, symbols: padSymbols, step: .notStarting, actions: actions)
     }
 
     /// Both sticks held in a game (InputRouter): the overlay over the game being played. A
@@ -867,7 +870,7 @@ final class LibraryModel: ObservableObject {
                     self?.comeForward()
                     NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
                 })
-            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.screen, symbols: padSymbols, actions: actions)
+            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.gameScreen, symbols: padSymbols, actions: actions)
         }
     }
 
@@ -2986,7 +2989,7 @@ final class LibraryModel: ObservableObject {
             if let pid, let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular {
                 guard NSApp.isActive else { return }  // the player has moved on to something else
                 // Already there while macOS changes to the game's Space (on a TV it has one of its own).
-                GameBackdrop.show(game.name, on: GameDisplay.screen) { [weak self] in self?.playing.isEmpty == false }
+                GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
                 NSApp.yieldActivation(to: app)
                 app.activate(from: .current, options: [])
                 try? await Task.sleep(for: .milliseconds(600))

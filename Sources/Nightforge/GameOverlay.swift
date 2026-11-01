@@ -154,7 +154,8 @@ enum GameOverlay {
     }
 
     private static func make() -> NSPanel {
-        let panel = OverlayPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let panel = OverlayPanel(contentRect: NSScreen.main?.frame ?? .zero, styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered, defer: false)
         // Over the game's full screen, in its Space as in every other.
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
@@ -165,7 +166,9 @@ enum GameOverlay {
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
-        panel.contentView = NSHostingView(rootView: OverlayView(state: state).modifier(AccessibilityFromSettings()))
+        let host = NSHostingView(rootView: OverlayView(state: state).modifier(AccessibilityFromSettings()))
+        host.sizingOptions = []  // the screen's size, not the content's
+        panel.contentView = host
         return panel
     }
 }
