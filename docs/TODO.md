@@ -853,6 +853,10 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
 
 ## Ideen für später
 
+- **Mauszeiger blitzt beim Spielstart kurz auf** (Nutzer, 1.11.: „detailarbeit für irgendwann mal“): Mit dem
+  Pad bleibt der Zeiger im Ladebildschirm, im Spiel, nach „Zum Spiel wechseln“ und beim Beenden weg (TV-Zweig
+  72a8432, live bestätigt). Nur im Ladebildschirm ist er einen Moment zu sehen, bis `hidePointerOverGame` greift,
+  wenn das Spiel nach vorn kommt. Kandidat: das Verstecken schon beim Übergeben an das Spiel.
 - **Tab „Entdecken“** (Nutzer, 31.10.; noch nicht anfangen): neben „Startseite | Bibliothek“ ein dritter Tab, in dem man
   durch Steam, Epic und GOG stöbert und neue Spiele findet.
   - Was Nightforge dabei besser kann als die Stores selbst: Jedes Spiel trägt gleich die Einschätzung für **diesen
