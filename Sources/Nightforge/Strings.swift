@@ -404,8 +404,8 @@ enum L10n {
         "Plays on GeForce Now – it doesn't start on a Mac yet": "Läuft über GeForce Now – startet auf dem Mac noch nicht",
         "Playable on GeForce Now instead.": "Stattdessen auf GeForce Now spielbar.",
         "Play Anyway": "Trotzdem starten",
-        "Blizzard's anti-cheat hangs under Rosetta. It runs only with a newer engine (CrossOver 26.1), which Nightforge is still to get.":
-            "Blizzards Anti-Cheat hängt unter Rosetta. Es läuft erst mit einer neueren Engine (CrossOver 26.1), die Nightforge noch bekommt.",
+        "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.":
+            "Overwatch hängt bei Nightforge noch beim Start (kein Bild). Nightforge untersucht die Ursache.",
         "Needs a VR headset – this game can't be played on a Mac.": "Braucht eine VR-Brille – dieses Spiel läuft nicht auf dem Mac.",
 
         // Search & library
@@ -1080,8 +1080,8 @@ enum L10n {
         "Not tested yet": "Noch nicht getestet",
         "Needs a VR headset.": "Braucht eine VR-Brille.",
         "Doesn't start yet": "Startet noch nicht",
-        "They wait for a newer engine, which Nightforge is yet to get. Some play on GeForce Now meanwhile.":
-            "Sie warten auf eine neuere Engine, die Nightforge noch bekommt. Manche laufen solange über GeForce Now.",
+        "Nightforge doesn't start them yet and is working on it. Some play on GeForce Now meanwhile.":
+            "Nightforge startet sie noch nicht und arbeitet daran. Manche laufen solange über GeForce Now.",
         "Its anti-cheat needs Windows itself.": "Sein Anti-Cheat braucht Windows selbst.",
         "Its anti-cheat needs Windows – playable on GeForce Now instead.":
             "Sein Anti-Cheat braucht Windows – stattdessen auf GeForce Now spielbar.",

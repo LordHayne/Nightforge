@@ -4818,8 +4818,8 @@
   },
   "2357570": {
    "name": "Overwatch",
-   "notYet": "Blizzard's anti-cheat hangs under Rosetta. It runs only with a newer engine (CrossOver 26.1), which Nightforge is still to get.",
-   "note": "Tested 2026-11-01 on M5, winecx 4.7.3: Overwatch.exe starts, 0 % CPU, no window.",
+   "notYet": "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.",
+   "note": "Tested 2026-11-01 on M5, macOS 27.0.1, winecx 4.7.3 with D3DMetal 4.0b3: Overwatch.exe starts, 0 % CPU, no window. Not yet tried: DXMT instead of D3DMetal, a run without msync.",
    "source": "mac",
    "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
   },
@@ -5926,5 +5926,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-01T14:56:57Z"
+ "generated": "2026-11-01T17:29:52Z"
 }

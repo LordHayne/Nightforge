@@ -5,7 +5,7 @@ import SwiftUI
 struct Compatibility: Equatable {
     enum Level: String, CaseIterable {
         case great, tweaks, no, untested
-        /// Doesn't start on a Mac yet, but will with a newer engine (the profile's "notYet"): not the red of "no".
+        /// Doesn't start on a Mac yet, and Nightforge is working on it (the profile's "notYet"): not the red of "no".
         case notYet
 
         var label: String {

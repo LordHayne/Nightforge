@@ -4,7 +4,7 @@ import SwiftUI
 /// run on this Mac, in one bar, with what each part means.
 struct LibraryReveal: Identifiable, Equatable {
     var great = 0, tweaks = 0, untested = 0, no = 0
-    /// Games that don't start on a Mac yet, until a newer engine (apart from `no`: anti-cheat that stays).
+    /// Games that don't start on a Mac yet, and Nightforge is working on it (apart from `no`: anti-cheat that stays).
     var later = 0
     /// Of the games that don't run, the ones GeForce Now streams, and the VR-only ones.
     var cloud = 0
@@ -187,7 +187,7 @@ struct LibraryRevealView: View {
                 }
                 if reveal.later > 0 {
                     GridRow {
-                        row(.notYet, reveal.later, L10n.t("They wait for a newer engine, which Nightforge is yet to get. Some play on GeForce Now meanwhile."))
+                        row(.notYet, reveal.later, L10n.t("Nightforge doesn't start them yet and is working on it. Some play on GeForce Now meanwhile."))
                     }
                 }
             }

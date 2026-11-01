@@ -16,8 +16,8 @@ Sources, merged per Steam app ID:
   * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which blocked games can be
     streamed instead ("geforceNow", the game id its deep links take), and Steam app IDs by name.
   * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
-    reach the GOG versions they name ("gog"). "notYet" is a reason a game doesn't start on a Mac
-    yet but will with a newer engine: it gets a GeForce Now id like the anti-cheat games.
+    reach the GOG versions they name ("gog"). "notYet" is the reason a game doesn't start on a Mac
+    yet (Nightforge is working on it): it gets a GeForce Now id like the anti-cheat games.
 
 Usage: build-profiles.py <umu-protonfixes checkout> [--anticheat games.json] [--geforcenow catalog.json]
                          [--out profiles/profiles.json]

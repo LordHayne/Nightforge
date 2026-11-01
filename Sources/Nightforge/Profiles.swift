@@ -40,9 +40,9 @@ struct GameProfile: Decodable, Equatable {
     var antiCheatOnline: [String]?
     /// Its game id on GeForce Now, NVIDIA's cloud gaming, where such a game can be streamed instead.
     var geforceNow: String?
-    /// Why the game doesn't start on a Mac yet, in plain English (the German is in Strings.swift): it
-    /// is expected to with a newer engine. Unlike anti-cheat it doesn't rule the game out for good,
-    /// so loading and starting it stay possible, only not as the big button.
+    /// Why the game doesn't start on a Mac yet, in plain English (the German is in Strings.swift);
+    /// Nightforge is working on it. Unlike anti-cheat it doesn't rule the game out for good, so
+    /// loading and starting it stay possible, only not as the big button.
     var notYet: String?
     /// false: the game crashes when Rosetta advertises AVX/AVX2, so it starts without.
     var avx: Bool?
