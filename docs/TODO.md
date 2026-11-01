@@ -1084,6 +1084,31 @@ Cloud-Session ihre erste Zeile.
 - **Entdecken** (`entdecken.md`): eine Tabelle Rubrik × Store mit allen Endpunkten (Angebote, Charts, Neu,
   Gratisspiele, Suche, Genres, Mac- und Controller-Kennzeichen). Gekauft wird immer im Store. Die Cloud-Umgebung
   konnte die Store-Hosts nicht erreichen, deshalb vor dem Einbau live prüfen.
+- **macOS-Version** (`macos-14-15.md`, Nachmittag): „macOS 14 oder neuer“ stimmt nicht. winecx 4.7.3 ist für macOS
+  26.0 und neuer gebaut. Ab 14.4 fehlt zwar kein Symbol, getestet ist es dort aber nicht. Unter 14.4 startet es sicher
+  nicht. AVX braucht macOS 15, KosmicKrisp braucht 26. Die App selbst ist sauber für 14.
+  - Für 0.3.0: `LSMinimumSystemVersion` 26.0, die Prüfung in `install.sh`, README und Landingpage auf „macOS 26 oder
+    neuer“.
+  - Später die weiche Grenze: Unter macOS 26 bleibt die App startbar, mit Mac-Versionen und Cloud-Spielen.
+- **D3DMetal-Lizenz** (`d3dmetal-lizenz.md`):
+  - Weitergabe ist erlaubt (nicht-kommerziell, unverändert). Die Nutzung ist an „developing, testing, or evaluating
+    video games“ gebunden, und das gilt für jeden Spieler. Ob Spielen darunter fällt, ist ungeklärt. Viele Projekte
+    liefern es seit 2023 mit, Abmahnungen sind keine bekannt.
+  - Eigenes Risiko: Wir verteilen **4.0 beta 3**, eine Vorabversion. Das Release `d3dmetal-4.0b3` ist öffentlich.
+  - Empfehlung für 0.3.0: kein stiller Download mehr. Beim ersten DX12-Spiel ein Dialog mit Apples Lizenz und zwei
+    Wegen: „Bei Apple laden und importieren“ (empfohlen) und „Von Nightforge laden“. Keine Beta weitergeben, sondern das
+    finale 3.0, falls winecx damit läuft. Das Paket in ein eigenes Repo legen.
+- **Mac-Kompatibilitätsdaten** (`mac-kompatibilitaet.md`):
+  - Keine Quelle kennt genau unsere Technik. Fremde Bewertungen füllen nur „Nicht getestet“ und legen die
+    Reihenfolge der Grafikwege fest.
+  - Reihenfolge der Quellen:
+    1. Wikidata als Brücke zwischen den IDs (CC0).
+    2. Links zu AppleGamingWiki, CodeWeavers und MacGamingDB auf der Spielseite.
+    3. AppleGamingWiki nächtlich übernehmen (CC BY-NC-SA 3.0, vorher das Team anschreiben).
+    4. MacGamingDB um Erlaubnis bitten (neo773, nennt den Grafikweg).
+    5. CodeWeavers um Zusammenarbeit bitten.
+    6. Parallel eigene Berichte über GitHub-Issue-Formulare und eine Action.
+  - Control läuft laut allen Mac-Quellen nur über DX12 mit D3DMetal, nicht über DX11. Das passt zum Absturz.
 
 ## Aus dem Code-Audit
 
