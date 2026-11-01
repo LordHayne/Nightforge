@@ -6,6 +6,64 @@
 
 ---
 
+## Versionsplan ab 0.3.0 (vom Nutzer bestätigt, 1.11.2026)
+
+Er bündelt die offenen Punkte aus `docs/TODO.md` und die sieben Recherchen vom 1.11. (`docs/recherche/`). Die Phasen
+weiter unten bleiben die Fundstelle für Einzelheiten. Neue Ideen landen weiter erst in der TODO und kommen hier hinein,
+wenn sie einer Version zugeordnet sind.
+
+### 0.3.0: fertig machen und veröffentlichen
+- [ ] TV-Modus: Vollbild beim Anschließen (gespiegelt und erweitert), Spiel im echten Vollbild, ruhiger Lade-Vorhang,
+      keine flackernde Rückkehr, das Pad holt Nightforge nach vorne. Zweig `claude/tv-fullscreen-61ab1e`.
+- [ ] Gespeicherte Spielauflösungen, die der TV nicht hat (Mafia II, `videoconfig.cfg`).
+- [ ] Mafia II startet wieder: D3D9 unter winecx nur über WineD3D, DXVK-Zeilen beenden keinen WineD3D-Start mehr.
+      Zweig `claude/gog-7-3-e69c3b`.
+- [ ] Spielseite: Das Pad scrollt weich bis ganz unten. Zweig `claude/game-metadata-a2cee0`.
+- [ ] Anti-Cheat in beide Richtungen: Overwatch 2 und 42 weitere Spiele frei, fehlende Sperren (ARC Raiders, Tarkov,
+      EA FC …) nachtragen. Die neuere Profilliste gewinnt. Zweig `claude/dazzling-bell-750b8e`.
+- [ ] GOG-Offline-Start live prüfen.
+- [ ] Kleine Gatekeeper-Punkte: Texte für die Terminal-Warnung von macOS 26.4, Immutable Releases, Meldung bei
+      Translocation (`docs/recherche/gatekeeper.md`).
+- [ ] Wenn ein kurzer Test es bestätigt: Steam lädt Updates sofort (`AutoUpdateBehavior 2` statt 0,
+      `docs/recherche/updates.md`).
+- [ ] Landingpage und README. Dann einfrieren, Ersteinrichtung testen, Live-Durchlauf, Version, Release-Notizen.
+      Veröffentlichen nur mit ausdrücklichem OK.
+
+### 0.4: „Wie eine Konsole“
+- [ ] Spiele im Hintergrund aktuell halten: Steam über `AutoUpdateBehavior` und die Zeit, in der Steam läuft, Epic
+      und GOG selbst über legendary und gogdl. Pause im Spiel, nur am Netzteil, ruhig sichtbar auf der Startseite
+      (`docs/recherche/updates.md`, Phase 4.4).
+- [ ] Ton am AV-Receiver: ein „Audio-Doktor“ vor dem Start, der warnt, wenn Wine „7.1 wide“ oder Stereo
+      aushandelt, und eine Lösung anbietet. Vorher der DENON-Vergleich (a: wie jetzt, b: 2 Kanäle,
+      c: „7.1 Rear Surround“), `docs/recherche/engines.md` › Audio.
+- [ ] Spiele, die einen Fremd-Launcher brauchen, als Steam-Fassung ohne Launcher freischalten (Overwatch 2,
+      Diablo IV, D2R). Danach Rockstar über Steam (nur Story), dann über Epic (`docs/recherche/launcher.md`).
+- [ ] Das große Controller-Overlay (heute die kleine Fassung mit L3+R3).
+- [ ] Speicherverwaltung unter Einstellungen › Speicher: neue Laufwerke erkennen und vorbereiten, angesteckte
+      Laufwerke oben.
+- [ ] Wine 7.7 abschalten, wenn alles auf winecx läuft (`docs/recherche/engines.md`).
+
+### 0.5: „Mehr Stores“
+- [ ] Battle.net: die offizielle App bleibt, Nightforge liest `product.db` und startet über `--exec`. Zuerst die
+      Mac-Versionen (WoW, Hearthstone, StarCraft II, Diablo III), Windows-Titel über Steam
+      (`docs/recherche/battlenet.md`, Phase 7).
+- [ ] Tab „Entdecken“: Angebote, Charts, Neu und Gratisspiele aus Steam, Epic und GOG, jedes Spiel mit der
+      Einschätzung für diesen Mac. Gekauft wird im Store. Endpunkte vor dem Einbau live prüfen
+      (`docs/recherche/entdecken.md`).
+- [ ] EA app für Sims 4, Mass Effect und Dead Space. Die Sportspiele und Battlefield bleiben gesperrt (Javelin).
+
+### Daneben, mit Fristen
+- [ ] DirectX-9-Spiele flüssig (Mafia II, Left 4 Dead 2): DXVK auf KosmicKrisp mit Cache, async als Zwischenschritt.
+      Zweig `claude/quirky-clarke-81fd65`.
+- [ ] Plan für die Zeit nach Rosetta: Ab macOS 28 (Herbst 2027) bleibt nur ein Spiele-Subset. Natives ARM64-Wine,
+      FEX und D3DMetal für arm64 beobachten (`docs/recherche/engines.md`).
+- [ ] Bis etwa Q1 2027: Apple Developer Program ja oder nein. Damit gäbe es ein notarisiertes DMG und danach
+      vielleicht Sparkle und Homebrew.
+- [ ] Lizenz: D3DMetal darf laut Apple nur zum Entwickeln, Testen und Bewerten von Spielen genutzt werden. Klären,
+      wie Nightforge damit umgeht. Den DXMT-Widerspruch zwischen Hinweisdatei und Manifest beheben.
+
+---
+
 ## So arbeitest du damit mit Claude Code
 
 1. **Ein Punkt pro Sitzung/Branch.** Prompt-Vorlage:
