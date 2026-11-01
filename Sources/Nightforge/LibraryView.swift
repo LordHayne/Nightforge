@@ -1293,7 +1293,8 @@ private struct GameDetail: View {
             }
 
             if !compact {
-                CompatibilityNote(compatibility: model.compatibility(of: game))
+                CompatibilityNote(compatibility: model.compatibility(of: game),
+                                  reasonShownBelow: game.antiCheatBlock?.notYet != nil)
             }
             if !compact, !game.addOns.isEmpty {
                 Label(AddOns.line(game.addOns), systemImage: "puzzlepiece.extension")
@@ -1587,10 +1588,12 @@ private struct StoreChoiceRow: View {
 /// On a game's page, what its badge above the title means for this game, and where it was tested.
 private struct CompatibilityNote: View {
     let compatibility: Compatibility
+    /// The page says why in its own note (AntiCheatNote): the reason isn't said twice.
+    var reasonShownBelow = false
 
     var body: some View {
         let tested = compatibility.testedOn.isEmpty ? nil : L10n.t("Tested on %@", compatibility.testedOn.joined(separator: ", "))
-        let parts = [compatibility.note, tested].compactMap { $0 }
+        let parts = [reasonShownBelow ? nil : compatibility.note, tested].compactMap { $0 }
         if !parts.isEmpty {
             Label(parts.joined(separator: " · "), systemImage: compatibility.level.symbol)
                 .font(size: 13, weight: .medium)

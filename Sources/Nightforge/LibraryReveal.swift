@@ -4,6 +4,8 @@ import SwiftUI
 /// run on this Mac, in one bar, with what each part means.
 struct LibraryReveal: Identifiable, Equatable {
     var great = 0, tweaks = 0, untested = 0, no = 0
+    /// Games that don't start on a Mac yet, until a newer engine (apart from `no`: anti-cheat that stays).
+    var later = 0
     /// Of the games that don't run, the ones GeForce Now streams, and the VR-only ones.
     var cloud = 0
     var vr = 0
@@ -11,13 +13,14 @@ struct LibraryReveal: Identifiable, Equatable {
     var mac = 0
     let id = UUID()
 
-    var total: Int { great + tweaks + untested + no }
+    var total: Int { great + tweaks + untested + no + later }
     /// "Run here": rated great or with tweaks.
     var running: Int { great + tweaks }
 
-    init(great: Int = 0, tweaks: Int = 0, untested: Int = 0, no: Int = 0, cloud: Int = 0, vr: Int = 0, mac: Int = 0) {
+    init(great: Int = 0, tweaks: Int = 0, untested: Int = 0, no: Int = 0, cloud: Int = 0, vr: Int = 0, mac: Int = 0, later: Int = 0) {
         (self.great, self.tweaks, self.untested, self.no, self.cloud, self.vr) = (great, tweaks, untested, no, cloud, vr)
         self.mac = mac
+        self.later = later
     }
 
     /// The player's own games' levels (store hits and demos of games they don't own aren't theirs).
@@ -28,6 +31,7 @@ struct LibraryReveal: Identifiable, Equatable {
             case .great: great += 1
             case .tweaks: tweaks += 1
             case .untested: untested += 1
+            case .notYet: later += 1
             case .no:
                 no += 1
                 if game.isVROnly { vr += 1 } else if game.playsInCloud { cloud += 1 }
@@ -36,7 +40,8 @@ struct LibraryReveal: Identifiable, Equatable {
     }
 
     static func == (a: LibraryReveal, b: LibraryReveal) -> Bool {
-        (a.great, a.tweaks, a.untested, a.no, a.cloud, a.vr) == (b.great, b.tweaks, b.untested, b.no, b.cloud, b.vr) && a.mac == b.mac
+        (a.great, a.tweaks, a.untested, a.no, a.cloud, a.vr) == (b.great, b.tweaks, b.untested, b.no, b.cloud, b.vr)
+            && a.mac == b.mac && a.later == b.later
     }
 
     /// The line about Mac versions under the bar: they play natively once Steam for Mac is signed
@@ -180,6 +185,11 @@ struct LibraryRevealView: View {
                     row(.untested, reveal.untested, L10n.t("Nobody has tried them on a Mac with Nightforge yet – most still run. The first start tells, and Nightforge remembers what works."))
                     row(.no, reveal.no, notRunning)
                 }
+                if reveal.later > 0 {
+                    GridRow {
+                        row(.notYet, reveal.later, L10n.t("They wait for a newer engine, which Nightforge is yet to get. Some play on GeForce Now meanwhile."))
+                    }
+                }
             }
         }
     }
@@ -199,7 +209,8 @@ struct LibraryRevealView: View {
     }
 
     private var parts: [(level: Compatibility.Level, count: Int)] {
-        [(.great, reveal.great), (.tweaks, reveal.tweaks), (.untested, reveal.untested), (.no, reveal.no)].filter { $0.count > 0 }
+        [(.great, reveal.great), (.tweaks, reveal.tweaks), (.untested, reveal.untested), (.no, reveal.no), (.notYet, reveal.later)]
+            .filter { $0.count > 0 }
     }
 
     private func row(_ level: Compatibility.Level, _ count: Int, _ text: String) -> some View {

@@ -25,7 +25,7 @@ enum StarterPicks {
             let game = games[index]
             guard game.inLibrary, !game.isVROnly else { return nil }
             let f = facts(game)
-            return f.level == .no ? nil : (index, f)
+            return f.level.stopsGame ? nil : (index, f)
         }
         return candidates.sorted { a, b in
             let (x, y) = (rank(a.facts), rank(b.facts))

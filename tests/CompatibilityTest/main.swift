@@ -68,12 +68,16 @@ struct CompatibilityTest {
         let laterCloud = AntiCheatBlock(antiCheat: [], geforceNow: "42", notYet: reason)
         let tested = profile(#"{"source": "mac", "notYet": "Hangs under Rosetta.", "note": "Tested on M5, winecx: no window"}"#)
         let notYet = Compatibility.rate(Facts(antiCheatBlock: later, profile: tested))
-        check(notYet.level == .no && notYet.note == reason && notYet.testedOn == ["M5"], "not yet: no, with the reason and the chip: \(String(describing: notYet.note))")
+        check(notYet.level == .notYet && notYet.note == reason && notYet.testedOn == ["M5"], "not yet: no, with the reason and the chip: \(String(describing: notYet.note))")
         let notYetCloud = Compatibility.rate(Facts(antiCheatBlock: laterCloud, profile: tested))
         check(notYetCloud.note == reason + " " + L10n.t("Playable on GeForce Now instead."), "…and the cloud as the way: \(String(describing: notYetCloud.note))")
-        check(level(Facts(profile: tested)) == .no, "the profile alone says it, where no block is at hand")
+        check(level(Facts(profile: tested)) == .notYet, "the profile alone says it, where no block is at hand")
         check(level(Facts(platform: .mac, antiCheatBlock: later, profile: tested)) == .great, "the Mac version doesn't wait for the engine")
-        check(level(Facts(antiCheatBlock: later, profile: tested, ownRating: GameRating(good: true, issues: []))) == .no, "no rating of the player's beats it")
+        check(level(Facts(antiCheatBlock: later, profile: tested, ownRating: GameRating(good: true, issues: []))) == .notYet, "no rating of the player's beats it")
+        check(Compatibility.Level.notYet.stopsGame && Compatibility.Level.no.stopsGame && !Compatibility.Level.untested.stopsGame
+              && !Compatibility.Level.great.stopsGame, "what stops a game, for good or not yet")
+        check(Compatibility.Level.notYet.label != Compatibility.Level.no.label && Compatibility.Level.notYet.label == L10n.t("Doesn't start yet"),
+              "not yet has words of its own, not \"doesn't run\"")
         check(level(Facts(platform: .mac, vrOnly: true)) == .no, "VR only stays no, even on the Mac version")
 
         // What a game needs.
@@ -136,7 +140,7 @@ struct CompatibilityTest {
         check(Compatibility.chips(in: "M1, M10, M2 Ultra, M3 Pro and M3 Max; not M0, XM5 or M5X") == ["M1", "M10", "M2 Ultra", "M3 Pro", "M3 Max"],
               "every chip name, nothing that only looks like one: \(Compatibility.chips(in: "M1, M10, M2 Ultra, M3 Pro and M3 Max; not M0, XM5 or M5X"))")
         check(Compatibility.chips(in: nil).isEmpty, "no note, no chips")
-        check(Set(Compatibility.Level.allCases.map(\.label)).count == 4, "every level has its own words")
+        check(Set(Compatibility.Level.allCases.map(\.label)).count == 5, "every level has its own words")
 
         // For a game in the library: what the game itself says goes in (nothing kept about it here).
         var vr = Game(appID: 9_999_901, name: "VR", bottle: Engine.bottle, steamRoot: Engine.bottle.url, steamExeWindowsPath: "",
@@ -156,7 +160,7 @@ struct CompatibilityTest {
             let rating = Compatibility.rate(Facts(profile: game))
             counts[rating.level, default: 0] += 1
             if game.source == "mac" && game.antiCheat == nil && game.notYet == nil { check(rating.level == .great, "\(game.name ?? "?"): Mac profile runs great") }
-            if let reason = game.notYet { check(rating.level == .no && rating.note?.hasPrefix(L10n.t(reason)) == true, "\(game.name ?? "?"): doesn't start yet, with its reason") }
+            if let reason = game.notYet { check(rating.level == .notYet && rating.note?.hasPrefix(L10n.t(reason)) == true, "\(game.name ?? "?"): doesn't start yet, with its reason") }
         }
         check(counts.values.reduce(0, +) == document.games.count, "every game has a level")
         if let l4d2 = document.games["550"] { check(Compatibility.rate(Facts(profile: l4d2)).testedOn == ["M5"], "Left 4 Dead 2 tested on M5") }
@@ -169,7 +173,7 @@ struct CompatibilityTest {
             let onNight = contrast(color, night), onTint = contrast(color, blend(color, 0.15, over: night))
             check(onNight >= 4.5 && onTint >= 4.5, "\(level.rawValue): contrast \(onNight) on night, \(onTint) on its tint")
         }
-        check(Set(Compatibility.Level.allCases.map(\.symbol)).count == 4, "every level has its own icon")
+        check(Set(Compatibility.Level.allCases.map(\.symbol)).count == 5, "every level has its own icon")
 
         // "Welcome back": what's kept the moment it's chosen.
         check(GameRating.choice(good: false, issues: []).good == false && GameRating.choice(good: false, issues: []).issues.isEmpty,

@@ -13,6 +13,8 @@ enum Theme {
     static let runsGreat = Color(red: 0x7E / 255, green: 0xE2 / 255, blue: 0xA0 / 255)       // #7EE2A0
     static let runsWithTweaks = Color(red: 0xE8 / 255, green: 0xC6 / 255, blue: 0x8A / 255)  // #E8C68A
     static let runsNot = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)         // #FF9E94
+    /// "Doesn't start yet": a warmer amber than "with tweaks", calmer than the red of a game that never runs.
+    static let runsNotYet = Color(red: 0xF2 / 255, green: 0xA6 / 255, blue: 0x5A / 255)      // #F2A65A
 
     /// Nightforge's own share in the storage bar, beside the games in sodium (as in the design).
     static let storageNightforge = Color(red: 0x8C / 255, green: 0xA8 / 255, blue: 0xDB / 255)  // #8CA8DB

@@ -1079,6 +1079,9 @@ enum L10n {
         "Runs with tweaks": "Läuft mit Anpassungen",
         "Not tested yet": "Noch nicht getestet",
         "Needs a VR headset.": "Braucht eine VR-Brille.",
+        "Doesn't start yet": "Startet noch nicht",
+        "They wait for a newer engine, which Nightforge is yet to get. Some play on GeForce Now meanwhile.":
+            "Sie warten auf eine neuere Engine, die Nightforge noch bekommt. Manche laufen solange über GeForce Now.",
         "Its anti-cheat needs Windows itself.": "Sein Anti-Cheat braucht Windows selbst.",
         "Its anti-cheat needs Windows – playable on GeForce Now instead.":
             "Sein Anti-Cheat braucht Windows – stattdessen auf GeForce Now spielbar.",

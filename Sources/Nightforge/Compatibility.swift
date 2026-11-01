@@ -5,6 +5,8 @@ import SwiftUI
 struct Compatibility: Equatable {
     enum Level: String, CaseIterable {
         case great, tweaks, no, untested
+        /// Doesn't start on a Mac yet, but will with a newer engine (the profile's "notYet"): not the red of "no".
+        case notYet
 
         var label: String {
             switch self {
@@ -12,6 +14,7 @@ struct Compatibility: Equatable {
             case .tweaks: return L10n.t("Runs with tweaks")
             case .no: return L10n.t("Doesn't run on a Mac")
             case .untested: return L10n.t("Not tested yet")
+            case .notYet: return L10n.t("Doesn't start yet")
             }
         }
 
@@ -21,6 +24,7 @@ struct Compatibility: Equatable {
             case .tweaks: return "wrench.and.screwdriver.fill"
             case .no: return "xmark.circle.fill"
             case .untested: return "questionmark.circle.fill"
+            case .notYet: return "hourglass"
             }
         }
 
@@ -30,8 +34,12 @@ struct Compatibility: Equatable {
             case .tweaks: return Theme.runsWithTweaks
             case .no: return Theme.runsNot
             case .untested: return Theme.muted
+            case .notYet: return Theme.runsNotYet
             }
         }
+
+        /// The game doesn't start on this Mac (for good, or not yet).
+        var stopsGame: Bool { self == .no || self == .notYet }
     }
 
     var level: Level
@@ -64,7 +72,7 @@ struct Compatibility: Equatable {
         // Not yet: the profile says so, tested on a Mac – with the block at hand or from the profile alone.
         if facts.platform == .windows, let reason = facts.antiCheatBlock?.notYet ?? profile?.notYet {
             let cloud = (facts.antiCheatBlock?.geforceNow ?? profile?.geforceNow) != nil
-            return .init(level: .no, note: [L10n.t(reason), cloud ? L10n.t("Playable on GeForce Now instead.") : nil]
+            return .init(level: .notYet, note: [L10n.t(reason), cloud ? L10n.t("Playable on GeForce Now instead.") : nil]
                 .compactMap { $0 }.joined(separator: " "), testedOn: chips(in: profile?.note))
         }
         if facts.platform == .windows, let block = facts.antiCheatBlock {
