@@ -24,6 +24,15 @@ enum ProblemReport {
         if let url = url(game: game, insight: insight, profile: profile, tried: tried) { NSWorkspace.shared.open(url) }
     }
 
+    /// Which game it is: Steam's links to its store page; Epic's and GOG's say store and ID (there's
+    /// no page Nightforge knows by ID – a Steam link with app ID 0 led nowhere).
+    static func storeReference(_ game: Game) -> String {
+        switch game.provider {
+        case .steam: return "[\(game.appID)](https://store.steampowered.com/app/\(game.appID))"
+        case .epic, .gog: return "\(game.provider.label) \(game.gameID.id)"
+        }
+    }
+
     static func url(game: Game, insight: GameInsight?, profile: GameProfile? = nil, tried: [String] = []) -> URL? {
         // English in the report, whatever the app's language: it's read on GitHub.
         let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: GameDisplay.screen?.maximumFramesPerSecond ?? 60,
@@ -46,7 +55,7 @@ enum ProblemReport {
             "",
             "| | |",
             "|---|---|",
-            "| Game | \(game.name) ([\(game.appID)](https://store.steampowered.com/app/\(game.appID))) |",
+            "| Game | \(game.name) (\(storeReference(game))) |",
             "| Nightforge | \(Updater.currentVersion) |",
             "| Mac | \(chip) · macOS \(osVersion) |",
             "| Detected | \(detected) |",
