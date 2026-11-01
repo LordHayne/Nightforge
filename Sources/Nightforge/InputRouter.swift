@@ -1,8 +1,9 @@
 import AppKit
 import GameController
 
-/// Keyboard, trackpad and gamepad navigation. GameController only delivers input while the
-/// launcher is the active app, so it never reacts while you're in a game.
+/// Keyboard, trackpad and gamepad navigation. The pad reaches Nightforge in a game too, for the
+/// one thing it does there: both sticks held open the overlay (GameOverlay). Everything else waits
+/// until Nightforge or the overlay is in front (`reach`).
 @MainActor
 final class InputRouter {
     private weak var model: LibraryModel?
@@ -19,6 +20,11 @@ final class InputRouter {
     private var held = Step()
     private var dpadStep = Step()
     private var stickStep = Step()
+    private var overlayHold = OverlayHold()
+    private var holdTimer: Timer?
+    /// A button was down at the last look (for waking Nightforge on a fresh press).
+    private var anyDown = false
+    private var lastWake: TimeInterval = 0
 
     func start(model: LibraryModel) {
         self.model = model
@@ -71,6 +77,15 @@ final class InputRouter {
 
         GCController.controllers().forEach { attach($0) }
         refreshConnected()
+    }
+
+    /// Where the pad's presses go: Nightforge in front, the overlay over a game, or – a game in
+    /// front – nowhere, as they belong to the game.
+    private enum Reach { case app, overlay, none }
+
+    private var reach: Reach {
+        if GameOverlay.isOpen { return .overlay }
+        return NSApp.isActive ? .app : .none
     }
 
     // MARK: - Keyboard
@@ -294,6 +309,9 @@ final class InputRouter {
     private func attach(_ controller: GCController?) {
         guard let pad = controller?.extendedGamepad else { return }
         refreshConnected()
+        // In a game too, for the hold that opens the overlay. Only once a controller is there:
+        // SDL saw crashes when it was set before.
+        if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
 
         // D-pad and left stick both move in all four directions, repeating while held.
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
@@ -306,7 +324,7 @@ final class InputRouter {
         pad.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.dialog == nil else { return }
+                guard self?.reach == .app, self?.dialog == nil else { return }
                 self?.model?.openDetail()
             }
         }
@@ -315,9 +333,11 @@ final class InputRouter {
         pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                if self?.model?.lightbox != nil, self?.dialog == nil {
+                guard self?.reach != Reach.none else { return }
+                // The overlay has A to itself, not the big screenshot under it.
+                if self?.reach != .overlay, self?.model?.lightbox != nil, self?.dialog == nil {
                     self?.model?.lightbox = nil  // A on a big screenshot: back to the page
-                } else if let key = NSApp.keyWindow, let item = PadFocus.shared.focusedItem(in: key) {
+                } else if let key = GameOverlay.window ?? NSApp.keyWindow, let item = PadFocus.shared.focusedItem(in: key) {
                     item.activate()
                 } else if let window = self?.padWindow, window !== Self.mainWindow {
                     // Nothing highlighted yet: the first press shows where you are, it doesn't save.
@@ -332,7 +352,11 @@ final class InputRouter {
         pad.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard let self, let model = self.model else { return }
+                guard let self, let model = self.model, self.reach != .none else { return }
+                if self.reach == .overlay {
+                    GameOverlay.back()
+                    return
+                }
                 let main = Self.mainWindow
                 if model.lightbox != nil, NSApp.modalWindow == nil, self.dialog == nil {
                     model.lightbox = nil
@@ -360,50 +384,123 @@ final class InputRouter {
         }
         pad.buttonY.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated { self?.toggleOptions() }
+            MainActor.assumeIsolated {
+                guard self?.reach == .app else { return }
+                self?.toggleOptions()
+            }
         }
         // ☰: between Home and the library, like L.
         pad.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.dialog == nil, self?.model?.showsFirstStart == false else { return }
+                guard self?.reach == .app, self?.dialog == nil, self?.model?.showsFirstStart == false else { return }
                 self?.model?.toggleLibrary()
             }
         }
+        // L1 always to Home, R1 always to the library (the chips beside the top bar's switch).
         pad.leftShoulder.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.dialog == nil else { return }
-                self?.model?.move(-5)
-            }
+            MainActor.assumeIsolated { self?.goSection(.l1) }
         }
         pad.rightShoulder.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
-            MainActor.assumeIsolated {
-                guard self?.dialog == nil else { return }
-                self?.model?.move(5)
-            }
+            MainActor.assumeIsolated { self?.goSection(.r1) }
         }
         // L2/R2: first and last game, like Home and End on the keyboard.
         pad.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.dialog == nil else { return }
+                guard self?.reach == .app, self?.dialog == nil else { return }
                 self?.model?.jump(toStart: true)
             }
         }
         pad.rightTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.dialog == nil else { return }
+                guard self?.reach == .app, self?.dialog == nil else { return }
                 self?.model?.jump(toStart: false)
             }
         }
+        // Both sticks held for two seconds open the overlay over a game, and close it again.
+        pad.valueChangedHandler = { [weak self] gamepad, _ in
+            MainActor.assumeIsolated { self?.watchHold(gamepad) }
+        }
+    }
+
+    private func watchHold(_ pad: GCExtendedGamepad) {
+        let now = ProcessInfo.processInfo.systemUptime
+        wakeIfIdle(pad, now: now)
+        let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
+                                        menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
+        if overlayHold.update(pressed: pressed, now: now) {
+            if GameOverlay.isOpen { GameOverlay.resume() } else { openOverlay() }
+        }
+        // Nothing changes on the pad while buttons are only held: a look when two seconds are up.
+        holdTimer?.invalidate()
+        holdTimer = nil
+        guard let due = overlayHold.due else { return }
+        holdTimer = Timer.scheduledTimer(withTimeInterval: max(0, due - now) + 0.01, repeats: false) {
+            [weak self, weak pad] _ in
+            MainActor.assumeIsolated {
+                guard let self, let pad else { return }
+                self.watchHold(pad)
+            }
+        }
+    }
+
+    private func goSection(_ shoulder: PadPart) {
+        guard let model,
+              let target = Self.section(for: shoulder, route: model.route, inFront: reach == .app,
+                                        dialog: dialog != nil || model.showingDownloads, firstStart: model.showsFirstStart)
+        else { return }
+        target == .home ? model.goHome() : model.goLibrary()
+    }
+
+    /// Where L1 and R1 go: L1 always Home, R1 always the library – from a game's page too. Nowhere
+    /// in a sheet, the downloads, the first start or a game, nor to where you are already.
+    nonisolated static func section(for shoulder: PadPart, route: Route, inFront: Bool, dialog: Bool, firstStart: Bool) -> Route.Level? {
+        guard inFront, !dialog, !firstStart, shoulder == .l1 || shoulder == .r1 else { return nil }
+        let target: Route.Level = shoulder == .l1 ? .home : .library
+        return route == (target == .home ? .home : .library) ? nil : target
+    }
+
+    /// No game, another app in front: a fresh press brings Nightforge, as Big Picture does from the
+    /// sofa. Not while a game runs, nor over another app that's a game – the pad is the game's.
+    private func wakeIfIdle(_ pad: GCExtendedGamepad, now: TimeInterval) {
+        let down = [pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY, pad.buttonMenu].contains { $0.isPressed }
+            || abs(pad.dpad.xAxis.value) > 0.5 || abs(pad.dpad.yAxis.value) > 0.5
+        defer { anyDown = down }
+        guard down, !anyDown, now - lastWake > 2, let model,
+              Self.wakes(inFront: NSApp.isActive, overlayOpen: GameOverlay.isOpen, gameOn: model.gameOnScreen,
+                         frontIsGame: Self.frontAppIsGame())
+        else { return }
+        lastWake = now
+        model.comeForward()
+        NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+    }
+
+    nonisolated static func wakes(inFront: Bool, overlayOpen: Bool, gameOn: Bool, frontIsGame: Bool) -> Bool {
+        !inFront && !overlayOpen && !gameOn && !frontIsGame
+    }
+
+    /// The app in front says it's a game (LSApplicationCategoryType), Wine's "Nightforge Game" too.
+    private static func frontAppIsGame() -> Bool {
+        guard let url = NSWorkspace.shared.frontmostApplication?.bundleURL,
+              let category = Bundle(url: url)?.infoDictionary?["LSApplicationCategoryType"] as? String
+        else { return false }
+        return category.contains("games")
+    }
+
+    private func openOverlay() {
+        guard !GameOverlay.isOpen else { return }
+        letGo()
+        model?.openOverlay()
     }
 
     /// The window in front of the library when it's an alert or sheet (game options, Steam for
     /// Mac setup, a question): controller input belongs to it, not to the library behind.
     private var dialog: NSWindow? {
+        if let overlay = GameOverlay.window { return overlay }
         guard let main = Self.mainWindow else { return nil }
         if let sheet = main.attachedSheet { return sheet }
         if let modal = NSApp.modalWindow { return modal }
@@ -415,6 +512,7 @@ final class InputRouter {
 
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
     private var padWindow: NSWindow? {
+        if let overlay = GameOverlay.window { return overlay }
         guard let key = NSApp.keyWindow, PadFocus.shared.hasItems(in: key) else { return nil }
         return key
     }
@@ -460,6 +558,7 @@ final class InputRouter {
 
     /// The stronger axis wins, so a slightly diagonal stick still moves straight.
     private func steer(_ source: Source, x: Float, y: Float) {
+        guard reach != .none else { return }
         var step = Step()
         if abs(x) >= abs(y) {
             step.dx = x > 0.55 ? 1 : (x < -0.55 ? -1 : 0)
@@ -567,12 +666,17 @@ struct PadSymbols: Equatable {
     var library = "x.circle.fill"
     var options = "y.circle.fill"
     var stick = "l.joystick.fill"
+    /// The overlay's buttons (GameOverlay): both sticks pressed, or ☰ and ⧉ on a pad without stick buttons.
+    var overlayChord = ["l.joystick.press.down.fill", "r.joystick.press.down.fill"]
+    /// L1 and R1 as the controller prints them, for the chips beside Home | Library.
+    var shoulders = ["LB", "RB"]
 
     init() {}
 
     /// Always one maker's labels, whatever controller is in use.
     init(style: Style) {
         guard style == .playstation else { return }
+        shoulders = ["L1", "R1"]
         confirm = "xmark.circle.fill"
         back = "circle.circle.fill"
         library = "square.circle.fill"
@@ -586,6 +690,13 @@ struct PadSymbols: Equatable {
         library = Self.filled(pad.buttonX.sfSymbolsName) ?? library
         options = Self.filled(pad.buttonY.sfSymbolsName) ?? options
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
+        if PadLayout(pad) == .playstation { shoulders = ["L1", "R1"] }
+        if let left = pad.leftThumbstickButton, let right = pad.rightThumbstickButton {
+            overlayChord = [Self.filled(left.sfSymbolsName) ?? overlayChord[0], Self.filled(right.sfSymbolsName) ?? overlayChord[1]]
+        } else {
+            overlayChord = [Self.filled(pad.buttonMenu.sfSymbolsName) ?? "line.3.horizontal.circle.fill",
+                            Self.filled(pad.buttonOptions?.sfSymbolsName) ?? "rectangle.on.rectangle.circle.fill"]
+        }
     }
 
     /// The filled variant where one exists (they read better at hint size), else the symbol itself.

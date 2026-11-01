@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         GameDisplay.follow()
+        GameOverlay.resumeLeftovers()
         MacIntegration.setUp(delegate: self)
     }
 
@@ -72,5 +73,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationWillTerminate(_ notification: Notification) {
         Engine.scheduleSteamShutdown()
         GameDisplay.quitting()
+        GameOverlay.close()  // a game paused under the overlay runs on
     }
 }
