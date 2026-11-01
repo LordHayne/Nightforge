@@ -545,6 +545,28 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       (Prozesse, wer vorne ist mit PID und ob das Spiel, die Fenster des Spiels mit Größe und Layer, Bild,
       asks, Vorhang). „In front under the curtain“ nennt die PID, weil Steams Wine und das Spiel beide
       „Nightforge Game“ heißen.
+      Offen nach 0.3.0 (Entscheidung des Nutzers 1.11. abends: „kleine Anzeigefehler in weiteren Releases“),
+      Stand der Analyse am Code, nichts davon gebaut:
+      - Steam-Frage beim Start (Wukong 22:51, console_log: „waiting for user response to ShowInterstitials“):
+        Wartet Steam ≥ 3 s, setzt Nightforge `launchNeedsConfirmation` und öffnet Steams Hauptfenster selbst
+        (`showSteamWindow`, steam.exe ohne -silent; ebenso bei „Steam will die Anmeldung erneut“). Der
+        Vorhang-Wächter senkt dann den Vorhang und endet (`end("Steam asks something")`). Antwortet Steam
+        (`.continued`), hebt ihn niemand wieder: Der Rest des Starts läuft ohne Vorhang und ohne Wächter. Das
+        erklärt die fehlenden Vorhang-Zeilen und die nicht behandelte Treiber-Warnung in diesem Lauf. Steams
+        Hauptfenster bleibt offen und kommt nach dem Spielende vor Nightforges Vorhang nach vorne. Ohne
+        Steam-Frage öffnet Nightforge das Fenster nie (Steam läuft mit -silent), dann tritt das nicht auf.
+        Zu bauen: nach `.continued` den Vorhang samt Wächter wieder hoch; Steams Fenster wieder ausblenden,
+        sobald die Frage beantwortet ist (z. B. `hide()` der Steam-App, nicht beenden); beim Spielende den
+        Vorhang vor jedem anderen Fenster (Steam meldet „Game process removed“ in console_log, früher als
+        die Prozessliste). Mit Probe belegen.
+      - Zeiger bei Overcooked 2 mit 53b3346 im Ladebildschirm und im Spiel sichtbar, die Zeile „Curtain under a
+        window … asks something“ fehlt. 2770d2e hat das Verstecken nur dort ausgesetzt, wo das Spiel ein
+        kleines Fenster zeigt (`asks`) oder der Vorhang unter einer Frage liegt (`madeWay`). Ohne die Zeile
+        war `madeWay` nie gesetzt; `asks` hätte nur kurz greifen können, solange das Spiel nicht vorne war.
+        Wahrscheinlicher: `PadRules.padUsedLast` gilt nur 60 s nach dem letzten Pad-Druck. Ein längerer Start
+        (Steam neu, Shader) überschreitet das, dann versteckt Nightforge nichts. Prüfen mit den neuen
+        „Curtain look at“-Zeilen; ggf. die 60 s ab dem Start zählen, nicht ab dem letzten Druck.
+      - Pad bei „startet nicht?“: Ursache offen, Log-Zeilen sind da (siehe oben).
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
