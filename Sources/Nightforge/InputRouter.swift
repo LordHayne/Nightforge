@@ -382,7 +382,8 @@ final class InputRouter {
                 let open = PadRules.Open(overlay: self.reach == .overlay, sheet: self.dialog != nil, modal: NSApp.modalWindow != nil,
                                          lightbox: model.lightbox != nil, list: model.libraryMenu != nil,
                                          downloads: model.showingDownloads, options: model.showingOptions, highlight: highlight,
-                                         gamePage: model.route.isDetail, awaitingSteam: model.awaitingSteam)
+                                         gamePage: model.route.isDetail, awaitingSteam: model.awaitingSteam,
+                                         curtain: GameBackdrop.isRaised)
                 switch PadRules.back(open) {
                 case .overlay: GameOverlay.back()
                 case .lightbox: model.lightbox = nil
@@ -400,6 +401,7 @@ final class InputRouter {
                     }
                 case .cancelLaunch: model.cancelLaunch()  // stop waiting for a game Steam hasn't started
                 case .level: model.back()  // like Esc: a level up, a search dropped first
+                case .nothing: break  // the curtain is up
                 }
             }
         }

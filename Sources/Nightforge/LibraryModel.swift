@@ -470,17 +470,11 @@ final class LibraryModel: ObservableObject {
     /// A GOG game's Mac version: no Steam and no Wine – its update and save first, then the app
     /// itself; Nightforge follows it like any game it started.
     private func launchGOGMac(_ game: Game) {
-        launchingID = game.id
-        GameDisplay.enterGame()
-        launchNeedsConfirmation = false
-        launchPhase = nil
+        let number = beginLaunch(game)
         let behavior = Prefs.afterLaunch
         let arguments = Launcher.splitArguments(GameOptionsStore.load(game.gameID).extraArgs)
         launchTask = Task {
-            defer {
-                launchingID = nil
-                launchPhase = nil
-            }
+            defer { endLaunch(number) }
             guard await beforeGOGStart(game) else { return }
             let installDir = game.installDir
             await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
@@ -495,7 +489,7 @@ final class LibraryModel: ObservableObject {
             launchingID = nil
             startedHere.insert(game.id)
             await bringToFront(game)
-            stepBack(behind: game, behavior)
+            if !Task.isCancelled { stepBack(behind: game, behavior) }  // a new start has the curtain
         }
     }
 
@@ -911,6 +905,7 @@ final class LibraryModel: ObservableObject {
                 GameBackdrop.lower()
                 loweredAt = Date()
                 madeWay = false
+                LaunchHealth.pictureShown(game.gameID)  // it started, however soon it ends now
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
                 GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
@@ -1903,19 +1898,11 @@ final class LibraryModel: ObservableObject {
     private func launchMac(_ game: Game) {
         guard !needsMacSteam(game, then: .play) else { return }
         guard MacSteam.signedIn || otherSteamFree(for: .mac) else { return }
-        launchingID = game.id
-        GameDisplay.enterGame()
-        launchNeedsConfirmation = false
-        launchPhase = nil
+        let number = beginLaunch(game)
         let behavior = Prefs.afterLaunch
         let arguments = GameOptionsStore.load(game.gameID).extraArgs.trimmingCharacters(in: .whitespaces)
         launchTask = Task {
-            defer {
-                launchingID = nil
-                launchNeedsConfirmation = false
-                launchPhase = nil
-                launchBuildsShaders = false
-            }
+            defer { endLaunch(number) }
             // The Windows Steam goes (one sign-in per account on a Mac), once its last game's save is up.
             await steamSwitch.makeWayForMac(facts: steamFacts, phase: { self.launchPhase = $0 })
             let steamStarted = Date()
@@ -1990,14 +1977,16 @@ final class LibraryModel: ObservableObject {
                 let program = await Task.detached(priority: .utility) {
                     Self.runningGames(folders)[game.id].flatMap(Self.programName)
                 }.value
-                if await survivesFirstSeconds(game) {
+                // A picture before its end: it started (LaunchHealth.earlyEnd), no Windows version for it.
+                // Called off by a new start: nothing else starts either.
+                if await survivesFirstSeconds(game) || LaunchHealth.showedPicture(game.gameID, since: launchStarted) {
                     MacHealth.confirm(game.appID)
-                } else if !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
+                } else if !Task.isCancelled, !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
                           let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
                     return
                 }
             }
-            stepBack(behind: game, behavior)
+            if !Task.isCancelled { stepBack(behind: game, behavior) }  // a new start has the curtain
         }
     }
 
@@ -2620,9 +2609,46 @@ final class LibraryModel: ObservableObject {
         launchTask?.cancel()
     }
 
+    /// The start in progress is Nightforge's own: the game again another way after a start that didn't take.
+    private var startsAgain = false
+    /// Each start's number: one called off by a newer start leaves that one's state alone when it ends.
+    private var launchNumber = 0
+
+    /// Whether a Play may start a game now: no start in progress – or only Nightforge's own start
+    /// again another way, which gives way to the player's.
+    nonisolated static func mayStart(launching: Bool, startsAgain: Bool) -> Bool {
+        !launching || startsAgain
+    }
+
+    /// A start begins: its number, and nothing left of the one before.
+    private func beginLaunch(_ game: Game) -> Int {
+        launchNumber += 1
+        launchingID = game.id
+        startsAgain = false
+        GameDisplay.enterGame()
+        launchNeedsConfirmation = false
+        launchPhase = nil
+        launchBuildsShaders = false
+        return launchNumber
+    }
+
+    /// A start is over – unless a newer one has begun since, whose state this is now.
+    private func endLaunch(_ number: Int) {
+        guard number == launchNumber else { return }
+        launchingID = nil
+        startsAgain = false
+        launchNeedsConfirmation = false
+        launchPhase = nil
+        launchBuildsShaders = false
+    }
+
     /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
     func launch(_ game: Game, d3dMetalChecked: Bool = false) {
-        guard game.isInstalled, launchingID == nil else { return }
+        guard game.isInstalled, Self.mayStart(launching: launchingID != nil, startsAgain: startsAgain) else { return }
+        // What the start before still does – watch its game's first seconds, start it again another
+        // way – ends with a Play: OxyRail, quit a few seconds in on 1.11., started again on DXVK
+        // while Valheim started, and took Valheim's curtain.
+        launchTask?.cancel()
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
@@ -2632,18 +2658,10 @@ final class LibraryModel: ObservableObject {
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
-        launchingID = game.id
-        GameDisplay.enterGame()
-        launchNeedsConfirmation = false
-        launchPhase = nil
+        let number = beginLaunch(game)
         let behavior = Prefs.afterLaunch
         launchTask = Task {
-            defer {
-                launchingID = nil
-                launchNeedsConfirmation = false
-                launchPhase = nil
-                launchBuildsShaders = false
-            }
+            defer { endLaunch(number) }
             if viaSteam, game.bottle.isBuiltIn {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
@@ -2727,6 +2745,8 @@ final class LibraryModel: ObservableObject {
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
                     if game.provider == .gog { await setUpGOG(game, wine: URL(fileURLWithPath: runner), showStatus: true) }
                 }
+                // A start again another way the player's Play called off (`mayStart`): no Steam restarted for it either.
+                if Task.isCancelled { return }
                 var arguments = analysis?.preferD3D11Arguments ?? []
                 var watchFirstSeconds = false
                 var wayConfirmed = false
@@ -2795,6 +2815,8 @@ final class LibraryModel: ObservableObject {
                 }
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
+                // Starting it again another way, and the player pressed Play meanwhile: theirs has the curtain.
+                if Task.isCancelled { return }
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
                 raiseCurtain(for: game)
                 let started = viaSteam
@@ -2805,6 +2827,7 @@ final class LibraryModel: ObservableObject {
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false
                 launchingID = nil
+                startsAgain = false
                 if viaSteam, game.bottle.isBuiltIn { SteamPriority.watch(game) }
                 startedHere.insert(game.id)
                 await bringToFront(game)
@@ -2818,33 +2841,47 @@ final class LibraryModel: ObservableObject {
                 }
                 // Quit Game in the overlay: the player's end, nothing learned from it.
                 if LaunchHealth.quitByPlayer(game.gameID, since: startedAt) { return }
-                // It ended within its first seconds. A confirmed way loses its confirmation only on
-                // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
-                // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
+                // It ended within its first seconds – or a new start called this one off (Task.isCancelled).
+                // One that showed a picture worked; without one a confirmed way loses its confirmation
+                // only on evidence, and moves on only on a graphics error (Mafia II on DXVK:
+                // "DxvkAdapter: Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
                 let graphicsFailed = GameLog.graphicsFailed(since: logMark, layer: layer)
+                let installDir = game.installDir
+                let (log, programs) = await Task.detached(priority: .utility) {
+                    (GameLog.text(since: logMark), Set(Engine.executables(in: installDir)))
+                }.value
+                let drew = LaunchHealth.showedPicture(game.gameID, since: startedAt) || LaunchHealth.drewFrames(in: log, programs: programs)
+                let crashed = wayConfirmed && !drew
+                    && (GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty)
+                let outcome = LaunchHealth.earlyEnd(trusted: wayConfirmed, graphicsFailed: graphicsFailed, crashed: crashed, drew: drew,
+                                                    shortEndsBefore: wayConfirmed ? LaunchHealth.shortEnds(game.gameID, attempts) : 0)
+                if outcome == .confirm {
+                    // The game is gone; Nightforge comes back as after any game (watchForGameEnd).
+                    if automatic, !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
+                    if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
+                    return
+                }
+                // Called off by a new start: that one has the curtain, nothing here starts again, and
+                // a game gone only a moment (a launcher handing over) isn't judged.
+                if Task.isCancelled { return }
                 if wayConfirmed {
-                    let installDir = game.installDir
-                    let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
-                    let log = GameLog.text(since: logMark)
-                    let drew = LaunchHealth.drewFrames(in: log, programs: programs)
-                    let crashed = GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty
-                    switch LaunchHealth.earlyEnd(trusted: true, graphicsFailed: graphicsFailed, crashed: crashed, drew: drew,
-                                                 shortEndsBefore: LaunchHealth.shortEnds(game.gameID, attempts)) {
-                    case .keep:
+                    if outcome == .keep {
                         // Quit early, by the look of it: the game is gone, Nightforge stays in front.
-                        LaunchHealth.noteStart(game.gameID, attempts, short: !drew)
+                        LaunchHealth.noteStart(game.gameID, attempts, short: true)
                         return
-                    case .unconfirm, .nextWay, .confirm:
-                        LaunchHealth.unconfirm(game.gameID, attempts)
                     }
+                    LaunchHealth.unconfirm(game.gameID, attempts)
                 }
                 launchingID = game.id
+                startsAgain = true
                 NSApp.activate()
                 // Nothing starts again while the game still runs – crashed behind a dialog, hanging, or
                 // not ended after a graphics error: a second copy is only turned away ("Game Already
                 // Running", Control, 1.11.2026). Every other way below starts it again.
                 let folders = Self.processFolders([game])
-                if await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value != nil {
+                let stillRunning = await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value != nil
+                if Task.isCancelled { return }
+                if stillRunning {
                     errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
                     return
                 }
@@ -2888,7 +2925,8 @@ final class LibraryModel: ObservableObject {
                 return
             }
 
-            stepBack(behind: game, behavior)
+            // Not behind it once a new start has the curtain: its page would take that start's place.
+            if !Task.isCancelled { stepBack(behind: game, behavior) }
         }
     }
 
@@ -3186,12 +3224,14 @@ final class LibraryModel: ObservableObject {
     /// counts as the game having ended. A game whose Direct3D layer failed (GameLog) is ended here:
     /// it would only sit behind its own error box.
     /// `layer`: the way it started with – only that layer's failure ends it (GameLog.graphicsFailed).
+    /// False at once when a new start calls the watch off: nothing is known then.
     private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil, layer: GraphicsLayer? = nil) async -> Bool {
         let folders = Self.processFolders([game])
         let started = Date()
         var absent = 0
         while Date().timeIntervalSince(started) < LaunchHealth.failureWindow || (absent > 0 && absent < 10) {
             try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return false }
             let pid = await Task.detached(priority: .utility) { Self.runningGames(folders)[game.id] }.value
             absent = pid == nil ? absent + 1 : 0
             if absent >= 10 { return false }
@@ -3200,6 +3240,7 @@ final class LibraryModel: ObservableObject {
                 // Steam has to see it gone before the next way can start.
                 for _ in 0..<15 {
                     try? await Task.sleep(for: .seconds(1))
+                    if Task.isCancelled { break }
                     if await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value == nil { break }
                 }
                 return false

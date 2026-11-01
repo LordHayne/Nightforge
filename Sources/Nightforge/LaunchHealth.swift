@@ -13,9 +13,9 @@ struct LaunchAttempt: Equatable {
 
 /// Self-healing launches. A game left on "Automatic" gets a list of ways to start it, best first,
 /// from what its files reveal (GameAnalysis). The first start with each way is watched: a game that
-/// ends within its first seconds moves on to the next way, one that keeps running keeps its way
-/// for good. Nightforge watches live when it can and otherwise looks at Steam's log of when the
-/// game's processes started and ended, at the next launch.
+/// ends within its first seconds without a picture moves on to the next way, one that keeps running
+/// keeps its way for good. Nightforge watches live when it can and otherwise looks at Steam's log of
+/// when the game's processes started and ended, at the next launch.
 enum LaunchHealth {
     /// A session this short counts as "didn't start" (crash, black window closed by the game).
     static let failureWindow: TimeInterval = 30
@@ -51,14 +51,17 @@ enum LaunchHealth {
         case nextWay
     }
 
-    /// A start that ended within its first seconds. A way not confirmed yet moves on. A confirmed
-    /// one only on evidence: a graphics error moves on, a crash in the log or the second such short
-    /// start in a row unconfirms it. One short start alone isn't evidence – Wine's own Direct3D,
-    /// D3DMetal and DXVK on winecx log no frames, and players start a game just to look (OxyRail,
-    /// 22 s, 31.10.2026).
+    /// A start that ended within its first seconds. `drew`: it showed a picture – the curtain sank
+    /// for it (`showedPicture`) or it logged frames. Then it worked, however soon it ended: the
+    /// player looked in and quit (OxyRail, a few seconds on 1.11.2026, started again on DXVK). Only
+    /// a graphics error still moves on. Without a picture a way not confirmed yet moves on, a
+    /// confirmed one only on evidence: a crash in the log or the second such short start in a row
+    /// unconfirms it. One short start alone isn't evidence – Wine's own Direct3D, D3DMetal and DXVK
+    /// on winecx log no frames, and players start a game just to look (OxyRail, 22 s, 31.10.2026).
     static func earlyEnd(trusted: Bool, graphicsFailed: Bool, crashed: Bool, drew: Bool, shortEndsBefore: Int) -> Outcome {
-        if graphicsFailed || !trusted { return .nextWay }
-        if drew { return .keep }
+        if graphicsFailed { return .nextWay }
+        if drew { return .confirm }
+        if !trusted { return .nextWay }
         return crashed || shortEndsBefore + 1 >= 2 ? .unconfirm : .keep
     }
 
@@ -252,6 +255,7 @@ enum LaunchHealth {
     /// Choosing a layer by hand starts over: the player wants to try for themselves.
     static func reset(_ game: GameID) {
         UserDefaults.standard.removeObject(forKey: quitKey(game))
+        UserDefaults.standard.removeObject(forKey: pictureKey(game))
         UserDefaults.standard.removeObject(forKey: key(game))
         UserDefaults.standard.removeObject(forKey: "health.dxmtFailed.\(game.key)")
     }
@@ -271,13 +275,31 @@ enum LaunchHealth {
 
     private static func quitKey(_ game: GameID) -> String { "launchHealth.playerQuit.\(game.key)" }
 
+    /// The curtain sank for the game: its window in picture size had the front. Kept like Quit
+    /// Game, so a start that ends soon after still counts as one that showed a picture – in the
+    /// start flow (`earlyEnd`) and in Steam's log later (`review`), also when a new start called
+    /// the watch off.
+    static func pictureShown(_ game: GameID, at date: Date = Date()) {
+        UserDefaults.standard.set(date, forKey: pictureKey(game))
+    }
+
+    /// Whether the curtain sank for the game since `start`.
+    static func showedPicture(_ game: GameID, since start: Date) -> Bool {
+        guard let shown = UserDefaults.standard.object(forKey: pictureKey(game)) as? Date else { return false }
+        return shown >= start
+    }
+
+    private static func pictureKey(_ game: GameID) -> String { "launchHealth.picture.\(game.key)" }
+
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
     static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
         let state = load(game, attempts)
         guard !state.trusted, let started = state.startedAt, !quitByPlayer(game, since: started),
               let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
-        if span < failureWindow {
+        if span < failureWindow, showedPicture(game, since: started) {
+            confirm(game, attempts)  // a picture, then the end: it started (earlyEnd)
+        } else if span < failureWindow {
             _ = advance(game, attempts)
         } else if span >= drawingWindow {
             // Without Nightforge watching, Steam's log only says how long it ran (`drawingWindow`).
