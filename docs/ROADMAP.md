@@ -38,7 +38,18 @@ wenn sie einer Version zugeordnet sind.
       Veröffentlichen nur mit ausdrücklichem OK.
 
 ### 0.4: „Wie eine Konsole“
-- [ ] **Zuerst Codequalität** (Idee des Nutzers, 1.11.):
+- [ ] **Zuerst die Engine, mit voller Kraft** (Nutzer, 1.11.: „sobald das 0.3 draußen ist, geben wir richtig Gas mit
+      Engine-Arbeit“). Anlass: Overwatch hängt beim Start (0 % CPU, kein Fenster). Die Ursache ist Blizzards Anti-Cheat
+      unter Rosetta. Das läuft erst mit den Wine-Änderungen aus CrossOver 26.1 und macOS 26.5, unsere Engine winecx
+      4.7.3 ist älter (`docs/recherche/battlenet.md`, `docs/recherche/engines.md`). Der Reihe nach:
+      - Eine Engine auf dem Stand von CrossOver 26.x bauen oder übernehmen. Dann Overwatch, Diablo IV und D2R über
+        Steam freischalten.
+      - DirectX 9 über DXVK auf KosmicKrisp (Zweig `claude/quirky-clarke-81fd65`, Live-Test offen). Dazu der Plan, weil
+        MoltenVK abgekündigt ist.
+      - D3DMetal je nach Ergebnis der Lizenz-Recherche (Cloud, 1.11.).
+      - Die getesteten Spiele auf der neuen Engine gegenprüfen, die FPS der Landingpage neu messen, Wine 7.7 abschalten.
+      - Die Codequalität (nächster Punkt) prüft parallel, nur lesend, die Engine-Dateien zuletzt umbauen.
+- [ ] **Codequalität** (Idee des Nutzers, 1.11.):
   - Direkt nach dem Release, wenn `main` den aktuellen Stand hat. Cloud-Sessions sehen nur `main`.
   - Erst eine Prüfung, nur lesen: Vereinfachungen, doppelter Code, Risiken und ein Plan, wie sich die großen
     Dateien aufteilen lassen (`LibraryModel` ca. 2 900, `LibraryView` 2 300, `Engine` 2 000 Zeilen; Projektregel
