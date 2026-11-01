@@ -541,7 +541,8 @@ enum Engine {
         // On winecx, D3DMetal takes the engine's Direct3D builtins and DXMT and DXVK move into the
         // prefix as native DLLs (see `layerOverrides`).
         let gptk = isGPTKCapable(wine: wine)
-        let d3dMetal = gptk ? manifest.component(d3dMetalID) : nil
+        // Apple's D3DMetal only once the player has said how it comes (D3DMetalSupply) – or had it before.
+        let d3dMetal = gptk ? D3DMetalSupply.current(manifest: manifest, componentsRoot: store.root) : nil
         let gamepad = gptk ? manifest.component(gamepadID) : nil
         // Copying the graphics files again would give them new inodes and so rebuild the game
         // bundle Steam runs from, and every regedit starts Wine: each part is only redone when what
@@ -553,8 +554,8 @@ enum Engine {
         let graphicsWanted = "\(graphics.id) \(graphics.version) engine-match \(matchesEngine) moltenvk \(moltenVK?.version ?? "engine")"
             + " d3dmetal \(d3dMetal?.version ?? "-") gamepad \(gamepad?.version ?? "-")"
         let dxvk = manifest.component(dxvkID)
-        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, d3dMetal, gamepad, dxvk].compactMap { $0 },
-                                stamp: graphicsWanted)
+        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, dxvk].compactMap { $0 },
+                                d3dMetal: d3dMetal?.version, stamp: graphicsWanted)
         // Before anything of the engine changes, the build games last ran well on stays as a copy:
         // a game the new one breaks starts with it instead (EngineRollback).
         if !gameRunning, !windowsGameRunning {
@@ -566,7 +567,11 @@ enum Engine {
             var moltenVKDir: URL?
             if let moltenVK { moltenVKDir = try await install(moltenVK) }
             var d3dMetalDir: URL?
-            if let d3dMetal { d3dMetalDir = try await install(d3dMetal) }
+            switch d3dMetal?.origin {
+            case .download(let component)?: d3dMetalDir = try await install(component)
+            case .kept(let dir)?, .imported(let dir)?: d3dMetalDir = dir
+            case nil: break
+            }
             var gamepadDir: URL?
             if let gamepad { gamepadDir = try await install(gamepad) }
             report?(.graphics)
@@ -588,7 +593,7 @@ enum Engine {
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
-            removeUnusedComponents(keeping: manifest, store: store)
+            removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal)
             rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
         }
         return wine
@@ -627,11 +632,14 @@ enum Engine {
     /// Versions the component list no longer names, and components it dropped (an older engine
     /// line, say), take space for nothing – a gigabyte and more after a few updates. Anything
     /// still running from a folder stays, like the old engine a game keeps until it ends.
-    private static func removeUnusedComponents(keeping manifest: ComponentManifest, store: ComponentStore) {
+    private static func removeUnusedComponents(keeping manifest: ComponentManifest, store: ComponentStore,
+                                                d3dMetal: D3DMetalSupply.Current?) {
         let fm = FileManager.default
         // What only the app's own list names (legendary before the online list has it) stays too.
         let bundled = ComponentStore.bundledManifest()?.components ?? []
-        let wanted = Dictionary((manifest.components + bundled).map { ($0.id, $0.version) }, uniquingKeysWith: { first, _ in first })
+        var wanted = Dictionary((manifest.components + bundled).map { ($0.id, $0.version) }, uniquingKeysWith: { first, _ in first })
+        // A D3DMetal from before the question stays as long as it's the one in use.
+        if case .kept(let dir)? = d3dMetal?.origin { wanted[d3dMetalID] = dir.lastPathComponent }
         let ids = (try? fm.contentsOfDirectory(at: store.root, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
         for id in ids where !id.lastPathComponent.hasPrefix(".")
             && (try? id.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {

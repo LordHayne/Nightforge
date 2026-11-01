@@ -1,0 +1,395 @@
+// Checks where Apple's D3DMetal comes from: the answer on file, a copy from before the question, the
+// import from Apple's toolkit, the wait for the download: tests/D3DMetalTest/run.sh
+import Foundation
+
+@main
+struct D3DMetalTest {
+    static var failures = 0
+    static let fm = FileManager.default
+
+    static func check(_ condition: Bool, _ message: String) {
+        if !condition {
+            failures += 1
+            print("✗ " + message)
+        }
+    }
+
+    typealias Supply = D3DMetalSupply
+
+    static func main() async {
+        guard fm.homeDirectoryForCurrentUser.path.contains("/home") else {
+            print("✗ runs only in its own home (tests/D3DMetalTest/run.sh)")
+            exit(1)
+        }
+        let work = fm.temporaryDirectory.appendingPathComponent("d3dmetal-test-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: work, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: work) }
+
+        answer(work)
+        current(work)
+        folders(work)
+        imports(work)
+        diskImages(work)
+        await downloads(work)
+        games()
+        build()
+
+        print(failures == 0 ? "✓ D3DMetal" : "\(failures) failed")
+        exit(failures == 0 ? 0 : 1)
+    }
+
+    // MARK: Fixtures
+
+    static func write(_ text: String, to url: URL) {
+        try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(text.utf8).write(to: url)
+    }
+
+    /// Apple's toolkit as it lies on its disk image: redist/lib with the framework, libd3dshared.dylib and the
+    /// Windows front ends, the notices beside redist/. Not signed by anyone – the checks take a stand-in.
+    @discardableResult
+    static func toolkit(at root: URL, version: String = "3.0", notices: Bool = true, marker: String = "a") -> URL {
+        let lib = root.appendingPathComponent("redist/lib", isDirectory: true)
+        write("dylib \(marker)", to: lib.appendingPathComponent("external/libd3dshared.dylib"))
+        let info: NSDictionary = ["CFBundleShortVersionString": version]
+        let plist = lib.appendingPathComponent("external/D3DMetal.framework/Versions/A/Resources/Info.plist")
+        try? fm.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
+        info.write(to: plist, atomically: true)
+        write("framework \(marker)", to: lib.appendingPathComponent("external/D3DMetal.framework/Versions/A/D3DMetal"))
+        for dll in ["d3d12.dll", "d3d11.dll", "dxgi.dll"] {
+            write("front end \(dll) \(marker)", to: lib.appendingPathComponent("wine/x86_64-windows/\(dll)"))
+        }
+        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        try? fm.createDirectory(at: unix, withIntermediateDirectories: true)
+        try? fm.createSymbolicLink(atPath: unix.appendingPathComponent("d3d12.so").path,
+                                   withDestinationPath: "../../external/libd3dshared.dylib")
+        if notices {
+            write("licence", to: root.appendingPathComponent("License.rtf"))
+            write("thanks", to: root.appendingPathComponent("Acknowledgements.rtf"))
+        }
+        return lib
+    }
+
+    static func manifest(d3dmetal version: String?) -> ComponentManifest? {
+        let entry = version.map { """
+            {"id": "d3dmetal", "kind": "graphics", "version": "\($0)", "url": "https://example.test/d3dmetal/nightforge-d3dmetal-\($0).tar.gz",
+             "sha256": "\(String(repeating: "ab", count: 32))", "size": 1000, "license": "Apple", "source": "https://example.test"}
+            """ } ?? ""
+        let engine = """
+            {"id": "winecx", "kind": "engine", "version": "4.7.3", "url": "https://example.test/winecx/Libraries.tar.gz",
+             "sha256": "\(String(repeating: "cd", count: 32))", "size": 1000, "license": "LGPL", "source": "https://example.test"}
+            """
+        let json = #"{"schemaVersion": 1, "generated": "2026-11-01", "components": [\#(engine)\#(entry.isEmpty ? "" : ", " + entry)]}"#
+        return try? JSONDecoder().decode(ComponentManifest.self, from: Data(json.utf8))
+    }
+
+    static func fresh(_ work: URL, _ name: String) -> URL {
+        let dir = work.appendingPathComponent(name, isDirectory: true)
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    // MARK: The answer
+
+    static func answer(_ work: URL) {
+        let folder = fresh(work, "answer")
+        check(Supply.choice(in: folder) == nil, "nothing on file, no answer")
+        let choice = Supply.Choice(source: .apple, version: "3.0", accepted: Date(timeIntervalSince1970: 1_800_000_000))
+        Supply.save(choice, in: folder)
+        check(Supply.choice(in: folder) == choice, "the answer comes back as it was saved")
+        Supply.forget(in: folder)
+        check(Supply.choice(in: folder) == nil, "taken back")
+        write("not json", to: folder.appendingPathComponent("choice.json"))
+        check(Supply.choice(in: folder) == nil, "a damaged file is no answer")
+    }
+
+    // MARK: What the engine gets
+
+    static func current(_ work: URL) {
+        let components = fresh(work, "components")
+        let folder = fresh(work, "current")
+        let list = manifest(d3dmetal: "3.0")
+        check(list?.component("d3dmetal")?.version == "3.0", "the test list holds D3DMetal 3.0")
+
+        check(Supply.current(manifest: list, componentsRoot: components, folder: folder) == nil
+              && Supply.choice(in: folder) == nil, "never asked, nothing from before: no D3DMetal, and nothing recorded")
+
+        // A copy an earlier Nightforge downloaded (no question was asked): it stays in use, and counts as answered.
+        let old = components.appendingPathComponent("d3dmetal/4.0b3", isDirectory: true)
+        // The package keeps lib/ directly under its folder (scripts/package-d3dmetal.sh): external/ and wine/ in it.
+        let packed = old.appendingPathComponent("nightforge-d3dmetal-4.0b3/lib", isDirectory: true)
+        try? fm.createDirectory(at: packed.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let laidOut = fresh(work, "laid-out")
+        toolkit(at: laidOut, version: "4.0b3")
+        try? fm.moveItem(at: laidOut.appendingPathComponent("redist/lib"), to: packed)
+        check(Supply.earlierInstall(in: components) == nil, "a download without its marker isn't one")
+        write("hash", to: old.appendingPathComponent(".sha256"))
+        check(Supply.earlierInstall(in: components) == "4.0b3", "a finished download from before is found")
+        let kept = Supply.current(manifest: list, componentsRoot: components, folder: folder)
+        check(kept?.version == "4.0b3" && kept?.origin == .kept(old), "it stays in use, not the list's newer one: \(String(describing: kept))")
+        check(Supply.choice(in: folder)?.source == .nightforge && Supply.choice(in: folder)?.version == "4.0b3",
+              "and it is on file as answered, at that version")
+        check(Supply.current(manifest: nil, componentsRoot: components, folder: folder)?.origin == .kept(old), "without the list, too")
+
+        // The copy is gone: the download the player agreed to is the list's.
+        try? fm.removeItem(at: old)
+        let again = Supply.current(manifest: list, componentsRoot: components, folder: folder)
+        check(again?.version == "3.0" && again?.origin == .download(list!.component("d3dmetal")!), "a vanished copy: the list's D3DMetal")
+        check(Supply.current(manifest: manifest(d3dmetal: nil), componentsRoot: components, folder: folder) == nil
+              && Supply.current(manifest: nil, componentsRoot: components, folder: folder) == nil, "nothing on offer, nothing to give")
+        check(Supply.canDownload(list) && !Supply.canDownload(manifest(d3dmetal: nil)) && !Supply.canDownload(nil),
+              "Nightforge's download is on offer only while the list has one")
+
+        // Nightforge's download, chosen.
+        let chosen = fresh(work, "chosen")
+        Supply.save(.init(source: .nightforge, version: nil, accepted: Date()), in: chosen)
+        check(Supply.current(manifest: list, componentsRoot: fresh(work, "empty-components"), folder: chosen)?.version == "3.0",
+              "chosen: the list's version")
+
+        // Apple's, imported.
+        let apple = fresh(work, "apple")
+        Supply.save(.init(source: .apple, version: "3.0", accepted: Date()), in: apple)
+        check(Supply.current(manifest: list, componentsRoot: components, folder: apple) == nil, "an import that isn't there gives nothing (the list's isn't taken instead)")
+        toolkit(at: fresh(work, "apple-source"))
+        _ = try? Supply.importToolkit(from: work.appendingPathComponent("apple-source"), into: apple, verify: { _ in true })
+        let imported = Supply.current(manifest: list, componentsRoot: components, folder: apple)
+        check(imported?.version == "apple-3.0", "imported: apple-3.0: \(String(describing: imported?.version))")
+        if case .imported(let dir)? = imported?.origin {
+            check(dir == Supply.importedFolder(in: apple).appendingPathComponent("3.0"), "from the import folder")
+        } else {
+            check(false, "origin is the import")
+        }
+        // The import wins over a later change of the list; the choice, not the list, says where from.
+        check(Supply.current(manifest: manifest(d3dmetal: "9.9"), componentsRoot: components, folder: apple)?.version == "apple-3.0",
+              "a new list doesn't move an import")
+    }
+
+    // MARK: Finding and copying
+
+    static func folders(_ work: URL) {
+        let root = fresh(work, "disk")
+        let nested = root.appendingPathComponent("Evaluation environment for Windows games/inner", isDirectory: true)
+        let lib = toolkit(at: nested)
+        let found = Supply.findToolkit(in: root)
+        check(found?.lib.resolvingSymlinksInPath() == lib.resolvingSymlinksInPath(), "the toolkit is found a few folders down")
+        check(found?.notices.map(\.lastPathComponent).sorted() == ["Acknowledgements.rtf", "License.rtf"], "with the notices beside redist/")
+        check(Supply.findToolkit(in: root, maxDepth: 1) == nil, "not past the depth it looks")
+        try? fm.removeItem(at: lib.appendingPathComponent("wine/x86_64-windows/d3d12.dll"))
+        check(Supply.findToolkit(in: root) == nil, "without the Direct3D 12 front end it isn't the toolkit")
+        check(Supply.findToolkit(in: fresh(work, "empty-disk")) == nil, "an empty folder isn't one")
+
+        check(Supply.isPlainVersion("3.0") && Supply.isPlainVersion("4.0b3") && Supply.isPlainVersion("4.0-beta+3"), "versions as Apple writes them")
+        check(!Supply.isPlainVersion("") && !Supply.isPlainVersion("../x") && !Supply.isPlainVersion("a/b") && !Supply.isPlainVersion(".hidden")
+              && !Supply.isPlainVersion(String(repeating: "1", count: 40)), "nothing that could leave the folder it becomes")
+    }
+
+    static func imports(_ work: URL) {
+        let source = fresh(work, "toolkit-source")
+        toolkit(at: source)
+        let home = fresh(work, "import-home")
+        var checked: [String] = []
+        let version = try? Supply.importToolkit(from: source, into: home, verify: { checked.append($0.path); return true })
+        check(version == "3.0", "imported at the framework's version: \(String(describing: version))")
+        let target = Supply.importedFolder(in: home).appendingPathComponent("3.0")
+        let lib = target.appendingPathComponent("lib")
+        func same(_ path: String) -> Bool {
+            fm.contentsEqual(atPath: source.appendingPathComponent("redist/lib/\(path)").path, andPath: lib.appendingPathComponent(path).path)
+        }
+        check(same("external/libd3dshared.dylib") && same("external/D3DMetal.framework/Versions/A/D3DMetal")
+              && same("wine/x86_64-windows/d3d12.dll"), "byte for byte what Apple's toolkit holds")
+        check((try? fm.destinationOfSymbolicLink(atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d12.so").path))
+              == "../../external/libd3dshared.dylib", "the unix half stays a link")
+        check(fm.fileExists(atPath: target.appendingPathComponent("License.rtf").path)
+              && fm.fileExists(atPath: target.appendingPathComponent("Acknowledgements.rtf").path), "Apple's notices go along")
+        check(Engine.d3dMetalPayloadRoot(in: target) != nil, "the engine finds its payload in the copy")
+        check(checked.count == 4 && checked.filter { $0.contains("toolkit-source") }.count == 2
+              && checked.filter { $0.contains("/.staging-") && $0.contains("/lib/external/") }.count == 2,
+              "the signature is checked at the source and again on the copy: \(checked)")
+        check(((try? fm.contentsOfDirectory(atPath: Supply.importedFolder(in: home).path)) ?? []) == ["3.0"], "no staging left behind")
+
+        // A newer copy of the same version replaces it.
+        toolkit(at: source, marker: "b")
+        _ = try? Supply.importToolkit(from: source, into: home, verify: { _ in true })
+        check((try? String(contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"), encoding: .utf8)) == "dylib b",
+              "importing again replaces it")
+
+        // What isn't Apple's, or isn't a toolkit, leaves nothing behind.
+        let strange = fresh(work, "strange-home")
+        func refused(_ root: URL, _ verify: @escaping (URL) -> Bool, _ expected: Supply.Failure, _ message: String) {
+            do {
+                _ = try Supply.importToolkit(from: root, into: strange, verify: verify)
+                check(false, message + " (imported)")
+            } catch {
+                check(error as? Supply.Failure == expected, message + ": \(error)")
+            }
+        }
+        refused(source, { _ in false }, .notSignedByApple, "unsigned is refused")
+        var calls = 0
+        refused(source, { _ in calls += 1; return calls <= 2 }, .notSignedByApple, "a copy that fails the check is refused")
+        refused(fresh(work, "nothing"), { _ in true }, .notAToolkit, "no toolkit in it")
+        let noVersion = fresh(work, "no-version")
+        toolkit(at: noVersion, version: "../x")
+        refused(noVersion, { _ in true }, .notAToolkit, "a version that isn't a plain name")
+        let unreadable = fresh(work, "unreadable-version")
+        toolkit(at: unreadable)
+        try? fm.removeItem(at: unreadable.appendingPathComponent("redist/lib/external/D3DMetal.framework/Versions/A/Resources/Info.plist"))
+        refused(unreadable, { _ in true }, .notAToolkit, "a framework that doesn't say its version")
+        check(((try? fm.contentsOfDirectory(atPath: Supply.importedFolder(in: strange).path)) ?? []).isEmpty,
+              "nothing left from the refused ones")
+        // The real check: these files carry no signature of Apple's.
+        do {
+            _ = try Supply.importToolkit(from: source, into: strange)
+            check(false, "files nobody signed were imported")
+        } catch {
+            check(error as? Supply.Failure == .notSignedByApple, "the real signature check refuses unsigned files: \(error)")
+        }
+    }
+
+    static func diskImages(_ work: URL) {
+        func image(from folder: URL, _ name: String) -> URL? {
+            let dmg = work.appendingPathComponent("\(name).dmg")
+            try? fm.removeItem(at: dmg)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+            process.arguments = ["create", "-quiet", "-srcfolder", folder.path, "-volname", name, "-format", "UDZO", "-ov", dmg.path]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            guard (try? process.run()) != nil else { return nil }
+            process.waitUntilExit()
+            return process.terminationStatus == 0 ? dmg : nil
+        }
+        func mounted() -> Bool {
+            let process = Process()
+            let pipe = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/sbin/mount")
+            process.standardOutput = pipe
+            try? process.run()
+            let text = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            process.waitUntilExit()
+            return text.contains("nightforge-d3dmetal-")
+        }
+
+        // The toolkit on a disk image of its own (3.0's evaluation environment).
+        let plain = fresh(work, "plain-image")
+        toolkit(at: plain.appendingPathComponent("Evaluation environment for Windows games 3.0"), version: "3.0")
+        guard let direct = image(from: plain, "plain") else {
+            check(false, "hdiutil made no disk image to test with")
+            return
+        }
+        let home = fresh(work, "image-home")
+        var version: String?
+        do { version = try Supply.importDiskImage(direct, into: home, verify: { _ in true }) } catch { check(false, "importing a disk image: \(error)") }
+        check(version == "3.0" && Engine.d3dMetalPayloadRoot(in: Supply.importedFolder(in: home).appendingPathComponent("3.0")) != nil,
+              "imported from a disk image: \(String(describing: version))")
+        check(!mounted(), "and the image is closed again")
+
+        // The toolkit's own image, with the evaluation environment's image inside (3.0, the 4.0 betas).
+        let inner = fresh(work, "inner-image")
+        toolkit(at: inner.appendingPathComponent("Game Porting Toolkit"), version: "4.0b3")
+        guard let innerImage = image(from: inner, "Evaluation_environment_for_Windows_games_4.0b3") else {
+            check(false, "no inner disk image")
+            return
+        }
+        let outer = fresh(work, "outer-image")
+        write("Read me", to: outer.appendingPathComponent("Read Me.txt"))
+        try? fm.copyItem(at: innerImage, to: outer.appendingPathComponent("Evaluation_environment_for_Windows_games_4.0b3.dmg"))
+        guard let nested = image(from: outer, "Game_Porting_Toolkit_4.0_beta_3") else {
+            check(false, "no outer disk image")
+            return
+        }
+        let nestedHome = fresh(work, "nested-home")
+        var nestedVersion: String?
+        do { nestedVersion = try Supply.importDiskImage(nested, into: nestedHome, verify: { _ in true }) } catch { check(false, "importing a nested image: \(error)") }
+        check(nestedVersion == "4.0b3", "imported from the image inside the image: \(String(describing: nestedVersion))")
+        check(!mounted(), "both are closed again")
+
+        // Not the toolkit, and not an image at all.
+        let other = fresh(work, "other-image")
+        write("holiday photos", to: other.appendingPathComponent("photo.txt"))
+        if let otherImage = image(from: other, "other") {
+            do {
+                _ = try Supply.importDiskImage(otherImage, into: fresh(work, "other-home"), verify: { _ in true })
+                check(false, "another image was imported")
+            } catch {
+                check(error as? Supply.Failure == .notAToolkit, "an image without the toolkit: \(error)")
+            }
+        }
+        let broken = work.appendingPathComponent("broken.dmg")
+        write("this is not a disk image", to: broken)
+        do {
+            _ = try Supply.importDiskImage(broken, into: fresh(work, "broken-home"), verify: { _ in true })
+            check(false, "a broken image was imported")
+        } catch {
+            check(error as? Supply.Failure == .cannotOpen, "a file that isn't an image: \(error)")
+        }
+        check(!mounted(), "nothing stays mounted")
+    }
+
+    // MARK: Waiting for the download
+
+    static func downloads(_ work: URL) async {
+        let folder = fresh(work, "downloads")
+        let since = Date()
+        let old = since.addingTimeInterval(-3600)
+        func make(_ name: String, at date: Date) {
+            let url = folder.appendingPathComponent(name)
+            write("x", to: url)
+            try? fm.setAttributes([.creationDate: date, .modificationDate: date], ofItemAtPath: url.path)
+        }
+        make("Evaluation_environment_for_Windows_games_2.0.dmg", at: old)
+        make("holiday.dmg", at: since.addingTimeInterval(5))
+        make("Game_Porting_Toolkit_4.0_beta_3.dmg.download", at: since.addingTimeInterval(5))
+        make("Game_Porting_Toolkit_3.0.pdf", at: since.addingTimeInterval(5))
+        check(Supply.newToolkitDownload(in: folder, since: since) == nil, "an old one, another image and an unfinished download aren't it")
+        make("Game_Porting_Toolkit_3.0.dmg", at: since.addingTimeInterval(10))
+        check(Supply.newToolkitDownload(in: folder, since: since)?.lastPathComponent == "Game_Porting_Toolkit_3.0.dmg", "the finished one is")
+        make("Evaluation_environment_for_Windows_games_3.0.DMG", at: since.addingTimeInterval(20))
+        check(Supply.newToolkitDownload(in: folder, since: since)?.lastPathComponent == "Evaluation_environment_for_Windows_games_3.0.DMG",
+              "the newest of several, whatever the case of its ending")
+        check(Supply.newToolkitDownload(in: fresh(work, "no-downloads"), since: since) == nil
+              && Supply.newToolkitDownload(in: work.appendingPathComponent("missing"), since: since) == nil, "an empty or missing folder")
+
+        let found = await Supply.waitForToolkit(in: folder, since: since, timeout: 5, poll: 0.05)
+        check(found?.lastPathComponent == "Evaluation_environment_for_Windows_games_3.0.DMG", "it waits for the size to stand still, then returns it")
+        let nothing = await Supply.waitForToolkit(in: fresh(work, "still-empty"), since: since, timeout: 0.3, poll: 0.05)
+        check(nothing == nil, "the time runs out")
+        let waiting = Task { await Supply.waitForToolkit(in: fresh(work, "never"), since: since, timeout: 60, poll: 0.05) }
+        try? await Task.sleep(for: .milliseconds(150))
+        let began = Date()
+        waiting.cancel()
+        let cancelled = await waiting.value
+        check(cancelled == nil && Date().timeIntervalSince(began) < 2, "cancelling ends the wait at once")
+    }
+
+    // MARK: Which games ask
+
+    static func games() {
+        func analysis(_ apis: Set<GameAnalysis.API>) -> GameAnalysis {
+            var analysis = GameAnalysis()
+            analysis.apis = apis
+            return analysis
+        }
+        check(Supply.needed(by: analysis([.d3d12]), picked: .automatic), "DirectX 12 and nothing else needs it")
+        check(!Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic), "DirectX 11 as well: it runs without")
+        check(!Supply.needed(by: analysis([.d3d11]), picked: .automatic) && !Supply.needed(by: analysis([.d3d9]), picked: .dxvk)
+              && !Supply.needed(by: nil, picked: .automatic), "other games don't ask, nor one not yet looked at")
+        check(Supply.needed(by: analysis([.d3d11]), picked: .d3dmetal) && Supply.needed(by: nil, picked: .d3dmetal), "the player's own pick does")
+    }
+
+    // MARK: In the engine's list
+
+    static func build() {
+        guard let list = manifest(d3dmetal: "3.0"), let component = list.component("d3dmetal"), let engine = list.component("winecx") else {
+            check(false, "no component to build with")
+            return
+        }
+        let with = EngineBuild(engine: engine, graphics: [], d3dMetal: "apple-3.0", stamp: "s")
+        check(with.version(of: "d3dmetal") == "apple-3.0" && with.graphics == ["d3dmetal@apple-3.0"],
+              "a build holds the D3DMetal it carries, imported or not: \(with.graphics)")
+        let without = EngineBuild(engine: engine, graphics: [], stamp: "s")
+        check(without.version(of: "d3dmetal") == nil && without.graphics.isEmpty, "none: none")
+        check(EngineBuild(engine: engine, graphics: [], d3dMetal: "4.0b3", stamp: "s") != EngineBuild(engine: engine, graphics: [], d3dMetal: "3.0", stamp: "s"),
+              "another D3DMetal is another build")
+    }
+}

@@ -331,6 +331,29 @@ private struct GeneralSettings: View {
             }
 
             Section {
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        Text(model.d3dMetalStatus)
+                            .font(size: 12)
+                            .foregroundStyle(.secondary)
+                        if !Engine.d3dMetalReady {
+                            Button(L10n.t("Set Up …"), action: setUpDirectX12)
+                                .padFocus("settings.d3dmetal", activate: setUpDirectX12)
+                        }
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("DirectX 12 (Apple's D3DMetal)"))
+                        Text(L10n.t("DirectX 12 games run through Apple's D3DMetal, which Nightforge sets up when you say so – at the first game that needs it, or here."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                SectionTitle(L10n.t("Graphics"))
+            }
+
+            Section {
                 Toggle(isOn: reduceMotion) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Reduce motion"))
@@ -353,6 +376,10 @@ private struct GeneralSettings: View {
                 SectionTitle(L10n.t("Accessibility"))
             }
         }
+    }
+
+    private func setUpDirectX12() {
+        model.closeSettings { model.askAboutD3DMetal(for: nil) }
     }
 
     /// Shows what applies now; set back to what macOS says, it follows macOS again.
@@ -926,7 +953,11 @@ private struct AboutSettings: View {
     /// From the component list at hand (the last one fetched, else the app's own) – no network.
     private var credits: [Credit] {
         let components = ComponentStore.localManifest()?.components ?? []
+        // Apple's D3DMetal comes from the player's choice, not always from the list.
+        let apple = components.contains { $0.id == Engine.d3dMetalID } || !Engine.d3dMetalReady ? []
+            : [Credit(name: "D3DMetal", version: nil, role: L10n.t("DirectX 12 on Metal (Apple)"), license: "Apple Game Porting Toolkit licence")]
         return components.map { Credit(name: Self.name(of: $0), version: $0.version, role: Self.role(of: $0), license: $0.license) }
+            + apple
             + [Credit(name: "umu-protonfixes", version: nil, role: L10n.t("Fixes for single games"), license: "BSD-2-Clause"),
                Credit(name: "AreWeAntiCheatYet", version: nil, role: L10n.t("Which games' anti-cheat runs where"), license: "MIT")]
     }

@@ -139,6 +139,9 @@ struct LibraryView: View {
         .sheet(item: $model.pendingDemoLicense) { game in
             DemoLicenseSheet(game: game)
         }
+        .sheet(item: $model.d3dMetalDialog, onDismiss: { model.d3dMetalDismissed() }) { dialog in
+            D3DMetalSheet(opened: dialog)
+        }
         .sheet(item: $model.pendingCloudGame) { game in
             GlassQuestion(L10n.t("Play %@ on GeForce Now?", game.name),
                           message: (game.antiCheatBlock?.notYet != nil

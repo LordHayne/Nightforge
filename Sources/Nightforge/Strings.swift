@@ -519,6 +519,58 @@ enum L10n {
         "Wine with DXMT": "Wine mit DXMT",
         "Runs Windows games on the Mac": "Lässt Windows-Spiele auf dem Mac laufen",
         "DirectX 12 on Metal (Apple)": "DirectX 12 auf Metal (Apple)",
+        // Apple's D3DMetal: the question, the import, the line in Settings
+        "Set Up DirectX 12": "DirectX 12 einrichten",
+        "Setting Up DirectX 12": "DirectX 12 wird eingerichtet",
+        "Download from Apple": "Bei Apple laden",
+        "DirectX 12 isn't set up": "DirectX 12 ist nicht eingerichtet",
+        "%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.":
+            "%@ zeichnet mit DirectX 12, das ein Mac über Apples D3DMetal ausführt.",
+        "DirectX 12 games run on a Mac through Apple's D3DMetal.": "DirectX-12-Spiele laufen auf dem Mac über Apples D3DMetal.",
+        "D3DMetal is Apple's software, from the Game Porting Toolkit. Apple's licence lets you use it only for developing, testing or evaluating video games, on Apple hardware, and lets Nightforge pass it on only because Nightforge is free and non-commercial. By going on you accept Apple's licence. Nightforge asks this once.":
+            "D3DMetal ist Apples Software, aus dem Game Porting Toolkit. Apples Lizenz erlaubt, es nur zum Entwickeln, Testen oder Bewerten von Spielen zu nutzen, auf Apple-Geräten, und erlaubt Nightforge die Weitergabe nur, weil Nightforge kostenlos und nicht kommerziell ist. Wenn du weitermachst, akzeptierst du Apples Lizenz. Nightforge fragt das nur einmal.",
+        "Read Apple's Licence": "Apples Lizenz lesen",
+        "Nightforge's own download of D3DMetal isn't available at the moment.":
+            "Nightforges eigener Download von D3DMetal ist im Moment nicht verfügbar.",
+        "Download from Apple and Import": "Bei Apple laden und importieren",
+        "Download from Nightforge": "Von Nightforge laden",
+        "Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and imports it by itself.":
+            "Apples Download-Seite ist in deinem Browser geöffnet. Melde dich mit deiner Apple-Kennung an und lade das Game Porting Toolkit herunter – die .dmg-Datei. Nightforge bemerkt sie in deinem Downloads-Ordner und importiert sie von selbst.",
+        "Waiting for the download …": "Warte auf den Download …",
+        "Choose File …": "Datei wählen …",
+        "Open Apple's Page Again": "Apples Seite noch einmal öffnen",
+        "Downloading D3DMetal … %ld %%": "D3DMetal wird geladen … %ld %%",
+        "Setting up D3DMetal …": "D3DMetal wird eingerichtet …",
+        "Importing %@ …": "%@ wird importiert …",
+        "Nothing arrived in your Downloads folder within half an hour. Try again once the download is done, or choose the file yourself.":
+            "Innerhalb einer halben Stunde ist nichts in deinem Downloads-Ordner angekommen. Versuch es noch einmal, wenn der Download fertig ist, oder wähle die Datei selbst aus.",
+        "Choose the Game Porting Toolkit you downloaded from Apple (the .dmg file, or the folder it opens to).":
+            "Wähle das Game Porting Toolkit, das du bei Apple geladen hast (die .dmg-Datei oder den Ordner, in den sie sich öffnet).",
+        "DirectX 12 is ready": "DirectX 12 ist bereit",
+        "D3DMetal is ready and goes into the engine once no game is running. Close the game, then press Play again.":
+            "D3DMetal ist bereit und kommt in die Engine, sobald kein Spiel mehr läuft. Beende das Spiel und klick dann noch einmal auf „Spielen“.",
+        "D3DMetal didn't go into the engine. A problem report from the game's page helps.":
+            "D3DMetal ist nicht in die Engine gekommen. Ein Problembericht von der Seite des Spiels hilft.",
+        "D3DMetal couldn't be set up. Check your internet connection and try again.":
+            "D3DMetal konnte nicht eingerichtet werden. Prüfe deine Internetverbindung und versuch es noch einmal.",
+        "%@ needs DirectX 12, which runs through Apple's D3DMetal. Without it the game doesn't start – set it up in Settings.":
+            "%@ braucht DirectX 12, das auf dem Mac über Apples D3DMetal läuft. Ohne startet das Spiel nicht – richte es in den Einstellungen ein.",
+        "Not set up": "Nicht eingerichtet",
+        "Set up": "Eingerichtet",
+        "Set up, imported from Apple": "Eingerichtet, von Apple importiert",
+        "Set up, from Nightforge": "Eingerichtet, von Nightforge",
+        "Set Up …": "Einrichten …",
+        "DirectX 12 (Apple's D3DMetal)": "DirectX 12 (Apples D3DMetal)",
+        "DirectX 12 games run through Apple's D3DMetal, which Nightforge sets up when you say so – at the first game that needs it, or here.":
+            "DirectX-12-Spiele laufen über Apples D3DMetal. Nightforge richtet es ein, wenn du es sagst – beim ersten Spiel, das es braucht, oder hier.",
+        "This isn't Apple's Game Porting Toolkit: Nightforge found no D3DMetal in it.":
+            "Das ist nicht Apples Game Porting Toolkit: Nightforge hat darin kein D3DMetal gefunden.",
+        "Apple didn't sign this D3DMetal, so Nightforge doesn't use it.":
+            "Dieses D3DMetal ist nicht von Apple signiert, deshalb nutzt Nightforge es nicht.",
+        "Nightforge couldn't open this download. Try downloading it again.":
+            "Nightforge konnte diesen Download nicht öffnen. Lade ihn noch einmal herunter.",
+        "Nightforge couldn't copy D3DMetal. Check that your Mac has room.":
+            "Nightforge konnte D3DMetal nicht kopieren. Prüfe, ob auf deinem Mac genug Platz ist.",
         "DirectX 10 and 11 on Metal": "DirectX 10 und 11 auf Metal",
         "DirectX 9 to 11 on Vulkan": "DirectX 9 bis 11 auf Vulkan",
         "Vulkan on Metal": "Vulkan auf Metal",

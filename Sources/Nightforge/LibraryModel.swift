@@ -157,6 +157,10 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
+    /// The question about Apple's D3DMetal, while it's asked (D3DMetalFlow).
+    @Published var d3dMetalDialog: D3DMetalDialog?
+    /// What is going on behind it: the import or download, and the game whose start waits for the answer.
+    var d3dMetalRun = D3DMetalRun()
     /// A demo about to get its free licence in Steam's install window: what that takes is said first.
     @Published var pendingDemoLicense: Game?
     private var macSteamPrewarmed = false
@@ -1135,6 +1139,18 @@ final class LibraryModel: ObservableObject {
             downloadWatcher = nil
             reload(quiet: true)
         }
+    }
+
+    /// The engine built again from what the component list and the player's D3DMetal now say, queued
+    /// behind a Steam start that may still be at it. False when it couldn't (offline, a broken download).
+    func rebuildEngine(report: (@Sendable (Engine.SetupStep) -> Void)? = nil) async -> Bool {
+        let previous = steamStartup
+        let build = Task { () -> Bool in
+            await previous?.value
+            return (try? await Engine.ensureEngine(gameRunning: !running.isEmpty, report: report)) != nil
+        }
+        steamStartup = Task { _ = await build.value }
+        return await withTaskCancellationHandler { await build.value } onCancel: { build.cancel() }
     }
 
     /// After a setting games get from Steam changed: restart it now if no game would be cut off.
@@ -2457,13 +2473,16 @@ final class LibraryModel: ObservableObject {
         launchTask?.cancel()
     }
 
-    private func launch(_ game: Game) {
+    /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
+    func launch(_ game: Game, d3dMetalChecked: Bool = false) {
         guard game.isInstalled, launchingID == nil else { return }
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
             return
         }
+        // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
+        if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         launchingID = game.id
