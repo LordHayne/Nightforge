@@ -33,9 +33,9 @@ When a game also comes for the Mac, Nightforge plays the Mac version – without
 
 ### Sharp & smooth, by itself
 
-Every game gets Apple's MetalFX upscaling to full Retina sharpness and an even frame rate that fits your display – 60 FPS on a 120 Hz screen. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal.
+Most Windows games get Apple's MetalFX upscaling to full Retina sharpness, and games get an even frame rate that fits your display – 60 FPS on a 120 Hz screen. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal, DirectX 9 through Wine's own WineD3D.
 
-| Measured on an M5 | DXMT (Nightforge) | Vulkan route |
+| Measured on an M5 with Nightforge 0.2 | DXMT (Nightforge) | Vulkan route |
 |---|---:|---:|
 | OxyRail | ~75 FPS | 45–50 FPS |
 | 7 Days to Die | ~63 FPS | ~30 FPS |
@@ -50,7 +50,7 @@ Your Steam, Epic and GOG games show up together. Nightforge downloads and starts
 
 ### Made for the couch
 
-Every button in Nightforge works with a controller. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back like on a console – no desktop, no Steam window in between. Keyboard and trackpad work everywhere too.
+Playing, downloading, options and settings work with a controller, and L1/R1 switch between Home and the library; signing in and searching still need a keyboard. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back like on a console – no desktop, no Steam window in between. Keyboard and trackpad work everywhere too.
 
 **Nightforge's own controller menu.** A button combination on the controller brings up a calm menu in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
 
@@ -104,7 +104,7 @@ No dates – just an honest sort.
 
 **Coming soon** – in the works, arriving with one of the next updates:
 
-- **Even more controller.** L1/R1 switch between Home and the library; search with a controller by jumping to a first letter or with an on-screen keyboard.
+- **Search with a controller.** Jump to a first letter or use an on-screen keyboard – then search works without a keyboard too.
 - **Games stay up to date.** Updates download in the background while Nightforge is open – like on a console.
 - **Download queue.** Set the order, pause and resume, and download only at night if you like.
 
@@ -112,7 +112,6 @@ No dates – just an honest sort.
 
 - **Save conflicts, solved.** When the save on your Mac and the one in the cloud differ, Nightforge asks before the start which one goes on, and backs up the other.
 - **Faster for DirectX 9.** More speed for older DirectX 9 games through KosmicKrisp, a new Vulkan driver for the Mac.
-- **Help rate games.** Voluntary and anonymous. For every game it adds which Macs it was tested on and how many reports back that up.
 
 ## Install
 
@@ -155,14 +154,14 @@ On a trackpad, two fingers sideways go back, and pinching in the library makes t
 
 ## Good to know
 
-- **Online games with anti-cheat** (Easy Anti-Cheat, BattlEye) can't run on a Mac. Nightforge says so before you download and offers **GeForce Now** when the game is there – with your copy from Steam or, where GeForce Now supports it, from Epic. When Steam offers a way to start a game without anti-cheat, Nightforge takes it. Single player and servers without anti-cheat work.
-- **DirectX 9 to 11** is well covered. **DirectX 12** runs through Apple's D3DMetal; it's newer ground, so expect the odd game that doesn't.
+- **Online games with anti-cheat** (Easy Anti-Cheat, BattlEye) can't run on a Mac in their Windows versions – though some have a Mac version with anti-cheat. Nightforge says so before you download and offers **GeForce Now** when the game is there – with your copy from Steam or, where GeForce Now supports it, from Epic. When Steam offers a way to start a game without anti-cheat, Nightforge takes it. Single player and servers without anti-cheat work.
+- **DirectX 10 and 11** are well covered. **DirectX 9** runs through WineD3D, often slower and without MetalFX; KosmicKrisp should make it faster (see What's next). **DirectX 12** runs through Apple's D3DMetal; it's newer ground, so expect the odd game that doesn't.
 - **VR-only games** are marked as such; they can't run on a Mac.
 - Saves in the **Steam Cloud** sync as usual.
 
 ## How it works
 
-- **Engine:** a free Wine build with CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk), LGPL) runs Steam and the games in one Windows environment in `~/Library/Application Support/Nightforge`. DirectX 10/11 goes through [DXMT](https://github.com/3Shain/dxmt) (patched for Wine 11, built by `.github/workflows/graphics.yml`), DirectX 9 through [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) and [MoltenVK](https://github.com/KhronosGroup/MoltenVK), DirectX 12 through Apple's D3DMetal from the [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) – the only way DirectX 12 runs on a Mac, and the reason for the CrossOver-based engine: D3DMetal only runs on one. Nightforge picks the layer from what a game's files show, and moves on to the next one by itself if a game doesn't start. Games that use Vulkan themselves go to MoltenVK through a small layer (`wrapper/nightforge-vulkan-layer.c`) that leaves out what Metal can't do instead of letting the game stop at start.
+- **Engine:** a free Wine build with CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk), LGPL) runs Steam and the games in one Windows environment in `~/Library/Application Support/Nightforge`. DirectX 10/11 goes through [DXMT](https://github.com/3Shain/dxmt) (patched for Wine 11, built by `.github/workflows/graphics.yml`), DirectX 9 through Wine's own WineD3D (OpenGL; [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) with [MoltenVK](https://github.com/KhronosGroup/MoltenVK) only on the fallback engine), DirectX 12 through Apple's D3DMetal from the [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) – the only way DirectX 12 runs on a Mac, and the reason for the CrossOver-based engine: D3DMetal only runs on one. Nightforge picks the layer from what a game's files show, and moves on to the next one by itself if a game doesn't start. Games that use Vulkan themselves go to MoltenVK through a small layer (`wrapper/nightforge-vulkan-layer.c`) that leaves out what Metal can't do instead of letting the game stop at start.
 - **Components:** `components/sources.json` lists what's used; a nightly workflow pins the newest releases with checksums in `components/manifest.json`, which the app downloads and verifies.
 - **Steam in the background:** Steam's browser runs through a small wrapper (`wrapper/`) so it draws under Wine, and a tiny library keeps its windows out of the Dock. Games are started with Steam's own `-applaunch`, so licences, cloud saves and updates work as usual.
 - **Epic Games:** [legendary](https://github.com/derrod/legendary) (GPL-3.0) signs in through Epic's own page, downloads Epic games and starts them directly in the same Windows environment – no Epic launcher.
