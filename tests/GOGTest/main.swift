@@ -370,7 +370,9 @@ struct GOGTest {
             try? process.run()
             return process
         }
-        let download = start(ComponentStore.shared.root.appendingPathComponent("gogdl/1.4.0/gogdl_macos_arm64"))
+        // A folder of its own without .sha256: never taken for the installed gogdl, which run.sh may
+        // have copied in for `realProgram` (overwriting that made it run this test instead, c1eeaac).
+        let download = start(ComponentStore.shared.root.appendingPathComponent("gogdl/0.0.0-stand-in/gogdl_macos_arm64"))
         let leftover = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine"))
         Thread.sleep(forTimeInterval: 0.5)
         check(download.isRunning && leftover.isRunning, "both run before the sweep")
