@@ -21,6 +21,7 @@ struct GameOverlayTest {
         targets()
         windows()
         curtain()
+        wayBack()
         standIn()
         if failures == 0 { print("✓ GameOverlay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
@@ -153,6 +154,21 @@ struct GameOverlayTest {
         let again = LibraryModel.settleAgain
         check(step(gameFront: true, here: true, frontFor: 1.5, settle: again) == .wait, "up again: one second isn't enough")
         check(step(gameFront: true, here: true, frontFor: again, settle: again) == .lower, "the game kept the front a while: it sinks")
+        // Never over a game that has the keys and the pad for long.
+        let limit = LibraryModel.curtainLimit
+        check(step(gameFront: true, anywhere: true, frontFor: limit) == .lower, "its window in another Space, the game in front for long: it sinks anyway")
+        check(step(gameFront: true, frontFor: limit) == .wait, "no window yet, a long load: the curtain stays")
+        check(step(anywhere: true, frontFor: limit) == .handOver, "another app in front: handed over, not uncovered")
+    }
+
+    /// The way back: the curtain goes only once Nightforge is in front on the page the player comes
+    /// back to (the monitor test on 1.11.: Home showed for a moment before the game's page).
+    static func wayBack() {
+        let detail = Route.detail(gameID: "steam:50130", from: .home)
+        check(LibraryModel.mayUncover(active: true, windowShown: true, page: detail, target: detail), "in front, on the game's page: uncovered")
+        check(!LibraryModel.mayUncover(active: true, windowShown: true, page: .home, target: detail), "still on Home: the curtain waits for the page")
+        check(!LibraryModel.mayUncover(active: false, windowShown: true, page: detail, target: detail), "not in front yet: waits")
+        check(!LibraryModel.mayUncover(active: true, windowShown: false, page: detail, target: detail), "its window on another Space: waits")
     }
 
     /// A stand-in game: a shell named like a Windows game, which shrugs off SIGTERM, and its child.

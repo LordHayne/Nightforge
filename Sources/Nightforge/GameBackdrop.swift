@@ -190,12 +190,14 @@ enum GameBackdrop {
         }
     }
 
-    /// The curtain above the other windows and over full-screen Spaces too; behind, above the
-    /// desktop's icons only.
+    /// The curtain above the other windows and over full-screen Spaces too – other apps' as well
+    /// (the game's, Steam's), so it stays where it is while macOS slides from one Space to the
+    /// next: without, it slid out with the Space it was in and Nightforge's page slid in (the
+    /// monitor test on 1.11.). Behind, above the desktop's icons only.
     private static func arrange(_ window: NSWindow) {
         if state.stage.raised {
             window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         } else {
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
@@ -204,7 +206,9 @@ enum GameBackdrop {
     }
 
     private static func make(_ frame: CGRect) -> NSWindow {
-        let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        // A panel that never activates Nightforge: only such a window may join other apps' full-screen Spaces.
+        let window = CurtainPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.hidesOnDeactivate = false
         window.isReleasedWhenClosed = false
         window.ignoresMouseEvents = true
         window.hasShadow = false
@@ -217,6 +221,12 @@ enum GameBackdrop {
         window.contentView = host
         return window
     }
+}
+
+/// Never key or main: keys and the pad stay with the game, or with Nightforge's window.
+private final class CurtainPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }
 
 private struct BackdropView: View {

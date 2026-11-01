@@ -624,23 +624,36 @@ final class LibraryModel: ObservableObject {
         if let game = endedGames.first(where: { $0.inLibrary }), reveal(game), !route.isDetail { openDetail() }
         // "Welcome back" once the curtain is gone, not under it while the Spaces change.
         let summary = sessions.max { $0.minutes < $1.minutes }
-        comeBack { [weak self] in self?.sessionSummary = summary }
+        comeBack(to: route) { [weak self] in self?.sessionSummary = summary }
     }
 
-    /// `then`: once the curtain is gone.
-    private func comeBack(then: @escaping @MainActor () -> Void = {}) {
+    /// `page`: the page the player comes back to, set already. `then`: once the curtain is gone.
+    private func comeBack(to page: Route, then: @escaping @MainActor () -> Void = {}) {
         MacSteam.hide()
-        // Nightforge to the front (NSApp.comeToFront), then its window over the page behind the
-        // game – on a TV it's in Nightforge's own full-screen Space – and only then may the
-        // screens change (GameDisplay.backFromGame), where nobody sees it.
-        NSApp.comeToFront {
-            GameDisplay.backFromGame()
-            // Not on a timer: once Nightforge's window is in front on the Space shown.
-            GameBackdrop.hide(once: {
-                NSApp.isActive && NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false
-            }, then: then)
+        Task {
+            // The page's change (0.22 s) done first: a switch of Spaces shows the window as it is
+            // at that moment (Home flashed before the game's page on 1.11.).
+            try? await Task.sleep(for: .milliseconds(300))
+            // Nightforge to the front (NSApp.comeToFront), then its window over the page behind the
+            // game – on a TV it's in Nightforge's own full-screen Space – and only then may the
+            // screens change (GameDisplay.backFromGame), where nobody sees it.
+            NSApp.comeToFront {
+                GameDisplay.backFromGame()
+                // Not on a timer: once Nightforge's window is in front on the Space shown, on that page.
+                GameBackdrop.hide(once: { [weak self] in
+                    Self.mayUncover(active: NSApp.isActive,
+                                    windowShown: NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false,
+                                    page: self?.route ?? page, target: page)
+                }, then: then)
+            }
         }
         reload(quiet: true)  // play time, last played
+    }
+
+    /// Whether the curtain may go on the way back: Nightforge in front, its window on the Space
+    /// shown, and on the page the player comes back to – never on the one before.
+    nonisolated static func mayUncover(active: Bool, windowShown: Bool, page: Route, target: Route) -> Bool {
+        active && windowShown && page == target
     }
 
     /// Once a game has the screen: Nightforge stays where it is behind it, the page behind the
@@ -871,8 +884,9 @@ final class LibraryModel: ObservableObject {
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
     /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
     /// hands the front to the game when another app has it, and sinks once the game has been in
-    /// front with its window shown for `settle` seconds. Down, for `focusGuard`: another app taking
-    /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
+    /// front with its window shown for `settle` seconds (`curtainLimit` with it in any Space).
+    /// Down, for `focusGuard`: another app taking the front raises it again; Nightforge in front
+    /// (Go to Nightforge) ends the watch.
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
                                         windowAnywhere: Bool, frontFor: TimeInterval, settle: TimeInterval = 1,
                                         guardOver: Bool) -> CurtainStep {
@@ -882,8 +896,12 @@ final class LibraryModel: ObservableObject {
         }
         guard windowHere || windowAnywhere else { return .wait }
         guard gameFront else { return .handOver }
-        return windowHere && frontFor >= settle ? .lower : .wait
+        // Never over a game that has the keys and the pad for long, wherever its window is.
+        return windowHere && frontFor >= settle || frontFor >= curtainLimit ? .lower : .wait
     }
+
+    /// How long the game may have the front with its window up before the curtain sinks anyway.
+    nonisolated static let curtainLimit: TimeInterval = 10
 
     /// How long after the curtain sinks the game's front is still watched.
     private static let focusGuard: TimeInterval = 8

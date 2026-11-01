@@ -444,6 +444,16 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Receiver, gilt das. Was macOS in den 3 s nach einem Anstecken selbst umstellt, zählt nicht als Wahl.
       Für das Vorhang-Flackern nach dem Wiederanstecken stehen jetzt in `wine.log` die Bildschirmwechsel unter dem
       Vorhang und jede Umstellung des Hauptbildschirms.
+    - Befund 1.11. mit Video (Mafia II am ASUS, Spiel beenden): Für etwa ein Bild Nightforges Startseite vor dem
+      Vorhang, dann wieder Vorhang, dann die Spielseite. Mit 15 Bildern pro Sekunde sieht man das Gleiten eines
+      Space-Wechsels: Der Vorhang glitt mit dem Space des Spiels hinaus, Nightforges Vollbild-Space mit der alten
+      Seite herein. Die Ebene war es nicht (der Vorhang lag schon auf `screenSaver − 1`). Ein normales Fenster darf
+      nicht in die Vollbild-Spaces anderer Apps. Jetzt ist der Vorhang ein nicht aktivierendes Panel mit
+      `.canJoinAllApplications`, das nie Key wird. Auf dem Rückweg ist die Seite fertig (300 ms), bevor Nightforge
+      nach vorne kommt, und der Vorhang geht erst, wenn das Fenster auf genau dieser Seite steht
+      (`mayUncover`, nach 3 s ohnehin). Beim Start sinkt der Vorhang spätestens, wenn das Spiel 10 s vorne ist und
+      sein Fenster irgendwo zeigt (`curtainLimit`); das Overlay liegt immer darüber. Live zu prüfen: Bleibt der
+      Vorhang beim Start und beim Zurück ruhig stehen, auch wenn Steam oder das Spiel den Space wechseln?
 
 ## Anti-Cheat und GeForce Now
 
