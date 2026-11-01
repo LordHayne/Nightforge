@@ -47,6 +47,10 @@ enum GameDisplay {
     }
 
     private static var known: Set<CGDirectDisplayID> = []
+    /// The external screens seen last, for the sound: a TV that's new, not the Mac's own screen as
+    /// the lid opens or a TV back after a moment (GameAudio.plugged).
+    private static var externals: Set<String> = []
+    private static var externalsGone: [String: Date] = [:]
     private static var lastScreen: CGDirectDisplayID?
     private static var placing = false
     /// The screens are being rearranged (makeMain): the window's moves meanwhile say nothing.
@@ -60,6 +64,7 @@ enum GameDisplay {
     static func follow() {
         restoreLeftover()
         known = Set(candidates().map(\.id))
+        externals = Set(candidates().filter { !$0.builtIn }.map { String($0.id) })
         Task {
             // The window shows up a moment after the app finished launching.
             for _ in 0..<50 where window == nil { try? await Task.sleep(for: .milliseconds(100)) }
@@ -70,16 +75,20 @@ enum GameDisplay {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
-                let now = Set(candidates().map(\.id))
+                let all = candidates()
+                let now = Set(all.map(\.id))
                 let connected = !now.subtracting(known).isEmpty
                 known = now
-                followSound(connected ? .plugged : nil)  // also when a TV goes, or mirroring starts or ends
+                let screens = Set(all.filter { !$0.builtIn }.map { String($0.id) })
+                let plugged = GameAudio.plugged(screens, before: externals, gone: &externalsGone, at: Date())
+                externals = screens
+                followSound(plugged ? .plugged : nil)  // also when a TV goes, or mirroring starts or ends
                 Task { await leaveFullScreenOffTV() }
                 guard connected else { return }
                 UserDefaults.standard.removeObject(forKey: Keys.declined)  // plugged in again: try it
                 Task {
                     await place()
-                    followSound(.plugged)
+                    followSound(plugged ? .plugged : nil)
                 }
             }
         }
@@ -221,6 +230,7 @@ enum GameDisplay {
     /// back when the window leaves that screen (windowMoved) or Nightforge quits.
     static func leaveGame() {
         running = false
+        GameAudio.gameEnded()
         if !onMain { restoreLeftover() }
     }
 

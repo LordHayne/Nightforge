@@ -82,6 +82,41 @@ struct GameAudioTest {
         (action, state) = decide(.plugged, home, current: speakers, .declined)
         check(action == .switchTo(home[1]) && state == .moved(from: speakers, to: denon), "until the TV is plugged in again")
 
+        // The live test at 12:00 on 1.11.: Nightforge hadn't switched (the TV came before it started),
+        // the player picked the speakers in the menu bar, and the game's start put the receiver back.
+        (action, state) = decide(.chosen, home, current: speakers, .none)
+        check(action == .none && state == .declined, "the speakers picked in the menu bar with a TV there: noted at once")
+        (action, state) = decide(.gameStarts, home, current: speakers, state)
+        check(action == .none && state == .declined, "a game starting afterwards leaves them")
+        (action, state) = decide(.chosen, home, current: denon, .moved(from: speakers, to: denon))
+        check(action == .none && state == .moved(from: speakers, to: denon), "Nightforge's own switch coming back isn't a choice")
+        (action, state) = decide(.chosen, home, current: denon, .none)
+        check(action == .none && state == .declined, "the receiver picked by hand: left alone, nothing to put back")
+        (action, state) = decide(.left, tv: nil, home, current: denon, state)
+        check(action == .none && state == .declined, "and nothing put back when Nightforge leaves the TV")
+        let alone = setups["speakers-only"] ?? []
+        (action, state) = decide(.chosen, tv: nil, alone, current: speakers, .declined)
+        check(action == .none && state == .none, "TV unplugged, macOS back on the speakers: no choice left to keep")
+
+        // Only a TV that's new counts as plugged in, not one back after a moment (its HDMI handshake).
+        var away: [String: Date] = [:]
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        check(GameAudio.plugged([denon], before: [], gone: &away, at: t0), "an output never seen: plugged in")
+        check(!GameAudio.plugged([], before: [denon], gone: &away, at: t0.addingTimeInterval(60)), "gone: nothing plugged in")
+        check(!GameAudio.plugged([denon], before: [], gone: &away, at: t0.addingTimeInterval(65)), "back after 5 s: the same TV")
+        check(away.isEmpty, "and its time away forgotten")
+        _ = GameAudio.plugged([], before: [denon], gone: &away, at: t0.addingTimeInterval(100))
+        check(GameAudio.plugged([denon], before: [], gone: &away, at: t0.addingTimeInterval(140)), "back after 40 s: plugged in again")
+        check(!GameAudio.plugged([denon], before: [denon], gone: &away, at: t0.addingTimeInterval(150)), "still there: nothing new")
+        check(GameAudio.plugged([denon, lg], before: [denon], gone: &away, at: t0.addingTimeInterval(160)), "a second TV next to it")
+
+        // The overlay's line: Wine keeps the device the game opened.
+        check(GameAudio.inGameHint(gameOutput: denon, current: speakers, devices: home) == "DENON-AVR",
+              "the speakers picked during a game: it plays on the receiver until its next start")
+        check(GameAudio.inGameHint(gameOutput: denon, current: denon, devices: home) == nil, "nothing changed: no line")
+        check(GameAudio.inGameHint(gameOutput: nil, current: speakers, devices: home) == nil, "no game: no line")
+        check(GameAudio.inGameHint(gameOutput: denon, current: speakers, devices: alone) == nil, "its device gone: no line")
+
         // Back.
         (action, state) = decide(.left, tv: nil, home, current: denon, .moved(from: speakers, to: denon))
         check(action == .restore(uid: speakers) && state == .none, "off the TV: back to the speakers")

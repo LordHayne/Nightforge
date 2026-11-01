@@ -349,6 +349,19 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
         Während des Space-Wechsels wird der Vorhang laufend nach vorne geholt.
       - Nach 3 s zeigt der Vorhang eine ruhige Zeile, was passiert: den Start-Hinweis („Neuer Start mit WineD3D …“,
         Shader beim ersten Start) bzw. „Warte auf das erste Bild …“.
+    - Nachtest mit 645cca8 (Testbuild f03398f, Deckel offen, erweitert, TV Hauptbildschirm) und behoben:
+      - „Zu Nightforge“ im Overlay und der Weg aus dem Spiel brachten die Claude-App nach vorn, das Spiel blieb
+        dahinter. Nightforge bat bisher nur höflich um die Front (Launch Services), und das verliert gegen jede App mit
+        einem Fenster auf dem gezeigten Space. Jetzt holt es sich die Front ausdrücklich (`NSApp.comeToFront`, also
+        `activate(ignoringOtherApps: true)`, laut SDK „activates regardless“), dazu Launch Services für den
+        Space-Wechsel. Das Overlay-Panel geht erst danach weg. Das Spiel bekommt beim Weiterspielen alle Fenster nach
+        vorn (`.activateAllWindows`).
+      - Sonic Mania (Epic) lief im Fenster: Das Spiel schreibt beim ersten Start `windowed=y` (848×480). Neues Profil
+        `epic.45e7cf3c49054f2fb20b673d9b0ae69e` mit `windowed=n` in `Sega/SonicMania/Settings.ini`, vor jedem Start.
+      - Vorhang-Flackern bei Sonic: Ursache nicht belegt, kein EOS-Overlay im Prefix. Ein anderes Windows-Programm
+        vorne (Launcher, Overlay, Dialog, nicht Steam) zählt jetzt als Seite des Spiels. Ging der Vorhang einmal wieder
+        hoch, sinkt er erst nach 2,5 s statt 1 s Front. Jedes erneute Hochgehen steht in `wine.log`
+        („Curtain up again for … in front“), so zeigt der nächste Test, wer die Front nahm.
     - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
       oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
       (EULA): Der Vorhang geht weg, die Frage ist zu sehen.
@@ -373,6 +386,14 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       wenn ein TV angesteckt wird (Bild oder HDMI-Ton kommt dazu) und wenn ein Spiel auf dem TV startet, beide Male
       nur von den eingebauten Lautsprechern aus (`GameAudio.Moment`). Die eigene Wahl gilt bis zum nächsten
       Anstecken. Zurück geht es nur, wenn das Fenster wirklich auf einem Nicht-TV landet oder der TV weg ist.
+    - Befund 1.11. mittags: Der Nutzer stellte im Ton-Menü auf die Lautsprecher, der Ton landete wieder am DENON.
+      Gespeichert war der Zustand (UserDefaults), aber die Wahl sah Nightforge erst beim nächsten Anlass. Kam der TV
+      vor Nightforges Start, war der Zustand „nicht umgeschaltet“, und der Spielstart schaltete zurück. Jetzt hört
+      Nightforge auf die Standardausgabe: Was der Spieler wählt, während ein TV da ist, bleibt bis zum nächsten
+      Anstecken. Das eigene Umschalten zählt nicht. Als angesteckt gilt nur ein neuer externer Bildschirm oder
+      HDMI-Ausgang, nicht der eingebaute beim Aufklappen und nicht einer, der nach unter 30 s wiederkommt.
+      Wechselt die Ausgabe während eines Windows-Spiels, sagt das Overlay „Das Spiel spielt seinen Ton bis zum
+      nächsten Start über …“: winecoreaudio bleibt beim Gerät, das es beim Start geöffnet hat.
 
 ## Anti-Cheat und GeForce Now
 

@@ -622,20 +622,15 @@ final class LibraryModel: ObservableObject {
     /// `then`: once the curtain is gone.
     private func comeBack(then: @escaping @MainActor () -> Void = {}) {
         MacSteam.hide()
-        // Since macOS 14 an app can't push itself to the front; opening it through Launch
-        // Services can, and unhides it too. Then its window comes forward over the page behind the
+        // Nightforge to the front (NSApp.comeToFront), then its window over the page behind the
         // game – on a TV it's in Nightforge's own full-screen Space – and only then may the
         // screens change (GameDisplay.backFromGame), where nobody sees it.
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
-            Task { @MainActor in
-                GameDisplay.backFromGame()
-                // Not on a timer: once Nightforge's window is in front on the Space shown.
-                GameBackdrop.hide(once: {
-                    NSApp.isActive && NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false
-                }, then: then)
-            }
+        NSApp.comeToFront {
+            GameDisplay.backFromGame()
+            // Not on a timer: once Nightforge's window is in front on the Space shown.
+            GameBackdrop.hide(once: {
+                NSApp.isActive && NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false
+            }, then: then)
         }
         reload(quiet: true)  // play time, last played
     }
@@ -657,9 +652,7 @@ final class LibraryModel: ObservableObject {
     /// after a game (comeBack): keys and the pad only reach the app in front.
     func comeForward() {
         guard !NSApp.isActive else { return }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        NSApp.comeToFront()
     }
 
     /// What a game's processes show in `ps`, by game: Wine's Windows path of the game folder, or
@@ -796,6 +789,7 @@ final class LibraryModel: ObservableObject {
         var seenOnce = false
         var frontSince: Date?
         var loweredAt: Date?
+        var raisedAgain = 0
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
@@ -809,8 +803,11 @@ final class LibraryModel: ObservableObject {
                 }
             }
             GameBackdrop.setDetail(launchHint)
-            let pids = await Task.detached(priority: .utility) {
-                Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+            let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let (pids, companion) = await Task.detached(priority: .utility) {
+                let table = GameProcesses.table()
+                return (Set(GameProcesses.targets(windows: marker, mac: folder, in: table)),
+                        marker != nil && front.map { GameProcesses.windowsCompanion($0, in: table) } == true)
             }.value
             seenOnce = seenOnce || !pids.isEmpty
             // Started and gone again, nothing starting any more: the start flow says what happened.
@@ -820,8 +817,9 @@ final class LibraryModel: ObservableObject {
                 if launchingID == nil { return }
                 continue
             }
-            let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let gameFront = front.map(pids.contains) ?? false
+            // Another Windows program of the game's in front (a launcher, an overlay, a dialog of
+            // its own) is the game's side too: no handing over, no curtain again.
+            let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
             let (here, anywhere) = await Task.detached(priority: .utility) {
                 (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true))
@@ -832,6 +830,7 @@ final class LibraryModel: ObservableObject {
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     windowHere: here, windowAnywhere: anywhere,
                                     frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                    settle: raisedAgain == 0 ? 1 : Self.settleAgain,
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
             case .wait:
                 break
@@ -847,6 +846,8 @@ final class LibraryModel: ObservableObject {
                 GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
                 loweredAt = nil
                 frontSince = nil
+                raisedAgain += 1
+                GameLog.note("Curtain up again for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front")
             case .done:
                 return
             }
@@ -862,21 +863,25 @@ final class LibraryModel: ObservableObject {
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
     /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
     /// hands the front to the game when another app has it, and sinks once the game has been in
-    /// front with its window shown for a second. Down, for `focusGuard`: another app taking the
-    /// front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
+    /// front with its window shown for `settle` seconds. Down, for `focusGuard`: another app taking
+    /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
-                                        windowAnywhere: Bool, frontFor: TimeInterval, guardOver: Bool) -> CurtainStep {
+                                        windowAnywhere: Bool, frontFor: TimeInterval, settle: TimeInterval = 1,
+                                        guardOver: Bool) -> CurtainStep {
         if lowered {
             if guardOver || nightforgeFront { return .done }
             return gameFront ? .wait : .raiseAgain
         }
         guard windowHere || windowAnywhere else { return .wait }
         guard gameFront else { return .handOver }
-        return windowHere && frontFor >= 1 ? .lower : .wait
+        return windowHere && frontFor >= settle ? .lower : .wait
     }
 
     /// How long after the curtain sinks the game's front is still watched.
     private static let focusGuard: TimeInterval = 8
+    /// How long the game has to keep the front before the curtain sinks a second time: a game
+    /// building its window anew more than once made it come and go (Sonic Mania on 1.11.).
+    static let settleAgain: TimeInterval = 2.5
 
     /// Hands the front to the game: its program with windows (a Windows game's .exe under Wine, a
     /// Mac game's app). Since macOS 14 only the app in front can pass it on – asking from behind
@@ -889,13 +894,12 @@ final class LibraryModel: ObservableObject {
         else { return false }
         if app.isActive { return true }
         if !NSApp.isActive {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = true
-            _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+            NSApp.comeToFront()
             for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         }
         NSApp.yieldActivation(to: app)
-        app.activate(from: .current, options: [])
+        // All its windows: with only the key one, Wine's full-screen window stayed under others.
+        app.activate(from: .current, options: [.activateAllWindows])
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         return app.isActive
     }
@@ -947,7 +951,8 @@ final class LibraryModel: ObservableObject {
                     self?.comeForward()
                     NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
                 })
-            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.gameScreen, symbols: padSymbols, actions: actions)
+            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.gameScreen, symbols: padSymbols,
+                             soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
         }
     }
 
@@ -3075,7 +3080,7 @@ final class LibraryModel: ObservableObject {
                 // Already there while macOS changes to the game's Space (on a TV it has one of its own).
                 GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
                 NSApp.yieldActivation(to: app)
-                app.activate(from: .current, options: [])
+                app.activate(from: .current, options: [.activateAllWindows])
                 try? await Task.sleep(for: .milliseconds(600))
                 if app.isActive { return }
             }
@@ -3191,5 +3196,21 @@ final class LibraryModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         UserDefaults.standard.set(url.path, forKey: Prefs.Keys.bottlesRoot)
         reload()
+    }
+}
+
+extension NSApplication {
+    /// Nightforge to the front because the player asked: Go to Nightforge, a game's end. Since
+    /// macOS 14 asking politely from behind loses to any app with a window in the Space shown (on
+    /// 1.11. the Claude app on the TV took the front, the game stayed behind it), so it's activated
+    /// regardless – and opened through Launch Services as well, which unhides it and changes to
+    /// its window's Space. `then` once that's done.
+    func comeToFront(then: (@MainActor () -> Void)? = nil) {
+        activate(ignoringOtherApps: true)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
+            Task { @MainActor in then?() }
+        }
     }
 }

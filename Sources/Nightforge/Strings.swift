@@ -643,6 +643,7 @@ enum L10n {
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
         "Sound now comes from %@": "Ton kommt jetzt aus %@",
+        "The game plays its sound on %@ until it starts again.": "Das Spiel spielt seinen Ton bis zum nächsten Start über %@.",
         "Continue Playing": "Weiterspielen",
         "Quit Game": "Spiel beenden",
         "Go to Nightforge": "Zu Nightforge",

@@ -4916,6 +4916,21 @@
    ],
    "geforceNow": "d1768dc1-b451-449a-8f7f-cf5b20f98f6f"
   },
+  "epic.45e7cf3c49054f2fb20b673d9b0ae69e": {
+   "name": "Sonic Mania",
+   "note": "Seen 2026-11-01 on M5 with the Epic version on winecx 4.7.3: its first start writes Settings.ini (Sega/SonicMania in AppData/Local) with windowed=y at 848×480, so it played in a small window on the TV. windowed=n plays full screen at the desktop's resolution (no fsWidth/fsHeight in the file); exclusiveFS stays as the game sets it.",
+   "iniSettings": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Sega/SonicMania/Settings.ini",
+     "section": "Video",
+     "values": {
+      "windowed": "n"
+     }
+    }
+   ],
+   "source": "mac"
+  },
   "epic.47cba32bce2f4b1e9da0eee33bbb489a": {
    "name": "Splitgate",
    "source": "anticheat",

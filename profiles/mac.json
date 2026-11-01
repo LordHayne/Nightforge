@@ -171,6 +171,20 @@
     }
    ],
    "note": "Tested 2026-10-28 on M5 (Unreal 5.7.4). DirectX 11 fails on every layer: DXMT stays black while its graphics memory grows by ~400 MB/s, DXVK 3 on KosmicKrisp and D3DMetal crash. DirectX 12 through D3DMetal plays; with Rosetta's AVX hint it crashes after ~2 min (illegal instruction while precompiling shaders). Nanite and virtual shadow maps cost D3DMetal half the frame rate (30 -> 64 FPS without them, Engine.ini). With full Retina output (3024x1964), Low, FSR Performance and FSR frame generation: 50-55 FPS, sharp. Ray tracing and MegaLights stay off. The menu's background video stays black."
+  },
+  "epic.45e7cf3c49054f2fb20b673d9b0ae69e": {
+   "name": "Sonic Mania",
+   "note": "Seen 2026-11-01 on M5 with the Epic version on winecx 4.7.3: its first start writes Settings.ini (Sega/SonicMania in AppData/Local) with windowed=y at 848×480, so it played in a small window on the TV. windowed=n plays full screen at the desktop's resolution (no fsWidth/fsHeight in the file); exclusiveFS stays as the game sets it.",
+   "iniSettings": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Sega/SonicMania/Settings.ini",
+     "section": "Video",
+     "values": {
+      "windowed": "n"
+     }
+    }
+   ]
   }
  }
 }

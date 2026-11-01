@@ -21,6 +21,8 @@ enum GameOverlay {
         @Published var game = ""
         @Published var paused = false
         @Published var symbols = PadSymbols()
+        /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
+        @Published var soundStaysOn: String?
     }
 
     /// What the model does for the choices.
@@ -44,11 +46,13 @@ enum GameOverlay {
 
     /// Over `game` on `screen`. `pause`: its processes, stopped until the panel goes. `step`:
     /// `.notStarting` for a game that runs but shows nothing (LibraryModel's curtain).
+    /// `soundStaysOn`: the device a Windows game still plays to after the default output changed.
     static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, symbols: PadSymbols,
-                     step: OverlayStep = .menu, actions: Actions) {
+                     step: OverlayStep = .menu, soundStaysOn: String? = nil, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
         state.game = game
+        state.soundStaysOn = soundStaysOn
         state.symbols = symbols
         state.step = step
         stop(pause)
@@ -88,9 +92,11 @@ enum GameOverlay {
             close()
             Task { await actions.quit() }
         case .nightforge:
+            // Nightforge in front first, then the panel goes: gone first, macOS gave the front to
+            // the next app with a window on the Space shown, and the game stayed behind it.
             let actions = self.actions
-            close()
             actions?.nightforge()
+            close()
         }
     }
 
@@ -148,11 +154,7 @@ enum GameOverlay {
         state.paused = false
     }
 
-    private static func comeForward() {
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
-    }
+    private static func comeForward() { NSApp.comeToFront() }
 
     private static func make() -> NSPanel {
         let panel = OverlayPanel(contentRect: NSScreen.main?.frame ?? .zero, styleMask: [.borderless, .nonactivatingPanel],
@@ -220,6 +222,14 @@ private struct OverlayView: View {
             Text(L10n.t("Paused"))
                 .font(size: 14)
                 .foregroundStyle(Theme.muted)
+        }
+        // Wine keeps the device it opened: a change in the menu bar reaches the game's next start.
+        if let device = state.soundStaysOn {
+            Text(L10n.t("The game plays its sound on %@ until it starts again.", device))
+                .font(size: 13)
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
         }
         VStack(spacing: 12) {
             choice("overlay.continue", L10n.t("Continue Playing"), tint: Theme.sodium, preferred: true) { GameOverlay.resume() }
@@ -371,6 +381,15 @@ enum GameProcesses {
             guard fields.count == 3, let pid = pid_t(fields[0]), let parent = pid_t(fields[1]) else { return nil }
             return Entry(pid: pid, parent: parent, command: String(fields[2]))
         }
+    }
+
+    /// Whether `pid` is a Windows program other than Steam (Wine names it by its Windows path):
+    /// a game's launcher, overlay or dialog in front is the game's side, not another app.
+    nonisolated static func windowsCompanion(_ pid: pid_t, in table: [Entry]) -> Bool {
+        guard let command = table.first(where: { $0.pid == pid })?.command.lowercased() else { return false }
+        let windowsPath = command.dropFirst().hasPrefix(#":\"#) && command.first?.isLetter == true
+        return windowsPath && command.contains(".exe") && !command.contains(#"\steam\steam.exe"#)
+            && !command.contains("steamwebhelper")
     }
 
     /// The game's processes and whatever they started, however deep: a Windows game by its folder

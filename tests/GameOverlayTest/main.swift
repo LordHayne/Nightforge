@@ -97,6 +97,14 @@ struct GameOverlayTest {
         check(nms == [9000, 9010], "a Mac game and its helper, not a shell that only names the folder (\(nms))")
         check(GameProcesses.targets(windows: #"\steamapps\common\Gone\"#, mac: nil, in: table, me: 401).isEmpty, "a game that isn't running")
         check(GameProcesses.targets(windows: nil, mac: nil, in: table, me: 401).isEmpty, "nothing to go by")
+        // In front while the curtain watches: another Windows program is the game's side, Steam isn't.
+        check(GameProcesses.windowsCompanion(7010, in: table), "a Windows game's helper in front: the game's side")
+        check(GameProcesses.windowsCompanion(8000, in: table), "an Epic game's program")
+        check(!GameProcesses.windowsCompanion(6100, in: table), "Steam's window (a question, its sign-in) is Steam's")
+        check(!GameProcesses.windowsCompanion(6110, in: table), "nor its web helper")
+        check(!GameProcesses.windowsCompanion(9000, in: table), "a Mac app is another app")
+        check(!GameProcesses.windowsCompanion(401, in: table), "Nightforge isn't")
+        check(!GameProcesses.windowsCompanion(4242, in: table), "a process gone meanwhile isn't")
         // Steam started the game, but the game didn't start Steam: Steam and the Wine session stay.
         for spared: pid_t in [1, 401, 6058, 6060, 6070, 6080, 6100, 6110, 900] {
             check(!(l4d2 + overcooked + nms).contains(spared), "\(spared) is spared")
@@ -124,9 +132,10 @@ struct GameOverlayTest {
     /// another app takes the front from it (the TV test on 1.11.: the Claude app came up instead).
     static func curtain() {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, here: Bool = false,
-                  anywhere: Bool = false, frontFor: TimeInterval = 0, guardOver: Bool = false) -> LibraryModel.CurtainStep {
+                  anywhere: Bool = false, frontFor: TimeInterval = 0, settle: TimeInterval = 1,
+                  guardOver: Bool = false) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, windowHere: here,
-                                     windowAnywhere: anywhere || here, frontFor: frontFor, guardOver: guardOver)
+                                     windowAnywhere: anywhere || here, frontFor: frontFor, settle: settle, guardOver: guardOver)
         }
         check(step() == .wait, "no window yet: the curtain waits")
         check(step(here: true) == .handOver, "its window is there, another app in front: the game gets the front")
@@ -140,6 +149,10 @@ struct GameOverlayTest {
         check(step(lowered: true) == .raiseAgain, "down and another app took the front: up again, back to the game")
         check(step(lowered: true, nightforgeFront: true) == .done, "Go to Nightforge: the player's choice, the watch ends")
         check(step(lowered: true, guardOver: true) == .done, "after the guard time the front is the player's")
+        // Up again once already (Sonic Mania on 1.11. built its window anew and the curtain came and went).
+        let again = LibraryModel.settleAgain
+        check(step(gameFront: true, here: true, frontFor: 1.5, settle: again) == .wait, "up again: one second isn't enough")
+        check(step(gameFront: true, here: true, frontFor: again, settle: again) == .lower, "the game kept the front a while: it sinks")
     }
 
     /// A stand-in game: a shell named like a Windows game, which shrugs off SIGTERM, and its child.
