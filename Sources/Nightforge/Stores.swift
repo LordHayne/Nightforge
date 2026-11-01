@@ -152,9 +152,10 @@ final class SteamStore: StoreProvider {
     /// Steam then would end the game too.
     var restartWhenIdle = false
 
-    /// A demo the account has no licence for yet: Steam adds the free licence when asked to install
-    /// it (steam://install), in its own install window. True once the player confirmed there and
-    /// Steam wrote the demo's manifest (up to 5 min) – from then on it downloads like any game.
+    /// A demo or free game the account has no licence for yet: Steam adds the free licence when
+    /// asked to install it (steam://install), in its own install window. True once the player
+    /// confirmed there and Steam wrote its manifest (up to 5 min) – from then on it downloads like
+    /// any game.
     func addDemoLicense(_ game: Game) async throws -> Bool {
         if game.platform == .mac {
             MacSteam.ask("install/\(game.appID)")
@@ -163,8 +164,9 @@ final class SteamStore: StoreProvider {
             try Engine.startSteam(wine, arguments: ["steam://install/\(game.appID)"])
             await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
-        let manifest = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("appmanifest_\(game.appID).acf")
+        // A store hit has no folder of its own yet, so the library by the Steam that adds it.
+        let steamapps = game.platform == .mac ? MacSteam.steamapps : game.steamRoot.appendingPathComponent("steamapps", isDirectory: true)
+        let manifest = steamapps.appendingPathComponent("appmanifest_\(game.appID).acf")
         for _ in 0..<150 {
             try? await Task.sleep(for: .seconds(2))
             if FileManager.default.fileExists(atPath: manifest.path) { return true }

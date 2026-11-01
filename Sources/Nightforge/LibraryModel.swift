@@ -157,7 +157,7 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var sizingID: String?
     /// A game about to open in GeForce Now for the first time: what that means is said once.
     @Published var pendingCloudGame: Game?
-    /// A demo about to get its free licence in Steam's install window: what that takes is said first.
+    /// A demo or free game about to get its licence in Steam's install window: what that takes is said first.
     @Published var pendingDemoLicense: Game?
     private var macSteamPrewarmed = false
     /// Which of the two Steams runs: the one the next game needs (SteamSwitch).
@@ -1395,8 +1395,17 @@ final class LibraryModel: ObservableObject {
         case .notInstalled where game.isVROnly || game.antiCheatBlock != nil: break
         case .notInstalled: downloadIfRoom(game)
         case .downloading: if game.downloadNeedsSpace != nil { resumeDownload(game) }
+        case .inStore where game.storeFree: pendingDemoLicense = freeEntry(game)
         case .inStore: openStorePage(game)
         }
+    }
+
+    /// A free game from the store, added through the Steam it'll run in: Steam for Mac for a Mac
+    /// version once that's signed in, else Nightforge's own.
+    private func freeEntry(_ game: Game) -> Game {
+        var game = game
+        if game.macNative && MacSteam.signedIn { game.platform = .mac }
+        return game
     }
 
     /// Anti-cheat games GeForce Now streams open there, with the copy the player owns on Steam.
@@ -1424,9 +1433,9 @@ final class LibraryModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    /// Steam adds a demo's free licence when it's asked to install the demo (steam://install), in
-    /// its own install window: once the player has confirmed there, Steam writes the demo's manifest
-    /// and downloads it, and the library shows that like any download.
+    /// Steam adds a demo's or free game's licence when it's asked to install it (steam://install), in
+    /// its own install window: once the player has confirmed there, Steam writes its manifest and
+    /// downloads it, and the library shows that like any download.
     func addDemoLicense(_ game: Game) {
         pendingDemoLicense = nil
         Task {
@@ -1494,6 +1503,7 @@ final class LibraryModel: ObservableObject {
         game.playModes = info?.modes ?? []
         if let info { game.art = StoreArt(info) }
         game.storePrice = hit.price
+        game.storeFree = hit.free
         game.metascore = hit.metascore
         // Store hits don't say whether there's single player, so only blocks that always hold.
         if hit.macNative != true, let block = antiCheatBlocks[hit.appID], !block.onlineOnly { game.antiCheatBlock = block }
@@ -1504,6 +1514,8 @@ final class LibraryModel: ObservableObject {
     private var storeDetailsRequested: Set<Int> = []
     /// Prices of the library's store entries, once looked up; every scan brings them back.
     private var storePrices: [Int: String] = [:]
+    /// … and which of them are free.
+    private var freeInStore: Set<Int> = []
 
     // MARK: - What each game is
 
@@ -1561,7 +1573,10 @@ final class LibraryModel: ObservableObject {
         guard !storePrices.isEmpty else { return games }
         return games.map { game in
             var game = game
-            if game.install == .inStore, let price = storePrices[game.appID] { game.storePrice = price }
+            if game.install == .inStore, let price = storePrices[game.appID] {
+                game.storePrice = price
+                game.storeFree = freeInStore.contains(game.appID)
+            }
             return game
         }
     }
@@ -1574,6 +1589,7 @@ final class LibraryModel: ObservableObject {
             guard let hit = await StoreSearch.shared.details(for: game.appID) else { return }
             // Also for the library's store entries: games Steam knows that the account doesn't own.
             storePrices[game.appID] = hit.price
+            if hit.free { freeInStore.insert(game.appID) }
             allGames = withStorePrices(allGames)
             guard let index = storeResults.firstIndex(where: { $0.appID == game.appID }) else {
                 applyFilter()

@@ -72,6 +72,9 @@ enum L10n {
         "In the Steam Store": "Im Steam-Store",
         "Price": "Preis",
         "Free": "Kostenlos",
+        "Add for Free": "Kostenlos hinzufügen",
+        "Add the free game": "Kostenloses Spiel hinzufügen",
+        "%@ is free. Steam adds the game to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge starts it like any other game.": "%@ ist kostenlos. Steam fügt das Spiel einmal deiner Steam-Bibliothek hinzu: Bestätige dazu im Steam-Fenster, das sich gleich öffnet, die Installation. Danach startet Nightforge es wie jedes andere Spiel.",
         "Coming soon": "Demnächst",
 
         // Games the account doesn't own: their demo, the store, downloads Steam won't fetch (ROADMAP 2.6)

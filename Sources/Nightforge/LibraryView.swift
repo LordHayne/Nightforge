@@ -1489,6 +1489,7 @@ extension PlayButton {
                    unavailable: unavailable(game, model: model), cloud: game.playsInCloud,
                    noSpace: game.downloadNeedsSpace != nil,
                    demo: game.demoOf != nil,
+                   free: game.storeFree,
                    update: game.pendingUpdate,
                    compact: compact) {
             model.primaryAction()
@@ -1674,6 +1675,8 @@ private struct PlayButton: View {
     var noSpace = false
     /// A demo, for a game the player doesn't own.
     var demo = false
+    /// A store hit that costs nothing: the button adds it instead of opening the store page.
+    var free = false
     /// An update Steam downloads first: its size, 0 when not known yet.
     var update: Int64?
     /// Smaller, for the game bar.
@@ -1701,7 +1704,7 @@ private struct PlayButton: View {
         case .notInstalled: return demo ? L10n.t("Download Demo") : L10n.t("Download")
         case .downloading(let fraction?): return L10n.t("Downloading … %ld %%", Int(fraction * 100))
         case .downloading(nil): return L10n.t("Preparing download …")
-        case .inStore: return L10n.t("View in Steam Store")
+        case .inStore: return free ? L10n.t("Add for Free") : L10n.t("View in Steam Store")
         }
     }
 
@@ -1727,7 +1730,7 @@ private struct PlayButton: View {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(size: 15, weight: .bold)
                 } else {
-                    Image(systemName: install == .notInstalled ? "arrow.down" : install == .inStore ? "cart" : "play.fill")
+                    Image(systemName: install == .notInstalled || install == .inStore && free ? "arrow.down" : install == .inStore ? "cart" : "play.fill")
                         .font(size: 15, weight: .bold)
                 }
                 Text(title)
@@ -1797,6 +1800,9 @@ struct GameContextMenu: ViewModifier {
             case .notInstalled where !game.isVROnly && game.antiCheatBlock == nil:
                 Button(game.demoOf != nil ? L10n.t("Download Demo") : L10n.t("Download")) { select(); model.primaryAction() }
             case .inStore:
+                if game.storeFree {
+                    Button(L10n.t("Add for Free")) { select(); model.primaryAction() }
+                }
                 Button(L10n.t("View in Steam Store")) { model.openStorePage(game) }
             default:
                 EmptyView()

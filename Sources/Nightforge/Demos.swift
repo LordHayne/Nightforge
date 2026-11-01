@@ -65,15 +65,18 @@ struct RefusedDownloadNote: View {
     }
 }
 
-/// Before a demo's first download: Steam adds its free licence to the account, which takes one
-/// click in Steam's own install window. Said once, before that window comes up.
+/// Before the first download of a demo or a free game from the store: Steam adds its free licence
+/// to the account, which takes one click in Steam's own install window. Said once, before that
+/// window comes up.
 struct DemoLicenseSheet: View {
     let game: Game
     @EnvironmentObject private var model: LibraryModel
 
     var body: some View {
-        GlassQuestion(L10n.t("Add the free demo"),
-                      message: L10n.t("%@ is free. Steam adds it to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge downloads and starts it like any other game.", game.name),
+        GlassQuestion(game.demoOf != nil ? L10n.t("Add the free demo") : L10n.t("Add the free game"),
+                      message: game.demoOf != nil
+                          ? L10n.t("%@ is free. Steam adds it to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge downloads and starts it like any other game.", game.name)
+                          : L10n.t("%@ is free. Steam adds the game to your Steam library once: confirm the installation in the Steam window that opens next. After that, Nightforge starts it like any other game.", game.name),
                       id: "demo") {
             Button(L10n.t("Cancel")) { model.pendingDemoLicense = nil }
                 .buttonStyle(GlassTextButtonStyle())
