@@ -36,6 +36,19 @@ wenn sie einer Version zugeordnet sind.
   - Ergebnis: Funde nach Schwere, das Kritische vor dem Tag beheben.
 - [ ] Landingpage und README. Dann einfrieren, Ersteinrichtung testen, Live-Durchlauf, Version, Release-Notizen.
       Veröffentlichen nur mit ausdrücklichem OK.
+- [ ] **Vor dem Release, beim Nutzer:** bei GitHub die Zwei-Faktor-Anmeldung mit Passkey und „Immutable Releases“
+      einschalten (`docs/SICHERHEIT-0.3.md` H2, `docs/recherche/gatekeeper.md`).
+
+### 0.3.1: Signierte Updates (Nutzer, 1.11.: „ja, so umsetzen“)
+- [ ] Ed25519-Signatur (CryptoKit) über Update-ZIP, `components/manifest.json` und `profiles/profiles.json`
+      (`docs/SICHERHEIT-0.3.md` H2). Der private Schlüssel liegt nur auf dem Mac des Nutzers, nicht bei GitHub.
+      - Nightforge kennt zwei öffentliche Schlüssel: Haupt- und Ersatzschlüssel. Der Ersatz ist offline gesichert
+        (Passwort-Manager, Papier), damit ein verlorener Schlüssel keine Neuinstallation erzwingt.
+      - CI legt den Release-Entwurf an, ein Skript signiert lokal mit einem Befehl, dann veröffentlichen.
+      - Die Nacht-Listen ändern sich nur noch über einen Pull Request.
+      - Ohne gültige Signatur wird nichts installiert. Die gebündelte Liste gilt weiter, mit einer ruhigen Meldung.
+      - Vorher den ganzen Weg „App lädt, prüft, ersetzt sich“ mit einem Test-Release durchspielen, damit kein
+        Nutzer vom Update abgeschnitten wird.
 
 ### 0.4: „Wie eine Konsole“
 - [ ] **Zuerst die Engine, mit voller Kraft** (Nutzer, 1.11.: „sobald das 0.3 draußen ist, geben wir richtig Gas mit
