@@ -64,8 +64,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "Nightforge-$VERSION.zip" "Nightforge-$VERSION.dmg" \
-            --repo "$GITHUB_REPOSITORY" --latest --title "Nightforge $VERSION" --notes-file - <<NOTES
+          # Notes written for this tag (docs/release-notes/<tag>.md) come first, the install text after them.
+          notes="docs/release-notes/$GITHUB_REF_NAME.md"
+          {
+            if [ -f "$notes" ]; then cat "$notes"; printf '\n---\n\n'; fi
+            cat <<NOTES
           Free launcher for Windows Steam games on Apple silicon Macs (macOS 26 Tahoe or newer).
 
           **Install (recommended):** open Terminal and paste
@@ -78,3 +81,5 @@ jobs:
           it can't verify the app (it's free and not registered with Apple): open System Settings →
           Privacy & Security, scroll down and click **Open Anyway**.
           NOTES
+          } | gh release create "$GITHUB_REF_NAME" "Nightforge-$VERSION.zip" "Nightforge-$VERSION.dmg" \
+            --repo "$GITHUB_REPOSITORY" --latest --title "Nightforge $VERSION" --notes-file -

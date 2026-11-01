@@ -58,7 +58,10 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - Ersteinrichtung mit leerem HOME (`build/fh`, siehe Notizen zum Fresh-Setup-Test).
   - Kurzer Live-Durchlauf: Windows-Spiel über Steam, Mac-Version, Epic, GOG, TV.
   - Version 0.2.1-dev → 0.3.0.
-  - Release-Notizen seit v0.2.0 auf Deutsch und Englisch.
+  - Release-Notizen seit v0.2.0 auf Deutsch und Englisch: `docs/release-notes/v0.3.0.md`. `release.yml` setzt die Datei
+    zum Tag (`docs/release-notes/<Tag>.md`) vor den Installationstext. Nach den letzten Merges gegenlesen. Sie warnen:
+    Auf macOS 14/15 nicht aktualisieren, denn der Updater von 0.2 prüft `LSMinimumSystemVersion` noch nicht und tauscht
+    sich gegen ein 0.3.0, das sich dort nicht öffnet. Erst der Updater von 0.3.0 prüft das.
   - Kleine Punkte aus der Gatekeeper-Recherche (unten, „Recherchen vom 1.11.“).
 - **Veröffentlichen, nur mit ausdrücklichem OK des Nutzers:**
   - Vorher das Release `d3dmetal-3.0` anlegen, mit `scripts/package-d3dmetal.sh` aus dem Game Porting Toolkit 3.0. Der
