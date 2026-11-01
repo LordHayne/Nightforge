@@ -26,10 +26,24 @@ wenn sie einer Version zugeordnet sind.
       Translocation (`docs/recherche/gatekeeper.md`).
 - [ ] Wenn ein kurzer Test es bestätigt: Steam lädt Updates sofort (`AutoUpdateBehavior 2` statt 0,
       `docs/recherche/updates.md`).
+- [ ] **Sicherheitsprüfung vor dem Release** (Nutzer, 1.11.), lokal, weil Cloud-Sessions nur das alte `main` sehen:
+  - Problemberichte dürfen keine Pfade mit Benutzernamen, Tokens oder Anmelde-Codes ins öffentliche Issue tragen.
+    `wine.log` enthielt am 1.11. Epics `-AUTH_PASSWORD`-Austauschcode im Startbefehl.
+  - Herkunft prüfen bei Update-ZIP, Wine-, DXVK-, DXMT- und KosmicKrisp-Downloads (Prüfsummen, Signatur).
+  - Wo die Epic- und GOG-Tokens liegen, mit welchen Rechten.
+  - Shell- und AppleScript-Aufrufe mit Spielnamen oder Pfaden (Injection).
+  - Die in Steam geladene dylib und Steams CEF-Debug-Port.
+  - Ergebnis: Funde nach Schwere, das Kritische vor dem Tag beheben.
 - [ ] Landingpage und README. Dann einfrieren, Ersteinrichtung testen, Live-Durchlauf, Version, Release-Notizen.
       Veröffentlichen nur mit ausdrücklichem OK.
 
 ### 0.4: „Wie eine Konsole“
+- [ ] **Zuerst Codequalität** (Idee des Nutzers, 1.11.):
+  - Direkt nach dem Release, wenn `main` den aktuellen Stand hat. Cloud-Sessions sehen nur `main`.
+  - Erst eine Prüfung, nur lesen: Vereinfachungen, doppelter Code, Risiken und ein Plan, wie sich die großen
+    Dateien aufteilen lassen (`LibraryModel` ca. 2 900, `LibraryView` 2 300, `Engine` 2 000 Zeilen; Projektregel
+    unter 500).
+  - Dann der Umbau in einer ruhigen Phase, in der keine andere Session dieselben Dateien ändert.
 - [ ] Spiele im Hintergrund aktuell halten: Steam über `AutoUpdateBehavior` und die Zeit, in der Steam läuft, Epic
       und GOG selbst über legendary und gogdl. Pause im Spiel, nur am Netzteil, ruhig sichtbar auf der Startseite
       (`docs/recherche/updates.md`, Phase 4.4).
