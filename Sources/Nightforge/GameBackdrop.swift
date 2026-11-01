@@ -200,7 +200,9 @@ enum GameBackdrop {
         if frontObserver == nil {
             frontObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                                               object: nil, queue: .main) { note in
-                let app = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.localizedName ?? "?"
+                let running = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                // With its process: Steam's Wine and the game's are both "Nightforge Game".
+                let app = "\(running?.localizedName ?? "?") (\(running.map { String($0.processIdentifier) } ?? "-"))"
                 MainActor.assumeIsolated {
                     guard GameBackdrop.isRaised else { return }
                     GameLog.note("In front under the curtain: \(app)")

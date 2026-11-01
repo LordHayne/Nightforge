@@ -818,16 +818,22 @@ final class LibraryModel: ObservableObject {
         var madeWay = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
+        // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
+        // Wukong's driver warning stayed hidden on 1.11. with not one line of the curtain's).
+        var lastLook = ""
+        func end(_ why: String) { GameLog.note("Curtain watch for \(game.name) ends: \(why)") }
+        GameLog.note("Curtain watch for \(game.name) begins")
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
-            guard !Task.isCancelled, !GameBackdrop.isReturning else { return }
+            if Task.isCancelled { return end("a new start or Go to Nightforge") }
+            if GameBackdrop.isReturning { return end("the game ended") }
             if loweredAt == nil {
-                guard GameBackdrop.isRaised else { return }
+                guard GameBackdrop.isRaised else { return end("the curtain is gone") }
                 // Steam asks something in its window, or the start went wrong: the player has to see it.
                 if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
                     GameBackdrop.hide(after: .zero)
-                    return
+                    return end(launchNeedsConfirmation ? "Steam asks something" : "the start went wrong")
                 }
             }
             buildsShaders = buildsShaders || launchBuildsShaders
@@ -841,19 +847,30 @@ final class LibraryModel: ObservableObject {
             if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
-                if loweredAt != nil { return }  // ended: watchForGameEnd brings Nightforge back
-                if launchingID == nil { GameBackdrop.hide(after: .zero) }
-                if launchingID == nil { return }
+                if loweredAt != nil { return end("its processes are gone") }  // watchForGameEnd brings Nightforge back
+                if launchingID == nil {
+                    GameBackdrop.hide(after: .zero)
+                    return end(seenOnce ? "its processes are gone, the start is over" : "no process of it seen, the start is over")
+                }
                 continue
             }
             // Another Windows program of the game's in front (a launcher, an overlay, a dialog of
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
-            let (here, anywhere, question) = await Task.detached(priority: .utility) {
-                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.question(pids))
+            let (here, anywhere, question, windows) = await Task.detached(priority: .utility) {
+                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.question(pids),
+                 GameProcesses.windowList(pids))
             }.value
             let asks = loweredAt == nil && question != nil && !here
+            let frontName = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
+            let look = "\(pids.count) processes, in front \(frontName) (\(front.map(String.init) ?? "-"), \(gameFront ? "the game's" : "not the game's")), "
+                + "windows \(windows), picture \(here ? "here" : anywhere ? "elsewhere" : "none"), asks \(asks ? "yes" : "no"), "
+                + "curtain \(loweredAt == nil ? (madeWay ? "under the question" : "up") : "down")"
+            if look != lastLook {
+                lastLook = look
+                GameLog.note("Curtain look at \(game.name): \(look)")
+            }
             // The game coming to the front brought the pointer back over the curtain (1.11.):
             // hidden again once it has had the front a moment, before the curtain goes – not while
             // it asks something, which takes the mouse.
@@ -902,13 +919,14 @@ final class LibraryModel: ObservableObject {
                 raisedAgain += 1
                 GameLog.note("Curtain up again for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front")
             case .done:
-                return
+                return end(front == getpid() ? "Nightforge in front" : "the game kept the front")
             }
             if loweredAt == nil, !pids.isEmpty, Date() >= askAt, !GameOverlay.isOpen {
                 askAt = Date().addingTimeInterval(Self.curtainPatience)
                 askAboutStart(game)
             }
         }
+        end("a new start or Go to Nightforge")
     }
 
     /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.

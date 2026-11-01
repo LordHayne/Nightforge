@@ -489,13 +489,14 @@ enum GameProcesses {
 
     /// A window of the game's that waits for an answer – a driver warning, an EULA, a launcher's
     /// question (Black Myth: Wukong's driver warning, about 380 × 330, lay under the curtain on
-    /// 1.11.): a normal window on the Space shown, smaller than a picture (`showsWindow`) but more
-    /// than a sliver. Its number, the frontmost first. Its title, which would tell it from a splash,
-    /// can't be read without Screen Recording.
+    /// 1.11.): on the Space shown, smaller than a picture (`showsWindow`) but more than a sliver, a
+    /// window up to a modal panel's level – Wine lifts a topmost one (that warning, seen over
+    /// Nightforge's page) to the floating level; menus lie higher. Its number, the frontmost first.
+    /// Its title, which would tell it from a splash, can't be read without Screen Recording.
     nonisolated static func question(_ windows: [[String: Any]], pids: Set<pid_t>) -> Int? {
         let asking = windows.first { window in
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
-                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 == 0,
+                  (0...Int(CGWindowLevelForKey(.modalPanelWindow))).contains((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: Any],
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
@@ -509,6 +510,27 @@ enum GameProcesses {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
         else { return nil }
         return question(windows, pids: pids)
+    }
+
+    /// The game's windows as the curtain sees them, for wine.log: "380×332 L3, 1512×982 L0, 2 hidden".
+    nonisolated static func windowList(_ pids: Set<pid_t>) -> String {
+        guard !pids.isEmpty,
+              let all = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+              let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return "none" }
+        func number(_ window: [String: Any]) -> Int { (window[kCGWindowNumber as String] as? NSNumber)?.intValue ?? 0 }
+        let onScreen = Set(shown.map(number))
+        let mine = all.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false }
+        let listed = mine.filter { onScreen.contains(number($0)) }.compactMap { window -> String? in
+            guard let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.intValue, let height = (bounds["Height"] as? NSNumber)?.intValue
+            else { return nil }
+            let alpha = (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            return "\(width)×\(height) L\((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)" + (alpha > 0 ? "" : " clear")
+        }
+        let hidden = mine.count - listed.count
+        let parts = listed + (hidden > 0 ? ["\(hidden) hidden"] : [])
+        return parts.isEmpty ? "none" : parts.joined(separator: ", ")
     }
 
     /// On the Space shown, or (`anySpace`) wherever it is: a game's window opens in its own Space

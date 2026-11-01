@@ -135,7 +135,10 @@ struct GameOverlayTest {
         check(GameProcesses.question([window(7010, 800, 300, number: 89)], pids: game) == 89, "a wide, low launcher question")
         check(GameProcesses.question([window(7000, 1920, 1080)], pids: game) == nil, "a picture asks nothing")
         check(GameProcesses.question([window(7000, 120, 60)], pids: game) == nil, "a sliver (a hidden helper window) doesn't")
-        check(GameProcesses.question([window(7000, 380, 330, layer: 3)], pids: game) == nil, "a floating tooltip or menu doesn't")
+        check(GameProcesses.question([window(7000, 380, 330, layer: 3, number: 92)], pids: game) == 92,
+              "a topmost one, which Wine lifts to the floating level (the warning over Nightforge's page, 1.11.)")
+        check(GameProcesses.question([window(7000, 380, 330, layer: 101)], pids: game) == nil, "a menu doesn't")
+        check(GameProcesses.question([window(7000, 380, 330, layer: -20)], pids: game) == nil, "nor one below the windows")
         check(GameProcesses.question([window(7000, 380, 330, alpha: 0)], pids: game) == nil, "an invisible one doesn't")
         check(GameProcesses.question([window(401, 380, 330)], pids: game) == nil, "Nightforge's or Steam's own doesn't")
         check(GameProcesses.question([window(7000, 380, 330, number: 90), window(7000, 500, 200, number: 91)], pids: game) == 90,

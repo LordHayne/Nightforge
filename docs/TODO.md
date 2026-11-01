@@ -536,6 +536,15 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       Frage (`reach` = .overlay, A geht an das Panel, Steuerkreuz an PadFocus darin), D3DMetal und winecx binden
       GameController nicht ein. Ursache offen; `wine.log` sagt jetzt, wer beim Öffnen des Overlays vorne ist und
       ob das Pad Nightforge danach erreicht („Overlay: the pad reaches Nightforge“).
+      Live-Test 2770d2e (22:51): Pad im Overlay geht. Die Warnung kam wieder nicht auf den Vorhang, ohne eine
+      Zeile des Vorhangs dazu. Nach „Zu Nightforge“ lag sie über Nightforges Seite, obwohl Nightforge vorne war.
+      Das kann nur ein Fenster auf höherer Ebene: Wine hebt topmost-Fenster auf die Floating-Ebene (Layer 3), und
+      `question` nahm nur Layer 0. Jetzt Layer 0 bis Modal-Panel (8); Menüs (101) nicht. Offen bleibt, warum
+      unter dem Vorhang nicht einmal „In front under the curtain: Nightforge Game“ stand. Dafür schreibt der
+      Wächter jetzt seinen Beginn, jedes Ende mit Grund und bei jeder Änderung eine Zeile „Curtain look at …“
+      (Prozesse, wer vorne ist mit PID und ob das Spiel, die Fenster des Spiels mit Größe und Layer, Bild,
+      asks, Vorhang). „In front under the curtain“ nennt die PID, weil Steams Wine und das Spiel beide
+      „Nightforge Game“ heißen.
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
