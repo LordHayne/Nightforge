@@ -506,6 +506,7 @@ weil die Bildschirmfreigabe abgelehnt war.
 - **Navigation mit Maus, Tastatur und DualSense** durchspielen: Startseite ↔ Bibliothek ↔ Spielseite, Esc/B,
   Doppelklick auf nicht installierte Cover, ↑ aus der Leiste und der obersten Rasterzeile in die Knöpfe,
   Filter- und Sortier-Segmente mit dem Pad, Zurück in die Bibliothek an dieselbe Scroll-Position.
+- **Live bestätigt am 1.11.:** die Mitteilung „<Spiel> ist bereit zum Spielen“ (Asphalt Legends, Overwatch, Mafia II, Overcooked 2 …), der Download-Ring, das Wachhalten bei einem echten Download (Overwatch, 82 GB über Nacht), „Willkommen zurück“ und das Fehlstart-Sheet.
 - **Einmal echt erleben:** Dock-Menü (Rechtsklick aufs Dock-Symbol), Mitteilung „<Spiel> is ready to play“ mit
   „Play“ (macOS fragt beim ersten Mal), `nightforge://play/<id>` und „Add to Applications“ (findet Spotlight die
   App?), „Update & Play“ bei einem echten Update, Download-Ring und Wachhalten bei einem echten Download,
