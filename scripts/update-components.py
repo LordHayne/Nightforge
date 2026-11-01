@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""Rebuilds components/manifest.json from the newest GitHub releases listed in components/sources.json.
+"""Rebuilds components/manifest.json from the releases listed in components/sources.json.
 
-Runs nightly in CI. Uses the sha256 digest GitHub publishes for release assets; files without one
-(e.g. a script taken from a tag) are downloaded once and hashed. Set GITHUB_TOKEN to avoid rate limits.
+Runs nightly in CI. A source with a "tag" is pinned to that release; one without follows the newest
+stable release (Nightforge's own builds). A pinned source marked "propose" is a third party's whose
+newer releases Nightforge looks at: with --propose its pin moves to the newest stable release (in
+sources.json, and so in the manifest), and the workflow opens a pull request for a person to read –
+nothing a stranger publishes reaches the app unseen. Uses the sha256 digest GitHub publishes for
+release assets; files without one (e.g. a script taken from a tag) are downloaded once and hashed.
+Set GITHUB_TOKEN to avoid rate limits.
+
+Usage: update-components.py [--propose]
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -102,8 +110,50 @@ def build(source: dict) -> dict | None:
     }
 
 
-def main() -> None:
-    sources = json.loads(SOURCES.read_text())["sources"]
+def propose_newer(sources: list[dict]) -> list[tuple[str, str, str]]:
+    """Moves the pin of every source marked "propose" to the newest stable release of its repo, in
+    place; returns (id, pinned tag, newest tag) for each that moved. Nothing is pinned by this alone:
+    the result goes into a pull request."""
+    moves = []
+    for source in sources:
+        if not source.get("propose") or "tag" not in source:
+            continue
+        newest = latest_release(source["repo"], source.get("tagPrefix", ""))
+        if newest is not None and newest["tag_name"] != source["tag"]:
+            moves.append((source["id"], source["tag"], newest["tag_name"]))
+            source["tag"] = newest["tag_name"]
+    return moves
+
+
+def describe_changes(previous: list[dict], components: list[dict]) -> list[str]:
+    """One line per component that is new, gone or at another version – the pull request's text. A
+    file that changed under the same version is the one to look at hardest (a release replaced in place)."""
+    before = {c["id"]: c["version"] for c in previous}
+    after = {c["id"]: c["version"] for c in components}
+    hashes = {c["id"]: c.get("sha256") for c in previous}
+    lines = [f"{id}: {before[id]} -> {after[id]}" for id in after if id in before and before[id] != after[id]]
+    lines += [f"{c['id']}: {c['version']} unchanged, but its file is a different one (sha256 changed) – a release replaced in place?"
+              for c in components if c["id"] in before and before[c["id"]] == c["version"] and hashes[c["id"]] != c.get("sha256")]
+    lines += [f"{id}: new, {after[id]}" for id in after if id not in before]
+    lines += [f"{id}: gone (was {before[id]})" for id in before if id not in after]
+    return lines
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--propose", action="store_true",
+                        help="move the pin of sources marked \"propose\" to their newest stable release")
+    options = parser.parse_args(argv)
+
+    document = json.loads(SOURCES.read_text())
+    sources = document["sources"]
+    if options.propose:
+        moves = propose_newer(sources)
+        for id, old, new in moves:
+            print(f"proposed: {id} {old} -> {new}")
+        if moves:
+            SOURCES.write_text(json.dumps(document, indent=2) + "\n")
+
     components = []
     for source in sources:
         component = build(source)
@@ -119,6 +169,8 @@ def main() -> None:
 
     manifest = {"schemaVersion": SCHEMA_VERSION, "generated": date.today().isoformat(), "components": components}
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
+    for line in describe_changes(previous.get("components", []), components):
+        print(line)
     for c in components:
         print(f"{c['id']:<12} {c['version']:<28} {c['size'] / 1048576:7.1f} MB  {c['license']}")
 
