@@ -599,7 +599,7 @@ final class InputRouter {
     /// The right stick, up or down: scrolls at a speed that grows with how far it's pushed (a little
     /// for reading, fast for a long page), 60 times a second while it's held.
     private func scrollWithStick(_ y: Float) {
-        // In a game or over the overlay the stick isn't Nightforge's.
+        // In a game the stick is the game's (`reach`), Nightforge's page stays where it is.
         stickScroll = reach == .app ? Self.stickSpeed(y) : 0
         guard stickScroll != 0 else {
             stickRows = 0

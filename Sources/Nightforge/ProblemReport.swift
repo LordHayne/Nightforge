@@ -63,7 +63,7 @@ enum ProblemReport {
             "| Frame limit / MetalFX | \(options.frameLimit.map(String.init) ?? "automatic") / \(options.upscaling.rawValue) |",
         ]
         if !tried.isEmpty { lines.append("| Tried, each ended right away | \(tried.joined(separator: " → ")) |") }
-        if !options.extraArgs.isEmpty { lines.append("| Launch options | `\(options.extraArgs)` |") }
+        if !options.extraArgs.isEmpty { lines.append("| Launch options | `\(GameLog.redacted(options.extraArgs))` |") }
         let learned = LearnedFixes.winetricks(game.gameID)
         if !learned.isEmpty { lines.append("| Installed by itself | \(learned.joined(separator: ", ")) |") }
 

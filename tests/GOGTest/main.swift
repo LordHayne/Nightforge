@@ -847,6 +847,58 @@ struct GOGTest {
         let back = await moved.library().first { $0.gameID == .gog("1207664663") }
         check(back?.install == .installed && back?.installDir == here && back?.missingDrive == nil, "after a move it's installed where it went")
         check(!fm.fileExists(atPath: goneFolder.path), "(the drive really isn't there)")
+
+        // A drive that's gone: its games leave Nightforge's list with gogdl's manifest and the support files, the
+        // Mac's stay (and so does everything in the Windows environment: saves).
+        let installed = gogFolder.appendingPathComponent("installed.json"), wantedFile = gogFolder.appendingPathComponent("downloads.json")
+        let macFolder = GOGDL.windowsGamesDir.appendingPathComponent("Mafia II", isDirectory: true)
+        let driveBase = "/Volumes/\(gone)/Nightforge Games/GOG Games"
+        func setUp() {
+            try? JSONEncoder().encode([
+                "111": GOGInstall(id: "111", path: URL(fileURLWithPath: driveBase + "/Gone One", isDirectory: true), platform: .windows,
+                                  build: "1", language: "en-US", size: 5),
+                "112": GOGInstall(id: "112", path: URL(fileURLWithPath: driveBase + "/Gone Two", isDirectory: true), platform: .mac,
+                                  build: "1", language: "en-US", size: 5),
+                "222": GOGInstall(id: "222", path: macFolder, platform: .windows, build: "1", language: "en-US", size: 5),
+            ]).write(to: installed)
+            try? JSONEncoder().encode([GOGJob(id: "333", platform: .windows, base: driveBase), GOGJob(id: "444", platform: .windows)]).write(to: wantedFile)
+            for id in ["111", "112", "222"] {
+                try? fm.createDirectory(at: GOGDL.manifest(for: id).deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? Data("m".utf8).write(to: GOGDL.manifest(for: id))
+                try? fm.createDirectory(at: GOGDL.supportDir(for: id), withIntermediateDirectories: true)
+                try? Data("s".utf8).write(to: GOGDL.supportDir(for: id).appendingPathComponent("setup.exe"))
+            }
+        }
+        func ids() -> [String] {
+            ((try? JSONDecoder().decode([String: GOGInstall].self, from: Data(contentsOf: installed))) ?? [:]).keys.sorted()
+        }
+        func jobs() -> [String] { ((try? JSONDecoder().decode([GOGJob].self, from: Data(contentsOf: wantedFile))) ?? []).map(\.id) }
+        let save = macFolder.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("users/save.dat")
+        try? fm.createDirectory(at: save.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("save".utf8).write(to: save)
+
+        setUp()
+        check(GOGStore().forgetDrive(gone, only: "222") == 0 && ids() == ["111", "112", "222"], "a game that isn't on the drive isn't forgotten")
+        check(GOGStore().forgetDrive(gone, only: "111") == 1, "one game forgotten")
+        check(ids() == ["112", "222"], "Nightforge's list without it: \(ids())")
+        check(!fm.fileExists(atPath: GOGDL.manifest(for: "111").path) && !fm.fileExists(atPath: GOGDL.supportDir(for: "111").path), "its manifest and support files go")
+        check(fm.fileExists(atPath: GOGDL.manifest(for: "112").path) && fm.fileExists(atPath: GOGDL.supportDir(for: "112").path), "the other game's stay")
+        check(jobs() == ["333", "444"], "downloads waiting are other games': \(jobs())")
+
+        setUp()
+        check(GOGStore().forgetDrive(gone) == 2, "the whole drive")
+        check(ids() == ["222"], "only the Mac's game is left: \(ids())")
+        check(jobs() == ["444"], "a download waiting for the drive is dropped, the one for the Mac stays: \(jobs())")
+        check(fm.fileExists(atPath: GOGDL.manifest(for: "222").path) && fm.fileExists(atPath: GOGDL.supportDir(for: "222").appendingPathComponent("setup.exe").path),
+              "the Mac game's manifest and support files stay")
+        check((try? String(contentsOf: save, encoding: .utf8)) == "save" && fm.fileExists(atPath: macFolder.deletingLastPathComponent().path),
+              "nothing in the Windows environment is touched, saves included")
+        check(GOGStore().forgetDrive(gone) == 0, "nothing is left to forget")
+        for id in ["111", "112", "222"] {
+            try? fm.removeItem(at: GOGDL.manifest(for: id))
+            try? fm.removeItem(at: GOGDL.supportDir(for: id))
+        }
+        try? fm.removeItem(at: wantedFile)
     }
 }
 

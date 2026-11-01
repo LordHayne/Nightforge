@@ -147,6 +147,11 @@ struct DestinationSheet: View {
                     .font(size: 14)
                     .foregroundStyle(Theme.ink.opacity(0.85))
             }
+            if let kept = request.kept {
+                Text(L10n.t("Only %@ would stay free on this Mac.", Format.bytes(kept)))
+                    .font(size: 13, weight: .medium)
+                    .foregroundStyle(Theme.warning)
+            }
             PlaceList {
                 PlaceRow(symbol: "laptopcomputer", title: L10n.t("This Mac"), detail: L10n.t("%@ free", Format.bytes(request.free)),
                          focusID: "destination.mac", preferred: true, isDefault: true) { model.downloadOnMac(request) }

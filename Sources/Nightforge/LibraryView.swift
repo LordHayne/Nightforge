@@ -97,7 +97,13 @@ struct LibraryView: View {
             }
         }
         .sheet(item: $model.pendingSpace) { request in
-            if request.shortfall > 0 { SpaceSheet(request: request) } else { DestinationSheet(request: request) }
+            if request.shortfall > 0 {
+                SpaceSheet(request: request)
+            } else if request.asksWhere {
+                DestinationSheet(request: request)
+            } else {
+                TightSheet(request: request)
+            }
         }
         .sheet(item: $model.pendingMove) { game in
             MoveSheet(game: game, targets: model.moveTargets(for: game))
@@ -119,7 +125,7 @@ struct LibraryView: View {
             }
         }
         .sheet(isPresented: $model.showingSettings) {
-            SettingsView()
+            SettingsView(tab: model.settingsStart)
         }
         .sheet(item: $model.sessionSummary) { summary in
             SessionSummarySheet(summary: summary)
@@ -228,6 +234,10 @@ private struct HomeLevel: View {
                 ZStack(alignment: .leading) {
                     HomeStage()
                         .padding(.leading, geo.size.width * 0.36)
+                    LowSpaceNote()
+                        .padding(.horizontal, Theme.gutter)
+                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     Group {
                         if let game = model.heroGame {
                             GameDetail(game: game, compact: true, role: model.homeRole(place: model.homePlace))
@@ -732,7 +742,8 @@ struct SpaceSheet: View {
             // The games to make room with scroll in a short window; the buttons stay under them.
             DialogScroll {
                 DialogWarning(L10n.t("Your Mac has %@ free – %@ short. Nothing is downloaded until there's room, so nothing stops halfway.",
-                                     Format.bytes(request.free), Format.bytes(request.shortfall)),
+                                     Format.bytes(request.free), Format.bytes(request.shortfall))
+                              + (request.committed > 0 ? " " + L10n.t("Downloads already running still need %@ of that.", Format.bytes(request.committed)) : ""),
                               symbol: "externaldrive.badge.exclamationmark")
                 if request.candidates.isEmpty {
                     Text(L10n.t("No game here has gone unplayed for a month. Remove games or other files you don't need, then try again."))
@@ -799,6 +810,39 @@ struct SpaceSheet: View {
                         .disabled(!enough)
                         .padFocus("space.confirm", enabled: enough, cornerRadius: 21, activate: { model.freeUpAndDownload(picked) })
                 }
+            }
+            .padding(.top, 2)
+        }
+    }
+}
+
+/// A download that fits but leaves the Mac nearly full: said calmly before it starts, and it starts if
+/// the player wants it to.
+struct TightSheet: View {
+    let request: SpaceRequest
+    @EnvironmentObject private var model: LibraryModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        GlassDialog(L10n.t("%@ leaves little room", request.game.name), id: "tight", width: 500) {
+            DialogWarning(L10n.t("After %@ and the downloads already running, about %@ stay free on your Mac. macOS slows down and can't update when it gets this low.",
+                                 Format.bytes(request.needed), Format.bytes(request.kept ?? 0)),
+                          symbol: "externaldrive.badge.exclamationmark")
+            HStack(spacing: 8) {
+                Spacer()
+                Button(L10n.t("Cancel")) { dismiss() }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .fixedSize()
+                    .padFocus("tight.cancel", cornerRadius: 21, activate: { dismiss() })
+                Button(L10n.t("Make Room …")) { model.makeRoomInstead() }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .fixedSize()
+                    .padFocus("tight.room", cornerRadius: 21, activate: { model.makeRoomInstead() })
+                Button(L10n.t("Download Anyway")) { model.downloadTight(request) }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .fixedSize()
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("tight.confirm", cornerRadius: 21, preferred: true, activate: { model.downloadTight(request) })
             }
             .padding(.top, 2)
         }
@@ -1366,6 +1410,20 @@ private struct GameDetail: View {
                                     focusID: "detail.pin") {
                         model.togglePinned(game)
                     }
+                }
+            }
+            // A drive that may never come back: the way out is to forget this copy and download it again.
+            if !compact, game.onUnpluggedDrive, let drive = game.missingDrive {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.t("%@ isn't connected. If it isn't coming back, download the game again: that forgets the copy there and installs it on your Mac or another drive.", drive))
+                        .font(size: 13, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                        .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(L10n.t("Download Again")) { model.redownload(game) }
+                        .buttonStyle(GlassTextButtonStyle(small: true))
+                        .fixedSize()
+                        .padFocus("detail.redownload", cornerRadius: 15, activate: { model.redownload(game) })
                 }
             }
             if let starter, game.install == .notInstalled, model.launchingID != game.id {

@@ -86,7 +86,7 @@ enum Legendary {
         } else {
             binary = try await self.program()
         }
-        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        PackedApp.keepPrivate(configDir)
         return try await PackedApp.run(binary, arguments: arguments, directory: configDir, timeout: timeout) {
             environment(program: binary)
         }
@@ -97,6 +97,7 @@ enum Legendary {
     static func start(_ arguments: [String], log: URL) async throws -> DetachedProcess {
         let binary = try await program()
         if !PackedApp.knowsHowToRun(binary) { _ = try? await run(["--version"], program: binary) }
+        PackedApp.keepPrivate(configDir)
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
@@ -272,6 +273,14 @@ enum PackedApp {
         let compressed: Bool
         /// b: library, x: data file, n: symbolic link – what the program unpacks; the rest it reads in place.
         let kind: Character
+    }
+
+    /// A folder that holds a program's sign-in tokens: the player's alone (mode 700), whatever mask the
+    /// program writes its files with (legendary leaves user.json and gogdl auth.json at 644).
+    static func keepPrivate(_ folder: URL) {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
     }
 
     /// The folder next to `binary` that holds what it unpacks.

@@ -69,7 +69,7 @@ extension LibraryModel {
             .map { MoveTarget(choice: $0) }
         if current != nil {
             let home = macLibrary(for: game)
-            targets.insert(MoveTarget(choice: nil, macFree: ExternalDrive.free(at: home), needed: game.sizeOnDisk + SpaceCheck.margin), at: 0)
+            targets.insert(MoveTarget(choice: nil, macFree: ExternalDrive.free(at: home), needed: game.sizeOnDisk + SpaceCheck.macReserve), at: 0)
         }
         return targets
     }

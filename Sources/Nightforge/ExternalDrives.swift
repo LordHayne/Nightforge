@@ -1,3 +1,4 @@
+import DiskArbitration
 import Foundation
 
 /// A drive plugged into the Mac that games can go on: a USB stick, an external SSD.
@@ -37,12 +38,42 @@ struct ExternalDrive: Identifiable, Hashable {
     static func connected() -> [ExternalDrive] {
         let keys: [URLResourceKey] = [.volumeIsInternalKey, .volumeIsLocalKey]
         let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
-        return volumes.compactMap { volume in
+        let drives = volumes.compactMap { volume -> ExternalDrive? in
             let values = try? volume.resourceValues(forKeys: Set(keys))
             guard values?.volumeIsInternal != true, values?.volumeIsLocal != false else { return nil }
             return at(volume)
         }
-        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return listed(drives, isBackup: { isBackupVolume($0.url) }, isImage: { isDiskImage($0.url) })
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// The drives games can go on: not a Time Machine disk, not a disk image someone opened.
+    static func listed(_ drives: [ExternalDrive], isBackup: (ExternalDrive) -> Bool, isImage: (ExternalDrive) -> Bool) -> [ExternalDrive] {
+        drives.filter { !isBackup($0) && !isImage($0) }
+    }
+
+    /// A Time Machine backup disk: its backups are in Backups.backupdb.
+    static func isBackupVolume(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.appendingPathComponent("Backups.backupdb").path)
+    }
+
+    private static let imageLock = NSLock()
+    private nonisolated(unsafe) static var images: [String: Bool] = [:]
+
+    /// A disk image (a .dmg opened in Finder) is a volume too; DiskArbitration says it comes through
+    /// a "Virtual Interface". Asked once per mounted device.
+    static func isDiskImage(_ url: URL) -> Bool {
+        var info = statfs()
+        guard statfs(url.path, &info) == 0 else { return false }
+        let device = withUnsafeBytes(of: info.f_mntfromname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        if let known = imageLock.withLock({ images[device] }) { return known }
+        guard let session = DASessionCreate(kCFAllocatorDefault),
+              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, url as CFURL),
+              let description = DADiskCopyDescription(disk) as? [String: Any]
+        else { return false }
+        let image = description[kDADiskDescriptionDeviceProtocolKey as String] as? String == "Virtual Interface"
+        imageLock.withLock { images[device] = image }
+        return image
     }
 
     /// The drive mounted at `url`; nil for the Mac's own disk, a network share, or a folder that
@@ -126,6 +157,16 @@ enum DriveCheck: Equatable {
 
     var allowed: Bool { self == .fine || self == .caution }
 
+    /// The verdict in a few words, beside the drive's format (Settings › Storage).
+    var verdict: String {
+        switch self {
+        case .fine: return L10n.t("Games fit")
+        case .caution: return L10n.t("exFAT: most games run")
+        case .fat: return L10n.t("FAT32: no files over 4 GB")
+        case .readOnly: return L10n.t("Read-only")
+        }
+    }
+
     /// What the player reads about it; nil when there's nothing to say.
     func note(_ drive: String) -> String? {
         switch self {
@@ -136,6 +177,17 @@ enum DriveCheck: Equatable {
             return L10n.t("%@ is formatted as FAT32, which can't hold files over 4 GB – most games have some. Erase it as APFS in Disk Utility to put games on it.", drive)
         case .readOnly:
             return L10n.t("Your Mac can only read from %@, not write to it.", drive)
+        }
+    }
+}
+
+extension ExternalDrive {
+    /// Settings › Storage: every drive that's plugged in (an empty one too), each with the installed and
+    /// downloading games on it, biggest first.
+    static func withGames(_ drives: [ExternalDrive], games: [Game]) -> [(drive: ExternalDrive, games: [Game])] {
+        let installed = games.filter { $0.install != .notInstalled && $0.install != .inStore }
+        return drives.map { drive in
+            (drive, installed.filter { DriveLibrary.drive(of: $0.installDir)?.path == drive.url.path }.sorted { $0.sizeOnDisk > $1.sizeOnDisk })
         }
     }
 }
@@ -308,6 +360,58 @@ enum SteamLibraries {
             }
             if changed { try write(nodes, to: file) }
         }
+    }
+
+    /// The keys of the libraries that lie on the drive `name`, which is not plugged in.
+    private static func unplugged(_ nodes: [VDFNode], drive name: String, bottle: Bottle, volumes: URL) -> Set<String> {
+        Set(entries(nodes, bottle: bottle).filter { ForgetDrive.isOn($0.path, drive: name, bottle: bottle, volumes: volumes) }.map(\.key))
+    }
+
+    /// Whether the list names a library on the unplugged drive `name` – with `appID`, one that lists that game.
+    static func holds(drive name: String, appID: Int? = nil, steamRoot: URL, bottle: Bottle,
+                      volumes: URL = URL(fileURLWithPath: "/Volumes")) -> Bool {
+        for file in files(steamRoot: steamRoot) {
+            guard let data = try? Data(contentsOf: file), let nodes = VDF.nodes(String(decoding: data, as: UTF8.self)),
+                  let list = nodes.first(where: { $0.key.lowercased() == "libraryfolders" })
+            else { continue }
+            let keys = unplugged(nodes, drive: name, bottle: bottle, volumes: volumes)
+            for place in list.children where keys.contains(place.key) {
+                if appID.map({ id in place["apps"]?.children.contains { $0.key == String(id) } == true }) ?? true { return true }
+            }
+        }
+        return false
+    }
+
+    /// Takes the libraries on an unplugged drive out of the list – or, with `appID`, only that game
+    /// out of them – so the game counts as not installed. Only with that Steam stopped (it writes its
+    /// own list over this one when it quits). True when a list changed.
+    @discardableResult
+    static func forget(drive name: String, appID: Int? = nil, steamRoot: URL, bottle: Bottle,
+                       volumes: URL = URL(fileURLWithPath: "/Volumes")) throws -> Bool {
+        var changedAny = false
+        for file in files(steamRoot: steamRoot) where FileManager.default.fileExists(atPath: file.path) {
+            var nodes = try read(file, rootPath: nil, contentID: nil)
+            guard let index = nodes.firstIndex(where: { $0.key.lowercased() == "libraryfolders" }) else { continue }
+            let keys = unplugged(nodes, drive: name, bottle: bottle, volumes: volumes)
+            var changed = false
+            if let appID {
+                for place in nodes[index].children.indices where keys.contains(nodes[index].children[place].key) {
+                    guard let slot = nodes[index].children[place].children.firstIndex(where: { $0.key.lowercased() == "apps" }),
+                          nodes[index].children[place].children[slot].children.contains(where: { $0.key == String(appID) })
+                    else { continue }
+                    nodes[index].children[place].children[slot].children.removeAll { $0.key == String(appID) }
+                    changed = true
+                }
+            } else if !keys.isEmpty {
+                nodes[index].children.removeAll { keys.contains($0.key) }
+                changed = true
+            }
+            if changed {
+                try write(nodes, to: file)
+                changedAny = true
+            }
+        }
+        return changedAny
     }
 
     /// The games installed in a library folder (`steamapps`), from their manifests.

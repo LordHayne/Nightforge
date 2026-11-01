@@ -659,6 +659,32 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         Task { await startNext() }
     }
 
+    // MARK: - A drive that's gone
+
+    /// legendary's list without the games on a drive that isn't plugged in (or just `appName`'s), their
+    /// manifests there, and the places downloads were meant to go on it. Epic's own files on the Mac stay.
+    /// Returns how many installs went.
+    @discardableResult
+    func forgetDrive(_ name: String, only appName: String? = nil) -> Int {
+        loadFromDisk()
+        var count = 0
+        let file = Legendary.configDir.appendingPathComponent("installed.json")
+        if let data = try? Data(contentsOf: file),
+           let result = ForgetDrive.epic(installedJSON: data, drive: name, appName: appName, bottle: Engine.bottle),
+           (try? result.json.write(to: file, options: .atomic)) != nil {
+            for manifest in result.manifests {
+                try? FileManager.default.removeItem(at: Legendary.configDir.appendingPathComponent("manifests/\(manifest)"))
+            }
+            count = result.removed.count
+        }
+        let lost = destinations.filter { (appName == nil || $0.key == appName) && ForgetDrive.isOn($0.value, drive: name, bottle: Engine.bottle) }
+        if !lost.isEmpty {
+            for key in lost.keys { destinations[key] = nil }
+            save(destinations, to: Self.destinationsFile)
+        }
+        return count
+    }
+
     // MARK: - Playing
 
     /// What the game starts with: Epic's parameters with a fresh sign-in code, or – offline, or when

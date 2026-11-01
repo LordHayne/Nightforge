@@ -488,6 +488,8 @@ private struct StorageSettings: View {
     @State private var measuringRemoval = false
     @State private var removing = false
     @State private var removalError: String?
+    /// A drive that isn't coming back: asking whether to forget it.
+    @State private var forgetting: String?
 
     private struct RemovalPlan: Identifiable {
         let id = UUID()
@@ -519,13 +521,9 @@ private struct StorageSettings: View {
             .sorted { $0.sizeOnDisk > $1.sizeOnDisk }
     }
 
-    /// External drives plugged in with games on them (or Nightforge's folder), each with its games.
+    /// Every external drive plugged in, an empty one too, each with its games (not Time Machine disks or disk images).
     private var drives: [(drive: ExternalDrive, games: [Game])] {
-        let installed = model.allGames.filter { $0.install != .notInstalled && $0.install != .inStore }
-        return ExternalDrive.connected().compactMap { drive in
-            let games = installed.filter { DriveLibrary.drive(of: $0.installDir)?.path == drive.url.path }.sorted { $0.sizeOnDisk > $1.sizeOnDisk }
-            return games.isEmpty && !drive.hasLibrary ? nil : (drive, games)
-        }
+        ExternalDrive.withGames(ExternalDrive.connected(), games: model.allGames)
     }
 
     /// Games on drives that aren't plugged in, by drive.
@@ -568,16 +566,7 @@ private struct StorageSettings: View {
                 }
             }
 
-            Section {
-                if games.isEmpty {
-                    Text(L10n.t("No games on this Mac yet.")).foregroundStyle(.secondary)
-                }
-                ForEach(games) { game in row(game) }
-            } header: {
-                SectionTitle(L10n.t("Games on this Mac"))
-            }
-
-            // Each drive plugged in that has games: its bar and its games, which move like the Mac's.
+            // Each drive plugged in, an empty one too, under the Mac's disk: its bar, its format and what that means for games.
             ForEach(drives, id: \.drive.id) { drive, games in
                 Section {
                     let size = games.reduce(Int64(0)) { $0 + $1.sizeOnDisk }
@@ -587,7 +576,7 @@ private struct StorageSettings: View {
                         legend(L10n.t("Games"), size, Theme.sodium)
                         legend(L10n.t("Other"), other, .white.opacity(0.25))
                         Spacer()
-                        Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName)
+                        Text(L10n.t("%@ free", Format.bytes(drive.free)) + " · " + drive.formatName + " · " + drive.check.verdict)
                             .font(size: 10).monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
@@ -597,17 +586,39 @@ private struct StorageSettings: View {
                     if games.isEmpty {
                         Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
                     }
-                    ForEach(games) { game in row(game) }
                 } header: {
                     SectionTitle(drive.name)
                 }
             }
+
+            Section {
+                if games.isEmpty {
+                    Text(L10n.t("No games on this Mac yet.")).foregroundStyle(.secondary)
+                }
+                ForEach(games) { game in row(game) }
+            } header: {
+                SectionTitle(L10n.t("Games on this Mac"))
+            }
+
+            // Then the games, drive by drive: they move like the Mac's.
+            ForEach(drives.filter { !$0.games.isEmpty }, id: \.drive.id) { drive, games in
+                Section {
+                    ForEach(games) { game in row(game) }
+                } header: {
+                    SectionTitle(L10n.t("Games on %@", drive.name))
+                }
+            }
+
             ForEach(unplugged, id: \.drive) { drive, names in
                 Section {
                     Text(names.count == 1 ? L10n.t("%@ – plug it in to play or move it.", names[0])
                                           : L10n.t("%@ – plug it in to play or move them.", names.joined(separator: ", ")))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    // Lost, broken or formatted anew: its games stop waiting for it and download again.
+                    Button(L10n.t("Forget Drive …")) { forgetting = drive }
+                        .disabled(!model.canForgetDrive)
+                        .padFocus("storage.forget.\(drive)", enabled: model.canForgetDrive, activate: { forgetting = drive })
                 } header: {
                     SectionTitle(L10n.t("%@ · not connected", drive))
                 }
@@ -667,6 +678,18 @@ private struct StorageSettings: View {
                     .padFocus("removeAll.confirm", cornerRadius: 21, activate: removeEverything)
             }
         }
+        .sheet(item: DialogMessage.item($forgetting)) { drive in
+            GlassQuestion(L10n.t("Forget %@?", drive.text), message: L10n.t("Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.", drive.text), id: "forgetDrive") {
+                // Return keeps the drive in the list; forgetting takes a deliberate click or a pad move first.
+                Button(L10n.t("Cancel")) { forgetting = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("forgetDrive.cancel", cornerRadius: 21, preferred: true, activate: { forgetting = nil })
+                Button(L10n.t("Forget Drive")) { forgetDrive(drive.text) }
+                    .buttonStyle(GlassTextButtonStyle(destructive: true))
+                    .padFocus("forgetDrive.confirm", cornerRadius: 21, activate: { forgetDrive(drive.text) })
+            }
+        }
         .sheet(item: DialogMessage.item($removalError)) { error in
             GlassQuestion(L10n.t("Nothing was removed"), message: error.text, id: "removeAllFailed") {
                 Button(L10n.t("OK")) { removalError = nil }
@@ -715,6 +738,11 @@ private struct StorageSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func forgetDrive(_ name: String) {
+        forgetting = nil
+        Task { if await model.forgetDrive(name) { Toasts.shared.show(L10n.t("%@ is forgotten – its games can be downloaded again", name)) } }
     }
 
     /// A game running or starting has its shaders open.
