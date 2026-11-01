@@ -60,8 +60,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
   `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
-  einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter
-  „WineD3D, DXVK“, sonst wie bisher. Eine neue Leiter fängt von vorn an, alte D3D9-Stände starten also bei WineD3D.
+  einem D3D11-Spiel auf DXVK nachprüfen. Gebaut: Unter winecx (`Engine.vulkanLayerLoads` false) ist die D3D9-Leiter nur
+  noch „WineD3D“ (seit 1.11.; vorher „WineD3D, DXVK“, und ein frühes Ende schaltete Mafia II auf DXVK weiter, das hier nie
+  geht). Mit KosmicKrisp (Branch `claude/quirky-clarke-81fd65`) kommt DXVK für D3D9 zurück auf die Leiter. DXVKs Fehlerzeilen
+  zählen nur noch für einen Start auf DXVK (`GameLog.graphicsFailed(…, layer:)`) – das Log ist geteilt.
   Der Ausweg ist KosmicKrisp (unten bei „Vulkan-Layer und winecx“): Er meldet `shaderCullDistance` schon lange und
   `geometryShader` seit Mesa 14f59d06 (29.10.2026).
   Die D3D9-Leiter in `LaunchHealth.attempts` fragt das Profil nicht. Ein Profil mit `graphics` ändert für D3D9-Spiele nur
@@ -529,6 +531,11 @@ besten weiter im leeren Test-Home (`build/fh`), damit Steam/Epic des Nutzers nic
       („DxvkAdapter: Failed to create device“, MoltenVK ohne `geometryShader`/`shaderCullDistance`, siehe oben bei L4D2).
       Seit dem Fix danach: Die alte Bestätigung (ohne Bild-Nachweis) gilt nicht mehr, der Start wird beobachtet und geht nach
       dem Grafikfehler von selbst auf WineD3D – und seit danach beginnt die D3D9-Leiter unter winecx ohnehin mit WineD3D.
+      1.11. (TV-Build, nur der TV): Der WineD3D-Start endete nach ~14 s, zwei DXVK-Fehlerzeilen im geteilten Log ließen
+      Nightforge ihn als Grafikfehler beenden und auf DXVK weiterschalten (scheitert immer). Behoben: DXVK-Zeilen zählen nur
+      auf DXVK, D3D9 unter winecx nur WineD3D. Offen für die TV-Session: `videoconfig.cfg` steht auf 1512×982 Vollbild
+      (`0 0 1512 982 1 0 0 1`), den Modus hat der TV nicht – DXVK loggte unter KosmicKrisp um 00:20 genau das
+      („D3D9: EnterFullscreenMode: Failed to change display mode“).
       Prüfen: Start mit WineD3D ohne Zutun, kein „Läuft super“ vorher;
       bestätigt erst nach 3 Min. Laufzeit (WineD3D loggt keine Bilder); „Willkommen zurück“ › „Nicht gut“ › gleich „Fertig“
       (oder ×, Esc, B) lässt `rating.gog.1816059595` stehen.

@@ -785,6 +785,9 @@ struct GOGTest {
         check(unplugged?.onUnpluggedDrive == true && unplugged?.sizeOnDisk == 50_000 && unplugged?.downloadSize == nil,
               "the game page says \"On <drive>\" with what it takes there, no download size")
         check(unplugged?.hasFolder == false, "and offers no folder to show")
+        if let unplugged {
+            check(ProblemReport.storeReference(unplugged) == "GOG 1207664663", "a problem report names store and ID, no Steam link with app ID 0")
+        }
 
         // Moved: the record follows, the game plays from its new place.
         let moved = GOGStore()
