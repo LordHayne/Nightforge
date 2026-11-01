@@ -402,6 +402,25 @@ struct LaunchHealthTest {
         check(!line.lowercased().contains("thomas"), "the account name is gone: \(line)")
         check(!line.contains("158043902") && !line.contains("76561198118309630"), "Steam ids are gone: \(line)")
         check(line.contains(#"C:\users\<user>\Documents"#) && line.contains("~/Library"), "the rest of the path stays: \(line)")
+        // Wine prints paths with doubled backslashes, and a game's command line carries Epic's sign-in
+        // (an exchange code that works as a password for a few minutes) and the account's name.
+        let wineLine = GameLog.redacted(#"err:module:import_dll Library X.dll (which is needed by L"C:\\users\\thomas\\AppData\\x.exe -AUTH_LOGIN=unused -AUTH_PASSWORD=0a1b2c3d4e5f -AUTH_TYPE=exchangecode -epicapp=Potoo -epicusername=thomas -epicuserid=9f8e7d6c5b4a -epicovt=Z:\\Users\\thomas\\ovt") not found"#,
+                                        home: "/Users/thomas", user: "thomas")
+        check(!wineLine.lowercased().contains("thomas"), "the account name is gone from Wine's doubled paths: \(wineLine)")
+        check(!wineLine.contains("0a1b2c3d4e5f") && !wineLine.contains("9f8e7d6c5b4a"), "Epic's sign-in arguments are gone: \(wineLine)")
+        check(wineLine.contains("-AUTH_TYPE=exchangecode") && wineLine.contains("-epicapp=Potoo") && wineLine.contains("Library X.dll"),
+              "what helps stays: \(wineLine)")
+        let quoted = GameLog.redacted(#"start "-epicusername=Jane Doe" -epicusername="Jane Doe" -epicuserid=abc123 end"#, home: "/Users/thomas", user: "thomas")
+        check(!quoted.contains("Jane") && !quoted.contains("Doe") && !quoted.contains("abc123") && quoted.hasSuffix(" end"), "names with a space too: \(quoted)")
+        let secrets = GameLog.redacted(#"{"access_token":"eyJabc.def","refresh_token": "r3fr3sh"} Authorization: Bearer abcdef0123456789 write to me@example.com, userdata\\158043902\\config"#,
+                                       home: "/Users/thomas", user: "thomas")
+        for secret in ["eyJabc", "r3fr3sh", "abcdef0123456789", "me@example.com", "158043902"] {
+            check(!secret.isEmpty && !secrets.contains(secret), "\(secret) is gone: \(secrets)")
+        }
+        check(GameLog.redacted(#"users\thomasine\x C:\users\tom\x"#, home: "/Users/thomas", user: "thomas") == #"users\thomasine\x C:\users\tom\x"#,
+              "another name that starts the same stays")
+        check(GameLog.errors(in: "0124:err:module:foo L\"C:\\\\users\\\\thomas\\\\x.exe -AUTH_PASSWORD=zzzz1111\"", limit: 5).joined().contains("zzzz1111") == false,
+              "error lines for a report are redacted")
 
         // Winetricks verbs from the online fixes: install verbs pass, commands and options don't.
         for verb in ["vcrun2019", "d3dcompiler_47", "xact_x64"] {

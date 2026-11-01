@@ -149,22 +149,45 @@ enum GameLog {
         return signs.contains { lower.contains($0) }
     }
 
-    /// A log line without what identifies the player: the Mac's home folder, the account name in
-    /// Windows and prefix paths (C:\\users\\<name>, drive_c/users/<name>) and Steam account ids.
-    /// The report goes into a GitHub link, which the browser fetches as soon as it opens.
+    /// A log line without what identifies the player or lets anyone in as them: the Mac's home
+    /// folder, the account name in Windows and prefix paths (C:\users\<name>, which Wine's own
+    /// messages print as C:\\users\\<name>; drive_c/users/<name>), Steam account ids, the sign-in
+    /// arguments a store hands a game (Epic's -AUTH_PASSWORD exchange code, -epicusername), tokens
+    /// and e-mail addresses. The report goes into a GitHub link, which the browser fetches as soon
+    /// as it opens, and the issue is public.
     static func redacted(_ line: String, home: String = NSHomeDirectory(), user: String = NSUserName()) -> String {
-        var text = line.replacingOccurrences(of: home, with: "~")
+        var text = home.isEmpty ? line : line.replacingOccurrences(of: home, with: "~")
         if !user.isEmpty {
-            for separator in ["\\", "/"] {
-                text = text.replacingOccurrences(of: "users\(separator)\(user)", with: "users\(separator)<user>",
-                                                 options: .caseInsensitive)
-            }
+            // One, two or no backslashes between the parts, or a slash; not "users\thomasine".
+            text = text.replacingOccurrences(of: #"(?i)\b(users)(\\{1,2}|/)"# + NSRegularExpression.escapedPattern(for: user) + #"(?![\p{L}\p{N}_])"#,
+                                             with: "$1$2<user>", options: .regularExpression)
         }
-        for pattern in [#"\[U:1:\d+\]"#, #"\b7656119\d{10}\b"#] {
-            text = text.replacingOccurrences(of: pattern, with: "<steam id>", options: .regularExpression)
+        for (pattern, template) in secretPatterns {
+            text = text.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
         }
         return text
     }
+
+    /// Patterns for `redacted`, in order. The sign-in arguments Epic's launcher parameters bring
+    /// (and legendary passes on to the game) come first: quoted as a whole when the value holds a
+    /// space ("-epicusername=Jane Doe"), then bare or with the value in quotes.
+    private static let secretPatterns: [(String, String)] = {
+        let epic = "(?:AUTH_PASSWORD|AUTH_LOGIN|epicusername|epicuserid)"
+        let words = "access_token|refresh_token|id_token|session_id|sessionid|exchange_code|exchangecode|authorization_code|auth_code"
+            + "|client_secret|api_key|apikey|password|passwd|secret|token"
+        return [
+            (#"(?i)("\s*-{1,2}"# + epic + #"\s*=)[^"]*""#, "$1<hidden>\""),
+            (#"(?i)(-{1,2}"# + epic + #"\s*=)(?:"[^"]*"|[^\s"]*)"#, "$1<hidden>"),
+            // JSON, key=value and key: value, also a quoted key ("refresh_token": "…").
+            (#"(?i)(?<![A-Za-z0-9])("# + words + #")(["']?\s*[:=]\s*["']?)[^"'\s,&}]+"#, "$1$2<hidden>"),
+            (#"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}"#, "$1<hidden>"),
+            (#"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"#, "<email>"),
+            // Steam: the friend code, the 64-bit ID and the account number in userdata\<number>.
+            (#"\[U:1:\d+\]"#, "<steam id>"),
+            (#"\b7656119\d{10}\b"#, "<steam id>"),
+            (#"(?i)(\buserdata(?:\\{1,2}|/))\d{3,}"#, "$1<steam id>"),
+        ]
+    }()
 
     /// The error lines since `mark`, for a problem report: Wine, DXVK and MoltenVK errors, without
     /// repeats and with the Mac's home folder left out.
