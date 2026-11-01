@@ -1,0 +1,19 @@
+    1     0 /sbin/launchd
+  401     1 /Applications/Nightforge.app/Contents/MacOS/Nightforge
+ 6058     1 /Users/tester/Library/Application Support/Nightforge/Components/winecx/4.7.3/Libraries/Wine/Nightforge Game.app/Contents/MacOS/../../bin/wineserver
+ 6060     1 C:\windows\system32\services.exe
+ 6070  6060 C:\windows\system32\winedevice.exe MallocNanoZone=0
+ 6080     1 C:\windows\system32\explorer.exe /desktop
+ 6100     1 C:\Program Files (x86)\Steam\steam.exe -silent -nofriendsui
+ 6110  6100 C:\Program Files (x86)\Steam\bin\cef\cef.win7x64\steamwebhelper.exe -lang=en
+ 7000  6100 C:\Program Files (x86)\Steam\steamapps\common\Left 4 Dead 2\left4dead2.exe -steam
+ 7010  7000 C:\Program Files (x86)\Steam\steamapps\common\Left 4 Dead 2\bin\crashhandler.exe
+ 7020  7000 C:\windows\system32\conhost.exe
+ 7030  7010 C:\users\tester\Temp\minidump-helper.exe
+ 7100  6100 C:\Program Files (x86)\Steam\steamapps\common\Left 4 Dead\left4dead.exe
+ 8000     1 C:\Program Files\Epic Games\Overcooked2\Overcooked2.exe
+ 8010  8000 C:\Program Files\Epic Games\Overcooked2\UnityCrashHandler64.exe
+ 9000   900 /Users/tester/Library/Application Support/Steam/steamapps/common/No Man's Sky/No Man's Sky.app/Contents/MacOS/No Man's Sky
+ 9010  9000 /usr/bin/helper-of-nms --watch
+  900     1 /Users/tester/Library/Application Support/Steam/Steam.app/Contents/MacOS/steam_osx
+ 9500     1 /bin/zsh -c cat "/Users/tester/Library/Application Support/Steam/steamapps/common/No Man's Sky/readme.txt"

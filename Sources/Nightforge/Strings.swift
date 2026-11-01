@@ -634,6 +634,29 @@ enum L10n {
 
         // Welcome back
         "Welcome back": "Willkommen zurück",
+        "Starting …": "Wird gestartet …",
+        "%@ isn't starting?": "%@ startet nicht?",
+        "It runs, but hasn't shown a picture yet. Some games take long the first time.":
+            "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
+        "Keep Waiting": "Weiter warten",
+        "Waiting for the first picture …": "Warte auf das erste Bild …",
+        "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
+        "Back to Nightforge …": "Zurück zu Nightforge …",
+        "Sound now comes from %@": "Ton kommt jetzt aus %@",
+        "The game plays its sound on %@ until it starts again.": "Das Spiel spielt seinen Ton bis zum nächsten Start über %@.",
+        "Continue Playing": "Weiterspielen",
+        "Quit Game": "Spiel beenden",
+        "Go to Nightforge": "Zu Nightforge",
+        "Paused": "Pausiert",
+        "Quit %@?": "%@ beenden?",
+        "What wasn't saved is lost. A game that no longer responds ends as well.":
+            "Was nicht gespeichert ist, geht verloren. Auch ein Spiel, das nicht mehr reagiert, wird beendet.",
+        "Quitting %@ …": "%@ wird beendet …",
+        "Hold: this menu": "Halten: dieses Menü",
+        "Both sticks pressed": "Beide Sticks gedrückt",
+        "In a game": "Im Spiel",
+        "Press both sticks and hold them for 2 seconds: Nightforge's menu comes over the game – continue, quit the game (also one that hangs) or go to Nightforge.":
+            "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
         "Well": "Gut",
@@ -1119,8 +1142,10 @@ enum L10n {
         "Opens the selected game's page": "Öffnet die Seite des gewählten Spiels",
         "Options for the selected game": "Optionen für das gewählte Spiel",
         "Switches between Home and the library": "Wechselt zwischen Startseite und Bibliothek",
-        "Five games back": "Fünf Spiele zurück",
-        "Five games on": "Fünf Spiele weiter",
+        "Goes to Home": "Geht zur Startseite",
+        "Goes to the library": "Geht zur Bibliothek",
+        "Works – both sticks held for 2 seconds in a game bring Nightforge's menu":
+            "Funktioniert – beide Sticks 2 Sekunden gehalten bringen im Spiel Nightforges Menü",
         "Jumps to the first game": "Springt zum ersten Spiel",
         "Jumps to the last game": "Springt zum letzten Spiel",
         "Moves the selection": "Bewegt die Auswahl",

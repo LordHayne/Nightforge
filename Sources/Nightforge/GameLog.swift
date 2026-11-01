@@ -13,6 +13,13 @@ enum GameLog {
     /// Not a winetricks verb: Wine Mono, which Nightforge installs itself (Engine.installWineMono).
     static let wineMono = "wine-mono"
 
+    /// A line of Nightforge's own, for problem reports and to see in a live test what happened.
+    static func note(_ text: String) {
+        let descriptor = open(url.path, O_WRONLY | O_APPEND)
+        guard descriptor >= 0 else { return }
+        FileHandle(fileDescriptor: descriptor, closeOnDealloc: true).write(Data(("info:  [nightforge] " + text + "\n").utf8))
+    }
+
     /// For a Steam about to start: appends to the log, starting a fresh one when it has grown large.
     static func handleForSteam() -> FileHandle? {
         let fm = FileManager.default

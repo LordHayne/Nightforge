@@ -17,14 +17,18 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - 2.5 größere Schrift: erledigt (a55040a).
   - GOG 7.3: gemergt (159acfa, Fixes d555778), live geprüft. Offen ist nur der Offline-Start.
   - TV-Modus (live am 31.10./1.11.): L1/R1, Overlay, Ton über den Verstärker und die sofortige Rückkehr funktionieren.
-    Offen: Vollbild beim Anschließen im Spiegelbetrieb (Fix 6eb8030), Overcooked im Fenster (MetalFX und Größe kommen
-    vom eingebauten Display) und ein **Lade-Vorhang** beim Start und Ende, damit kein Desktop und kein Steam-Fenster
-    aufblitzt (Nutzer: „für einen richtigen Big-Picture-Modus“).
-  - L1/R1 zwischen Startseite und Bibliothek: baut die TV-Session mit, weil sie `InputRouter` ohnehin ändert (kein Merge-Konflikt).
+    Gebaut auf `claude/tv-fullscreen-61ab1e`, am Fernseher nachzutesten: Vollbild beim Anschließen im Spiegelbetrieb
+    (6eb8030), Overcooked im Fenster bzw. Mafia II mit 3024×1964 durch eine frische Wine-Sitzung, wenn sich die
+    Bildschirme geändert haben (7d8a440, 0d50047), und der **Lade-Vorhang** mit dem Nightforge-N beim Start und Ende,
+    damit kein Desktop und kein Steam-Fenster aufblitzt (dc507c4, 518701b; Nutzer: „für einen richtigen Big-Picture-Modus“).
+  - L1/R1 zwischen Startseite und Bibliothek: gebaut auf `claude/tv-fullscreen-61ab1e` (die TV-Session hat es mitgebaut,
+    weil sie `InputRouter` ohnehin ändert), live bestätigt.
   - Reichere Spieldaten, Phase 2: Teil A und B gebaut. Das Layout der Spielseite wird nach dem Feedback vom 31.10. überarbeitet.
   - Testabdeckung: gemergt (9becef2). Weitere Tests für TV und Spielinfos nach deren Merge.
-  - Kleines Controller-Overlay: beide Sticks 2 s drücken (L3 + R3, weil macOS 26 die PS-Taste fürs Game Overlay nutzt), dann Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge.
-    Baut die TV-Session, es wird mit dem TV-Modus gemergt. Das schöne große Overlay kommt nach 0.3.0.
+  - Kleines Controller-Overlay: beide Sticks 2 s drücken (L3 + R3, weil macOS 26 die PS-Taste fürs Game Overlay nutzt), dann
+    Weiterspielen, Spiel beenden (auch wenn es hängt) und Zu Nightforge. Gebaut auf `claude/tv-fullscreen-61ab1e`
+    (`GameOverlay.swift`), live in Overcooked 2 und Valheim bestätigt; es wird mit dem TV-Modus gemergt (siehe
+    „Controller“). Das schöne große Overlay kommt nach 0.3.0.
   - GOG-Spiele bekommen Spielprofile, dazu das Mafia-II-Profil (Session mafia-ii, Zweig `claude/reverent-goldberg-46e548`,
     95305e4 + 78997a3): mergen. Mafia II startet damit gleich mit WineD3D, ohne Echo.
   - **Nach 0.3.0** (Nutzer, 31.10.): Mafia II flüssig und ohne Knacken. Ursache ist OpenGL im WoW64 für 32-Bit-Spiele
@@ -180,35 +184,53 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   fragt Steam die Einstellung im Spiel nicht ab und reicht den Druck ans Overlay weiter. Ungeprüft: was die Taste
   in einem Windows-Spiel tut (dort gibt es kein Overlay, `gameoverlayrenderer=d`), und ob das Overlay in
   Mac-Spielen damit noch aufgeht.
-- **Hängendes Spiel vom Sofa aus beenden** (Nutzer, 31.10., gesehen mit Left 4 Dead 2: Prozess lief weiter mit
-  ~100 % CPU, Bild stand. „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
-  - **Von Hand:** PS-/Guide-Taste 2 s gedrückt halten. Nightforge kommt nach vorne mit „<Spiel> beenden?“,
-    A bestätigt, B bricht ab. Nightforge beendet dann das Spiel samt Prozessbaum (Windows: das Programm unter
-    `\steamapps\common\` bzw. `\GOG Games\`, notfalls `wineserver -k` für die Spielsitzung; Mac: das Spiel-Programm),
-    räumt auf wie nach einem normalen Ende und zeigt wieder die Spielseite.
-  - **Von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
-    oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge dasselbe an, ohne zu
-    raten, wenn ein Ladebildschirm nur lange dauert.
-  - **Technik:** Nightforge bekommt die Taste auch im Hintergrund über `GCController.shouldMonitorBackgroundEvents`
-    (macOS 11.3+). Kollidiert nicht mit Steams Guide-Taste (siehe `SteamGuideButton` oben); macOS selbst kann die
-    Home-Taste für Launchpad oder die Spiele-App belegen, also auf macOS 26/27 prüfen, ob „gedrückt halten“ frei ist.
-  - Für den Release 0.3.0 wichtig, weil der TV-Modus ohne Maus und Tastatur auskommen soll.
-- **Nightforge-Overlay für den Controller** (Nutzer, 31.10.; die kleine Version kommt in 0.3.0, gebaut von der TV-Session, das schöne große Overlay danach):
-  - PS-/Guide-Taste im Spiel (gedrückt halten, damit Steams kurzer Druck frei bleibt) öffnet ein ruhiges Overlay
-    über dem Spiel:
-    - Weiterspielen (B oder noch einmal PS)
-    - Spiel beenden (mit Rückfrage; auch wenn es hängt)
-    - Zu Nightforge (Bibliothek, Downloads, ohne das Spiel zu beenden)
-    - Uhrzeit, Controller-Akku, laufende Downloads
-    - später: Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung
-  - Technik, zu klären:
-    - Ein Panel mit `.canJoinAllSpaces`/`.fullScreenAuxiliary` über dem Vollbild-Space des Spiels. Hat Wine den
-      Bildschirm exklusiv belegt (`CGCaptureAllDisplays` bei echtem Modus-Wechsel), kann kein Fenster darüber; dann
-      kommt Nightforge stattdessen nach vorne.
-    - Eingaben gehen weiter ans Spiel, denn macOS kann einem anderen Prozess den Controller nicht wegnehmen. Kandidat:
-      das Spiel solange mit `SIGSTOP` anhalten und mit `SIGCONT` weiterlaufen lassen. Bei Online-Spielen, beim Ton
-      und bei Steams Spielerkennung prüfen.
-    - Stromsparend nach dem UI-Budget: kein Live-Weichzeichner über dem ganzen Bild, nur abdunkeln.
+- **Pad holt Nightforge nach vorne** (Nutzer, 1.11., „ja unbedingt“, gebaut auf `claude/tv-fullscreen-61ab1e`,
+  `InputRouter.wakeIfIdle`): Läuft kein Spiel und ist eine andere App vorne, holt ein frischer Druck (A, B, X, Y, ☰,
+  Steuerkreuz) Nightforge nach vorne, wie Big Picture. Nicht während ein Spiel aus der Bibliothek läuft oder startet,
+  und nicht über einer anderen App, die sich als Spiel ausweist (`LSApplicationCategoryType` games). Am TV prüfen:
+  Safari vorne, Druck auf A, Nightforge kommt; ein Spiel vorne, nichts passiert.
+- **Kleines Controller-Overlay** (0.3.0, Branch `claude/tv-fullscreen-61ab1e`, `GameOverlay.swift`; Anlass: Left 4 Dead 2
+  hing am 31.10. im Ladebildschirm, „Man würde auf der Couch sitzen und könnte nichts machen und müsste aufstehen.“):
+  - **Gebaut:** Beide Sticks drücken (L3 + R3) und 2 s halten. Dann kommt ein ruhiges Panel über das Spiel:
+    Weiterspielen (B oder die Sticks noch einmal halten), Spiel beenden (mit Rückfrage) und Zu Nightforge (das Spiel
+    läuft weiter). Alles mit PadFocus bedienbar, abgedunkelt statt weichgezeichnet. Die Kombination steht im Panel und
+    in Einstellungen › Controller › „Im Spiel“. Ein Pad ohne Stick-Tasten nimmt ☰ + ⧉.
+  - **Warum die Sticks:**
+    - Die PS-/Xbox-Taste öffnet seit macOS 26 Apples Game Overlay (support.apple.com/105118).
+    - Die „Home-Tasten-Ausnahmen“ gelten nur für die App vorne, und das ist das Spiel. Für Windows-Spiele schaltet
+      auch winebus die Geste nicht ab, denn dessen SDL bindet kein GameController.framework ein, nur IOKit/HIDAPI.
+    - Create/Share trägt auf macOS 27 eigene Gesten: Bildschirmfoto, Aufnahme, „Highlight“ der letzten 15 s
+      (Strings von GameControllerSettingsUI). Auf DualSense ist das `buttonOptions`, also ⧉ in „Share + Options“.
+    - Die Stick-Tasten tragen keine System-Geste. Nightforge fasst die Home-Taste gar nicht mehr an.
+  - **Beenden:** Nightforge weckt den ganzen Prozessbaum, bittet um Ende (SIGTERM) und tötet nach 3 s (SIGKILL), auch
+    ein hängendes Spiel. Dazu gehören die Programme im Spielordner und alles, was sie gestartet haben, nie aber
+    wineserver, `C:\windows\…`, Steam oder Nightforge (`GameProcesses.targets`). Danach räumt der normale Ablauf auf
+    (`watchForGameEnd`, Willkommen zurück). `wineserver -k` braucht es dafür nicht.
+  - **Technik:**
+    - Den Pad liest Nightforge auch im Hintergrund (`GCController.shouldMonitorBackgroundEvents`). Das ist erst seit
+      macOS 15.5 verlässlich, und Nightforge setzt es erst beim ersten verbundenen Controller (SDL sah sonst
+      Abstürze). Im Spiel wertet `InputRouter` nur das Halten aus (`reach`), sonst nichts.
+    - Das Panel ist nicht aktivierend (`.nonactivatingPanel`, Level `.screenSaver`, `.canJoinAllSpaces` und
+      `.fullScreenAuxiliary`), also kein Space-Wechsel. Hat ein Spiel den Bildschirm exklusiv belegt (Schild-Fenster),
+      kommt Nightforge zusätzlich nach vorne.
+    - Windows-Spiele hält Nightforge solange mit `SIGSTOP` an. Begründung: Wines Pad-Treiber läuft in
+      `winedevice.exe`, XInput liefert beim Weiterlaufen den aktuellen Zustand statt der Zwischendrücke, und der Ton
+      setzt aus. Mac-Spiele laufen weiter und reagieren mit, weil GameController ihnen die Drücke sonst gesammelt
+      nachliefert.
+  - **Am Fernseher prüfen:**
+    - Kommt L3 + R3 halten im Windows- und im Mac-Spiel an (DualSense und Xbox)? Löst macOS dabei nichts aus
+      (Game Overlay, Bildschirmfoto)? Was macht das Spiel in den 2 s mit den Stick-Drücken?
+    - Liegt das Panel über dem Spiel, ohne Space-Wechsel? Steuert der Pad nur das Panel?
+    - Ist ein pausiertes Spiel wirklich still, und läuft es nach Weiterspielen ohne verschluckte oder doppelte
+      Eingaben weiter? Was macht Steam (Spielzeit, „läuft“)? Ein Online-Spiel nicht lange pausieren.
+    - Spiel beenden bei einem hängenden Spiel (Left 4 Dead 2 im Ladebildschirm): Nach höchstens ~3 s ist es weg,
+      danach kommt Willkommen zurück. Bleibt Steam dabei heil?
+    - Zu Nightforge: Bibliothek vorn, das Spiel läuft weiter, „Zum Spiel wechseln“ führt zurück.
+- **Hängendes Spiel von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
+  oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge das Overlay mit „Spiel
+  beenden“ an, ohne zu raten, wenn ein Ladebildschirm nur lange dauert.
+- **Großes Nightforge-Overlay** (nach 0.3.0, der Nutzer will es „später schön ausarbeiten“): Uhrzeit, Controller-Akku,
+  laufende Downloads, Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
@@ -220,13 +242,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   - ob jeder Spieler seinen eigenen Pad bekommt und die Reihenfolge stimmt;
   - ob ein zweiter Pad, der mitten im Spiel eingeschaltet wird, noch ankommt;
   - ob der Controller-Test der Ersteinrichtung bei zwei Pads sinnvoll bleibt (er zeigt nur einen).
-- **L1/R1 wechseln zwischen Startseite und Bibliothek** (Nutzer, 31.10., beschlossen; baut die TV-Session auf
-  `claude/tv-fullscreen-61ab1e` mit, weil sie `InputRouter` für das Overlay ändert):
-  - L1 führt immer zur Startseite, R1 immer zur Bibliothek. Kein Umschalten, die Richtung steht fest.
-  - Neben dem Schalter „Startseite | Bibliothek“ stehen kleine Chips „L1“/„R1“, bei Xbox-Pads „LB“/„RB“.
-  - Der Sprung um fünf Spiele (`model.move(±5)` in `InputRouter`) fällt weg. L2/R2 bleiben erstes/letztes Spiel, ☰ bleibt
-    zweiter Weg.
-  - Die Beschriftungen im Controller-Test (`PadDrawing`: „Five games back/on“) passen mit an.
+- **L1/R1 zwischen Startseite und Bibliothek** (Nutzer, 31.10., gebaut auf `claude/tv-fullscreen-61ab1e` – die TV-Session
+  hat es mitgebaut, weil sie `InputRouter` für das Overlay ändert; `InputRouter.section`): L1 führt immer zur Startseite,
+  R1 immer zur Bibliothek, auch von einer Spielseite; kein Umschalten, die Richtung steht fest. In einem Sheet, im
+  Download-Panel, bei der Ersteinrichtung und im Spiel tun sie nichts. Die Chips „L1“/„R1“ (Xbox „LB“/„RB“) neben
+  „Startseite | Bibliothek“ erscheinen nur mit verbundenem Controller. Der Sprung um fünf Spiele ist weg, L2/R2 und ☰
+  bleiben; der Controller-Test sagt „Geht zur Startseite/Bibliothek“. Live bestätigt (1.11.). Am Gerät noch ansehen:
+  Chips und Beschriftungen im Controller-Test, mit DualSense und Xbox-Pad.
 - **Suche mit dem Controller** (Nutzer, 31.10., Idee, noch nicht besprochen): Heute erreicht man die Suche nur mit der
   Tastatur (⌘F oder /). Möglichkeiten:
   - Buchstaben-Sprung ohne Tippen: Bei Sortierung „Name“ springt eine Taste plus Stick oder Steuerkreuz von A nach B
@@ -249,9 +271,162 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Erkennung am Namen (`Candidate.isTV`, Liste der Marken) und das Vollbild des Launchers.
 - **Hinweis „Spielt auf: …“** neben Play, wenn ein externer Bildschirm das Spiel bekommt, damit man weiß, wo es
   aufgeht. Ansatz: `GameDisplay.screen?.localizedName` in `LibraryView`, nur bei mehr als einem Bildschirm.
-- **Ton über HDMI.** macOS stellt meist selbst auf den TV um, aber nicht immer. Erst am TV prüfen; falls nötig beim
-  Spielstart das Audiogerät des Spiel-Bildschirms wählen (CoreAudio, Transport HDMI/DisplayPort) und danach zurück,
-  wie `GameDisplay.enterGame`/`leaveGame` es mit dem Hauptbildschirm machen.
+- **Ziel fürs Sofa (28.10.):** MacBook anstecken, Controller einschalten, alles läuft, ohne Maus und Tastatur.
+  - **Vollbild am Fernseher** (31.10., Branch `claude/tv-fullscreen-61ab1e`, `GameResolution.swift`): Overcooked 2
+    (Epic, Unity) ging am gespiegelten TV als kleineres Fenster auf. Unity und Unreal merken sich die Auflösung des
+    letzten Starts, und unter Wine wird Vollbild in einer anderen Größe als der des Bildschirms zum Fenster. Gebaut:
+    Vor jedem Start eines Windows-Spiels (Steam, Epic, GOG über `launchDirect`) bekommt ein Spiel im Vollbild die
+    Größe des Hauptbildschirms, wie Wine ihn zeigt (Punkte, mit Retina-Modus Pixel; gespiegelt der Master).
+    Unity (Modus 0/1) über die Registry: `Screenmanager Resolution Width/Height` und „Use Native“ = 1, nur Werte, die
+    das Spiel selbst angelegt hat, Schlüssel aus `<Spiel>_Data/app.info`, per regedit. Unreal (`FullscreenMode`
+    0/1) in `GameUserSettings.ini` unter `AppData/Local/<Projekt>/Saved/Config/Windows*/` (bzw. `Documents/My Games`).
+    Fenster-Modus bleibt, und solange das Spiel läuft, wird nichts angefasst. `GameDisplay` sieht einen Spiegel-Satz
+    als einen Bildschirm (`newMain`, `Candidate.mirrors`) und stellt beim Spiegeln nichts um. Am Fernseher prüfen:
+    - Overcooked 2 am gespiegelten TV: Vollbild? In `Logs/wine.log` steht vor dem Start
+      `[nightforge] Full screen Overcooked2: 1512×945 → 1920×1080`.
+    - Steht die Zeile da und es bleibt ein Fenster, merkt sich Overcooked 2 die Auflösung auch im eigenen,
+      verschlüsselten Spielstand (`SettingsOptions`, `Meta_SaveFile.save`). Dann einmal im Spielmenü per Controller
+      Vollbild bzw. 1920×1080 wählen und sehen, ob es beim nächsten Start bleibt.
+    - Offene Frage: Der einzige Start war am 31.10. um 16:34 (laut `wine.log`), und die 1512×945 wurden beim Beenden
+      um 16:35 geschrieben. War der TV da schon gespiegelt angeschlossen, kam das MacBook-Raster von Wine selbst.
+      Dann sieht die laufende Wine-Sitzung (Steam im Hintergrund) den angesteckten TV nicht, und erst ein Neustart der
+      Sitzung hilft. Prüfen: TV anstecken, ein Unity-Spiel mit „Use Native“ starten (20 Minutes Till Dawn) und
+      danach in `user.reg` nachsehen, ob 1920×1080 drinsteht.
+    - Ein Unreal-Spiel (Palworld) am TV, danach zurück am MacBook: wieder bildschirmfüllend 1512×982?
+    - **Gespeicherte Auflösung in eigenem Format** (1.11., Profilfeld `resolution`, `GameResolution.savedFitted`):
+      Ein Profil sagt, wo ein Spiel seine Auflösung speichert, entweder als Zeile mit Werten
+      (`fields: {width, height, fullscreen}`, gezählt ab 0) oder in einer .ini (`section`, `keys`). Vor dem Start
+      bekommt das Spiel die Größe des Spielbildschirms, aber nur bei Vollbild in einer Größe, die der Bildschirm
+      nicht hat. Ein Fenster oder eine vorhandene Größe bleibt. Erster Eintrag: Mafia II (`mac.json` 50130, auch
+      gog.1816059595), `AppData/Local/2K Games/Mafia II/Saves/videoconfig.cfg`, `0 0 1512 982 1 0 0 1`. Am TV prüfen:
+      Mafia II nur am TV startet in 1920×1080, im Log `[nightforge] Full screen videoconfig.cfg: 1920×1080`.
+    - **Frische Wine-Sitzung bei geänderten Bildschirmen** (1.11., `GameDisplay.wineSessionStale`): Wines Zwischenspeicher
+      hatte im Spiegelbetrieb noch das MacBook als eigene Primär-Quelle (Altlast der Sitzung). Eine frische Sitzung
+      sieht nur den DENON (winecx' `macdrv_get_adapters` überspringt Spiegel). Am TV prüfen: Der erste Start nach dem
+      Anstecken zeigt kurz „Steam startet …“, danach läuft Overcooked 2 randlos in 1920×1080. Mafia II hat sich in der
+      alten Sitzung 3024×1964 gemerkt (`videoconfig.cfg`): Prüfen, ob es nach der frischen Sitzung von selbst auf
+      1920×1080 geht, sonst einmal in seinen Optionen wählen.
+    - Spiegeln mit dem MacBook als Master: Spiele laufen in MacBook-Größe, der TV zeigt sie skaliert. Im Spiegelmodus
+      wird auch der Launcher nicht von selbst Vollbild, weil `GameDisplay.place` nur beim Verschieben umschaltet.
+  - **Zurück aus dem Spiel wie bei einer Konsole** (31.10., gleicher Branch, `GameBackdrop.swift`): Am TV sah man nach
+    dem Spiel den Mac-Schreibtisch, bis Nightforge nach 4–7 s wiederkam. Nightforge blendet sich beim Spiel nicht mehr
+    aus („Launcher ausblenden“ und „Offen lassen“ verhalten sich jetzt gleich). Hinter dem Spiel liegt eine ruhige
+    Seite „<Spiel> läuft …“, unter allen normalen Fenstern und in jedem Schreibtisch-Space des Spielbildschirms. Sie
+    kommt schon beim Übergeben an das Spiel. Das Spielende meldet der Prozess selbst (`DispatchSource`, kqueue); die
+    Seite zeigt sofort „Zurück zu Nightforge …“, und eine Sekunde später ist Nightforge vorn (lief das Spiel unter
+    einer Minute, nach 3 s, falls ein Launcher übergibt). A/Return tun bis dahin nichts. Der Hauptbildschirm bleibt
+    nach dem Spiel der Spielbildschirm, solange Nightforges Fenster dort ist; zurück erst beim Verschieben des Fensters
+    oder Beenden, also kein Umstellen der Bildschirme zwischen zwei Spielen. Am Fernseher prüfen:
+    - Spiel beenden (Windows über Steam, Epic und GOG, ein Mac-Spiel): kein Schreibtisch, „Zurück zu Nightforge …“, dann
+      „Willkommen zurück“, Controller steuert sofort. Wie lange dauert es bis Nightforge vorn ist?
+    - Der Wechsel von der Seite in Nightforges Vollbild-Space ist eine kurze Space-Animation. Stört sie, wäre der
+      nächste Schritt ein randloses Fenster über den ganzen TV statt macOS-Vollbild (`GameDisplay.place`), dann liegt
+      Nightforge im selben Space wie das Spiel. Das ist ein größerer Umbau, ungetestet nicht angefangen.
+    - Beim Start: Statt des Schreibtischs die Seite „<Spiel> läuft …“, bis das Spiel zeichnet?
+    - Menüleiste/Dock: Ist der TV Hauptbildschirm, kann nach dem Spiel kurz das Dock über der Seite erscheinen.
+    - Am MacBook allein: Nightforges Fenster liegt hinter dem Spiel, beim Beenden ist es sofort da, die Seite deckt nur
+      den Schreibtisch ab. Ein Spiel im Fenstermodus hat die dunkle Seite drumherum statt des Schreibtischs.
+    - GOG-Spiele (Mac über `launchGOGMac`, Windows über `launchDirect`): dasselbe beim Beenden.
+  - **Vorhang beim Start und Ende** (1.11., Wunsch des Nutzers nach dem Valheim-Test: beim Start der Schreibtisch, am
+    Ende kurz der Schreibtisch und Steams Fenster). Gebaut in `GameBackdrop.swift`:
+    - Dieselbe Seite wird zum Vorhang über allem (Ebene knapp unter dem Overlay, alle Spaces, auch Vollbild-Spaces),
+      als eigener Ladescreen: das Nightforge-N mit seiner blauen Lichtnaht (pulsiert sanft, nur die Naht, nicht bei
+      „Bewegung reduzieren“), darunter Spielname und „Wird gestartet …“ bzw. „Zurück zu Nightforge …“, auf der Nacht
+      der App mit dem Hintergrundbild des Spiels ganz schwach dahinter. Aufwendigere Animationen später.
+    - Er kommt, sobald das Spiel an seinen Store geht, für Steam, Steam für Mac, Epic und GOG
+      (`LibraryModel.raiseCurtain`). Er sinkt hinter das Spiel, sobald dessen App vorne ist und ein Fenster ab 640×360
+      zeigt, eine Sekunde später (`GameProcesses.showsWindow`).
+    - Eine Rückfrage von Steam, ein Fehler oder ein Start, der nicht klappt, nehmen ihn weg. Zeigt ein laufendes Spiel
+      60 s lang nichts, fragt das Overlay „<Spiel> startet nicht?“: Weiter warten, Zu Nightforge, Spiel beenden.
+    - Am Ende ist der Vorhang sofort da („Zurück zu Nightforge …“), auch schon bei „Spiel beenden“ im Overlay.
+      Steam für Mac wird gleich ausgeblendet, danach kommt die Spielseite des Spiels.
+    - Nachtest 1.11. (erweitert) und behoben: Beim Start sprang Nightforges Vollbildfenster aufs MacBook, weil das
+      Umsetzen des Hauptbildschirms die Ursprünge verschiebt und das Fenster seine Koordinaten behält. Der TV wird
+      jetzt Hauptbildschirm, bevor Nightforge dort ins Vollbild geht (`GameDisplay.place`). Nach jedem Umsetzen kommt
+      das Fenster auf seinen Bildschirm zurück (`keepWindow`), notfalls aus dem Vollbild und wieder hinein. Vorhang und
+      Overlay liegen auf dem Spielbildschirm (`GameDisplay.gameScreen`), nicht beim Fenster. Der Titel wanderte, weil
+      das Pulsieren das erste Layout mitanimierte; jetzt ist nur die Naht animiert. Der Vorhang hatte unten einen
+      Streifen (`NSHostingView` passte die Fenstergröße an den Inhalt an); jetzt `sizingOptions = []`.
+    - Nachtest 1.11. ~03:15 und behoben:
+      - **Falsche App vorne:** Seit macOS 14 kann nur die App vorne die Front weitergeben. Fragt eine App von hinten,
+        wird das ignoriert, und macOS gibt die Front der nächsten App im Stapel, hier der Claude-App. Unity baut sein
+        Fenster für Vollbild neu auf und verliert dabei die Front. Jetzt sinkt der Vorhang erst, wenn das Spiel eine
+        Sekunde vorne ist (`LibraryModel.curtainStep`). Ist ein anderes vorne, holt sich Nightforge (unter dem
+        Vorhang) die Front und gibt sie an das Programm des Spiels mit Fenster weiter (`handFocus`). Danach achtet es
+        8 s darauf und hebt den Vorhang wieder, wenn eine andere App dem Spiel die Front nimmt. „Zum Spiel wechseln“
+        geht denselben Weg statt über `activate(options:)`.
+      - **Flackern beim Beenden:** Bisher ging der Vorhang hoch, das Overlay-Panel blieb bis zu 5 s mit „Wird
+        beendet …“ darüber. Nach dem Spielende senkte `playing()` den Vorhang, sobald ein Prozess aus dem Spielordner
+        nachhing oder neu auftauchte; man sah Nightforge, dann ging er wieder hoch. Das Ausblenden lief nach 0,9 s
+        auf Zeit, auch wenn der Space-Wechsel noch lief. Jetzt bei „Spiel beenden“: Vorhang hoch und festgehalten,
+        Panel sofort weg, dann das Ende. Der Vorhang kommt nach jedem Space-Wechsel wieder nach vorne und geht erst,
+        wenn Nightforges Fenster auf dem gezeigten Space vorne ist (`GameBackdrop.hide(once:)`). Hängt er doch, geht
+        er nach 20 s.
+    - Nachtest mit 9319ca3 und behoben:
+      - Mafia II öffnete beim ersten Start hinten. Sein Fenster lag in einem anderen Space, und die Fenstersuche sah
+        nur den gezeigten. Jetzt reicht ein Fenster in irgendeinem Space für die Übergabe; gesenkt wird erst, wenn es
+        vorne auf dem gezeigten Space ist.
+      - „Willkommen zurück“ blitzte zwischen zwei Vorhängen auf. Es kommt jetzt erst, wenn der Vorhang weg ist.
+        Während des Space-Wechsels wird der Vorhang laufend nach vorne geholt.
+      - Nach 3 s zeigt der Vorhang eine ruhige Zeile, was passiert: den Start-Hinweis („Neuer Start mit WineD3D …“,
+        Shader beim ersten Start) bzw. „Warte auf das erste Bild …“.
+    - Nachtest mit 645cca8 (Testbuild f03398f, Deckel offen, erweitert, TV Hauptbildschirm) und behoben:
+      - „Zu Nightforge“ im Overlay und der Weg aus dem Spiel brachten die Claude-App nach vorn, das Spiel blieb
+        dahinter. Nightforge bat bisher nur höflich um die Front (Launch Services), und das verliert gegen jede App mit
+        einem Fenster auf dem gezeigten Space. Jetzt holt es sich die Front ausdrücklich (`NSApp.comeToFront`, also
+        `activate(ignoringOtherApps: true)`, laut SDK „activates regardless“), dazu Launch Services für den
+        Space-Wechsel. Das Overlay-Panel geht erst danach weg. Das Spiel bekommt beim Weiterspielen alle Fenster nach
+        vorn (`.activateAllWindows`).
+      - Sonic Mania (Epic) lief im Fenster: Das Spiel schreibt beim ersten Start `windowed=y` (848×480). Neues Profil
+        `epic.45e7cf3c49054f2fb20b673d9b0ae69e` mit `windowed=n` in `Sega/SonicMania/Settings.ini`, vor jedem Start.
+      - Vorhang-Flackern bei Sonic: Ursache nicht belegt, kein EOS-Overlay im Prefix. Ein anderes Windows-Programm
+        vorne (Launcher, Overlay, Dialog, nicht Steam) zählt jetzt als Seite des Spiels. Ging der Vorhang einmal wieder
+        hoch, sinkt er erst nach 2,5 s statt 1 s Front. Jedes erneute Hochgehen steht in `wine.log`
+        („Curtain up again for … in front“), so zeigt der nächste Test, wer die Front nahm.
+      - „Spiel beenden“ im Overlay galt bei Sonic als Fehlstart. Jetzt merkt sich LaunchHealth das Beenden durch den
+        Spieler (`playerQuit`): Der Startablauf, Steams Log beim nächsten Start (`review`) und der Rückfall von der
+        Mac- auf die Windows-Version lernen daraus nichts, egal nach wie vielen Sekunden und mit welchem Exit-Code.
+    - Am Fernseher prüfen: Valheim (Mac) und Overcooked 2 (Windows) starten und beenden, ohne dass der Schreibtisch
+      oder Steams Fenster zu sehen ist. Kommt das Spiel nach dem Vorhang ohne schwarzes Bild? Ein Spiel mit Steam-Frage
+      (EULA): Der Vorhang geht weg, die Frage ist zu sehen.
+  - **Ton aus dem Fernseher** (31.10., gleicher Branch, `GameAudio.swift`): Beim Live-Test blieb der Ton auf den
+    MacBook-Lautsprechern, obwohl ein DENON-AVR per HDMI dran war (macOS merkt sich die Ausgabe pro Gerät). Gebaut:
+    Zeigt ein Fernseher Nightforge (Fenster auf einem TV, ein AV-Receiver zählt dazu, oder ein Spiegel-Satz mit einem
+    externen Bildschirm), geht die Standardausgabe auf dessen HDMI- bzw. DisplayPort-Gerät. Bei mehreren nimmt
+    Nightforge das gleichnamige, im Zweifel keins. Umgeschaltet wird nur von den eingebauten Lautsprechern weg, nie von
+    Kopfhörern, AirPods, Bluetooth oder USB. Dazu kommt ein kurzer Hinweis „Ton kommt jetzt aus …“. Zurück auf die
+    Lautsprecher geht es, wenn Nightforge den TV verlässt und der Ton noch dort ist, wo Nightforge ihn hingelegt hat.
+    Wählt der Spieler am TV selbst eine andere Ausgabe, bleibt die, bis der TV weg ist. Wine (winecoreaudio) liest die
+    Standardausgabe nur beim Öffnen und hört nicht auf Wechsel: Der Wechsel muss vor dem Spiel liegen, und
+    `GameDisplay.enterGame` prüft es vor jedem Start noch einmal. Am Fernseher prüfen:
+    - TV mit DENON-AVR anstecken (gespiegelt und erweitert): Ton kommt aus dem Receiver, Hinweis erscheint. Kommt das
+      HDMI-Gerät erst Sekunden nach dem Bild, schaltet der Listener auf die Geräteliste nach.
+    - Ein Windows-Spiel: Ton da, auch Dialoge? Wine nimmt das bevorzugte Kanal-Layout des Geräts (Audio-MIDI-Setup ›
+      „Lautsprecher konfigurieren“), sonst die 8 Kanäle als 7.1. Fehlt etwas, dort „Stereo“ einstellen.
+    - Fenster zurück aufs MacBook bzw. TV abziehen: Ton wieder aus den MacBook-Lautsprechern.
+    - Am TV in den Systemeinstellungen auf die Lautsprecher stellen: Nightforge schaltet nicht wieder um.
+    - Befund 1.11.: Nightforge schaltete doch wieder um, sobald man zu ihm zurückkam. Jeder Fensterwechsel (Spaces,
+      Vollbild) galt als „TV verlassen“ und vergaß die Wahl. Jetzt schaltet Nightforge nur zu zwei Anlässen um:
+      wenn ein TV angesteckt wird (Bild oder HDMI-Ton kommt dazu) und wenn ein Spiel auf dem TV startet, beide Male
+      nur von den eingebauten Lautsprechern aus (`GameAudio.Moment`). Die eigene Wahl gilt bis zum nächsten
+      Anstecken. Zurück geht es nur, wenn das Fenster wirklich auf einem Nicht-TV landet oder der TV weg ist.
+    - Befund 1.11. mittags: Der Nutzer stellte im Ton-Menü auf die Lautsprecher, der Ton landete wieder am DENON.
+      Gespeichert war der Zustand (UserDefaults), aber die Wahl sah Nightforge erst beim nächsten Anlass. Kam der TV
+      vor Nightforges Start, war der Zustand „nicht umgeschaltet“, und der Spielstart schaltete zurück. Jetzt hört
+      Nightforge auf die Standardausgabe: Was der Spieler wählt, während ein TV da ist, bleibt bis zum nächsten
+      Anstecken. Das eigene Umschalten zählt nicht. Als angesteckt gilt nur ein neuer externer Bildschirm oder
+      HDMI-Ausgang, nicht der eingebaute beim Aufklappen und nicht einer, der nach unter 30 s wiederkommt.
+      Wechselt die Ausgabe während eines Windows-Spiels, sagt das Overlay „Das Spiel spielt seinen Ton bis zum
+      nächsten Start über …“: winecoreaudio bleibt beim Gerät, das es beim Start geöffnet hat.
+    - Befund 1.11. nachmittags: HDMI ab und wieder an, auf die Lautsprecher gestellt, Mafia II gestartet: wieder
+      DENON. Wahrscheinlicher Weg: Beim Umstellen der Bildschirme zum Spielstart verschwand der HDMI-Ton kurz, kam
+      wieder und galt als angesteckt; das löschte die Wahl. Seither zählt das nicht mehr (30 s). Dazu die Idee des
+      Nutzers: Nightforge merkt sich die Tonwahl pro TV (`TVSettings`, UserDefaults `tvSettings`, Schlüssel die
+      UUID des Bildschirms, sonst sein Name). Ein neuer TV bekommt seinen Ton; einer, bei dem der Spieler die
+      Lautsprecher gewählt hat, behält sie, auch nach Abstecken, Neustart oder Umstellung; wählt er wieder den
+      Receiver, gilt das. Was macOS in den 3 s nach einem Anstecken selbst umstellt, zählt nicht als Wahl.
+      Für das Vorhang-Flackern nach dem Wiederanstecken stehen jetzt in `wine.log` die Bildschirmwechsel unter dem
+      Vorhang und jede Umstellung des Hauptbildschirms.
 
 ## Anti-Cheat und GeForce Now
 

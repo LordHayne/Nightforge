@@ -129,6 +129,19 @@ struct LaunchHealthTest {
         LaunchHealth.review(app, ladder, steamRoot: steam)
         check(LaunchHealth.current(app, ladder) == (1, true), "a 10 min session confirms")
 
+        // Quit Game in the overlay is the player's end, however short (Sonic Mania on 1.11.).
+        LaunchHealth.reset(app)
+        LaunchHealth.recordStart(app, ladder, at: now)
+        session(seconds: 6, startedAt: now)
+        check(!LaunchHealth.quitByPlayer(app, since: now), "not quit by the player yet")
+        LaunchHealth.playerQuit(app, at: now.addingTimeInterval(8))
+        check(LaunchHealth.quitByPlayer(app, since: now), "quit in the overlay 8 s after its start")
+        check(!LaunchHealth.quitByPlayer(app, since: now.addingTimeInterval(60)), "that was an earlier start")
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == (0, false), "a 6 s session the player quit: the way stays")
+        LaunchHealth.reset(app)
+        check(!LaunchHealth.quitByPlayer(app, since: now), "reset forgets it")
+
         // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
         let mafia = GameID.gog("1816059595")
         let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)

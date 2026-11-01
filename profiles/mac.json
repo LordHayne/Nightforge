@@ -1,5 +1,5 @@
 {
- "about": "Nightforge's own per-game profiles, tested on Macs. They take precedence over umu-protonfixes. Fields: graphics (dxmt|dxvk|wined3d|d3dmetal), arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX (false = keep MetalFX off), frameLimit (automatic FPS limit), vulkanSamplers (samplers per shader stage reported to Vulkan games), preferWindows (true = Automatic keeps the Windows version although Steam has a 64-bit Mac one), saves (save folders for games without Steam Cloud rules, carried over when the game changes between its Windows and Mac version), antiCheat / antiCheatOnline ([] = runs on a Mac despite what AreWeAntiCheatYet says), avx (false = start without Rosetta's AVX hint, for games that crash on it), fileEdits ([{path, find, replace, root, once}] in the game's own settings files before each start; path relative to its folder, or to root – a Windows root as in saves; once = a starting value, applied a single time), iniSettings ([{root, path, section, values}] set in the game's own .ini files before each start), retina (true = the game sees the full Retina resolution; Steam restarts when it changes), gog (the same game's GOG product IDs, which get this profile too), ignoreUpstream, note.",
+ "about": "Nightforge's own per-game profiles, tested on Macs. They take precedence over umu-protonfixes. Fields: graphics (dxmt|dxvk|wined3d|d3dmetal), arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX (false = keep MetalFX off), frameLimit (automatic FPS limit), vulkanSamplers (samplers per shader stage reported to Vulkan games), preferWindows (true = Automatic keeps the Windows version although Steam has a 64-bit Mac one), saves (save folders for games without Steam Cloud rules, carried over when the game changes between its Windows and Mac version), antiCheat / antiCheatOnline ([] = runs on a Mac despite what AreWeAntiCheatYet says), avx (false = start without Rosetta's AVX hint, for games that crash on it), fileEdits ([{path, find, replace, root, once}] in the game's own settings files before each start; path relative to its folder, or to root – a Windows root as in saves; once = a starting value, applied a single time), iniSettings ([{root, path, section, values}] set in the game's own .ini files before each start), retina (true = the game sees the full Retina resolution; Steam restarts when it changes), resolution ({root, path, fields: {width, height, fullscreen}} for a line of values separated by spaces, counted from 0, or {root, path, section, keys: {width, height, fullscreen}} for an .ini file; fullscreenOn: the values meaning full screen, 1 by default: where the game keeps its full-screen resolution, set to the screen it plays on before each start when that screen lacks it), gog (the same game's GOG product IDs, which get this profile too), ignoreUpstream, note.",
  "games": {
   "550": {
    "name": "Left 4 Dead 2",
@@ -11,7 +11,16 @@
     "1816059595"
    ],
    "graphics": "wined3d",
-   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on."
+   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on.",
+   "resolution": {
+    "root": "WinAppDataLocal",
+    "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
+    "fields": {
+     "width": 2,
+     "height": 3,
+     "fullscreen": 4
+    }
+   }
   },
   "251570": {
    "name": "7 Days to Die",
@@ -162,6 +171,20 @@
     }
    ],
    "note": "Tested 2026-10-28 on M5 (Unreal 5.7.4). DirectX 11 fails on every layer: DXMT stays black while its graphics memory grows by ~400 MB/s, DXVK 3 on KosmicKrisp and D3DMetal crash. DirectX 12 through D3DMetal plays; with Rosetta's AVX hint it crashes after ~2 min (illegal instruction while precompiling shaders). Nanite and virtual shadow maps cost D3DMetal half the frame rate (30 -> 64 FPS without them, Engine.ini). With full Retina output (3024x1964), Low, FSR Performance and FSR frame generation: 50-55 FPS, sharp. Ray tracing and MegaLights stay off. The menu's background video stays black."
+  },
+  "epic.45e7cf3c49054f2fb20b673d9b0ae69e": {
+   "name": "Sonic Mania",
+   "note": "Seen 2026-11-01 on M5 with the Epic version on winecx 4.7.3: its first start writes Settings.ini (Sega/SonicMania in AppData/Local) with windowed=y at 848×480, so it played in a small window on the TV. windowed=n plays full screen at the desktop's resolution (no fsWidth/fsHeight in the file); exclusiveFS stays as the game sets it.",
+   "iniSettings": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Sega/SonicMania/Settings.ini",
+     "section": "Video",
+     "values": {
+      "windowed": "n"
+     }
+    }
+   ]
   }
  }
 }

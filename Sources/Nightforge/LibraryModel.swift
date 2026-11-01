@@ -472,6 +472,7 @@ final class LibraryModel: ObservableObject {
             guard await beforeGOGStart(game) else { return }
             let installDir = game.installDir
             await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            raiseCurtain(for: game)
             do {
                 try await gog.launchMac(game, extraArguments: arguments)
             } catch {
@@ -482,11 +483,7 @@ final class LibraryModel: ObservableObject {
             launchingID = nil
             startedHere.insert(game.id)
             await bringToFront(game)
-            switch behavior {
-            case .quit: NSApp.terminate(nil)
-            case .hide: NSApp.hide(nil)
-            case .stay: break
-            }
+            stepBack(behind: game, behavior)
         }
     }
 
@@ -502,9 +499,13 @@ final class LibraryModel: ObservableObject {
                 let found = await Task.detached(priority: .utility) { Self.runningGames(folders) }.value
                 if found != running { running = found }
                 if loaded { runningScanned = true }  // only a look with the games known counts
+                await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
                 if found.isEmpty, launchingID == nil, playing.isEmpty { idleLooks += 1 } else { idleLooks = 0 }
-                if idleLooks == 20 { GameDisplay.leaveGame() }  // a start that never got going (~1 min)
+                if idleLooks == 20 {  // a start that never got going (~1 min)
+                    GameDisplay.leaveGame()
+                    GameBackdrop.hide(after: .zero)
+                }
                 if steam.restartWhenIdle && found.isEmpty && launchingID == nil && move == nil {
                     steam.restartWhenIdle = false
                     if let wine = await Engine.installedWine() { try? await Engine.restartSteamInBackground(wine) }
@@ -518,9 +519,39 @@ final class LibraryModel: ObservableObject {
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
-                try? await Task.sleep(for: .seconds(goneFor > 0 ? 2 : busy ? 3 : 10))
+                watchExits(found)
+                let pause = Duration.seconds(goneFor > 0 ? 1 : busy ? 3 : 10)
+                nap = Task { try? await Task.sleep(for: pause) }
+                await nap?.value
             }
         }
+    }
+
+    /// The pause between looks; a game's process ending cuts it short.
+    private var nap: Task<Void, Never>?
+    private var exitWatches: [pid_t: DispatchSourceProcess] = [:]
+
+    /// The processes of the games being played, watched for their end (kqueue): the look that
+    /// notices it comes at once rather than up to three seconds later.
+    private func watchExits(_ found: [String: pid_t]) {
+        let pids = Set(playing.compactMap { found[$0] })
+        for (pid, source) in exitWatches where !pids.contains(pid) {
+            source.cancel()
+            exitWatches[pid] = nil
+        }
+        for pid in pids where exitWatches[pid] == nil {
+            let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
+            source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.nap?.cancel() } }
+            source.resume()
+            exitWatches[pid] = source
+        }
+    }
+
+    /// Whether games whose processes are gone have ended: gone at two looks (the end itself wakes
+    /// the first, the next is a second later). One that ran for less than a minute gets three
+    /// seconds: launchers hand over to the game early on, sometimes with a gap.
+    nonisolated static func gameEnded(looksGone: Int, goneFor: TimeInterval, ranFor: TimeInterval) -> Bool {
+        looksGone >= 2 && (ranFor >= 60 || goneFor >= 3)
     }
 
     // MARK: - Back after a game
@@ -533,11 +564,13 @@ final class LibraryModel: ObservableObject {
     /// The "Welcome back" sheet after a real session (a minute or more).
     @Published var sessionSummary: SessionSummary?
     private var goneFor = 0
+    private var goneSince = Date.distantPast
     private var idleLooks = 0
 
-    /// Once the games Nightforge started have all ended (gone for three looks, ~4–7 s, so a
-    /// launcher handing over to the game doesn't count), Nightforge comes back to the front: the
-    /// controller keeps working, and neither the desktop nor Steam is what the player sees.
+    /// Once the games Nightforge started have all ended (`gameEnded`, about a second after their
+    /// processes went), Nightforge comes back to the front: the controller keeps working, and
+    /// neither the desktop nor Steam is what the player sees. Until then the page behind the game
+    /// says it's on its way (GameBackdrop).
     private func watchForGameEnd(_ found: [String: pid_t]) {
         for id in startedHere.intersection(found.keys) where sessionStarts[id] == nil {
             sessionStarts[id] = (Date(), allGames.first { $0.id == id }?.playtimeMinutes ?? 0)
@@ -546,15 +579,23 @@ final class LibraryModel: ObservableObject {
         startedHere.subtract(playing)
         guard !playing.isEmpty else { return }
         if playing.contains(where: { found[$0] != nil }) {
+            if goneFor > 0 { GameBackdrop.playing() }  // a launcher handed over to the game after all
             goneFor = 0
             return
         }
+        if goneFor == 0 {
+            goneSince = Date()
+            // The curtain at once, over Steam for Mac's window, which comes up when a game ends.
+            GameBackdrop.returning()
+            MacSteam.hide()
+        }
         goneFor += 1
-        guard goneFor >= 3 else { return }
+        let ranFor = playing.compactMap { sessionStarts[$0]?.date }.map { goneSince.timeIntervalSince($0) }.max() ?? 0
+        guard Self.gameEnded(looksGone: goneFor, goneFor: Date().timeIntervalSince(goneSince), ranFor: ranFor) else { return }
         let ended = playing
         playing = []
         goneFor = 0
-        // The processes were gone a few looks ago (~4–7 s), with a little margin.
+        // The processes went a moment ago; a margin for the save Steam is still writing.
         let endedAt = Date().addingTimeInterval(-10)
         let endedGames = allGames.filter { ended.contains($0.id) }
         for game in endedGames { steamSwitch.ended(game, at: endedAt) }
@@ -571,28 +612,47 @@ final class LibraryModel: ObservableObject {
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt) : nil
         }
-        comeBack()
-        sessionSummary = sessions.max { $0.minutes < $1.minutes }
+        // Back on the game's page, as from a console's game.
+        if let game = endedGames.first(where: { $0.inLibrary }), reveal(game), !route.isDetail { openDetail() }
+        // "Welcome back" once the curtain is gone, not under it while the Spaces change.
+        let summary = sessions.max { $0.minutes < $1.minutes }
+        comeBack { [weak self] in self?.sessionSummary = summary }
     }
 
-    private func comeBack() {
+    /// `then`: once the curtain is gone.
+    private func comeBack(then: @escaping @MainActor () -> Void = {}) {
         MacSteam.hide()
-        GameDisplay.leaveGame()
-        // Since macOS 14 an app can't push itself to the front; opening it through Launch
-        // Services can, and unhides it too.
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        // Nightforge to the front (NSApp.comeToFront), then its window over the page behind the
+        // game – on a TV it's in Nightforge's own full-screen Space – and only then may the
+        // screens change (GameDisplay.backFromGame), where nobody sees it.
+        NSApp.comeToFront {
+            GameDisplay.backFromGame()
+            // Not on a timer: once Nightforge's window is in front on the Space shown.
+            GameBackdrop.hide(once: {
+                NSApp.isActive && NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false
+            }, then: then)
+        }
         reload(quiet: true)  // play time, last played
     }
+
+    /// Once a game has the screen: Nightforge stays where it is behind it, the page behind the
+    /// game in place of the desktop (GameBackdrop). Hidden, as it used to be, the desktop was all
+    /// that showed when the game ended, until Nightforge came back.
+    private func stepBack(behind game: Game, _ behavior: AfterLaunch) {
+        switch behavior {
+        case .quit: NSApp.terminate(nil)
+        case .hide, .stay: GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+        }
+    }
+
+    /// A game runs or starts: the pad belongs to it (InputRouter doesn't wake Nightforge meanwhile).
+    var gameOnScreen: Bool { !running.isEmpty || !playing.isEmpty || launchingID != nil }
 
     /// Nightforge in front again after a Steam window had it (its sign-in), the way it comes back
     /// after a game (comeBack): keys and the pad only reach the app in front.
     func comeForward() {
         guard !NSApp.isActive else { return }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        NSApp.comeToFront()
     }
 
     /// What a game's processes show in `ps`, by game: Wine's Windows path of the game folder, or
@@ -703,10 +763,212 @@ final class LibraryModel: ObservableObject {
         return false
     }
 
+    // MARK: - The curtain
+
+    private var curtainWatch: Task<Void, Never>?
+
+    /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
+    /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
+    /// error or a start that didn't take take it away; a game that runs but shows nothing for a
+    /// minute gets the overlay's "Not starting?".
+    private func raiseCurtain(for game: Game) {
+        curtainWatch?.cancel()
+        GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+        let name = game.name
+        Task {
+            let art = await ArtworkStore.shared.stageBackdrop(for: game)
+            GameBackdrop.setArt(art?.image, for: name)
+        }
+        curtainWatch = Task { await watchCurtain(game) }
+    }
+
+    private func watchCurtain(_ game: Game) async {
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        var askAt = Date().addingTimeInterval(Self.curtainPatience)
+        var seenOnce = false
+        var frontSince: Date?
+        var loweredAt: Date?
+        var raisedAgain = 0
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(500))
+            // The game's end has the curtain now (watchForGameEnd, Quit Game).
+            guard !Task.isCancelled, !GameBackdrop.isReturning else { return }
+            if loweredAt == nil {
+                guard GameBackdrop.isRaised else { return }
+                // Steam asks something in its window, or the start went wrong: the player has to see it.
+                if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
+                    GameBackdrop.hide(after: .zero)
+                    return
+                }
+            }
+            GameBackdrop.setDetail(launchHint)
+            let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let (pids, companion) = await Task.detached(priority: .utility) {
+                let table = GameProcesses.table()
+                return (Set(GameProcesses.targets(windows: marker, mac: folder, in: table)),
+                        marker != nil && front.map { GameProcesses.windowsCompanion($0, in: table) } == true)
+            }.value
+            seenOnce = seenOnce || !pids.isEmpty
+            // Started and gone again, nothing starting any more: the start flow says what happened.
+            if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
+                if loweredAt != nil { return }  // ended: watchForGameEnd brings Nightforge back
+                if launchingID == nil { GameBackdrop.hide(after: .zero) }
+                if launchingID == nil { return }
+                continue
+            }
+            // Another Windows program of the game's in front (a launcher, an overlay, a dialog of
+            // its own) is the game's side too: no handing over, no curtain again.
+            let gameFront = front.map(pids.contains) ?? false || companion
+            frontSince = gameFront ? (frontSince ?? Date()) : nil
+            let (here, anywhere) = await Task.detached(priority: .utility) {
+                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true))
+            }.value
+            if loweredAt == nil, !here, !anywhere {
+                GameBackdrop.setDetail(launchHint ?? L10n.t("Waiting for the first picture …"))
+            }
+            switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
+                                    windowHere: here, windowAnywhere: anywhere,
+                                    frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                    settle: raisedAgain == 0 ? 1 : Self.settleAgain,
+                                    guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
+            case .wait:
+                break
+            case .handOver:
+                _ = await handFocus(to: pids)
+            case .lower:
+                if GameOverlay.asksAboutStart { GameOverlay.close() }
+                GameBackdrop.lower()
+                loweredAt = Date()
+            case .raiseAgain:
+                // Another app took the front from the game – Unity builds its window anew for full
+                // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
+                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                loweredAt = nil
+                frontSince = nil
+                raisedAgain += 1
+                GameLog.note("Curtain up again for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front")
+            case .done:
+                return
+            }
+            if loweredAt == nil, !pids.isEmpty, Date() >= askAt, !GameOverlay.isOpen {
+                askAt = Date().addingTimeInterval(Self.curtainPatience)
+                askAboutStart(game)
+            }
+        }
+    }
+
+    enum CurtainStep: Equatable { case wait, handOver, lower, raiseAgain, done }
+
+    /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
+    /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
+    /// hands the front to the game when another app has it, and sinks once the game has been in
+    /// front with its window shown for `settle` seconds. Down, for `focusGuard`: another app taking
+    /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch.
+    nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
+                                        windowAnywhere: Bool, frontFor: TimeInterval, settle: TimeInterval = 1,
+                                        guardOver: Bool) -> CurtainStep {
+        if lowered {
+            if guardOver || nightforgeFront { return .done }
+            return gameFront ? .wait : .raiseAgain
+        }
+        guard windowHere || windowAnywhere else { return .wait }
+        guard gameFront else { return .handOver }
+        return windowHere && frontFor >= settle ? .lower : .wait
+    }
+
+    /// How long after the curtain sinks the game's front is still watched.
+    private static let focusGuard: TimeInterval = 8
+    /// How long the game has to keep the front before the curtain sinks a second time: a game
+    /// building its window anew more than once made it come and go (Sonic Mania on 1.11.).
+    static let settleAgain: TimeInterval = 2.5
+
+    /// Hands the front to the game: its program with windows (a Windows game's .exe under Wine, a
+    /// Mac game's app). Since macOS 14 only the app in front can pass it on – asking from behind
+    /// is ignored, and macOS gives the front to whatever app is next – so Nightforge comes to the
+    /// front first when it isn't (under the curtain, or from its own page).
+    @discardableResult
+    private func handFocus(to pids: Set<pid_t>) async -> Bool {
+        guard let app = pids.sorted().compactMap({ NSRunningApplication(processIdentifier: $0) })
+            .first(where: { $0.activationPolicy == .regular })
+        else { return false }
+        if app.isActive { return true }
+        if !NSApp.isActive {
+            NSApp.comeToFront()
+            for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+        }
+        NSApp.yieldActivation(to: app)
+        // All its windows: with only the key one, Wine's full-screen window stayed under others.
+        app.activate(from: .current, options: [.activateAllWindows])
+        for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+        return app.isActive
+    }
+
+    /// How long a running game may show nothing before the curtain asks.
+    private static let curtainPatience: TimeInterval = 60
+
+    private func askAboutStart(_ game: Game) {
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        let actions = GameOverlay.Actions(
+            quit: {
+                LaunchHealth.playerQuit(game.gameID)
+                await Task.detached(priority: .userInitiated) {
+                    GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                }.value
+            },
+            nightforge: { [weak self] in
+                self?.curtainWatch?.cancel()
+                GameBackdrop.hide(after: .zero)
+                self?.comeForward()
+                NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+            })
+        GameOverlay.open(game.name, pause: [], on: GameDisplay.gameScreen, symbols: padSymbols, step: .notStarting, actions: actions)
+    }
+
+    /// Both sticks held in a game (InputRouter): the overlay over the game being played. A
+    /// Windows game is paused under it. Quit ends its processes, also when it hangs, and its end
+    /// is then seen like any other (watchForGameEnd); Go to Nightforge leaves it running.
+    func openOverlay() {
+        guard !GameOverlay.isOpen,
+              let game = allGames.first(where: { playing.contains($0.id) && running[$0.id] != nil })
+                ?? allGames.first(where: { running[$0.id] != nil })
+        else { return }
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        let pauses = game.platform == .windows
+        Task {
+            let pids = await Task.detached(priority: .userInitiated) {
+                GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table())
+            }.value
+            let actions = GameOverlay.Actions(
+                quit: {
+                    LaunchHealth.playerQuit(game.gameID)
+                    // Looked up again: the game may have started more processes since.
+                    await Task.detached(priority: .userInitiated) {
+                        GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                    }.value
+                },
+                nightforge: { [weak self] in
+                    self?.comeForward()
+                    NSApp.windows.first { $0.title == "Nightforge" }?.makeKeyAndOrderFront(nil)
+                })
+            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.gameScreen, symbols: padSymbols,
+                             soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
+        }
+    }
+
     /// Brings the running game's window to the front.
     func switchToGame(_ game: Game) {
-        guard let pid = game.entries.lazy.compactMap({ self.running[$0.id] }).first else { return }
-        NSRunningApplication(processIdentifier: pid)?.activate(options: [.activateAllWindows])
+        guard let entry = game.entries.first(where: { running[$0.id] != nil }) else { return }
+        let marker = entry.platform == .mac ? nil : entry.windowsFolderMarker
+        let folder = entry.platform == .mac ? entry.installDir.path : nil
+        Task {
+            let pids = await Task.detached(priority: .userInitiated) {
+                Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+            }.value
+            await handFocus(to: pids)
+        }
     }
 
     /// The player asked to rescan (⌘R, the button): the stores are asked again too, not only once
@@ -1473,6 +1735,7 @@ final class LibraryModel: ObservableObject {
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             let run = { MacSteam.open("run/\(game.appID)" + extra) }
+            raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)
             switch start {
@@ -1505,15 +1768,12 @@ final class LibraryModel: ObservableObject {
                 }.value
                 if await survivesFirstSeconds(game) {
                     MacHealth.confirm(game.appID)
-                } else if let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
+                } else if !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
+                          let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
                     return
                 }
             }
-            switch behavior {
-            case .quit: NSApp.terminate(nil)
-            case .hide: NSApp.hide(nil)
-            case .stay: break
-            }
+            stepBack(behind: game, behavior)
         }
     }
 
@@ -1865,6 +2125,8 @@ final class LibraryModel: ObservableObject {
     /// Return and A: Home plays the game (its last tile opens the library), the library opens the
     /// game's page, and the page plays it.
     func activate() {
+        // Not while a game is just ending: a press meant for its last menu would start it again.
+        guard goneFor == 0 else { return }
         switch route {
         case .home:
             if showsFirstStart {
@@ -2256,6 +2518,21 @@ final class LibraryModel: ObservableObject {
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: true)
                     launchPhase = nil
                 }
+                // The screens changed since Wine's session began (a TV plugged in, mirroring on): Wine
+                // keeps the ones it saw then, and the game would open in their size. A fresh session.
+                if game.bottle.isBuiltIn, !anyRunning(.windows), let runner,
+                   await Engine.offMain({ GameDisplay.wineSessionStale() }) {
+                    launchPhase = .startingSteam
+                    let wine = URL(fileURLWithPath: runner)
+                    if viaSteam {
+                        _ = await restartStuckSteam(wine, freshSession: true)
+                    } else {
+                        // A store's game starts its own session; Steam comes back when it's needed.
+                        try? await Engine.stopSteam(wine)
+                        await Engine.offMain { Engine.stopAll(wine) }
+                    }
+                    launchPhase = nil
+                }
                 // Settings a game only takes from the environment come with the Steam that starts it.
                 let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
                 // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
@@ -2273,6 +2550,7 @@ final class LibraryModel: ObservableObject {
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
+                raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, arguments: arguments,
@@ -2292,6 +2570,8 @@ final class LibraryModel: ObservableObject {
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
                 }
+                // Quit Game in the overlay: the player's end, nothing learned from it.
+                if LaunchHealth.quitByPlayer(game.gameID, since: startedAt) { return }
                 // It ended within its first seconds. A confirmed way loses its confirmation only on
                 // evidence, and moves on only on a graphics error (Mafia II on DXVK: "DxvkAdapter:
                 // Failed to create device", 31.10.2026) – LaunchHealth.earlyEnd.
@@ -2354,11 +2634,7 @@ final class LibraryModel: ObservableObject {
                 return
             }
 
-            switch behavior {
-            case .quit: NSApp.terminate(nil)
-            case .hide: NSApp.hide(nil)
-            case .stay: break
-            }
+            stepBack(behind: game, behavior)
         }
     }
 
@@ -2806,8 +3082,10 @@ final class LibraryModel: ObservableObject {
             if absent >= 10 { return }  // gone again: it crashed before showing a window
             if let pid, let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular {
                 guard NSApp.isActive else { return }  // the player has moved on to something else
+                // Already there while macOS changes to the game's Space (on a TV it has one of its own).
+                GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
                 NSApp.yieldActivation(to: app)
-                app.activate(from: .current, options: [])
+                app.activate(from: .current, options: [.activateAllWindows])
                 try? await Task.sleep(for: .milliseconds(600))
                 if app.isActive { return }
             }
@@ -2923,5 +3201,21 @@ final class LibraryModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         UserDefaults.standard.set(url.path, forKey: Prefs.Keys.bottlesRoot)
         reload()
+    }
+}
+
+extension NSApplication {
+    /// Nightforge to the front because the player asked: Go to Nightforge, a game's end. Since
+    /// macOS 14 asking politely from behind loses to any app with a window in the Space shown (on
+    /// 1.11. the Claude app on the TV took the front, the game stayed behind it), so it's activated
+    /// regardless – and opened through Launch Services as well, which unhides it and changes to
+    /// its window's Space. `then` once that's done.
+    func comeToFront(then: (@MainActor () -> Void)? = nil) {
+        activate(ignoringOtherApps: true)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
+            Task { @MainActor in then?() }
+        }
     }
 }

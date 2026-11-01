@@ -1,0 +1,55 @@
+WINE REGISTRY Version 2
+;; All keys relative to \\User\\S-1-5-21-0-0-0-1000
+
+#arch=win64
+
+[Software\\Flanne\\MinutesTillDawn] 1793135604
+#time=1dd65e5d5d2b8f0
+"Screenmanager Fullscreen mode Default_h401710285"=dword:00000001
+"Screenmanager Fullscreen mode_h3630240806"=dword:00000001
+"Screenmanager Resolution Height Default_h1380706816"=dword:00000300
+"Screenmanager Resolution Height_h2627697771"=dword:000003d6
+"Screenmanager Resolution Use Native Default_h1405981789"=dword:00000001
+"Screenmanager Resolution Use Native_h1405027254"=dword:00000001
+"Screenmanager Resolution Width Default_h680557497"=dword:00000400
+"Screenmanager Resolution Width_h182942802"=dword:000005e8
+
+[Software\\Saucisson\\Hold the door!] 1792793827
+#time=1dd631b3d8d5c06
+"Screenmanager Is Fullscreen mode_h3981298716"=dword:00000001
+"Screenmanager Resolution Height_h2627697771"=dword:000003b1
+"Screenmanager Resolution Width_h182942802"=dword:000005e8
+
+[Software\\Some Studio\\Windowed Game] 1792793900
+#time=1dd631b3d8d5c07
+"Screenmanager Fullscreen mode_h3630240806"=dword:00000003
+"Screenmanager Resolution Height_h2627697771"=dword:000002d0
+"Screenmanager Resolution Use Native_h1405027254"=dword:00000000
+"Screenmanager Resolution Width_h182942802"=dword:00000500
+
+[Software\\Studio \[X\]\\Caf\xe9] 1792793901
+#time=1dd631b3d8d5c08
+"Quoted \"name\"_h1"=dword:0000002a
+@=dword:00000007
+
+[Software\\Team17\\Overcooked2] 1793460940
+#time=1dd694d7be3ec82
+"Screenmanager Fullscreen mode Default_h401710285"=dword:00000001
+"Screenmanager Fullscreen mode_h3630240806"=dword:00000001
+"Screenmanager Resolution Height Default_h1380706816"=dword:000001e0
+"Screenmanager Resolution Height_h2627697771"=dword:000003b1
+"Screenmanager Resolution Use Native Default_h1405981789"=dword:00000001
+"Screenmanager Resolution Use Native_h1405027254"=dword:00000000
+"Screenmanager Resolution Width Default_h680557497"=dword:00000280
+"Screenmanager Resolution Width_h182942802"=dword:000005e8
+"unity.player_session_count_h922449978"=hex:31,00
+"unity.player_sessionid_h1351336811"=hex:37,36,31,32,37,31,32,30,34,33,32,32,\
+  38,34,35,37,36,38,32,00
+
+[Software\\Team17\\Overcooked2\\Telemetry] 1793460941
+#time=1dd694d7be3ec83
+"Screenmanager Resolution Width_h182942802"=dword:00000001
+
+[Software\\Wine\\Mac Driver] 1793214333
+#time=1dd670f4f0f171c
+"AllowSetGamma"=dword:00000000
