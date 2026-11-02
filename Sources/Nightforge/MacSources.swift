@@ -182,15 +182,23 @@ actor AGWStore {
 
     private let remoteURL: URL?
     private let cachedURL: URL
+    private let load: @Sendable (URLRequest) async throws -> (Data, URLResponse)
     private var index: AGWIndex?
     /// This run's fetch: callers that come while it's under way wait for it rather than going without.
     private var refreshing: Task<Void, Never>?
+    /// It has ended, with the list or without (offline, an error).
+    private var fetched = false
+    /// A game's start has waited for it once this run (`beforeFirstStart`).
+    private var waitedForStart = false
 
+    /// `load`: how the online copy is fetched; a test hands in a slow or failing one.
     init(remoteURL: URL? = (Bundle.main.object(forInfoDictionaryKey: "NightforgeAGWURL") as? String)
              .flatMap { $0.isEmpty ? nil : URL(string: $0) },
-         cachedURL: URL = Engine.supportDir.appendingPathComponent("agw.json")) {
+         cachedURL: URL = Engine.supportDir.appendingPathComponent("agw.json"),
+         load: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) }) {
         self.remoteURL = remoteURL
         self.cachedURL = cachedURL
+        self.load = load
     }
 
     /// What the copy at hand says, without waiting for the online one (like `ProfileStore.knownProfiles`).
@@ -203,18 +211,37 @@ actor AGWStore {
     /// new for this Nightforge. It only orders the ways a game is tried and shows what the wiki
     /// says – it can't change how a game is set up.
     func refresh() async {
-        if let refreshing { return await refreshing.value }
-        guard let remoteURL else { return }
-        let fetch = Task { await self.fetch(remoteURL) }
-        refreshing = fetch
-        await fetch.value
+        startFetch()
+        await refreshing?.value
+    }
+
+    /// Before a game's start while there's no copy yet (the first run): this run's fetch, waited for
+    /// once per run and `seconds` at most – a slow, missing or stuck network mustn't hold up a start,
+    /// let alone every one. That start goes without the wiki's word; the list arrives in the
+    /// background for the next.
+    func beforeFirstStart(waitingAtMost seconds: TimeInterval = 4) async {
+        guard !waitedForStart else { return }
+        waitedForStart = true
+        startFetch()
+        let deadline = Date().addingTimeInterval(seconds)
+        while !fetched, Date() < deadline { try? await Task.sleep(for: .milliseconds(100)) }
+    }
+
+    private func startFetch() {
+        guard refreshing == nil else { return }
+        guard let remoteURL else {
+            fetched = true
+            return
+        }
+        refreshing = Task { await self.fetch(remoteURL) }
     }
 
     private func fetch(_ remoteURL: URL) async {
+        defer { fetched = true }
         var request = URLRequest(url: remoteURL)
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        guard let (data, response) = try? await load(request),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let fresh = AGWIndex.decode(data), !fresh.isEmpty
         else { return }

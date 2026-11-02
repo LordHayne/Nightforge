@@ -85,6 +85,37 @@ struct MacSourcesTest {
         await store.refresh()
         check(await store.current().games.count == 3, "the last copy fetched")
 
+        // The first run: a start waits for the download once, briefly – never for a slow network each time.
+        let remote = URL(string: "https://example.invalid/agw.json")!
+        let answer = sample
+        let slow = AGWStore(remoteURL: remote, cachedURL: folder.appendingPathComponent("slow.json")) { request in
+            try await Task.sleep(for: .seconds(1.5))
+            return (Data(answer.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        var began = Date()
+        await slow.beforeFirstStart(waitingAtMost: 0.3)
+        let firstWait = Date().timeIntervalSince(began)
+        let notYet = await slow.current().isEmpty
+        check(firstWait < 1 && notYet, "a slow download holds the first start up only briefly (\(firstWait) s), it starts without")
+        began = Date()
+        await slow.beforeFirstStart(waitingAtMost: 0.3)
+        check(Date().timeIntervalSince(began) < 0.1, "only once per run: the next start doesn't wait at all")
+        await slow.refresh()
+        let arrived = await slow.current().games.count
+        check(arrived == 3, "the list arrives in the background for the next start")
+        let offline = AGWStore(remoteURL: remote, cachedURL: folder.appendingPathComponent("offline.json")) { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        began = Date()
+        await offline.beforeFirstStart(waitingAtMost: 4)
+        check(Date().timeIntervalSince(began) < 1, "offline: no wait beyond the failed request")
+        let quick = AGWStore(remoteURL: remote, cachedURL: folder.appendingPathComponent("quick.json")) { request in
+            (Data(answer.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        await quick.beforeFirstStart(waitingAtMost: 4)
+        let quickCount = await quick.current().games.count
+        check(quickCount == 3, "a quick download is there for the first start already")
+
         // MARK: Links
         check(MacSources.wikiPage("Some Game: Deluxe")?.absoluteString == "https://www.applegamingwiki.com/wiki/Some_Game:_Deluxe",
               "the wiki page by its title: \(MacSources.wikiPage("Some Game: Deluxe")?.absoluteString ?? "-")")

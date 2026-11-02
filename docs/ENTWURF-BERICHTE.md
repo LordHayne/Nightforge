@@ -48,8 +48,9 @@ Nur wenn er klar ist:
   - Ein Profil mit Grafikweg gewinnt. Ein Spiel, das auf einem **bestätigten** Weg der Liste ohne Hinweis läuft,
     behält sie. Eins, das noch sucht (z. B. vor dem Hinweis gestartet), nimmt die Liste mit Hinweis.
     „Am kompatibelsten“ setzt den Hinweis an die erste Stelle wie ein Profil.
-  - Beim allerersten Start nach der Einrichtung wartet der Start auf den laufenden Download von `agw.json`, damit
-    schon dieser Start den Hinweis hat.
+  - Gibt es noch keine `agw.json` (erster Lauf), wartet ein Start einmal pro App-Lauf höchstens 4 s auf den
+    laufenden Download, damit schon er den Hinweis hat. Langsames oder kein Netz: Er startet ohne, die Liste kommt
+    im Hintergrund für den nächsten Start; kein weiterer Start wartet.
 - **Spielseite**: Abschnitt „Was andere berichten“ unter „Über das Spiel“: „Laut AppleGamingWiki:“, je Weg die
   Bewertung (farbig, mit Wort), Version · Grafikweg · DX · Chip · Jahr, die englische Notiz (2 Zeilen, voll beim
   Darüberfahren), Herkunft mit Lizenz, Knöpfe zu AppleGamingWiki, CodeWeavers und MacGamingDB. Die Karte „Dieses

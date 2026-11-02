@@ -2828,7 +2828,7 @@ final class LibraryModel: ObservableObject {
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
             let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.gameID) : nil
-            // On the first run the wiki's list may still be on its way: a game's first start waits for it.
+            // On the first run the wiki's list may still be on its way: one start waits a few seconds for it.
             await macSourcesAtHand()
             let insight = await insight(of: game)
             let analysis = insight?.analysis
@@ -3513,11 +3513,12 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Waits for this run's download of what AppleGamingWiki says when there's no copy yet (the first
-    /// run): a game's first start should already take the way the reports point to.
+    /// What AppleGamingWiki says, when there's no copy yet (the first run): the first start waits a
+    /// few seconds for this run's download, once (`AGWStore.beforeFirstStart`), so it can already take
+    /// the way the reports point to; offline it starts without, and the list comes in the background.
     private func macSourcesAtHand() async {
         guard macSources.isEmpty else { return }
-        await AGWStore.shared.refresh()
+        await AGWStore.shared.beforeFirstStart()
         let sources = await AGWStore.shared.current()
         if sources != macSources { macSources = sources }
     }
