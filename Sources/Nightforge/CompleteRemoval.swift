@@ -107,27 +107,134 @@ enum CompleteRemoval {
 
     // MARK: - Removing
 
-    /// Saves first, then everything Nightforge put on the Mac and its settings. Wine must be
-    /// stopped before (`run` does that). Returns where the saves went.
-    @discardableResult
-    static func remove(_ places: Places = Places(), defaults: UserDefaults = .standard) throws -> URL? {
-        let saves = try copySaves(places)
-        for target in targets(places) {
-            try FileManager.default.removeItem(at: target)
+    /// Where the job is, for the line under the button.
+    enum Phase: Sendable {
+        case stopping, copyingSaves, deleting
+    }
+
+    /// Why the job stopped. The two differ in what is left: after `savesNotCopied` nothing has been
+    /// deleted; after `notDeleted` the rest has.
+    enum RemovalError: LocalizedError {
+        case savesNotCopied(String)
+        case notDeleted([String])
+
+        var errorDescription: String? {
+            switch self {
+            case .savesNotCopied(let reason):
+                return L10n.t("The saves couldn't be copied to Documents (%@), so everything is still there.", reason)
+            case .notDeleted(let names):
+                let shown = names.prefix(3).joined(separator: ", ") + (names.count > 3 ? " …" : "")
+                return L10n.t("Not everything could be deleted (%@). The rest is still there – try again, or delete it in Finder.", shown)
+            }
         }
+    }
+
+    /// Saves first, then everything Nightforge put on the Mac and its settings. Wine must be
+    /// stopped before (`run` does that). Returns where the saves went. A target that can't be deleted
+    /// doesn't stop the others; the settings stay until all are gone, so a second try finds the rest.
+    @discardableResult
+    static func remove(_ places: Places = Places(), defaults: UserDefaults = .standard,
+                       phase: (@Sendable (Phase) -> Void)? = nil) throws -> URL? {
+        phase?(.copyingSaves)
+        let saves: URL?
+        do {
+            saves = try copySaves(places)
+        } catch {
+            throw RemovalError.savesNotCopied(error.localizedDescription)
+        }
+        phase?(.deleting)
+        var left: [String] = []
+        for target in targets(places) where !delete(target) {
+            left.append(target.lastPathComponent)
+        }
+        guard left.isEmpty else { throw RemovalError.notDeleted(left) }
         defaults.removePersistentDomain(forName: places.settingsDomain)
         return saves
     }
 
-    /// The whole job from the app: stop Wine and Steam, remove, put Nightforge itself in the Bin
-    /// and quit. Throws (with nothing deleted) if the saves couldn't be copied.
-    @MainActor
-    static func run() async throws {
-        if let wine = await Engine.installedWine() {
-            try? await Engine.stopSteam(wine)
-            await Engine.offMain { Engine.stopAll(wine) }
+    /// Deletes `url`; a folder that has no write permission (some installers leave them) is made
+    /// writable and tried once more. False if it is still there.
+    private static func delete(_ url: URL) -> Bool {
+        let fm = FileManager.default
+        if (try? fm.removeItem(at: url)) != nil { return true }
+        if let items = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]) {
+            for case let item as URL in items {
+                let values = try? item.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                if values?.isDirectory == true, values?.isSymbolicLink != true {
+                    try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: item.path)
+                }
+            }
         }
-        let saves = try await Task.detached(priority: .userInitiated) { try remove() }.value
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        try? fm.removeItem(at: url)
+        return !fm.fileExists(atPath: url.path)
+    }
+
+    // MARK: - Stopping
+
+    /// Ends what runs from Nightforge's folder – Wine, Steam, the stores' downloaders, a quit script
+    /// still waiting – so that nothing writes into it, or holds it, while it is deleted. Not by
+    /// asking Wine (no `wineserver -k`, no Steam shutdown, which wait on the programs they ask and
+    /// on Steam's update): SIGKILL, from the list of programs whose file lies in the folder. The
+    /// polite way, `polite`, goes first for as long as `politeFor` allows – Steam keeps its state
+    /// when it ends by itself; whatever it hasn't done by then is not waited for.
+    static func stop(_ places: Places = Places(), politeFor seconds: TimeInterval = 20,
+                     polite: (@Sendable () async -> Void)?) async {
+        if let polite { _ = await withDeadline(seconds, polite) }
+        await Task.detached(priority: .userInitiated) { endProcesses(under: places.support) }.value
+    }
+
+    /// The quit script first (it would open Nightforge again once a game ended), then every program
+    /// started from `support`, again until none is left.
+    static func endProcesses(under support: URL) {
+        endScripts(under: support)
+        for _ in 0..<5 {
+            let pids = processes(under: support)
+            if pids.isEmpty { return }
+            for pid in pids { kill(pid, SIGKILL) }
+            usleep(200_000)
+        }
+    }
+
+    /// Programs run from a file inside `folder` (what the kernel says, not their command line).
+    static func processes(under folder: URL) -> [pid_t] {
+        let root = Engine.realPath(folder)
+        var pids = [pid_t](repeating: 0, count: 8192)
+        let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
+        guard count > 0 else { return [] }
+        var found: [pid_t] = []
+        for pid in pids.prefix(count) where pid > 1 && pid != getpid() {
+            var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+            guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { continue }
+            let path = String(cString: buffer)
+            if path == root || path.hasPrefix(root + "/") { found.append(pid) }
+        }
+        return found
+    }
+
+    /// `steam-shutdown.sh` of this folder, however many are waiting. Found by their command line
+    /// (it is a bash), the whole path of the script, so no other script is hit.
+    static func endScripts(under support: URL) {
+        let scripts = Set([support.path, Engine.realPath(support)].map { $0 + "/steam-shutdown.sh" })
+        for process in Engine.processTable() where process.pid != getpid()
+            && scripts.contains(where: { process.command.contains($0) }) {
+            kill(process.pid, SIGKILL)
+        }
+    }
+
+    // MARK: - The whole job
+
+    /// The whole job from the app: stop Wine and Steam, remove, put Nightforge itself in the Bin
+    /// and quit. Throws a `RemovalError`; after `savesNotCopied` nothing is deleted.
+    @MainActor
+    static func run(phase: @escaping @MainActor (Phase) -> Void = { _ in }) async throws {
+        phase(.stopping)
+        await stop(polite: {
+            if let wine = await Engine.installedWine() { try? await Engine.stopSteam(wine) }
+        })
+        let saves = try await Task.detached(priority: .userInitiated) {
+            try remove(phase: { step in Task { @MainActor in phase(step) } })
+        }.value
         if let saves { NSWorkspace.shared.activateFileViewerSelecting([saves]) }
         // FileManager rather than NSWorkspace.recycle, which goes through the Finder. With its own
         // bundle in the Bin, Nightforge stayed open on "Removing …" and took no Quit, not even one

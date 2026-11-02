@@ -61,15 +61,11 @@ final class DetachedProcess: @unchecked Sendable {
                       Self.path(standardError), String(command.count)] + command + [String(variables.count)] + variables
         try Data(fields.map { $0 + "\0" }.joined().utf8).write(to: folder.appendingPathComponent("request"))
 
-        let open = Process()
-        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        open.arguments = ["-n", "-g", "-j", "-a", app.path, "--args", folder.path]
-        open.standardInput = FileHandle.nullDevice
-        open.standardOutput = FileHandle.nullDevice
-        open.standardError = FileHandle.nullDevice
-        guard (try? open.run()) != nil else { return try withdraw(folder) }
-        open.waitUntilExit()
-        guard open.terminationStatus == 0 else { return try withdraw(folder) }
+        // An `open` that says it failed, or can't start, has not launched the helper. One that hangs
+        // (Launch Services busy) or ends without its status being seen may well have: that case is
+        // left to the wait below, which takes the request back before it lets the program start here.
+        let open = Subprocess.run("/usr/bin/open", ["-n", "-g", "-j", "-a", app.path, "--args", folder.path], timeout: 10)
+        if !open.launched || (!open.timedOut && open.status > 0) { return try withdraw(folder) }
 
         // The helper says which process runs (usually within a few milliseconds; the first start of a
         // new helper waits for macOS to look at it), or why none does.
@@ -110,6 +106,29 @@ final class DetachedProcess: @unchecked Sendable {
         ended.wait()
     }
 
+    /// Waits for the program to end, for `seconds` at most. False when it runs on.
+    func waitUntilExit(timeout seconds: TimeInterval) -> Bool {
+        if let attached = lock.withLock({ attached }) {
+            // Polled: `Process.waitUntilExit` has been seen not coming back (see Subprocess).
+            let deadline = Date().addingTimeInterval(seconds)
+            while attached.isRunning {
+                if Date() > deadline { return false }
+                usleep(20_000)
+            }
+            return true
+        }
+        return ended.wait(timeout: .now() + max(seconds, 0)) == .success
+    }
+
+    /// Asks the program to end and, if it hasn't after `grace` seconds, kills it.
+    func end(grace: TimeInterval = 2) {
+        terminate()
+        if !waitUntilExit(timeout: grace) {
+            send(SIGKILL)
+            _ = waitUntilExit(timeout: 2)
+        }
+    }
+
     func terminate() { send(SIGTERM) }
 
     func interrupt() { send(SIGINT) }
@@ -119,7 +138,11 @@ final class DetachedProcess: @unchecked Sendable {
             (self.attached, self.program, started && !exited)
         }
         if let attached {
-            number == SIGINT ? attached.interrupt() : attached.terminate()
+            switch number {
+            case SIGINT: attached.interrupt()
+            case SIGTERM: if attached.isRunning { attached.terminate() }
+            default: if attached.isRunning { kill(attached.processIdentifier, number) }
+            }
         } else if running, program > 0 {
             kill(program, number)
         }
@@ -152,7 +175,7 @@ final class DetachedProcess: @unchecked Sendable {
     private func runAttached() throws {
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = arguments
+        process.arguments = arguments ?? []  // nil would be an exception, not "none"
         process.environment = environment
         process.currentDirectoryURL = currentDirectoryURL
         process.standardInput = standardInput ?? FileHandle.nullDevice
@@ -229,12 +252,7 @@ final class DetachedProcess: @unchecked Sendable {
             // Nightforge's own file; were it flagged anyway, Launch Services would refuse to start it.
             for path in [fresh.path, executable.path] { removexattr(path, "com.apple.quarantine", XATTR_NOFOLLOW) }
             // Signed as a bundle, so macOS knows it by its name when it asks for a permission for it.
-            let sign = Process()
-            sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-            sign.arguments = ["--force", "--sign", "-", fresh.path]
-            sign.standardOutput = FileHandle.nullDevice
-            sign.standardError = FileHandle.nullDevice
-            if (try? sign.run()) != nil { sign.waitUntilExit() }
+            Subprocess.run("/usr/bin/codesign", ["--force", "--sign", "-", fresh.path], timeout: 30)
             if fm.fileExists(atPath: app.path) {
                 _ = try fm.replaceItemAt(app, withItemAt: fresh)
             } else {

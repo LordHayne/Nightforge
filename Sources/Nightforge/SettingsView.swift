@@ -568,6 +568,7 @@ private struct StorageSettings: View {
     @State private var removal: RemovalPlan?
     @State private var measuringRemoval = false
     @State private var removing = false
+    @State private var removalPhase: CompleteRemoval.Phase?
     @State private var removalError: String?
     /// A drive that isn't coming back: asking whether to forget it.
     @State private var forgetting: String?
@@ -739,7 +740,7 @@ private struct StorageSettings: View {
                         .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
                     if measuringRemoval || removing {
                         GlassSpinner()
-                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(size: 10).foregroundStyle(.secondary)
+                        Text(removing ? removalText : L10n.t("Measuring …")).font(size: 10).foregroundStyle(.secondary)
                     }
                 }
                 Text(L10n.t("Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first."))
@@ -883,13 +884,26 @@ private struct StorageSettings: View {
     private func removeEverything() {
         removal = nil
         removing = true
+        removalPhase = nil
         Task {
             do {
-                try await CompleteRemoval.run()
+                try await CompleteRemoval.run { removalPhase = $0 }
             } catch {
                 removing = false
-                removalError = L10n.t("The saves couldn't be copied to Documents (%@), so everything is still there.", error.localizedDescription)
+                removalPhase = nil
+                // The error says which of the two it was (CompleteRemoval.RemovalError).
+                removalError = error.localizedDescription
             }
+        }
+    }
+
+    /// What the line under the button says while the job runs.
+    private var removalText: String {
+        switch removalPhase {
+        case .stopping: return L10n.t("Ending Steam and Wine …")
+        case .copyingSaves: return L10n.t("Copying saves …")
+        case .deleting: return L10n.t("Deleting files …")
+        case nil: return L10n.t("Removing …")
         }
     }
 

@@ -1,0 +1,168 @@
+import Foundation
+
+/// A short-lived program, run to its end – with a limit. `Process.waitUntilExit()` has been seen
+/// hanging for good (legendary, 1 call in ~400, once for 10 minutes; docs/ROADMAP.md, 28.10.2026), and
+/// a Wine command waits for as long as Wine's session does. Whoever waits for a program here can't
+/// be held up longer than `timeout`: it is asked to end then, and killed if it doesn't (`grace`).
+///
+/// For programs that are to outlive Nightforge, and for the long ones (downloads, Steam, games),
+/// there are `DetachedProcess` and `Process` with their own waiting.
+enum Subprocess {
+    struct Outcome: Sendable {
+        /// False when the program couldn't be started at all.
+        var launched = true
+        /// The exit code (or signal) – -1 when the program was ended for taking too long, or when
+        /// its end was seen but not its status.
+        var status: Int32 = -1
+        var output = Data()
+        /// It was still running after `timeout`, and was ended.
+        var timedOut = false
+
+        var succeeded: Bool { launched && !timedOut && status == 0 }
+        var text: String { String(decoding: output, as: UTF8.self) }
+    }
+
+    /// Runs `executable` with `arguments` and returns when it has ended, or `timeout` seconds
+    /// (plus at most `grace` + 2) have gone by. `capture`: what it writes to stdout comes back in
+    /// `output`; otherwise it, and stderr, go nowhere. Its stdin is empty. `environment`: nil is
+    /// Nightforge's own.
+    @discardableResult
+    static func run(_ executable: String, _ arguments: [String] = [], environment: [String: String]? = nil,
+                    capture: Bool = false, timeout: TimeInterval, grace: TimeInterval = 2) -> Outcome {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        if let environment { process.environment = environment }
+        process.standardInput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let pipe = capture ? Pipe() : nil
+        process.standardOutput = pipe ?? FileHandle.nullDevice
+
+        let end = End()
+        let collected = Collected()
+        if let pipe {
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    collected.eof()
+                } else {
+                    collected.append(data)
+                }
+            }
+        }
+        process.terminationHandler = { finished in end.finish(finished.terminationStatus) }
+
+        var outcome = Outcome()
+        do {
+            try process.run()
+        } catch {
+            pipe?.fileHandleForReading.readabilityHandler = nil
+            outcome.launched = false
+            return outcome
+        }
+        // A second pair of eyes, independent of Foundation's: if its termination handler never
+        // comes, the end of the process is still noticed (the status is then not known).
+        let watch = DispatchSource.makeProcessSource(identifier: process.processIdentifier, eventMask: .exit,
+                                                     queue: .global(qos: .utility))
+        watch.setEventHandler {
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) { end.finish(-1) }
+        }
+        watch.resume()
+        defer { watch.cancel() }
+
+        if end.wait(timeout) {
+            outcome.status = end.status
+        } else {
+            outcome.timedOut = true
+            if process.isRunning { process.terminate() }
+            if !end.wait(grace) {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                _ = end.wait(2)
+            }
+        }
+        if let pipe {
+            // The program is gone; what it wrote is in already, unless something it started holds
+            // the pipe open (a Wine session starts its server from a command).
+            _ = collected.waitForEnd(0.5)
+            pipe.fileHandleForReading.readabilityHandler = nil
+            outcome.output = collected.data
+        }
+        return outcome
+    }
+
+    /// The program's end, told by whichever of the two watchers comes first.
+    private final class End: @unchecked Sendable {
+        private let lock = NSLock()
+        private let semaphore = DispatchSemaphore(value: 0)
+        private var done = false
+        private var code: Int32 = -1
+
+        var status: Int32 { lock.withLock { code } }
+
+        func finish(_ status: Int32) {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !done else { return }
+            done = true
+            code = status
+            semaphore.signal()
+        }
+
+        /// True when it has ended.
+        func wait(_ seconds: TimeInterval) -> Bool {
+            semaphore.wait(timeout: .now() + max(seconds, 0)) == .success
+        }
+    }
+
+    /// What the program wrote, and whether its pipe has been read to the end.
+    private final class Collected: @unchecked Sendable {
+        private let lock = NSLock()
+        private let ended = DispatchSemaphore(value: 0)
+        private var bytes = Data()
+
+        var data: Data { lock.withLock { bytes } }
+
+        func append(_ more: Data) { lock.withLock { bytes.append(more) } }
+
+        func eof() { ended.signal() }
+
+        func waitForEnd(_ seconds: TimeInterval) -> Bool {
+            ended.wait(timeout: .now() + seconds) == .success
+        }
+    }
+}
+
+/// Whichever of two parties comes first gets to answer.
+private final class Once: @unchecked Sendable {
+    private let lock = NSLock()
+    private var taken = false
+
+    func take() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if taken { return false }
+        taken = true
+        return true
+    }
+}
+
+/// Work that may take as long as it wants, asked for in `seconds` at most. nil when the time ran
+/// out first: the work is then cancelled (it ends at its next suspension point – a blocking call
+/// in it isn't interrupted) and no longer waited for.
+func withDeadline<T: Sendable>(_ seconds: TimeInterval, _ work: @escaping @Sendable () async -> T) async -> T? {
+    await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+        let once = Once()
+        let task = Task {
+            let value = await work()
+            if once.take() { continuation.resume(returning: value) }
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            if once.take() {
+                task.cancel()
+                continuation.resume(returning: nil)
+            }
+        }
+    }
+}
