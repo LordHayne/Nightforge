@@ -180,6 +180,20 @@ struct GameOverlayTest {
         check(step(gameFront: true, anywhere: true, asks: true) == .makeWay, "a picture elsewhere doesn't keep it under")
         check(step(gameFront: true, here: true, asks: true, frontFor: 1) == .lower, "the picture is there: the curtain sinks as ever")
         check(step(lowered: true, gameFront: true, asks: true) == .wait, "down already: nothing more")
+
+        // Steam's question before the start (ShowInterstitials, Black Myth: Wukong on 1.11.): the
+        // curtain goes for it and comes back once it's answered, the watch goes on.
+        func turn(asks: Bool = false, asked: Bool = false, goesOn: Bool = true, wrong: Bool = false) -> LibraryModel.SteamTurn {
+            LibraryModel.steamTurn(asks: asks, asked: asked, startGoesOn: goesOn, wentWrong: wrong)
+        }
+        check(turn() == .none, "no question: the curtain watches as ever")
+        check(turn(asks: true) == .away, "Steam asks: the curtain goes, Steam's window shows")
+        check(turn(asks: true, asked: true) == .wait, "still asking: the watch waits")
+        check(turn(asked: true) == .back, "answered, the start goes on: the curtain again, its watch with it")
+        check(turn(asks: true, goesOn: false) == .over, "the start called off while Steam asks: the watch ends")
+        check(turn(asked: true, goesOn: false) == .over, "answered with Cancel: no curtain again")
+        check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
+        check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes

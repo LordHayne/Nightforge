@@ -591,9 +591,14 @@ final class LibraryModel: ObservableObject {
         }
         if goneFor == 0 {
             goneSince = Date()
-            // The curtain at once, over Steam for Mac's window, which comes up when a game ends.
+            // The curtain at once, over Steam for Mac's window, which comes up when a game ends –
+            // and Steam's, should it still be open from a question before the start.
             GameBackdrop.returning()
             MacSteam.hide()
+            if steamWindowShown {
+                steamWindowShown = false
+                Task { await SteamWindow.hide() }
+            }
         }
         goneFor += 1
         let ranFor = playing.compactMap { sessionStarts[$0]?.date }.map { goneSince.timeIntervalSince($0) }.max() ?? 0
@@ -788,6 +793,8 @@ final class LibraryModel: ObservableObject {
     // MARK: - The curtain
 
     private var curtainWatch: Task<Void, Never>?
+    /// Nightforge opened Steam's window for a question (`showSteamWindow`) and hasn't hidden it since.
+    private var steamWindowShown = false
 
     /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
     /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
@@ -815,6 +822,8 @@ final class LibraryModel: ObservableObject {
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
         /// The curtain under a question of the game's (makeWay), until it's answered or the picture comes.
         var madeWay = false
+        /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
+        var steamAsked = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
@@ -827,12 +836,32 @@ final class LibraryModel: ObservableObject {
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
             if Task.isCancelled { return end("a new start or Go to Nightforge") }
             if GameBackdrop.isReturning { return end("the game ended") }
+            let wentWrong = errorMessage != nil || failedLaunch != nil
+            let startGoesOn = launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id)
             if loweredAt == nil {
-                guard GameBackdrop.isRaised else { return end("the curtain is gone") }
-                // Steam asks something in its window, or the start went wrong: the player has to see it.
-                if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
+                switch Self.steamTurn(asks: steamAsks, asked: steamAsked, startGoesOn: startGoesOn, wentWrong: wentWrong) {
+                case .away:
+                    steamAsked = true
                     GameBackdrop.hide(after: .zero)
-                    return end(launchNeedsConfirmation ? "Steam asks something" : "the start went wrong")
+                    GameLog.note("Curtain away for \(game.name): Steam asks something")
+                    continue
+                case .wait:
+                    continue
+                case .over:
+                    return end("Steam asked, the start is over")
+                case .back:
+                    steamAsked = false
+                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                    hideSteamWindow(for: game)
+                    GameLog.note("Curtain up again for \(game.name): Steam's question is answered")
+                case .none:
+                    break
+                }
+                guard GameBackdrop.isRaised else { return end("the curtain is gone") }
+                // The start went wrong: the player has to see what Nightforge says.
+                if wentWrong {
+                    GameBackdrop.hide(after: .zero)
+                    return end("the start went wrong")
                 }
             }
             buildsShaders = buildsShaders || launchBuildsShaders
@@ -935,6 +964,35 @@ final class LibraryModel: ObservableObject {
             }
         }
         end("a new start or Go to Nightforge")
+    }
+
+    /// Steam waits for the player in its window during a start: a question before it (licence,
+    /// ShowInterstitials), or its sign-in after a restart (`restartStuckSteam`).
+    private var steamAsks: Bool { launchNeedsConfirmation || launchPhase == .signInAgain }
+
+    enum SteamTurn: Equatable { case none, away, wait, back, over }
+
+    /// The start's curtain around a question of Steam's (`asks`; `asked`: the curtain went for it
+    /// already). The player has to see it, so the curtain goes meanwhile; the watch waits and raises
+    /// it again once it's answered and the start goes on. It used to end there, and the rest of
+    /// Black Myth: Wukong's start (1.11.) ran without a curtain or a look for the game's own driver
+    /// warning. A start that ended or went wrong meanwhile ends the watch; one that went wrong
+    /// without a question is the watch's own business (`none`).
+    nonisolated static func steamTurn(asks: Bool, asked: Bool, startGoesOn: Bool, wentWrong: Bool) -> SteamTurn {
+        if asks, !wentWrong { return !startGoesOn ? .over : asked ? .wait : .away }
+        if asked { return startGoesOn && !wentWrong ? .back : .over }
+        return .none
+    }
+
+    /// Steam's window that Nightforge opened for a question (`showSteamWindow`), out of sight again
+    /// once it's answered: left open, it came forward when the game ended, before the curtain (1.11.).
+    private func hideSteamWindow(for game: Game) {
+        if game.platform == .mac {
+            MacSteam.hide()
+        } else if steamWindowShown {
+            steamWindowShown = false
+            Task { await SteamWindow.hide() }
+        }
     }
 
     /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.
@@ -3421,8 +3479,10 @@ final class LibraryModel: ObservableObject {
 
     /// Brings Steam's main window, with the question it's waiting on, in front of Nightforge.
     func showSteamWindow() {
+        steamWindowShown = true
         Task {
             guard let wine = await Engine.installedWine() else { return }
+            await SteamWindow.reveal()  // hidden after its last question (hideSteamWindow)
             Engine.showSteamWindow(wine)
             await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
