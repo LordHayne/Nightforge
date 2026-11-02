@@ -28,6 +28,7 @@ struct GraphicsPresetTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         // MARK: Options saved before the presets
         let untouched = decode(#"{"metalHUD":true,"extraArgs":"-skipintro","graphics":"automatic","metalFX":"automatic"}"#)
         check(untouched?.preset == .automatic && untouched?.metalHUD == true && untouched?.extraArgs == "-skipintro",

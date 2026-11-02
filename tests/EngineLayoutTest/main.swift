@@ -38,6 +38,7 @@ struct EngineLayoutTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 

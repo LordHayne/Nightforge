@@ -72,7 +72,7 @@ struct ProfileFilesTest {
         check((try? fm.contentsOfDirectory(atPath: local.path)) == ["Voyage"], "an unknown root writes nothing")
 
         // MARK: Edits in the user folder, once and every time
-        let defaults = UserDefaults(suiteName: "ProfileFilesTest-\(UUID().uuidString)")!
+        let defaults = TestDefaults.suite("file-edits")
         let installDir = temp.appendingPathComponent("game", isDirectory: true)
         try? fm.createDirectory(at: installDir, withIntermediateDirectories: true)
         let settings = local.appendingPathComponent("Voyage/Saved/Config/Windows/GameUserSettings.ini")
@@ -91,7 +91,7 @@ struct ProfileFilesTest {
         try? "CustomSettings=(UpscalingMethod=TSR,bUseRayTracing=True)\n".write(to: settings, atomically: true, encoding: .utf8)
         check(apply() && text() == "CustomSettings=(UpscalingMethod=TSR,bUseRayTracing=False)\n",
               "after that the player's own upscaler stays, the fix applies every time: \(text())")
-        let later = UserDefaults(suiteName: "ProfileFilesTest-\(UUID().uuidString)")!
+        let later = TestDefaults.suite("file-edits-later")
         try? "CustomSettings=(UpscalingMethod=DLSS)\n".write(to: settings, atomically: true, encoding: .utf8)
         _ = Engine.applyFileEdits(edits, installDir: installDir, game: "steam.8", places: places, defaults: later)
         try? "CustomSettings=(UpscalingMethod=TSR)\n".write(to: settings, atomically: true, encoding: .utf8)

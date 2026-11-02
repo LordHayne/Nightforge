@@ -43,6 +43,7 @@ struct LaunchHealthTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         // MARK: Ladders
         check(ids(GameAnalysis(apis: [.d3d11])) == ["dxmt", "dxvk"], "DirectX 11: DXMT, then DXVK")
         check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "dxvk"}"#) == ["dxvk", "dxmt"], "a profile's layer goes first")
@@ -624,8 +625,7 @@ struct LaunchHealthTest {
         }
 
         // The first start with new graphics says shaders are being built; the second doesn't.
-        let shaderDefaults = UserDefaults(suiteName: "nightforge.launch-phase-test")!
-        shaderDefaults.removePersistentDomain(forName: "nightforge.launch-phase-test")
+        let shaderDefaults = TestDefaults.suite("launch-phase")
         func component(_ id: String, _ version: String, _ kind: Component.Kind) -> Component {
             try! JSONDecoder().decode(Component.self, from: Data("""
                 {"id":"\(id)","kind":"\(kind.rawValue)","version":"\(version)","url":"https://x/\(id).tar","sha256":"","size":1,"license":"MIT","source":"https://x"}
@@ -646,7 +646,6 @@ struct LaunchHealthTest {
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherLayer, defaults: shaderDefaults), "so does another layer")
         let otherEngine = LaunchPhase.graphicsSignature(runner: "/wine/4.8/bin/wine", layer: .dxmt, components: before)
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherEngine, defaults: shaderDefaults), "and a new engine")
-        shaderDefaults.removePersistentDomain(forName: "nightforge.launch-phase-test")
         check(Set([LaunchPhase.startingSteam, .signingIn, .settingUp, .settingUpDotNet, .restartingSteam, .retrying("DXVK"),
                    .startingSteamForMac, .signInInSteamWindow].map(\.hint)).count == 8, "every phase explains itself differently")
 

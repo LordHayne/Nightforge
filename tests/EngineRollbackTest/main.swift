@@ -93,6 +93,7 @@ struct EngineRollbackTest {
     }
 
     static func main() async {
+        TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         let work = fm.temporaryDirectory.appendingPathComponent("ert-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
@@ -258,7 +259,7 @@ struct EngineRollbackTest {
               "two builds of the same engine are told apart by the day: \(EngineRollback.label(a, setUp: october, other: b))")
 
         // MARK: Seeds from what already runs
-        let suite = UserDefaults(suiteName: "nightforge.engine-rollback-test-\(UUID().uuidString)")!
+        let suite = TestDefaults.suite("seeds")
         let ladder = [LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"]), LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])]
         let state = #"{"ladder":["dxmt -dx11","dxvk -dx11"],"index":1,"confirmed":true,"proof":2}"#
         suite.set(Data(state.utf8), forKey: "launchHealth.steam.42")

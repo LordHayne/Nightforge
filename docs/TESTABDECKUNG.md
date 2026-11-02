@@ -162,9 +162,12 @@ Spieldaten-Zweig mergen.
   `nightforge.engine-rollback-test-<UUID>.plist`, das frisch entsteht, obwohl `EngineRollbackTest` HOME umlenkt.
   Dort liegen etwa 525 Reste alter Läufe: 215× `mvt-<UUID>`, 198× `ProfileFilesTest-<UUID>`,
   112× `nightforge.engine-rollback-test-<UUID>`, dazu `store-facts-test.plist` und andere mit dem Namen einer
-  Testbinary. Das sind keine Nightforge-Daten, sie liegen aber im echten Home. Abhilfe wäre, dass die Tests ihre
-  Suite am Ende entfernen (`removePersistentDomain` und die Datei löschen) oder Speicher übergeben bekommen.
-  Meine neuen Prüfungen legen dort nichts an.
+  Testbinary. Das sind keine Nightforge-Daten, sie liegen aber im echten Home. `removePersistentDomain` (wie
+  `defaults delete`) leert eine Domäne nur, die Datei bleibt. Behoben mit `tests/Shared/TestDefaults.swift`: Eine
+  Domäne, deren Name ein absoluter Pfad ist, ist eine Datei an diesem Pfad. `TestDefaults.suite(_:)` legt sie im
+  Arbeitsordner der Reihe an, den ihr `run.sh` entfernt, und `TestDefaults.useWorkFolder()` (am Anfang von `main()`)
+  macht `UserDefaults.standard` zu einer solchen Domäne. Neue Reihen, die Einstellungen schreiben, kompilieren die
+  Datei mit. Die alten Reste stehen in `docs/TODO.md` unter „Wartung und Community“.
 - **`EngineLayoutTest` las Nightforges echtes `wine.log`.** Der Aufruf `GameLog.illegalInstruction(since: UInt64.max, …)`
   las ohne eigenes Home die letzten 4 MB von `~/Library/Application Support/Nightforge/Logs/wine.log`. Die Prüfung
   „an older crash report doesn't count“ wäre fehlgeschlagen, sobald dieses Log eine Zeile „illegal instruction“

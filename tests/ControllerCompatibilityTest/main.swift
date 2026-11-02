@@ -44,14 +44,9 @@ struct ControllerCompatibilityTest {
         check(ControllerCompatibility.links(sdl, "GameController.framework"), "SDL-style library is recognised")
         check(!ControllerCompatibility.links(work.appendingPathComponent("game.c"), "GameController.framework"), "a text file isn't Mach-O")
 
-        let ids = (old: "nightforge.test.oldgame", modern: "nightforge.test.moderngame", sdl: "nightforge.test.sdlgame",
-                   player: "nightforge.test.playerchoice")
-        let all = [ids.old, ids.modern, ids.sdl, ids.player]
-        func reset() {
-            for id in all { CFPreferencesSetAppValue(ControllerCompatibility.key as CFString, nil, id as CFString); CFPreferencesAppSynchronize(id as CFString) }
-        }
-        reset()
-        defer { reset() }
+        // Bundle IDs that are paths: their preferences are files in the work folder, not in ~/Library/Preferences.
+        let ids = (old: TestDefaults.domain("oldgame"), modern: TestDefaults.domain("moderngame"), sdl: TestDefaults.domain("sdlgame"),
+                   player: TestDefaults.domain("playerchoice"))
 
         let oldGame = try game("Old Game", in: work, program: old, bundleID: ids.old)
         let modernGame = try game("Modern Game", in: work, program: modern, bundleID: ids.modern)
