@@ -193,6 +193,7 @@ struct LibraryView: View {
             model.startInput()
             if model.games.isEmpty { model.reload() }
             model.startBackgroundSteam()
+            GameTestRun.watch(model)  // only ever its switch starts a game test
         }
     }
 

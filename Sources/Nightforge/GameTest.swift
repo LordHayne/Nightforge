@@ -1,0 +1,418 @@
+import Foundation
+
+/// The game test ("Spieletest"): Nightforge plays through the installed games by itself, one after
+/// the other and each the way Play starts it, and writes down what happened – the ways it took,
+/// whether a picture came and how soon, the frame rates, and for a game without one the log's
+/// errors or where it hung. A run after an engine change shows at once which games start and which
+/// broke; until now that came out live, one game at a time ("should run, doesn't for us"). This is
+/// what the run decides and writes; GameTestRun drives it. Only ever started by hand:
+/// `defaults write io.github.lordhayne.nightforge gameTest -bool true`.
+enum GameTest {
+    /// Its switches, all in Nightforge's defaults.
+    enum Keys {
+        /// True: a run starts once Nightforge is ready and no game runs – once: it's removed then.
+        static let start = "gameTest"
+        /// Only these games, by key ("steam.570") or name, separated by commas.
+        static let only = "gameTest.only"
+        /// Seconds a game gets for its first picture once its process is there.
+        static let pictureWait = "gameTest.pictureWait"
+        /// Seconds a game with a picture keeps running, for its frame rates.
+        static let playSeconds = "gameTest.playSeconds"
+        /// True: the run ends after the game it's at.
+        static let stop = "gameTest.stop"
+        /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
+        static let basket = "gameTest.basket"
+    }
+
+    /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
+    /// Nightforge doesn't quit after one (Prefs.afterLaunch). Set on the main actor only.
+    nonisolated(unsafe) static var active = false
+
+    struct Settings: Equatable {
+        var pictureWait: TimeInterval = 120
+        var playSeconds: TimeInterval = 60
+        var only: [String] = []
+        /// The test basket's file, "" for none.
+        var basket = ""
+
+        init(pictureWait: TimeInterval = 120, playSeconds: TimeInterval = 60, only: [String] = [], basket: String = "") {
+            self.pictureWait = pictureWait
+            self.playSeconds = playSeconds
+            self.only = only
+            self.basket = basket
+        }
+
+        /// From the switches, within sensible bounds: a picture gets 30 s to 15 min, a game runs 10 s to 10 min.
+        init(_ defaults: UserDefaults) {
+            let wait = defaults.integer(forKey: Keys.pictureWait)
+            let play = defaults.integer(forKey: Keys.playSeconds)
+            self.init(pictureWait: wait > 0 ? TimeInterval(min(max(wait, 30), 900)) : 120,
+                      playSeconds: play > 0 ? TimeInterval(min(max(play, 10), 600)) : 60,
+                      only: (defaults.string(forKey: Keys.only) ?? "").split(whereSeparator: { ",;\n".contains($0) })
+                          .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
+                      basket: defaults.string(forKey: Keys.basket) ?? "")
+        }
+    }
+
+    // MARK: - Which games, in which order
+
+    /// Why a game isn't started, or why its start was called off: each would need the player, or a download.
+    enum Skip: String, Codable, CaseIterable {
+        case antiCheat, vrOnly, otherBottle, signIn, update, runtimes, d3dMetal, macSteamSetup, versionSwitch,
+             steamAsks, stopped, gone
+
+        var german: String {
+            switch self {
+            case .antiCheat: return "Anti-Cheat sperrt es auf dem Mac"
+            case .vrOnly: return "nur mit VR-Brille"
+            case .otherBottle: return "liegt in einer CrossOver-Flasche"
+            case .signIn: return "bräuchte eine Anmeldung"
+            case .update: return "ein Update stünde an (würde laden)"
+            case .runtimes: return "bräuchte erst Laufzeiten (würde laden)"
+            case .d3dMetal: return "braucht D3DMetal, das nicht eingerichtet ist"
+            case .macSteamSetup: return "Steam für Mac ist nicht eingerichtet"
+            case .versionSwitch: return "erster Start der anderen Fassung (Spielstände würden übertragen)"
+            case .steamAsks: return "Steam fragte etwas in seinem Fenster"
+            case .stopped: return "Test vorher angehalten"
+            case .gone: return "nicht mehr installiert"
+            }
+        }
+    }
+
+    /// What decides whether a game can start unattended, as GameTestRun finds it before the run.
+    struct Facts: Equatable {
+        var platform = Platform.windows
+        var store = Provider.steam
+        /// Its anti-cheat stops it – not a profile's "not yet", which Play Anyway starts.
+        var antiCheat = false
+        var vrOnly = false
+        var builtInBottle = true
+        /// Steam for Mac is installed and has been signed in.
+        var macSteamReady = true
+        /// Its store has a sign-in to start it with (Nightforge's Steam, Epic).
+        var signedIn = true
+        var pendingUpdate = false
+        /// The first start of its other version, which carries the saves over (SaveTransfer).
+        var versionSwitch = false
+        /// Winetricks verbs or GOG's redistributables a start would fetch first.
+        var missingRuntimes: [String] = []
+        /// It needs D3DMetal, and starting it would ask to set that up.
+        var needsD3DMetal = false
+    }
+
+    static func skip(_ facts: Facts) -> Skip? {
+        if facts.antiCheat { return .antiCheat }
+        if facts.vrOnly { return .vrOnly }
+        if facts.platform == .windows, !facts.builtInBottle { return .otherBottle }
+        if facts.platform == .mac, facts.store == .steam, !facts.macSteamReady { return .macSteamSetup }
+        if !facts.signedIn { return .signIn }
+        if facts.pendingUpdate { return .update }
+        if facts.versionSwitch { return .versionSwitch }
+        if !facts.missingRuntimes.isEmpty { return .runtimes }
+        if facts.needsD3DMetal { return .d3dMetal }
+        return nil
+    }
+
+    struct Candidate: Equatable {
+        var key: String
+        var name: String
+        var store: Provider
+        var storeID: String
+        var platform: Platform
+        /// The profile says it doesn't start on a Mac yet; Play Anyway starts it all the same.
+        var notYet = false
+        var skip: Skip?
+        /// What the skip is about: the runtimes it lacks.
+        var skipNote: String?
+        /// From the test basket: it's in there, the way it expects first, the popular games it stands for.
+        var inBasket = false
+        var hint: String?
+        var standsFor: [String]?
+    }
+
+    /// Which games matter most to test (compat-db, scripts/test-basket.py): by `score`, with the way
+    /// LaunchHealth is expected to take first (`hint`) and the popular games of the same engine and
+    /// graphics each one stands for. It only orders the installed games – never a reason to download.
+    struct Basket: Decodable, Equatable {
+        struct Item: Decodable, Equatable {
+            var key: String
+            var score: Double?
+            var hint: String?
+            var standsFor: [String]?
+        }
+
+        static let format = 1
+
+        var formatVersion: Int
+        var generated: String?
+        var games: [Item]
+
+        static func load(_ path: String) -> Basket? {
+            guard !path.isEmpty, let data = FileManager.default.contents(atPath: (path as NSString).expandingTildeInPath),
+                  let basket = try? JSONDecoder().decode(Basket.self, from: data), basket.formatVersion == format
+            else { return nil }
+            return basket
+        }
+    }
+
+    /// The games in the order they're played: the Windows versions first – Steam's, then Epic's and
+    /// GOG's, all in the one Wine session – then the Mac versions, GOG's and last Steam's: Steam for
+    /// Mac signs the Windows Steam out, so it changes over once. Within each the test basket's games
+    /// first, highest score first – a run cut short has tested what matters most – then by name.
+    /// With `only`, just those games, by key or name.
+    static func plan(_ candidates: [Candidate], only: [String] = [], basket: Basket? = nil) -> [Candidate] {
+        let wanted = Set(only.map { $0.lowercased() })
+        let items = (basket?.games ?? []).enumerated().sorted { ($0.element.score ?? 0, -$0.offset) > ($1.element.score ?? 0, -$1.offset) }
+        var place: [String: (index: Int, item: Basket.Item)] = [:]
+        for (index, entry) in items.enumerated() where place[entry.element.key.lowercased()] == nil {
+            place[entry.element.key.lowercased()] = (index, entry.element)
+        }
+        return candidates
+            .filter { wanted.isEmpty || wanted.contains($0.key.lowercased()) || wanted.contains($0.name.lowercased()) }
+            .map { candidate in
+                var candidate = candidate
+                if let item = place[candidate.key.lowercased()]?.item {
+                    candidate.inBasket = true
+                    candidate.hint = item.hint
+                    candidate.standsFor = item.standsFor?.isEmpty == false ? item.standsFor : nil
+                }
+                return candidate
+            }
+            .sorted {
+                (rank($0), place[$0.key.lowercased()]?.index ?? Int.max, $0.name.lowercased(), $0.key)
+                    < (rank($1), place[$1.key.lowercased()]?.index ?? Int.max, $1.name.lowercased(), $1.key)
+            }
+    }
+
+    static func rank(_ candidate: Candidate) -> Int {
+        switch (candidate.platform, candidate.store) {
+        case (.windows, .steam): return 0
+        case (.windows, .epic): return 1
+        case (.windows, .gog): return 2
+        case (.mac, .gog), (.mac, .epic): return 3
+        case (.mac, .steam): return 4
+        }
+    }
+
+    /// A start that came to a sign-in: the store's other games of that version would only come to it again.
+    static func blocked(_ candidate: Candidate, after entries: [Entry]) -> Bool {
+        entries.contains {
+            $0.skip == .signIn && $0.outcome == .needsPlayer && $0.store == candidate.store.rawValue
+                && $0.platform == candidate.platform.rawValue
+        }
+    }
+
+    // MARK: - What a start came to
+
+    enum Outcome: String, Codable {
+        /// The curtain sank for it: its window in front, in picture size.
+        case picture
+        /// It ran, and ended without a picture and without signs of a crash.
+        case noWindow
+        /// It ended without a picture, with a crash in the log.
+        case crash
+        /// Still running without a picture after `pictureWait`: sampled, then ended.
+        case hang
+        /// No process of it showed up.
+        case noStart
+        /// Called off: it came to something only the player can do (a sign-in, Steam's question).
+        case needsPlayer
+        case skipped
+    }
+
+    /// One look while waiting for a game's picture. `waited`: since its process last appeared –
+    /// each way the ladder tries gets the full wait; `idle`: how long nothing of it has run with no
+    /// start under way (the ladder decides on the next way within that); `total`: since Play.
+    enum Look: Equatable { case wait, picture, ended, hang, tooLong }
+
+    /// Long enough for the ladder: its first seconds' watch counts a game gone after 10 s, then
+    /// Steam has to see it gone before the next way starts.
+    static let endGrace: TimeInterval = 25
+    /// Steam's own wait for a start ends after 15 minutes (LibraryModel.start); then something hangs.
+    static let longestStart: TimeInterval = 20 * 60
+
+    static func look(picture: Bool, running: Bool, waited: TimeInterval, idle: TimeInterval, total: TimeInterval,
+                     settings: Settings) -> Look {
+        if picture { return .picture }
+        if running, waited >= settings.pictureWait { return .hang }
+        if !running, idle >= endGrace { return .ended }
+        return total >= longestStart ? .tooLong : .wait
+    }
+
+    /// What the run saw of a start.
+    struct Seen: Equatable {
+        var process = false
+        var picture = false
+        var stillRunning = false
+        var crashSigns = false
+        var needs: Skip?
+    }
+
+    static func outcome(_ seen: Seen) -> Outcome {
+        if seen.picture { return .picture }
+        if seen.needs != nil { return .needsPlayer }
+        if seen.stillRunning { return .hang }
+        if seen.crashSigns { return .crash }
+        return seen.process ? .noWindow : .noStart
+    }
+
+    /// Below this a picture counts as a low frame rate (GameRating's lowFrameRate).
+    static let lowFrameRate: Double = 25
+
+    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low.
+    static func issues(endedWhilePlaying: Bool, frames: Frames?) -> [String] {
+        var issues: [String] = []
+        if endedWhilePlaying { issues.append("crashed") }
+        if let frames, frames.average < lowFrameRate { issues.append("lowFrameRate") }
+        return issues
+    }
+
+    /// compat-report.yml's words (CompatReport.result), so a count of reports takes an entry as it
+    /// is: good, problems, no-start. Nil: not tried, says nothing about the game.
+    static func result(_ outcome: Outcome, issues: [String]) -> String? {
+        switch outcome {
+        case .picture: return issues.isEmpty ? "good" : "problems"
+        case .noWindow, .crash, .hang, .noStart: return "no-start"
+        case .needsPlayer, .skipped: return nil
+        }
+    }
+
+    struct Frames: Codable, Equatable {
+        /// Over all periods, by their length.
+        var average: Double
+        /// The lowest period.
+        var low: Double
+        var periods: Int
+    }
+
+    /// The frame rates the game logged (FramePacing.periods): DXMT does, every 10 s from its first
+    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none.
+    static func frames(_ periods: [(fps: Double, seconds: Double)]) -> Frames? {
+        let periods = periods.filter { $0.fps > 0 && $0.seconds > 0 }
+        guard !periods.isEmpty else { return nil }
+        let seconds = periods.map(\.seconds).reduce(0, +)
+        let average = periods.map { $0.fps * $0.seconds }.reduce(0, +) / seconds
+        return Frames(average: (average * 10).rounded() / 10, low: ((periods.map(\.fps).min() ?? 0) * 10).rounded() / 10,
+                      periods: periods.count)
+    }
+
+    // MARK: - The ways in the log
+
+    /// The line LibraryModel.launch writes before each start of a Windows game.
+    static func startNote(game: String, way: String, engine: String?) -> String {
+        "Start of \(game): \(way)" + (engine.map { " on \($0)" } ?? "")
+    }
+
+    /// The starts of `game` in a stretch of wine.log (`startNote`), each with the log up to the next one.
+    static func starts(of game: String, in log: String) -> [(way: String, engine: String?, log: String)] {
+        let marker = "[nightforge] " + startNote(game: game, way: "", engine: nil)
+        var starts: [(way: String, engine: String?, log: String)] = []
+        var lines: [Substring] = []
+        func close() {
+            if !starts.isEmpty { starts[starts.count - 1].log = lines.joined(separator: "\n") }
+            lines = []
+        }
+        for line in log.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard let range = line.range(of: marker) else {
+                if !starts.isEmpty { lines.append(line) }
+                continue
+            }
+            close()
+            let rest = line[range.upperBound...]
+            if let on = rest.range(of: " on ", options: .backwards) {
+                starts.append((String(rest[..<on.lowerBound]), String(rest[on.upperBound...]), ""))
+            } else {
+                starts.append((String(rest), nil, ""))
+            }
+        }
+        close()
+        return starts
+    }
+
+    struct Way: Codable, Equatable {
+        /// A `LaunchAttempt.id` ("dxmt -dx11"), or "mac".
+        var way: String
+        var engine: String?
+        /// How it ended: the earlier ways without a picture, the last as the game's start did.
+        var outcome: Outcome
+    }
+
+    static func ways(of game: String, in log: String, last: Outcome) -> [Way] {
+        let starts = starts(of: game, in: log)
+        return starts.enumerated().map { index, start in
+            Way(way: start.way, engine: start.engine,
+                outcome: index == starts.count - 1 ? last : GameLog.crashed(in: start.log) ? .crash : .noWindow)
+        }
+    }
+
+    /// Where a hanging game waits: the heaviest frames of `sample`'s "Sort by top of stack" list
+    /// (semaphore_wait_trap, kevent, read …), its counts kept.
+    static func topOfStack(in sample: String, limit: Int = 8) -> [String] {
+        guard let start = sample.range(of: "Sort by top of stack") else { return [] }
+        var frames: [String] = []
+        for line in sample[start.upperBound...].split(separator: "\n", omittingEmptySubsequences: false).dropFirst() {
+            let frame = line.trimmingCharacters(in: .whitespaces)
+            if frame.isEmpty || frame.hasSuffix(":") {
+                if frames.isEmpty { continue }
+                break
+            }
+            frames.append(frame.replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression))
+            if frames.count == limit { break }
+        }
+        return frames
+    }
+
+    /// What the curtain saw last of the game (LibraryModel.watchCurtain): its processes, its windows,
+    /// who had the front – why no picture counted.
+    static func lastLook(of game: String, in log: String) -> String? {
+        let marker = "Curtain look at \(game): "
+        return log.split(separator: "\n").last { $0.contains(marker) }
+            .flatMap { line in line.range(of: marker).map { String(line[$0.upperBound...]) } }
+    }
+
+    // MARK: - The Mac's load
+
+    /// How busy the Mac is when the run, or a game, starts: with other work going on (a build, 24
+    /// compilers at once), the frame rates are not the game's.
+    struct Load: Codable, Equatable {
+        /// The one-minute load average.
+        var average: Double
+        var cores: Int
+        /// Under half the cores busy (`lowLoadShare`).
+        var low: Bool
+
+        init(average: Double, cores: Int) {
+            self.average = (average * 10).rounded() / 10
+            self.cores = cores
+            low = self.average < Double(max(cores, 1)) * GameTest.lowLoadShare
+        }
+
+        static var now: Load? {
+            var averages = [Double](repeating: 0, count: 3)
+            guard getloadavg(&averages, 3) >= 1 else { return nil }
+            return Load(average: averages[0], cores: ProcessInfo.processInfo.activeProcessorCount)
+        }
+    }
+
+    static let lowLoadShare = 0.5
+    /// How long a run waits at its start for a busy Mac to calm down.
+    static let loadPatience: TimeInterval = 5 * 60
+
+    // MARK: - Calm between games
+
+    /// The CPU Steam and the Wine session use together, from `ps -axo pcpu=,command=`: both Steams
+    /// and their helpers, wineserver and Wine's own programs.
+    static func sessionCPU(_ ps: String) -> Double {
+        ps.split(separator: "\n").reduce(0) { sum, line in
+            let fields = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+            guard fields.count == 2, let cpu = Double(fields[0].replacingOccurrences(of: ",", with: ".")) else { return sum }
+            let command = fields[1].lowercased()
+            return command.contains("wine") || command.contains("steam") ? sum + cpu : sum
+        }
+    }
+
+    /// Calm: the last `count` looks all under `limit` percent – the save written, Steam idle again.
+    static func calm(_ looks: [Double], limit: Double = 30, count: Int = 3) -> Bool {
+        looks.count >= count && looks.suffix(count).allSatisfy { $0 < limit }
+    }
+}

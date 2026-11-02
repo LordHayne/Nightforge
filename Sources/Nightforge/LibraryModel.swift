@@ -2711,6 +2711,11 @@ final class LibraryModel: ObservableObject {
         launchTask?.cancel()
     }
 
+    /// The game test calls a start off at any step: one that came to a sign-in or Steam's question.
+    func callOffLaunch() {
+        launchTask?.cancel()
+    }
+
     /// The start in progress is Nightforge's own: the game again another way after a start that didn't take.
     private var startsAgain = false
     /// Each start's number: one called off by a newer start leaves that one's state alone when it ends.
@@ -2926,6 +2931,7 @@ final class LibraryModel: ObservableObject {
                 // Starting it again another way, and the player pressed Play meanwhile: theirs has the curtain.
                 if Task.isCancelled { return }
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
+                GameLog.note(GameTest.startNote(game: game.name, way: way, engine: build?.engine))  // the ways a start took (GameTest)
                 raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
@@ -3047,7 +3053,8 @@ final class LibraryModel: ObservableObject {
         let learned = LearnedFixes.winetricks(game.gameID)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono })
             .filter(Engine.isSafeWinetricksVerb)
-        if !missing.isEmpty {
+        // The game test fetches nothing: what a game lacks goes into its report instead (GameTestRun).
+        if !missing.isEmpty, !GameTest.active {
             if showStatus { launchPhase = .settingUp }
             await Engine.installWinetricks(missing, wine: wine)
             if showStatus { launchPhase = nil }
