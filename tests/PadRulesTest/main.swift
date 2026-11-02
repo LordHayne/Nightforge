@@ -54,11 +54,10 @@ struct PadRulesTest {
         check(PadRules.hidesPointer(inFront: true, overlay: false, inUse: true), "the pad in Nightforge: the pointer hides")
         check(PadRules.hidesPointer(inFront: false, overlay: true, inUse: true), "over a game in the overlay too")
         check(!PadRules.hidesPointer(inFront: false, overlay: false, inUse: true), "a game in front: the pointer is the game's")
-        let spot = CGPoint(x: 400, y: 300)
-        check(PadRules.padUsedLast(at: 100, mouseThen: spot, now: 130, mouseNow: spot), "the pad a moment ago, the mouse still: hidden for the game")
-        check(!PadRules.padUsedLast(at: 100, mouseThen: spot, now: 130, mouseNow: CGPoint(x: 410, y: 300)), "the mouse moved since: it shows")
-        check(!PadRules.padUsedLast(at: 100, mouseThen: spot, now: 170, mouseNow: spot), "the pad a while ago: the mouse may be next")
-        check(!PadRules.padUsedLast(at: nil, mouseThen: .zero, now: 130, mouseNow: .zero), "no pad yet: nothing hidden")
+        check(PadRules.padUsedLast(padAgo: 30, mouseAgo: 600), "the pad a moment ago, the mouse still: hidden for the game")
+        check(!PadRules.padUsedLast(padAgo: 30, mouseAgo: 2), "the mouse moved since: it shows")
+        check(PadRules.padUsedLast(padAgo: 150, mouseAgo: 900), "a start longer than a minute: still the pad's (Overcooked 2, 1.11.)")
+        check(!PadRules.padUsedLast(padAgo: nil, mouseAgo: 900), "no pad yet: nothing hidden")
         check(!PadRules.hidesPointer(inFront: true, overlay: false, inUse: false), "a resting pad doesn't hide it")
 
         // Settings: L1/R1 step through the tabs and stop at either end.

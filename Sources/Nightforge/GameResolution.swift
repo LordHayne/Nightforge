@@ -43,8 +43,13 @@ enum GameResolution {
     static func fit(_ game: Game, profile: GameProfile? = nil, retina: Bool, wine: URL,
                     places: SaveTransfer.Places = SaveTransfer.Places()) {
         guard let size = mainScreen(retina: retina) else { return }
-        let marker = game.windowsFolderMarker.lowercased()
-        guard !Engine.ownProcesses().contains(where: { $0.command.lowercased().contains(marker) }) else { return }
+        let marker = game.windowsFolderMarker
+        // Its program by its Windows path, or one a launcher started by its bare name (GameProcesses.runsFrom).
+        guard !Engine.ownProcesses().contains(where: { process in
+            let command = process.command.lowercased()
+            return command.contains(marker.lowercased())
+                || command.contains(".exe") && GameProcesses.runsFrom([marker], command: command, cwd: GameProcesses.cwd(of: process.pid))
+        }) else { return }
         var notes: [String] = []
         // user.reg on disk can lag the wineserver's copy by up to half a minute; the values a game
         // wrote when it ended a while ago are there.

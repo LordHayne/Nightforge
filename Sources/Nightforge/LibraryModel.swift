@@ -278,6 +278,12 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(3))  // after the window and Steam got going
             availableUpdate = await Updater.check()
         }
+        // Where the page behind a game goes when Nightforge comes to the front: behind Nightforge's
+        // window while the game shows its own, over it a moment longer when the game is ending.
+        GameBackdrop.gameShowsWindow = { [weak self] in
+            guard let self else { return false }
+            return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
+        }
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -507,7 +513,7 @@ final class LibraryModel: ObservableObject {
                 if loaded { runningScanned = true }  // only a look with the games known counts
                 await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
-                if found.isEmpty, launchingID == nil, playing.isEmpty { idleLooks += 1 } else { idleLooks = 0 }
+                if found.isEmpty, launchingID == nil, playing.isEmpty, judging == nil { idleLooks += 1 } else { idleLooks = 0 }
                 if idleLooks == 20 {  // a start that never got going (~1 min)
                     GameDisplay.leaveGame()
                     GameBackdrop.hide(after: .zero)
@@ -572,6 +578,47 @@ final class LibraryModel: ObservableObject {
     private var goneFor = 0
     private var goneSince = Date.distantPast
     private var idleLooks = 0
+    /// The game whose start is still judged by its first seconds (`survivesFirstSeconds`), and when
+    /// that start began: should it end now, the start tells what's next – another way under the same
+    /// curtain, or Nightforge with what happened. Control (Epic) crashed on every way on 2.11., and
+    /// the curtain went, Nightforge came, the curtain came again for each.
+    private var judging: (id: String, since: Date)?
+
+    /// A game on the stage for the curtain and the page behind it: one being played, or one whose
+    /// start is still judged – gone already, maybe about to start again another way.
+    private var gameOnStage: Bool { !playing.isEmpty || judging != nil }
+
+    /// Whether the end of the game being played is the start's to tell (`judging`).
+    private func startJudgesEnd() -> Bool {
+        guard let judging, playing.contains(judging.id), let game = allGames.first(where: { $0.id == judging.id }) else { return false }
+        return Self.startJudgesEnd(quitByPlayer: LaunchHealth.quitByPlayer(game.gameID, since: judging.since),
+                                   showedPicture: LaunchHealth.showedPicture(game.gameID, since: judging.since))
+    }
+
+    /// An early end is the start's to tell, unless it's an end like any other: the player quit the
+    /// game (Quit Game, waiting ten seconds more on "Back to Nightforge …" for the start's verdict
+    /// would be odd), or it showed a picture – a start that worked, whatever comes after.
+    nonisolated static func startJudgesEnd(quitByPlayer: Bool, showedPicture: Bool) -> Bool {
+        !quitByPlayer && !showedPicture
+    }
+
+    /// The start's judging is over without another way: Nightforge comes back from the curtain as
+    /// after any game, on the game's page – where it says what happened (didn't start, still
+    /// running) – or, should the game run on, the curtain just goes. Not for a start called off by
+    /// a newer one (`current`), whose curtain it is now.
+    private func finishJudging(_ game: Game, current: Bool) {
+        guard let judged = judging, judged.id == game.id else { return }
+        judging = nil
+        // Called off, or the curtain went already (an error the watch showed).
+        guard current, GameBackdrop.isRaised else { return }
+        guard running[game.id] == nil, !playing.contains(game.id) else {
+            if GameBackdrop.isRaised, !GameBackdrop.isReturning { GameBackdrop.hide(after: .zero) }
+            return
+        }
+        GameBackdrop.returning()
+        if game.inLibrary, reveal(game), !route.isDetail { openDetail() }
+        comeBack(to: route)
+    }
 
     /// Once the games Nightforge started have all ended (`gameEnded`, about a second after their
     /// processes went), Nightforge comes back to the front: the controller keeps working, and
@@ -589,11 +636,21 @@ final class LibraryModel: ObservableObject {
             goneFor = 0
             return
         }
-        if goneFor == 0 {
+        // A start whose first seconds are still judged: its end is the start's to tell, under the
+        // same curtain – another way, or Nightforge with what happened (`finishJudging`).
+        let judged = startJudgesEnd()
+        if goneFor == 0, !judged {
             goneSince = Date()
-            // The curtain at once, over Steam for Mac's window, which comes up when a game ends.
+            // The curtain at once, over Steam for Mac's window, which comes up when a game ends –
+            // and Steam's, should it still be open from a question before the start.
             GameBackdrop.returning()
             MacSteam.hide()
+            if steamWindowShown {
+                steamWindowShown = false
+                Task { await SteamWindow.hide() }
+            }
+        } else if goneFor == 0 {
+            goneSince = Date()
         }
         goneFor += 1
         let ranFor = playing.compactMap { sessionStarts[$0]?.date }.map { goneSince.timeIntervalSince($0) }.max() ?? 0
@@ -618,6 +675,10 @@ final class LibraryModel: ObservableObject {
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt) : nil
         }
+        if judged { return }
+        // An end like any other while the start still judges (the player quit, it showed a picture):
+        // Nightforge comes back from here, the start's end adds nothing.
+        if let id = judging?.id, ended.contains(id) { judging = nil }
         // Back on the game's page, as from a console's game.
         if let game = endedGames.first(where: { $0.inLibrary }), reveal(game), !route.isDetail { openDetail() }
         // "Welcome back" once the curtain is gone, not under it while the Spaces change.
@@ -663,7 +724,7 @@ final class LibraryModel: ObservableObject {
     private func stepBack(behind game: Game, _ behavior: AfterLaunch) {
         switch behavior {
         case .quit: NSApp.terminate(nil)
-        case .hide, .stay: GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+        case .hide, .stay: GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
         }
     }
 
@@ -687,34 +748,10 @@ final class LibraryModel: ObservableObject {
         }, uniquingKeysWith: { first, _ in first })
     }
 
+    /// A game that a launcher started by its bare name counts too (GameProcesses.runsFrom: Control, 2.11.).
     nonisolated private static func runningGames(_ folders: [String: String]) -> [String: pid_t] {
         guard !folders.isEmpty else { return [:] }
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [:] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
-
-        var result: [String: pid_t] = [:]
-        for line in output.split(separator: "\n") {
-            let fields = line.drop { $0 == " " }.split(separator: " ", maxSplits: 1)
-            guard fields.count == 2, let pid = pid_t(fields[0]) else { continue }
-            let command = fields[1].lowercased()
-            // Steam's crash handler and similar helpers live in the same folder; the game's
-            // own process is the first .exe there that isn't one of those.
-            guard !command.contains("crashhandler"), !command.contains("unitycrash") else { continue }
-            let windowsProgram = command.contains(".exe")
-            for (folder, id) in folders where result[id] == nil {
-                // Mac versions: the program itself runs from the folder ("/…/steamapps/common/Game/
-                // Game.app/Contents/MacOS/Game"); a script that merely names the folder doesn't count.
-                let matches = folder.hasPrefix("/") ? command.hasPrefix(folder) : windowsProgram && command.contains(folder)
-                if matches { result[id] = pid }
-            }
-        }
-        return result
+        return GameProcesses.running(folders, in: GameProcesses.table())
     }
 
     /// The running-game check has looked at the processes at least once, knowing the library.
@@ -788,6 +825,8 @@ final class LibraryModel: ObservableObject {
     // MARK: - The curtain
 
     private var curtainWatch: Task<Void, Never>?
+    /// Nightforge opened Steam's window for a question (`showSteamWindow`) and hasn't hidden it since.
+    private var steamWindowShown = false
 
     /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
     /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
@@ -797,7 +836,7 @@ final class LibraryModel: ObservableObject {
         curtainWatch?.cancel()
         // The tip for new players on a curtain that comes up for this start, not again for each way it tries.
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
-        GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.playing.isEmpty == false }
+        GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
     }
@@ -810,10 +849,13 @@ final class LibraryModel: ObservableObject {
         var frontSince: Date?
         var loweredAt: Date?
         var raisedAgain = 0
-        /// The game's time in front the pointer was hidden for.
+        /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
+        var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
         /// The curtain under a question of the game's (makeWay), until it's answered or the picture comes.
         var madeWay = false
+        /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
+        var steamAsked = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
@@ -826,12 +868,33 @@ final class LibraryModel: ObservableObject {
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
             if Task.isCancelled { return end("a new start or Go to Nightforge") }
             if GameBackdrop.isReturning { return end("the game ended") }
+            let wentWrong = errorMessage != nil || failedLaunch != nil
+            let startGoesOn = launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id)
             if loweredAt == nil {
-                guard GameBackdrop.isRaised else { return end("the curtain is gone") }
-                // Steam asks something in its window, or the start went wrong: the player has to see it.
-                if launchNeedsConfirmation || errorMessage != nil || failedLaunch != nil {
+                switch Self.steamTurn(asks: steamAsks, asked: steamAsked, startGoesOn: startGoesOn, wentWrong: wentWrong) {
+                case .away:
+                    steamAsked = true
                     GameBackdrop.hide(after: .zero)
-                    return end(launchNeedsConfirmation ? "Steam asks something" : "the start went wrong")
+                    GameLog.note("Curtain away for \(game.name): Steam asks something")
+                    continue
+                case .wait:
+                    continue
+                case .over:
+                    return end("Steam asked, the start is over")
+                case .back:
+                    steamAsked = false
+                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                    hideSteamWindow(for: game)
+                    askAt = Date().addingTimeInterval(Self.curtainPatience)  // the question's time isn't the game's
+                    GameLog.note("Curtain up again for \(game.name): Steam's question is answered")
+                case .none:
+                    break
+                }
+                guard GameBackdrop.isRaised else { return end("the curtain is gone") }
+                // The start went wrong: the player has to see what Nightforge says.
+                if wentWrong {
+                    GameBackdrop.hide(after: .zero)
+                    return end("the start went wrong")
                 }
             }
             buildsShaders = buildsShaders || launchBuildsShaders
@@ -845,6 +908,8 @@ final class LibraryModel: ObservableObject {
             if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
+                // The start judges its first seconds: it tells what's next, under this curtain.
+                if judging?.id == game.id { return end("its processes are gone, the start decides what's next") }
                 if loweredAt != nil { return end("its processes are gone") }  // watchForGameEnd brings Nightforge back
                 if launchingID == nil {
                     GameBackdrop.hide(after: .zero)
@@ -869,17 +934,25 @@ final class LibraryModel: ObservableObject {
                 lastLook = look
                 GameLog.note("Curtain look at \(game.name): \(look)")
             }
-            // The game coming to the front brought the pointer back over the curtain (1.11.):
-            // hidden again once it has had the front a moment, before the curtain goes – not while
-            // it asks something, which takes the mouse.
-            if loweredAt == nil, !asks, !madeWay, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
-                pointerHidden = since
-                InputRouter.hidePointerOverGame()
+            // Each app coming to the front brings the pointer back over the curtain (1.11.): another
+            // one (Steam's, Nightforge handing over) hidden again at once, the game once it has had
+            // the front a moment, before the curtain goes – taking its keys for 50 ms while it sets
+            // up its screen could cost it its full screen. Not while it asks something, which takes
+            // the mouse.
+            let newFront = front != pointerFront
+            pointerFront = front
+            if loweredAt == nil, !asks, !madeWay {
+                if gameFront, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
+                    pointerHidden = since
+                    InputRouter.hidePointerOverGame()
+                } else if !gameFront, newFront, front != nil {
+                    if front == getpid() { InputRouter.hidePointerForGame() } else { InputRouter.hidePointerOverGame() }
+                }
             }
             // Its question answered, no picture yet: the curtain over everything again until there is one.
             if madeWay, !asks, !here, loweredAt == nil {
                 madeWay = false
-                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
             }
             sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks)
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
@@ -912,7 +985,7 @@ final class LibraryModel: ObservableObject {
             case .raiseAgain:
                 // Another app took the front from the game – Unity builds its window anew for full
                 // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
-                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
                 loweredAt = nil
                 frontSince = nil
                 raisedAgain += 1
@@ -926,6 +999,35 @@ final class LibraryModel: ObservableObject {
             }
         }
         end("a new start or Go to Nightforge")
+    }
+
+    /// Steam waits for the player in its window during a start: a question before it (licence,
+    /// ShowInterstitials), or its sign-in after a restart (`restartStuckSteam`).
+    private var steamAsks: Bool { launchNeedsConfirmation || launchPhase == .signInAgain }
+
+    enum SteamTurn: Equatable { case none, away, wait, back, over }
+
+    /// The start's curtain around a question of Steam's (`asks`; `asked`: the curtain went for it
+    /// already). The player has to see it, so the curtain goes meanwhile; the watch waits and raises
+    /// it again once it's answered and the start goes on. It used to end there, and the rest of
+    /// Black Myth: Wukong's start (1.11.) ran without a curtain or a look for the game's own driver
+    /// warning. A start that ended or went wrong meanwhile ends the watch; one that went wrong
+    /// without a question is the watch's own business (`none`).
+    nonisolated static func steamTurn(asks: Bool, asked: Bool, startGoesOn: Bool, wentWrong: Bool) -> SteamTurn {
+        if asks, !wentWrong { return !startGoesOn ? .over : asked ? .wait : .away }
+        if asked { return startGoesOn && !wentWrong ? .back : .over }
+        return .none
+    }
+
+    /// Steam's window that Nightforge opened for a question (`showSteamWindow`), out of sight again
+    /// once it's answered: left open, it came forward when the game ended, before the curtain (1.11.).
+    private func hideSteamWindow(for game: Game) {
+        if game.platform == .mac {
+            MacSteam.hide()
+        } else if steamWindowShown {
+            steamWindowShown = false
+            Task { await SteamWindow.hide() }
+        }
     }
 
     /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.
@@ -2662,6 +2764,8 @@ final class LibraryModel: ObservableObject {
         let behavior = Prefs.afterLaunch
         launchTask = Task {
             defer { endLaunch(number) }
+            // However the start ends, one judged by its first seconds brings Nightforge back from its curtain.
+            defer { finishJudging(game, current: number == launchNumber && !Task.isCancelled) }
             if viaSteam, game.bottle.isBuiltIn {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
@@ -2730,6 +2834,9 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             while true {
+                // Another way after one that didn't take: the curtain stays up through all the next
+                // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
+                if judging?.id == game.id, !Task.isCancelled { raiseCurtain(for: game) }
                 // The newest engine – or, for a game it crashed, the one before (EngineRollback).
                 var build: EngineBuild?
                 if game.bottle.isBuiltIn, let newest {
@@ -2831,11 +2938,13 @@ final class LibraryModel: ObservableObject {
                 startsAgain = false
                 if viaSteam, game.bottle.isBuiltIn { SteamPriority.watch(game) }
                 startedHere.insert(game.id)
+                judging = watchFirstSeconds ? (game.id, startedAt) : nil
                 await bringToFront(game)
                 guard watchFirstSeconds else { break }
 
                 // The first start with this way: is the game still there after its first seconds?
                 if await survivesFirstSeconds(game, logMark: logMark, layer: layer) {
+                    if judging?.id == game.id { judging = nil }  // its end is a session's like any other
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
@@ -3396,7 +3505,7 @@ final class LibraryModel: ObservableObject {
             if let pid, let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular {
                 guard NSApp.isActive else { return }  // the player has moved on to something else
                 // Already there while macOS changes to the game's Space (on a TV it has one of its own).
-                GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
+                GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
                 InputRouter.hidePointerForGame()
                 NSApp.yieldActivation(to: app)
                 app.activate(from: .current, options: [.activateAllWindows])
@@ -3412,8 +3521,10 @@ final class LibraryModel: ObservableObject {
 
     /// Brings Steam's main window, with the question it's waiting on, in front of Nightforge.
     func showSteamWindow() {
+        steamWindowShown = true
         Task {
             guard let wine = await Engine.installedWine() else { return }
+            await SteamWindow.reveal()  // hidden after its last question (hideSteamWindow)
             Engine.showSteamWindow(wine)
             await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }

@@ -92,6 +92,9 @@ enum GameOverlay {
 
     private static func handle(_ event: OverlayEvent) {
         guard !leaving else { return }
+        // In wine.log: which presses arrive (the pad on "Not starting?", 1.11.), and who's in front.
+        GameLog.note("Overlay: \(event) on \(state.step), \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front"
+                     + (panel?.isKeyWindow == true ? "" : ", the panel without the keys"))
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
@@ -154,12 +157,22 @@ enum GameOverlay {
         focusDefault()
     }
 
-    /// The highlight on the step's default button at once: the panel is opened with the pad.
+    /// The highlight on the step's default button at once: the panel is opened with the pad. By its
+    /// id, not looked up on the screen: right after the panel opens – the first time it's made, as
+    /// "Not starting?" often is – or changes its step, the buttons aren't laid out yet, nothing was
+    /// highlighted, and the first press only showed where you were.
     private static func focusDefault() {
         PadFocus.shared.clear()
-        DispatchQueue.main.async {
-            guard let panel, panel.isVisible else { return }
-            PadFocus.shared.move(dx: 0, dy: 1, in: panel)
+        if let id = defaultButton(state.step) { PadFocus.shared.focus(id) }
+    }
+
+    /// The button a step's highlight starts on (its `padFocus` id): the safe answer.
+    nonisolated static func defaultButton(_ step: OverlayStep) -> String? {
+        switch step {
+        case .menu: return "overlay.continue"
+        case .notStarting: return "overlay.wait"
+        case .confirmQuit: return "overlay.cancel"
+        case .quitting: return nil
         }
     }
 
@@ -381,9 +394,12 @@ enum GameProcesses {
         var pid: pid_t
         var parent: pid_t
         var command: String
+        /// Its working folder, for a Windows program (`table`).
+        var cwd: String? = nil
     }
 
-    /// Every process with its parent and command line, as ps shows them.
+    /// Every process with its parent and command line, as ps shows them – a Windows program with
+    /// its working folder too (`runsFrom`).
     nonisolated static func table() -> [Entry] {
         let ps = Process()
         let pipe = Pipe()
@@ -393,7 +409,63 @@ enum GameProcesses {
         guard (try? ps.run()) != nil else { return [] }
         let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         ps.waitUntilExit()
-        return parse(output)
+        return parse(output).map { entry in
+            var entry = entry
+            if entry.command.lowercased().contains(".exe") { entry.cwd = cwd(of: entry.pid) }
+            return entry
+        }
+    }
+
+    /// A process's working folder (another user's, or one gone meanwhile: nil).
+    nonisolated static func cwd(of pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: info.pvi_cdir.vip_path) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        return path.isEmpty ? nil : path
+    }
+
+    /// The Windows game folders processes show (`Game.windowsFolderMarker`): Steam's, Epic's, GOG's.
+    nonisolated static let gameFolders = [#"\steamapps\common\"#, #"\Epic Games\"#, #"\GOG Games\"#]
+
+    /// Whether a Windows program runs from one of `folders` (`Game.windowsFolderMarker`, or any
+    /// game's: `gameFolders`). Wine names a program by its Windows path, which shows the folder – or,
+    /// started by a launcher with its bare name, only by that: Control's launcher starts
+    /// "Control_DX11.exe -AUTH_LOGIN=…" (2.11.), and the game counted as ended with the launcher.
+    /// Then its working folder tells: Wine gives a program its Windows working folder as its own
+    /// (winecx, spawn_process), and on the Mac the game folder is the same folders by name (in the
+    /// Windows environment, or Z:\Volumes\…\Nightforge Games on a drive). Not Windows' own programs,
+    /// nor Steam's, whose working folder may be a game's.
+    nonisolated static func runsFrom(_ folders: [String], command: String, cwd: String?) -> Bool {
+        let command = command.lowercased()
+        guard command.contains(".exe") else { return false }
+        let folders = folders.map { $0.lowercased() }
+        if folders.contains(where: command.contains) { return true }
+        guard let cwd, !command.contains(#"c:\windows\"#), !command.contains("steamwebhelper"),
+              !(command.contains(#"\steam\"#) && !command.contains(#"\steamapps\"#))
+        else { return false }
+        let path = cwd.lowercased() + "/"
+        return folders.contains { path.contains($0.replacingOccurrences(of: "\\", with: "/")) }
+    }
+
+    /// The first process of each game (`folders`: a Windows game's `windowsFolderMarker`, a Mac
+    /// game's folder with a trailing slash → its id), in the order ps lists them. Steam's crash
+    /// handler and similar helpers live in the same folder; the game's own process is the first
+    /// program there that isn't one of those. A Mac version's program itself runs from the folder
+    /// ("/…/steamapps/common/Game/Game.app/Contents/MacOS/Game"); a script that merely names the
+    /// folder doesn't count.
+    nonisolated static func running(_ folders: [String: String], in table: [Entry]) -> [String: pid_t] {
+        var result: [String: pid_t] = [:]
+        for entry in table {
+            let command = entry.command.lowercased()
+            guard !command.contains("crashhandler"), !command.contains("unitycrash") else { continue }
+            for (folder, id) in folders where result[id] == nil {
+                let matches = folder.hasPrefix("/") ? command.hasPrefix(folder.lowercased())
+                                                    : runsFrom([folder], command: command, cwd: entry.cwd)
+                if matches { result[id] = entry.pid }
+            }
+        }
+        return result
     }
 
     /// ps's `pid ppid command` lines.
@@ -415,7 +487,9 @@ enum GameProcesses {
     }
 
     /// The game's processes and whatever they started, however deep: a Windows game by its folder
-    /// in Wine's command line (`Game.windowsFolderMarker`), a Mac game by its folder. Never the Wine
+    /// in Wine's command line (`Game.windowsFolderMarker`) or as its working folder (`runsFrom`: Wine
+    /// starts a program with launchd as its parent, so what a launcher started isn't found below it),
+    /// a Mac game by its folder. Never the Wine
     /// session (wineserver and Windows' own programs), Steam or Nightforge, which other games share.
     nonisolated static func targets(windows marker: String?, mac folder: String?, in table: [Entry],
                                     me: pid_t = getpid()) -> [pid_t] {
@@ -425,9 +499,8 @@ enum GameProcesses {
                 || command.contains(#"\steam\steam.exe"#) || command.contains("steamwebhelper") || command.contains("/steam.app/")
         }
         func belongs(_ entry: Entry) -> Bool {
-            let command = entry.command.lowercased()
-            if let marker { return command.contains(marker.lowercased()) && command.contains(".exe") }
-            if let folder { return command.hasPrefix(folder.lowercased() + "/") }
+            if let marker { return runsFrom([marker], command: entry.command, cwd: entry.cwd) }
+            if let folder { return entry.command.lowercased().hasPrefix(folder.lowercased() + "/") }
             return false
         }
         var found = Set(table.filter { belongs($0) && !spared($0) }.map(\.pid))

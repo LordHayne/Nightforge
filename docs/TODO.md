@@ -42,6 +42,10 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     - Steams Hauptfenster, das nach dem Spielende kurz vor dem Ladebildschirm auftaucht (ShowInterstitials hatte es geöffnet);
     - das Pad in „startet nicht?“.
     Was die Sitzungen dazu am 1.11. noch committet haben, wird mit getestet. Für 0.3.0 blockiert davon nichts.
+    Gebaut am 2.11. auf `claude/display-polish-03x-1a4e06`, dazu das Flackern beim Beenden (Mafia II) und ein
+    durchgehender Vorhang über alle automatischen Wege eines Starts (Control), live zu
+    prüfen (Schritte unter „Darstellung und Leistung“ › „Nach 0.3.0“); beim Pad bei „startet nicht?“ ist die
+    Ursache weiter offen, es gibt neue Log-Zeilen.
     In 0.3.0 gehört dagegen Unreals Treiber-Warnung unter D3DMetal 3.0: Das ist kein Anzeigefehler, ihr „Yes“
     beendet das Spiel. AMD-Liste erledigt (f177076), NVIDIA/Intel bei der Sicherheits-Sitzung.
   - **Kurz gespielt und beendet galt als Fehlstart** (1.11. 23:26, OxyRail und Mafia II; Zweig
@@ -604,28 +608,81 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
       (Prozesse, wer vorne ist mit PID und ob das Spiel, die Fenster des Spiels mit Größe und Layer, Bild,
       asks, Vorhang). „In front under the curtain“ nennt die PID, weil Steams Wine und das Spiel beide
       „Nightforge Game“ heißen.
-      Offen nach 0.3.0 (Entscheidung des Nutzers 1.11. abends: „kleine Anzeigefehler in weiteren Releases“),
-      Stand der Analyse am Code, nichts davon gebaut:
-      - Steam-Frage beim Start (Wukong 22:51, console_log: „waiting for user response to ShowInterstitials“):
-        Wartet Steam ≥ 3 s, setzt Nightforge `launchNeedsConfirmation` und öffnet Steams Hauptfenster selbst
-        (`showSteamWindow`, steam.exe ohne -silent; ebenso bei „Steam will die Anmeldung erneut“). Der
-        Vorhang-Wächter senkt dann den Vorhang und endet (`end("Steam asks something")`). Antwortet Steam
-        (`.continued`), hebt ihn niemand wieder: Der Rest des Starts läuft ohne Vorhang und ohne Wächter. Das
-        erklärt die fehlenden Vorhang-Zeilen und die nicht behandelte Treiber-Warnung in diesem Lauf. Steams
-        Hauptfenster bleibt offen und kommt nach dem Spielende vor Nightforges Vorhang nach vorne. Ohne
-        Steam-Frage öffnet Nightforge das Fenster nie (Steam läuft mit -silent), dann tritt das nicht auf.
-        Zu bauen: nach `.continued` den Vorhang samt Wächter wieder hoch; Steams Fenster wieder ausblenden,
-        sobald die Frage beantwortet ist (z. B. `hide()` der Steam-App, nicht beenden); beim Spielende den
-        Vorhang vor jedem anderen Fenster (Steam meldet „Game process removed“ in console_log, früher als
-        die Prozessliste). Mit Probe belegen.
-      - Zeiger bei Overcooked 2 mit 53b3346 im Ladebildschirm und im Spiel sichtbar, die Zeile „Curtain under a
-        window … asks something“ fehlt. 2770d2e hat das Verstecken nur dort ausgesetzt, wo das Spiel ein
-        kleines Fenster zeigt (`asks`) oder der Vorhang unter einer Frage liegt (`madeWay`). Ohne die Zeile
-        war `madeWay` nie gesetzt; `asks` hätte nur kurz greifen können, solange das Spiel nicht vorne war.
-        Wahrscheinlicher: `PadRules.padUsedLast` gilt nur 60 s nach dem letzten Pad-Druck. Ein längerer Start
-        (Steam neu, Shader) überschreitet das, dann versteckt Nightforge nichts. Prüfen mit den neuen
-        „Curtain look at“-Zeilen; ggf. die 60 s ab dem Start zählen, nicht ab dem letzten Druck.
-      - Pad bei „startet nicht?“: Ursache offen, Log-Zeilen sind da (siehe oben).
+      Nach 0.3.0 (Entscheidung des Nutzers 1.11. abends: „kleine Anzeigefehler in weiteren Releases“), gebaut am
+      2.11. auf `claude/display-polish-03x-1a4e06`, nur mit Tests geprüft, live zu prüfen:
+      - **Zeiger** (272061a): `PadRules.padUsedLast` galt nur 60 s nach dem letzten Pad-Druck und nur, solange
+        der Zeiger an derselben Stelle stand. Ein längerer Start, ein TV als neuer Hauptbildschirm (verschiebt
+        alle Koordinaten) oder Wine, das den Zeiger setzt, machten es falsch, und nichts versteckte ihn, bis das
+        Overlay einmal offen war. Jetzt zählt die Hardware: das Pad wurde nach der letzten echten Bewegung,
+        dem letzten Klick oder Scrollen von Maus/Trackpad benutzt (`CGEventSource`, HID-Zustand), ohne
+        Zeitgrenze. Unter dem Start-Vorhang wird der Zeiger außerdem gleich versteckt, wenn eine andere App als
+        das Spiel nach vorne kommt (Steam, Nightforge bei der Übergabe), beim Spiel wie bisher nach 1 s vorne.
+        Live: Overcooked 2 mit dem Pad starten (Maus nicht anfassen), auch einen Start über eine Minute (Steam
+        frisch, Shader): kein Zeiger auf dem Vorhang (höchstens kurz beim Wechsel der App) und keiner im Spiel,
+        ohne das Overlay zu öffnen. Am TV dasselbe. Maus bewegen: Zeiger kommt.
+      - **Steam-Frage beim Start** (c43d69e; Wukong 22:51, console_log „waiting for user response to
+        ShowInterstitials“): Der Vorhang-Wächter endete, sobald Steam fragte, und niemand hob den Vorhang wieder.
+        Jetzt geht der Vorhang für die Frage weg und kommt wieder, sobald sie beantwortet ist und der Start
+        weiterläuft (`LibraryModel.steamTurn`, auch für Steams Anmeldung nach einem Neustart); damit sieht der
+        Wächter auch danach die Fenster des Spiels (Treiber-Warnung). Steams Fenster wird nach der Antwort
+        ausgeblendet wie mit ⌘H (`SteamWindow.hide`, nichts wird beendet), ebenso beim Spielende, falls es noch
+        offen ist; vor dem nächsten Zeigen wieder eingeblendet (`SteamWindow.reveal`; winemac blendet die App
+        ohnehin ein, sobald Steam ein Fenster zeigt). Live: ein Spiel mit Steam-Frage (Wukong-Benchmark, sonst
+        eines mit EULA beim ersten Start): Frage sichtbar, nach der Antwort Vorhang wieder da, in `wine.log`
+        „Curtain away for …: Steam asks something“ und „Curtain up again for …: Steam's question is answered“,
+        danach weiter „Curtain look at …“. Die Treiber-Warnung liegt über dem Vorhang („Curtain under a window
+        … asks something“). Nach dem Spielende kein Steam-Fenster vor dem Vorhang. Bei der nächsten Steam-Frage
+        (oder Play, während Steam fragt) kommt Steams Fenster wieder.
+      - **Flackern beim Beenden** (e57bc63; Mafia II aus dem eigenen Menü beendet, 2.11.: kurz Nightforge,
+        dann Vorhang): Das Fenster des Spiels geht vor seinem Prozess, und winemac gibt die Front dabei nicht ab
+        (es deaktiviert eine App ohne Fenster nie). Zu sehen war das Fenster direkt dahinter, Nightforges, bis
+        der Prozess weg war und der Vorhang kam; in `wine.log` fehlte zu diesem Ende „In front under the
+        curtain“. Jetzt liegt die Seite hinter dem Spiel direkt über Nightforges Fenster, solange eine andere App
+        vorne ist (`GameBackdrop.arrange`). Kommt Nightforge nach vorne und das Spiel zeigt noch sein Fenster
+        (⌘-Tab, „Zu Nightforge“), geht sie sofort unter Nightforges Fenster; ohne Fenster des Spiels (macOS gibt
+        Nightforge die Front, weil das Spiel endet) bleibt sie, bis der Vorhang des Endes kommt, höchstens 3 s.
+        Live: Mafia II und Overcooked 2 aus dem Spielmenü beenden: Seite → „Zurück zu Nightforge …“ →
+        Nightforge, kein Bild von Nightforge dazwischen (Video mit 30+ fps hilft). Während eines Spiels ⌘-Tab zu
+        Nightforge: Nightforge sofort zu sehen, nicht die Seite; zurück ins Spiel per „Zum Spiel wechseln“.
+        Ein Spiel im Fenster: drumherum die Seite statt Nightforge.
+      - **Ein Vorhang über alle Wege eines Starts** (5d07e59; Control über Epic, 2.11. ~21:00, stürzt auf jedem
+        Weg sofort ab; Nutzer: „Ladescreen, Nightforge, hin- und hergespringe – das ist kein sauberer
+        Ladescreen“): Zwischen zwei Wegen galt das Ende wie jedes Spielende (`watchForGameEnd`: „Zurück zu
+        Nightforge …“, Nightforge nach vorn), der Wächter nahm den Vorhang weg, der nächste Weg hob ihn neu.
+        Jetzt bleibt der Vorhang, solange der Start seine ersten Sekunden beurteilt (`judging`, vom Start des
+        Spiels bis zum Urteil von `survivesFirstSeconds`) und das Spiel ohne Bild endet. Ein weiterer Weg hebt
+        ihn sofort wieder, über alles, was er vorher braucht (Engine, Laufzeiten, Steam-Neustart). Folgt keiner
+        mehr („nicht gestartet“, ein Ende, das als das des Spielers gilt, ein Fehler), kommt Nightforge wie nach
+        jedem Spiel zurück, auf die Spielseite (`finishJudging`). „Spiel beenden“ im Overlay und ein Ende nach
+        einem Bild bleiben normale Enden. Live: Control starten (Pad, Maus ruhig): durchgehend der Vorhang, die
+        Zeile wechselt auf „Neuer Start mit …“, kein Nightforge dazwischen; am Ende „Zurück zu Nightforge …“ und
+        die Spielseite mit „Control ist nicht gestartet“. In `wine.log` je Weg „Curtain watch for Control ends:
+        its processes are gone, the start decides what's next“, kein „the game ended“. Gegenprobe: ein Spiel,
+        das läuft, nach 10 s über das Overlay beenden: sofort „Zurück zu Nightforge …“ wie bisher. Zwischen
+        Absturz und nächstem Weg vergehen wie bisher etwa 10–20 s (`bringToFront`, `survivesFirstSeconds`).
+      - **Spiel, das sein Launcher mit bloßem Namen startet** (37599f2; Control über Epic, 2.11. 21:21, D3DMetal):
+        legendary startet `Control.exe` (Launcher, 90 KB), der `Control_DX11.exe -AUTH_LOGIN=… -epicapp=Calluna`
+        startet, ohne Ordner in der Befehlszeile. Wine startet jedes Programm mit launchd als Elternprozess, also
+        fand Nightforge es auch nicht unter dem Launcher. Mit dem Ende des Launchers galt das Spiel als beendet:
+        Vorhang weg, nichts holte das Spiel nach vorn, L3+R3 ging nicht, und das Beenden-Skript hätte die
+        Wine-Sitzung unter ihm beendet. Jetzt gehört ein Windows-Programm auch dann zum Spiel, wenn es aus dessen
+        Ordner läuft (Arbeitsordner, den Wine als Unix-Arbeitsordner setzt; nicht Windows' oder Steams eigene
+        Programme; `GameProcesses.runsFrom`). Eine Regel für alle Stellen: laufende Spiele (Spielzeit, Spielende,
+        Play, Overlay), Vorhang und Overlay, `Engine.windowsGameRunning`, `GameResolution`, die Skripte
+        `steam-shutdown` und `steam-priority` (per `lsof`). Live: Control (Optionen › D3DMetal) starten: Vorhang
+        bis zum Bild, das Spiel kommt nach vorn, L3+R3 öffnet das Overlay, „Spiel beenden“ beendet es, danach
+        „Zurück zu Nightforge …“ und die Spielzeit steigt. In `wine.log` kein „Curtain watch for Control ends:
+        the game ended“, solange es läuft; „Curtain look at Control“ nennt 1–2 Prozesse.
+      - **Pad bei „startet nicht?“** (84b4dca): Ursache weiter offen. Gefunden und behoben: Das Overlay setzte
+        die Markierung, indem es die Knöpfe auf dem Bildschirm suchte, eine Runde nach dem Öffnen. Beim ersten
+        Öffnen (oft „startet nicht?“) waren sie noch nicht angelegt, nichts war markiert, und das erste A zeigte
+        nur, wo man ist. Jetzt sitzt die Markierung per ID auf der sicheren Antwort (`GameOverlay.defaultButton`).
+        Neu in `wine.log`: jede Wahl, die beim Overlay ankommt („Overlay: resume on notStarting, … in front“, mit
+        „the panel without the keys“, wenn das Panel die Tasten verloren hat) und „Overlay: A with no button
+        highlighted“. Live: ein Spiel, das über eine Minute kein Bild zeigt (oder ein Start mit langer
+        Shader-Vorbereitung), bei „startet nicht?“ A, B und Steuerkreuz drücken. Geht es nicht: die Zeilen ab
+        „Overlay up (notStarting)“ zeigen, ob die Tasten Nightforge erreichen („the pad reaches Nightforge“) und
+        bis zum Overlay kommen.
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die

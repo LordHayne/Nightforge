@@ -21,14 +21,39 @@ enum SteamWindow {
         return nil
     }
 
+    /// Steam's windows out of sight, as ⌘H would – nothing quits, its question is answered. Opened
+    /// for a question before a start, Steam's window stayed and came forward when the game ended,
+    /// before Nightforge's curtain (1.11., Black Myth: Wukong).
+    @MainActor
+    static func hide() async {
+        for app in await helperApps() where !app.isHidden { app.hide() }
+    }
+
+    /// Back in sight before Steam is asked to show its window: in a hidden app it would stay hidden.
+    @MainActor
+    static func reveal() async {
+        for app in await helperApps() where app.isHidden { app.unhide() }
+    }
+
+    /// Steam's browser processes, which show its windows.
+    @MainActor
+    private static func helpers() async -> Set<pid_t> {
+        await Engine.offMain {
+            Set(Engine.ownProcesses().filter { $0.command.lowercased().contains("steamwebhelper") }.map(\.pid))
+        }
+    }
+
+    @MainActor
+    private static func helperApps() async -> [NSRunningApplication] {
+        await helpers().compactMap { NSRunningApplication(processIdentifier: $0) }.filter { $0.activationPolicy == .regular }
+    }
+
     /// Brings Steam's window to the front, trying for up to `seconds` while it appears. False when
     /// none came or Nightforge wasn't the active app (then it can't hand the front over).
     @MainActor @discardableResult
     static func bringForward(within seconds: Int = 10) async -> Bool {
         for _ in 0..<(seconds * 2) {
-            let helpers = await Engine.offMain {
-                Set(Engine.ownProcesses().filter { $0.command.lowercased().contains("steamwebhelper") }.map(\.pid))
-            }
+            let helpers = await helpers()
             let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
             if let pid = owner(of: windows, helpers: helpers), let app = NSRunningApplication(processIdentifier: pid) {
                 guard NSApp.isActive else { return false }  // the player has moved on to something else
