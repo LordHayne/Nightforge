@@ -179,6 +179,40 @@ struct GameOverlayTest {
         check(GameProcesses.question([window(401, 380, 330)], pids: game) == nil, "Nightforge's or Steam's own doesn't")
         check(GameProcesses.question([window(7000, 380, 330, number: 90), window(7000, 500, 200, number: 91)], pids: game) == 90,
               "two: the frontmost")
+
+        // macOS asks: Tomb Raider's access to its drive lay under the curtain (2.11.), drawn by
+        // UserNotificationCenter, and the player saw only "Not starting?".
+        let table = [
+            GameProcesses.Entry(pid: 78961, parent: 1, command: "/System/Library/CoreServices/UserNotificationCenter.app/Contents/MacOS/UserNotificationCenter"),
+            GameProcesses.Entry(pid: 59116, parent: 1, command: "/System/Library/CoreServices/CoreServicesUIAgent.app/Contents/MacOS/CoreServicesUIAgent"),
+            GameProcesses.Entry(pid: 31541, parent: 1, command: "/System/Library/PrivateFrameworks/UniversalAccess.framework/Versions/A/Resources/"
+                                + "universalAccessAuthWarn.app/Contents/MacOS/universalAccessAuthWarn launchd -s"),
+            GameProcesses.Entry(pid: 812, parent: 1, command: "/System/Library/Frameworks/Security.framework/Versions/A/MachServices/"
+                                + "SecurityAgent.bundle/Contents/MacOS/SecurityAgent"),
+            GameProcesses.Entry(pid: 900, parent: 1, command: "/System/Library/CoreServices/AuthorizationPromptService.app/Contents/MacOS/AuthorizationPromptService"),
+            GameProcesses.Entry(pid: 700, parent: 1, command: "/System/Library/CoreServices/NotificationCenter.app/Contents/MacOS/NotificationCenter"),
+            GameProcesses.Entry(pid: 701, parent: 1, command: "/System/Library/CoreServices/GameOverlayUI.app/Contents/MacOS/GameOverlayUI"),
+            GameProcesses.Entry(pid: 702, parent: 1, command: "/Users/x/Games/UserNotificationCenter.app/Contents/MacOS/UserNotificationCenter"),
+            GameProcesses.Entry(pid: 7000, parent: 1, command: "/Volumes/Nightforge Games/steamapps/common/Tomb Raider/Tomb Raider.app/Contents/MacOS/TombRaider"),
+        ]
+        let askers = GameProcesses.macOSAskers(in: table)
+        check(askers == [78961, 59116, 31541, 812, 900],
+              "macOS's askers: TCC's (UserNotificationCenter, AuthorizationPromptService), Gatekeeper's, Accessibility's, the password's")
+        check(!askers.contains(700), "the notifications' banners ask nothing")
+        check(!askers.contains(701), "nor Apple's Game Overlay")
+        check(!askers.contains(702), "nor a program named like one outside the system")
+        check(!askers.contains(7000), "nor the game")
+        check(GameProcesses.macOSQuestion([window(78961, 420, 190, layer: 8, number: 120)], askers: askers) == 120,
+              "the drive's permission: its window")
+        check(GameProcesses.macOSQuestion([window(812, 420, 260, layer: 1000, number: 121)], askers: askers) == 121,
+              "a password's, however high it lies")
+        check(GameProcesses.macOSQuestion([window(7000, 420, 190, number: 122)], askers: askers) == nil, "the game's own isn't macOS's")
+        check(GameProcesses.macOSQuestion([window(78961, 420, 190, alpha: 0)], askers: askers) == nil, "an invisible one doesn't")
+        check(GameProcesses.macOSQuestion([window(78961, 40, 20)], askers: askers) == nil, "nor a sliver")
+        check(GameProcesses.macOSQuestion([window(78961, 420, 190, layer: -20)], askers: askers) == nil, "nor one below the windows")
+        check(GameProcesses.macOSQuestion([], askers: askers) == nil, "nothing asks: none")
+        check(GameProcesses.macOSQuestion([window(78961, 420, 190, number: 123), window(59116, 500, 300, number: 124)], askers: askers) == 123,
+              "two: the frontmost")
     }
 
     /// The curtain at each look: down only once the game itself is in front, and up again when
@@ -261,6 +295,10 @@ struct GameOverlayTest {
         check(line(shaders: true, runs: true, window: true) == nil, "its window is there: nothing more to say")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true)
               == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true,
+                                         macOSAsks: true)
+              == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),
+              "macOS asks: said, before the game's question and any step")
     }
 
     /// The loading screen's N: drawn at the screen's scale, its seam left out for the layer on top.
