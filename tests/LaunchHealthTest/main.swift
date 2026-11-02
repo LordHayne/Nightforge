@@ -96,6 +96,18 @@ struct LaunchHealthTest {
         UserDefaults.standard.set(true, forKey: "health.dxmtFailed.\(app.key)")
         check(LaunchHealth.current(app, ladder).index == 1, "0.2's \"DXMT failed\" carries over")
         check(UserDefaults.standard.object(forKey: "health.dxmtFailed.\(app.key)") == nil, "the old key is gone")
+        // D3DMetal added at the end of every DirectX 11 ladder (2.11.2026): what was learned before holds.
+        LaunchHealth.reset(app)
+        _ = LaunchHealth.advance(app, ladder)
+        LaunchHealth.confirm(app, ladder)
+        let grown = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil, d3dMetal: true)
+        check(grown.map(\.id) == ["dxmt", "dxvk", "d3dmetal"] && LaunchHealth.current(app, grown) == (1, true),
+              "a ladder that only grew at the end keeps the learned way: DXVK, confirmed")
+        check(LaunchHealth.peek(app, grown).map { $0.index == 1 && $0.confirmed } == true, "…also when only looked at")
+        check(LaunchHealth.advance(app, grown) && LaunchHealth.current(app, grown) == (2, false), "DXVK failing then moves on to D3DMetal")
+        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt"],
+              "a profile's D3DMetal for a DirectX 11 game comes once")
+        LaunchHealth.reset(app)
 
         // MARK: What a game taught Nightforge (kept under a game ID no store has, removed again)
         let taught = GameID.steam(990_003)

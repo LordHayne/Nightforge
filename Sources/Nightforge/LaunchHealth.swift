@@ -103,7 +103,8 @@ enum LaunchHealth {
             // D3DMetal is the last resort: Direct3D 12 for games that would pick it, Apple's Direct3D
             // 11 for the rest – Control's DX11 build ends at once on DXMT and DXVK (2.11.2026).
             if d3dMetal {
-                list.append(LaunchAttempt(graphics: .d3dmetal))
+                // Once: a profile's D3DMetal is first already.
+                if !list.contains(where: { $0.graphics == .d3dmetal }) { list.append(LaunchAttempt(graphics: .d3dmetal)) }
             } else if !arguments.isEmpty {
                 list.append(LaunchAttempt(graphics: first))
             }
@@ -160,12 +161,21 @@ enum LaunchHealth {
 
     private static func key(_ game: GameID) -> String { "launchHealth.\(game.key)" }
 
+    /// What's saved for the game, if it holds for `ladder`: the same ways, or the same with more
+    /// added at the end – D3DMetal as every DirectX 11 game's last way (2.11.2026) mustn't make a
+    /// game that learned DXVK start over on DXMT. Any other change starts over.
+    private static func saved(_ game: GameID, for ladder: [String]) -> State? {
+        guard let data = UserDefaults.standard.data(forKey: key(game)),
+              var state = try? JSONDecoder().decode(State.self, from: data),
+              state.ladder == ladder || (!state.ladder.isEmpty && ladder.starts(with: state.ladder))
+        else { return nil }
+        state.ladder = ladder
+        return state
+    }
+
     private static func load(_ game: GameID, _ attempts: [LaunchAttempt]) -> State {
         let ladder = attempts.map(\.id)
-        if let data = UserDefaults.standard.data(forKey: key(game)),
-           let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == ladder {
-            return state
-        }
+        if let state = saved(game, for: ladder) { return state }
         var state = State(ladder: ladder)
         // Up to 0.2: only "DXMT failed, DXVK from now on" was remembered.
         let legacy = "health.dxmtFailed.\(game.key)"
@@ -189,9 +199,7 @@ enum LaunchHealth {
 
     /// How it stands without touching what's saved: nil when the game hasn't been started this way yet.
     static func peek(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool)? {
-        guard let data = UserDefaults.standard.data(forKey: key(game)),
-              let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == attempts.map(\.id)
-        else { return nil }
+        guard let state = saved(game, for: attempts.map(\.id)) else { return nil }
         return (min(state.index, max(attempts.count - 1, 0)), state.trusted)
     }
 
