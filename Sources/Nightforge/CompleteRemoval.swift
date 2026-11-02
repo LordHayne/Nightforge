@@ -129,7 +129,12 @@ enum CompleteRemoval {
         }
         let saves = try await Task.detached(priority: .userInitiated) { try remove() }.value
         if let saves { NSWorkspace.shared.activateFileViewerSelecting([saves]) }
-        _ = try? await NSWorkspace.shared.recycle([Bundle.main.bundleURL])
+        // FileManager rather than NSWorkspace.recycle, which goes through the Finder. With its own
+        // bundle in the Bin, Nightforge stayed open on "Removing …" and took no Quit, not even one
+        // from outside (Mac mini and MacBook, 2.11.2026). Nothing of it is left to save, so if
+        // AppKit doesn't get round to quitting, it ends anyway.
+        try? FileManager.default.trashItem(at: Bundle.main.bundleURL, resultingItemURL: nil)
         NSApp.terminate(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { exit(0) }
     }
 }
