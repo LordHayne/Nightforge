@@ -278,6 +278,12 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(3))  // after the window and Steam got going
             availableUpdate = await Updater.check()
         }
+        // Where the page behind a game goes when Nightforge comes to the front: behind Nightforge's
+        // window while the game shows its own, over it a moment longer when the game is ending.
+        GameBackdrop.gameShowsWindow = { [weak self] in
+            guard let self else { return false }
+            return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
+        }
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
