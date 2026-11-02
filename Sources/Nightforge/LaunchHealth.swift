@@ -26,18 +26,21 @@ enum LaunchHealth {
     /// Nightforge's Vulkan layer (DXVK and Vulkan games) log the frame rate 10 s after the first
     /// one – the layer only where the engine has a Vulkan loader, not under winecx. Where nothing
     /// logs frames (Wine's own Direct3D, D3DMetal, DXVK on winecx), a game still running after
-    /// this long counts. One that ends before, without a frame, stays unconfirmed – on the same
-    /// way: what stopped it needn't be the graphics.
+    /// this long counts – once it has shown a picture (`showedPicture`, the curtain sank for its
+    /// window). Without one it's still being watched: Overwatch sat there without a window at 0 %
+    /// CPU on D3DMetal, and three minutes of that confirmed the way (1.11.2026). One that ends
+    /// before, without a frame, stays unconfirmed – on the same way: what stopped it needn't be
+    /// the graphics.
     static let drawingWindow: TimeInterval = 180
 
     enum Verdict: Equatable {
         case working, ended, watching
     }
 
-    static func verdict(drewFrames: Bool, running: Bool, ranFor: TimeInterval) -> Verdict {
+    static func verdict(drewFrames: Bool, showedPicture: Bool, running: Bool, ranFor: TimeInterval) -> Verdict {
         if drewFrames { return .working }
         if !running { return .ended }
-        return ranFor >= drawingWindow ? .working : .watching
+        return ranFor >= drawingWindow && showedPicture ? .working : .watching
     }
 
     /// What a watched start does to its way.

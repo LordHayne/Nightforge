@@ -111,7 +111,67 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   „läuft schlecht“ hielt, sollte es erneut versuchen (z. B. Marvel Rivals).
 - **msync (PR #1)** ist auf 11.18 portiert. winecx bringt ein eigenes msync mit, der Patch greift dort nicht.
   Klären, ob der 11.18-Weg noch gebraucht wird. Unter winecx meldet das Log bei jedem Steam-Start
-  `msync: up and running` (Test vom 28.10.), also ist dessen eigenes msync aktiv.
+  `msync: up and running` (Test vom 28.10.), also ist dessen eigenes msync aktiv. Beide haben denselben Fehler beim
+  Thread-Ende (unten „Engine-Arbeit“).
+
+## Engine-Arbeit (ab 0.3.x, seit 2.11.)
+
+Der Nutzer hat am 2.11. entschieden: Wichtige Engine-Verbesserungen kommen in 0.3.x, sobald etwas eindeutig nicht läuft,
+nicht erst mit 0.4. Deshalb ist die Arbeit in Stücke geschnitten. Jedes lässt sich für sich mergen, und bei jedem steht,
+ob es ein App-Release braucht oder über die Profil- bzw. Komponentenliste zu den Spielern kommt.
+
+- **Stück A, Overwatch** (Zweig `claude/engine-04-overwatch`): `GameAnalysis` (DXMT zuerst), `LaunchHealth` (kein
+  „läuft“ ohne Fenster), die Testschalter. **Braucht ein App-Release (0.3.x).** Über die Profilliste allein geht es
+  nicht: 0.3.0 wertet bei „nur DirectX 12“ das `graphics` eines Profils gar nicht aus. Das `notYet` im Profil fällt über die
+  Profilliste weg, sobald der Live-Test grün ist **und** das 0.3.x mit diesem Stück draußen ist. Vorher liefe Overwatch
+  unter 0.3.0 wieder auf D3DMetal.
+
+### Overwatch hängt beim Start
+
+Befund vom 1.11.: `Overwatch.exe` läuft ohne Fenster bei 0 % CPU (Steam-Fassung, auf `/Volumes/Nightforge Games`).
+Laut `docs/recherche/engine-crossover26.md` liegt es nicht an einer alten Engine (4.7.3 enthält CrossOver 26.3 und
+Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen gefunden:
+
+- **Overwatch lief nur auf D3DMetal (behoben).** `Overwatch.exe` importiert nur `Overwatch_loader.dll`, und erst die
+  importiert `d3d11.dll`/`dxgi.dll`. Der Ordner `D3D12/D3D12Core.dll` (Agility SDK) hat `GameAnalysis` „nur DirectX 12“
+  sagen lassen, bevor sie die Loader-DLL ansah. Folge: Die Leiter war `['d3dmetal']`, ohne DXMT oder DXVK, und die
+  Optionen boten keine Grafikwahl. Jetzt zählt das Agility SDK erst am Ende dazu: Overwatch ist DirectX 11 + 12, die
+  Leiter ist DXMT → DXVK → D3DMetal. Test in `tests/GameAnalysisTest`.
+- **Der Hänger galt als „läuft“ (behoben).** D3DMetal schreibt keine FPS-Zeilen, also zählten 180 s Laufzeit als
+  Beweis. Gespeichert war `confirmed: true`. Jetzt zählen die 180 s nur, wenn der Vorhang für ein Spielfenster gesunken
+  ist (`LaunchHealth.verdict(…, showedPicture:)`). Ein Start ohne Fenster bleibt unbestätigt. Er schaltet aber auch nicht
+  weiter, das wäre der nächste Schritt (unten bei „Später“).
+- **Kandidat msync:** Im winecx-Baum `e0aa380` steht in `alert_fd` unter msync eine msync-Objektnummer.
+  `pthread_exit_wrapper` (`dlls/ntdll/unix/thread.c`) schließt sie trotzdem mit `close()`. Damit schließt jeder Thread
+  an seinem Ende eine fremde Datei des Prozesses mit dieser Nummer. Liest das Spiel danach aus einem solchen Archiv, schlägt
+  das fehl. Wurde die Nummer inzwischen von einer Pipe belegt, wartet der Lesevorgang für immer: 0 % CPU. Den Fix bringt
+  Stück B (`enginefix`). Ob das Overwatch trifft, zeigt erst der Test.
+- **Kandidat D3DMetal unter Rosetta:** D4Mac fand den hängenden Thread der Blizzard-Spiele in `os_sync_wait_on_address` in
+  Apples `libd3dshared.dylib`. Mit DXMT ist D3DMetal nicht im Spiel.
+- **Live-Test offen**, Plan im Notizordner der Sessions (`overwatch-engine-04.md`). Die Varianten: A DXMT mit msync,
+  B DXMT ohne msync, C D3DMetal ohne msync, D DXMT mit `enginefix`. Bei einem Hänger jeweils `sample` des Prozesses
+  und den Teil von `Logs/wine.log` ab Start. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
+
+### Engine-Tests (versteckte Schalter, ohne Knopf in der App)
+
+Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, wenn kein Spiel läuft.
+
+- `defaults write io.github.lordhayne.nightforge msync -bool false`: Wine ohne msync (`WINEMSYNC=0`). Beim nächsten Start
+  beendet Nightforge die laufende Wine-Sitzung samt Steam, weil eine Sitzung nur mit oder nur ohne msync laufen kann.
+  `wine.log` meldet dann „msync off from this Wine session on“. Zurück mit
+  `defaults delete io.github.lordhayne.nightforge msync`.
+- `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
+  `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
+  danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+
+### Später (nicht angefangen)
+
+- Den Pin auf winecx 4.7.4 oder 4.8.1 heben, wenn dappermint/winecx-gptk#24 geklärt ist. Dabei `gamepad.yml` mitziehen.
+- Ein Issue bei dappermint: der `alert_fd`-Fix, dazu die Bitte um eine 11.21-Lane oder den Downmix.
+- Selbstheilung bei einem Hänger ohne Fenster: Läuft ein Weg drei Minuten ohne Bild und beendet der Spieler das Spiel,
+  könnte Nightforge zum nächsten Weg gehen. Heute bleibt der Weg nur unbestätigt.
+- Den msync-Fix in `wine-11.18-msync.patch` nachziehen, falls die Gcenx-Engine `wine` bleibt (eine Änderung dort baut
+  über `graphics.yml` ein neues Grafikpaket).
 
 ## DirectX 12 (D3DMetal)
 

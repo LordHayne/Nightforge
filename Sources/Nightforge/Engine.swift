@@ -113,6 +113,7 @@ enum Engine {
         "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
             + launchEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launchRetina ? "-retina" : "")
+            + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
     }
 
     /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
@@ -541,6 +542,7 @@ enum Engine {
             if gameRunning || windowsGameRunning { return old }
             stopAll(old)
         }
+        if !gameRunning, !windowsGameRunning { applyMsyncMode(wine) }
         // On winecx, D3DMetal takes the engine's Direct3D builtins and DXMT and DXVK move into the
         // prefix as native DLLs (see `layerOverrides`).
         let gptk = isGPTKCapable(wine: wine)
@@ -722,7 +724,7 @@ enum Engine {
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid())]
+                             String(getpid()), msync ? "1" : "0"]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -731,13 +733,13 @@ enum Engine {
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
-    /// process of the Nightforge that is quitting.
+    /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`).
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
-        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"
+        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"; MSYNC="${7:-1}"
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
@@ -793,7 +795,7 @@ enum Engine {
         fi
         [ -n "$WINE" ] || exit 0
         # WINEMSYNC like every other Wine process of the session (Engine.environment).
-        export WINEPREFIX="$PREFIX" WINEDEBUG=-all WINEMSYNC=1
+        export WINEPREFIX="$PREFIX" WINEDEBUG=-all WINEMSYNC="$MSYNC"
         # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
         # away): asked again before each step that would end the session.
         reopened && exit 0
@@ -1752,6 +1754,26 @@ enum Engine {
         return FileManager.default.isExecutableFile(atPath: loader.path) ? loader : wine
     }
 
+    /// msync for every Wine session, unless an engine test turns it off with `defaults write
+    /// io.github.lordhayne.nightforge msync -bool false` (docs/TODO.md › Engine-Tests; there's no
+    /// switch in the app). Read once per app run: every process of a session has to agree with its
+    /// wineserver, and `applyMsyncMode` ends a session started the other way.
+    static let msync = UserDefaults.standard.object(forKey: "msync") as? Bool ?? true
+
+    /// Whether a session started with msync as `session` says (nil: before this was noted, when
+    /// every session had it) has to end for one that wants it as `wanted`.
+    static func msyncSessionEnds(wanted: Bool, session: Bool?) -> Bool { (session ?? true) != wanted }
+
+    /// Ends the Wine session when it began with msync the other way round from `msync`. Not under
+    /// a running game – the caller makes sure of that.
+    static func applyMsyncMode(_ wine: URL, defaults: UserDefaults = .standard) {
+        let key = "msyncSession"
+        guard msyncSessionEnds(wanted: msync, session: defaults.object(forKey: key) as? Bool) else { return }
+        if !ownProcesses().isEmpty { stopAll(wine) }
+        defaults.set(msync, forKey: key)
+        GameLog.note("msync \(msync ? "on" : "off") from this Wine session on (engine test switch)")
+    }
+
     static func environment(wine: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         // Keeps Steam's own processes out of the Dock (wrapper/hide-steam-dock.m); games are untouched.
@@ -1762,7 +1784,7 @@ enum Engine {
         env["WINEPREFIX"] = prefix.path
         // msync (installMsync); every Wine process of the session, wineserver included, has to agree,
         // so it's in the environment all of them start with. Engines without it ignore it.
-        env["WINEMSYNC"] = "1"
+        env["WINEMSYNC"] = msync ? "1" : "0"
         env["WINEDEBUG"] = "-all"
         // Gecko/Mono installers would otherwise pop up dialogs during setup.
         env["WINEDLLOVERRIDES"] = "mscoree,mshtml="

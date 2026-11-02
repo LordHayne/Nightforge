@@ -63,6 +63,13 @@ wenn sie einer Version zugeordnet sind.
         über 26.5. Der Overwatch-Hänger liegt deshalb nicht an einer alten Engine. Zuerst Overwatch mit DXMT statt
         D3DMetal testen und ohne msync. Im CX-26.3-Baum gibt es einen nachgewiesenen msync-Fehler: `alert_fd` wird
         beim Thread-Ende geschlossen.
+      - **Nicht erst mit 0.4** (Nutzer, 2.11.): Wichtige Engine-Verbesserungen kommen in 0.3.x, sobald etwas eindeutig
+        nicht läuft. Jedes Stück lässt sich für sich mergen und sagt, ob es ein App-Release braucht oder über die
+        Profil- bzw. Komponentenliste kommt (`docs/TODO.md` › Engine-Arbeit).
+      - **Befund 2.11.** (Stück A, Zweig `claude/engine-04-overwatch`, braucht ein App-Release): Overwatch lief nur auf
+        D3DMetal, weil Nightforge es für ein reines DX12-Spiel hielt. Das ist behoben, jetzt kommt DXMT zuerst. Der
+        Hänger galt außerdem nach drei Minuten als „läuft“, auch das ist behoben. Der msync-Fehler ist im Code
+        bestätigt. Der Live-Test mit DXMT, ohne msync und mit dem msync-Fix steht noch aus.
       - Eigene Unix-Module über die gepinnte winecx 4.7.3, nach dem Vorbild von `gamepad.yml`:
         - `ntdll.so` mit dem msync-Fix
         - `winecoreaudio.so` mit dem SpatialMixer-Downmix aus Wine 11.21 (gegen den Hall am AV-Receiver)

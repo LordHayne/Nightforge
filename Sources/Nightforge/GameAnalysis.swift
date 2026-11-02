@@ -83,6 +83,12 @@ extension GameAnalysis {
         if let largest = programs.max(by: { size($0) < size($1) }) { targets.append(largest) }
 
         var engineLibraries: [URL] = []
+        // Direct3D 12's Agility SDK ships as D3D12Core.dll in a folder next to the game. It says the
+        // game can draw with Direct3D 12, not that it does nothing else: what its programs link
+        // still decides the rest, so it's only added at the end (Overwatch.exe links nothing but
+        // Overwatch_loader.dll, which links Direct3D 11 – taken for a pure DirectX 12 game, it ran
+        // on D3DMetal alone, 1.11.2026).
+        var agilitySDK = false
         for (index, file) in targets.enumerated() where fm.fileExists(atPath: file.path) {
             if index == fallback, !analysis.apis.isEmpty || analysis.engine == .unity { break }
             guard let imports = PEImports.dlls(of: file) else { continue }
@@ -95,9 +101,8 @@ extension GameAnalysis {
                 .filter { dll in !middleware.contains { dll.hasPrefix($0) } && !dll.hasPrefix("api-ms-") }
                 .compactMap { existingFile(folder.appendingPathComponent($0)) }
                 .filter { size($0) > 3_000_000 }
-            // Direct3D 12's Agility SDK ships as D3D12Core.dll in a folder next to the game.
             if ["D3D12/D3D12Core.dll", "D3D12Core.dll"].contains(where: { existingFile(folder.appendingPathComponent($0)) != nil }) {
-                analysis.apis.insert(.d3d12)
+                agilitySDK = true
             }
             if existingFile(folder.appendingPathComponent("UnityPlayer.dll")) != nil { analysis.engine = .unity }
         }
@@ -116,6 +121,7 @@ extension GameAnalysis {
         if analysis.apis.isEmpty, contents.hasItem(named: "shaderapidx9.dll") {
             analysis.apis.insert(.d3d9)
         }
+        if agilitySDK { analysis.apis.insert(.d3d12) }
         if analysis.engine == .other, programs.contains(where: { $0.lastPathComponent.lowercased().contains("-win64-shipping") })
             || fm.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path) {
             analysis.engine = .unreal

@@ -212,7 +212,7 @@ struct LaunchHealthTest {
         check(!LibraryModel.mayStart(launching: true, startsAgain: false), "the player's own start in progress: one at a time")
         check(LibraryModel.mayStart(launching: true, startsAgain: true), "Nightforge starting a game again another way gives way to a Play")
         // The player plays 2 minutes on D3DMetal (no frame lines), then quits.
-        check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 120)) == .keep,
+        check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: false, ranFor: 120)) == .keep,
               "two minutes without a frame line: the confirmation stays")
         check(LaunchHealth.afterFirstSeconds(.working) == .confirm && LaunchHealth.afterFirstSeconds(.watching) == .keep, "drew: confirmed")
         LaunchHealth.confirm(mafia, d3d9)
@@ -371,11 +371,16 @@ struct LaunchHealthTest {
                                       programs: ["Overcooked2.exe"]), "DXMT: drawing")
         check(!LaunchHealth.drewFrames(in: "info:  [nightforge-dxmt] Overcooked2: 55.0 FPS over 10 s, frames 18.2 ms on average, slowest 788 ms",
                                        programs: ["mafia2.exe"]), "another game's frames don't count")
-        check(LaunchHealth.verdict(drewFrames: true, running: true, ranFor: 35) == .working, "frames: confirmed")
-        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: 60) == .watching, "running without a frame yet: still watching")
-        check(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 62) == .ended, "ended after a minute without a frame: not confirmed")
-        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: LaunchHealth.drawingWindow) == .working,
-              "nothing logs frames (wined3d, D3DMetal): three minutes of running count")
+        check(LaunchHealth.verdict(drewFrames: true, showedPicture: false, running: true, ranFor: 35) == .working, "frames: confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: true, ranFor: 60) == .watching,
+              "running without a frame yet: still watching")
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: false, ranFor: 62) == .ended,
+              "ended after a minute without a frame: not confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: true, ranFor: LaunchHealth.drawingWindow) == .working,
+              "nothing logs frames (wined3d, D3DMetal): three minutes of running with a picture count")
+        // Overwatch on D3DMetal (1.11.2026): no window, 0 % CPU – three minutes of that aren't working.
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: false, running: true, ranFor: LaunchHealth.drawingWindow * 2) == .watching,
+              "running without ever showing a window: still watching, not confirmed")
         LaunchHealth.reset(app)
         LaunchHealth.recordStart(app, ladder, at: now)
         session(seconds: 70, startedAt: now)

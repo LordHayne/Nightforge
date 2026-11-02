@@ -7,8 +7,19 @@ enum GameLog {
     static var url: URL { Engine.supportDir.appendingPathComponent("Logs/wine.log") }
 
     /// Wine's own messages that help: libraries a program can't load, and .NET without Mono.
-    /// Everything else stays quiet.
-    static let wineDebug = "-all,err+module,err+mscoree"
+    /// Everything else stays quiet – unless an engine test asks for more (`extraWineDebug`).
+    static let wineDebug = "-all,err+module,err+mscoree" + (extraWineDebug.map { "," + $0 } ?? "")
+
+    /// Wine debug channels an engine test adds, with `defaults write io.github.lordhayne.nightforge
+    /// wineDebug -string "+loaddll,+timestamp,+pid,+tid"` (docs/TODO.md › Engine-Tests; there's no
+    /// switch in the app). Read once per app run; the background Steam restarts for it
+    /// (Engine.steamConfigSignature). Only channel lists count: letters, digits and + - , _.
+    static let extraWineDebug = extraChannels(UserDefaults.standard.string(forKey: "wineDebug"))
+
+    static func extraChannels(_ value: String?) -> String? {
+        guard let value, !value.isEmpty, value.wholeMatch(of: #/[A-Za-z0-9+\-,_]+/#) != nil else { return nil }
+        return value
+    }
 
     /// Not a winetricks verb: Wine Mono, which Nightforge installs itself (Engine.installWineMono).
     static let wineMono = "wine-mono"
