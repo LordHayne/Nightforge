@@ -44,6 +44,37 @@
     });
   });
 
+  // The download buttons fetch the newest DMG straight away, and the line under them names its version.
+  // Without an answer from GitHub everything stays as written: the buttons open the release page.
+  var dmgLinks = document.querySelectorAll('[data-dmg]');
+  if (dmgLinks.length && window.fetch) {
+    fetch('https://api.github.com/repos/LordHayne/Nightforge/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (release) {
+        var dmg = release && (release.assets || []).filter(function (asset) { return /\.dmg$/.test(asset.name); })[0];
+        if (!dmg) return;
+        dmgLinks.forEach(function (link) {
+          link.href = dmg.browser_download_url;
+          // At the top, the download starts and the page goes on to what comes next: opening it.
+          if (link.getAttribute('data-dmg') === 'show-install') {
+            link.addEventListener('click', function () {
+              var install = document.getElementById('install');
+              var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+              if (install) install.scrollIntoView({ behavior: still ? 'auto' : 'smooth' });
+            });
+          }
+        });
+        var version = String(release.tag_name || '').replace(/^v/, '');
+        var megabytes = (dmg.size / 1e6).toFixed(1);
+        document.querySelectorAll('[data-release-version]').forEach(function (el) { if (version) el.textContent = version; });
+        document.querySelectorAll('[data-release-size]').forEach(function (el) {
+          var de = el.closest('[lang]') && el.closest('[lang]').getAttribute('lang') === 'de';
+          el.textContent = de ? megabytes.replace('.', ',') : megabytes;
+        });
+      })
+      .catch(function () {});
+  }
+
   document.querySelectorAll('[data-copy]').forEach(function (button) {
     button.addEventListener('click', function () {
       var text = document.getElementById(button.getAttribute('data-copy')).textContent.trim();

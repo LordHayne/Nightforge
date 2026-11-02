@@ -450,6 +450,7 @@ b { font-weight: 600; color: var(--text); }
 .install-icon { width: 120px; height: 120px; margin-bottom: 26px; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.7)); }
 .install .lede { margin-top: 16px; }
 .cta-center { margin-top: 34px; }
+.release-line { margin-top: 14px; color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
 .term-label { margin-top: 44px; color: var(--text-2); font-size: 15px; }
 .term {
   display: flex; align-items: center; gap: 10px;
