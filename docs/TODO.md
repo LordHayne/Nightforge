@@ -125,8 +125,8 @@ ob es ein App-Release braucht oder über die Profil- bzw. Komponentenliste zu de
   nicht: 0.3.0 wertet bei „nur DirectX 12“ das `graphics` eines Profils gar nicht aus. Das `notYet` im Profil fällt über die
   Profilliste weg, sobald der Live-Test grün ist **und** das 0.3.x mit diesem Stück draußen ist. Vorher liefe Overwatch
   unter 0.3.0 wieder auf D3DMetal.
-- **Stück C, Control** (Zweig `claude/engine-04-control`, auf Stück A): DX12-Programm erkennen, Programmwahl, D3DMetal für
-  Spiele mit DX11- und DX12-Fassung, Epic-Profile beim Start. **Braucht ein App-Release (0.3.x).** Das Control-Profil
+- **Stück C, Control** (Zweig `claude/engine-04-control`, auf Stück A): DX12-Programm erkennen, Programmwahl,
+  Epic-Profile beim Start. **Braucht ein App-Release (0.3.x).** Das Control-Profil
   (`epic.calluna`, `gog.2049187585`) kommt über die Profilliste, wirkt aber erst mit diesem Release: 0.3.0 startet
   Epic-Spiele ohne Profil und kennt `Control_DX12.exe` nicht.
 
@@ -146,8 +146,9 @@ Gebaut:
   D3DMetal das DX12-Programm, sonst das des Stores. Nur für Epic und GOG, die Nightforge selbst startet. Epics
   Anmeldeparameter gehen mit, ein anderes Programm läuft in seinem eigenen Ordner. `wine.log` meldet
   „<Spiel> starts Control_DX12.exe on d3dmetal instead of Control.exe“.
-- Optionen: D3DMetal ist für Spiele mit DirectX 11 und 12 wählbar. Wer es ausdrücklich wählt, bei dem bekommt Unreal
-  `-dx12` und Unity `-force-d3d12`. Für Epic- und GOG-Spiele mit 2 bis 4 Programmen gibt es die Zeile „Programm“ (Automatisch oder eines
+- Optionen: D3DMetal ist seit de1f146 (koordinierende Session) für jedes DX11-Spiel wählbar und dessen letzter Weg, sobald
+  es eingerichtet ist. Live: `Control_DX11.exe` läuft darauf. Wer D3DMetal ausdrücklich wählt, bei dem bekommt Unreal
+  `-dx12` und Unity `-force-d3d12`, und die Erklärzeile sagt, was D3DMetal zeichnet. Für Epic- und GOG-Spiele mit 2 bis 4 Programmen gibt es die Zeile „Programm“ (Automatisch oder eines
   davon).
 - Die D3DMetal-Frage kommt auch, wenn das Profil D3DMetal nennt und das Spiel ein eigenes DX12-Programm hat.
 - Epic-Spiele starten jetzt mit ihrem Profil (`epic.<namespace>`, der Namespace aus `Epic/library.json`). Davon
@@ -157,6 +158,9 @@ Gebaut:
   nächtliche Lauf `profiles.json` neu schreibt. Dann einfach neu bauen lassen.
 - Die Leiter selbst bleibt, wie sie war (D3DMetal ohne Argumente). So behalten Wukong und The Last Caretaker ihren
   bestätigten Weg.
+- `LaunchHealth` (eigener Commit, lässt sich allein übernehmen): Bisher fing ein Spiel mit geänderter Leiter von vorn an.
+  Wächst die Leiter nur am Ende (D3DMetal als letzter DX11-Weg), behält das Spiel jetzt, was es gelernt hat. Ohne das
+  wäre jedes DX11-Spiel einmal auf DXMT zurückgefallen, auch eines, das DXVK gelernt hatte.
 
 Live-Test (der Nutzer setzt die Grafik vorher auf „Automatisch“): Control (Epic) starten. Ist D3DMetal nicht
 eingerichtet, kommt erst die Frage danach. Dann muss `Control_DX12.exe` auf D3DMetal laufen, siehe die Zeile in
