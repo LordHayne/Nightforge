@@ -61,7 +61,7 @@ struct LaunchHealthTest {
               "Unreal: DirectX 11 on DXMT first, DirectX 12 on D3DMetal last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"],
               "unknown engine with DirectX 12: D3DMetal after the DirectX 11 ladder")
-        check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk"], "DirectX 11 only: unchanged")
+        check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "DirectX 11 only: D3DMetal's Direct3D 11 last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: true)
               == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"], "a profile that measured DirectX 12 better starts there, without -dx11")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: false).first == "dxmt -dx11",
@@ -73,7 +73,7 @@ struct LaunchHealthTest {
         // MARK: State
         let appID = 990_001
         let app = GameID.steam(appID)
-        let ladder = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil)
+        let ladder = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil, d3dMetal: false)
         LaunchHealth.reset(app)
         check(LaunchHealth.current(app, ladder) == (0, false), "starts at the first way")
         LaunchHealth.recordStart(app, ladder)

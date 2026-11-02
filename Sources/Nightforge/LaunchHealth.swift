@@ -81,7 +81,8 @@ enum LaunchHealth {
     }
 
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
-    /// Direct3D 12 runs on a Mac (DirectX 11 stays with DXMT and DXVK, which run it better).
+    /// Direct3D 12 runs on a Mac. DirectX 11 tries DXMT and DXVK first, which run it better, and
+    /// D3DMetal (which runs Direct3D 11 too) last.
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
                          d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, profile?.graphics == .d3dmetal {
@@ -95,8 +96,9 @@ enum LaunchHealth {
             let first = profile?.graphics.flatMap { $0 == .d3dmetal && !d3dMetal ? nil : $0 } ?? Engine.defaultGraphics
             let second: GraphicsLayer = first == .dxmt ? .dxvk : .dxmt
             var list = [LaunchAttempt(graphics: first, arguments: arguments), LaunchAttempt(graphics: second, arguments: arguments)]
-            // Direct3D 12 is the last resort for games that would pick it.
-            if d3dMetal, analysis.apis.contains(.d3d12) {
+            // D3DMetal is the last resort: Direct3D 12 for games that would pick it, Apple's Direct3D
+            // 11 for the rest – Control's DX11 build ends at once on DXMT and DXVK (2.11.2026).
+            if d3dMetal {
                 list.append(LaunchAttempt(graphics: .d3dmetal))
             } else if !arguments.isEmpty {
                 list.append(LaunchAttempt(graphics: first))

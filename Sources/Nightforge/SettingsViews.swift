@@ -358,11 +358,12 @@ private extension GameOptionsSheet {
     }
 
     /// The layers that fit what the game draws with; none for Vulkan, OpenGL and DirectX 12.
+    /// DirectX 11 can take D3DMetal too, once it's set up.
     var choosableLayers: [GraphicsLayer] {
         if let analysis = insight?.analysis, !analysis.usesD3D11, !analysis.apis.isEmpty {
             return analysis.usesD3D9 ? [.automatic, .dxvk, .wined3d] : []
         }
-        return [.automatic, .dxmt, .dxvk]
+        return Engine.d3dMetalReady ? [.automatic, .dxmt, .dxvk, .d3dmetal] : [.automatic, .dxmt, .dxvk]
     }
 
     /// The choosable layers, plus one picked before that no longer fits (D3DMetal, say).
