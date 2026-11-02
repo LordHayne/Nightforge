@@ -543,8 +543,8 @@ enum L10n {
             "Nightforges eigener Download von D3DMetal ist im Moment nicht verfügbar.",
         "Download from Apple and Import": "Bei Apple laden und importieren",
         "Download from Nightforge": "Von Nightforge laden",
-        "Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and imports it by itself.":
-            "Apples Download-Seite ist in deinem Browser geöffnet. Melde dich mit deiner Apple-Kennung an und lade das Game Porting Toolkit herunter – die .dmg-Datei. Nightforge bemerkt sie in deinem Downloads-Ordner und importiert sie von selbst.",
+        "Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and asks you before importing it.":
+            "Apples Download-Seite ist in deinem Browser geöffnet. Melde dich mit deiner Apple-Kennung an und lade das Game Porting Toolkit herunter – die .dmg-Datei. Nightforge bemerkt sie in deinem Downloads-Ordner und fragt dich, bevor es sie importiert.",
         "Waiting for the download …": "Warte auf den Download …",
         "Choose File …": "Datei wählen …",
         "Open Apple's Page Again": "Apples Seite noch einmal öffnen",
@@ -599,6 +599,10 @@ enum L10n {
             "Das ist nicht Apples Game Porting Toolkit: Nightforge hat darin kein D3DMetal gefunden.",
         "Apple didn't sign this D3DMetal, so Nightforge doesn't use it.":
             "Dieses D3DMetal ist nicht von Apple signiert, deshalb nutzt Nightforge es nicht.",
+        "Nightforge doesn't know D3DMetal %@ yet, so it can't check the toolkit's Windows files and doesn't import it. Apple's toolkit %@ can be imported.":
+            "Nightforge kennt D3DMetal %@ noch nicht, kann die Windows-Dateien des Toolkits also nicht prüfen und importiert es nicht. Apples Toolkit %@ lässt sich importieren.",
+        "The Windows files in this toolkit aren't the ones Apple ships with D3DMetal %@, so Nightforge doesn't import it. Download it from Apple again.":
+            "Die Windows-Dateien in diesem Toolkit sind nicht die, die Apple mit D3DMetal %@ ausliefert, deshalb importiert Nightforge es nicht. Lade es noch einmal bei Apple herunter.",
         "Nightforge couldn't open this download. Try downloading it again.":
             "Nightforge konnte diesen Download nicht öffnen. Lade ihn noch einmal herunter.",
         "Nightforge couldn't copy D3DMetal. Check that your Mac has room.":
