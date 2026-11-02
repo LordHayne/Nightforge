@@ -115,7 +115,9 @@ final class DetachedProcess: @unchecked Sendable {
     func interrupt() { send(SIGINT) }
 
     private func send(_ number: Int32) {
-        let (attached, program, running) = lock.withLock { (attached, program, started && !exited) }
+        let (attached, program, running): (Process?, pid_t, Bool) = lock.withLock {
+            (self.attached, self.program, started && !exited)
+        }
         if let attached {
             number == SIGINT ? attached.interrupt() : attached.terminate()
         } else if running, program > 0 {
