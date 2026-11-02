@@ -19,7 +19,7 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
 | Nr. | Schwere | Fund | Stand |
 |---|---|---|---|
 | H1 | hoch | Schwärzung im Problembericht lückenhaft | behoben (`45e6b63`) |
-| H2 | hoch | Update-ZIP, `manifest.json`, `profiles.json`, `install.sh` ohne Signatur | Vorschlag 0.3.1, Entscheidung nötig |
+| H2 | hoch | Update-ZIP, `manifest.json`, `profiles.json`, `install.sh` ohne Signatur | 0.3.1 gebaut (ohne `install.sh`), siehe „Signierte Releases“ |
 | M1 | mittel | Epic-/GOG-Token-Dateien für alle lesbar (644 in 755) | behoben (`c9ceb49`) |
 | M2 | mittel | Anmeldecodes in Kommandozeilen (für andere Nutzer des Macs per `ps` sichtbar) | Hinweis, nicht abstellbar |
 | M3 | mittel | winetricks und DXMT folgen ungeprüft dem neuesten Upstream, Bot pusht direkt auf `main` | erledigt (`2f53abc`) |
@@ -79,7 +79,7 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
   3. Immutable Releases einschalten (steht in der Recherche).
   Warum nicht jetzt: ohne einen echten Release lässt sich der Weg „App lädt, prüft, ersetzt sich“ nicht ganz durchspielen.
   Eine falsch gesetzte Pflichtprüfung würde bestehende Installationen vom Update abschneiden (nur der curl-Einzeiler bliebe).
-- Entscheidung nötig: siehe „Fragen“.
+- Entscheidung: „ja, so umsetzen“ (1.11.). Gebaut für 0.3.1, siehe „Signierte Releases“ am Ende.
 
 ## Mittel
 
@@ -217,3 +217,113 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
 Nach den drei Commits alle `tests/*Test/run.sh` mit echten Exit-Codes: 47 von 47 `rc=0` (darunter `LaunchHealthTest` mit den neuen
 Schwärzungs-Fällen, `EpicTest` mit der Rechteprüfung, `UpdateStateTest` mit der Translocation-Erkennung, `StringsTest`).
 `python3 -m pytest -q tests/test_build_profiles.py`: 15 passed.
+
+## Signierte Releases (ab 0.3.1)
+
+Was Nightforge aus dem Netz holt und ausführt, nimmt es nur noch mit deiner Unterschrift an: das Update-ZIP,
+`components/manifest.json` und `profiles/profiles.json`. Neben jeder Datei liegt eine `.sig` (Ed25519, eine Zeile je
+Signatur). GitHub hat keinen privaten Schlüssel: Wer das Konto oder einen Workflow übernimmt, kann Dateien ändern,
+aber nicht signieren.
+
+- **Zwei Schlüssel.** Ihre öffentlichen Hälften stehen in `Sources/Nightforge/SigningKeys.swift`, eine gültige
+  Signatur von einem der beiden genügt. Der **Hauptschlüssel** liegt in deinem Anmelde-Schlüsselbund
+  („Nightforge signing key“). Der **Ersatzschlüssel** liegt nur offline (Passwort-Manager oder USB-Stick), nie auf dem Mac.
+- **Ohne gültige Signatur passiert nichts.** Ein Release ohne `.sig` wird nicht angeboten. Ein ZIP, das nicht zur
+  Signatur passt, wird nicht entpackt („nicht korrekt signiert“). Ein signiertes, aber älteres Release wird abgelehnt.
+  Eine unsignierte Online-Liste bleibt draußen: Es gilt die zuletzt signierte, sonst die mitgelieferte. Dazu steht in
+  Einstellungen › Über eine ruhige Zeile. Eine Liste, die 0.3.0 noch ungeprüft gespeichert hat, zählt ebenfalls nicht.
+- **Der Code:** `Signature.swift` (Prüfung, CryptoKit), `Updater.swift`, `Components.swift`, `Profiles.swift`. Die Skripte
+  bauen `scripts/signing-tool.swift` aus genau diesen Dateien und prüfen deshalb dasselbe wie die App. Tests:
+  `tests/SignatureTest` und `tests/test_signing_scripts.py` (Schlüsselbund, Zwischenablage und GitHub sind dort Attrappen).
+
+### Einmal, von dir selbst
+
+1. Im Terminal, im Nightforge-Ordner: `scripts/make-signing-keys.sh`
+   - Der Hauptschlüssel kommt in den Schlüsselbund. macOS fragt einmal nach deinem Passwort: **Erlauben** klicken,
+     nicht „Immer erlauben“. So fragt macOS bei jedem Signieren, und kein Programm liest den Schlüssel unbemerkt.
+   - Der Ersatzschlüssel kommt in die Zwischenablage. Du fügst ihn in deinen Passwort-Manager ein, als Eintrag
+     „Nightforge spare key“, und kopierst ihn zur Probe einmal zurück. Danach ist die Zwischenablage leer. Lieber auf
+     einen USB-Stick? Dann `scripts/make-signing-keys.sh --spare-file /Volumes/<Stick>/nightforge-spare.txt`.
+   - Keiner der Schlüssel erscheint auf dem Bildschirm, in einer Datei des Repos oder in einer Befehlszeile.
+2. Das Skript schreibt die öffentlichen Schlüssel in `SigningKeys.swift`. Diese Datei wird committet (das macht die
+   Session für dich), sie enthält nichts Geheimes.
+3. Sobald Schlüssel und Code auf `main` sind, die Listen dort einmal signieren: `scripts/sign-lists.sh main`.
+
+### Einen Release machen
+
+1. Wie bisher: Version und Notizen auf `main`, dann den Tag pushen (`v0.3.1`).
+2. `release.yml` baut die App und legt einen **Entwurf** mit ZIP und DMG an. Der Workflow bricht ab, wenn
+   `SigningKeys.swift` keine zwei Schlüssel hat.
+3. Auf deinem Mac: `scripts/sign-release.sh v0.3.1 --publish`. Das Skript lädt das ZIP aus dem Entwurf und prüft, dass
+   die App darin diese Version ist und beide Schlüssel kennt (sonst käme ihr nächstes Update nie an). Dann signiert es
+   (Passwortabfrage: Erlauben), lädt `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne `--publish` bleibt es beim
+   Entwurf, und das Skript zeigt den Befehl zum Veröffentlichen. Mit „Immutable Releases“ lässt sich danach nichts
+   mehr anhängen. Hat ein Release die Signatur vergessen, braucht es einen neuen Tag.
+
+### Die Nacht-Listen
+
+Beide Bots (`components.yml`, `profiles.yml`) schlagen Änderungen nur noch als Pull Request vor (`bot/components`,
+`bot/profiles`) und pushen nie auf `main`.
+
+1. Den Pull Request lesen.
+2. `scripts/sign-lists.sh bot/profiles` (bzw. `bot/components`). Das Skript holt den Zweig in einen eigenen Ordner,
+   signiert nur Listen, deren Signatur nicht mehr passt, und pusht die `.sig` auf den Zweig. Deine Arbeitskopie bleibt
+   unberührt.
+3. Mergen, wenn der Check **Signatures** grün ist, mit dem Befehl, den das Skript ausgibt (`--match-head-commit`). Hat
+   der Bot den Zweig inzwischen neu geschrieben, merged GitHub dann nicht, und du signierst den neuen Stand.
+
+Ein Merge ohne Signatur schadet niemandem: Die Apps behalten ihre Liste, und der Check auf `main` wird rot.
+
+### Übergang von 0.3.0
+
+0.3.0 kennt keine Schlüssel und prüft nicht. Sein Updater nimmt die erste Datei auf `.zip`, also das ZIP und nie die
+`.sig`, in jeder Reihenfolge. `install.sh` ebenso (beides getestet). 0.3.0 kommt also ganz normal auf 0.3.1, erst
+danach gilt die Pflicht. Das Risiko liegt deshalb nur in 0.3.1 selbst: Ist dort die Prüfung kaputt, kommen seine
+Spieler nur noch per Einzeiler weiter. Darum gilt diese Reihenfolge vor dem Tag `v0.3.1`:
+
+1. Schlüssel erzeugen, `SigningKeys.swift` committen.
+2. Den Zweig mergen und die Listen auf `main` signieren. Sonst zeigt jede 0.3.1 sofort die Zeile „nicht signiert“
+   und bleibt bei ihrer mitgelieferten Liste.
+3. Den Test-Release durchspielen (nächster Abschnitt).
+4. Erst dann `v0.3.1` taggen und signieren.
+
+### Test-Release: „App lädt, prüft, ersetzt sich“
+
+Ein Tag mit Zusatz (`v0.3.1-rc.1`) wird ein **Prerelease**. Weder die App (`/releases/latest`) noch `install.sh`
+bieten ihn an, kein Spieler sieht ihn. Nur ein Mac, auf dem `UpdateTestRelease` gesetzt ist, fragt gezielt nach.
+
+1. `v0.3.1-rc.1` und `v0.3.1-rc.2` auf `main` taggen (gleicher Commit geht), beide mit
+   `scripts/sign-release.sh <tag> --publish` signieren.
+2. rc.1 installieren: `gh release download v0.3.1-rc.1 -p '*.zip'`, dann `NIGHTFORGE_ZIP=./Nightforge-0.3.1-rc.1.zip bash scripts/install.sh`.
+3. `defaults write io.github.lordhayne.nightforge UpdateTestRelease v0.3.1-rc.2`, Nightforge neu starten.
+   Erwartet: „Auf 0.3.1-rc.2 aktualisieren“ → laden, prüfen, ersetzen, Neustart; Einstellungen › Über zeigt rc.2. In
+   Einstellungen › Über steht keine Zeile „nicht signiert“.
+4. Gegenproben, beide auf rc.2:
+   - `v0.3.1-rc.3` taggen und **ohne** Signatur veröffentlichen (`gh release edit v0.3.1-rc.3 --draft=false
+     --prerelease`), `UpdateTestRelease` auf `v0.3.1-rc.3`. Erwartet: kein Update-Angebot, in `wine.log` die Zeile
+     „has no signature“.
+   - `v0.3.1-rc.4` taggen und vor dem Veröffentlichen die `.sig` von rc.2 als `Nightforge-0.3.1-rc.4.zip.sig`
+     hochladen (`gh release upload`), `UpdateTestRelease` auf `v0.3.1-rc.4`. Erwartet: das Update wird angeboten, beim
+     Installieren kommt „nicht korrekt signiert“, Nightforge bleibt auf rc.2.
+5. `defaults delete io.github.lordhayne.nightforge UpdateTestRelease`. Die Prereleases kann man danach löschen.
+6. Nach dem echten `v0.3.1`: rc.2 bietet 0.3.1 von selbst an (ein Release ist neuer als seine Tests). Der Mac mini
+   mit 0.3.0 zeigt, dass 0.3.0 auf 0.3.1 kommt.
+
+### Wenn ein Schlüssel verloren geht
+
+- **Hauptschlüssel weg** (Mac kaputt) **oder verdächtig:** `scripts/make-signing-keys.sh --replace main`. Den Ersatz
+  aus dem Passwort-Manager in die Zwischenablage kopieren. Die nächsten Releases und Listen zweimal signieren: erst
+  normal, dann `--spare --add` (die `.sig` hat dann zwei Zeilen). Ältere Apps kennen nur den alten Haupt- und den
+  Ersatzschlüssel und nehmen die Ersatz-Signatur, neue Apps die neue Haupt-Signatur.
+- **Ersatzschlüssel verdächtig:** `scripts/make-signing-keys.sh --replace spare`, mit dem nächsten Release ausliefern.
+  Den alten Eintrag im Passwort-Manager erst danach löschen.
+- **Beide weg:** Kein Update erreicht die installierten Apps mehr. Neue Schlüssel und ein Hinweis auf den Einzeiler,
+  der die App neu installiert.
+
+### Was bleibt
+
+- `install.sh` läuft per `curl | bash` direkt von `main`: Eine Neuinstallation vertraut weiter GitHub. Das
+  Installationsskript könnte das ZIP zwar prüfen, aber nur mit Schlüsseln, die es selbst von `main` lädt.
+- Das DMG ist nicht signiert (Ad-hoc wie bisher, es dient nur der Hand-Installation).
+- Ein signiertes, älteres Listen-Exemplar könnte jemand erneut ausliefern. Für Profile gilt dabei weiter, dass die
+  mitgelieferte, neuere Liste gewinnt. Bei Komponenten fiele es auf eine früher freigegebene Liste zurück.

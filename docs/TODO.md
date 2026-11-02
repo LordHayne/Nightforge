@@ -1578,9 +1578,10 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Entscheidungen
 
-- **Updates sind nicht echt signiert.** `Updater.install` prüft nur `codesign --verify` auf eine Ad-hoc-Signatur,
-  `scripts/install.sh` lädt ohne Prüfsumme. Bewusst offen gelassen. Wege: ein Ed25519-Schlüssel als Repo-Secret
-  (Release-Zip signieren, im Updater und in install.sh prüfen) oder ein Apple-Developer-Account (Developer ID, Notarisierung).
+- **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`
+  und `profiles.json`, Schlüssel nur beim Nutzer (`docs/SICHERHEIT-0.3.md` › „Signierte Releases“). Offen: Schlüssel
+  erzeugen (der Nutzer selbst), Listen auf `main` signieren, Test-Release mit rc.1–rc.4, dann `v0.3.1`.
+  `scripts/install.sh` prüft weiter nichts (läuft von `main`, ein Schlüssel von dort brächte keine Herkunft).
 
 ### Vulkan-Layer und winecx
 

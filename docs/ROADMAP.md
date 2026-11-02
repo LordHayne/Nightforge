@@ -52,6 +52,9 @@ wenn sie einer Version zugeordnet sind.
       - Ohne gültige Signatur wird nichts installiert. Die gebündelte Liste gilt weiter, mit einer ruhigen Meldung.
       - Vorher den ganzen Weg „App lädt, prüft, ersetzt sich“ mit einem Test-Release durchspielen, damit kein
         Nutzer vom Update abgeschnitten wird.
+      - Stand 2.11.: gebaut auf `claude/signed-updates-dda700` (Code, Skripte, Workflows, Tests). Ablauf, Übergang
+        von 0.3.0 und Test-Release in `docs/SICHERHEIT-0.3.md` › „Signierte Releases“. Offen: Schlüssel (Nutzer),
+        Listen auf `main` signieren, Test-Release.
 
 ### 0.4: „Wie eine Konsole“
 - [ ] **Zuerst die Engine, mit voller Kraft** (Nutzer, 1.11.: „sobald das 0.3 draußen ist, geben wir richtig Gas mit
