@@ -163,6 +163,17 @@ struct GameAnalysisTest {
             "small.dll": program(["opengl32.dll"]),
         ])
         check(engineDLL.apis == [.d3d9], "the engine's library, not DLSS, Steam's or a small one: \(engineDLL.apis)")
+        // Overwatch: the program links only its loader, the loader Direct3D 11; the Agility SDK next to
+        // it adds 12. Not a pure DirectX 12 game, so DXMT comes first (it ran on D3DMetal alone, 1.11.2026).
+        let overwatch = try analyze("overwatch", [
+            "Overwatch.exe": program(["Overwatch_loader.dll"], delayed: ["dbghelp.dll"]),
+            "Overwatch_loader.dll": program(["kernel32.dll", "d3d11.dll", "dxgi.dll", "bink2w64.dll"], size: big),
+            "D3D12/D3D12Core.dll": empty,
+        ], launch: "Overwatch.exe")
+        check(overwatch.apis == [.d3d11, .d3d12] && !overwatch.onlyD3D12 && overwatch.usesD3D11,
+              "a loader that links Direct3D 11, plus the Agility SDK: \(overwatch.apis)")
+        let agilityOnly = try analyze("agilityonly", ["Game.exe": program(["kernel32.dll"]), "D3D12/D3D12Core.dll": empty])
+        check(agilityOnly.onlyD3D12, "the Agility SDK and nothing else linked: DirectX 12 only (\(agilityOnly.apis))")
 
         // A launcher that draws nothing: the biggest program is the game; one that draws is the game itself.
         let launcher = try analyze("launcher", [

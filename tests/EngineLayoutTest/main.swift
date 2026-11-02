@@ -188,6 +188,19 @@ struct EngineLayoutTest {
         check((try? String(contentsOf: unixDir.appendingPathComponent("winebus.so.engine"), encoding: .utf8)) == "plain winebus",
               "installing again keeps the engine's original")
 
+        // MARK: Engine test switches (docs/TODO.md › Engine-Tests)
+        check(Engine.msync && Engine.environment(wine: wine)["WINEMSYNC"] == "1", "msync is on unless an engine test turns it off")
+        check(!Engine.steamConfigSignature.contains("nomsync"), "…and Steam's settings don't mention it then")
+        check(Engine.msyncSessionEnds(wanted: false, session: nil) && Engine.msyncSessionEnds(wanted: true, session: false)
+              && !Engine.msyncSessionEnds(wanted: true, session: nil) && !Engine.msyncSessionEnds(wanted: false, session: false),
+              "a session started with msync the other way ends; one from before the switch had it")
+        check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),
+              "the quit script's Wine agrees with the session (msync on when it isn't told)")
+        check(GameLog.extraChannels("+loaddll,+timestamp,warn+msync") == "+loaddll,+timestamp,warn+msync"
+              && GameLog.extraChannels("+loaddll; rm -rf ~") == nil && GameLog.extraChannels("") == nil,
+              "extra Wine debug channels: channel lists only")
+        check(GameLog.wineDebug == "-all,err+module,err+mscoree", "Wine stays quiet without an engine test")
+
         // MARK: CrossOver's user folder
         let users = work.appendingPathComponent("prefix/drive_c/users", isDirectory: true)
         try? fm.createDirectory(at: users.appendingPathComponent("thomas"), withIntermediateDirectories: true)

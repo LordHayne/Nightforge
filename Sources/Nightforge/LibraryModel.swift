@@ -3311,6 +3311,7 @@ final class LibraryModel: ObservableObject {
                 // Gone for two looks (10 s): a launcher handing over leaves a shorter gap.
                 absent = running ? 0 : absent + 1
                 let verdict = LaunchHealth.verdict(drewFrames: LaunchHealth.drewFrames(in: text, programs: programs),
+                                                   showedPicture: LaunchHealth.showedPicture(game.gameID, since: startedAt),
                                                    running: absent < 2, ranFor: Date().timeIntervalSince(startedAt))
                 switch LaunchHealth.afterFirstSeconds(verdict) {
                 case .confirm:
