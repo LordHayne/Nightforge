@@ -210,7 +210,7 @@ def build(top: list, owned: list, profiles: dict, mac: dict, agw: dict, cache: p
 
     # 1. The player's library: Windows games only (a Mac version needs no Wine test), no VR-only ones.
     for game in owned:
-        if game["mac"] or game["vrOnly"] or (game["steam"] and blocked(game["steam"])):
+        if game["mac"] or game["vrOnly"] or game["steam"] in coverage.SOFTWARE or (game["steam"] and blocked(game["steam"])):
             continue
         add(game["key"], game["name"], "owned", "game", game["steam"], True, game["installed"], game["sizeGB"])
     # 2. Free: free-to-play top games without a block, demos of top games, benchmarks.
@@ -274,7 +274,9 @@ def build(top: list, owned: list, profiles: dict, mac: dict, agw: dict, cache: p
         missing = max([MISSING.get(data_of(c)["group"], 0.5) for c in covered] + [MISSING.get(entry["data"], 0.5)])
         size = entry["sizeGB"]
         download = 1.0 if entry["installed"] else 0.6 if size is None else 1 / (1 + size / 25)
-        entry["score"] = round(min(pop, 2.0) * missing * download * (0.3 if entry["category"] == "untestable" else 1), 3)
+        # Tested already (mac.json): its result counts for the games it stands for, no new test needed.
+        known = 0.2 if entry["data"] in ("tested", "mac") else 1
+        entry["score"] = round(min(pop, 2.0) * missing * download * known * (0.3 if entry["category"] == "untestable" else 1), 3)
         entry["why"] = reason(entry, len(covered))
     return sorted(entries.values(), key=lambda e: (-e["score"], e["name"] or ""))
 
@@ -291,7 +293,9 @@ def reason(entry: dict, covers: int) -> str:
         parts.append(f"{entry['sizeGB']:g} GB Download")
     if entry["kind"] in ("demo", "benchmark", "f2p"):
         parts.append({"demo": "kostenlose Demo", "benchmark": "kostenloser Benchmark", "f2p": "kostenlos spielbar"}[entry["kind"]])
-    if covers:
+    if covers and entry["data"] == "tested":
+        parts.append(f"sein Ergebnis gilt für {covers} Top-Spiel{'e' if covers > 1 else ''} gleicher Engine und API")
+    elif covers:
         parts.append(f"deckt {covers} Top-Spiel{'e' if covers > 1 else ''} gleicher Engine und API ab")
     if entry["category"] == "untestable":
         parts.append("nicht im Besitz, keine Demo" + (f", Stellvertreter {entry['coveredBy']}" if entry.get("coveredBy") else ""))
