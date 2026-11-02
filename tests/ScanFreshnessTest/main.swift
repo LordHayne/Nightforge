@@ -14,6 +14,7 @@ struct ScanFreshnessTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         func ago(_ minutes: Double) -> Date { now.addingTimeInterval(-minutes * 60) }

@@ -91,6 +91,7 @@ struct StoreFactsTest {
 
     @MainActor
     static func main() {
+        TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
 
         // MARK: Genre

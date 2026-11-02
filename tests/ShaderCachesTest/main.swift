@@ -45,8 +45,7 @@ struct ShaderCachesTest {
         check(folders.count == 5, "the five cache folders that are there, nothing for a missing library: \(folders.map(\.lastPathComponent))")
         check(ShaderCaches.size(folders) >= 5 * 4096, "their size: \(ShaderCaches.size(folders))")
 
-        let defaults = UserDefaults(suiteName: "nightforge.shader-test")!
-        defaults.removePersistentDomain(forName: "nightforge.shader-test")
+        let defaults = TestDefaults.suite("shaders")
         defaults.set("winecx|dxmt", forKey: "shaders.550")
         defaults.set(true, forKey: "library.hidden")
         let freed = ShaderCaches.clear(folders, defaults: defaults)
@@ -57,7 +56,6 @@ struct ShaderCachesTest {
         check([game, manifest, appUICache, otherApp].allSatisfy(exists), "games, manifests, Nightforge's own UI cache and other apps stay")
         check(defaults.string(forKey: "shaders.550") == nil, "the next start says again that it prepares shaders")
         check(defaults.bool(forKey: "library.hidden"), "other settings stay")
-        defaults.removePersistentDomain(forName: "nightforge.shader-test")
 
         print(failures == 0 ? "✓ ShaderCaches" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

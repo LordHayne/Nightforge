@@ -89,6 +89,7 @@ struct MacVersionTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         // MARK: Decision
         typealias Facts = VersionChoice.Facts
         func decide(_ facts: Facts, _ choice: GameVersion = .automatic, preferWindows: Bool = false,
@@ -201,7 +202,7 @@ struct MacVersionTest {
         let inGame = places.windowsInstall!.appendingPathComponent("SNAppData/SavedGames/slot1", isDirectory: true)
         try? fm.createDirectory(at: inGame, withIntermediateDirectories: true)
         try? Data("world".utf8).write(to: inGame.appendingPathComponent("world.bin"))
-        let suite = UserDefaults(suiteName: "mvt-\(UUID().uuidString)")!
+        let suite = TestDefaults.suite("save-transfer")
         check(SaveTransfer.beforeStart(appID: 1001, platform: .mac, rules: rules, places: places, defaults: suite) == 4,
               "the first Mac start takes the Windows saves along")
         let carried = ((try? fm.contentsOfDirectory(atPath: macSaves.path)) ?? []).sorted()

@@ -13,6 +13,6 @@ OUT="$WORK/engine-rollback-test"
 # The whole app except its entry point, plus the test driver.
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/EngineRollbackTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/EngineRollbackTest/main.swift
 mkdir -p "$WORK/home"
 env HOME="$WORK/home" CFFIXED_USER_HOME="$WORK/home" "$OUT" "$@"

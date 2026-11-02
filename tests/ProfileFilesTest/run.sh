@@ -13,7 +13,7 @@ OUT="$WORK/profile-files-test"
 # The whole app except its entry point, plus the test driver.
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/ProfileFilesTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/ProfileFilesTest/main.swift
 # A home of its own: the profile list it writes and reads lies in Application Support.
 mkdir -p "$WORK/home"
 env HOME="$WORK/home" CFFIXED_USER_HOME="$WORK/home" "$OUT" profiles/profiles.json
