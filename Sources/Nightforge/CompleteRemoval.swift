@@ -5,18 +5,40 @@ import AppKit
 /// this Mac are copied to Documents first. Steam for Mac with its Mac games, CrossOver or Whisky
 /// bottles and the stores' clouds stay untouched.
 enum CompleteRemoval {
-    /// Where Nightforge keeps things, so a test can point it at a folder of its own.
+    /// The app's own identity (Resources/Info.plist).
+    static let appBundleID = "io.github.lordhayne.nightforge"
+
+    /// Whether this program is Nightforge. A test program has no bundle, and nothing of what follows may
+    /// lead it to the player's things.
+    static var isTheApp: Bool { Bundle.main.bundleIdentifier == appBundleID }
+
+    /// Throws unless this is Nightforge: the whole job (`run`) is only ever the app's.
+    static func requireApp() throws {
+        guard isTheApp else { throw RemovalError.notTheApp }
+    }
+
+    /// Where Nightforge keeps things, so a test can point it at a folder of its own. Outside the app the
+    /// places lead nowhere (a folder under the temporary folder that doesn't exist) and the settings
+    /// are a domain no one has: a test that forgets to point one of them elsewhere removes nothing real –
+    /// not the Windows environment, not the player's settings.
     struct Places {
-        var support = Engine.supportDir
-        var caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Nightforge", isDirectory: true)
-        var userCache = ShaderCaches.darwinUserCache
-        var library = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
-        var shortcuts = GameShortcut.folder
-        var documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        var bundleID = Bundle.main.bundleIdentifier ?? "io.github.lordhayne.nightforge"
+        private static let nowhere = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nightforge-not-the-app", isDirectory: true)
+        private static func real(_ place: @autoclosure () -> URL, nowhere sub: String) -> URL {
+            CompleteRemoval.isTheApp ? place() : nowhere.appendingPathComponent(sub, isDirectory: true)
+        }
+
+        var support = Places.real(Engine.supportDir, nowhere: "Application Support/Nightforge")
+        var caches = Places.real(FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge", isDirectory: true), nowhere: "Caches/Nightforge")
+        var userCache = CompleteRemoval.isTheApp ? ShaderCaches.darwinUserCache : nil
+        var library = Places.real(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true),
+                                  nowhere: "Library")
+        var shortcuts = Places.real(GameShortcut.folder, nowhere: "Applications/Nightforge Games")
+        var documents = Places.real(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0], nowhere: "Documents")
+        var bundleID = CompleteRemoval.isTheApp ? CompleteRemoval.appBundleID : "nightforge.not-the-app"
         /// Where the settings live (the app's UserDefaults domain).
-        var settingsDomain = Bundle.main.bundleIdentifier ?? "io.github.lordhayne.nightforge"
+        var settingsDomain = CompleteRemoval.isTheApp ? CompleteRemoval.appBundleID : "nightforge.not-the-app"
 
         var prefix: URL { support.appendingPathComponent("Prefix", isDirectory: true) }
         var steam: URL { prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true) }
@@ -117,9 +139,13 @@ enum CompleteRemoval {
     enum RemovalError: LocalizedError {
         case savesNotCopied(String)
         case notDeleted([String])
+        /// Asked outside the app (a test program): nothing is touched.
+        case notTheApp
 
         var errorDescription: String? {
             switch self {
+            case .notTheApp:
+                return L10n.t("Nightforge can only remove itself when it runs as the app.")
             case .savesNotCopied(let reason):
                 return L10n.t("The saves couldn't be copied to Documents (%@), so everything is still there.", reason)
             case .notDeleted(let names):
@@ -179,15 +205,17 @@ enum CompleteRemoval {
     /// polite way, `polite`, goes first for as long as `politeFor` allows – Steam keeps its state
     /// when it ends by itself; whatever it hasn't done by then is not waited for.
     static func stop(_ places: Places = Places(), politeFor seconds: TimeInterval = 20,
-                     polite: (@Sendable () async -> Void)?) async {
+                     scriptsByCommandLine: Bool = true, polite: (@Sendable () async -> Void)?) async {
         if let polite { _ = await withDeadline(seconds, polite) }
-        await Task.detached(priority: .userInitiated) { endProcesses(under: places.support) }.value
+        await Task.detached(priority: .userInitiated) {
+            endProcesses(under: places.support, scriptsByCommandLine: scriptsByCommandLine)
+        }.value
     }
 
     /// The quit script first (it would open Nightforge again once a game ended), then every program
     /// started from `support`, again until none is left.
-    static func endProcesses(under support: URL) {
-        endScripts(under: support)
+    static func endProcesses(under support: URL, scriptsByCommandLine: Bool = true) {
+        endScripts(under: support, byCommandLine: scriptsByCommandLine)
         for _ in 0..<5 {
             let pids = processes(under: support)
             if pids.isEmpty { return }
@@ -212,14 +240,39 @@ enum CompleteRemoval {
         return found
     }
 
-    /// `steam-shutdown.sh` of this folder, however many are waiting. Found by their command line
-    /// (it is a bash), the whole path of the script, so no other script is hit.
-    static func endScripts(under support: URL) {
+    /// The quit script of this folder (`Engine.steamShutdownScript`). It writes its process into
+    /// `steam-shutdown.pid` beside itself, which is where it is looked for – not through `ps`, which
+    /// has been seen not answering for good while every process is listed (2.11.2026), and which a
+    /// removal must not depend on. The pid counts only if it is a bash that started when the file was
+    /// written (the number may have gone to another program since). A script of a Nightforge from
+    /// before the file existed is found by its command line (the whole path of the script, so no
+    /// other script is hit) unless `byCommandLine` is off.
+    static func endScripts(under support: URL, byCommandLine: Bool = true) {
+        let file = support.appendingPathComponent("steam-shutdown.pid")
+        defer { try? FileManager.default.removeItem(at: file) }
+        if let text = try? String(contentsOf: file, encoding: .utf8) {
+            if let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), isQuitScript(pid, writtenTo: file) {
+                kill(pid, SIGKILL)
+            }
+            return
+        }
+        guard byCommandLine else { return }
         let scripts = Set([support.path, Engine.realPath(support)].map { $0 + "/steam-shutdown.sh" })
         for process in Engine.processTable() where process.pid != getpid()
             && scripts.contains(where: { process.command.contains($0) }) {
             kill(process.pid, SIGKILL)
         }
+    }
+
+    /// `pid` is a bash that began within half a minute of `file` being written.
+    private static func isQuitScript(_ pid: pid_t, writtenTo file: URL) -> Bool {
+        guard pid > 1, pid != getpid() else { return false }
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0, String(cString: buffer) == "/bin/bash",
+              let started = Engine.processStart(pid),
+              let written = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        else { return false }
+        return abs(written.timeIntervalSince(started)) < 30
     }
 
     // MARK: - The whole job
@@ -228,6 +281,7 @@ enum CompleteRemoval {
     /// and quit. Throws a `RemovalError`; after `savesNotCopied` nothing is deleted.
     @MainActor
     static func run(phase: @escaping @MainActor (Phase) -> Void = { _ in }) async throws {
+        try requireApp()  // before anything is stopped
         phase(.stopping)
         await stop(polite: {
             if let wine = await Engine.installedWine() { try? await Engine.stopSteam(wine) }

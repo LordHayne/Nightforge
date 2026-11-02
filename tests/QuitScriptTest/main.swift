@@ -36,12 +36,16 @@ struct QuitScriptTest {
         var app: String { root.appendingPathComponent("Applications/Nightforge.app").path }
         var dev: String { root.appendingPathComponent("dev/build/Nightforge.app").path }
         var script: URL { root.appendingPathComponent("steam-shutdown.sh") }
+        var pidFile: URL { root.appendingPathComponent("steam-shutdown.pid") }
+        /// What the pid file held each time the stand-in ps was asked (the script has begun by then).
+        var pidLog: URL { root.appendingPathComponent("pids.log") }
 
         init() {
             root = FileManager.default.temporaryDirectory.appendingPathComponent("quit-\(UUID().uuidString)", isDirectory: true)
             let record = "echo \"$(basename \"$0\") $*\" >> \"$FAKE_LOG\""
             QuitScriptTest.write("""
                 #!/bin/sh
+                [ -f "$FAKE_PIDFILE" ] && cat "$FAKE_PIDFILE" >> "$FAKE_PIDLOG"
                 case "$*" in
                   *pid=*) awk -F'\\t' '{ printf "%s %s\\n", $1, $2 }' "$FAKE_PS" ;;
                   *) awk -F'\\t' '{ print $2 }' "$FAKE_PS" ;;
@@ -77,7 +81,7 @@ struct QuitScriptTest {
         func run(limit: Int? = nil, quitting: Int = 0, app: String? = nil) -> (calls: [String], status: Int32, timedOut: Bool) {
             try? FileManager.default.removeItem(at: log)
             var environment = ["PATH": bin.path + ":/usr/bin:/bin:/usr/sbin", "FAKE_PS": processList.path, "FAKE_LOG": log.path,
-                               "HOME": root.path]
+                               "FAKE_PIDFILE": pidFile.path, "FAKE_PIDLOG": pidLog.path, "HOME": root.path]
             if let limit { environment["NIGHTFORGE_QUIT_LIMIT"] = String(limit) }
             let outcome = Subprocess.run("/bin/bash", [script.path, wine.path, prefix.path, "", "0", app ?? self.app,
                                                        quitting == 0 ? "" : String(quitting), "1"],
@@ -113,6 +117,11 @@ struct QuitScriptTest {
             let result = world.run()
             check(!result.timedOut && result.status == 0, "other copies and tools: the script ended (status \(result.status))")
             check(shutDown(result.calls), "other copies and tools: Steam and the wineserver were ended: \(result.calls)")
+            // Where "Remove Nightforge completely" finds the script: its process in a file beside it, while it runs.
+            let pids = ((try? String(contentsOf: world.pidLog, encoding: .utf8)) ?? "").split(separator: "\n").compactMap { pid_t($0) }
+            check(!pids.isEmpty && pids.allSatisfy { $0 > 1 }, "the script wrote its pid to steam-shutdown.pid while it ran: \(pids)")
+            check(Set(pids).count == 1, "… always the same one")
+            check(!FileManager.default.fileExists(atPath: world.pidFile.path), "… and took the file away when it ended")
         }
 
         // Nightforge, opened again: its own program, with or without arguments.

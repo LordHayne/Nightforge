@@ -844,6 +844,8 @@ enum L10n {
         "The newer save couldn't be copied over (%@). %@ starts with its own.":
             "Der neuere Spielstand ließ sich nicht übernehmen (%@). %@ startet mit seinem eigenen.",
         "Removing …": "Wird entfernt …",
+        "Nightforge can only remove itself when it runs as the app.":
+            "Nightforge kann sich nur entfernen, wenn es als App läuft.",
         "Ending Steam and Wine …": "Steam und Wine werden beendet …",
         "Copying saves …": "Spielstände werden kopiert …",
         "Deleting files …": "Dateien werden gelöscht …",

@@ -752,7 +752,7 @@ enum Engine {
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
     /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`).
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
-    /// counts a download only if it isn't paused.
+    /// counts a download only if it isn't paused. Its process is in `steam-shutdown.pid` beside it while it waits.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
@@ -764,6 +764,10 @@ enum Engine {
         # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
         LIMIT="${NIGHTFORGE_QUIT_LIMIT:-43200}"
         late() { [ "$SECONDS" -gt "$LIMIT" ]; }
+        # Where "Remove Nightforge completely" finds this script, without asking ps (CompleteRemoval.endScripts).
+        PIDFILE="${0%/*}/steam-shutdown.pid"
+        echo $$ > "$PIDFILE" 2>/dev/null
+        trap '[ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"' EXIT
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
         has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }

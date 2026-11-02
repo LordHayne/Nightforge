@@ -44,7 +44,7 @@ struct CompleteRemovalTest {
         places.shortcuts = base.appendingPathComponent("Applications/Nightforge Games", isDirectory: true)
         places.documents = base.appendingPathComponent("Documents", isDirectory: true)
         places.bundleID = "io.github.lordhayne.nightforge"
-        places.settingsDomain = "io.github.lordhayne.nightforge.removal-test-\(UUID().uuidString)"
+        places.settingsDomain = TestDefaults.domain("removal-\(UUID().uuidString)")
         write(places.support.appendingPathComponent("Components/wine/bin/wine"))
         write(places.prefix.appendingPathComponent("drive_c/users/crossover/AppData/Roaming/Hades/Profile1.sav"), "save")
         write(places.caches.appendingPathComponent("Artwork/550.jpg"))
@@ -161,6 +161,36 @@ struct CompleteRemovalTest {
               "every store, in the stores' order: \(three ?? "–")")
         check(CompleteRemoval.gamesNote(count: 0, size: 0, stores: []) == nil, "no games, no line about them")
 
+        // A test program is not the app: what `Places()` says without being told otherwise is nowhere near the
+        // player's things, and the settings are a domain no one has – a test that forgets to point one place
+        // elsewhere removes nothing real.
+        do {
+            let inert = CompleteRemoval.Places()
+            let home = String(cString: getpwuid(getuid())!.pointee.pw_dir)
+            check(!CompleteRemoval.isTheApp, "the test program is not the app")
+            check(inert.settingsDomain != CompleteRemoval.appBundleID && inert.bundleID != CompleteRemoval.appBundleID,
+                  "outside the app the settings domain isn't the app's: \(inert.settingsDomain)")
+            check(inert.userCache == nil, "… no shader caches of the Mac's user folder")
+            let places = [inert.support, inert.caches, inert.library, inert.shortcuts, inert.documents]
+            check(places.allSatisfy { !$0.path.hasPrefix(home + "/") }, "… no place is in the real home: \(places.map(\.path))")
+            check(inert.support != Engine.supportDir && inert.caches.lastPathComponent == "Nightforge", "… and not Nightforge's folder")
+            check(CompleteRemoval.targets(inert).isEmpty && CompleteRemoval.saveSources(inert).isEmpty, "… nothing to remove, nothing to copy")
+            do {
+                try CompleteRemoval.requireApp()
+                check(false, "the whole job refuses to run outside the app")
+            } catch {
+                if let failure = error as? CompleteRemoval.RemovalError, case .notTheApp = failure {
+                    check(!failure.localizedDescription.isEmpty, "… with notTheApp, before anything is stopped")
+                } else {
+                    check(false, "… with notTheApp, not \(error)")
+                }
+            }
+            let probe = UserDefaults(suiteName: TestDefaults.domain("probe"))!
+            probe.set(true, forKey: "kept")
+            check(works { try CompleteRemoval.remove(defaults: probe) } && probe.bool(forKey: "kept"),
+                  "remove() on the default places does nothing and leaves other settings alone")
+        }
+
         // The phases, in order, and the settings go only at the very end.
         do {
             let scenario = fixture(root.appendingPathComponent("phases", isDirectory: true))
@@ -221,16 +251,16 @@ struct CompleteRemovalTest {
             check(exists(places.support) && exists(places.caches), "… and nothing was deleted")
         }
 
-        // Ending what runs from Nightforge's folder: its programs and its quit script, nothing else.
+        // Ending what runs from Nightforge's folder: its programs and its quit script, nothing else. The quit script
+        // is found by the pid it wrote beside itself – no ps.
         do {
             let scenario = fixture(root.appendingPathComponent("stop", isDirectory: true))
             let support = scenario.places.support
             let inside = standIn(support.appendingPathComponent("Components/winecx/bin/wineserver"))
             let outside = standIn(root.appendingPathComponent("stop/elsewhere/other-program"))
-            let ownScript = support.appendingPathComponent("steam-shutdown.sv.sh")
             let script = support.appendingPathComponent("steam-shutdown.sh")
             let elsewhere = root.appendingPathComponent("stop/elsewhere/steam-shutdown.sh")
-            for file in [script, elsewhere, ownScript] { write(file, "#!/bin/bash\nwhile true; do sleep 1; done\n") }
+            for file in [script, elsewhere] { write(file, "#!/bin/bash\nwhile true; do sleep 1; done\n") }
             func bash(_ file: URL) -> Process {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -238,29 +268,60 @@ struct CompleteRemovalTest {
                 try? process.run()
                 return process
             }
-            let quitScript = bash(script), otherScript = bash(elsewhere), similar = bash(ownScript)
+            let quitScript = bash(script), otherScript = bash(elsewhere)
             usleep(300_000)
+            write(support.appendingPathComponent("steam-shutdown.pid"), "\(quitScript.processIdentifier)\n")
             check(inside != nil && outside != nil, "the stand-in programs started")
             if let inside, let outside {
                 check(CompleteRemoval.processes(under: support).contains(inside.processIdentifier), "a program run from the folder is found")
                 check(!CompleteRemoval.processes(under: support).contains(outside.processIdentifier), "… one run from elsewhere is not")
-                await CompleteRemoval.stop(scenario.places, polite: nil)
+                await CompleteRemoval.stop(scenario.places, scriptsByCommandLine: false, polite: nil)
                 check(gone(inside.processIdentifier), "stop: the program from the folder is ended")
-                check(gone(quitScript.processIdentifier), "stop: the quit script of the folder is ended")
+                check(gone(quitScript.processIdentifier), "stop: the quit script named in steam-shutdown.pid is ended")
+                check(!exists(support.appendingPathComponent("steam-shutdown.pid")), "… and its pid file is gone")
                 check(outside.isRunning, "stop: a program from elsewhere keeps running")
                 check(otherScript.isRunning, "stop: a quit script of another folder keeps running")
-                check(similar.isRunning, "stop: a script with a similar name keeps running")
+
+                // A pid that went to another program since is left alone, and so is a pid file from long ago.
+                let pidFile = support.appendingPathComponent("steam-shutdown.pid")
+                write(pidFile, "\(outside.processIdentifier)\n")
+                CompleteRemoval.endScripts(under: support, byCommandLine: false)
+                check(outside.isRunning, "a pid file naming a program that isn't a bash: not killed")
+                write(pidFile, "\(otherScript.processIdentifier)\n")
+                try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -3600)], ofItemAtPath: pidFile.path)
+                CompleteRemoval.endScripts(under: support, byCommandLine: false)
+                check(otherScript.isRunning, "a pid file written long before that bash began: not killed")
+                check(!exists(pidFile), "… the stale file is removed")
                 outside.terminate()
             }
             otherScript.terminate()
-            similar.terminate()
+        }
+
+        // A script of a Nightforge from before the pid file is found by its command line – if ps answers at all.
+        do {
+            let scenario = fixture(root.appendingPathComponent("oldscript", isDirectory: true))
+            let support = scenario.places.support
+            if Engine.processTable().isEmpty {
+                print("(skipped: ps doesn't answer here)")
+            } else {
+                let script = support.appendingPathComponent("steam-shutdown.sh")
+                write(script, "#!/bin/bash\nwhile true; do sleep 1; done\n")
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/bin/bash")
+                process.arguments = [script.path]
+                try? process.run()
+                usleep(300_000)
+                CompleteRemoval.endScripts(under: support)
+                check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
+            }
         }
 
         // The polite way is given its time and no more.
         do {
             let scenario = fixture(root.appendingPathComponent("polite", isDirectory: true))
             let start = Date()
-            await CompleteRemoval.stop(scenario.places, politeFor: 0.3, polite: { try? await Task.sleep(for: .seconds(30)) })
+            await CompleteRemoval.stop(scenario.places, politeFor: 0.3, scriptsByCommandLine: false,
+                                       polite: { try? await Task.sleep(for: .seconds(30)) })
             check(Date().timeIntervalSince(start) < 5, "a polite shutdown that takes forever is not waited for")
         }
 
