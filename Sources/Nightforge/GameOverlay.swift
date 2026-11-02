@@ -92,6 +92,9 @@ enum GameOverlay {
 
     private static func handle(_ event: OverlayEvent) {
         guard !leaving else { return }
+        // In wine.log: which presses arrive (the pad on "Not starting?", 1.11.), and who's in front.
+        GameLog.note("Overlay: \(event) on \(state.step), \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front"
+                     + (panel?.isKeyWindow == true ? "" : ", the panel without the keys"))
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
@@ -154,12 +157,22 @@ enum GameOverlay {
         focusDefault()
     }
 
-    /// The highlight on the step's default button at once: the panel is opened with the pad.
+    /// The highlight on the step's default button at once: the panel is opened with the pad. By its
+    /// id, not looked up on the screen: right after the panel opens – the first time it's made, as
+    /// "Not starting?" often is – or changes its step, the buttons aren't laid out yet, nothing was
+    /// highlighted, and the first press only showed where you were.
     private static func focusDefault() {
         PadFocus.shared.clear()
-        DispatchQueue.main.async {
-            guard let panel, panel.isVisible else { return }
-            PadFocus.shared.move(dx: 0, dy: 1, in: panel)
+        if let id = defaultButton(state.step) { PadFocus.shared.focus(id) }
+    }
+
+    /// The button a step's highlight starts on (its `padFocus` id): the safe answer.
+    nonisolated static func defaultButton(_ step: OverlayStep) -> String? {
+        switch step {
+        case .menu: return "overlay.continue"
+        case .notStarting: return "overlay.wait"
+        case .confirmQuit: return "overlay.cancel"
+        case .quitting: return nil
         }
     }
 

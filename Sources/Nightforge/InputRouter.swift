@@ -364,6 +364,7 @@ final class InputRouter {
                     item.activate()
                 } else if let window = self?.padWindow, window !== Self.mainWindow {
                     // Nothing highlighted yet: the first press shows where you are, it doesn't save.
+                    if window === GameOverlay.window { GameLog.note("Overlay: A with no button highlighted") }
                     PadFocus.shared.move(dx: 0, dy: 1, in: window)
                 } else if let dialog = self?.dialog {
                     Self.press(36, "\r", in: dialog)

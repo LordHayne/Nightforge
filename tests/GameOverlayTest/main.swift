@@ -84,6 +84,11 @@ struct GameOverlayTest {
         expect(.notStarting, .nightforge, (.notStarting, .nightforge), "Go to Nightforge")
         expect(.notStarting, .askQuit, (.confirmQuit, .none), "Quit Game asks first here too")
         expect(.notStarting, .quit, (.notStarting, .none), "no quitting without the question")
+        // The highlight starts on the safe answer, by its id: the first press already answers.
+        check(GameOverlay.defaultButton(.menu) == "overlay.continue", "the choice: Continue Playing")
+        check(GameOverlay.defaultButton(.notStarting) == "overlay.wait", "\"Not starting?\": Keep Waiting")
+        check(GameOverlay.defaultButton(.confirmQuit) == "overlay.cancel", "the question: Cancel")
+        check(GameOverlay.defaultButton(.quitting) == nil, "quitting: nothing to press")
     }
 
     /// Which processes are the game's: its folder, what it started, never the Wine session or Steam.
