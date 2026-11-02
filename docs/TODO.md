@@ -908,6 +908,17 @@ Entwurf und Regeln: `docs/ENTWURF-BERICHTE.md`. Abdeckung der Top 200: `docs/rec
 - **Nach dem Merge von signed-updates:** `agw.json` in `sign-lists.sh` aufnehmen und `AGWStore.refresh` auf
   `Signature.fetch` umstellen. `profiles.yml`: die Zeilen mit `profiles/profiles.json` im PR-Schritt nehmen
   `profiles/agw.json` mit (`git diff --quiet`, `git add`, `git diff --stat`).
+- **Später (nur geplant, Nutzer hat zugestimmt 2.11.): freiwillige, anonyme Spielberichte ohne Konto.** Bedingung:
+  erst, wenn die Download-Statistik echte Nutzer zeigt. Vorbild GameHub Lite/BannerHub (über 7.000 Configs per
+  „Export Config“ in ein GitHub-Repo, ungeprüft) und EmuReady (Abstimmung, Status „verifiziert“). Unser Gegenstück:
+  LaunchHealth kennt pro Spiel den bestätigten Weg, das Wissen bleibt bisher auf einem Mac.
+  - Opt-in, ohne Konto, anonym; nur das eine Spiel, keine Bibliotheksliste, kein Name.
+  - Inhalt: GameID-Schlüssel, bestätigter oder gescheiterter Weg (Grafikweg, Engine-Version, D3DMetal-Version,
+    Profilfelder), Ergebnis (Bild / kein Bild / Absturz), Chipfamilie, macOS- und Nightforge-Version, optional FPS.
+  - Zurück in die Profile: Ein Bericht bestätigt oder widerlegt ein Profil; mehrere übereinstimmende machen einen
+    Weg zum Standard. Macs sind einheitlich, ein Bericht zählt für fast alle – aber nur für dieselbe Engine-Version.
+  - Transport ohne Zugangsdaten in der App (z. B. ein Worker, der in ein Repo schreibt); Entscheidung später.
+    Entwurf und Zusammenhang mit `reports.json`: `docs/ENTWURF-BERICHTE.md` › Abschnitt 6.
 - **Danach bauen:** `reports.yml` (Berichte prüfen, Labels, schließen) und `scripts/build-reports.py` →
   `profiles/reports.json`, sobald die ersten echten Berichte da sind. MacGamingDB-Anfrage abschicken
   (`docs/recherche/macgamingdb-anfrage.md`), AGW/PCGW-Team kurz informieren (Abruf des ganzen Bestands, „nicht

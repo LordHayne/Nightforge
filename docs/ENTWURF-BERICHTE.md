@@ -157,3 +157,24 @@ erst sehen und freigeben, wenn die ersten echten Berichte da sind. `build-report
 
 Die genaueste Quelle (jeder Bericht nennt DXMT/D3DMetal/DXVK), aber die Daten sind nicht freigegeben. Entwurf für
 die Anfrage an den Betreiber (neo773): `docs/recherche/macgamingdb-anfrage.md`. Bis zur Antwort nur verlinken.
+
+## 6. Später: anonyme Spielberichte ohne Konto (nur geplant)
+
+Vom Nutzer am 2.11. als späterer Baustein freigegeben, **nicht gebaut**. Bedingung: erst, wenn die
+Download-Statistik echte Nutzer zeigt.
+
+- Vorbilder: GameHub Lite und BannerHub (Android) sammeln über 7.000 Configs per „Export Config“ in ein GitHub-Repo,
+  eine Datei pro Gerät, ungeprüft; EmuReady ergänzt Abstimmungen und einen Status „verifiziert“.
+- Unser Gegenstück ist schon da: LaunchHealth weiß pro Spiel, welcher Weg bestätigt ist (`confirmedWays`). Das
+  Wissen bleibt bisher auf dem einen Mac.
+- Opt-in, ohne Konto, anonym. Nur das eine Spiel: keine Bibliotheksliste, kein Name.
+- Inhalt: GameID-Schlüssel, bestätigter oder gescheiterter Weg (Grafikweg, Engine-Version, D3DMetal-Version,
+  Profilfelder), Ergebnis (Bild / kein Bild / Absturz), Chipfamilie, macOS- und Nightforge-Version, optional FPS.
+- Zurück in die Profile: Ein Bericht bestätigt oder widerlegt ein Profil. Mehrere übereinstimmende Berichte machen
+  einen Weg zum Standard (als `SourceHint` mit `source: "reports"` vor AGW, nach `mac.json`). Weil Macs einheitlich
+  sind, zählt ein Bericht für fast alle – aber nur für dieselbe Engine-Version.
+- Transport ohne Zugangsdaten in der App, z. B. ein kleiner Worker, der in ein Repo schreibt. Er sieht IP-Adressen
+  und braucht deshalb eine Datenschutzerklärung (siehe `docs/recherche/mac-kompatibilitaet.md`, Abschnitt 4).
+  Entscheidung später; bis dahin bleibt der GitHub-Weg aus Teil 2 (mit Konto, ausdrücklich).
+- Die Zählung wäre dieselbe wie in Teil 4 (`reports.json`), nur mit einer zweiten Quelle neben den Issues.
+
