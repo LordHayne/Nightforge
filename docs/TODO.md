@@ -104,7 +104,8 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   In der Cloud-Konfiguration stehen `volume "0.008"` und Quadro-Lautsprecher, also erst im Spiel unter
   Optionen → Audio hochdrehen, bevor man Wine verdächtigt. Stürzt am 28.10. weiterhin ab, noch nicht genauer
   untersucht.
-- **DXVK unter winecx gar nicht nutzbar?** Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
+- **DXVK unter winecx gar nicht nutzbar?** Ursache am 3.11. eingegrenzt: Es fehlt der Vulkan-Loader, also auch der
+  Layer. Die Probe dazu und der Weg über `CX_LIBVULKAN` stehen unten bei „Vulkan-Layer und winecx“. Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
   5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
   `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
@@ -1616,6 +1617,14 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Vulkan-Layer und winecx
 
+- **Bestätigt per Probe (3.11., `dxvk-winecx.md` im Notizordner):** Mit MoltenVK direkt scheitert das Gerät, das DXVK
+  verlangt (`geometryShader` + `shaderCullDistance`), an `VK_ERROR_FEATURE_NOT_PRESENT`. Über den Khronos-Loader 1.4.350
+  mit Nightforges Layer kommt dasselbe Gerät hoch, ohne Layer nicht. Der Hebel steckt in winecx: CW Hack 25909,
+  `CX_LIBVULKAN=<Loader>` zusammen mit `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, dazu `VK_DRIVER_FILES` und
+  `VK_ADD_IMPLICIT_LAYER_PATH` auf die Dateien im Spiel-Bundle. Für 32-Bit-Spiele bietet MoltenVK 1.4.2
+  `VK_EXT_external_memory_host` und nimmt die `HOST_ALLOCATION`-Puffer an, die Wines WoW64 anlegt (ebenfalls Probe).
+  Offen: den x86_64-Loader liefern (Apache-2.0, am besten in CI gebaut) und die Umgebung in `Engine.gameEnvironment`.
+  Erst dann L4D2, Mafia II und No Man's Sky auf DXVK bzw. Vulkan prüfen.
 - **winecx hat keinen Vulkan-Loader, der Layer wird nie geladen.** Seine `winevulkan.so` lädt `libMoltenVK.dylib`
   direkt (Gcenx' 11.18 ging über `libvulkan.1.dylib`), also findet sich kein Layer aus
   `Nightforge Game.app/…/implicit_layer.d`. Seit PR #7 fehlen damit für Vulkan- und DXVK-Spiele: das Aussortieren
