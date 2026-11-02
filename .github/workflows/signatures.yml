@@ -1,0 +1,52 @@
+name: Signatures
+
+# The app takes the online lists (components/manifest.json, profiles/profiles.json) only with a
+# signature that holds for them (Sources/Nightforge/Signature.swift). This shows on a pull request
+# whether its lists are signed, and on main whether players get them. GitHub holds no private key:
+# the maintainer signs with scripts/sign-lists.sh <branch> on their Mac.
+#
+# Pull requests the nightly bot opens don't start workflows (GitHub's rule for its own token); the
+# push of the signature does, so the check appears once a list is signed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "components/manifest.json"
+      - "components/manifest.json.sig"
+      - "profiles/profiles.json"
+      - "profiles/profiles.json.sig"
+      - "Sources/Nightforge/Signature.swift"
+      - "Sources/Nightforge/SigningKeys.swift"
+      - "scripts/signing-tool.swift"
+      - "scripts/signing-lib.sh"
+      - "scripts/check-signatures.sh"
+      - ".github/workflows/signatures.yml"
+  pull_request:
+    paths:
+      - "components/manifest.json"
+      - "components/manifest.json.sig"
+      - "profiles/profiles.json"
+      - "profiles/profiles.json.sig"
+      - "Sources/Nightforge/Signature.swift"
+      - "Sources/Nightforge/SigningKeys.swift"
+      - "scripts/signing-tool.swift"
+      - "scripts/signing-lib.sh"
+      - "scripts/check-signatures.sh"
+      - ".github/workflows/signatures.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lists:
+    # The same CryptoKit check as the app's, so it runs where CryptoKit is.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Online lists are signed
+        run: scripts/check-signatures.sh

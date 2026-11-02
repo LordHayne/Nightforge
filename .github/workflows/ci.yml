@@ -39,6 +39,10 @@ jobs:
       - name: Profile builder tests
         run: python3 -m unittest tests/test_build_profiles.py
 
+      # Against stand-ins for the Keychain, the clipboard and GitHub: no key, no network.
+      - name: Signing scripts
+        run: python3 -m unittest tests/test_signing_scripts.py
+
       - name: Component list
         run: python3 -I scripts/validate-manifest.py
 

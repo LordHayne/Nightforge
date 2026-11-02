@@ -56,8 +56,9 @@ jobs:
           # The bot's own branch: this night's proposal replaces yesterday's if it wasn't merged.
           git push --force origin "$branch"
           {
-            echo "The nightly run found these changes. Nothing reaches the app until this is merged."
+            echo "The nightly run found these changes. Nothing reaches the app until this is signed and merged."
             echo "Read the diff first: winetricks is a script that runs as the player's user, DXMT's files run under Wine."
+            echo "Then, on the maintainer's Mac: \`scripts/sign-lists.sh $branch\`, and merge once the **Signatures** check is green."
             echo
             echo '```'
             cat "$RUNNER_TEMP/changes.txt"
