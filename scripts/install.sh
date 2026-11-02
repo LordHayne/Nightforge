@@ -4,11 +4,14 @@
 #
 # Downloaded this way the app carries no quarantine flag, so macOS opens it without the
 # "can't be verified" detour (Nightforge is free and not registered with Apple).
-# NIGHTFORGE_ZIP (a local zip) and NIGHTFORGE_INSTALL_DIR are for testing.
+# For testing: NIGHTFORGE_ZIP (a local zip), NIGHTFORGE_INSTALL_DIR, NIGHTFORGE_APPLICATIONS (in place of
+# /Applications; HOME stands in for the home folder), NIGHTFORGE_NO_QUIT (leaves a running Nightforge alone)
+# and NIGHTFORGE_NO_OPEN.
 set -euo pipefail
 
 REPO="LordHayne/Nightforge"
 APP="Nightforge.app"
+APPLICATIONS="${NIGHTFORGE_APPLICATIONS:-/Applications}"
 
 fail() { echo "✗ $*" >&2; exit 1; }
 
@@ -16,6 +19,33 @@ fail() { echo "✗ $*" >&2; exit 1; }
 quit_running() {
   pgrep -qf "$2.app/Contents/MacOS/$2" || return 0
   osascript -e "tell application id \"$1\" to quit" >/dev/null 2>&1 || true
+}
+
+# An update replaces the copy that is there, in its folder: a second one elsewhere would leave the old
+# version to whatever Spotlight or the Dock opens. With a copy in both folders the one opened last wins,
+# by the date the Finder shows as "Last opened"; with neither date (never opened, Spotlight off) the one in
+# /Applications, where a fresh Mac gets it. A copy in a folder this user can't write to can't be replaced.
+install_target() {
+  local dir name date best="" best_date=""
+  for dir in "$APPLICATIONS" "$HOME/Applications"; do
+    for name in "$APP" Nachtschicht.app; do
+      [ -d "$dir/$name" ] && [ -w "$dir" ] || continue
+      date="$(mdls -raw -name kMDItemLastUsedDate "$dir/$name" 2>/dev/null || true)"
+      [ "$date" = "(null)" ] && date=""
+      # The dates read "2026-11-02 21:15:04 +0000", so a later one sorts after an earlier one.
+      if [ -z "$best" ] || [[ "$date" > "$best_date" ]]; then
+        best="$dir"
+        best_date="$date"
+      fi
+    done
+  done
+  if [ -n "$best" ]; then
+    echo "$best"
+  elif [ -w "$APPLICATIONS" ]; then
+    echo "$APPLICATIONS"
+  else
+    echo "$HOME/Applications"
+  fi
 }
 
 # Everything runs from here, called on the script's last line: a download cut short by `curl | bash`
@@ -26,13 +56,7 @@ main() {
   major="$(sw_vers -productVersion | cut -d. -f1)"
   [ "$major" -ge 26 ] || fail "Nightforge needs macOS 26 Tahoe or newer."
 
-  if [ -n "${NIGHTFORGE_INSTALL_DIR:-}" ]; then
-    target="$NIGHTFORGE_INSTALL_DIR"
-  elif [ -w /Applications ]; then
-    target="/Applications"
-  else
-    target="$HOME/Applications"
-  fi
+  target="${NIGHTFORGE_INSTALL_DIR:-$(install_target)}"
   mkdir -p "$target"
 
   work="$(mktemp -d)"
@@ -54,10 +78,12 @@ main() {
   [ -d "$work/unpacked/$APP" ] || fail "The download is incomplete. Please try again."
 
   # Quit a running copy so it can be replaced.
-  quit_running io.github.lordhayne.nightforge Nightforge
-  # Nightforge's earlier name: replaced by this install (its data moves over on first start).
-  quit_running local.thomas.nachtschicht Nachtschicht
-  sleep 1
+  if [ -z "${NIGHTFORGE_NO_QUIT:-}" ]; then
+    quit_running io.github.lordhayne.nightforge Nightforge
+    # Nightforge's earlier name: replaced by this install (its data moves over on first start).
+    quit_running local.thomas.nachtschicht Nachtschicht
+    sleep 1
+  fi
 
   rm -rf -- "${target:?}/$APP" "${target:?}/Nachtschicht.app"
   ditto "$work/unpacked/$APP" "$target/$APP"
@@ -65,6 +91,11 @@ main() {
 
   version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$target/$APP/Contents/Info.plist" 2>/dev/null || echo "?")"
   echo "✓ Nightforge $version installed in $target"
+  for other in "$APPLICATIONS" "$HOME/Applications"; do
+    if [ "$other" != "$target" ] && [ -d "$other/$APP" ]; then
+      echo "  An older copy is still in $other. It stays as it was; you can move it to the Bin."
+    fi
+  done
   [ -n "${NIGHTFORGE_NO_OPEN:-}" ] || open "$target/$APP"
 }
 
