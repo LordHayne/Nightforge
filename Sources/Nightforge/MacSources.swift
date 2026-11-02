@@ -149,10 +149,10 @@ private struct AGWDocument: Decodable {
                                                graphics: (raw.graphics ?? []).compactMap(GraphicsLayer.init(rawValue:)),
                                                directX: raw.directX ?? [], chips: raw.chips ?? [], date: raw.date)
             }
-            let hint = hint.flatMap { raw in
+            let sourceHint = self.hint.flatMap { raw in
                 GraphicsLayer(rawValue: raw.graphics).map { SourceHint(graphics: $0, directX: raw.directX, source: raw.source ?? "agw") }
             }
-            return AGWEntry(page: page, ids: ids, codeweavers: codeweavers, reports: reports, hint: hint)
+            return AGWEntry(page: page, ids: ids, codeweavers: codeweavers, reports: reports, hint: sourceHint)
         }
     }
 

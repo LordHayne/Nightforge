@@ -5,7 +5,7 @@ import Foundation
 /// leaves the Mac unless they submit it there, under their GitHub name. Only fixed values go in – no
 /// paths, account names, launch options or log lines – and each still passes GameLog.redacted, as
 /// the problem report's do. A nightly workflow could count the valid ones into profiles/reports.json
-/// (docs/BERICHTE.md).
+/// (docs/ENTWURF-BERICHTE.md).
 enum CompatReport {
     static let form = "compat-report.yml"
 
@@ -23,7 +23,7 @@ enum CompatReport {
     static func fields(game: Game, rating: GameRating, preset: GraphicsPreset?, engine: EngineBuild?,
                        chip: String, macOS: String, nightforge: String, home: String = NSHomeDirectory(),
                        user: String = NSUserName()) -> [(id: String, value: String)] {
-        let (store, id) = store(game)
+        let (store, id) = Self.store(game)
         var setup = ["Nightforge " + nightforge]
         if let preset { setup.append("preset " + preset.rawValue) }
         if let engine { setup.append(engine.parts.joined(separator: ", ")) }
@@ -42,13 +42,13 @@ enum CompatReport {
 
     static func url(game: Game, rating: GameRating, preset: GraphicsPreset?, engine: EngineBuild?, chip: String,
                     macOS: String, nightforge: String, home: String = NSHomeDirectory(), user: String = NSUserName()) -> URL? {
-        let fields = fields(game: game, rating: rating, preset: preset, engine: engine, chip: chip, macOS: macOS,
-                            nightforge: nightforge, home: home, user: user)
+        let filled = Self.fields(game: game, rating: rating, preset: preset, engine: engine, chip: chip, macOS: macOS,
+                                 nightforge: nightforge, home: home, user: user)
         var components = URLComponents(string: "https://github.com/LordHayne/Nightforge/issues/new")
         components?.queryItems = [
             URLQueryItem(name: "template", value: form),
             URLQueryItem(name: "title", value: GameLog.redacted("\(game.name): \(result(rating))", home: home, user: user)),
-        ] + fields.map { URLQueryItem(name: $0.id, value: $0.value) }
+        ] + filled.map { URLQueryItem(name: $0.id, value: $0.value) }
         return components?.url
     }
 }
