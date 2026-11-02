@@ -100,6 +100,25 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
 - **Per game (O):** Automatic, Balanced, Fastest or Most compatible, plus expert options and launch options.
 - **Advanced:** CrossOver and Whisky bottles or your own Wine, folded away until you need them.
 
+## Tested on a Mac
+
+Played live on a Mac with M5 between 24 October and 2 November 2026, with Nightforge 0.3 and the builds before it.
+
+| Game | Store | Way | Result |
+|---|---|---|---|
+| Asphalt Legends | Steam | Mac version | Runs |
+| Valheim | Steam | Mac version | Runs, with a controller too |
+| No Man's Sky | Steam | Mac version | Runs |
+| OxyRail | Steam | Windows · DXMT | Runs, a steady 60 FPS with MetalFX |
+| Overcooked 2 | Steam | Windows · DXMT | Runs at 60 FPS, with a controller and on the TV too |
+| Black Myth: Wukong Benchmark Tool | Steam | Windows · D3DMetal | Runs, 68 FPS (Low, FSR, 1512×982) |
+| The Last Caretaker Demo | Steam | Windows · D3DMetal | Runs, around 50 FPS at full Retina resolution with FSR frame generation |
+| Control | Epic Games | Windows · D3DMetal | Runs |
+| Mafia II (Classic) | GOG | Windows · WineD3D | Runs, but not smooth yet |
+| Overwatch | Steam | Windows | Doesn't start yet – Nightforge is looking into why |
+
+Everything else: try it. Nightforge picks the way from a game's files and moves on to the next one by itself if a game doesn't start. Online games with anti-cheat are the exception (see Good to know).
+
 ## What's next
 
 No dates – just an honest sort.
@@ -210,4 +229,6 @@ D3DMetal is Apple's software, not part of Nightforge and not under the GPL. Nigh
 
 Nightforge stands on the work of [Wine](https://www.winehq.org), CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk)), [Gcenx's Wine builds and DXVK-macOS](https://github.com/Gcenx), [DXMT](https://github.com/3Shain/dxmt), [MoltenVK](https://github.com/KhronosGroup/MoltenVK), Apple's [D3DMetal](https://developer.apple.com/games/game-porting-toolkit/), [legendary](https://github.com/derrod/legendary), [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl), [winetricks](https://github.com/Winetricks/winetricks), [cabextract](https://www.cabextract.org.uk), [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) and [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet). Their licences apply to the components Nightforge downloads.
 
-Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library with the game covers left out; game artwork belongs to its publishers.
+**Support CrossOver.** CodeWeavers pays for a large part of Wine's development, and Nightforge's engine is built from the Wine changes they publish with [CrossOver](https://www.codeweavers.com/crossover) – without them, no D3DMetal and no DirectX 12 in Nightforge. Nightforge takes no money; if you'd like to support the people behind this work, buy CrossOver. It's also the right choice if you want more control over Windows programs on your Mac and support from people who know Wine.
+
+Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA, CodeWeavers or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA, CrossOver a trademark of CodeWeavers, Inc.; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library with the game covers left out; game artwork belongs to its publishers.
