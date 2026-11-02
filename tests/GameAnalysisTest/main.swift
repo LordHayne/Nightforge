@@ -172,6 +172,15 @@ struct GameAnalysisTest {
         ], launch: "Overwatch.exe")
         check(overwatch.apis == [.d3d11, .d3d12] && !overwatch.onlyD3D12 && overwatch.usesD3D11,
               "a loader that links Direct3D 11, plus the Agility SDK: \(overwatch.apis)")
+        // Control: Control.exe hands over to Control_DX11.exe; the renderers sit in DLLs this look doesn't reach.
+        let control = try analyze("control", [
+            "Control.exe": program([]), "Control_DX11.exe": program(["kernel32.dll", "renderer_rmdwin7_f.dll"], size: 50_000),
+            "Control_DX12.exe": program(["kernel32.dll", "renderer_rmdwin10_f.dll"], size: 50_001), "VC_redist.x64.exe": program(["d3d9.dll"]),
+        ], launch: "Control.exe")
+        check(control.apis == [.d3d11, .d3d12] && control.d3d12Program == "Control_DX12.exe" && !control.onlyD3D12,
+              "programs of its own for DirectX 11 and 12: both, and which one is 12 (\(control.apis), \(control.d3d12Program ?? "-"))")
+        check(try analyze("nodx12", ["Game.exe": program(["d3d11.dll"]), "dx12setup.exe": program([])]).d3d12Program == nil,
+              "a name that only starts with dx12 isn't the game's DirectX 12 program")
         let agilityOnly = try analyze("agilityonly", ["Game.exe": program(["kernel32.dll"]), "D3D12/D3D12Core.dll": empty])
         check(agilityOnly.onlyD3D12, "the Agility SDK and nothing else linked: DirectX 12 only (\(agilityOnly.apis))")
 

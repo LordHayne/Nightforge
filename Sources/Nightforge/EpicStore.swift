@@ -865,6 +865,17 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         save(playTimes, to: Self.playTimeFile)
     }
 
+    /// A game's catalog namespace, from the library Nightforge keeps on disk: what profiles.json
+    /// keys Epic's games by ("epic.<namespace>"). Nil before the library was first read.
+    nonisolated static func namespace(of appName: String) -> String? {
+        struct Library: Decodable { let games: [EpicGame] }
+        let file = Engine.supportDir.appendingPathComponent("Epic/library.json")
+        guard let data = try? Data(contentsOf: file), let library = try? JSONDecoder().decode(Library.self, from: data),
+              let namespace = library.games.first(where: { $0.appName == appName })?.namespace, !namespace.isEmpty
+        else { return nil }
+        return namespace
+    }
+
     /// Whether the game may start without Epic (legendary's installed.json).
     nonisolated static func executable(of appName: String) -> String? {
         let file = Legendary.configDir.appendingPathComponent("installed.json")

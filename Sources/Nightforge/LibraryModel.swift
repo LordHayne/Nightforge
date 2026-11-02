@@ -2855,7 +2855,7 @@ final class LibraryModel: ObservableObject {
                 }
                 // A start again another way the player's Play called off (`mayStart`): no Steam restarted for it either.
                 if Task.isCancelled { return }
-                var arguments = analysis?.preferD3D11Arguments ?? []
+                var arguments = (options.graphics == .d3dmetal ? analysis?.preferD3D12Arguments : analysis?.preferD3D11Arguments) ?? []
                 var watchFirstSeconds = false
                 var wayConfirmed = false
                 if automatic, !attempts.isEmpty {

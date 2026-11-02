@@ -197,13 +197,16 @@ struct GameOptions: Codable, Equatable {
     var hdr = false
     /// Mac or Windows version, for games Steam has both of (VersionChoice).
     var version = GameVersion.automatic
+    /// The program to start instead of the store's, relative to the game folder; "" = automatic
+    /// (GameProgram). Epic's and GOG's games only: Steam picks its own.
+    var program = ""
 
     static let frameLimits = [0, 30, 40, 60, 120]
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case preset, metalHUD, extraArgs, graphics, fps, metalFX, hdr, version
+        case preset, metalHUD, extraArgs, graphics, fps, metalFX, hdr, version, program
         // 0.1.4 stored these; their defaults (0, false) meant "untouched", so they read as automatic.
         case frameLimit, upscaling
     }
@@ -220,6 +223,7 @@ struct GameOptions: Codable, Equatable {
         upscaling = try c.decodeIfPresent(Choice.self, forKey: .metalFX) ?? (legacyUpscaling ? .on : .automatic)
         hdr = try c.decodeIfPresent(Bool.self, forKey: .hdr) ?? false
         version = (try? c.decodeIfPresent(GameVersion.self, forKey: .version)) ?? .automatic
+        program = (try? c.decodeIfPresent(String.self, forKey: .program)) ?? ""
         // Before the presets (and a preset from a newer Nightforge): expert options set by hand are Custom.
         preset = (try? c.decodeIfPresent(GraphicsPreset.self, forKey: .preset))
             ?? (graphics == .automatic && frameLimit == nil && upscaling == .automatic ? .automatic : .custom)
@@ -235,6 +239,7 @@ struct GameOptions: Codable, Equatable {
         try c.encode(upscaling, forKey: .metalFX)
         if hdr { try c.encode(hdr, forKey: .hdr) }
         if version != .automatic { try c.encode(version, forKey: .version) }
+        if !program.isEmpty { try c.encode(program, forKey: .program) }
     }
 
     /// The frame limit actually used: the game's own choice, or with "Sharp & smooth" half the
@@ -565,13 +570,22 @@ enum Launcher {
         environment["WINEDEBUG"] = GameLog.wineDebug
         if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
         environment.merge(command.environment) { _, store in store }
+        // The store's program, or the one picked for the game (GameProgram). The store's parameters
+        // (Epic's sign-in) go to whichever starts; another program runs in its own folder.
+        let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
+        let program = GameProgram.resolve(store: command.executable, installDir: game.installDir, layer: layer,
+                                          chosen: options.program, profile: profile?.executable)
+        let otherProgram = program.standardizedFileURL.path != command.executable.standardizedFileURL.path
+        if otherProgram {
+            GameLog.note("\(game.name) starts \(program.lastPathComponent) on \(layer.rawValue) instead of \(command.executable.lastPathComponent)")
+        }
         let process = DetachedProcess()
         let loader = Engine.loader(for: runner)
         process.executableURL = loader
         if loader != runner { environment["WINELOADER"] = loader.path }
-        process.arguments = [Engine.windowsPath(of: command.executable)] + command.arguments + (profile?.arguments ?? [])
+        process.arguments = [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments ?? [])
             + extraArguments + splitArguments(options.extraArgs)
-        process.currentDirectoryURL = command.workingDirectory
+        process.currentDirectoryURL = otherProgram ? program.deletingLastPathComponent() : command.workingDirectory
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         let log = GameLog.handleForSteam()

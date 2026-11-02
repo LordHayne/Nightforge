@@ -86,6 +86,7 @@ enum LaunchHealth {
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
     /// Direct3D 12 runs on a Mac. DirectX 11 tries DXMT and DXVK first, which run it better, and
     /// D3DMetal (which runs Direct3D 11 too) last.
+    /// A game with a DirectX 12 program of its own starts that one on D3DMetal (GameProgram, Control_DX12.exe).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
                          d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, profile?.graphics == .d3dmetal {

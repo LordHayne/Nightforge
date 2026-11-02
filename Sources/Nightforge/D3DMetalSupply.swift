@@ -187,10 +187,12 @@ enum D3DMetalSupply {
     }
 
     /// A game that can't draw without D3DMetal: DirectX 12 and nothing else, or the player picked it
-    /// for the game. (A profile that prefers it for a game with a DirectX 11 way too isn't asked
-    /// about: that game runs without.)
-    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer) -> Bool {
+    /// for the game, or its profile names it for a game with a DirectX 12 program of its own
+    /// (Control: its DirectX 11 program crashes on DXMT and DXVK). A profile that only prefers it
+    /// for a game that draws both with one program isn't asked about: that game runs without.
+    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer, profile: GameProfile? = nil) -> Bool {
         picked == .d3dmetal || analysis?.onlyD3D12 == true
+            || (analysis?.d3d12Program != nil && profile?.graphics == .d3dmetal)
     }
 
     // MARK: Importing Apple's toolkit

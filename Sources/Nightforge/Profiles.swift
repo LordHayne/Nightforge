@@ -58,6 +58,9 @@ struct GameProfile: Decodable, Equatable {
     /// Where the game keeps the resolution it starts in, so it's fitted to the screen it plays on
     /// (GameResolution), as Unity's and Unreal's are without a profile.
     var resolution: SavedResolution?
+    /// The program to start instead of the store's, relative to the game folder (GameProgram):
+    /// Epic's and GOG's games, which Nightforge starts itself. Steam picks its own.
+    var executable: String?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -116,7 +119,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, resolution
+        case iniSettings, retina, resolution, executable
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -159,6 +162,7 @@ struct GameProfile: Decodable, Equatable {
         iniSettings = try? container.decodeIfPresent([IniSetting].self, forKey: .iniSettings)
         retina = try? container.decodeIfPresent(Bool.self, forKey: .retina)
         resolution = try? container.decodeIfPresent(SavedResolution.self, forKey: .resolution)
+        executable = (try? container.decodeIfPresent(String.self, forKey: .executable)).flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 
@@ -230,14 +234,16 @@ actor ProfileStore {
     }
 
     /// The profile a game starts with, from any store: Steam's by app ID, GOG's by product ID (the
-    /// Steam version's profile, for the GOG versions profiles/mac.json names). Epic's entries only
-    /// say what blocks a game (`epicAntiCheatBlocks`), so an Epic game starts without.
+    /// Steam version's profile, for the GOG versions profiles/mac.json names), Epic's by catalog
+    /// namespace ("epic.<namespace>", from the library Nightforge keeps; the entries AreWeAntiCheatYet
+    /// brings only say what blocks a game).
     func profile(for game: GameID) async -> GameProfile? {
         if let appID = game.steamAppID { return await profile(for: appID) }
-        guard game.provider == .gog else { return nil }
+        let epicNamespace = game.provider == .epic ? EpicStore.namespace(of: game.id) : nil
+        guard game.provider == .gog || epicNamespace != nil else { return nil }
         if !refreshed { await refresh() }
         loadLocalIfNeeded()
-        return gogProfiles[game.id]
+        return epicNamespace.map { epicProfiles[$0] } ?? gogProfiles[game.id]
     }
 
     /// Every game's profile from the list at hand, without waiting for the online copy (like
