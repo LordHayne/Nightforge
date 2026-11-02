@@ -209,9 +209,21 @@ Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen ge
   Stück B (`enginefix`). Ob das Overwatch trifft, zeigt erst der Test.
 - **Kandidat D3DMetal unter Rosetta:** D4Mac fand den hängenden Thread der Blizzard-Spiele in `os_sync_wait_on_address` in
   Apples `libd3dshared.dylib`. Mit DXMT ist D3DMetal nicht im Spiel.
-- **Live-Test offen**, Plan im Notizordner der Sessions (`overwatch-engine-04.md`). Die Varianten: A DXMT mit msync,
-  B DXMT ohne msync, C D3DMetal ohne msync, D DXMT mit `enginefix`. Bei einem Hänger jeweils `sample` des Prozesses
-  und den Teil von `Logs/wine.log` ab Start. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
+- **Live-Tests vom 2.11. abends** (Plan und Auswertung im Notizordner, `overwatch-engine-04.md`): A (DXMT mit msync),
+  B (DXMT ohne msync) und der nächtliche Spieletest (23:46, DXMT mit msync) **hängen gleich**. Es kommt keine Grafikzeile
+  ins Log, der Grafikweg ist also nicht schuld. Der Windows-Hauptthread wartet in `NtWaitForAlertByThreadId` auf eine
+  Sperre. Ein Thread wartet auf ein Objekt, mit msync über `msync_wait_objs`, ohne msync über `server_select`, also nicht
+  msyncs Schuld. Vier Threads wurden angehalten erzeugt und nie fortgesetzt. D3DMetals Rosetta-Deadlock (D4Mac,
+  `libd3dshared`) ist es nicht: Die Wartestelle liegt in Wines `ntdll.so`, und D3DMetal ist nicht geladen.
+- **Abgleich mit Recall** (AsherJN/recall, CX-26.3-Wine mit DXMT, läuft mit Overwatch): Recall setzt bei jedem Start
+  `WINE_SIMULATE_WRITECOPY=1` (CW Hack 22996: `NtProtectVirtualMemory` meldet Write-Copy-Seiten wie Windows, das
+  prüfen Anti-Tamper) und `CX_HACK_FILESYSTEM_TYPE=1` (CrossOver-Hack 5870: kein NTFS). Dazu kommen
+  `CX_ACTIVE_GRAPHICS_BACKEND=dxmt` und `d3d12,nvapi64,nvngx` aus. Beide Hacks stecken in unserem winecx-Baum, nur
+  schaltet sie nichts ein. In CrossOver tut das vermutlich die nicht freie Kompatibilitätsdatenbank. Recall startet
+  außerdem über Battle.net statt Steam. Seine Wine-Patches betreffen Ruckler, Maus und msync, nicht den Start.
+- **Nächster Live-Test E** (mit dem Nutzer): die beiden Hacks über `HKCU\Environment` (Befehle im Notizordner).
+  Hängt es weiter, `winedbg --command "bt all"` im Hänger: Das zeigt die Windows-Stapel, die `sample` unter Rosetta
+  nicht auflöst. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
 
 ### Engine-Fixes (`enginefix`)
 
