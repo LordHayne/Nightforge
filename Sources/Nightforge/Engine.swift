@@ -140,11 +140,14 @@ enum Engine {
     /// settings, which it only takes from there (Apple's readme): D3DM_MAX_FPS caps the frame rate,
     /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
     /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
-    /// session has to start with as well. True when the running Steam has to restart.
+    /// session has to start with as well. `environment`: the game's own Wine switches
+    /// (GameEnvironment), which the game before it may have had others of. True when the running
+    /// Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
-                                         retina: Bool = false) -> Bool {
+                                         retina: Bool = false, environment: [String: String] = [:]) -> Bool {
         var wanted = launchEnvironment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
+        for name in GameEnvironment.allowed.keys { wanted[name] = environment[name] ?? "" }
         if d3dMetal {
             wanted["D3DM_MAX_FPS"] = frameLimit > 0 ? String(frameLimit) : ""
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""

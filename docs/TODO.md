@@ -221,9 +221,9 @@ Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen ge
   `CX_ACTIVE_GRAPHICS_BACKEND=dxmt` und `d3d12,nvapi64,nvngx` aus. Beide Hacks stecken in unserem winecx-Baum, nur
   schaltet sie nichts ein. In CrossOver tut das vermutlich die nicht freie Kompatibilitätsdatenbank. Recall startet
   außerdem über Battle.net statt Steam. Seine Wine-Patches betreffen Ruckler, Maus und msync, nicht den Start.
-- **Nächster Live-Test E** (mit dem Nutzer): die beiden Hacks über `HKCU\Environment` (Befehle im Notizordner).
-  Hängt es weiter, `winedbg --command "bt all"` im Hänger: Das zeigt die Windows-Stapel, die `sample` unter Rosetta
-  nicht auflöst. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
+- **Nächster Live-Test E** (mit dem Nutzer): die beiden Hacks über das Profilfeld `environment` bzw. den Testschalter
+  `gameEnvironment` (unten). Hängt es weiter, `winedbg --command "bt all"` im Hänger: Das zeigt die Windows-Stapel,
+  die `sample` unter Rosetta nicht auflöst. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
 
 ### Engine-Fixes (`enginefix`)
 
@@ -263,9 +263,29 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   beendet Nightforge die laufende Wine-Sitzung samt Steam, weil eine Sitzung nur mit oder nur ohne msync laufen kann.
   `wine.log` meldet dann „msync off from this Wine session on“. Zurück mit
   `defaults delete io.github.lordhayne.nightforge msync`.
+- `defaults write io.github.lordhayne.nightforge gameEnvironment.steam.2357570 -dict WINE_SIMULATE_WRITECOPY 1
+  CX_HACK_FILESYSTEM_TYPE 1 CX_ACTIVE_GRAPHICS_BACKEND dxmt` setzt Wines und CrossOvers eigene Schalter für **ein**
+  Spiel (`gameEnvironment.<Schlüssel des Spiels>`, hier Overwatch auf Steam). Gelesen wird das bei jedem Start, ein
+  Neustart von Nightforge ist nicht nötig. Es geht vor das Profilfeld `environment`, erlaubt sind dieselben Namen
+  (`GameEnvironment.allowed`). Über Steam startet Steam dafür neu. `wine.log` meldet „<Spiel> starts with … through
+  Steam“. Zurück mit `defaults delete io.github.lordhayne.nightforge gameEnvironment.steam.2357570`.
 - `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
   `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
   danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+
+### Profilfeld `environment` (Zweig `claude/engine-env-0f3a`, 3.11.)
+
+- `GameEnvironment`: Wines und CrossOvers eigene Schalter pro Spiel. Erlaubt sind nur `WINE_SIMULATE_WRITECOPY`,
+  `CX_HACK_FILESYSTEM_TYPE`, `CX_ACTIVE_GRAPHICS_BACKEND`, `CX_GRAPHICS_BACKEND` und `WINE_LARGE_ADDRESS_AWARE`, mit
+  kurzen, schlichten Werten. Nie `DYLD_*`, Pfade oder Leerzeichen, weil ein Profil aus der Online-Liste kommt.
+- Wege ins Spiel: Über Steam landen die Schalter in Steams Umgebung (`Engine.prepareLaunchEnvironment`), Steam
+  startet neu, wenn sie sich ändern. Das nächste Spiel ohne sie nimmt sie wieder weg. Epic- und GOG-Spiele bekommen
+  sie direkt (`Launcher.launchDirect`). Dazu kommt der Testschalter oben.
+- `profiles.yml` lehnt anderes ab (`build_profiles.environment_allowed`, dieselbe Liste wie die App, ein Test prüft
+  den Gleichlauf).
+- **Braucht ein App-Release.** Das Overwatch-Profil bekommt den Eintrag erst, wenn Test E läuft. Er kommt dann über die
+  Profilliste, wirkt aber erst mit diesem Release.
+- `LibraryModel`: eine Zeile, das Argument `environment:` beim bestehenden Aufruf von `prepareLaunchEnvironment`.
 
 ### Später (nicht angefangen)
 
