@@ -6,6 +6,8 @@ struct GameInsight: Equatable {
     let analysis: GameAnalysis
     /// The ways "Automatic" tries, in order (LaunchHealth).
     let attempts: [LaunchAttempt]
+    /// The layer `attempts` put first because other sources report it working (`LaunchHealth.hinted`).
+    var hint: GraphicsLayer?
 }
 
 /// A game that ended right after starting with every way Nightforge knows.
@@ -38,10 +40,11 @@ enum ProblemReport {
         let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: GameDisplay.screen?.maximumFramesPerSecond ?? 60,
                                                                   profile: profile)
         var graphics = "\(options.preset.rawValue) · " + options.graphics.label
-        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile)
+        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile, hint: insight?.hint)
         if options.graphics == .automatic, !attempts.isEmpty {
             let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
             graphics += " → " + attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
+            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from AppleGamingWiki" }
         }
         var detected = insight?.analysis.summary ?? "–"
         if let analysis = insight?.analysis {

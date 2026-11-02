@@ -85,11 +85,14 @@ enum LaunchHealth {
 
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
     /// Direct3D 12 runs on a Mac. DirectX 11 tries DXMT and DXVK first, which run it better, and
-    /// D3DMetal (which runs Direct3D 11 too) last.
+    /// D3DMetal (which runs Direct3D 11 too) last. `hint`: a way other sources report working
+    /// (AppleGamingWiki); it goes first where it fits the game (`hinted`) and the profile names no
+    /// layer of its own.
     /// A game with a DirectX 12 program of its own starts that one on D3DMetal (GameProgram, Control_DX12.exe).
-    static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
+    static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint? = nil,
                          d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
-        if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, profile?.graphics == .d3dmetal {
+        let preferred = profile?.graphics ?? hinted(hint, analysis: analysis, d3dMetal: d3dMetal)
+        if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, preferred == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
             let arguments = analysis.preferD3D11Arguments
             return [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt, arguments: arguments),
@@ -97,14 +100,18 @@ enum LaunchHealth {
         }
         if analysis.usesD3D11 || analysis.apis.isEmpty {
             let arguments = analysis.preferD3D11Arguments
-            let first = profile?.graphics.flatMap { $0 == .d3dmetal && !d3dMetal ? nil : $0 } ?? Engine.defaultGraphics
+            let first = preferred.flatMap { $0 == .d3dmetal && !d3dMetal ? nil : $0 } ?? Engine.defaultGraphics
+            if first == .d3dmetal {
+                // Apple's Direct3D 11 first (Control's DX11 build runs only there, 2.11.2026), then the usual two.
+                return [LaunchAttempt(graphics: .d3dmetal, arguments: arguments), LaunchAttempt(graphics: .dxmt, arguments: arguments),
+                        LaunchAttempt(graphics: .dxvk, arguments: arguments)]
+            }
             let second: GraphicsLayer = first == .dxmt ? .dxvk : .dxmt
             var list = [LaunchAttempt(graphics: first, arguments: arguments), LaunchAttempt(graphics: second, arguments: arguments)]
             // D3DMetal is the last resort: Direct3D 12 for games that would pick it, Apple's Direct3D
             // 11 for the rest – Control's DX11 build ends at once on DXMT and DXVK (2.11.2026).
             if d3dMetal {
-                // Once: a profile's D3DMetal is first already.
-                if !list.contains(where: { $0.graphics == .d3dmetal }) { list.append(LaunchAttempt(graphics: .d3dmetal)) }
+                list.append(LaunchAttempt(graphics: .d3dmetal))
             } else if !arguments.isEmpty {
                 list.append(LaunchAttempt(graphics: first))
             }
@@ -124,13 +131,50 @@ enum LaunchHealth {
         return [LaunchAttempt(graphics: Engine.defaultGraphics)]
     }
 
+    /// The layer a source's hint puts first, where it fits the game; nil where it doesn't. D3DMetal
+    /// for a game with DirectX 11 (and maybe a DirectX 12 build), or one nothing was detected for –
+    /// D3DMetal runs both – unless Nightforge knows the engine's DirectX 11 switch: Unreal's and
+    /// Unity's DirectX 11 on DXMT is measured, a report from CrossOver doesn't beat that. DXMT or DXVK
+    /// for a game with DirectX 11. (Control: DirectX 11 crashed on DXMT and DXVK and runs on D3DMetal,
+    /// 1./2.11.2026; every Mac source runs it on D3DMetal.)
+    static func hinted(_ hint: SourceHint?, analysis: GameAnalysis, d3dMetal: Bool = Engine.d3dMetalReady) -> GraphicsLayer? {
+        guard let hint, analysis.usesD3D11 || analysis.apis.isEmpty else { return nil }
+        switch hint.graphics {
+        case .d3dmetal:
+            return d3dMetal && analysis.preferD3D11Arguments.isEmpty ? .d3dmetal : nil
+        case .dxmt, .dxvk:
+            return hint.graphics
+        case .automatic, .wined3d:
+            return nil
+        }
+    }
+
+    /// The ways for a game, with a source's hint where it fits – unless the game has already been
+    /// started by the list without it: a way that works isn't given up for someone else's report,
+    /// and a game halfway down its list doesn't start over. `hint` in the result: the layer the list
+    /// put first for it, nil when it didn't follow one.
+    static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
+                         preset: GraphicsPreset, d3dMetal: Bool = Engine.d3dMetalReady,
+                         vulkanLayer: Bool = Engine.vulkanLayerLoads) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
+        let plain = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer)
+        guard profile?.graphics == nil, let layer = hinted(hint, analysis: analysis, d3dMetal: d3dMetal) else { return (plain, nil) }
+        let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer)
+        let before = ladder(plain, preset: preset, profile: profile)
+        let after = ladder(followed, preset: preset, profile: profile, hint: layer)
+        if after != before, peek(game, before) != nil, peek(game, after) == nil { return (plain, nil) }
+        return (followed, layer)
+    }
+
     /// The ways in the order a preset tries them. "Most compatible" starts with the safest: the
-    /// layer a profile names (tested on a Mac), then Wine's own Direct3D, DXVK, DXMT, D3DMetal.
+    /// layer a profile names (tested on a Mac) or else the one a source's hint put first (`hint`, as
+    /// `GameInsight.hint` has it), then Wine's own Direct3D, DXVK, DXMT, D3DMetal.
     /// A list in another order is a list of its own: switching starts it over.
-    static func ladder(_ attempts: [LaunchAttempt], preset: GraphicsPreset, profile: GameProfile?) -> [LaunchAttempt] {
+    static func ladder(_ attempts: [LaunchAttempt], preset: GraphicsPreset, profile: GameProfile?,
+                       hint: GraphicsLayer? = nil) -> [LaunchAttempt] {
         guard preset == .compatible else { return attempts }
         let safest: [GraphicsLayer] = [.wined3d, .dxvk, .dxmt, .d3dmetal]
-        let tested = attempts.firstIndex { $0.graphics == profile?.graphics }
+        let first = profile?.graphics ?? hint
+        let tested = attempts.firstIndex { $0.graphics == first }
         func rank(_ index: Int) -> Int {
             index == tested ? -1 : safest.firstIndex(of: attempts[index].graphics) ?? safest.count
         }

@@ -75,6 +75,65 @@ struct LaunchHealthTest {
         check(ids(GameAnalysis(apis: [.d3d12]), #"{"graphics": "dxvk"}"#, d3dMetal: true) == ["d3dmetal"],
               "a DirectX 11 layer in a profile doesn't apply to a DirectX 12 game")
 
+        // MARK: Hints from other sources (AppleGamingWiki)
+        let d3dMetalHint = SourceHint(graphics: .d3dmetal, directX: "12")
+        let both = GameAnalysis(apis: [.d3d11, .d3d12])  // Control: no DirectX 11 switch Nightforge knows
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: both, d3dMetal: true) == .d3dmetal, "D3DMetal for a DirectX 12 build without a known switch")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: both, d3dMetal: false) == nil, "…not on an engine without D3DMetal")
+        check(LaunchHealth.hinted(SourceHint(graphics: .d3dmetal), analysis: both, d3dMetal: true) == .d3dmetal, "…also when the reports name no DirectX")
+        check(LaunchHealth.hinted(SourceHint(graphics: .d3dmetal, directX: "11"), analysis: both, d3dMetal: true) == .d3dmetal,
+              "…and when they ran it with DirectX 11: D3DMetal runs both")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), d3dMetal: true) == nil,
+              "Unreal's measured DirectX 11 on DXMT isn't left for a report")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d11]), d3dMetal: true) == .d3dmetal,
+              "DirectX 11 only: Apple's Direct3D 11 (Control's DX11 build)")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(), d3dMetal: true) == .d3dmetal, "…and a game nothing was detected for")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d9]), d3dMetal: true) == nil, "not for DirectX 9")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis(apis: [.d3d11])) == .dxvk, "DXVK for DirectX 11")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis()) == .dxvk, "…and when nothing was detected")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis(apis: [.d3d9])) == nil, "a DirectX 11 layer doesn't fit DirectX 9")
+        check(LaunchHealth.hinted(SourceHint(graphics: .wined3d), analysis: GameAnalysis(apis: [.d3d9])) == nil, "no WineD3D hints")
+        check(LaunchHealth.hinted(nil, analysis: both, d3dMetal: true) == nil, "no hint, nothing")
+
+        func hintedIDs(_ analysis: GameAnalysis, _ hint: SourceHint, _ profileJSON: String? = nil, d3dMetal: Bool = true) -> [String] {
+            let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
+            return LaunchHealth.attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: true).map(\.id)
+        }
+        check(hintedIDs(both, d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"], "Control: DirectX 12 on D3DMetal first, DirectX 11 after")
+        check(hintedIDs(both, d3dMetalHint, d3dMetal: false) == ["dxmt", "dxvk"], "…the usual list without D3DMetal")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), SourceHint(graphics: .dxvk)) == ["dxvk", "dxmt"], "a DXVK hint goes first")
+        check(hintedIDs(both, d3dMetalHint, #"{"graphics": "dxmt"}"#) == ["dxmt", "dxvk", "d3dmetal"], "a profile's layer beats any hint")
+        check(hintedIDs(GameAnalysis(apis: [.d3d12]), d3dMetalHint) == ["d3dmetal"], "DirectX 12 only: unchanged")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"],
+              "DirectX 11 only: D3DMetal first, once, then DXMT and DXVK")
+        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "a profile's D3DMetal for DirectX 11 doesn't list it twice")
+
+        // "Most compatible": the hinted way first, as a profile's would be, then the safest.
+        let control = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, d3dMetal: true, vulkanLayer: true)
+        check(LaunchHealth.ladder(control, preset: .compatible, profile: nil, hint: .d3dmetal).map(\.id) == ["d3dmetal", "dxvk", "dxmt"],
+              "Most compatible: the hinted way first")
+        check(LaunchHealth.ladder(control, preset: .compatible, profile: nil).map(\.id) == ["dxvk", "dxmt", "d3dmetal"], "…without it, the safest first")
+        check(LaunchHealth.ladder(control, preset: .automatic, profile: nil, hint: .d3dmetal) == control, "Automatic keeps the list")
+
+        // A game that has started by the list without the hint keeps it; a new one follows the hint.
+        let fresh = GameID.steam(990_005)
+        LaunchHealth.reset(fresh)
+        let followed = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(followed.attempts.map(\.id) == ["d3dmetal", "dxmt", "dxvk"] && followed.hint == .d3dmetal, "a game not started yet follows the hint")
+        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true)
+        LaunchHealth.confirm(fresh, plain)
+        let kept = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(kept.attempts == plain && kept.hint == nil, "a way that works isn't given up for a report")
+        LaunchHealth.reset(fresh)
+        LaunchHealth.recordStart(fresh, followed.attempts)
+        let again = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(again.attempts == followed.attempts && again.hint == .d3dmetal, "a game started by the hinted list stays on it")
+        let ownLayer = LaunchHealth.attempts(for: both, profile: try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"graphics": "dxvk"}"#.utf8)),
+                                             hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(ownLayer.attempts.first?.graphics == .dxvk && ownLayer.hint == nil, "with a profile's layer there's no hint to follow")
+        LaunchHealth.reset(fresh)
+
         // MARK: State
         let appID = 990_001
         let app = GameID.steam(appID)

@@ -35,5 +35,11 @@ Each package comes with its own licence and, where its licence asks for it, its 
 Nightforge's own builds of Wine parts, DXMT and cabextract carry their licence texts inside the
 package and their corresponding source as a second asset of the same GitHub release.
 
+What AppleGamingWiki says about games on a Mac (profiles/agw.json), shown on a game's page and used to
+order the ways Nightforge tries: by the AppleGamingWiki contributors, https://www.applegamingwiki.com,
+CC BY-NC-SA 3.0 (https://creativecommons.org/licenses/by-nc-sa/3.0/), shortened by Nightforge; Steam
+app IDs partly from Wikidata (CC0). A separate work from Nightforge, see profiles/LICENSE-applegamingwiki
+in Nightforge's repository.
+
 Nightforge is not affiliated with Valve, Epic Games, GOG or Apple. Steam is a trademark of Valve
 Corporation; Mac and macOS are trademarks of Apple Inc.

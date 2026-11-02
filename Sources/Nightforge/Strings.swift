@@ -790,8 +790,9 @@ enum L10n {
             "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
-        "Well": "Gut",
-        "Not well": "Nicht gut",
+        "Ran well": "Lief gut",
+        "With problems": "Mit Problemen",
+        "Didn't start": "Startet nicht",
         "Stutters": "Ruckelt",
         "Crashed": "Abgestürzt",
         "Low frame rate": "Niedrige Bildrate",
@@ -1338,6 +1339,32 @@ enum L10n {
         "Your games in the Dock": "Deine Spiele im Dock",
         "Right-click Nightforge in the Dock: your last five games are there to start right away.":
             "Klick mit rechts auf Nightforge im Dock: Dort stehen deine letzten fünf Spiele zum Direktstart.",
+
+        // What others report (AppleGamingWiki)
+        "Mac version (Intel)": "Mac-Version (Intel)",
+        "Wine / Game Porting Toolkit": "Wine / Game Porting Toolkit",
+        "perfect": "perfekt",
+        "playable": "spielbar",
+        "runs, with big flaws": "läuft, mit großen Fehlern",
+        "only to the menu": "nur bis ins Menü",
+        "unplayable": "unspielbar",
+        "According to AppleGamingWiki: %@.": "Laut AppleGamingWiki: %@.",
+        "What others report": "Was andere berichten",
+        "According to AppleGamingWiki:": "Laut AppleGamingWiki:",
+        "Nightforge tries %@ first, as these reports did.": "Nightforge versucht zuerst %@, wie in diesen Berichten.",
+        "From AppleGamingWiki (CC BY-NC-SA 3.0), shortened. Found by the game's name – it may be another edition.":
+            "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Über den Namen des Spiels gefunden – vielleicht eine andere Ausgabe.",
+        "From AppleGamingWiki (CC BY-NC-SA 3.0), shortened. Tested with other versions than Nightforge's.":
+            "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Getestet mit anderen Versionen als denen von Nightforge.",
+        "AppleGamingWiki has no ratings for this game yet.": "Im AppleGamingWiki gibt es für dieses Spiel noch keine Bewertung.",
+        "No profile yet – %@ first, as AppleGamingWiki reports.": "Noch kein Profil – zuerst %@, wie im AppleGamingWiki berichtet.",
+
+        "Thanks – noted on this Mac. Next time Nightforge starts it another way.":
+            "Danke – auf diesem Mac vermerkt. Beim nächsten Mal startet Nightforge es auf einem anderen Weg.",
+        "You said it didn't start.": "Du hast gesagt, es startet nicht.",
+        "Share Report …": "Bericht teilen …",
+        "Opens a GitHub form in your browser with the game, the answer and the way it ran – no paths or account names. Nothing is sent until you submit it there, and your GitHub name shows on it.":
+            "Öffnet ein GitHub-Formular im Browser mit dem Spiel, deiner Antwort und dem Weg, auf dem es lief – ohne Pfade oder Kontonamen. Gesendet wird erst, wenn du es dort abschickst, und dein GitHub-Name steht daran.",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

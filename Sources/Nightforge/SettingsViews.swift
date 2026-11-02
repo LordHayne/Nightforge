@@ -415,7 +415,7 @@ private extension GameOptionsSheet {
 
     /// The way a preset's list takes right now (LaunchHealth).
     func way(for preset: GraphicsPreset) -> LaunchAttempt {
-        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: preset, profile: profile)
+        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: preset, profile: profile, hint: insight?.hint)
         guard !attempts.isEmpty else { return LaunchAttempt(graphics: Engine.defaultGraphics) }
         return attempts[LaunchHealth.current(game.gameID, attempts).index]
     }

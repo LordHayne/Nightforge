@@ -21,10 +21,17 @@ struct GameRating: Codable, Equatable {
     var good: Bool
     var issues: [Issue] = []
     var date = Date()
+    /// "Didn't start": no picture, or it hung (`good` is false then).
+    var didntStart: Bool?
+    /// The way it ran: a `LaunchAttempt.id` ("dxmt -dx11", "d3dmetal"), or "mac" for its Mac version –
+    /// what worked, or didn't, together with the answer.
+    var way: String?
 
-    /// The choice in "Welcome back": "Not well" with the chips picked, in their order; "Well" without.
-    static func choice(good: Bool, issues: Set<Issue>) -> GameRating {
-        GameRating(good: good, issues: good ? [] : Issue.allCases.filter(issues.contains))
+    /// The choice in "Welcome back": "With problems" with the chips picked, in their order; "Ran well"
+    /// and "Didn't start" without.
+    static func choice(good: Bool, issues: Set<Issue>, didntStart: Bool = false, way: String? = nil) -> GameRating {
+        GameRating(good: good && !didntStart, issues: good || didntStart ? [] : Issue.allCases.filter(issues.contains),
+                   didntStart: didntStart ? true : nil, way: way)
     }
 }
 
@@ -48,6 +55,8 @@ struct SessionSummary: Identifiable {
     let totalBefore: Int
     /// When the game's processes were gone: Steam's cloud record has to be newer than that.
     var endedAt = Date()
+    /// The way it started (`GameRating.way`).
+    var way: String?
     var id: String { game.id }
 }
 
@@ -58,6 +67,8 @@ struct SessionSummarySheet: View {
     @State private var rating: Bool?
     @State private var issues: Set<GameRating.Issue> = []
     @State private var saved = false
+    /// "Didn't start" moved the next start on to another way (LaunchHealth).
+    @State private var nextWay = false
     /// "Use “Most compatible” next time" was pressed.
     @State private var compatibleNext = false
     @State private var cloud: CloudSaves.State?
@@ -102,11 +113,13 @@ struct SessionSummarySheet: View {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.runsGreat)
                         Text(compatibleNext
                              ? L10n.t("Thanks – noted on this Mac. Next time it starts with “Most compatible”; change it any time in its options.")
+                             : nextWay ? L10n.t("Thanks – noted on this Mac. Next time Nightforge starts it another way.")
                              : L10n.t("Thanks – noted on this Mac. It shapes how Nightforge rates the game for you."))
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .font(size: 13)
+                    shareButton
                 } else if rating == false {
                     issueButtons
                     HStack(spacing: 8) {
@@ -122,8 +135,9 @@ struct SessionSummarySheet: View {
                     }
                 } else {
                     HStack(spacing: 10) {
-                        ratingButton(L10n.t("Well"), symbol: "hand.thumbsup", id: "session.good") { save(good: true) }
-                        ratingButton(L10n.t("Not well"), symbol: "hand.thumbsdown", id: "session.bad") { keep(good: false) }
+                        ratingButton(L10n.t("Ran well"), symbol: "hand.thumbsup", id: "session.good") { save(good: true) }
+                        ratingButton(L10n.t("With problems"), symbol: "hand.thumbsdown", id: "session.bad") { keep(good: false) }
+                        ratingButton(L10n.t("Didn't start"), symbol: "xmark.octagon", id: "session.noStart", action: didntStart)
                     }
                 }
             }
@@ -233,17 +247,36 @@ struct SessionSummarySheet: View {
         }
     }
 
-    /// Saves and says thanks ("Well", "Save").
+    /// Saves and says thanks ("Ran well", "Save").
     private func save(good: Bool) {
         keep(good: good)
         saved = true
     }
 
-    /// A choice is kept the moment it's made – "Not well" too, and again with each chip – so
-    /// however the sheet closes (Done, ×, Esc, B), nothing chosen is lost.
+    /// A choice is kept the moment it's made – "With problems" too, and again with each chip – so
+    /// however the sheet closes (Done, ×, Esc, B), nothing chosen is lost. With the way it ran.
     private func keep(good: Bool) {
-        GameRatings.save(GameRating.choice(good: good, issues: issues), for: summary.game.gameID)
+        GameRatings.save(GameRating.choice(good: good, issues: issues, way: summary.way), for: summary.game.gameID)
         rating = good
+    }
+
+    /// No picture, or it hung: noted, and with "Automatic" the next start goes the next way.
+    private func didntStart() {
+        GameRatings.save(GameRating.choice(good: false, issues: [], didntStart: true, way: summary.way), for: summary.game.gameID)
+        rating = false
+        saved = true
+        Task { nextWay = await model.wayDidntWork(summary.game) }
+    }
+
+    /// Opens the report form in the browser, filled in; the player sends it there, or doesn't.
+    @ViewBuilder private var shareButton: some View {
+        if let rating = GameRatings.load(summary.game.gameID) {
+            let share = { model.shareReport(summary.game, rating: rating) }
+            Button(L10n.t("Share Report …"), action: share)
+                .buttonStyle(GlassTextButtonStyle(small: true))
+                .help(L10n.t("Opens a GitHub form in your browser with the game, the answer and the way it ran – no paths or account names. Nothing is sent until you submit it there, and your GitHub name shows on it."))
+                .padFocus("session.share", cornerRadius: 16, activate: share)
+        }
     }
 
     /// Crashes, glitches and stutters are what "Most compatible" is for – in Nightforge's own Windows games.
