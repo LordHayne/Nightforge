@@ -23,6 +23,7 @@ struct GameOptionsSheet: View {
         let stored = GameOptionsStore.load(game.gameID)
         _options = State(initialValue: stored)
         _expertOpen = State(initialValue: stored.preset == .custom)
+        Hardware.refresh()  // so "Automatic (…)" shows what a start now would do
     }
 
     var body: some View {

@@ -244,13 +244,13 @@ struct GameOptions: Codable, Equatable {
     func effectiveFrameLimit(displayRefreshRate: Int, profile: GameProfile? = nil) -> Int {
         if let frameLimit { return frameLimit }
         guard Prefs.sharpAndSmooth else { return 0 }
-        return profile?.frameLimit ?? Self.evenLimit(displayRefreshRate)
+        return profile?.frameLimit ?? Self.standardFrameLimit(displayRefreshRate, lowPower: Hardware.current.lowPower)
     }
 
-    /// Half the refresh rate on fast displays (60 on 120 Hz), the refresh rate on 60 Hz ones.
+    /// Half the refresh rate on fast displays (60 on 120 Hz), the refresh rate on 60 Hz ones – the
+    /// fixed limit of "Balanced", whatever the power mode.
     static func evenLimit(_ refreshRate: Int) -> Int {
-        guard refreshRate > 0 else { return 0 }
-        return refreshRate >= 100 ? refreshRate / 2 : refreshRate
+        standardFrameLimit(refreshRate, lowPower: false)
     }
 
     /// The options a start goes by: Automatic and Custom as stored, the other presets with their
@@ -285,12 +285,21 @@ struct GameOptions: Codable, Equatable {
         upscaling = .automatic
     }
 
-    /// A game profile can rule MetalFX out for games it doesn't suit.
+    /// "Sharp & smooth" without a profile: an even share of the refresh rate. In Low Power Mode,
+    /// with CPU and GPU held back, one share lower (40 instead of 60 on 120 Hz), so frames stay even.
+    static func standardFrameLimit(_ refreshRate: Int, lowPower: Bool) -> Int {
+        guard refreshRate > 0 else { return 0 }
+        return refreshRate / ((refreshRate >= 100 ? 2 : 1) + (lowPower ? 1 : 0))
+    }
+
+    /// A game profile can rule MetalFX out for games it doesn't suit. Automatic upscales only on a
+    /// Retina screen: on a screen without (an external monitor, many TV modes) the upscaled frame
+    /// would only be scaled down again, GPU time spent for nothing.
     func effectiveUpscaling(profile: GameProfile? = nil) -> Bool {
         switch upscaling {
         case .on: return true
         case .off: return false
-        case .automatic: return Prefs.sharpAndSmooth && profile?.metalFX != false
+        case .automatic: return Prefs.sharpAndSmooth && profile?.metalFX != false && Hardware.current.retina
         }
     }
 }

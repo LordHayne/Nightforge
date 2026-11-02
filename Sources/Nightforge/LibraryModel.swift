@@ -2711,6 +2711,7 @@ final class LibraryModel: ObservableObject {
             let insight = await insight(of: game)
             let analysis = insight?.analysis
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
+            Hardware.refresh()  // the screen the game opens on, Low Power Mode: the automatic choices follow them
             // A preset fixes frame limit and MetalFX; "Most compatible" tries the safest way first.
             var options = GameOptionsStore.load(game.gameID).resolved(refreshRate: refreshRate, profile: profile)
             let automatic = game.bottle.isBuiltIn && options.graphics == .automatic

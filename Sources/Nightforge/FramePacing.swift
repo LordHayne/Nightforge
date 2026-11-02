@@ -14,6 +14,9 @@ enum FramePacing {
         var upscaling: Bool
         /// The layer the game draws through: DXMT and D3DMetal hold very different rates.
         var graphics: GraphicsLayer?
+        /// Low Power Mode (true, else nil so contexts saved before it still match): a game holds
+        /// much less then, and must not teach the limit for normal play.
+        var lowPower: Bool?
     }
 
     struct State: Codable, Equatable {
@@ -41,7 +44,7 @@ enum FramePacing {
             return (standard, false)
         }
         let context = Context(refreshRate: refreshRate, upscaling: options.effectiveUpscaling(profile: profile),
-                              graphics: options.graphics)
+                              graphics: options.graphics, lowPower: Hardware.current.lowPower ? true : nil)
         guard let state = load(game), state.context == context, let learned = state.limit else { return (standard, true) }
         return (min(learned, standard), true)
     }
@@ -50,7 +53,7 @@ enum FramePacing {
     static func recordStart(game: GameID, options: GameOptions, profile: GameProfile?, refreshRate: Int,
                             logMark: UInt64, limit: Int, learning: Bool) {
         let context = Context(refreshRate: refreshRate, upscaling: options.effectiveUpscaling(profile: profile),
-                              graphics: options.graphics)
+                              graphics: options.graphics, lowPower: Hardware.current.lowPower ? true : nil)
         var state = load(game).flatMap { $0.context == context ? $0 : nil } ?? State(context: context)
         state.mark = logMark
         state.ranWith = learning ? limit : nil
@@ -61,7 +64,8 @@ enum FramePacing {
     static func learn(game: GameID, installDir: URL) {
         guard var state = load(game), let mark = state.mark else { return }
         let rates = rates(in: GameLog.text(since: mark), programs: Set(Engine.executables(in: installDir)))
-        state = next(state, rates: rates, standard: GameOptions.evenLimit(state.context.refreshRate))
+        state = next(state, rates: rates,
+                     standard: GameOptions.standardFrameLimit(state.context.refreshRate, lowPower: state.context.lowPower == true))
         state.mark = nil
         save(game, state)
     }
