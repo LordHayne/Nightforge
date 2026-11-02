@@ -24,17 +24,10 @@ jobs:
       - name: Build the app
         run: ./build.sh
 
+      # Every tests/*Test at once, one per core, each with its own log and exit code: all logs land in
+      # groups, a failed series' log once more at the end, and any failure fails the job.
       - name: Swift tests
-        run: |
-          failed=0
-          for test in tests/*/run.sh; do
-            # CatalogProbe only prints what it finds in a real Steam install.
-            [ "$test" = tests/CatalogProbe/run.sh ] && continue
-            echo "::group::$test"
-            bash "$test" || failed=1
-            echo "::endgroup::"
-          done
-          exit "$failed"
+        run: scripts/run-tests.sh
 
       - name: Profile builder tests
         run: python3 -m unittest tests/test_build_profiles.py
