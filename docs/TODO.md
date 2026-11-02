@@ -660,6 +660,19 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
         its processes are gone, the start decides what's next“, kein „the game ended“. Gegenprobe: ein Spiel,
         das läuft, nach 10 s über das Overlay beenden: sofort „Zurück zu Nightforge …“ wie bisher. Zwischen
         Absturz und nächstem Weg vergehen wie bisher etwa 10–20 s (`bringToFront`, `survivesFirstSeconds`).
+      - **Spiel, das sein Launcher mit bloßem Namen startet** (37599f2; Control über Epic, 2.11. 21:21, D3DMetal):
+        legendary startet `Control.exe` (Launcher, 90 KB), der `Control_DX11.exe -AUTH_LOGIN=… -epicapp=Calluna`
+        startet, ohne Ordner in der Befehlszeile. Wine startet jedes Programm mit launchd als Elternprozess, also
+        fand Nightforge es auch nicht unter dem Launcher. Mit dem Ende des Launchers galt das Spiel als beendet:
+        Vorhang weg, nichts holte das Spiel nach vorn, L3+R3 ging nicht, und das Beenden-Skript hätte die
+        Wine-Sitzung unter ihm beendet. Jetzt gehört ein Windows-Programm auch dann zum Spiel, wenn es aus dessen
+        Ordner läuft (Arbeitsordner, den Wine als Unix-Arbeitsordner setzt; nicht Windows' oder Steams eigene
+        Programme; `GameProcesses.runsFrom`). Eine Regel für alle Stellen: laufende Spiele (Spielzeit, Spielende,
+        Play, Overlay), Vorhang und Overlay, `Engine.windowsGameRunning`, `GameResolution`, die Skripte
+        `steam-shutdown` und `steam-priority` (per `lsof`). Live: Control (Optionen › D3DMetal) starten: Vorhang
+        bis zum Bild, das Spiel kommt nach vorn, L3+R3 öffnet das Overlay, „Spiel beenden“ beendet es, danach
+        „Zurück zu Nightforge …“ und die Spielzeit steigt. In `wine.log` kein „Curtain watch for Control ends:
+        the game ended“, solange es läuft; „Curtain look at Control“ nennt 1–2 Prozesse.
       - **Pad bei „startet nicht?“** (84b4dca): Ursache weiter offen. Gefunden und behoben: Das Overlay setzte
         die Markierung, indem es die Knöpfe auf dem Bildschirm suchte, eine Runde nach dem Öffnen. Beim ersten
         Öffnen (oft „startet nicht?“) waren sie noch nicht angelegt, nichts war markiert, und das erste A zeigte
