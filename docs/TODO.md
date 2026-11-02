@@ -92,6 +92,13 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   den Bericht nach `docs/spieletest/`. Offen: der erste Lauf mit dem Nutzer, danach nach jeder Engine-Änderung; die
   Einträge (`game`, `store`, `storeID`, `result`, `way`, `issues` wie `compat-report.yml`) in die Kompatibilitätsliste zählen.
   Die zweite Fassung eines Spiels (Windows-Rest neben der Mac-Version) testet er nicht, nur die gewählte.
+  Erster Live-Lauf 2.11. 23:37: L4D2 bei Steams Frage nach 3 s abgebrochen, Steam startete es trotzdem (zwei Spiele
+  gleichzeitig); Wukong „hängt“, weil die Claude-App vorne war. Behoben auf `claude/game-test-fixes` (30 s für Steams
+  Frage, späte Prozesse beenden, Nightforge vor jedem Spiel nach vorn).
+- **Steams Frage beim Start** (`claude/game-test-fixes`, 2. Commit): Steams Fenster weiter nach 3 s, aber Vorhang weg und
+  „Im Steam-Fenster bestätigen“ erst, wenn die Frage 5 s danach noch steht (`LibraryModel.steamQuestionStep`). Grund: Von
+  129 ShowInterstitials-Wartezeiten im Log gingen alle über 4 s erst nach dem Zeigen des Fensters weiter, 0–2 s danach.
+  Live prüfen: Wukong-Benchmark (echte Frage, kommt jetzt 5 s später) und ein Spiel wie L4D2 (kein Vorhang-Flackern).
 - **Getestete Spiele auf winecx gegenprüfen.** Palworld (DXMT, 60 FPS), Deadlock (DXVK, 60–120 FPS),
   Left 4 Dead 2 (WineD3D) und 7 Days to Die. Die Ergebnisse und Profile in
   `profiles/mac.json` beziehen sich auf 11.18. OxyRail ist am 28.10. auf winecx bestätigt: DXMT mit MetalFX,

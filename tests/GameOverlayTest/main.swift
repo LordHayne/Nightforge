@@ -231,6 +231,17 @@ struct GameOverlayTest {
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
 
+        // Steam's question itself: its hidden window first, the player only if it still waits
+        // (Left 4 Dead 2 on 2.11.: ShowInterstitials went on 1 s after the window, 5 s in).
+        func question(_ waited: Int, shownFor: Int? = nil) -> LibraryModel.SteamQuestionStep {
+            LibraryModel.steamQuestionStep(waited: waited, shownFor: shownFor)
+        }
+        check(question(2) == .wait, "a routine step Steam answers within seconds: nothing")
+        check(question(3) == .showWindow, "3 s: Steam's window, which some steps need before they go on")
+        check(question(4, shownFor: 1) == .wait, "the window shown: the curtain stays while Steam may go on by itself")
+        check(question(7, shownFor: 4) == .wait, "still within its grace")
+        check(question(8, shownFor: LibraryModel.steamAnswerGrace) == .askPlayer, "still waiting 5 s after the window: the player is asked")
+
         // A start judged by its first seconds that ends early (Control on 2.11., every way): the start
         // tells what's next under the same curtain – not when it's an end like any other.
         check(LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: false), "gone without a picture: the start decides, the curtain stays")
