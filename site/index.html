@@ -7,7 +7,9 @@
 <meta name="description" content="Nightforge is a free game launcher for Apple silicon Macs: Steam, Epic and GOG games in one place, Mac versions first, Windows games sharp and smooth by themselves.">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
+<link rel="canonical" href="https://lordhayne.github.io/Nightforge/">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://lordhayne.github.io/Nightforge/">
 <meta property="og:title" content="Nightforge – Your games on your Mac">
 <meta property="og:description" content="A free game launcher for Apple silicon Macs. Switch on and enjoy.">
 <meta property="og:image" content="https://lordhayne.github.io/Nightforge/img/og.jpg">
@@ -32,6 +34,14 @@
     }
     root.setAttribute('data-lang', lang);
     root.lang = lang;
+    // The picture at the top, in this language only, before the rest of the page asks for anything.
+    var hero = document.createElement('link');
+    hero.rel = 'preload';
+    hero.as = 'image';
+    hero.setAttribute('imagesrcset', 'img/shots/home-' + lang + '-1200.webp 1200w, img/shots/home-' + lang + '-2200.webp 2200w');
+    hero.setAttribute('imagesizes', '(min-width: 1180px) 1040px, 94vw');
+    hero.setAttribute('fetchpriority', 'high');
+    document.head.appendChild(hero);
     if ('IntersectionObserver' in window && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
       root.classList.add('reveals');
     }
@@ -128,7 +138,7 @@
     <h1 class="hero-title"><span lang="de">Einschalten.<br>Und genießen.</span><span lang="en">Switch on.<br>And enjoy.</span></h1>
     <p class="hero-sub"><span lang="de">Deine Spiele von Steam, Epic und GOG auf dem Mac. Kostenlos, mit einem Klick, ohne Basteln.</span><span lang="en">Your Steam, Epic and GOG games on your Mac. Free, one click, no fiddling.</span></p>
     <div class="cta">
-      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">Für den Mac laden</span><span lang="en">Download for Mac</span></a>
+      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest" data-dmg="show-install"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">Für den Mac laden</span><span lang="en">Download for Mac</span></a>
       <a class="link-more" href="#how"><span lang="de">So funktioniert’s</span><span lang="en">See how it works</span><span aria-hidden="true"> ›</span></a>
     </div>
   </div>
@@ -282,7 +292,7 @@
       <div>
         <p class="panel-kicker"><span lang="de">Gibt es so nur in Nightforge</span><span lang="en">Only in Nightforge, this way</span></p>
         <h3 class="feature-title"><span lang="de">Nightforges eigenes Controller-Menü.</span><span lang="en">Nightforge’s own controller menu.</span></h3>
-        <p class="feature-text"><span lang="de">Eine Tastenkombination am Controller holt mitten im Spiel ein ruhiges Menü nach vorn. Auf dem Sofa bleibt man so nie hängen: Ein eingefrorenes Spiel beendest du mit dem Controller, ohne aufzustehen – und bist gleich wieder in deiner Bibliothek.</span><span lang="en">A button combination on the controller brings up a calm menu in the middle of a game. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up – and you’re straight back in your library.</span></p>
+        <p class="feature-text"><span lang="de">Beide Sticks drücken (L3&nbsp;+&nbsp;R3) und zwei Sekunden halten – schon kommt mitten im Spiel ein ruhiges Menü nach vorn. Auf dem Sofa bleibt man so nie hängen: Ein eingefrorenes Spiel beendest du mit dem Controller, ohne aufzustehen – und bist gleich wieder in deiner Bibliothek.</span><span lang="en">Press both sticks (L3&nbsp;+&nbsp;R3) and hold them for two seconds – and a calm menu comes up in the middle of a game. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up – and you’re straight back in your library.</span></p>
       </div>
       <ul class="feature-list">
         <li><svg class="i" aria-hidden="true"><use href="#i-play"/></svg><span lang="de">Weiterspielen</span><span lang="en">Keep playing</span></li>
@@ -291,7 +301,7 @@
       </ul>
     </div>
   </div>
-  <!-- Picture spot (0.3.0): the controller menu over a running game, once it's built and tested. No button names until then. -->
+  <!-- Picture spot (0.3.0): the controller menu over a running game. -->
 </section>
 
 <!-- Chapter: welcome back -->
@@ -430,8 +440,8 @@
   <div class="wrap progress">
     <div class="progress-text reveal">
       <p class="eyebrow"><span lang="de">Fortschritt</span><span lang="en">Progress</span></p>
-      <h2 class="h2"><span lang="de">Eine Woche alt. <span class="dim">Und schon so weit.</span></span><span lang="en">One week old. <span class="dim">And already this far.</span></span></h2>
-      <p class="lede"><span lang="de">Die erste Version entstand am 24.&nbsp;Oktober 2026. Seitdem kommt fast jeden Tag etwas dazu – das hier ist der Stand vom 1.&nbsp;November.</span><span lang="en">The first version came together on 24&nbsp;October 2026. Since then something new has landed almost every day – this is where things stand on 1&nbsp;November.</span></p>
+      <h2 class="h2"><span lang="de">Neun Tage bis 0.3.0. <span class="dim">Und schon so weit.</span></span><span lang="en">Nine days to 0.3.0. <span class="dim">And already this far.</span></span></h2>
+      <p class="lede"><span lang="de">Die erste Version entstand am 24.&nbsp;Oktober 2026. Seitdem kommt fast jeden Tag etwas dazu – das hier ist der Stand von Nightforge&nbsp;0.3.0 vom 2.&nbsp;November.</span><span lang="en">The first version came together on 24&nbsp;October 2026. Since then something new has landed almost every day – this is where things stand with Nightforge&nbsp;0.3.0 on 2&nbsp;November.</span></p>
     </div>
     <ol class="timeline reveal">
       <li><time datetime="2026-10-24"><span lang="de">24.&nbsp;Okt.</span><span lang="en">Oct&nbsp;24</span></time><div><h3><span lang="de">Der Anfang</span><span lang="en">The start</span></h3><p><span lang="de">Windows-Spiele von Steam auf dem Mac, mit einem Klick eingerichtet. DXMT, macOS-Spielmodus, Spiele-Profile – und der Name Nightforge.</span><span lang="en">Windows Steam games on the Mac, set up with one click. DXMT, macOS Game Mode, game profiles – and the name Nightforge.</span></p></div></li>
@@ -441,7 +451,7 @@
       <li><time datetime="2026-10-28"><span lang="de">28.&nbsp;Okt.</span><span lang="en">Oct&nbsp;28</span></time><div><h3>Epic Games</h3><p><span lang="de">Epic-Spiele ohne Epic-Launcher, doppelt gekaufte Spiele zusammengeführt, Trackpad-Gesten.</span><span lang="en">Epic games without the Epic launcher, games owned twice merged into one, trackpad gestures.</span></p></div></li>
       <li><time datetime="2026-10-29"><span lang="de">29.&nbsp;Okt.</span><span lang="en">Oct&nbsp;29</span></time><div><h3><span lang="de">Ein neuer erster Start</span><span lang="en">A new first start</span></h3><p><span lang="de">Einrichtung mit Controller-Test und Tipps, die Startseite als Bühne mit „Weiterspielen“.</span><span lang="en">Setup with a controller test and tips, Home as a stage with “Continue playing”.</span></p></div></li>
       <li><time datetime="2026-10-31"><span lang="de">31.&nbsp;Okt.</span><span lang="en">Oct&nbsp;31</span></time><div><h3><span lang="de">GOG und externe Laufwerke</span><span lang="en">GOG and external drives</span></h3><p><span lang="de">GOG-Spiele ohne Galaxy, Spiele auf externen Laufwerken, größere Schrift auf Wunsch, eine schnellere Ersteinrichtung.</span><span lang="en">GOG games without Galaxy, games on external drives, larger text if you like, a faster first setup.</span></p></div></li>
-      <li class="now"><time datetime="2026-11-01"><span lang="de">1.&nbsp;Nov.</span><span lang="en">Nov&nbsp;1</span></time><div><h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise, D3DMetal&nbsp;3.0 aus Apples Toolkit und kostenlose Steam-Spiele direkt aus der Suche.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes, D3DMetal&nbsp;3.0 from Apple’s toolkit and free Steam games straight from search.</span></p></div></li>
+      <li class="now"><time datetime="2026-11-02"><span lang="de">2.&nbsp;Nov.</span><span lang="en">Nov&nbsp;2</span></time><div><h3><span lang="de">0.3.0: Ab auf den Fernseher</span><span lang="en">0.3.0: Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise, D3DMetal&nbsp;3.0 aus Apples Toolkit und kostenlose Steam-Spiele direkt aus der Suche.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes, D3DMetal&nbsp;3.0 from Apple’s toolkit and free Steam games straight from search.</span></p></div></li>
     </ol>
   </div>
 </section>
@@ -477,8 +487,9 @@
     <h2 class="h2"><span lang="de">Hol dir Nightforge.</span><span lang="en">Get Nightforge.</span></h2>
     <p class="lede"><span lang="de">Kostenlos. Für Macs mit Apple-Chip (M1 oder neuer) und macOS&nbsp;26 (Tahoe) oder neuer – dafür ist die Windows-Engine gebaut.</span><span lang="en">Free. For Macs with Apple silicon (M1 or newer) and macOS&nbsp;26 (Tahoe) or later – the Windows engine is built for it.</span></p>
     <div class="cta cta-center">
-      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">DMG laden</span><span lang="en">Download the DMG</span></a>
+      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest" data-dmg><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">DMG laden</span><span lang="en">Download the DMG</span></a>
     </div>
+    <p class="release-line"><span lang="de">Version <span data-release-version>0.3.0</span> · <span data-release-size>8,5</span>&nbsp;MB</span><span lang="en">Version <span data-release-version>0.3.0</span> · <span data-release-size>8.5</span>&nbsp;MB</span></p>
     <p class="term-label"><span lang="de">Oder im <b>Terminal</b> – das installiert die neueste Version und öffnet sie:</span><span lang="en">Or in <b>Terminal</b> – this installs the newest version and opens it:</span></p>
     <div class="term">
       <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/LordHayne/Nightforge/main/scripts/install.sh | bash</code>
