@@ -28,6 +28,7 @@ struct GameTestTest {
         basket()
         load()
         looks()
+        questionsAndFront()
         outcomes()
         waysAndFrames()
         hangsAndCalm()
@@ -162,6 +163,29 @@ struct GameTestTest {
         check(look(running: false, idle: 25) == .ended, "gone and nothing starting: it ended")
         check(look(running: false, total: 20 * 60) == .tooLong, "Steam never started it: given up after 20 minutes")
         check(look(running: true, waited: 10, total: 30 * 60) == .tooLong, "a game starting itself over and over")
+    }
+
+    static func questionsAndFront() {
+        check(!GameTest.callsOff(.steamAsks, after: 5), "Steam's question that goes on by itself after 5 s (Left 4 Dead 2): no call-off")
+        check(GameTest.callsOff(.steamAsks, after: 30), "one that stands 30 s needs the player")
+        for need in [GameTest.Skip.signIn, .update, .d3dMetal, .macSteamSetup, .runtimes] {
+            check(GameTest.callsOff(need, after: 0), "\(need) calls the start off at once")
+        }
+
+        let wine = "/Users/someone/Library/Application Support/Nightforge/Components/winecx/4.7.3/Libraries/Wine/bin/wine64-preloader"
+        check(GameTest.foreignFront(path: "/Applications/Claude.app/Contents/MacOS/Claude", bundleID: "com.anthropic.claudefordesktop",
+                                    gameFolder: nil), "the Claude app in front: foreign (2.11.)")
+        check(!GameTest.foreignFront(path: "/Applications/Nightforge.app/Contents/MacOS/Nightforge", bundleID: "io.github.lordhayne.nightforge",
+                                     gameFolder: nil), "Nightforge itself")
+        check(!GameTest.foreignFront(path: wine, bundleID: nil, gameFolder: nil), "a Windows game or Steam's window under Wine")
+        check(!GameTest.foreignFront(path: "/Applications/Steam.app/Contents/MacOS/steam_osx", bundleID: "com.valvesoftware.steam",
+                                     gameFolder: nil), "Steam for Mac, asking something")
+        let folder = "/Users/someone/Library/Application Support/Steam/steamapps/common/Valheim"
+        check(!GameTest.foreignFront(path: folder + "/Valheim.app/Contents/MacOS/Valheim", bundleID: "com.irongate.valheim",
+                                     gameFolder: folder), "the Mac version being tested")
+        check(GameTest.foreignFront(path: "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder", bundleID: "com.apple.finder",
+                                    gameFolder: folder), "the Finder")
+        check(!GameTest.foreignFront(path: nil, bundleID: nil, gameFolder: nil), "nothing known about it: left alone")
     }
 
     static func outcomes() {
@@ -347,5 +371,6 @@ struct GameTestTest {
         check(source.contains("GameLog.note(GameTest.startNote(game: game.name, way: way, engine: build?.engine))"),
               "LibraryModel.launch notes each start's way")
         check(source.contains("if !missing.isEmpty, !GameTest.active {"), "no runtimes installed during a run")
+        check(source.contains("func comeToFront("), "NSApp.comeToFront, which the run takes the front back with")
     }
 }

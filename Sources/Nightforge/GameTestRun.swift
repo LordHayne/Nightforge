@@ -37,6 +37,8 @@ final class GameTestRun {
     private var report: GameTest.Report
     private let folder: URL
     private var stopAsked = false
+    /// The games the run started so far: none of them may still run when the next one starts.
+    private var startedGames: [Game] = []
 
     private init(model: LibraryModel) {
         self.model = model
@@ -96,8 +98,11 @@ final class GameTestRun {
                     entry = .skipped(candidate, .stopped)
                 } else {
                     number += 1
+                    let before = await clearStage()
+                    let front = await takeFront()
                     GameLog.note("Game test: \(game.name) (\(number) of \(total))")
-                    entry = await test(game, candidate)
+                    startedGames.append(game)
+                    entry = await test(game, candidate, notes: before + front)
                     await comeBack(from: game)
                     await settle()
                 }
@@ -107,6 +112,7 @@ final class GameTestRun {
             report.games.append(entry.redacted())
             write()
         }
+        _ = await clearStage()  // a start Steam carried out after the last game's end
         report.finished = Date()
         report.stopped = stopAsked
         UserDefaults.standard.removeObject(forKey: GameTest.Keys.stop)
@@ -178,26 +184,51 @@ final class GameTestRun {
 
     // MARK: - One game
 
-    private func test(_ game: Game, _ candidate: GameTest.Candidate) async -> GameTest.Entry {
+    private func test(_ game: Game, _ candidate: GameTest.Candidate, notes before: [String]) async -> GameTest.Entry {
         let mark = GameLog.mark()
         let started = Date()
         let learnedBefore = LearnedFixes.winetricks(game.gameID)
         var seen = GameTest.Seen()
-        var notes: [String] = []
+        var notes = before
         var processAt: Date?
         var pictureAt: Date?
         var appeared: Date?
         var idleSince: Date?
         var pid: pid_t?
+        /// What only the player could do, since when: Steam's question gets `steamAskPatience` to answer itself.
+        var asking: (need: GameTest.Skip, since: Date)?
+        var foreignSince: Date?
+        var frontTakers: [String] = []
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
         let load = GameTest.Load.now
         model.launch(game)
         watching: while true {
             try? await Task.sleep(for: .seconds(1))
             let now = Date()
-            if let needs = needsPlayer() {
-                seen.needs = needs
-                break
+            if let need = needsPlayer() {
+                if asking?.need != need { asking = (need, now) }
+                if GameTest.callsOff(need, after: now.timeIntervalSince(asking?.since ?? now)) {
+                    seen.needs = need
+                    break
+                }
+            } else if let question = asking {
+                if question.need == .steamAsks {
+                    notes.append("Steam fragte \(Int(now.timeIntervalSince(question.since))) s lang etwas und machte von selbst weiter")
+                }
+                asking = nil
+            }
+            // Another app in front: the curtain can't hand the front to the game from there.
+            if let app = foreignApp(for: game) {
+                foreignSince = foreignSince ?? now
+                if now.timeIntervalSince(foreignSince ?? now) >= 2 {
+                    let name = app.localizedName ?? "?"
+                    if !frontTakers.contains(name) { frontTakers.append(name) }
+                    GameLog.note("Game test: \(name) had the front before the picture – Nightforge takes it back")
+                    NSApp.comeToFront()
+                    foreignSince = nil
+                }
+            } else {
+                foreignSince = nil
             }
             if model.saveChoice != nil {
                 model.answerSaveChoice(takeNewer: false)  // its own saves, nothing overwritten
@@ -237,13 +268,20 @@ final class GameTestRun {
             }
             break watching
         }
-        if let needs = seen.needs { callOff(needs) }
+        if !frontTakers.isEmpty {
+            notes.append("vor dem Bild war vorne: \(frontTakers.joined(separator: ", ")) – Nightforge holte die Front zurück")
+        }
+        if let needs = seen.needs {
+            callOff(needs)
+            if await endLateStart(game) { notes.append("Steam startete es nach dem Abbruch doch noch – wieder beendet") }
+        }
 
         // A picture: it runs on a while, for its frame rates.
         var endedWhilePlaying = false
         if seen.picture {
             let until = Date().addingTimeInterval(settings.playSeconds)
             var gone = 0
+            var playTakers: [String] = []
             while Date() < until {
                 try? await Task.sleep(for: .seconds(2))
                 gone = await processes(of: game).isEmpty ? gone + 1 : 0
@@ -251,6 +289,15 @@ final class GameTestRun {
                     endedWhilePlaying = true
                     break
                 }
+                // Another app took the front: the game back in front, as Switch to Game does.
+                if let app = foreignApp(for: game) {
+                    let name = app.localizedName ?? "?"
+                    if !playTakers.contains(name) { playTakers.append(name) }
+                    model.switchToGame(game)
+                }
+            }
+            if !playTakers.isEmpty {
+                notes.append("während des Spiels war vorne: \(playTakers.joined(separator: ", ")) – das Spiel wieder nach vorn geholt")
             }
         }
         var files: [String] = []
@@ -304,6 +351,63 @@ final class GameTestRun {
         GameLog.note("Game test: \(game.name) – \(outcome.rawValue) on \(entry.way ?? "-")"
                      + (entry.secondsToPicture.map { ", picture after \(Int($0)) s" } ?? ""))
         return entry
+    }
+
+    /// Nightforge in front before each start: only from there does the curtain hand the front to the
+    /// game (bringToFront, handFocus). What had it instead goes into the report.
+    private func takeFront() async -> [String] {
+        guard !NSApp.isFrontmost else { return [] }
+        let before = NSWorkspace.shared.frontmostApplication?.localizedName ?? "keine App"
+        NSApp.comeToFront()
+        for _ in 0..<20 where !NSApp.isFrontmost { try? await Task.sleep(for: .milliseconds(250)) }
+        let took = NSApp.isFrontmost
+        GameLog.note("Game test: \(before) had the front before the start" + (took ? " – Nightforge took it" : " and kept it"))
+        return [took ? "vor dem Start war \(before) vorne, Nightforge holte die Front" : "vor dem Start war \(before) vorne und blieb es"]
+    }
+
+    /// The app in front when it's none of the start's (GameTest.foreignFront).
+    private func foreignApp(for game: Game) -> NSRunningApplication? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              GameTest.foreignFront(path: app.executableURL?.path, bundleID: app.bundleIdentifier,
+                                    gameFolder: game.platform == .mac ? game.installDir.path : nil)
+        else { return nil }
+        return app
+    }
+
+    /// Nothing of an earlier game may run when the next one starts: what the run started and still
+    /// runs – a start Steam carried out after all – is ended as Quit Game does. A game the run didn't
+    /// start is waited for, up to ten minutes.
+    private func clearStage() async -> [String] {
+        var notes: [String] = []
+        for earlier in startedGames where await !processes(of: earlier).isEmpty {
+            await quit(earlier)
+            notes.append("vorher lief noch \(earlier.name) – beendet")
+            GameLog.note("Game test: \(earlier.name) still ran – ended before the next game")
+        }
+        let until = Date().addingTimeInterval(600)
+        var waited = false
+        while !model.running.isEmpty, Date() < until {
+            waited = true
+            try? await Task.sleep(for: .seconds(5))
+        }
+        if waited { notes.append(model.running.isEmpty ? "wartete, bis ein anderes Spiel beendet war" : "ein anderes Spiel lief weiter") }
+        return notes
+    }
+
+    /// A start called off can still come: Steam carries on once its question answers itself (Left 4
+    /// Dead 2, 2.11., ran on while the next game started). For 45 s after, any process of the game
+    /// is ended as Quit Game does. True when one came.
+    private func endLateStart(_ game: Game) async -> Bool {
+        var came = false
+        let until = Date().addingTimeInterval(45)
+        while Date() < until {
+            try? await Task.sleep(for: .seconds(1))
+            if await !processes(of: game).isEmpty {
+                came = true
+                await quit(game)
+            }
+        }
+        return came
     }
 
     /// What only the player could do came up: the start can't go on unattended.

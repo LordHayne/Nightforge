@@ -239,6 +239,27 @@ enum GameTest {
         return total >= longestStart ? .tooLong : .wait
     }
 
+    /// How long Steam's question may stand before the run calls the start off. Some go on by
+    /// themselves within seconds – ShowInterstitials once Steam's hidden window has been shown: Left
+    /// 4 Dead 2 on 2.11. after 5 s, while the run had called it off at 3 s and went on to the next
+    /// game with it still starting. Everything else that needs the player calls it off at once.
+    static let steamAskPatience: TimeInterval = 30
+
+    static func callsOff(_ need: Skip, after waiting: TimeInterval) -> Bool {
+        need == .steamAsks ? waiting >= steamAskPatience : true
+    }
+
+    /// An app in front that has nothing to do with the start – not Nightforge, the game, Wine or
+    /// Steam. Unattended, the curtain then never hands the front to the game, which only Nightforge
+    /// in front can do: on 2.11. the Claude app had it, and Black Myth: Wukong counted as hanging.
+    static func foreignFront(path: String?, bundleID: String?, gameFolder: String?) -> Bool {
+        if bundleID?.hasPrefix("io.github.lordhayne") == true { return false }
+        guard let path = path?.lowercased(), !path.isEmpty else { return false }
+        if path.contains("wine") || path.contains("steam") { return false }
+        if let gameFolder, !gameFolder.isEmpty, path.hasPrefix(gameFolder.lowercased()) { return false }
+        return true
+    }
+
     /// What the run saw of a start.
     struct Seen: Equatable {
         var process = false
