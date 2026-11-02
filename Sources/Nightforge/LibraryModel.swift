@@ -810,8 +810,9 @@ final class LibraryModel: ObservableObject {
         var frontSince: Date?
         var loweredAt: Date?
         var raisedAgain = 0
-        /// The game's time in front the pointer was hidden for.
+        /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
+        var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
         /// The curtain under a question of the game's (makeWay), until it's answered or the picture comes.
         var madeWay = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
@@ -869,12 +870,20 @@ final class LibraryModel: ObservableObject {
                 lastLook = look
                 GameLog.note("Curtain look at \(game.name): \(look)")
             }
-            // The game coming to the front brought the pointer back over the curtain (1.11.):
-            // hidden again once it has had the front a moment, before the curtain goes – not while
-            // it asks something, which takes the mouse.
-            if loweredAt == nil, !asks, !madeWay, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
-                pointerHidden = since
-                InputRouter.hidePointerOverGame()
+            // Each app coming to the front brings the pointer back over the curtain (1.11.): another
+            // one (Steam's, Nightforge handing over) hidden again at once, the game once it has had
+            // the front a moment, before the curtain goes – taking its keys for 50 ms while it sets
+            // up its screen could cost it its full screen. Not while it asks something, which takes
+            // the mouse.
+            let newFront = front != pointerFront
+            pointerFront = front
+            if loweredAt == nil, !asks, !madeWay {
+                if gameFront, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
+                    pointerHidden = since
+                    InputRouter.hidePointerOverGame()
+                } else if !gameFront, newFront, front != nil {
+                    if front == getpid() { InputRouter.hidePointerForGame() } else { InputRouter.hidePointerOverGame() }
+                }
             }
             // Its question answered, no picture yet: the curtain over everything again until there is one.
             if madeWay, !asks, !here, loweredAt == nil {

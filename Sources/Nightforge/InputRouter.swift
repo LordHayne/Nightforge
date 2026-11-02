@@ -27,8 +27,8 @@ final class InputRouter {
     private var lastWake: TimeInterval = 0
     /// When the pad last changed with Nightforge in front: a sheet opening soon after shows its highlight.
     private var lastPadUse: TimeInterval = 0
-    /// When the pad was last in use, anywhere, and where the mouse was then (PadRules.padUsedLast).
-    private static var padUse: (time: TimeInterval, mouse: CGPoint)?
+    /// When the pad was last in use, anywhere (PadRules.padUsedLast).
+    private static var padUse: TimeInterval?
     /// The right stick scrolls what shows (a game's page, the grid, Settings), smoothly, as fast as
     /// it's pushed: points per second, and the timer that moves it while it's held.
     private var stickScroll: CGFloat = 0
@@ -446,7 +446,7 @@ final class InputRouter {
         let now = ProcessInfo.processInfo.systemUptime
         if reach == .app { lastPadUse = now }
         if Self.inUse(pad) {
-            Self.padUse = (now, NSEvent.mouseLocation)
+            Self.padUse = now
             GameOverlay.padHeard()
         }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
@@ -563,8 +563,15 @@ final class InputRouter {
     }
 
     private static var padUsedLast: Bool {
-        PadRules.padUsedLast(at: padUse?.time, mouseThen: padUse?.mouse ?? .zero,
-                             now: ProcessInfo.processInfo.systemUptime, mouseNow: NSEvent.mouseLocation)
+        PadRules.padUsedLast(padAgo: padUse.map { ProcessInfo.processInfo.systemUptime - $0 }, mouseAgo: mouseIdle)
+    }
+
+    /// Seconds since the mouse or trackpad itself moved, clicked or scrolled: the hardware's own
+    /// events, not a pointer a game moves (Wine warps it) nor the screens rearranged under it.
+    private static var mouseIdle: TimeInterval {
+        [CGEventType.mouseMoved, .leftMouseDragged, .leftMouseDown, .rightMouseDown, .scrollWheel]
+            .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
+            .min() ?? .infinity
     }
 
     private static var pointerPanel: NSPanel?

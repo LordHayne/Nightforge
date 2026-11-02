@@ -68,12 +68,15 @@ enum PadRules {
         inUse && (inFront || overlay)
     }
 
-    /// The pad was used last, not the mouse: within a minute, and the mouse is where it was then.
-    /// Hidden while Nightforge or its overlay still has the front, the pointer stays hidden over the
-    /// game that gets it, until the mouse moves (1.11.) – only the app in front can hide it.
-    static func padUsedLast(at: TimeInterval?, mouseThen: CGPoint, now: TimeInterval, mouseNow: CGPoint) -> Bool {
-        guard let at else { return false }
-        return now - at < 60 && mouseThen == mouseNow
+    /// The pad was used last, not the mouse: `padAgo` seconds since a press, `mouseAgo` since the
+    /// mouse or trackpad itself last moved, clicked or scrolled. Hidden while Nightforge or its
+    /// overlay still has the front, the pointer stays hidden over the game that gets it, until the
+    /// mouse moves (1.11.) – only the app in front can hide it. No time limit, and not where the
+    /// pointer is: a start longer than a minute, a TV becoming the main screen (which moves every
+    /// point) or a game moving the pointer left it showing in Overcooked 2 (1.11.).
+    static func padUsedLast(padAgo: TimeInterval?, mouseAgo: TimeInterval) -> Bool {
+        guard let padAgo else { return false }
+        return padAgo < mouseAgo
     }
 
     /// L1/R1 in Settings: the tab before or after `current`, nil at either end.
