@@ -1,0 +1,31 @@
+ntdll: under msync, don't close a thread's alert "fd" when the thread ends.
+
+With WINEMSYNC=1, get_inproc_alert_fd() (dlls/ntdll/unix/sync.c) stores the index of an msync
+object in thread_data->alert_fd, not a file descriptor. pthread_exit_wrapper() closed it all the
+same, so every thread that had waited alertably closed, as it ended, whichever file of the process
+happened to have that number: a game archive whose next read then fails, a pipe another thread
+waits on. Same fix as Recall's (AsherJN/recall, patches/README.md) for the CrossOver 26.3 tree.
+
+diff --git a/dlls/ntdll/unix/thread.c b/dlls/ntdll/unix/thread.c
+index 6599635..ef71365 100644
+--- a/dlls/ntdll/unix/thread.c
++++ b/dlls/ntdll/unix/thread.c
+@@ -76,6 +76,7 @@
+ #include "wine/server.h"
+ #include "wine/debug.h"
+ #include "unix_private.h"
++#include "msync.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(thread);
+ WINE_DECLARE_DEBUG_CHANNEL(seh);
+@@ -1116,7 +1117,9 @@ static void contexts_from_server( CONTEXT *context, struct context_data server_c
+ static DECLSPEC_NORETURN void pthread_exit_wrapper( int status )
+ {
+     struct thread_data *data = get_thread_data();
+-    close( data->alert_fd );
++    /* Under msync alert_fd holds the index of an msync object (get_inproc_alert_fd), not a file
++     * descriptor; closing it would close whichever file of the process has that number. */
++    if (!do_msync()) close( data->alert_fd );
+     close( data->wait_fd[0] );
+     close( data->wait_fd[1] );
+     close( data->reply_fd );

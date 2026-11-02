@@ -14,6 +14,10 @@ enum Engine {
     /// winebus.so with the SDL bus for winecx, plus SDL2 (.github/workflows/gamepad.yml): without it
     /// a DualSense or DualShock 4 never reaches Windows games on winecx.
     static let gamepadID = "gamepad"
+    /// ntdll.so and winecoreaudio.so rebuilt from winecx's own source with Nightforge's patches
+    /// (.github/workflows/enginefix.yml): msync without closing other files at a thread's end, and
+    /// Wine 11.21's downmix for 5.1/7.1 sound. Version "<engine version>-N", for that engine only.
+    static let engineFixID = "enginefix"
 
     static func engineComponent(in manifest: ComponentManifest) -> Component? {
         manifest.component(winecxEngineID) ?? manifest.component(engineID)
@@ -549,6 +553,8 @@ enum Engine {
         // Apple's D3DMetal only once the player has said how it comes (D3DMetalSupply) – or had it before.
         let d3dMetal = gptk ? D3DMetalSupply.current(manifest: manifest, componentsRoot: store.root) : nil
         let gamepad = gptk ? manifest.component(gamepadID) : nil
+        // Built for one runtime: only with that engine version (installEngineFix checks its files as well).
+        let engineFix = gptk ? manifest.component(engineFixID).flatMap { $0.version.hasPrefix(engine.version + "-") ? $0 : nil } : nil
         // Copying the graphics files again would give them new inodes and so rebuild the game
         // bundle Steam runs from, and every regedit starts Wine: each part is only redone when what
         // it installs has changed. The stamps live in what they describe, so a fresh engine or
@@ -558,8 +564,9 @@ enum Engine {
         let moltenVK = manifest.component(moltenVKID)
         let graphicsWanted = "\(graphics.id) \(graphics.version) engine-match \(matchesEngine) moltenvk \(moltenVK?.version ?? "engine")"
             + " d3dmetal \(d3dMetal?.version ?? "-") gamepad \(gamepad?.version ?? "-")"
+            + (engineFix.map { " enginefix \($0.version)" } ?? "")
         let dxvk = manifest.component(dxvkID)
-        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, dxvk].compactMap { $0 },
+        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, engineFix, dxvk].compactMap { $0 },
                                 d3dMetal: d3dMetal?.version, stamp: graphicsWanted)
         // Before anything of the engine changes, the build games last ran well on stays as a copy:
         // a game the new one breaks starts with it instead (EngineRollback).
@@ -579,11 +586,15 @@ enum Engine {
             }
             var gamepadDir: URL?
             if let gamepad { gamepadDir = try await install(gamepad) }
+            var engineFixDir: URL?
+            if let engineFix { engineFixDir = try await install(engineFix) }
             report?(.graphics)
             try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             try installMoltenVK(moltenVKDir, into: wine)
             if let d3dMetalDir { try installD3DMetal(d3dMetalDir, into: wine) }
             if let gamepadDir { try installGamepad(gamepadDir, into: wine) }
+            // Without one (or for another engine version) the engine's own files come back.
+            if gptk { try installEngineFix(engineFixDir, into: wine) }
             writeStamp(graphicsStamp, graphicsWanted)
         }
         installGameBundle(wine: wine)  // after the graphics: its links must point at the new files
@@ -898,7 +909,11 @@ enum Engine {
                 try fm.copyItem(at: file, to: destination)
             }
         }
-        try installMsync(top.appendingPathComponent("msync", isDirectory: true), into: wine, matchesEngine: matchesEngine)
+        // winecx has msync of its own; Nightforge's ntdll.so for it is the engine fix's (installEngineFix),
+        // whose *.engine copies this mustn't take for its own.
+        if !nativeInPrefix {
+            try installMsync(top.appendingPathComponent("msync", isDirectory: true), into: wine, matchesEngine: matchesEngine)
+        }
     }
 
     /// The graphics archive has one versioned top folder: v0.80/{x86_64-windows,i386-windows,x86_64-unix}
@@ -1080,6 +1095,74 @@ enum Engine {
                 try fm.moveItem(at: staged, to: target)
             }
         }
+    }
+
+    /// The engine's own files the engine fix may stand in for.
+    static let engineFixFiles = ["ntdll.so", "winecoreaudio.so"]
+
+    /// Puts the engine fix's ntdll.so and winecoreaudio.so in place of winecx's (kept as *.engine).
+    /// They're built from the winecx commit of one runtime, so they only go over that runtime's own
+    /// files: the package names their SHA-256 (originals.sha256), and an engine whose files are
+    /// anything else keeps its own. The engine gets them back as well when the list drops the
+    /// package or has it for another engine version (`packageDir` nil). The fix leaves the
+    /// wineserver protocol alone, so a running session carries on with the files it has loaded.
+    /// True when the fix is in.
+    @discardableResult
+    static func installEngineFix(_ packageDir: URL?, into wine: URL) throws -> Bool {
+        let fm = FileManager.default
+        let unix = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+        let package = packageDir.flatMap(engineFixPackage(in:))
+        let originals = package.map(engineFixOriginals(in:)) ?? [:]
+        // The engine's own file: the copy kept of it, or – before anything went over it – the file itself.
+        func own(_ name: String) -> URL {
+            let kept = unix.appendingPathComponent(name).appendingPathExtension("engine")
+            return fm.fileExists(atPath: kept.path) ? kept : unix.appendingPathComponent(name)
+        }
+        let fits = !originals.isEmpty && originals.allSatisfy { name, sha256 in
+            package.map { fm.fileExists(atPath: $0.appendingPathComponent("x86_64-unix/\(name)").path) } == true
+                && (try? ComponentStore.sha256(of: own(name))) == sha256
+        }
+        func swap(_ source: URL, over target: URL) throws {
+            guard !fm.contentsEqual(atPath: source.path, andPath: target.path) else { return }
+            let staged = target.appendingPathExtension("new")
+            try? fm.removeItem(at: staged)
+            try fm.copyItem(at: source, to: staged)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: staged.path)
+            _ = try fm.replaceItemAt(target, withItemAt: staged)
+        }
+        for name in engineFixFiles {
+            let target = unix.appendingPathComponent(name)
+            let kept = target.appendingPathExtension("engine")
+            if fits, let package, originals[name] != nil {
+                if !fm.fileExists(atPath: kept.path) { try fm.copyItem(at: target, to: kept) }
+                try swap(package.appendingPathComponent("x86_64-unix/\(name)"), over: target)
+            } else if fm.fileExists(atPath: kept.path) {
+                try swap(kept, over: target)
+            }
+        }
+        return fits
+    }
+
+    /// The folder holding originals.sha256 and x86_64-unix/ in an engine fix download.
+    static func engineFixPackage(in dir: URL) -> URL? {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: dir.appendingPathComponent("originals.sha256").path) { return dir }
+        return ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .first { fm.fileExists(atPath: $0.appendingPathComponent("originals.sha256").path) }
+    }
+
+    /// originals.sha256 as `shasum -a 256` writes it ("<hash>  ntdll.so"): what each file the package
+    /// replaces was in the runtime it was built for. Names other than `engineFixFiles` don't count.
+    static func engineFixOriginals(in package: URL) -> [String: String] {
+        let text = (try? String(contentsOf: package.appendingPathComponent("originals.sha256"), encoding: .utf8)) ?? ""
+        var originals: [String: String] = [:]
+        for line in text.split(whereSeparator: \.isNewline) {
+            guard let match = line.wholeMatch(of: #/([0-9a-f]{64}) [ *](\S+)/#),
+                  engineFixFiles.contains(String(match.2)) else { continue }
+            originals[String(match.2)] = String(match.1)
+        }
+        return originals
     }
 
     /// The folder holding external/libd3dshared.dylib and wine/ in a D3DMetal download.

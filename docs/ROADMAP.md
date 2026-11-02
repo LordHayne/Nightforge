@@ -70,10 +70,13 @@ wenn sie einer Version zugeordnet sind.
         D3DMetal, weil Nightforge es für ein reines DX12-Spiel hielt. Das ist behoben, jetzt kommt DXMT zuerst. Der
         Hänger galt außerdem nach drei Minuten als „läuft“, auch das ist behoben. Der msync-Fehler ist im Code
         bestätigt. Der Live-Test mit DXMT, ohne msync und mit dem msync-Fix steht noch aus.
-      - Eigene Unix-Module über die gepinnte winecx 4.7.3, nach dem Vorbild von `gamepad.yml`:
+      - Eigene Unix-Module über die gepinnte winecx 4.7.3, nach dem Vorbild von `gamepad.yml`. **Gebaut am 2.11.**
+        (Stück B, Zweig `claude/engine-04-703c49`; braucht einmal ein App-Release, danach kommen neue Stände über die
+        Komponentenliste). CI-Lauf und Release stehen noch aus:
         - `ntdll.so` mit dem msync-Fix
         - `winecoreaudio.so` mit dem SpatialMixer-Downmix aus Wine 11.21 (gegen den Hall am AV-Receiver)
-        - als Release mit Quell-Asset, neue Komponente `enginefix`.
+        - als Release mit Quell-Asset, neue Komponente `enginefix` (`enginefix.yml`, `scripts/build-enginefix.sh`,
+          `Engine.installEngineFix`).
       - Den Pin erst auf winecx 4.7.4 oder 4.8.1 heben, wenn Issue #24 geklärt ist. Ein Issue bei dappermint
         (msync-Fix, 11.21-Downmix). Plan B: ein eigener Engine-Build aus dappermint/winecx, falls das Projekt stehen
         bleibt.
