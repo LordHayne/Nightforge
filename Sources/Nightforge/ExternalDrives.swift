@@ -14,6 +14,8 @@ struct ExternalDrive: Identifiable, Hashable {
     var total: Int64
 
     var id: String { url.path }
+    /// The id of its games' section in Settings › Storage, apart from its bar's (`id`).
+    var gamesSectionID: String { "games:" + url.path }
 
     /// Whether games can go there.
     var check: DriveCheck { DriveCheck(format: format, readOnly: readOnly) }

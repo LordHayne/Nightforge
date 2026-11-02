@@ -681,8 +681,9 @@ private struct StorageSettings: View {
                 SectionTitle(L10n.t("Games on this Mac"))
             }
 
-            // Then the games, drive by drive: they move like the Mac's.
-            ForEach(drives.filter { !$0.games.isEmpty }, id: \.drive.id) { drive, games in
+            // Then the games, drive by drive: they move like the Mac's. An id of their own: the drive's
+            // bar above goes by drive.id, and two sections with one id in a Form lose their rows.
+            ForEach(drives.filter { !$0.games.isEmpty }, id: \.drive.gamesSectionID) { drive, games in
                 Section {
                     ForEach(games) { game in row(game) }
                 } header: {
