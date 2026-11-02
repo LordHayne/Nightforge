@@ -1,0 +1,67 @@
+name: How a game ran
+description: Nightforge fills this in after you rate a session. It helps the next player start the game the right way.
+title: "Report: "
+labels: [report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Nightforge filled in the fields below from your answer to "How did it run?". Nothing was sent before you press **Submit new issue**. Your GitHub name shows on the report; there are no paths, account names or logs in it.
+  - type: input
+    id: game
+    attributes:
+      label: Game
+    validations:
+      required: true
+  - type: input
+    id: store
+    attributes:
+      label: Store
+      description: steam, epic or gog
+    validations:
+      required: true
+  - type: input
+    id: store-id
+    attributes:
+      label: Store ID
+      description: The game's ID in that store (Steam app ID, Epic app name, GOG product ID).
+    validations:
+      required: true
+  - type: input
+    id: result
+    attributes:
+      label: Result
+      description: good, problems or no-start
+    validations:
+      required: true
+  - type: input
+    id: way
+    attributes:
+      label: Way it ran
+      description: The graphics layer and arguments Nightforge started it with (dxmt, dxvk, d3dmetal, wined3d, "dxmt -dx11", …), or mac for its Mac version.
+  - type: input
+    id: issues
+    attributes:
+      label: Problems
+      description: From Nightforge's list (stutters, crashed, lowFrameRate, glitches, controller, sound).
+  - type: input
+    id: setup
+    attributes:
+      label: Nightforge and engine
+  - type: input
+    id: mac
+    attributes:
+      label: Mac
+      description: Chip and macOS version.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: Optional, in your own words. It stays on GitHub; the app only ever counts the fields above.
+  - type: checkboxes
+    id: license
+    attributes:
+      label: Sharing
+      options:
+        - label: I release this report under CC0, so Nightforge's list and other projects (AppleGamingWiki, MacGamingDB) may use it.
+          required: true

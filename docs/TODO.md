@@ -891,6 +891,39 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   der Stand von 2020 ohne Online-Spiel.
 - Übersicht nach DX12- und winecx-Tests aktualisieren (Liste: `ISteamChartsService/GetMostPlayedGames`).
 
+## Mac-Wissen aus Quellen (AGW, Berichte) – Zweig `claude/compat-db-bce7dc`
+
+Entwurf und Regeln: `docs/ENTWURF-BERICHTE.md`. Abdeckung der Top 200: `docs/recherche/mac-abdeckung.md`.
+
+- **In der echten App ansehen** (nur offscreen und mit Tests geprüft): Spielseite eines Windows-Spiels nach unten
+  scrollen → „Was andere berichten“ (Bewertungen, Notiz, drei Link-Knöpfe, Pad-Fokus). Ein Spiel ohne
+  „Über das Spiel“, das AGW kennt, bekommt den Abschnitt allein. Die Karte „Dieses Spiel“ zeigt bei einem Hinweis
+  „Noch kein Profil – zuerst D3DMetal, wie im AppleGamingWiki berichtet“.
+- **Control mit dem Hinweis:** D3DMetal kommt nur zuerst, wenn die Analyse DX11 **und** DX12 sieht. Startet Epic
+  `Control.exe` (Launcher), hängt das an der Analyse; engine-04 baut dafür das Programmdatei-Feld. Live prüfen, welche
+  Leiter Control bekommt (Problembericht-Zeile „Graphics“ nennt „D3DMetal first from AppleGamingWiki“).
+- **„Willkommen zurück“:** drei Knöpfe (Lief gut / Mit Problemen / Startet nicht), danach „Bericht teilen …“. Im
+  Browser: Sind alle Felder des Formulars gefüllt? Öffnet der alte Problembericht (`issues/new?title=…&body=…`) mit
+  dem neuen Vorlagen-Ordner weiter ein leeres Issue? Im Repo das Label `report` anlegen.
+- **Nach dem Merge von signed-updates:** `agw.json` in `sign-lists.sh` aufnehmen und `AGWStore.refresh` auf
+  `Signature.fetch` umstellen. `profiles.yml`: die Zeilen mit `profiles/profiles.json` im PR-Schritt nehmen
+  `profiles/agw.json` mit (`git diff --quiet`, `git add`, `git diff --stat`).
+- **Später (nur geplant, Nutzer hat zugestimmt 2.11.): freiwillige, anonyme Spielberichte ohne Konto.** Bedingung:
+  erst, wenn die Download-Statistik echte Nutzer zeigt. Vorbild GameHub Lite/BannerHub (über 7.000 Configs per
+  „Export Config“ in ein GitHub-Repo, ungeprüft) und EmuReady (Abstimmung, Status „verifiziert“). Unser Gegenstück:
+  LaunchHealth kennt pro Spiel den bestätigten Weg, das Wissen bleibt bisher auf einem Mac.
+  - Opt-in, ohne Konto, anonym; nur das eine Spiel, keine Bibliotheksliste, kein Name.
+  - Inhalt: GameID-Schlüssel, bestätigter oder gescheiterter Weg (Grafikweg, Engine-Version, D3DMetal-Version,
+    Profilfelder), Ergebnis (Bild / kein Bild / Absturz), Chipfamilie, macOS- und Nightforge-Version, optional FPS.
+  - Zurück in die Profile: Ein Bericht bestätigt oder widerlegt ein Profil; mehrere übereinstimmende machen einen
+    Weg zum Standard. Macs sind einheitlich, ein Bericht zählt für fast alle – aber nur für dieselbe Engine-Version.
+  - Transport ohne Zugangsdaten in der App (z. B. ein Worker, der in ein Repo schreibt); Entscheidung später.
+    Entwurf und Zusammenhang mit `reports.json`: `docs/ENTWURF-BERICHTE.md` › Abschnitt 6.
+- **Danach bauen:** `reports.yml` (Berichte prüfen, Labels, schließen) und `scripts/build-reports.py` →
+  `profiles/reports.json`, sobald die ersten echten Berichte da sind. MacGamingDB-Anfrage abschicken
+  (`docs/recherche/macgamingdb-anfrage.md`), AGW/PCGW-Team kurz informieren (Abruf des ganzen Bestands, „nicht
+  kommerziell“).
+
 ## Wartung und Community
 
 Ziel: Mac-Gaming gemeinsam voranbringen, keine Konkurrenz und kein Geld. Nightforge soll nicht an einer

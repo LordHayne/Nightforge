@@ -61,6 +61,9 @@ struct Compatibility: Equatable {
         var launch: (index: Int, confirmed: Bool)?
         /// How it ran for the player ("Welcome back"): beats everything but what stops the game.
         var ownRating: GameRating?
+        /// What AppleGamingWiki says (profiles/agw.json): others' tests on other versions, so only said
+        /// for a game nothing else rates – it stays "Not tested yet".
+        var reported: AGWEntry?
     }
 
     /// Worst first: what stops the game, then what it needs, then what shows it runs.
@@ -79,6 +82,9 @@ struct Compatibility: Equatable {
             return .init(level: .no, note: block.geforceNow == nil
                 ? L10n.t("Its anti-cheat needs Windows itself.")
                 : L10n.t("Its anti-cheat needs Windows – playable on GeForce Now instead."))
+        }
+        if let rating = facts.ownRating, rating.didntStart == true {
+            return .init(level: .no, note: L10n.t("You said it didn't start."))
         }
         if let rating = facts.ownRating {
             return rating.good
@@ -115,6 +121,12 @@ struct Compatibility: Equatable {
         if facts.launch?.confirmed == true {
             return .init(level: .great)
         }
+        if facts.platform == .windows, let reported = facts.reported, let said = reported.wineSummary {
+            // Said before the download, honestly: a bad word from the wiki is a warning, never a block.
+            let runs = reported.ways.contains { $0.way.throughWine && $0.report.rating.good }
+            return .init(level: .untested, note: runs ? L10n.t("According to AppleGamingWiki: %@.", said)
+                         : L10n.t("According to AppleGamingWiki it runs badly through CrossOver and Wine (%@) – it may not run here either.", said))
+        }
         return .init(level: .untested)
     }
 
@@ -132,16 +144,19 @@ struct Compatibility: Equatable {
 }
 
 extension Compatibility {
-    /// For a game in the library, from the profile list and what this Mac learned about it.
-    static func of(_ game: Game, profile: GameProfile?, analysis: GameAnalysis?) -> Compatibility {
+    /// For a game in the library, from the profile list and what this Mac learned about it. `insight`:
+    /// the ways the game starts by (a source's hint included), else they're worked out again.
+    static func of(_ game: Game, profile: GameProfile?, analysis: GameAnalysis?, insight: GameInsight? = nil,
+                   reported: AGWEntry? = nil) -> Compatibility {
         var facts = Facts(platform: game.platform, vrOnly: game.isVROnly, antiCheatBlock: game.antiCheatBlock,
                           profile: profile, analysis: analysis)
         facts.learnedFixes = !LearnedFixes.winetricks(game.gameID).isEmpty || LearnedFixes.noAVX(game.gameID)
         facts.ownRating = GameRatings.load(game.gameID)
+        facts.reported = reported
         if let analysis {
-            facts.launch = LaunchHealth.peek(game.gameID, LaunchHealth.ladder(LaunchHealth.attempts(for: analysis, profile: profile),
-                                                                              preset: GameOptionsStore.load(game.gameID).preset,
-                                                                              profile: profile))
+            let attempts = insight?.attempts ?? LaunchHealth.attempts(for: analysis, profile: profile)
+            facts.launch = LaunchHealth.peek(game.gameID, LaunchHealth.ladder(attempts, preset: GameOptionsStore.load(game.gameID).preset,
+                                                                              profile: profile, hint: insight?.hint))
         }
         return rate(facts)
     }
