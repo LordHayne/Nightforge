@@ -37,7 +37,7 @@ enum FramePacing {
 
     /// The automatic frame limit for a start, and whether it's Nightforge's to learn (nothing
     /// chosen by the player or a profile).
-    static func automaticLimit(appID: Int, options: GameOptions, profile: GameProfile?,
+    static func automaticLimit(game: GameID, options: GameOptions, profile: GameProfile?,
                                refreshRate: Int) -> (limit: Int, learning: Bool) {
         let standard = options.effectiveFrameLimit(displayRefreshRate: refreshRate, profile: profile)
         guard options.frameLimit == nil, Prefs.sharpAndSmooth, profile?.frameLimit == nil, standard > 0 else {
@@ -45,29 +45,29 @@ enum FramePacing {
         }
         let context = Context(refreshRate: refreshRate, upscaling: options.effectiveUpscaling(profile: profile),
                               graphics: options.graphics, lowPower: Hardware.current.lowPower ? true : nil)
-        guard let state = load(appID), state.context == context, let learned = state.limit else { return (standard, true) }
+        guard let state = load(game), state.context == context, let learned = state.limit else { return (standard, true) }
         return (min(learned, standard), true)
     }
 
     /// Remembers a start, so its session can be read at the next one.
-    static func recordStart(appID: Int, options: GameOptions, profile: GameProfile?, refreshRate: Int,
+    static func recordStart(game: GameID, options: GameOptions, profile: GameProfile?, refreshRate: Int,
                             logMark: UInt64, limit: Int, learning: Bool) {
         let context = Context(refreshRate: refreshRate, upscaling: options.effectiveUpscaling(profile: profile),
                               graphics: options.graphics, lowPower: Hardware.current.lowPower ? true : nil)
-        var state = load(appID).flatMap { $0.context == context ? $0 : nil } ?? State(context: context)
+        var state = load(game).flatMap { $0.context == context ? $0 : nil } ?? State(context: context)
         state.mark = logMark
         state.ranWith = learning ? limit : nil
-        save(appID, state)
+        save(game, state)
     }
 
     /// Reads the game's last session from the log and learns from it (once per session).
-    static func learn(appID: Int, installDir: URL) {
-        guard var state = load(appID), let mark = state.mark else { return }
+    static func learn(game: GameID, installDir: URL) {
+        guard var state = load(game), let mark = state.mark else { return }
         let rates = rates(in: GameLog.text(since: mark), programs: Set(Engine.executables(in: installDir)))
         state = next(state, rates: rates,
                      standard: GameOptions.standardFrameLimit(state.context.refreshRate, lowPower: state.context.lowPower == true))
         state.mark = nil
-        save(appID, state)
+        save(game, state)
     }
 
     /// The decision after a session with these frame rates (one per minute of steady play).
@@ -107,23 +107,28 @@ enum FramePacing {
         return limits.sorted(by: >)
     }
 
-
-    /// Frame rates of full-minute periods from the given programs' lines:
-    /// "[nightforge-dxmt] Game: 58.2 FPS over 60 s, …" (DXMT names the program without ".exe").
+    /// Frame rates of full-minute periods from the given programs' lines.
     static func rates(in text: String, programs: Set<String>) -> [Double] {
+        periods(in: text, programs: programs).filter { $0.seconds >= 50 }.map(\.fps)
+    }
+
+    /// Every period the given programs logged: "[nightforge-dxmt] Game: 58.2 FPS over 60 s, …"
+    /// (DXMT names the program without ".exe"); every 10 s from the first frame for two minutes,
+    /// then every minute.
+    static func periods(in text: String, programs: Set<String>) -> [(fps: Double, seconds: Double)] {
         let names = Set(programs.map(baseName))
-        var rates: [Double] = []
+        var periods: [(fps: Double, seconds: Double)] = []
         for line in text.split(whereSeparator: \.isNewline) where line.contains("[nightforge-") {
             guard let tag = line.range(of: "] "), let colon = line.range(of: ": ", range: tag.upperBound..<line.endIndex),
                   names.contains(baseName(String(line[tag.upperBound..<colon.lowerBound])))
             else { continue }
             let fields = line[colon.upperBound...].split(separator: " ")
             guard fields.count >= 5, fields[1] == "FPS", fields[2] == "over",
-                  let fps = Double(fields[0]), let seconds = Double(fields[3]), seconds >= 50
+                  let fps = Double(fields[0]), let seconds = Double(fields[3])
             else { continue }
-            rates.append(fps)
+            periods.append((fps, seconds))
         }
-        return rates
+        return periods
     }
 
     private static func baseName(_ program: String) -> String {
@@ -131,13 +136,13 @@ enum FramePacing {
         return lower.hasSuffix(".exe") ? String(lower.dropLast(4)) : lower
     }
 
-    private static func key(_ appID: Int) -> String { "framePacing.\(appID)" }
+    private static func key(_ game: GameID) -> String { "framePacing.\(game.key)" }
 
-    private static func load(_ appID: Int) -> State? {
-        UserDefaults.standard.data(forKey: key(appID)).flatMap { try? JSONDecoder().decode(State.self, from: $0) }
+    private static func load(_ game: GameID) -> State? {
+        UserDefaults.standard.data(forKey: key(game)).flatMap { try? JSONDecoder().decode(State.self, from: $0) }
     }
 
-    private static func save(_ appID: Int, _ state: State) {
-        if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: key(appID)) }
+    private static func save(_ game: GameID, _ state: State) {
+        if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: key(game)) }
     }
 }

@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nightforge – Your games on your Mac</title>
+<meta name="description" content="Nightforge is a free game launcher for Apple silicon Macs: Steam, Epic and GOG games in one place, Mac versions first, Windows games sharp and smooth by themselves.">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nightforge – Your games on your Mac">
+<meta property="og:description" content="A free game launcher for Apple silicon Macs. Switch on and enjoy.">
+<meta property="og:image" content="https://lordhayne.github.io/Nightforge/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<script>
+  // Before anything is drawn: the language (?lang=, the last choice, then the browser's order –
+  // German if it comes first, else English, like the app) and whether sections may fade in.
+  (function () {
+    var root = document.documentElement, lang = null;
+    try { lang = new URLSearchParams(location.search).get('lang') || localStorage.getItem('nf-lang'); } catch (e) {}
+    if (lang !== 'de' && lang !== 'en') {
+      lang = 'en';
+      var list = navigator.languages || [navigator.language || 'en'];
+      for (var i = 0; i < list.length; i++) {
+        var code = String(list[i]).toLowerCase();
+        if (code.indexOf('de') === 0) { lang = 'de'; break; }
+        if (code.indexOf('en') === 0) break;
+      }
+    }
+    root.setAttribute('data-lang', lang);
+    root.lang = lang;
+    if ('IntersectionObserver' in window && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      root.classList.add('reveals');
+    }
+  })();
+</script>
+<script src="main.js" defer></script>
+</head>
+<body>
+
+<!-- The N from the app icon (Theme.swift: NightforgeMark) and the line icons, drawn once. -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E6E9EE"/>
+      <stop offset=".55" stop-color="#A4ABB5"/>
+      <stop offset="1" stop-color="#666C76"/>
+    </linearGradient>
+    <filter id="seam-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <symbol id="mark" viewBox="-12 -12 356 464">
+      <path fill="url(#metal)" d="M0 0L332 308V440L49 170L0 128ZM0 170L82 236V338L0 432ZM249 100L332 24V280L249 204Z"/>
+      <path d="M49 170L332 440" stroke="#2E7AFF" stroke-width="12" stroke-linecap="round" filter="url(#seam-glow)" opacity=".9"/>
+      <path d="M49 170L332 440" stroke="#2E7AFF" stroke-width="6" stroke-linecap="round"/>
+      <path d="M49 170L332 440" stroke="#C4DDFF" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-mac" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 16v4M16.5 18h4"/></symbol>
+    <symbol id="i-pad" viewBox="0 0 24 24"><path d="M7 7.5h10a4 4 0 0 1 4 4.4l-.5 3.8a2.4 2.4 0 0 1-4.2 1.2L14.6 15H9.4l-1.7 1.9a2.4 2.4 0 0 1-4.2-1.2L3 11.9a4 4 0 0 1 4-4.4z"/><path d="M8 10.5v3M6.5 12h3"/><path d="M15.5 11h.01M17.5 13h.01" stroke-width="2.4"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.1 4.1 0 0 1 12 7.6a4.1 4.1 0 0 1 7.5 2.2C19.5 15.4 12 20 12 20z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10.5 16.5l3.5-2-3.5-2z"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3.5l9 5-9 5-9-5z"/><path d="M3 13.5l9 5 9-5"/></symbol>
+    <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9.5 2.5V6M14.5 2.5V6M9.5 18v3.5M14.5 18v3.5M2.5 9.5H6M2.5 14.5H6M18 9.5h3.5M18 14.5h3.5"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.8 5.2a4.2 4.2 0 0 0-5.3 5.4L3.5 16.6V20.5h3.9l6-6a4.2 4.2 0 0 0 5.4-5.3l-2.7 2.7-2.6-.7-.7-2.6z"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4.5 12.5a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/></symbol>
+    <symbol id="i-drive" viewBox="0 0 24 24"><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M5 13l2.6-8h8.8L19 13"/><path d="M16.5 16.5h.01" stroke-width="2.4"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.5 17.5a8.5 8.5 0 1 1 17 0"/><path d="M12 17.5l4.2-5.2"/></symbol>
+    <symbol id="i-dock" viewBox="0 0 24 24"><rect x="2.5" y="15" width="19" height="5" rx="2"/><rect x="5.5" y="8.5" width="5" height="5" rx="1.2"/><rect x="13.5" y="8.5" width="5" height="5" rx="1.2"/><path d="M16 3.5v2"/></symbol>
+    <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.4-4.4"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2.5L5.5 13.5h5.5l-1 8 7.5-11h-5.5z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A7.8 7.8 0 1 1 9.5 4.5a6.3 6.3 0 0 0 10 10z"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
+    <symbol id="i-sofa" viewBox="0 0 24 24"><path d="M5 10.5V9a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v1.5"/><path d="M4 10.5a2 2 0 0 1 2 2V15h12v-2.5a2 2 0 1 1 4 0V18H2v-5.5a2 2 0 0 1 2-2z"/><path d="M5 18v2M19 18v2"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M2.5 18.5L7.5 5.5l5 13M4.5 14h6"/><path d="M14.5 18.5l3.5-8 3.5 8M15.6 16h4.8"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/><circle cx="12" cy="12" r="6.5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></symbol>
+    <symbol id="i-bubble" viewBox="0 0 24 24"><path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 17h-8l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 5z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" stroke-width="2.6"/></symbol>
+    <symbol id="i-docs" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="11" height="14" rx="2"/><path d="M9.5 3.5h9a2 2 0 0 1 2 2v11"/><path d="M6.5 11h5M6.5 14.5h5"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.6 1.2A3.4 3.4 0 0 0 7 18.5z"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main"><span lang="de">Zum Inhalt</span><span lang="en">Skip to content</span></a>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top" aria-label="Nightforge">
+      <svg class="brand-mark" aria-hidden="true"><use href="#mark"/></svg>
+      <span>Nightforge</span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#features"><span lang="de">Funktionen</span><span lang="en">Features</span></a>
+      <a href="#more"><span lang="de">Details</span><span lang="en">Details</span></a>
+      <a href="#progress"><span lang="de">Fortschritt</span><span lang="en">Progress</span></a>
+      <a href="#install"><span lang="de">Installieren</span><span lang="en">Install</span></a>
+    </nav>
+    <div class="nav-end">
+      <div class="lang" role="group" aria-label="Language / Sprache">
+        <button type="button" data-set-lang="de" aria-pressed="false">DE</button>
+        <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+      </div>
+      <a class="btn btn-gold btn-sm" href="#install"><span lang="de">Laden</span><span lang="en">Get</span></a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- Hero: one sentence, one button, the app on a Mac. -->
+<section class="hero" id="top">
+  <div class="wrap hero-in reveal">
+    <p class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>Nightforge</p>
+    <h1 class="hero-title"><span lang="de">Einschalten.<br>Und genießen.</span><span lang="en">Switch on.<br>And enjoy.</span></h1>
+    <p class="hero-sub"><span lang="de">Deine Spiele von Steam, Epic und GOG auf dem Mac. Kostenlos, mit einem Klick, ohne Basteln.</span><span lang="en">Your Steam, Epic and GOG games on your Mac. Free, one click, no fiddling.</span></p>
+    <div class="cta">
+      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">Für den Mac laden</span><span lang="en">Download for Mac</span></a>
+      <a class="link-more" href="#how"><span lang="de">So funktioniert’s</span><span lang="en">See how it works</span><span aria-hidden="true"> ›</span></a>
+    </div>
+  </div>
+
+  <!-- The real Home screen on a drawn laptop: window captures of the maintainer's own library, one per language. -->
+  <figure class="wrap device-wrap reveal">
+    <div class="device">
+      <div class="device-lid">
+        <div class="device-screen">
+          <div class="desk">
+            <div class="menubar" aria-hidden="true">
+              <b>Nightforge</b><span lang="de"><i>Ablage</i><i>Bearbeiten</i><i>Darstellung</i><i>Fenster</i><i>Hilfe</i></span><span lang="en"><i>File</i><i>Edit</i><i>View</i><i>Window</i><i>Help</i></span>
+              <span class="menubar-time"><span lang="de">Sa. 31. Okt. 19:38</span><span lang="en">Sat 31 Oct 19:38</span></span>
+            </div>
+            <img lang="de" class="desk-window" src="img/shots/home-de-1200.webp" srcset="img/shots/home-de-1200.webp 1200w, img/shots/home-de-2200.webp 2200w" sizes="(min-width: 1180px) 1040px, 94vw" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Startseite von Nightforge mit Overcooked! 2 vorne und weiteren zuletzt gespielten Spielen">
+            <img lang="en" class="desk-window" src="img/shots/home-en-1200.webp" srcset="img/shots/home-en-1200.webp 1200w, img/shots/home-en-2200.webp 2200w" sizes="(min-width: 1180px) 1040px, 94vw" width="3024" height="1706" loading="lazy" decoding="async" alt="Nightforge’s Home screen with Overcooked! 2 in front and other recently played games">
+          </div>
+          <span class="notch" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="device-base" aria-hidden="true"><span></span></div>
+    </div>
+    <figcaption><span lang="de">Die echte Startseite: das zuletzt Gespielte vorne, wie es läuft und aus welchem Store es kommt. Die Cover der Spiele sind in allen Bildern ausgeblendet – sie gehören den Verlagen.</span><span lang="en">The real Home screen: what you played last up front, how it runs and which store it comes from. Game covers are left out of every picture – they belong to their publishers.</span></figcaption>
+  </figure>
+</section>
+
+<!-- At a glance: four numbers, all measured or plainly true. -->
+<section class="stats">
+  <ul class="wrap stats-grid reveal">
+    <li><span class="stat-num">≈75<small>FPS</small></span><span class="stat-label"><span lang="de">OxyRail auf einem M5 über DXMT – statt 45–50 über Vulkan. Gemessen mit Nightforge 0.2.</span><span lang="en">OxyRail on an M5 through DXMT – instead of 45–50 through Vulkan. Measured with Nightforge 0.2.</span></span></li>
+    <li><span class="stat-num">60<small>FPS</small></span><span class="stat-label"><span lang="de">Gleichmäßig auf einem 120-Hz-Display.</span><span lang="en">Even on a 120&nbsp;Hz display.</span></span></li>
+    <li><span class="stat-num">3<small>Stores</small></span><span class="stat-label"><span lang="de">Steam, Epic und GOG in einer Bibliothek.</span><span lang="en">Steam, Epic and GOG in one library.</span></span></li>
+    <li><span class="stat-num">0<small>€</small></span><span class="stat-label"><span lang="de">Kostenlos. Kein Konto, keine Telemetrie.</span><span lang="en">Free. No account, no telemetry.</span></span></li>
+  </ul>
+</section>
+
+<!-- Three steps -->
+<section class="section" id="how">
+  <div class="wrap">
+    <h2 class="h2 center reveal"><span lang="de">Drei Schritte. <span class="dim">Dann wird gespielt.</span></span><span lang="en">Three steps. <span class="dim">Then you play.</span></span></h2>
+    <ol class="steps reveal">
+      <li>
+        <span class="step-n">1</span>
+        <h3><span lang="de">Installieren</span><span lang="en">Install</span></h3>
+        <p><span lang="de">Eine Zeile im Terminal oder das DMG in den Programme-Ordner ziehen. Danach aktualisiert sich Nightforge mit einem Klick selbst.</span><span lang="en">One line in Terminal, or drag the DMG into Applications. After that, Nightforge updates itself with one click.</span></p>
+      </li>
+      <li>
+        <span class="step-n">2</span>
+        <h3><span lang="de">Steam verbinden</span><span lang="en">Connect Steam</span></h3>
+        <p><span lang="de">Engine, Windows-Umgebung und Steam richtet Nightforge selbst ein. Du meldest dich nur in Steams eigenem Fenster an – Nightforge sieht deine Anmeldung nie.</span><span lang="en">Nightforge sets up the engine, a Windows environment and Steam by itself. You only sign in, in Steam’s own window – Nightforge never sees your login.</span></p>
+      </li>
+      <li>
+        <span class="step-n">3</span>
+        <h3><span lang="de">Spielen</span><span lang="en">Play</span></h3>
+        <p><span lang="de">Deine ganze Bibliothek erscheint als Cover. Spiel wählen, laden, spielen. Epic Games und GOG verbindest du in den Einstellungen, wenn du magst.</span><span lang="en">Your whole library shows up as covers. Pick a game, download it, play. Connect Epic Games and GOG in Settings too, if you like.</span></p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- Chapter: the library -->
+<section class="chapter" id="features">
+  <div class="wrap chapter-head reveal">
+    <p class="eyebrow"><span lang="de">Bibliothek</span><span lang="en">Library</span></p>
+    <h2 class="h2"><span lang="de">Deine ganze Bibliothek. <span class="dim">Mac-Versionen zuerst.</span></span><span lang="en">Your whole library. <span class="dim">Mac versions first.</span></span></h2>
+  </div>
+  <figure class="wrap shot-xl reveal">
+    <img lang="de" class="screen" src="img/shots/library-de-800.webp" srcset="img/shots/library-de-800.webp 800w, img/shots/library-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Bibliothek mit Filtern und Covern, an denen MAC- und EPIC-Schilder hängen">
+    <img lang="en" class="screen" src="img/shots/library-en-800.webp" srcset="img/shots/library-en-800.webp 800w, img/shots/library-en-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="The library with filters and covers carrying MAC and EPIC tags">
+  </figure>
+  <div class="wrap cols reveal">
+    <div>
+      <h3><span lang="de">Ganz ohne Übersetzung</span><span lang="en">No translation at all</span></h3>
+      <p><span lang="de">Gibt es ein Spiel auch für den Mac, nimmt Nightforge die Mac-Version – von GOG direkt, für Steam richtet es einmalig Steam für Mac ein. Ein kleines MAC-Schild zeigt, welche Spiele so laufen.</span><span lang="en">When a game also comes for the Mac, Nightforge plays the Mac version – straight from GOG, and for Steam it sets up Steam for Mac once. A small MAC tag shows which games run that way.</span></p>
+    </div>
+    <div>
+      <h3><span lang="de">Steam, Epic und GOG an einem Ort</span><span lang="en">Steam, Epic and GOG in one place</span></h3>
+      <p><span lang="de">Epic- und GOG-Spiele lädt und startet Nightforge selbst – ohne Epic-Launcher und ohne GOG Galaxy. Doppelt gekaufte Spiele erscheinen nur einmal, und du wählst, worüber sie starten.</span><span lang="en">Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. Games you own twice show up once, and you choose which store starts them.</span></p>
+    </div>
+    <div>
+      <h3><span lang="de">Mit Plan B</span><span lang="en">With a plan B</span></h3>
+      <p><span lang="de">Klappt eine Mac-Version nicht, übernimmt die Windows-Version – und deine Spielstände ziehen mit.</span><span lang="en">If a Mac version fails, the Windows version takes over – and your saves come along.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- Chapter: sharp & smooth -->
+<section class="chapter">
+  <div class="wrap chapter-head reveal">
+    <p class="eyebrow"><span lang="de">Schön &amp; flüssig</span><span lang="en">Sharp &amp; smooth</span></p>
+    <h2 class="h2"><span lang="de">Scharf und gleichmäßig. <span class="dim">Ganz von selbst.</span></span><span lang="en">Sharp and even. <span class="dim">All by itself.</span></span></h2>
+    <p class="lede"><span lang="de">Die meisten Windows-Spiele bekommen Apples MetalFX-Hochskalierung auf volle Retina-Schärfe, dazu eine gleichmäßige Bildrate, die zu deinem Display passt. Nichts einzustellen – die Optionen jedes Spiels bieten trotzdem vier Grafikwege in Klartext.</span><span lang="en">Most Windows games get Apple’s MetalFX upscaling to full Retina sharpness, plus an even frame rate that fits your display. Nothing to set up – each game’s options still offer four graphics routes in plain words.</span></p>
+  </div>
+  <div class="wrap duo reveal">
+    <figure class="panel panel-shot">
+      <img lang="de" class="screen screen-dialog" src="img/shots/options-de-700.webp" srcset="img/shots/options-de-700.webp 700w, img/shots/options-de-1100.webp 1100w" sizes="(min-width: 900px) 420px, calc(100vw - 80px)" width="1037" height="1267" loading="lazy" decoding="async" alt="Die Optionen von OxyRail: vier Grafikwege in Klartext, Automatisch ist empfohlen">
+      <img lang="en" class="screen screen-dialog" src="img/shots/options-en-700.webp" srcset="img/shots/options-en-700.webp 700w, img/shots/options-en-1100.webp 1100w" sizes="(min-width: 900px) 420px, calc(100vw - 80px)" width="1037" height="1238" loading="lazy" decoding="async" alt="OxyRail’s options: four graphics routes in plain words, Automatic is recommended">
+      <figcaption><span lang="de">Die Optionen eines Spiels. „Automatisch“ ist meistens das Beste.</span><span lang="en">A game’s options. “Automatic” is usually best.</span></figcaption>
+    </figure>
+    <figure class="panel chart">
+      <p class="panel-kicker"><span lang="de">Gemessen auf einem M5 mit Nightforge 0.2</span><span lang="en">Measured on an M5 with Nightforge 0.2</span></p>
+      <p class="panel-title"><span lang="de">DirectX&nbsp;10 und 11 gehen über DXMT direkt auf Metal.</span><span lang="en">DirectX&nbsp;10 and 11 go straight to Metal through DXMT.</span></p>
+      <div class="legend">
+        <span><i class="sw sw-gold"></i>DXMT (Nightforge)</span>
+        <span><i class="sw sw-grey"></i><span lang="de">Vulkan-Weg</span><span lang="en">Vulkan route</span></span>
+      </div>
+      <div class="bars">
+        <div class="bar-group">
+          <span class="bar-label">OxyRail</span>
+          <div class="bar-row" title="DXMT: ≈ 75 FPS"><span class="bar bar-gold" style="--v:75"></span><span class="bar-val">≈&nbsp;75&nbsp;FPS</span></div>
+          <div class="bar-row" title="Vulkan: 45–50 FPS"><span class="bar bar-grey" style="--v:45"><span class="bar-range" style="--r:5"></span></span><span class="bar-val">45–50</span></div>
+        </div>
+        <div class="bar-group">
+          <span class="bar-label">7&nbsp;Days&nbsp;to&nbsp;Die</span>
+          <div class="bar-row" title="DXMT: ≈ 63 FPS"><span class="bar bar-gold" style="--v:63"></span><span class="bar-val">≈&nbsp;63&nbsp;FPS</span></div>
+          <div class="bar-row" title="Vulkan: ≈ 30 FPS"><span class="bar bar-grey" style="--v:30"></span><span class="bar-val">≈&nbsp;30</span></div>
+        </div>
+      </div>
+      <p class="panel-foot"><span lang="de">DirectX&nbsp;12 läuft über Apples D3DMetal, nach deiner Zustimmung: Das Benchmark-Tool von Black Myth: Wukong schafft damit im Schnitt 68&nbsp;FPS (Niedrig, FSR, 1512&nbsp;×&nbsp;982, M5, Nightforge 0.3). DirectX&nbsp;9 läuft über Wines eigenes WineD3D.</span><span lang="en">DirectX&nbsp;12 runs through Apple’s D3DMetal, once you agree: the Black Myth: Wukong Benchmark Tool averages 68&nbsp;FPS with it (Low, FSR, 1512&nbsp;×&nbsp;982, M5, Nightforge 0.3). DirectX&nbsp;9 runs through Wine’s own WineD3D.</span></p>
+    </figure>
+  </div>
+</section>
+
+<!-- Chapter: the couch -->
+<section class="chapter">
+  <div class="wrap chapter-head reveal">
+    <p class="eyebrow"><span lang="de">Controller</span><span lang="en">Controller</span></p>
+    <h2 class="h2"><span lang="de">Gemacht fürs Sofa. <span class="dim">Den Controller in der Hand.</span></span><span lang="en">Made for the couch. <span class="dim">Controller in hand.</span></span></h2>
+  </div>
+  <figure class="wrap shot-xl reveal">
+    <img lang="de" class="screen" src="img/shots/pad-de-800.webp" srcset="img/shots/pad-de-800.webp 800w, img/shots/pad-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Startseite mit OxyRail, unten links ein verbundener DualSense mit Akkustand">
+    <img lang="en" class="screen" src="img/shots/pad-en-800.webp" srcset="img/shots/pad-en-800.webp 800w, img/shots/pad-en-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Home with OxyRail, a connected DualSense and its battery level at the bottom left">
+  </figure>
+  <div class="wrap cols reveal">
+    <div>
+      <h3><span lang="de">Erkennt deinen Controller</span><span lang="en">Knows your controller</span></h3>
+      <p><span lang="de">PlayStation- und Xbox-Controller erkennt Nightforge von selbst. Die Hinweise zeigen gleich die Tasten deines Controllers, unten links steht sein Akkustand.</span><span lang="en">Nightforge recognises PlayStation and Xbox controllers by itself. The hints switch to your controller’s own buttons, and its battery shows at the bottom left.</span></p>
+    </div>
+    <div>
+      <h3><span lang="de">Vom Sofa aus bedienbar</span><span lang="en">Run it from the couch</span></h3>
+      <p><span lang="de">Spielen, Laden, Optionen und Einstellungen gehen mit dem Controller, mit L1/R1 wechselst du zwischen Startseite und Bibliothek, und der Mauszeiger verschwindet, bis du die Maus wieder bewegst. Ein Abzeichen auf jedem Cover zeigt, welche Spiele sich damit spielen lassen. Zum Anmelden und Suchen brauchst du noch eine Tastatur.</span><span lang="en">Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, and the pointer hides until you move the mouse again. A badge on every cover shows which games play with one. Signing in and searching still need a keyboard.</span></p>
+    </div>
+    <div>
+      <h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3>
+      <p><span lang="de">Am Fernseher starten Spiele im Vollbild in seiner Auflösung, der Ton geht über HDMI, und nach dem Spiel bist du zurück in Nightforge wie bei einer Konsole statt auf dem Desktop. Das Vollbild braucht keinen eigenen Space, beim Start und Ende rutscht nichts zur Seite, und ein Ladebildschirm überbrückt das Warten.</span><span lang="en">On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you’re back in Nightforge like on a console, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait.</span></p>
+    </div>
+  </div>
+  <!-- Picture spot (0.3.0): Nightforge on a real TV, once TV mode has been tested on one. -->
+  <div class="wrap reveal">
+    <div class="panel feature-panel">
+      <div>
+        <p class="panel-kicker"><span lang="de">Gibt es so nur in Nightforge</span><span lang="en">Only in Nightforge, this way</span></p>
+        <h3 class="feature-title"><span lang="de">Nightforges eigenes Controller-Menü.</span><span lang="en">Nightforge’s own controller menu.</span></h3>
+        <p class="feature-text"><span lang="de">Eine Tastenkombination am Controller holt mitten im Spiel ein ruhiges Menü nach vorn. Auf dem Sofa bleibt man so nie hängen: Ein eingefrorenes Spiel beendest du mit dem Controller, ohne aufzustehen – und bist gleich wieder in deiner Bibliothek.</span><span lang="en">A button combination on the controller brings up a calm menu in the middle of a game. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up – and you’re straight back in your library.</span></p>
+      </div>
+      <ul class="feature-list">
+        <li><svg class="i" aria-hidden="true"><use href="#i-play"/></svg><span lang="de">Weiterspielen</span><span lang="en">Keep playing</span></li>
+        <li><svg class="i" aria-hidden="true"><use href="#i-x"/></svg><span lang="de">Spiel beenden – auch wenn es hängt</span><span lang="en">Quit the game – even when it hangs</span></li>
+        <li><svg class="i i-mark" aria-hidden="true"><use href="#mark"/></svg><span lang="de">Zu Nightforge</span><span lang="en">Back to Nightforge</span></li>
+      </ul>
+    </div>
+  </div>
+  <!-- Picture spot (0.3.0): the controller menu over a running game, once it's built and tested. No button names until then. -->
+</section>
+
+<!-- Chapter: welcome back -->
+<section class="chapter">
+  <div class="wrap chapter-head reveal">
+    <p class="eyebrow"><span lang="de">Willkommen zurück</span><span lang="en">Welcome back</span></p>
+    <h2 class="h2"><span lang="de">Wie lief es? <span class="dim">Nightforge merkt es sich.</span></span><span lang="en">How did it run? <span class="dim">Nightforge remembers.</span></span></h2>
+    <p class="lede"><span lang="de">Nach jedem Spiel zeigt Nightforge, wie lange du gespielt hast, und fragt kurz, wie es lief. Danach steht es auf der Seite des Spiels – neben allem, womit Nightforge es startet. Deine Antwort bleibt auf diesem Mac.</span><span lang="en">After every game Nightforge shows how long you played and asks how it ran. Afterwards it’s on the game’s page – next to everything Nightforge starts it with. Your answer stays on this Mac.</span></p>
+  </div>
+  <figure class="wrap shot-xl reveal">
+    <img lang="de" class="screen" src="img/shots/detail-de-800.webp" srcset="img/shots/detail-de-800.webp 800w, img/shots/detail-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Seite von OxyRail mit dem Satz „Du hast gesagt, es läuft gut.“ und der Karte „Dieses Spiel“">
+    <img lang="en" class="screen" src="img/shots/detail-en-800.webp" srcset="img/shots/detail-en-800.webp 800w, img/shots/detail-en-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="OxyRail’s page with “You said it runs well” and the “This game” card">
+  </figure>
+  <!-- Picture spot (0.3.0): the game page with description, screenshots and game modes, once game-metadata is merged. -->
+  <div class="wrap cols reveal">
+    <div>
+      <h3><span lang="de">Alles über das Spiel</span><span lang="en">All about the game</span></h3>
+      <p><span lang="de">Beschreibung, Screenshots und Spielmodi stehen direkt auf der Seite des Spiels.</span><span lang="en">Description, screenshots and game modes right on the game’s page.</span></p>
+    </div>
+    <div>
+      <h3><span lang="de">Womit es startet</span><span lang="en">What it starts with</span></h3>
+      <p><span lang="de">Store, Version und Grafikweg stehen daneben – und woher die Einstellungen kommen, etwa „Von Nightforge getestet auf M5“.</span><span lang="en">Store, version and graphics route sit beside it – and where the settings come from, like “Tested by Nightforge on M5”.</span></p>
+    </div>
+    <div>
+      <h3><span lang="de">Bereit für offline</span><span lang="en">Ready for offline</span></h3>
+      <p><span lang="de">Die Seite sagt dir auch, ob ein Spiel ohne Internet startet.</span><span lang="en">The page also tells you whether a game starts without internet.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- Bento: everything else -->
+<section class="section" id="more">
+  <div class="wrap">
+    <h2 class="h2 center reveal"><span lang="de">Durchdacht. <span class="dim">Bis ins Kleine.</span></span><span lang="en">Thought through. <span class="dim">Down to the details.</span></span></h2>
+    <ul class="bento reveal">
+      <li class="tile tile-hero">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-wrench"/></svg>
+        <h3><span lang="de">Fixes kommen von selbst.</span><span lang="en">Fixes arrive by themselves.</span></h3>
+        <p><span lang="de">Jede Nacht entsteht eine Spiele-Datenbank aus den Community-Fixes hinter Proton und unseren auf Macs getesteten Profilen. Beim Start greift die passende – still.</span><span lang="en">Every night a game database is rebuilt from the community fixes behind Proton plus our own Mac-tested profiles. The right one applies at launch – silently.</span></p>
+      </li>
+      <li class="tile tile-tall">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-undo"/></svg>
+        <h3><span lang="de">Abstürze abgefangen.</span><span lang="en">Crashes caught.</span></h3>
+        <p><span lang="de">Startet ein Spiel nicht auf dem üblichen Weg, nimmt Nightforge von selbst einen anderen. Stürzt es mit der neuesten Engine ab, startet es mit der vorigen.</span><span lang="en">If a game doesn’t start the usual way, Nightforge takes another by itself. If the newest engine crashes it, it starts with the one before.</span></p>
+      </li>
+      <li class="tile">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-drive"/></svg>
+        <h3><span lang="de">Externe Laufwerke</span><span lang="en">External drives</span></h3>
+        <p><span lang="de">Spiele direkt auf eine externe SSD installieren oder später dorthin verschieben.</span><span lang="en">Install games straight onto an external SSD, or move them there later.</span></p>
+      </li>
+      <li class="tile">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-gauge"/></svg>
+        <h3><span lang="de">macOS-Spielmodus</span><span lang="en">macOS Game Mode</span></h3>
+        <p><span lang="de">Vorrang bei CPU und Grafik, halbe Bluetooth-Latenz für Controller und Kopfhörer.</span><span lang="en">Priority on CPU and graphics, half the Bluetooth latency for controllers and headphones.</span></p>
+      </li>
+      <li class="tile">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-dock"/></svg>
+        <h3><span lang="de">Dock und Mitteilungen</span><span lang="en">Dock and notifications</span></h3>
+        <p><span lang="de">Die letzten fünf Spiele per Rechtsklick im Dock. Eine Mitteilung, wenn ein Download fertig ist.</span><span lang="en">Your last five games from the Dock. A notification when a download is done.</span></p>
+      </li>
+      <li class="tile">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-search"/></svg>
+        <h3><span lang="de">Suche bis in den Store</span><span lang="en">Search into the store</span></h3>
+        <p><span lang="de">Findet auch Spiele im Steam-Store, mit Preis und Metascore. Kostenlose fügst du gleich hinzu, Steam fragt einmal im eigenen Fenster.</span><span lang="en">Also finds games in the Steam store, with price and Metascore. Free ones you add right away; Steam asks once in its own window.</span></p>
+      </li>
+      <li class="tile">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-display"/></svg>
+        <h3><span lang="de">Großer Bildschirm</span><span lang="en">Big screen</span></h3>
+        <p><span lang="de">Monitor oder Fernseher anstecken: Nightforge und deine Spiele ziehen von selbst mit hinüber.</span><span lang="en">Plug in a monitor or TV: Nightforge and your games move over to it by themselves.</span></p>
+      </li>
+      <li class="tile">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-bolt"/></svg>
+        <h3><span lang="de">Mitgedacht</span><span lang="en">Looking out for you</span></h3>
+        <p><span lang="de">Downloads halten den Mac wach. Ein zu schwaches Netzteil siehst du, bevor der Akku leer ist.</span><span lang="en">Downloads keep your Mac awake. A charger too weak for games shows before the battery runs low.</span></p>
+      </li>
+      <li class="tile tile-wide">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-text"/></svg>
+        <h3><span lang="de">Größere Schrift, weniger Bewegung.</span><span lang="en">Larger text, less motion.</span></h3>
+        <p><span lang="de">Ein Schalter macht alle Texte in Nightforge eine Stufe größer, ein zweiter tauscht Zoomen und Gleiten gegen ruhiges Überblenden.</span><span lang="en">One switch makes all of Nightforge’s text a step larger; another turns zooming and sliding into plain cross-fades.</span></p>
+      </li>
+      <li class="tile tile-wide tile-quiet">
+        <svg class="tile-i" aria-hidden="true"><use href="#i-moon"/></svg>
+        <h3><span lang="de">Kein Konto. Keine Telemetrie.<br>Kein Hintergrunddienst.</span><span lang="en">No account. No telemetry.<br>No background service.</span></h3>
+        <p><span lang="de">„Problem melden“ öffnet ein ausgefülltes GitHub-Issue, das erst rausgeht, wenn du es abschickst. Und ein Knopf entfernt Nightforge ganz – Spielstände, die nur auf diesem Mac liegen, landen vorher in „Dokumente“.</span><span lang="en">“Report problem” opens a filled-in GitHub issue that goes nowhere until you submit it. And one button removes Nightforge completely – saves that are only on this Mac are copied to Documents first.</span></p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- Settings, as the app shows them -->
+<section class="section section-tight">
+  <div class="wrap">
+    <h2 class="h2 center reveal"><span lang="de">Einstellungen in Klartext. <span class="dim">Jeder Schalter sagt, was er tut.</span></span><span lang="en">Settings in plain words. <span class="dim">Every switch says what it does.</span></span></h2>
+    <div class="gallery reveal">
+      <figure class="panel panel-shot">
+        <img lang="de" class="screen screen-dialog" src="img/shots/settings-de-700.webp" srcset="img/shots/settings-de-700.webp 700w, img/shots/settings-de-1100.webp 1100w" sizes="(min-width: 900px) 480px, calc(100vw - 80px)" width="1278" height="1345" loading="lazy" decoding="async" alt="Die allgemeinen Einstellungen mit Schön & flüssig, Spielmodus und weiteren Schaltern, jeder mit einem erklärenden Satz">
+        <img lang="en" class="screen screen-dialog" src="img/shots/settings-en-700.webp" srcset="img/shots/settings-en-700.webp 700w, img/shots/settings-en-1100.webp 1100w" sizes="(min-width: 900px) 480px, calc(100vw - 80px)" width="1278" height="1321" loading="lazy" decoding="async" alt="General settings with Sharp & smooth, Game Mode and more, each with a sentence explaining it">
+        <figcaption><span lang="de">Allgemein: an, was das beste Ergebnis bringt.</span><span lang="en">General: on, where it gives the best result.</span></figcaption>
+      </figure>
+      <figure class="panel panel-shot">
+        <img lang="de" class="screen screen-dialog" src="img/shots/storage-de-700.webp" srcset="img/shots/storage-de-700.webp 700w, img/shots/storage-de-1100.webp 1100w" sizes="(min-width: 900px) 480px, calc(100vw - 80px)" width="1279" height="1184" loading="lazy" decoding="async" alt="Die Speicher-Einstellungen mit einem Balken für Spiele, Nightforge und Anderes und der Liste der installierten Spiele">
+        <img lang="en" class="screen screen-dialog" src="img/shots/storage-en-700.webp" srcset="img/shots/storage-en-700.webp 700w, img/shots/storage-en-1100.webp 1100w" sizes="(min-width: 900px) 480px, calc(100vw - 80px)" width="1279" height="1184" loading="lazy" decoding="async" alt="Storage settings with a bar for games, Nightforge and other data, and the list of installed games">
+        <figcaption><span lang="de">Speicher: verschieben, etwa auf ein externes Laufwerk, oder deinstallieren.</span><span lang="en">Storage: move games, for instance to an external drive, or uninstall them.</span></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- Honest about limits -->
+<section class="section">
+  <div class="wrap">
+    <h2 class="h2 center reveal"><span lang="de">Ehrlich gesagt. <span class="dim">Was geht – und was nicht.</span></span><span lang="en">To be honest. <span class="dim">What works – and what doesn’t.</span></span></h2>
+    <ul class="honest reveal">
+      <li>
+        <h3><span lang="de">Anti-Cheat</span><span lang="en">Anti-cheat</span></h3>
+        <p><span lang="de">Die Windows-Versionen von Online-Spielen mit Easy Anti-Cheat oder BattlEye laufen auf dem Mac nicht – manche haben aber eine Mac-Version mit Anti-Cheat. Nightforge sagt dir das vor dem Download und bietet GeForce Now an, wenn es das Spiel dort gibt – mit deinem Spiel von Steam oder, soweit GeForce Now es unterstützt, von Epic. Gibt es einen Start ohne Anti-Cheat, nimmt Nightforge den.</span><span lang="en">The Windows versions of online games with Easy Anti-Cheat or BattlEye can’t run on a Mac – though some have a Mac version with anti-cheat. Nightforge tells you before you download and offers GeForce Now when the game is there – with your copy from Steam or, where GeForce Now supports it, from Epic. When there’s a way to start without anti-cheat, Nightforge takes it.</span></p>
+      </li>
+      <li>
+        <h3>DirectX</h3>
+        <p><span lang="de">DirectX&nbsp;10 und 11 sind gut abgedeckt. DirectX&nbsp;9 läuft über WineD3D, oft langsamer und ohne MetalFX – schneller soll es mit KosmicKrisp werden (siehe „Geplant“). DirectX&nbsp;12 läuft über Apples D3DMetal. Das richtet Nightforge beim ersten DirectX-12-Spiel erst nach deiner Zustimmung ein, weil Apples Lizenz es nur zum Entwickeln, Testen und Ausprobieren von Spielen freigibt – den Lizenztext bringt Nightforge selbst mit, D3DMetal kommt aus Apples eigenem Toolkit. Die Treiber-Warnung, die Unreal-Spiele darunter zeigen, fängt Nightforge ab. Es ist neueres Terrain, rechne mit dem einen oder anderen Spiel, das nicht will.</span><span lang="en">DirectX&nbsp;10 and 11 are well covered. DirectX&nbsp;9 runs through WineD3D, often slower and without MetalFX – KosmicKrisp should make it faster (see “Planned”). DirectX&nbsp;12 runs through Apple’s D3DMetal. Nightforge sets it up the first time a DirectX&nbsp;12 game needs it, and only once you agree, because Apple’s licence allows it only for developing, testing and evaluating games – the licence text ships with Nightforge, D3DMetal comes from Apple’s own toolkit. The driver warning Unreal games show on it, Nightforge heads off. It’s newer ground, so expect the odd game that doesn’t.</span></p>
+      </li>
+      <li>
+        <h3><span lang="de">Ladebildschirm</span><span lang="en">Loading screen</span></h3>
+        <p><span lang="de">Rund um den Ladebildschirm gibt es noch kleine Anzeigefehler, etwa einen Mauszeiger, der kurz aufblitzt, oder ein Fenster, das kurz davor auftaucht. Am Spielen ändern sie nichts, sie kommen in den nächsten Versionen dran.</span><span lang="en">There are still small display glitches around the loading screen, like a pointer that flashes up briefly or a window that shows up just before it. They don’t get in the way of playing and are next in line for the coming versions.</span></p>
+      </li>
+      <li>
+        <h3><span lang="de">VR und Spielstände</span><span lang="en">VR and saves</span></h3>
+        <p><span lang="de">Reine VR-Spiele sind markiert, sie laufen auf keinem Mac. Spielstände in der Steam Cloud synchronisieren wie gewohnt.</span><span lang="en">VR-only games are marked; they can’t run on a Mac. Saves in the Steam Cloud sync as usual.</span></p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- One week of progress -->
+<section class="section" id="progress">
+  <div class="wrap progress">
+    <div class="progress-text reveal">
+      <p class="eyebrow"><span lang="de">Fortschritt</span><span lang="en">Progress</span></p>
+      <h2 class="h2"><span lang="de">Eine Woche alt. <span class="dim">Und schon so weit.</span></span><span lang="en">One week old. <span class="dim">And already this far.</span></span></h2>
+      <p class="lede"><span lang="de">Die erste Version entstand am 24.&nbsp;Oktober 2026. Seitdem kommt fast jeden Tag etwas dazu – das hier ist der Stand vom 1.&nbsp;November.</span><span lang="en">The first version came together on 24&nbsp;October 2026. Since then something new has landed almost every day – this is where things stand on 1&nbsp;November.</span></p>
+    </div>
+    <ol class="timeline reveal">
+      <li><time datetime="2026-10-24"><span lang="de">24.&nbsp;Okt.</span><span lang="en">Oct&nbsp;24</span></time><div><h3><span lang="de">Der Anfang</span><span lang="en">The start</span></h3><p><span lang="de">Windows-Spiele von Steam auf dem Mac, mit einem Klick eingerichtet. DXMT, macOS-Spielmodus, Spiele-Profile – und der Name Nightforge.</span><span lang="en">Windows Steam games on the Mac, set up with one click. DXMT, macOS Game Mode, game profiles – and the name Nightforge.</span></p></div></li>
+      <li><time datetime="2026-10-25"><span lang="de">25.&nbsp;Okt.</span><span lang="en">Oct&nbsp;25</span></time><div><h3><span lang="de">Schön &amp; flüssig</span><span lang="en">Sharp &amp; smooth</span></h3><p><span lang="de">MetalFX-Schärfe und eine gleichmäßige Bildrate, Updates in der App, Suche im Steam-Store.</span><span lang="en">MetalFX sharpness and an even frame rate, updates inside the app, search in the Steam store.</span></p></div></li>
+      <li><time datetime="2026-10-26"><span lang="de">26.&nbsp;Okt.</span><span lang="en">Oct&nbsp;26</span></time><div><h3><span lang="de">Mac-Versionen und DirectX&nbsp;12</span><span lang="en">Mac versions and DirectX&nbsp;12</span></h3><p><span lang="de">Mac-Versionen zuerst, DirectX&nbsp;12 über Apples D3DMetal, Bedienung mit dem Controller, GeForce Now für Spiele mit Anti-Cheat.</span><span lang="en">Mac versions first, DirectX&nbsp;12 through Apple’s D3DMetal, controller navigation, GeForce Now for anti-cheat games.</span></p></div></li>
+      <li><time datetime="2026-10-27"><span lang="de">27.&nbsp;Okt.</span><span lang="en">Oct&nbsp;27</span></time><div><h3><span lang="de">Willkommen zurück</span><span lang="en">Welcome back</span></h3><p><span lang="de">Rückblick nach jedem Spiel, der Glas-Look, Rückfall auf die vorige Engine, Dock-Menü und Mitteilungen.</span><span lang="en">A look back after every game, the glass look, falling back to the previous engine, Dock menu and notifications.</span></p></div></li>
+      <li><time datetime="2026-10-28"><span lang="de">28.&nbsp;Okt.</span><span lang="en">Oct&nbsp;28</span></time><div><h3>Epic Games</h3><p><span lang="de">Epic-Spiele ohne Epic-Launcher, doppelt gekaufte Spiele zusammengeführt, Trackpad-Gesten.</span><span lang="en">Epic games without the Epic launcher, games owned twice merged into one, trackpad gestures.</span></p></div></li>
+      <li><time datetime="2026-10-29"><span lang="de">29.&nbsp;Okt.</span><span lang="en">Oct&nbsp;29</span></time><div><h3><span lang="de">Ein neuer erster Start</span><span lang="en">A new first start</span></h3><p><span lang="de">Einrichtung mit Controller-Test und Tipps, die Startseite als Bühne mit „Weiterspielen“.</span><span lang="en">Setup with a controller test and tips, Home as a stage with “Continue playing”.</span></p></div></li>
+      <li><time datetime="2026-10-31"><span lang="de">31.&nbsp;Okt.</span><span lang="en">Oct&nbsp;31</span></time><div><h3><span lang="de">GOG und externe Laufwerke</span><span lang="en">GOG and external drives</span></h3><p><span lang="de">GOG-Spiele ohne Galaxy, Spiele auf externen Laufwerken, größere Schrift auf Wunsch, eine schnellere Ersteinrichtung.</span><span lang="en">GOG games without Galaxy, games on external drives, larger text if you like, a faster first setup.</span></p></div></li>
+      <li class="now"><time datetime="2026-11-01"><span lang="de">1.&nbsp;Nov.</span><span lang="en">Nov&nbsp;1</span></time><div><h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise, D3DMetal&nbsp;3.0 aus Apples Toolkit und kostenlose Steam-Spiele direkt aus der Suche.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes, D3DMetal&nbsp;3.0 from Apple’s toolkit and free Steam games straight from search.</span></p></div></li>
+    </ol>
+  </div>
+</section>
+
+<!-- What's next: two honest groups, no dates. -->
+<section class="section" id="next">
+  <div class="wrap">
+    <h2 class="h2 center reveal"><span lang="de">Was als Nächstes kommt. <span class="dim">Ehrlich eingeordnet.</span></span><span lang="en">What’s next. <span class="dim">Honestly sorted.</span></span></h2>
+    <div class="roadmap">
+      <div class="road-group reveal">
+        <p class="road-label"><span class="road-pill"><span lang="de">Kommt bald</span><span lang="en">Coming soon</span></span><span lang="de">In Arbeit – kommt mit einem der nächsten Updates.</span><span lang="en">In the works – arriving with one of the next updates.</span></p>
+        <ul class="road-list">
+          <li><svg class="tile-i" aria-hidden="true"><use href="#i-pad"/></svg><h3><span lang="de">Suchen mit dem Controller</span><span lang="en">Search with a controller</span></h3><p><span lang="de">Sprung zum Anfangsbuchstaben oder eine Bildschirmtastatur – dann geht auch die Suche ohne Tastatur.</span><span lang="en">Jump to a first letter or use an on-screen keyboard – then search works without a keyboard too.</span></p></li>
+          <li><svg class="tile-i" aria-hidden="true"><use href="#i-refresh"/></svg><h3><span lang="de">Spiele bleiben aktuell</span><span lang="en">Games stay up to date</span></h3><p><span lang="de">Updates laden im Hintergrund, solange Nightforge offen ist – wie bei einer Konsole.</span><span lang="en">Updates download in the background while Nightforge is open – like on a console.</span></p></li>
+          <li><svg class="tile-i" aria-hidden="true"><use href="#i-list"/></svg><h3><span lang="de">Download-Warteschlange</span><span lang="en">Download queue</span></h3><p><span lang="de">Reihenfolge festlegen, pausieren und fortsetzen – und auf Wunsch nur nachts laden.</span><span lang="en">Set the order, pause and resume – and, if you like, download only at night.</span></p></li>
+        </ul>
+      </div>
+      <div class="road-group road-later reveal">
+        <p class="road-label"><span class="road-pill"><span lang="de">Geplant</span><span lang="en">Planned</span></span><span lang="de">Später, noch ohne Termin.</span><span lang="en">Later, no date yet.</span></p>
+        <ul class="road-list">
+          <li><svg class="tile-i" aria-hidden="true"><use href="#i-docs"/></svg><h3><span lang="de">Spielstand-Konflikte lösen</span><span lang="en">Save conflicts, solved</span></h3><p><span lang="de">Weichen der Stand auf dem Mac und der in der Cloud voneinander ab, fragt Nightforge vor dem Start, welcher weitergeht. Der andere wird gesichert.</span><span lang="en">When the save on your Mac and the one in the cloud differ, Nightforge asks before the start which one goes on. The other is backed up.</span></p></li>
+          <li><svg class="tile-i" aria-hidden="true"><use href="#i-chip"/></svg><h3><span lang="de">Schneller für DirectX&nbsp;9</span><span lang="en">Faster for DirectX&nbsp;9</span></h3><p><span lang="de">Mehr Tempo für ältere DirectX-9-Spiele über KosmicKrisp, einen neuen Vulkan-Treiber für den Mac.</span><span lang="en">More speed for older DirectX&nbsp;9 games through KosmicKrisp, a new Vulkan driver for the Mac.</span></p></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Install -->
+<section class="section install-section" id="install">
+  <div class="wrap install reveal">
+    <img class="install-icon" src="img/icon.png" width="128" height="128" alt="" loading="lazy">
+    <h2 class="h2"><span lang="de">Hol dir Nightforge.</span><span lang="en">Get Nightforge.</span></h2>
+    <p class="lede"><span lang="de">Kostenlos. Für Macs mit Apple-Chip (M1 oder neuer) und macOS&nbsp;26 (Tahoe) oder neuer – dafür ist die Windows-Engine gebaut.</span><span lang="en">Free. For Macs with Apple silicon (M1 or newer) and macOS&nbsp;26 (Tahoe) or later – the Windows engine is built for it.</span></p>
+    <div class="cta cta-center">
+      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">DMG laden</span><span lang="en">Download the DMG</span></a>
+    </div>
+    <p class="term-label"><span lang="de">Oder im <b>Terminal</b> – das installiert die neueste Version und öffnet sie:</span><span lang="en">Or in <b>Terminal</b> – this installs the newest version and opens it:</span></p>
+    <div class="term">
+      <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/LordHayne/Nightforge/main/scripts/install.sh | bash</code>
+      <button type="button" class="copy" data-copy="install-cmd">
+        <svg class="i" aria-hidden="true"><use href="#i-copy"/></svg>
+        <span class="copy-label"><span lang="de">Kopieren</span><span lang="en">Copy</span></span>
+        <span class="copy-done"><span lang="de">Kopiert</span><span lang="en">Copied</span></span>
+      </button>
+    </div>
+    <p class="fine"><span lang="de">Seit macOS&nbsp;26.4 hält das Terminal einen eingefügten Befehl manchmal mit einer Warnung an. macOS zeigt sie allen, die das Terminal selten nutzen, weil eingefügte Befehle ein beliebter Trick sind. Diese Zeile lädt nur die neueste Nightforge von GitHub, legt sie in den Programme-Ordner und öffnet sie – <a href='https://github.com/LordHayne/Nightforge/blob/main/scripts/install.sh'>das Skript</a> kannst du vorher lesen. Wenn du einverstanden bist, bestätige das Einfügen.</span><span lang="en">Since macOS&nbsp;26.4, Terminal sometimes stops a pasted command with a warning. macOS shows it to anyone who rarely uses Terminal, because pasted commands are a common trick. This line only downloads the newest Nightforge from GitHub, puts it in Applications and opens it – you can <a href='https://github.com/LordHayne/Nightforge/blob/main/scripts/install.sh'>read the script</a> first. If you’re fine with that, choose <b>Paste Anyway</b>.</span></p>
+    <p class="fine"><span lang="de">Danach aktualisiert sich Nightforge selbst: Gibt es eine neue Version, erscheint oben ein Update-Knopf. Weil Nightforge nicht bei Apple registriert ist, fragt macOS beim ersten Öffnen aus dem DMG nach: <b>Systemeinstellungen › Datenschutz &amp; Sicherheit</b>, dann <b>Dennoch öffnen</b>. Mit der Terminal-Zeile entfällt das.</span><span lang="en">Nightforge updates itself from then on: when a new version is out, an Update button appears at the top. Since Nightforge isn’t registered with Apple, macOS asks on first launch from the DMG: <b>System Settings › Privacy &amp; Security</b>, then <b>Open Anyway</b>. The Terminal line skips this step.</span></p>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
+      <a class="brand" href="#top" aria-label="Nightforge"><svg class="brand-mark" aria-hidden="true"><use href="#mark"/></svg><span>Nightforge</span></a>
+      <p class="foot-links">
+        <a href="https://github.com/LordHayne/Nightforge"><span lang="de">Quellcode auf GitHub</span><span lang="en">Source on GitHub</span></a>
+        <a href="https://github.com/LordHayne/Nightforge/releases"><span lang="de">Alle Versionen</span><span lang="en">All releases</span></a>
+        <a href="https://github.com/LordHayne/Nightforge/blob/main/LICENSE"><span lang="de">Lizenz (GPL-3.0)</span><span lang="en">Licence (GPL-3.0)</span></a>
+      </p>
+    </div>
+    <p class="fine"><span lang="de">Kostenlos. Für immer. Keine Werbung, keine Spenden, kein Preis.</span><span lang="en">Free. For good. No price, no ads, no donations.</span></p>
+    <p class="fine"><span lang="de">Nightforge steht auf der Arbeit von</span><span lang="en">Nightforge stands on the work of</span>
+      <a href="https://www.winehq.org">Wine</a>,
+      <a href="https://github.com/dappermint/winecx-gptk"><span lang="de">den CrossOver-Änderungen von CodeWeavers</span><span lang="en">CodeWeavers’ CrossOver changes</span></a>,
+      <a href="https://github.com/3Shain/dxmt">DXMT</a>,
+      <a href="https://github.com/Gcenx/DXVK-macOS">DXVK-macOS</a>,
+      <a href="https://github.com/KhronosGroup/MoltenVK">MoltenVK</a>,
+      <a href="https://developer.apple.com/games/game-porting-toolkit/"><span lang="de">Apples D3DMetal</span><span lang="en">Apple’s D3DMetal</span></a>,
+      <a href="https://github.com/derrod/legendary">legendary</a>,
+      <a href="https://github.com/Heroic-Games-Launcher/heroic-gogdl">gogdl</a>,
+      <a href="https://github.com/Winetricks/winetricks">winetricks</a>,
+      <a href="https://github.com/Open-Wine-Components/umu-protonfixes">umu-protonfixes</a>
+      <span lang="de">und</span><span lang="en">and</span>
+      <a href="https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet">AreWeAntiCheatYet</a>.</p>
+    <p class="fine"><span lang="de">Nightforge ist nicht mit Valve, Epic Games, GOG, NVIDIA oder Apple verbunden. Steam ist eine Marke der Valve Corporation, Epic Games eine Marke von Epic Games, Inc., GOG eine Marke von GOG sp. z o.o., GeForce NOW eine Marke von NVIDIA; Mac und macOS sind Marken von Apple Inc. Die Screenshots zeigen die eigene Bibliothek des Entwicklers, die Cover der Spiele sind darin ausgeblendet; Spiele-Artwork gehört den Verlagen.</span><span lang="en">Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer’s own library with the game covers left out; game artwork belongs to its publishers.</span></p>
+  </div>
+</footer>
+
+</body>
+</html>

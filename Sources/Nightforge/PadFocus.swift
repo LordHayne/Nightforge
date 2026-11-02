@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 /// Controller focus for everything besides the game list: buttons, switches and pickers in every
@@ -15,6 +16,10 @@ final class PadFocus: ObservableObject {
         var activate: () -> Void
         /// Left/right on a switch or picker change its value instead of moving on.
         var adjust: ((Int) -> Void)?
+        /// Where the highlight starts in its window: a dialog's default answer, like Return.
+        var preferred = false
+        /// The part of the window it belongs to (`padZone`); nil for the rest.
+        var zone: PadZone?
     }
 
     @Published private(set) var focused: String?
@@ -29,16 +34,23 @@ final class PadFocus: ObservableObject {
         if focused == id { focused = nil }
     }
 
-    /// The usable controls in `window`, with their frames in window coordinates (y up).
-    private func entries(in window: NSWindow) -> [(id: String, item: Item, frame: CGRect)] {
+    /// The usable controls in `window`, with their frames in window coordinates (y up) – only
+    /// those in `zone` when one is given.
+    private func entries(in window: NSWindow, zone: PadZone? = nil) -> [(id: String, item: Item, frame: CGRect)] {
         items.compactMap { id, item in
-            guard item.enabled, let view = item.view, view.window === window, !view.isHiddenOrHasHiddenAncestor,
-                  view.visibleRect.width > 0 else { return nil }
+            guard item.enabled, zone == nil || item.zone == zone, let view = item.view, view.window === window,
+                  !view.isHiddenOrHasHiddenAncestor, view.visibleRect.width > 0 else { return nil }
             return (id, item, view.convert(view.bounds, to: nil))
         }
     }
 
     func hasItems(in window: NSWindow) -> Bool { !entries(in: window).isEmpty }
+
+    /// The zone of the highlighted control when it's in `window`.
+    func focusedZone(in window: NSWindow) -> PadZone? {
+        guard let focused else { return nil }
+        return entries(in: window).first { $0.id == focused }?.item.zone
+    }
 
     /// The focused control when it's in `window`.
     func focusedItem(in window: NSWindow) -> Item? {
@@ -48,14 +60,71 @@ final class PadFocus: ObservableObject {
 
     func clear() { focused = nil }
 
-    /// Moves the highlight one step (dx: -1 left, 1 right; dy: -1 up, 1 down). With nothing
-    /// focused yet, up enters from the bottom (the main window's action row, above the games)
-    /// and any other direction from the top. Returns false when there's nothing that way.
+    /// Puts the highlight on a control, as when a list closes and it goes back to its chip.
+    func focus(_ id: String) { focused = id }
+
+    /// Brings the highlighted control into view where a scroll view hides it, with room around it
+    /// (`top` more where a bar covers the top, like a game page's) – smoothly, as the trackpad
+    /// would, not with a jump.
+    func reveal(_ id: String?, top: CGFloat = 48, bottom: CGFloat = 48) {
+        guard let id, let view = items[id]?.view else { return }
+        guard let scroll = PageScroll(view.enclosingScrollView) else {
+            view.scrollToVisible(view.bounds.insetBy(dx: 0, dy: -48))
+            return
+        }
+        scroll.show(view.convert(view.bounds, to: scroll.clip), top: top, bottom: bottom)
+    }
+
+    /// Down (or up) a page past its first or last control, `fraction` of what shows at a time, or
+    /// false at its end. The pad on a game's page reaches what has no control of its own (the
+    /// description, the cards under the screenshots).
     @discardableResult
-    func move(dx: Int, dy: Int, in window: NSWindow) -> Bool {
-        let all = entries(in: window)
+    func page(down: Bool, in window: NSWindow, fraction: CGFloat = 0.45) -> Bool {
+        guard let scroll = pageScroll(in: window) else { return false }
+        return scroll.move(by: (down ? 1 : -1) * scroll.visibleHeight * fraction, animated: true)
+    }
+
+    /// All the way down (or up) a page, smoothly: L2/R2 on a game's page.
+    func pageEnd(down: Bool, in window: NSWindow) {
+        pageScroll(in: window)?.move(by: down ? 1_000_000 : -1_000_000, animated: true)
+    }
+
+    /// Scrolls `points` down (negative: up) at once – the right stick, frame by frame.
+    @discardableResult
+    func scroll(by points: CGFloat, in window: NSWindow) -> Bool {
+        pageScroll(in: window)?.move(by: points, animated: false) ?? false
+    }
+
+    /// What the pad scrolls in `window`: the scroll view around the highlighted control, else the
+    /// biggest one that has more than it shows (a game's page, the library's grid, Settings).
+    private func pageScroll(in window: NSWindow) -> PageScroll? {
+        if let focused, let view = items[focused]?.view, view.window === window, let scroll = PageScroll(view.enclosingScrollView), scroll.canScroll {
+            return scroll
+        }
+        var found: [NSScrollView] = []
+        func walk(_ view: NSView) {
+            if let scroll = view as? NSScrollView, !scroll.isHiddenOrHasHiddenAncestor { found.append(scroll) }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+        return found.compactMap(PageScroll.init).filter(\.canScroll)
+            .max { $0.clip.bounds.width * $0.clip.bounds.height < $1.clip.bounds.width * $1.clip.bounds.height }
+    }
+
+    /// Moves the highlight one step (dx: -1 left, 1 right; dy: -1 up, 1 down). With nothing
+    /// focused yet, it starts on the preferred control (a dialog's default answer); else up enters
+    /// from the bottom (the main window's action row, above the games) and any other direction
+    /// from the top. Returns false when there's nothing that way.
+    /// `zone`: only between the controls there (an open panel), entering it when the highlight is elsewhere.
+    @discardableResult
+    func move(dx: Int, dy: Int, in window: NSWindow, within zone: PadZone? = nil) -> Bool {
+        let all = entries(in: window, zone: zone)
         guard !all.isEmpty else { return false }
         guard let current = all.first(where: { $0.id == focused }) else {
+            if let preferred = all.first(where: { $0.item.preferred }) {
+                focused = preferred.id
+                return true
+            }
             let sorted = all.sorted { a, b in
                 abs(a.frame.midY - b.frame.midY) > 8 ? a.frame.midY > b.frame.midY : a.frame.minX < b.frame.minX
             }
@@ -90,12 +159,39 @@ final class PadFocus: ObservableObject {
     }
 }
 
+/// A part of a window the pad moves within: an open panel keeps the highlight to itself.
+/// `top` and `game` are Home's top bar and the selected game's buttons (PadRules.homeEntry).
+enum PadZone: Equatable { case panel, top, game }
+
+private struct PadReachableKey: EnvironmentKey { static let defaultValue = true }
+private struct PadZoneKey: EnvironmentKey { static let defaultValue: PadZone? = nil }
+
+extension EnvironmentValues {
+    fileprivate var padReachable: Bool {
+        get { self[PadReachableKey.self] }
+        set { self[PadReachableKey.self] = newValue }
+    }
+    fileprivate var padZone: PadZone? {
+        get { self[PadZoneKey.self] }
+        set { self[PadZoneKey.self] = newValue }
+    }
+}
+
 extension View {
+    /// Takes the controls in here off the pad's map while `reachable` is false: a level kept out of
+    /// sight behind another (the library behind a game's page). Opacity alone doesn't hide them from AppKit.
+    func padReachable(_ reachable: Bool) -> some View { environment(\.padReachable, reachable) }
+
+    /// The controls in here belong to `zone`.
+    func padZone(_ zone: PadZone) -> some View { environment(\.padZone, zone) }
+
     /// Makes a control reachable with the pad. `activate` is what A does on it; `adjust`, for
-    /// switches and pickers, what left/right do. `shape` is the highlight's corner radius.
-    func padFocus(_ id: String, enabled: Bool = true, cornerRadius: CGFloat = 10,
+    /// switches and pickers, what left/right do. `shape` is the highlight's corner radius;
+    /// `preferred` marks a dialog's default answer, where the highlight starts.
+    func padFocus(_ id: String, enabled: Bool = true, cornerRadius: CGFloat = 10, preferred: Bool = false,
                   activate: @escaping () -> Void, adjust: ((Int) -> Void)? = nil) -> some View {
-        modifier(PadFocusModifier(id: id, enabled: enabled, cornerRadius: cornerRadius, activate: activate, adjust: adjust))
+        modifier(PadFocusModifier(id: id, enabled: enabled, cornerRadius: cornerRadius, preferred: preferred,
+                                  activate: activate, adjust: adjust))
     }
 
     /// A switch: A and left/right flip it.
@@ -120,13 +216,17 @@ private struct PadFocusModifier: ViewModifier {
     let id: String
     let enabled: Bool
     let cornerRadius: CGFloat
+    let preferred: Bool
     let activate: () -> Void
     let adjust: ((Int) -> Void)?
     @ObservedObject private var focus = PadFocus.shared
+    @Environment(\.padReachable) private var reachable
+    @Environment(\.padZone) private var zone
 
     func body(content: Content) -> some View {
         content
-            .background(PadAnchor(id: id, enabled: enabled, activate: activate, adjust: adjust))
+            .background(PadAnchor(id: id, enabled: enabled && reachable, preferred: preferred, zone: zone,
+                                  activate: activate, adjust: adjust))
             .overlay {
                 if focus.focused == id {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -145,6 +245,8 @@ private struct PadFocusModifier: ViewModifier {
 private struct PadAnchor: NSViewRepresentable {
     let id: String
     let enabled: Bool
+    let preferred: Bool
+    let zone: PadZone?
     let activate: () -> Void
     let adjust: ((Int) -> Void)?
 
@@ -152,12 +254,85 @@ private struct PadAnchor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         view.identifier = NSUserInterfaceItemIdentifier(id)
-        PadFocus.shared.register(id, .init(view: view, enabled: enabled, activate: activate, adjust: adjust))
+        PadFocus.shared.register(id, .init(view: view, enabled: enabled, activate: activate, adjust: adjust,
+                                           preferred: preferred, zone: zone))
     }
 
     static func dismantleNSView(_ view: NSView, coordinator: ()) {
         MainActor.assumeIsolated {
             if let id = view.identifier?.rawValue { PadFocus.shared.unregister(id, view: view) }
+        }
+    }
+}
+
+/// A vertical scroll view as the pad moves it: in "down" and "up", whichever way its content is
+/// flipped, never past either end.
+@MainActor
+struct PageScroll {
+    let scroll: NSScrollView
+    let clip: NSClipView
+    let document: NSView
+
+    init?(_ scroll: NSScrollView?) {
+        guard let scroll, let document = scroll.documentView else { return nil }
+        self.scroll = scroll
+        self.clip = scroll.contentView
+        self.document = document
+    }
+
+    var visibleHeight: CGFloat { clip.bounds.height }
+    private var range: CGFloat { max(0, document.frame.height - clip.bounds.height) }
+    var canScroll: Bool { range > 1 }
+
+    /// How far down it is, 0 at the top.
+    private var down: CGFloat {
+        clip.isFlipped ? clip.bounds.origin.y : range - clip.bounds.origin.y
+    }
+
+    private func origin(down: CGFloat) -> NSPoint {
+        let clamped = min(max(down, 0), range)
+        return NSPoint(x: clip.bounds.origin.x, y: clip.isFlipped ? clamped : range - clamped)
+    }
+
+    /// False when it's at that end already.
+    @discardableResult
+    func move(by points: CGFloat, animated: Bool) -> Bool {
+        let target = min(max(down + points, 0), range)
+        guard abs(target - down) > 0.5 else { return false }
+        set(origin(down: target), animated: animated)
+        return true
+    }
+
+    /// Scrolls just enough that `rect` (in the clip view's coordinates) shows, with room above and below.
+    func show(_ rect: NSRect, top: CGFloat, bottom: CGFloat) {
+        let height = clip.bounds.height
+        // Distance from the content's top to the rect's top and bottom edge.
+        let rectTop = clip.isFlipped ? rect.minY : document.frame.height - rect.maxY
+        let rectBottom = rectTop + rect.height
+        var target = down
+        if rectTop - top < down {
+            target = rectTop - top
+        } else if rectBottom + bottom > down + height {
+            target = min(rectBottom + bottom - height, rectTop - top)
+        }
+        guard abs(target - down) > 0.5 else { return }
+        set(origin(down: target), animated: true)
+    }
+
+    private func set(_ origin: NSPoint, animated: Bool) {
+        let still = Prefs.reduceMotion(system: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                                       stored: UserDefaults.standard.string(forKey: Prefs.Keys.reduceMotion) ?? "")
+        if animated && !still {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.28
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                clip.animator().setBoundsOrigin(origin)
+            } completionHandler: { [scroll, clip] in
+                MainActor.assumeIsolated { scroll.reflectScrolledClipView(clip) }
+            }
+        } else {
+            clip.setBoundsOrigin(origin)
+            scroll.reflectScrolledClipView(clip)
         }
     }
 }

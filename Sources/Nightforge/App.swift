@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct NightforgeApp: App {
@@ -10,6 +11,9 @@ struct NightforgeApp: App {
 
     init() {
         LegacyMigration.run()  // before anything reads settings or the data folder
+        GameIDMigration.run()  // settings kept per game: from Steam app IDs to store and ID
+        // macOS's "Enter Full Screen" out of the View menu: Nightforge's own takes ⌃⌘F (FullScreen).
+        UserDefaults.standard.register(defaults: ["NSFullScreenMenuItemEverywhere": false])
     }
 
     var body: some Scene {
@@ -17,6 +21,7 @@ struct NightforgeApp: App {
             LibraryView()
                 .id(language)
                 .environmentObject(model)
+                .modifier(AccessibilityFromSettings())
                 .frame(minWidth: 980, minHeight: 640)
                 .preferredColorScheme(.dark)
         }
@@ -24,25 +29,48 @@ struct NightforgeApp: App {
         .defaultSize(width: 1440, height: 880)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button(L10n.t("Rescan Library")) { model.reload() }
+                Button(L10n.t("Rescan Library")) { model.rescan() }
                     .keyboardShortcut("r")
             }
-        }
-
-        Settings {
-            SettingsView()
-                .id(language)
-                .environmentObject(model)
-                .preferredColorScheme(.dark)
+            // A dialog over the library, not a window of its own.
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.t("Settings …")) { model.openSettings() }
+                    .keyboardShortcut(",")
+            }
+            // Without a Space of its own: starting a game slides nothing (FullScreen).
+            CommandGroup(after: .toolbar) {
+                Button(L10n.t("Full Screen")) { FullScreen.toggle() }
+                    .keyboardShortcut("f", modifiers: [.control, .command])
+            }
         }
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         GameDisplay.follow()
+        GameOverlay.resumeLeftovers()
+        MacIntegration.setUp(delegate: self)
+    }
+
+    /// Right-click on the Dock icon: the last games played, one click to play.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        MacIntegration.dockMenu(target: self, action: #selector(playFromDock(_:)))
+    }
+
+    /// nightforge://play/<app ID> – from a game's app in ~/Applications, Spotlight or a shortcut.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach { MacIntegration.open($0) }
+    }
+
+    @MainActor @objc private func playFromDock(_ item: NSMenuItem) {
+        MacIntegration.open(id: item.representedObject as? String, play: true)
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        MacIntegration.handle(response)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -52,5 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         Engine.scheduleSteamShutdown()
         GameDisplay.quitting()
+        GameOverlay.close()  // a game paused under the overlay runs on
     }
 }

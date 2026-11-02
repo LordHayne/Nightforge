@@ -1,9 +1,26 @@
 {
- "about": "Nightforge's own per-game profiles, tested on Macs. They take precedence over umu-protonfixes. Fields: graphics (dxmt|dxvk|d3dmetal), arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX (false = keep MetalFX off), frameLimit (automatic FPS limit), vulkanSamplers (samplers per shader stage reported to Vulkan games), preferWindows (true = Automatic keeps the Windows version although Steam has a 64-bit Mac one), saves (save folders for games without Steam Cloud rules, carried over when the game changes between its Windows and Mac version), antiCheat / antiCheatOnline ([] = runs on a Mac despite what AreWeAntiCheatYet says), avx (false = start without Rosetta's AVX hint, for games that crash on it), fileEdits ([{path, find, replace}] in the game's own settings files, relative to its folder, before each start), ignoreUpstream, note.",
+ "about": "Nightforge's own per-game profiles, tested on Macs. They take precedence over umu-protonfixes. Fields: graphics (dxmt|dxvk|wined3d|d3dmetal), arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX (false = keep MetalFX off), frameLimit (automatic FPS limit), vulkanSamplers (samplers per shader stage reported to Vulkan games), preferWindows (true = Automatic keeps the Windows version although Steam has a 64-bit Mac one), saves (save folders for games without Steam Cloud rules, carried over when the game changes between its Windows and Mac version), antiCheat / antiCheatOnline ([] = runs on a Mac despite what AreWeAntiCheatYet says), notYet (a reason in plain English: the game doesn't start on a Mac yet and Nightforge is working on it; Nightforge says so before the download and offers GeForce Now when it has the game, loading and starting stay possible as a small button; the reason needs a German entry in Strings.swift), avx (false = start without Rosetta's AVX hint, for games that crash on it), fileEdits ([{path, find, replace, root, once}] in the game's own settings files before each start; path relative to its folder, or to root – a Windows root as in saves; once = a starting value, applied a single time), iniSettings ([{root, path, section, values}] set in the game's own .ini files before each start), retina (true = the game sees the full Retina resolution; Steam restarts when it changes), resolution ({root, path, fields: {width, height, fullscreen}} for a line of values separated by spaces, counted from 0, or {root, path, section, keys: {width, height, fullscreen}} for an .ini file; fullscreenOn: the values meaning full screen, 1 by default: where the game keeps its full-screen resolution, set to the screen it plays on before each start when that screen lacks it), gog (the same game's GOG product IDs, which get this profile too), ignoreUpstream, note.",
  "games": {
   "550": {
    "name": "Left 4 Dead 2",
    "note": "Tested 2026-10-26 on M5: DXVK fails (MoltenVK rejects its buffers, 'Failed to create D3D device'), Nightforge switches to WineD3D by itself. Menu and play work, but it crashed after about a minute twice; -vulkan (Valve's DXVK) and WineD3D's Vulkan renderer don't start."
+  },
+  "50130": {
+   "name": "Mafia II (Classic)",
+   "gog": [
+    "1816059595"
+   ],
+   "graphics": "wined3d",
+   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on.",
+   "resolution": {
+    "root": "WinAppDataLocal",
+    "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
+    "fields": {
+     "width": 2,
+     "height": 3,
+     "fullscreen": 4
+    }
+   }
   },
   "251570": {
    "name": "7 Days to Die",
@@ -37,6 +54,11 @@
    "graphics": "dxmt",
    "note": "Tested 2026-10-26 on M5: steady 60 FPS (frame limit) with DXMT and -dx11. With DXVK only the HUD showed over a black world. Steam asks for the EULA once."
   },
+  "2357570": {
+   "name": "Overwatch",
+   "notYet": "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.",
+   "note": "Tested 2026-11-01 on M5, macOS 27.0.1, winecx 4.7.3 with D3DMetal 4.0b3: Overwatch.exe starts, 0 % CPU, no window. Not yet tried: DXMT instead of D3DMetal, a run without msync."
+  },
   "3132990": {
    "name": "Black Myth: Wukong Benchmark Tool",
    "graphics": "d3dmetal",
@@ -48,12 +70,126 @@
      "replace": "(\"InsertFrame\", \"0\")"
     }
    ],
-   "note": "Tested 2026-10-26 on M5 with D3DMetal 4.0b3 on winecx 4.7.3. DirectX 12 through D3DMetal: 70 FPS average, 56 in the slowest fifth (Niedrig, 1512x982, FSR), clean picture. DirectX 11 (-dx11) through DXMT: ~45 FPS with heavy texture noise. Crashes on an illegal instruction ~30 s in with ROSETTA_ADVERTISE_AVX=1, and at start with frame generation (InsertFrame), which it switches on by itself at its first start."
+   "note": "Tested 2026-10-26 on M5 with D3DMetal 4.0b3 on winecx 4.7.3. DirectX 12 through D3DMetal: 70 FPS average, 56 in the slowest fifth (Niedrig, 1512x982, FSR), clean picture. DirectX 11 (-dx11) through DXMT: ~45 FPS with heavy texture noise. Crashes on an illegal instruction ~30 s in with ROSETTA_ADVERTISE_AVX=1, and at start with frame generation (InsertFrame), which it switches on by itself at its first start. Again 2026-11-01 on M5, macOS 27.0, with D3DMetal 3.0 imported from Apple (winecx 4.7.3): 68 FPS average, 83 at most, 55 in the slowest fifth (Niedrig, 1512x982, FSR), a few hitches at the start and one in the middle (shaders on the first run). Unreal's \"Known issues with graphics driver\" warning shows with 3.0 (it reports an AMD driver, 30.0.15.1233): Nightforge clears the AMD list in Hardware.ini."
   },
   "3907790": {
    "name": "OxyRail",
    "graphics": "dxmt",
    "note": "Tested 2026-10-24 on M5: ~75 FPS with DXMT vs 45-50 with DXVK on Extreme."
+  },
+  "3916150": {
+   "name": "The Last Caretaker Demo",
+   "graphics": "d3dmetal",
+   "avx": false,
+   "retina": true,
+   "iniSettings": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/Engine.ini",
+     "section": "SystemSettings",
+     "values": {
+      "r.Nanite": "0",
+      "r.Shadow.Virtual.Enable": "0",
+      "r.Tonemapper.Sharpen": "0.6"
+     }
+    }
+   ],
+   "fileEdits": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTracing=True",
+     "replace": "bUseRayTracing=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTraceReflections=True",
+     "replace": "bUseRayTraceReflections=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTraceShadows=True",
+     "replace": "bUseRayTraceShadows=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseRayTraceLumen=True",
+     "replace": "bUseRayTraceLumen=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "bUseMegaLights=True",
+     "replace": "bUseMegaLights=False"
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "UpscalingMethod=TSR",
+     "replace": "UpscalingMethod=FSR",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FrameGenerationMethod=Off",
+     "replace": "FrameGenerationMethod=FSR",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FrameGenerationModeFSR=0",
+     "replace": "FrameGenerationModeFSR=1",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FSRQuality=1",
+     "replace": "FSRQuality=3",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "FSRSharpness=0.000000",
+     "replace": "FSRSharpness=0.500000",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "MotionBlurAmount=0.500000",
+     "replace": "MotionBlurAmount=0.000000",
+     "once": true
+    },
+    {
+     "root": "WinAppDataLocal",
+     "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+     "find": "UserQualityPreset=2,UserViewDistanceQuality=2,UserAntiAliasingQuality=2,UserShadowQuality=2,UserGlobalIlluminationQuality=2,UserReflectionQuality=2,UserPostProcessQuality=2,UserTextureQuality=2,UserEffectsQuality=2,UserFoliageQuality=2,UserShadingQuality=2,UserLandscapeQuality=2",
+     "replace": "UserQualityPreset=0,UserViewDistanceQuality=0,UserAntiAliasingQuality=0,UserShadowQuality=0,UserGlobalIlluminationQuality=0,UserReflectionQuality=0,UserPostProcessQuality=0,UserTextureQuality=0,UserEffectsQuality=0,UserFoliageQuality=0,UserShadingQuality=0,UserLandscapeQuality=0",
+     "once": true
+    }
+   ],
+   "note": "Tested 2026-10-28 on M5 (Unreal 5.7.4). DirectX 11 fails on every layer: DXMT stays black while its graphics memory grows by ~400 MB/s, DXVK 3 on KosmicKrisp and D3DMetal crash. DirectX 12 through D3DMetal plays; with Rosetta's AVX hint it crashes after ~2 min (illegal instruction while precompiling shaders). Nanite and virtual shadow maps cost D3DMetal half the frame rate (30 -> 64 FPS without them, Engine.ini). With full Retina output (3024x1964), Low, FSR Performance and FSR frame generation: 50-55 FPS, sharp. Ray tracing and MegaLights stay off. The menu's background video stays black."
+  },
+  "epic.45e7cf3c49054f2fb20b673d9b0ae69e": {
+   "name": "Sonic Mania",
+   "note": "Seen 2026-11-01 on M5 with the Epic version on winecx 4.7.3: its first start writes Settings.ini (Sega/SonicMania in AppData/Local) with windowed=y at 848×480, so it played in a small window on the TV. windowed=n plays full screen at the desktop's resolution (no fsWidth/fsHeight in the file); exclusiveFS stays as the game sets it.",
+   "iniSettings": [
+    {
+     "root": "WinAppDataLocal",
+     "path": "Sega/SonicMania/Settings.ini",
+     "section": "Video",
+     "values": {
+      "windowed": "n"
+     }
+    }
+   ]
   }
  }
 }

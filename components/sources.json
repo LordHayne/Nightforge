@@ -1,5 +1,5 @@
 {
-  "comment": "What scripts/update-components.py tracks. Each entry becomes one component in manifest.json, pinned to the newest stable GitHub release. 'license' overrides GitHub's detection when the repo has no recognisable LICENSE file. 'tag' pins a specific release (the later DXVK-macOS repack dropped dxgi.dll, which games need; MoltenVK publishes release candidates as stable releases, so it moves only on purpose). The engine stays pinned to the Wine version .github/workflows/graphics.yml builds winemac.so for. 'tagPrefix' picks the newest release whose tag starts with it (our own graphics builds). 'winecx' (CodeWeavers' CrossOver changes on Wine, pinned like the Gcenx engine) is the engine D3DMetal runs on; Nightforge prefers it over 'wine', which stays for older app versions reading this list. 'd3dmetal' is Apple's D3DMetal, packed unmodified by scripts/package-d3dmetal.sh and passed on non-commercially under Apple's licence. 'gamepad' is winebus.so with the SDL bus for winecx plus SDL2 (.github/workflows/gamepad.yml), without which DualSense and DualShock 4 pads don't reach Windows games there.",
+  "comment": "What scripts/update-components.py tracks. Each entry becomes one component in manifest.json: with a 'tag' pinned to that release, without one (Nightforge's own builds) to the newest stable GitHub release. 'license' overrides GitHub's detection when the repo has no recognisable LICENSE file. 'tag' pins a specific release (the later DXVK-macOS repack dropped dxgi.dll, which games need; MoltenVK publishes release candidates as stable releases, so it moves only on purpose). The engine stays pinned to the Wine version .github/workflows/graphics.yml builds winemac.so for. 'tagPrefix' picks the newest release whose tag starts with it (our own graphics builds). 'winecx' (CodeWeavers' CrossOver changes on Wine, pinned like the Gcenx engine) is the engine D3DMetal runs on; Nightforge prefers it over 'wine', which stays for older app versions reading this list. 'd3dmetal' is Apple's D3DMetal, packed unmodified by scripts/package-d3dmetal.sh and passed on non-commercially under Apple's licence. Pinned to the final Game Porting Toolkit 3.0 (tag d3dmetal-3.0): no beta is passed on. 'optional': while that release doesn't exist the entry stays out of the list, and the app offers only Apple's own download (D3DMetalSupply). 'gamepad' is winebus.so with the SDL bus for winecx plus SDL2 (.github/workflows/gamepad.yml), without which DualSense and DualShock 4 pads don't reach Windows games there. 'legendary' (GPL-3.0) talks to Epic Games for Nightforge: sign-in, library, downloads, launch parameters, cloud saves. Pinned: Nightforge runs it from a copy it unpacks once (PackedApp in Legendary.swift), which leans on how its PyInstaller build starts \u2013 a new release is tried before it goes in. 'gogdl' (GPL-3.0, Heroic's GOG downloader) does the same for GOG: sign-in tokens, downloads with resume and updates, sizes, cloud saves; the library comes straight from GOG's API. Pinned for the same reason as legendary (PyInstaller onefile, run from a copy unpacked once). 'propose': a pinned third-party source (winetricks is a script that runs as the player's user, DXMT's DLLs run under Wine) whose newer releases are looked at: the nightly run (update-components.py --propose) moves its tag to the newest stable release and the workflow opens a pull request, so a person reads the change before it reaches the app; nothing here follows a stranger's newest release unseen.",
   "sources": [
     {
       "id": "wine",
@@ -23,6 +23,8 @@
       "kind": "graphics",
       "repo": "LordHayne/Nightforge",
       "tagPrefix": "d3dmetal-",
+      "tag": "d3dmetal-3.0",
+      "optional": true,
       "asset": "^nightforge-d3dmetal-.*\\.tar\\.gz$",
       "license": "LicenseRef-Apple-Game-Porting-Toolkit (non-commercial, Apple hardware only)"
     },
@@ -38,8 +40,10 @@
       "id": "dxmt",
       "kind": "graphics",
       "repo": "3Shain/dxmt",
+      "tag": "v0.80",
       "asset": "^dxmt-v[0-9.]+-builtin\\.tar\\.gz$",
-      "license": "LGPL-2.1-or-later"
+      "license": "LGPL-2.1-or-later",
+      "propose": true
     },
     {
       "id": "graphics",
@@ -68,7 +72,9 @@
       "id": "winetricks",
       "kind": "tool",
       "repo": "Winetricks/winetricks",
-      "file": "src/winetricks"
+      "tag": "20260125",
+      "file": "src/winetricks",
+      "propose": true
     },
     {
       "id": "cabextract",
@@ -77,6 +83,21 @@
       "tagPrefix": "cabextract-",
       "asset": "^(nachtschicht|nightforge)-cabextract-.*\\.tar\\.gz$",
       "license": "GPL-3.0-or-later"
+    },
+    {
+      "id": "legendary",
+      "kind": "tool",
+      "repo": "legendary-gl/legendary",
+      "asset": "^legendary_macOS_arm64$",
+      "license": "GPL-3.0-or-later",
+      "tag": "0.21.1"
+    },
+    {
+      "id": "gogdl",
+      "kind": "tool",
+      "repo": "Heroic-Games-Launcher/heroic-gogdl",
+      "asset": "^gogdl_macos_arm64$",
+      "tag": "v1.4.0"
     }
   ]
 }

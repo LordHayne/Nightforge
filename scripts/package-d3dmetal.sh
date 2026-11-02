@@ -14,23 +14,35 @@ set -euo pipefail
 SOURCE="${1:?usage: $0 <GPTK .dmg or folder> [output folder]}"
 OUTDIR="${2:-.}"
 WORK="$(mktemp -d)"
-MOUNT=""
+MOUNTS=()  # disk images opened, the inner one last
 cleanup() {
-  [ -n "$MOUNT" ] && hdiutil detach -quiet "$MOUNT" || true
+  for ((i = ${#MOUNTS[@]} - 1; i >= 0; i--)); do hdiutil detach -quiet "${MOUNTS[i]}" || true; done
   rm -rf "$WORK"
 }
 trap cleanup EXIT
 
+attach() {
+  mkdir -p "$2"
+  hdiutil attach -quiet -nobrowse -readonly -mountpoint "$2" "$1"
+  MOUNTS+=("$2")
+}
+
 if [ -f "$SOURCE" ]; then
-  MOUNT="$WORK/mount"
-  mkdir -p "$MOUNT"
-  hdiutil attach -quiet -nobrowse -readonly -mountpoint "$MOUNT" "$SOURCE"
-  ROOT="$MOUNT"
+  attach "$SOURCE" "$WORK/mount"
+  ROOT="$WORK/mount"
 else
   ROOT="$SOURCE"
 fi
 
 LIB="$(find "$ROOT" -maxdepth 4 -type d -path '*/redist/lib' | head -1)"
+if [ -z "$LIB" ]; then
+  # Apple nests the evaluation environment's disk image in the toolkit's (3.0, the 4.0 betas).
+  INNER="$(find "$ROOT" -maxdepth 3 -name '*.dmg' | head -1)"
+  if [ -n "$INNER" ]; then
+    attach "$INNER" "$WORK/inner"
+    LIB="$(find "$WORK/inner" -maxdepth 4 -type d -path '*/redist/lib' | head -1)"
+  fi
+fi
 [ -n "$LIB" ] || { echo "no redist/lib in $SOURCE" >&2; exit 1; }
 TOOLKIT="$(dirname "$(dirname "$LIB")")"
 for f in License.rtf Acknowledgements.rtf; do

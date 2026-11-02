@@ -5,7 +5,9 @@ import Foundation
 /// per account makes that miss now and then, and then the other version starts empty. So before
 /// a version starts for the first time after a switch, every save folder it has (the folders
 /// Steam Cloud uses, SteamCatalog.saveRules) that holds no saves yet gets the other version's.
-/// A folder with saves in it is never touched; Steam Cloud and the player decide there.
+/// Where both have saves and the other version's are newer, the player chooses which to continue
+/// with (`newerElsewhere`, `takeNewer`); the ones replaced are backed up first. Nothing is ever
+/// overwritten without asking.
 enum SaveTransfer {
     /// Where the game's two versions keep their files: the Wine prefix and both install folders.
     struct Places {
@@ -28,9 +30,27 @@ enum SaveTransfer {
         return carryOver(to: platform, rules: rules, places: places)
     }
 
-    /// Fills each empty save folder of `platform` from the other version's.
-    static func carryOver(to platform: Platform, rules: [SaveRule], places: Places) -> Int {
-        var copied = 0
+    /// A start after a switch, or the first Nightforge sees.
+    static func isSwitch(appID: Int, platform: Platform, defaults: UserDefaults = .standard) -> Bool {
+        defaults.string(forKey: key(appID)) != platform.rawValue
+    }
+
+    /// One save folder of the version played before (`source`) and the same of the one starting.
+    struct Pair {
+        let source: URL
+        let target: URL
+        let pattern: String
+        let recursive: Bool
+        /// Where it goes in a backup, e.g. "WinAppDataRoaming/Hades".
+        let name: String
+
+        var sourceSaves: [String] { SaveTransfer.files(in: source, matching: pattern, recursive: recursive) }
+        var targetSaves: [String] { SaveTransfer.files(in: target, matching: pattern, recursive: recursive) }
+    }
+
+    /// Every save folder the other version has, paired with this version's.
+    static func pairs(to platform: Platform, rules: [SaveRule], places: Places) -> [Pair] {
+        var pairs: [Pair] = []
         for rule in rules {
             // Rules come from Steam's catalog and the online profiles: nothing may climb out of a save folder.
             guard ![rule.path, rule.macAddPath].contains(where: { $0.split(whereSeparator: { $0 == "/" || $0 == "\\" }).contains("..") }),
@@ -41,25 +61,113 @@ enum SaveTransfer {
                 ? (windows, mac.appendingPathComponent(rule.macAddPath))
                 : (mac.appendingPathComponent(rule.macAddPath), windows)
             for folder in resolve(rule.path, under: from) {
-                let source = from.appendingPathComponent(folder, isDirectory: true)
-                let target = to.appendingPathComponent(folder, isDirectory: true)
-                let saves = files(in: source, matching: rule.pattern, recursive: rule.recursive)
-                guard !saves.isEmpty, files(in: target, matching: rule.pattern, recursive: rule.recursive).isEmpty else { continue }
-                for relative in saves {
-                    let destination = target.appendingPathComponent(relative)
-                    try? FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    if (try? FileManager.default.copyItem(at: source.appendingPathComponent(relative), to: destination)) != nil {
-                        copied += 1
-                    }
+                pairs.append(Pair(source: from.appendingPathComponent(folder, isDirectory: true),
+                                  target: to.appendingPathComponent(folder, isDirectory: true),
+                                  pattern: rule.pattern, recursive: rule.recursive,
+                                  name: rule.root + (folder.isEmpty ? "" : "/" + folder)))
+            }
+        }
+        return pairs
+    }
+
+    /// Fills each empty save folder of `platform` from the other version's.
+    static func carryOver(to platform: Platform, rules: [SaveRule], places: Places) -> Int {
+        var copied = 0
+        for pair in pairs(to: platform, rules: rules, places: places) {
+            let saves = pair.sourceSaves
+            guard !saves.isEmpty, pair.targetSaves.isEmpty else { continue }
+            for relative in saves {
+                let destination = pair.target.appendingPathComponent(relative)
+                try? FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                if (try? FileManager.default.copyItem(at: pair.source.appendingPathComponent(relative), to: destination)) != nil {
+                    copied += 1
                 }
             }
         }
         return copied
     }
 
+    // MARK: - Both versions have saves
+
+    /// The newest save on each side where the version played before has newer ones.
+    struct Newer: Equatable {
+        let theirs: Date
+        let ours: Date
+    }
+
+    /// Folders both versions have filled, the other one with newer saves – the ones `carryOver`
+    /// leaves alone. The same files on both sides don't count.
+    static func newerPairs(to platform: Platform, rules: [SaveRule], places: Places) -> [(pair: Pair, newer: Newer)] {
+        pairs(to: platform, rules: rules, places: places).compactMap { pair in
+            let theirs = pair.sourceSaves, ours = pair.targetSaves
+            guard !theirs.isEmpty, !ours.isEmpty, !same(theirs, in: pair.source, as: ours, in: pair.target),
+                  let theirsNewest = newest(theirs, in: pair.source), let oursNewest = newest(ours, in: pair.target),
+                  theirsNewest.timeIntervalSince(oursNewest) > 2
+            else { return nil }
+            return (pair, Newer(theirs: theirsNewest, ours: oursNewest))
+        }
+    }
+
+    /// Across all folders: the newest save of each side, nil when the starting version is up to date.
+    static func newerElsewhere(to platform: Platform, rules: [SaveRule], places: Places) -> Newer? {
+        let found = newerPairs(to: platform, rules: rules, places: places).map(\.newer)
+        guard let theirs = found.map(\.theirs).max(), let ours = found.map(\.ours).max() else { return nil }
+        return Newer(theirs: theirs, ours: ours)
+    }
+
+    /// Continues with the other version's newer saves: this version's go to `backup` first, then
+    /// each such folder gets exactly the other version's saves. Throws before changing a folder
+    /// whose backup failed. Returns how many files were copied.
+    @discardableResult
+    static func takeNewer(to platform: Platform, rules: [SaveRule], places: Places, backup: URL) throws -> Int {
+        let fm = FileManager.default
+        var copied = 0
+        for (pair, _) in newerPairs(to: platform, rules: rules, places: places) {
+            let ours = pair.targetSaves
+            for relative in ours {
+                let destination = backup.appendingPathComponent(pair.name, isDirectory: true).appendingPathComponent(relative)
+                try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try fm.copyItem(at: pair.target.appendingPathComponent(relative), to: destination)
+            }
+            let theirs = pair.sourceSaves
+            for relative in Set(ours).subtracting(theirs) {
+                try fm.removeItem(at: pair.target.appendingPathComponent(relative))
+            }
+            for relative in theirs {
+                let destination = pair.target.appendingPathComponent(relative)
+                try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
+                try fm.copyItem(at: pair.source.appendingPathComponent(relative), to: destination)
+                copied += 1
+            }
+        }
+        return copied
+    }
+
+    /// Where a switch's replaced saves are kept: Nightforge's Backups folder, by game and time.
+    static func backupFolder(game: String, platform: Platform, now: Date = Date(), support: URL = Engine.supportDir) -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HHmm"
+        let safe = game.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
+        return support.appendingPathComponent("Backups/\(safe.isEmpty ? "Game" : safe)-saves-\(formatter.string(from: now))/" +
+                                              (platform == .mac ? "Mac version" : "Windows version"), isDirectory: true)
+    }
+
+    private static func newest(_ files: [String], in folder: URL) -> Date? {
+        files.compactMap { try? folder.appendingPathComponent($0).resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }.max()
+    }
+
+    private static func same(_ a: [String], in folderA: URL, as b: [String], in folderB: URL) -> Bool {
+        guard Set(a) == Set(b) else { return false }
+        return a.allSatisfy { FileManager.default.contentsEqual(atPath: folderA.appendingPathComponent($0).path,
+                                                               andPath: folderB.appendingPathComponent($0).path) }
+    }
+
     /// A Windows root inside the Wine prefix. Folders that still lead out of it (a user folder
-    /// linked to the Mac's own) are left alone: macOS would ask for access to them.
-    private static func windowsRoot(_ root: String, _ places: Places) -> URL? {
+    /// linked to the Mac's own) are left alone: macOS would ask for access to them. Profiles'
+    /// settings files use the same roots (Engine.applyFileEdits, Engine.applyIniSettings).
+    static func windowsRoot(_ root: String, _ places: Places) -> URL? {
         let user = places.prefix.appendingPathComponent("drive_c/users/\(places.windowsUser)", isDirectory: true)
         let folder: URL
         switch root.lowercased() {
@@ -104,7 +212,7 @@ enum SaveTransfer {
     }
 
     /// Files under `folder` matching `pattern`, as paths relative to it.
-    private static func files(in folder: URL, matching pattern: String, recursive: Bool) -> [String] {
+    static func files(in folder: URL, matching pattern: String, recursive: Bool) -> [String] {
         let fm = FileManager.default
         guard let entries = fm.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey],
                                           options: recursive ? [] : [.skipsSubdirectoryDescendants])

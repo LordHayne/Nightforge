@@ -23,16 +23,6 @@
       "source": "https://github.com/dappermint/winecx-gptk"
     },
     {
-      "id": "d3dmetal",
-      "kind": "graphics",
-      "version": "4.0b3",
-      "url": "https://github.com/LordHayne/Nightforge/releases/download/d3dmetal-4.0b3/nightforge-d3dmetal-4.0b3.tar.gz",
-      "sha256": "6fc51897f848454ed7f4b0f2e39c56b08d33fc235483b9560c8fdeb3c3ecd3f3",
-      "size": 24033436,
-      "license": "LicenseRef-Apple-Game-Porting-Toolkit (non-commercial, Apple hardware only)",
-      "source": "https://github.com/LordHayne/Nightforge"
-    },
-    {
       "id": "gamepad",
       "kind": "graphics",
       "version": "4.7.3-15",
@@ -101,6 +91,26 @@
       "size": 85622,
       "license": "GPL-3.0-or-later",
       "source": "https://github.com/LordHayne/Nightforge"
+    },
+    {
+      "id": "legendary",
+      "kind": "tool",
+      "version": "0.21.1",
+      "url": "https://github.com/legendary-gl/legendary/releases/download/0.21.1/legendary_macOS_arm64",
+      "sha256": "d87978321dba9cb731fab40c72f0a30bed55baca8b5341ab21024c5733cd837e",
+      "size": 15275984,
+      "license": "GPL-3.0-or-later",
+      "source": "https://github.com/legendary-gl/legendary"
+    },
+    {
+      "id": "gogdl",
+      "kind": "tool",
+      "version": "1.4.0",
+      "url": "https://github.com/Heroic-Games-Launcher/heroic-gogdl/releases/download/v1.4.0/gogdl_macos_arm64",
+      "sha256": "af167d29ca822f495ff677d03c40bb9d6dc5535dac1f30d71775c91fe844149c",
+      "size": 11098928,
+      "license": "GPL-3.0",
+      "source": "https://github.com/Heroic-Games-Launcher/heroic-gogdl"
     }
   ]
 }

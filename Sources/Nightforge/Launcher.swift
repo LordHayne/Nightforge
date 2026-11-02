@@ -23,6 +23,37 @@ enum Prefs {
         static let gameMode = "gameMode"
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
+        static let padGlyphs = "padGlyphs"
+        /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
+        static let launchTipShown = "launchTipShown"
+        static let notifyDownloads = "notifyDownloads"
+        static let reduceMotion = "reduceMotion"
+        static let largerText = "largerText"
+        static let saveBattery = "saveBattery"
+    }
+
+    /// On battery, games are capped at 30 FPS to last longer. Off by default: the player chooses it.
+    static var saveBattery: Bool {
+        UserDefaults.standard.bool(forKey: Keys.saveBattery)
+    }
+
+    /// "Reduce motion": "on" or "off" once changed in Settings, else whatever macOS says.
+    static func reduceMotion(system: Bool, stored: String) -> Bool {
+        switch stored {
+        case "on": return true
+        case "off": return false
+        default: return system
+        }
+    }
+
+    /// A macOS notification when a download finishes while Nightforge isn't in front. On by default.
+    static var notifyDownloads: Bool {
+        UserDefaults.standard.object(forKey: Keys.notifyDownloads) as? Bool ?? true
+    }
+
+    /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.
+    static var padGlyphs: PadSymbols.Style {
+        PadSymbols.Style(rawValue: UserDefaults.standard.string(forKey: Keys.padGlyphs) ?? "") ?? .automatic
     }
 
     /// "Sharp & smooth": MetalFX upscaling to full Retina sharpness and an even frame rate that
@@ -55,8 +86,9 @@ enum Prefs {
     }
 
     static var afterLaunch: AfterLaunch {
-        // Hidden, Nightforge keeps Steam out of sight while the game runs and is back the moment
-        // it ends; quitting frees a little memory and comes back too, a few seconds later.
+        // Hidden – behind the game, which no longer hides the app (LibraryModel.stepBack), the same
+        // as kept open – Nightforge is back the moment the game ends; quitting frees a little
+        // memory and comes back too, a few seconds later.
         AfterLaunch(rawValue: UserDefaults.standard.string(forKey: Keys.afterLaunch) ?? "") ?? .hide
     }
 }
@@ -108,7 +140,51 @@ enum Choice: String, Codable, CaseIterable {
     case automatic, on, off
 }
 
+/// A game's graphics in one choice. Automatic is what the profile says and Nightforge learns; the
+/// next three fix the frame limit and MetalFX (decided 27.10.); Custom is what the expert options say.
+enum GraphicsPreset: String, Codable, CaseIterable, Identifiable {
+    case automatic
+    /// "Sharp & smooth" fixed: MetalFX and an even share of the display's rate (60 FPS on 120 Hz).
+    case balanced
+    /// MetalFX without a frame limit.
+    case fastest
+    /// The safest layer first (LaunchHealth.ladder), no MetalFX, 60 FPS.
+    case compatible
+    case custom
+
+    var id: String { rawValue }
+
+    /// The ones to pick; Custom comes from changing an expert option.
+    static let choices: [GraphicsPreset] = [.automatic, .balanced, .fastest, .compatible]
+
+    /// What "Most compatible" holds a game to.
+    static let compatibleLimit = 60
+
+    var label: String {
+        switch self {
+        case .automatic: return L10n.t("Automatic")
+        case .balanced: return L10n.t("Balanced")
+        case .fastest: return L10n.t("Fastest")
+        case .compatible: return L10n.t("Most compatible")
+        case .custom: return L10n.t("Custom")
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .automatic: return L10n.t("What the profile for this game says and what Nightforge learns while you play – the best choice for most games.")
+        case .balanced: return L10n.t("MetalFX sharpness where the game can use it, and an even frame rate that fits your display (60 FPS on a 120 Hz screen).")
+        case .fastest: return L10n.t("The highest frame rate: MetalFX upscaling, no frame limit.")
+        case .compatible: return L10n.t("The slower, safest graphics path: no MetalFX, 60 FPS. For games that crash or show a black screen.")
+        case .custom: return L10n.t("Custom: your own choice in the expert options below.")
+        }
+    }
+}
+
 struct GameOptions: Codable, Equatable {
+    /// The graphics in one choice. `graphics`, `frameLimit` and `upscaling` count for Custom; with
+    /// any other preset they stay automatic and the preset decides (`resolved`).
+    var preset = GraphicsPreset.automatic
     var metalHUD = false
     var extraArgs = ""
     var graphics = GraphicsLayer.automatic
@@ -127,7 +203,7 @@ struct GameOptions: Codable, Equatable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case metalHUD, extraArgs, graphics, fps, metalFX, hdr, version
+        case preset, metalHUD, extraArgs, graphics, fps, metalFX, hdr, version
         // 0.1.4 stored these; their defaults (0, false) meant "untouched", so they read as automatic.
         case frameLimit, upscaling
     }
@@ -144,10 +220,14 @@ struct GameOptions: Codable, Equatable {
         upscaling = try c.decodeIfPresent(Choice.self, forKey: .metalFX) ?? (legacyUpscaling ? .on : .automatic)
         hdr = try c.decodeIfPresent(Bool.self, forKey: .hdr) ?? false
         version = (try? c.decodeIfPresent(GameVersion.self, forKey: .version)) ?? .automatic
+        // Before the presets (and a preset from a newer Nightforge): expert options set by hand are Custom.
+        preset = (try? c.decodeIfPresent(GraphicsPreset.self, forKey: .preset))
+            ?? (graphics == .automatic && frameLimit == nil && upscaling == .automatic ? .automatic : .custom)
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(preset, forKey: .preset)
         try c.encode(metalHUD, forKey: .metalHUD)
         try c.encode(extraArgs, forKey: .extraArgs)
         try c.encode(graphics, forKey: .graphics)
@@ -164,8 +244,45 @@ struct GameOptions: Codable, Equatable {
     func effectiveFrameLimit(displayRefreshRate: Int, profile: GameProfile? = nil) -> Int {
         if let frameLimit { return frameLimit }
         guard Prefs.sharpAndSmooth else { return 0 }
-        if let fromProfile = profile?.frameLimit { return fromProfile }
-        return Self.standardFrameLimit(displayRefreshRate, lowPower: Hardware.current.lowPower)
+        return profile?.frameLimit ?? Self.standardFrameLimit(displayRefreshRate, lowPower: Hardware.current.lowPower)
+    }
+
+    /// Half the refresh rate on fast displays (60 on 120 Hz), the refresh rate on 60 Hz ones – the
+    /// fixed limit of "Balanced", whatever the power mode.
+    static func evenLimit(_ refreshRate: Int) -> Int {
+        standardFrameLimit(refreshRate, lowPower: false)
+    }
+
+    /// The options a start goes by: Automatic and Custom as stored, the other presets with their
+    /// frame limit and MetalFX fixed – so FramePacing doesn't learn against them. Their layer stays
+    /// automatic: LaunchHealth tries the ways in the preset's order. A game whose profile rules
+    /// MetalFX out goes without (WineD3D can't upscale anyway); a profile's frame limit stands for Balanced.
+    func resolved(refreshRate: Int, profile: GameProfile?) -> GameOptions {
+        var options = self
+        let metalFX: Choice = profile?.metalFX == false ? .off : .on
+        switch preset {
+        case .automatic, .custom:
+            return self
+        case .balanced:
+            options.upscaling = metalFX
+            options.frameLimit = profile?.frameLimit ?? Self.evenLimit(refreshRate)
+        case .fastest:
+            options.upscaling = metalFX
+            options.frameLimit = 0
+        case .compatible:
+            options.upscaling = .off
+            options.frameLimit = GraphicsPreset.compatibleLimit
+        }
+        options.graphics = .automatic
+        return options
+    }
+
+    /// Picks a preset; the expert options go back to automatic, as they count for Custom only.
+    mutating func choose(_ preset: GraphicsPreset) {
+        self.preset = preset
+        graphics = .automatic
+        frameLimit = nil
+        upscaling = .automatic
     }
 
     /// "Sharp & smooth" without a profile: an even share of the refresh rate. In Low Power Mode,
@@ -188,21 +305,28 @@ struct GameOptions: Codable, Equatable {
 }
 
 enum GameOptionsStore {
-    private static func key(_ appID: Int) -> String { "options.\(appID)" }
+    private static func key(_ game: GameID) -> String { "options.\(game.key)" }
 
-    static func load(_ appID: Int) -> GameOptions {
-        guard let data = UserDefaults.standard.data(forKey: key(appID)),
+    static func load(_ game: GameID) -> GameOptions {
+        guard let data = UserDefaults.standard.data(forKey: key(game)),
               let options = try? JSONDecoder().decode(GameOptions.self, from: data)
         else { return GameOptions() }
         return options
     }
 
-    static func save(_ options: GameOptions, for appID: Int) {
+    static func save(_ options: GameOptions, for game: GameID) {
         if options == GameOptions() {
-            UserDefaults.standard.removeObject(forKey: key(appID))
+            UserDefaults.standard.removeObject(forKey: key(game))
         } else if let data = try? JSONEncoder().encode(options) {
-            UserDefaults.standard.set(data, forKey: key(appID))
+            UserDefaults.standard.set(data, forKey: key(game))
         }
+    }
+
+    /// A preset picked outside the options sheet (after a failed start, in "Welcome back").
+    static func choose(_ preset: GraphicsPreset, for game: GameID) {
+        var options = load(game)
+        options.choose(preset)
+        save(options, for: game)
     }
 }
 
@@ -273,9 +397,7 @@ struct LaunchWatcher {
 
         var event: Event?
         for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
-            if line.contains("ExecCommandLine"), line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) ") {
-                steamReceivedLaunch = true
-            }
+            if SteamCommands.isLaunch(line, appID: appID) { steamReceivedLaunch = true }
             if line.contains("ExecuteSteamURL"), line.contains("not allowed yet") {
                 rejectedCommands += 1
             }
@@ -308,6 +430,31 @@ struct LaunchWatcher {
     }
 }
 
+/// Whether the running Steam still takes commands. A "-applaunch" client hands its command to it
+/// and ends, and Steam logs "ExecCommandLine" in the same second: on 31.10.2026 the client ran
+/// 16:36:10.854–11.077 (the helper's start and end in macOS's log) and console_log has
+/// "[16:36:11] ExecCommandLine: … -applaunch 3907790", the same at 16:36:58 and 16:39:11. From
+/// about 16:46 that signed-in Steam took none: the clients at 16:52:32, 16:52:44, 17:21:24 and
+/// 17:21:37 ended as quickly (so how long the client runs tells nothing), but nothing reached
+/// console_log after 16:46:43 – while configstore_log and appinfo_log were still written until
+/// 17:09, so quiet logs are no sign either. A request that arrives while Steam is still starting
+/// can get lost (LibraryModel resends it); this is for a Steam that was done starting.
+enum SteamCommands {
+    /// Far more than the second it takes.
+    static let answerWithin: TimeInterval = 15
+
+    /// Steam was running, signed in and done starting when the command went out, and hasn't
+    /// logged it `sentAgo` seconds later.
+    static func hung(steamWasReady: Bool, received: Bool, sentAgo: TimeInterval) -> Bool {
+        steamWasReady && !received && sentAgo >= answerWithin
+    }
+
+    /// "ExecCommandLine: ""C:\…\steam.exe" … -silent -applaunch 3907790"" – Steam took a start of `appID`.
+    static func isLaunch(_ line: Substring, appID: Int) -> Bool {
+        line.contains("ExecCommandLine") && (line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) "))
+    }
+}
+
 /// Starts a game through the Windows Steam client in its bottle – one process call, nothing kept running.
 enum Launcher {
     static let crossOverCandidates = [
@@ -320,8 +467,11 @@ enum Launcher {
     }
 
     /// `frameLimit`: what the game is held to (FramePacing.automaticLimit or the player's choice).
+    /// The client it starts: it ends once it has handed the command to the running Steam, or is
+    /// that Steam when none ran.
+    @discardableResult
     static func launch(_ game: Game, runnerPath: String, options: GameOptions, profile: GameProfile? = nil,
-                       frameLimit: Int = 0, extraArguments: [String] = []) throws {
+                       frameLimit: Int = 0, extraArguments: [String] = []) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -348,8 +498,16 @@ enum Launcher {
                                     frameLimit: frameLimit,
                                     upscaling: options.effectiveUpscaling(profile: profile),
                                     vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
-            Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir)
+            Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
+            Engine.applyIniSettings(profile?.iniSettings ?? [])
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+            GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
+            // This call starts Steam when it isn't running: in the Retina mode the game wants, and
+            // with the Guide button left to Nightforge (SteamGuideButton).
+            if !Engine.isSteamRunning {
+                Engine.applyRetinaMode(runner)
+                SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
+            }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own
         // games get the HUD from the background Steam instead (Prefs.performanceHUD).
@@ -367,7 +525,7 @@ enum Launcher {
         }
         arguments += splitArguments(options.extraArgs)
 
-        let process = Process()
+        let process = DetachedProcess()
         process.executableURL = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner
         if process.executableURL != runner { environment["WINELOADER"] = process.executableURL?.path }
         process.arguments = arguments
@@ -378,6 +536,49 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        return process
+    }
+
+    /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
+    /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
+    /// the game log. `environment`: `Engine.directLaunchEnvironment`.
+    static func launchDirect(_ game: Game, command: StoreLaunchCommand, runnerPath: String, options: GameOptions,
+                             profile: GameProfile?, frameLimit: Int, extraArguments: [String],
+                             environment gameEnvironment: [String: String]) throws -> DetachedProcess {
+        guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
+            throw LaunchError.runnerMissing(runnerPath)
+        }
+        let runner = URL(fileURLWithPath: runnerPath)
+        Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
+                                upscaling: options.effectiveUpscaling(profile: profile),
+                                vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
+        Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
+        Engine.applyIniSettings(profile?.iniSettings ?? [])
+        Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+        // It joins the Wine session that runs, or starts one in the Retina mode the prefix has.
+        GameResolution.fit(game, profile: profile, retina: Engine.retinaModeApplied, wine: runner)
+
+        var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
+        // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
+        // choice is in the registry (AppDefaults), which an override here would beat.
+        environment["WINEDLLOVERRIDES"] = nil
+        environment["WINEDEBUG"] = GameLog.wineDebug
+        if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
+        environment.merge(command.environment) { _, store in store }
+        let process = DetachedProcess()
+        let loader = Engine.loader(for: runner)
+        process.executableURL = loader
+        if loader != runner { environment["WINELOADER"] = loader.path }
+        process.arguments = [Engine.windowsPath(of: command.executable)] + command.arguments + (profile?.arguments ?? [])
+            + extraArguments + splitArguments(options.extraArgs)
+        process.currentDirectoryURL = command.workingDirectory
+        process.environment = environment
+        process.standardInput = FileHandle.nullDevice
+        let log = GameLog.handleForSteam()
+        process.standardOutput = log ?? FileHandle.nullDevice
+        process.standardError = log ?? FileHandle.nullDevice
+        try process.run()
+        return process
     }
 
     /// Splits `-foo "bar baz" -x` into ["-foo", "bar baz", "-x"].

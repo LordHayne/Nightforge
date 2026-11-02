@@ -89,16 +89,12 @@ struct MacSteamSetupView: View {
     let close: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(L10n.t("Steam for Mac"))
-                    .font(Theme.display(26))
-                    .foregroundStyle(Theme.ink)
-                Text(L10n.t("%@ has a Mac version. It runs without any Windows translation, so it usually looks and runs better. To get it, Nightforge sets up Valve's Steam for Mac – once, in a few minutes.", setup.game.name))
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        // × and Esc stop the setup, like Cancel.
+        GlassDialog(L10n.t("Steam for Mac"), id: "macSetup", width: 560, spacing: 22, close: close) {
+            Text(L10n.t("%@ has a Mac version. It runs without any Windows translation, so it usually looks and runs better. To get it, Nightforge sets up Valve's Steam for Mac – once, in a few minutes.", setup.game.name))
+                .font(size: 14)
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
 
             if setup.phase != .intro {
                 VStack(alignment: .leading, spacing: 14) {
@@ -123,33 +119,28 @@ struct MacSteamSetupView: View {
             VStack(alignment: .leading, spacing: 16) {
                 switch setup.phase {
                 case .intro:
-                    SetupButton(title: L10n.t("Set Up Steam for Mac"), symbol: "arrow.down.circle") { setup.start() }
+                    SetupButton(title: L10n.t("Set Up Steam for Mac"), symbol: "arrow.down.circle", preferred: true) { setup.start() }
                 case .failed:
-                    SetupButton(title: L10n.t("Try again"), symbol: "arrow.clockwise") { setup.start() }
+                    SetupButton(title: L10n.t("Try again"), symbol: "arrow.clockwise", preferred: true) { setup.start() }
                 case .signingIn:
                     Button(L10n.t("Show Steam window again")) { MacSteam.show(keepFor: 600) }
-                        .buttonStyle(.bordered)
-                        .padFocus("macSetup.showSteam", activate: { MacSteam.show(keepFor: 600) })
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("macSetup.showSteam", cornerRadius: 21, activate: { MacSteam.show(keepFor: 600) })
                 case .installing:
                     EmptyView()
                 }
                 HStack(spacing: 12) {
                     if let useWindows, setup.phase == .intro || isFailed {
                         Button(L10n.t("Use the Windows Version"), action: useWindows)
-                            .buttonStyle(.bordered)
-                            .padFocus("macSetup.windows", activate: useWindows)
+                            .buttonStyle(GlassTextButtonStyle())
+                            .padFocus("macSetup.windows", cornerRadius: 21, activate: useWindows)
                     }
                     Button(L10n.t("Cancel"), action: close)
-                        .buttonStyle(.bordered)
-                        .keyboardShortcut(.cancelAction)
-                        .padFocus("macSetup.cancel", activate: close)
+                        .buttonStyle(GlassTextButtonStyle())
+                        .padFocus("macSetup.cancel", cornerRadius: 21, activate: close)
                 }
             }
-            .controlSize(.large)
         }
-        .padding(28)
-        .frame(width: 560)
-        .background(Theme.night)
         .animation(.easeOut(duration: 0.25), value: setup.phase)
     }
 

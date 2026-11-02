@@ -142,6 +142,27 @@ actor ComponentStore {
         throw failure
     }
 
+    /// The list at hand without asking the network (Settings › About): the last one fetched, else
+    /// the one bundled with the app.
+    static func localManifest() -> ComponentManifest? {
+        let cached = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge/Components/manifest.json")
+        for url in [cached, Bundle.main.url(forResource: "manifest", withExtension: "json")].compactMap({ $0 }) {
+            if let data = try? Data(contentsOf: url), let manifest = try? JSONDecoder().decode(ComponentManifest.self, from: data) {
+                return manifest
+            }
+        }
+        return nil
+    }
+
+    /// The list that came with the app. A component it names that the online list doesn't yet (an
+    /// app newer than the list) is taken from here.
+    static func bundledManifest() -> ComponentManifest? {
+        guard let url = Bundle.main.url(forResource: "manifest", withExtension: "json"),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(ComponentManifest.self, from: data)
+    }
+
     private func decode(_ data: Data) throws -> ComponentManifest {
         let manifest = try JSONDecoder().decode(ComponentManifest.self, from: data)
         guard manifest.schemaVersion <= ComponentManifest.supportedSchema else {
@@ -213,6 +234,14 @@ actor ComponentStore {
             .appendingPathComponent(component.version, isDirectory: true)
     }
 
+    /// Copies a folder as an APFS clone: instant, and it takes space only for what later changes in
+    /// either copy. Elsewhere (another file system) an ordinary copy.
+    static func cloneFolder(_ source: URL, to target: URL) throws {
+        if clonefile(source.path, target.path, 0) == 0 { return }
+        try? FileManager.default.removeItem(at: target)
+        try FileManager.default.copyItem(at: source, to: target)
+    }
+
     static func sha256(of file: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
@@ -240,12 +269,16 @@ actor ComponentStore {
     }
 }
 
-/// URLSession download with progress, written to a fixed destination.
-private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+/// URLSession download with progress, written to a fixed destination. Cancelling the task that
+/// awaits it ends the download (SteamPrefetch hands what's left to Steam that way).
+final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let destination: URL
     private let expectedSize: Int64
     private let progress: @Sendable (Double) -> Void
     private var continuation: CheckedContinuation<Void, Error>?
+    private let lock = NSLock()
+    private var task: URLSessionDownloadTask?
+    private var cancelled = false
 
     private init(destination: URL, expectedSize: Int64, progress: @escaping @Sendable (Double) -> Void) {
         self.destination = destination
@@ -261,9 +294,27 @@ private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked
         let delegate = Downloader(destination: destination, expectedSize: expectedSize, progress: progress)
         let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
-        try await withCheckedThrowingContinuation { continuation in
-            delegate.continuation = continuation
-            session.downloadTask(with: url).resume()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                delegate.continuation = continuation
+                let task = session.downloadTask(with: url)
+                let go = delegate.lock.withLock { () -> Bool in
+                    guard !delegate.cancelled else { return false }
+                    delegate.task = task
+                    return true
+                }
+                if go {
+                    task.resume()
+                } else {
+                    delegate.continuation = nil
+                    continuation.resume(throwing: CancellationError())
+                }
+            }
+        } onCancel: {
+            delegate.lock.withLock { () -> URLSessionDownloadTask? in
+                delegate.cancelled = true
+                return delegate.task
+            }?.cancel()
         }
     }
 

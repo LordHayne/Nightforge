@@ -5,6 +5,8 @@ import SwiftUI
 struct Compatibility: Equatable {
     enum Level: String, CaseIterable {
         case great, tweaks, no, untested
+        /// Doesn't start on a Mac yet, and Nightforge is working on it (the profile's "notYet"): not the red of "no".
+        case notYet
 
         var label: String {
             switch self {
@@ -12,6 +14,7 @@ struct Compatibility: Equatable {
             case .tweaks: return L10n.t("Runs with tweaks")
             case .no: return L10n.t("Doesn't run on a Mac")
             case .untested: return L10n.t("Not tested yet")
+            case .notYet: return L10n.t("Doesn't start yet")
             }
         }
 
@@ -21,6 +24,7 @@ struct Compatibility: Equatable {
             case .tweaks: return "wrench.and.screwdriver.fill"
             case .no: return "xmark.circle.fill"
             case .untested: return "questionmark.circle.fill"
+            case .notYet: return "hourglass"
             }
         }
 
@@ -30,8 +34,12 @@ struct Compatibility: Equatable {
             case .tweaks: return Theme.runsWithTweaks
             case .no: return Theme.runsNot
             case .untested: return Theme.muted
+            case .notYet: return Theme.runsNotYet
             }
         }
+
+        /// The game doesn't start on this Mac (for good, or not yet).
+        var stopsGame: Bool { self == .no || self == .notYet }
     }
 
     var level: Level
@@ -51,6 +59,8 @@ struct Compatibility: Equatable {
         var learnedFixes = false
         /// Where the self-healing launch stands (LaunchHealth): nil before the first start.
         var launch: (index: Int, confirmed: Bool)?
+        /// How it ran for the player ("Welcome back"): beats everything but what stops the game.
+        var ownRating: GameRating?
     }
 
     /// Worst first: what stops the game, then what it needs, then what shows it runs.
@@ -59,10 +69,22 @@ struct Compatibility: Equatable {
         if facts.vrOnly {
             return .init(level: .no, note: L10n.t("Needs a VR headset."))
         }
+        // Not yet: the profile says so, tested on a Mac – with the block at hand or from the profile alone.
+        if facts.platform == .windows, let reason = facts.antiCheatBlock?.notYet ?? profile?.notYet {
+            let cloud = (facts.antiCheatBlock?.geforceNow ?? profile?.geforceNow) != nil
+            return .init(level: .notYet, note: [L10n.t(reason), cloud ? L10n.t("Playable on GeForce Now instead.") : nil]
+                .compactMap { $0 }.joined(separator: " "), testedOn: chips(in: profile?.note))
+        }
         if facts.platform == .windows, let block = facts.antiCheatBlock {
             return .init(level: .no, note: block.geforceNow == nil
                 ? L10n.t("Its anti-cheat needs Windows itself.")
                 : L10n.t("Its anti-cheat needs Windows – playable on GeForce Now instead."))
+        }
+        if let rating = facts.ownRating {
+            return rating.good
+                ? .init(level: .great, note: L10n.t("You said it runs well."))
+                : .init(level: .tweaks, note: rating.issues.isEmpty ? L10n.t("You said it didn't run well.")
+                        : L10n.t("You said: %@.", rating.issues.map(\.label).joined(separator: ", ")))
         }
         // Steam's own Mac version: nothing to translate.
         if facts.platform == .mac {
@@ -114,9 +136,12 @@ extension Compatibility {
     static func of(_ game: Game, profile: GameProfile?, analysis: GameAnalysis?) -> Compatibility {
         var facts = Facts(platform: game.platform, vrOnly: game.isVROnly, antiCheatBlock: game.antiCheatBlock,
                           profile: profile, analysis: analysis)
-        facts.learnedFixes = !LearnedFixes.winetricks(game.appID).isEmpty || LearnedFixes.noAVX(game.appID)
+        facts.learnedFixes = !LearnedFixes.winetricks(game.gameID).isEmpty || LearnedFixes.noAVX(game.gameID)
+        facts.ownRating = GameRatings.load(game.gameID)
         if let analysis {
-            facts.launch = LaunchHealth.peek(game.appID, LaunchHealth.attempts(for: analysis, profile: profile))
+            facts.launch = LaunchHealth.peek(game.gameID, LaunchHealth.ladder(LaunchHealth.attempts(for: analysis, profile: profile),
+                                                                              preset: GameOptionsStore.load(game.gameID).preset,
+                                                                              profile: profile))
         }
         return rate(facts)
     }
@@ -133,7 +158,7 @@ extension GameProfile {
         graphics != nil || arguments?.isEmpty == false || dllOverrides?.isEmpty == false
             || registry?.isEmpty == false || windowsVersion != nil || winetricks?.isEmpty == false
             || metalFX == false || frameLimit != nil || vulkanSamplers != nil || avx == false
-            || fileEdits?.isEmpty == false
+            || fileEdits?.isEmpty == false || iniSettings?.isEmpty == false || retina == true
     }
 }
 
@@ -146,9 +171,9 @@ struct CompatibilityBadge: View {
         let level = compatibility.level
         HStack(spacing: 6) {
             Image(systemName: level.symbol)
-                .font(.system(size: small ? 11 : 12, weight: .semibold))
+                .font(size: small ? 11 : 12, weight: .semibold)
             Text(level.label)
-                .font(.system(size: small ? 11.5 : 12.5, weight: .semibold))
+                .font(size: small ? 11.5 : 12.5, weight: .semibold)
                 .lineLimit(1)
         }
         .foregroundStyle(level.color)

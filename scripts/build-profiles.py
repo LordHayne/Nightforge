@@ -9,11 +9,15 @@ Sources, merged per Steam app ID:
   * AreWeAntiCheatYet (MIT, https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet), optional:
     games whose anti-cheat stops them even under Proton. On a Mac they don't start at all, so
     Nightforge says so before a download ("antiCheat"). Games it runs under Proton only through
-    the anti-cheat's own Linux build lose their online play on a Mac ("antiCheatOnline"); the app
-    blocks those that have nothing else (no single player on Steam).
-  * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which of those games can be
-    streamed instead ("geforceNow", the game id its deep links take).
-  * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream.
+    the anti-cheat's own Linux build (Easy Anti-Cheat, BattlEye) lose their online play on a Mac
+    ("antiCheatOnline"); the app blocks those that have nothing else (no single player on Steam).
+    Entries without a Steam app ID get one by their exact name from the GeForce Now catalog, or
+    from STEAM_IDS_BY_SLUG.
+  * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which blocked games can be
+    streamed instead ("geforceNow", the game id its deep links take), and Steam app IDs by name.
+  * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
+    reach the GOG versions they name ("gog"). "notYet" is the reason a game doesn't start on a Mac
+    yet (Nightforge is working on it): it gets a GeForce Now id like the anti-cheat games.
 
 Usage: build-profiles.py <umu-protonfixes checkout> [--anticheat games.json] [--geforcenow catalog.json]
                          [--out profiles/profiles.json]
@@ -27,6 +31,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import unicodedata
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FORMAT_VERSION = 1
@@ -54,14 +59,42 @@ IGNORED_CALLS = {
 # Arguments that switch on anti-cheat runtimes Proton ships and macOS can't run.
 IGNORED_ARGUMENTS = {"-battleye", "-eac_launcher"}
 
-# AreWeAntiCheatYet statuses for games that don't run even under Proton.
-BLOCKING_STATUSES = {"Broken", "Denied"}
-# Runs under Proton because the anti-cheat ships a Linux build, which a Mac can't use: online play
-# is gone, single player often still works. ("Running" games run under Wine without that help.)
-ONLINE_BLOCKING_STATUSES = {"Supported"}
+# AreWeAntiCheatYet statuses for games that don't run even under Proton ("Planned": the developer
+# means to allow it, but hasn't yet).
+BLOCKING_STATUSES = {"Broken", "Denied", "Planned"}
+# "Supported" (the developer allows Proton) and "Running" (it works anyway). With Easy Anti-Cheat
+# and BattlEye both only work because Proton loads the anti-cheat's Linux module in its place
+# (Steam's "Proton EasyAntiCheat Runtime" and "Proton BattlEye Runtime"; ARC Raiders' players even
+# force it with PROTON_USE_EAC_LINUX=1). A Mac has no such module, so online play is gone, single
+# player often still works. Every other anti-cheat (Warden, PunkBuster, Treyarch Anti-Cheat,
+# nProtect GameGuard, XIGNCODE3, …) runs inside Wine itself, on a Mac as under Proton: no block.
+# FairFight only checks on the server and never blocks anything.
+ONLINE_BLOCKING_STATUSES = {"Supported", "Running"}
+LINUX_MODULE_ANTICHEATS = {"Easy Anti-Cheat", "BattlEye"}
+# Arguments that start a game without its anti-cheat (Darktide's untrusted mode, Bandai Namco's
+# -eac-nop-loaded). A game whose profile passes one starts on a Mac as under Proton: one that runs
+# there loses nothing, one whose anti-cheat doesn't at most its online play.
+ANTICHEAT_OFF_ARGUMENTS = {"-eac-untrusted", "-eac-nop-loaded", "-noeac", "-nobattleye", "-noanticheat", "-no-anticheat"}
+
+# AreWeAntiCheatYet games without a Steam app ID that the GeForce Now catalog doesn't name either,
+# by slug. Each checked against Steam's store page of that app: the same name, and for Delta Force,
+# which AreWeAntiCheatYet still lists by its test name "Delta Force: Hawk Ops", the same website
+# (playdeltaforce.com). Escape from Tarkov's Steam version is also the one umu-protonfixes installs
+# the BattlEye runtime for.
+STEAM_IDS_BY_SLUG = {
+    "delta-force-hawk-ops": "2507950",  # Delta Force
+    "ea-sports-fc26": "3405690",  # EA SPORTS FC™ 26
+    "escape-from-tarkov": "3932890",  # Escape from Tarkov
+    "formula1-25": "3059520",  # F1® 25
+    "skate.": "3354750",  # skate.
+}
 
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
+# Anti-cheat that only a multiplayer server asks for (PunkBuster) or that only checks on the server
+# (FairFight): it never stops a game from starting. Where it's all a game has, a "Broken" or
+# "Denied" costs at most online play (Crysis, F.E.A.R. and their single player are fine).
+SERVER_ANTICHEATS = {"PunkBuster", "FairFight"}
 
 # Registry keys for Wine's Linux controller driver; under one shared prefix they'd change
 # controllers for every game.
@@ -189,20 +222,77 @@ def translate(path: pathlib.Path):
     return profile, partial
 
 
-def anticheat_blocks(games):
-    """Steam app ID → {"name", and "antiCheat" or "antiCheatOnline": anti-cheat names}, for the
-    AreWeAntiCheatYet games that can't run on a Mac, or not online."""
+def anticheat_block(game):
+    """{"name", and "antiCheat" or "antiCheatOnline": anti-cheat names} for an AreWeAntiCheatYet
+    game that can't run on a Mac, or not online; None for one that runs."""
+    names = [n for n in game.get("anticheats") or [] if n not in HARMLESS_ANTICHEATS]
+    if not names:
+        return None
+    if game.get("status") in BLOCKING_STATUSES:
+        return {"name": game.get("name"), "antiCheatOnline" if set(names) <= SERVER_ANTICHEATS else "antiCheat": names}
+    if game.get("status") in ONLINE_BLOCKING_STATUSES and LINUX_MODULE_ANTICHEATS.intersection(names):
+        return {"name": game.get("name"), "antiCheatOnline": names}
+    return None
+
+
+def anticheat_blocks(games, titles=None):
+    """Steam app ID → `anticheat_block`, for the AreWeAntiCheatYet games that can't run on a Mac,
+    or not online. An entry without a Steam app ID takes `steam_app_id`'s, unless another entry
+    has that ID as its own: that one says how the game runs."""
+    own = {str((game.get("storeIds") or {}).get("steam") or "") for game in games}
     blocks = {}
     for game in games:
-        app_id = str((game.get("storeIds") or {}).get("steam") or "")
-        names = [n for n in game.get("anticheats") or [] if n not in HARMLESS_ANTICHEATS]
-        if not (app_id.isdigit() and names):
+        app_id = steam_app_id(game, titles)
+        if not (game.get("storeIds") or {}).get("steam") and app_id in own:
             continue
-        if game.get("status") in BLOCKING_STATUSES:
-            blocks[app_id] = {"name": game.get("name"), "antiCheat": names}
-        elif game.get("status") in ONLINE_BLOCKING_STATUSES:
-            blocks[app_id] = {"name": game.get("name"), "antiCheatOnline": names}
+        block = anticheat_block(game)
+        # Two entries for one app (a renamed game): the other's full block doesn't shrink to online.
+        if app_id.isdigit() and block and not ("antiCheat" in blocks.get(app_id, {}) and "antiCheatOnline" in block):
+            blocks[app_id] = block
     return blocks
+
+
+def epic_anticheat_blocks(games, titles=None):
+    """"epic.<namespace>" → the same as `anticheat_blocks`, for the games AreWeAntiCheatYet knows
+    from the Epic Games Store (Nightforge's Epic games carry their catalog namespace). "steam" is
+    the game's Steam app ID when it has one, so it can share that profile's GeForce Now id."""
+    blocks = {}
+    for game in games:
+        store_ids = game.get("storeIds") or {}
+        namespace = str((store_ids.get("epic") or {}).get("namespace") or "")
+        block = anticheat_block(game)
+        if not (namespace.isalnum() and block):
+            continue
+        steam = steam_app_id(game, titles)
+        if steam.isdigit():
+            block["steam"] = steam
+        blocks["epic." + namespace] = block
+    return blocks
+
+
+def steam_app_id(game, titles=None) -> str:
+    """An AreWeAntiCheatYet game's Steam app ID: its own, else STEAM_IDS_BY_SLUG's, else the one
+    `titles` (`steam_titles`) has for exactly its name; "" when none."""
+    own = str((game.get("storeIds") or {}).get("steam") or "")
+    return own or STEAM_IDS_BY_SLUG.get(game.get("slug"), "") or (titles or {}).get(title_key(game.get("name")), "")
+
+
+def title_key(name) -> str:
+    """A game's name for comparing: without ™, ® and ©, case, punctuation and extra spaces."""
+    name = re.sub(r"[™®©]", "", str(name or ""))
+    return " ".join(re.sub(r"[\W_]+", " ", unicodedata.normalize("NFKC", name).casefold()).split())
+
+
+def steam_titles(games):
+    """`title_key` → Steam app ID, for the games GeForce Now streams from Steam; a name that stands
+    for more than one app is left out."""
+    ids = {}
+    for game in games:
+        for variant in game.get("variants") or []:
+            store_id = str(variant.get("storeId") or "")
+            if variant.get("appStore") == "STEAM" and store_id.isdigit() and title_key(game.get("title")):
+                ids.setdefault(title_key(game.get("title")), set()).add(store_id)
+    return {title: next(iter(app_ids)) for title, app_ids in ids.items() if len(app_ids) == 1}
 
 
 def geforce_now_ids(games):
@@ -214,6 +304,34 @@ def geforce_now_ids(games):
             if variant.get("appStore") == "STEAM" and store_id.isdigit() and game.get("id"):
                 ids.setdefault(store_id, game["id"])
     return ids
+
+
+def starts_without_anticheat(profile) -> bool:
+    """Whether a profile's own arguments start its game without the anti-cheat."""
+    return any(a.lower() in ANTICHEAT_OFF_ARGUMENTS for a in (profile or {}).get("arguments") or [])
+
+
+def link_geforce_now(games, cloud):
+    """Gives every Steam game something blocks (AreWeAntiCheatYet or profiles/mac.json, "notYet"
+    too) its GeForce Now id, in place, when GeForce Now streams it and the profile doesn't name
+    one itself."""
+    for key, profile in games.items():
+        if key in cloud and (profile.get("antiCheat") or profile.get("antiCheatOnline") or profile.get("notYet")):
+            profile.setdefault("geforceNow", cloud[key])
+
+
+def merge_mac(games, mac_games):
+    """Nightforge's own profiles over upstream's, in place. A profile's "gog" list names the same
+    game's GOG product IDs: each gets the merged profile as "gog.<id>" (Nightforge's GOG games
+    carry their product ID), so a fix tested on one version reaches the other."""
+    for app_id, own in mac_games.items():
+        base = {} if own.get("ignoreUpstream") else games.get(app_id, {})
+        merged = {**base, **{k: v for k, v in own.items() if k not in ("ignoreUpstream", "gog")}}
+        merged["source"] = "mac" if not base else base["source"] + "+mac"
+        games[app_id] = merged
+        for product_id in own.get("gog", []):
+            if str(product_id).isdigit():
+                games["gog." + str(product_id)] = merged
 
 
 def git_commit(path: pathlib.Path) -> str:
@@ -258,34 +376,46 @@ def main() -> int:
         },
     }
     blocked = 0
+    cloud, titles = {}, {}
     if options.anticheat:
-        cloud = {}
         if options.geforcenow:
-            cloud = geforce_now_ids(json.loads(options.geforcenow.read_text(encoding="utf-8")))
+            catalog = json.loads(options.geforcenow.read_text(encoding="utf-8"))
+            cloud, titles = geforce_now_ids(catalog), steam_titles(catalog)
             sources["geforce-now"] = {"url": "https://play.geforcenow.com"}
-        for app_id, block in anticheat_blocks(json.loads(options.anticheat.read_text(encoding="utf-8"))).items():
+        anticheat = json.loads(options.anticheat.read_text(encoding="utf-8"))
+        for app_id, block in anticheat_blocks(anticheat, titles).items():
+            if starts_without_anticheat(games.get(app_id)):
+                if "antiCheatOnline" in block:
+                    continue
+                block = {"name": block["name"], "antiCheatOnline": block["antiCheat"]}
             profile = games.setdefault(app_id, {"name": block["name"], "source": "anticheat"})
             for field in ("antiCheat", "antiCheatOnline"):
                 if field in block:
                     profile[field] = block[field]
-            if app_id in cloud:
-                profile["geforceNow"] = cloud[app_id]
+            blocked += 1
+        # Epic games by catalog namespace; older Nightforge versions skip keys that aren't numbers.
+        for key, block in epic_anticheat_blocks(anticheat, titles).items():
+            profile = {"name": block["name"], "source": "anticheat"}
+            for field in ("antiCheat", "antiCheatOnline"):
+                if field in block:
+                    profile[field] = block[field]
+            if block.get("steam") in cloud:
+                profile["geforceNow"] = cloud[block["steam"]]
+            games[key] = profile
             blocked += 1
         sources["areweanticheatyet"] = {"url": "https://areweanticheatyet.com", "license": "MIT"}
 
     mac = json.loads(options.mac.read_text(encoding="utf-8"))
-    for app_id, own in mac.get("games", {}).items():
-        base = {} if own.get("ignoreUpstream") else games.get(app_id, {})
-        merged = {**base, **{k: v for k, v in own.items() if k != "ignoreUpstream"}}
-        merged["source"] = "mac" if not base else base["source"] + "+mac"
-        games[app_id] = merged
+    merge_mac(games, mac.get("games", {}))
+    link_geforce_now(games, cloud)
 
     document = {
         "formatVersion": FORMAT_VERSION,
         "sources": sources | {
             "mac": {"url": "https://github.com/LordHayne/Nightforge/blob/main/profiles/mac.json"},
         },
-        "games": dict(sorted(games.items(), key=lambda item: int(item[0]))),
+        # Steam app IDs by number, then the other stores' keys ("epic.<namespace>", "gog.<product ID>").
+        "games": dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0]))),
     }
     previous = None
     if options.out.exists():

@@ -47,7 +47,7 @@ enum SteamPriority {
         [ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"
         """#
         guard (try? text.write(to: script, atomically: true, encoding: .utf8)) != nil else { return }
-        let process = Process()
+        let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, Engine.supportDir.appendingPathComponent("steam-priority.pid").path, pattern] + helpers
         process.standardInput = FileHandle.nullDevice

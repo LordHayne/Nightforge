@@ -1,0 +1,492 @@
+{
+ "inDevelopment": {
+  "active": false
+ },
+ "copyrights": "© 1998–2016 Take-Two Interactive Software, Inc., and its subsidiaries. Mafia ® II developed by 2K Czech. 2K Czech, the 2K Czech logo, 2K Games, the 2K Games logo, Illusion Engine, Mafia, Mafia II, the Mafia II logo and Take-Two Interactive Software are all trademarks and/or registered trademarks of Take-Two Interactive Software, Inc. All other marks are property of their respective owners. All rights reserved.",
+ "isUsingDosBox": false,
+ "technologies": [],
+ "releaseStatus": "unavailable",
+ "description": "<p class=\"module\" style=\"padding: 15px; margin-top: 5px;\">\n<span style=\"font-weight: 600; display: block; padding-bottom: 2px;\">\nMafia II Complete enthält Mafia II und die folgenden DLCs: Joe's Adventures,\nThe Betrayal of Jimmy, Jimmy's Vendetta, War Hero, Greaser, Vegas, Renegade und Made Man</span></p>\n<br><br>\nVito Scaletta ist dabei, sich auf den Straßen von Empire Bay einen Namen zu machen – als jemand, dem man jeden Job anvertrauen kann, der erledigt werden muss. Zusammen mit seinem Kumpel Joe arbeitet er hart daran, sich in der Mafia zu beweisen und die Leiter der Famiglia zu erklimmen. Doch dafür sind Verbrechen nötig, die zwar größere Belohnungen und mehr Status einbringen, aber auch schwerwiegende Konsequenzen haben ... als Mafioso ist man längst nicht so unberührbar wie es scheint.\n<br>\n<ul><li>Actionreiches Gameplay: Spannenden Feuergefechte, schweißtreibende Verfolgungsjagden und brutale Faustkämpfe – all dies und mehr musst du bewältigen, wenn du es bis ganz nach oben schaffen willst. </li><li>Epische Gangster-Geschichte: Inspiriert von berühmten Mafia-Dramen. Die vielschichtigen Charaktere und die kinoreife Präsentation ziehen die Spieler in das verführerische Leben der Mafia, aus dem es kein Entkommen gibt. </li><li>Fesselnde Welt und Zeit: Betritt die Welt von Empire Bay – in Europa tobt der Zweite Weltkrieg und Architektur, Autos, Musik und Kleidung erwecken diese Zeit atemberaubend detailreich zu neuem Leben. Mit der Zeit spiegeln Hot Rods, Mode der 50er und die beste Musik der Ära die Geburt eines neuen Jahrzehnts wieder. </li><li>Illusion Engine™: 2K Czechs eigene Illusion Engine erlaubt es den Spielern, die zehn Quadratmeter große Stadt Empire Bay mit wunderschönen Außenumgebungen und detaillierten Innenbereichen zu erforschen. </li><li>Soundtrack spiegelt die Stimmung der Ära wieder: Spieler werden dank einiger der besten Musikstücke der einflussreichsten Künstler der Zeit in die goldene Zeit Amerikas gezogen.</li></ul>",
+ "size": 7725,
+ "overview": "<p class=\"module\" style=\"padding: 15px; margin-top: 5px;\">\n<span style=\"font-weight: 600; display: block; padding-bottom: 2px;\">\nMafia II Complete enthält Mafia II und die folgenden DLCs: Joe's Adventures,\nThe Betrayal of Jimmy, Jimmy's Vendetta, War Hero, Greaser, Vegas, Renegade und Made Man</span></p>\n<br><br>\nVito Scaletta ist dabei, sich auf den Straßen von Empire Bay einen Namen zu machen – als jemand, dem man jeden Job anvertrauen kann, der erledigt werden muss. Zusammen mit seinem Kumpel Joe arbeitet er hart daran, sich in der Mafia zu beweisen und die Leiter der Famiglia zu erklimmen. Doch dafür sind Verbrechen nötig, die zwar größere Belohnungen und mehr Status einbringen, aber auch schwerwiegende Konsequenzen haben ... als Mafioso ist man längst nicht so unberührbar wie es scheint.\n<br>\n<ul><li>Actionreiches Gameplay: Spannenden Feuergefechte, schweißtreibende Verfolgungsjagden und brutale Faustkämpfe – all dies und mehr musst du bewältigen, wenn du es bis ganz nach oben schaffen willst. </li><li>Epische Gangster-Geschichte: Inspiriert von berühmten Mafia-Dramen. Die vielschichtigen Charaktere und die kinoreife Präsentation ziehen die Spieler in das verführerische Leben der Mafia, aus dem es kein Entkommen gibt. </li><li>Fesselnde Welt und Zeit: Betritt die Welt von Empire Bay – in Europa tobt der Zweite Weltkrieg und Architektur, Autos, Musik und Kleidung erwecken diese Zeit atemberaubend detailreich zu neuem Leben. Mit der Zeit spiegeln Hot Rods, Mode der 50er und die beste Musik der Ära die Geburt eines neuen Jahrzehnts wieder. </li><li>Illusion Engine™: 2K Czechs eigene Illusion Engine erlaubt es den Spielern, die zehn Quadratmeter große Stadt Empire Bay mit wunderschönen Außenumgebungen und detaillierten Innenbereichen zu erforschen. </li><li>Soundtrack spiegelt die Stimmung der Ära wieder: Spieler werden dank einiger der besten Musikstücke der einflussreichsten Künstler der Zeit in die goldene Zeit Amerikas gezogen.</li></ul>",
+ "featuresDescription": "",
+ "additionalRequirements": "<b>ACCEPTANCE OF <a href=\"https://items.gog.com/eula/1816059595/windows/eula_en-US.html\">END USER LICENSE AGREEMENT</a> REQUIRED TO PLAY</b><br><br>Notice: Leaderboard functionality not supported in the GOG version of Mafia II: Director's Cut.\n<br><br>\nSoundtrack notice: This title has a modified soundtrack from the original release",
+ "_embedded": {
+  "product": {
+   "isAvailableForSale": false,
+   "isVisibleInCatalog": false,
+   "isPreorder": false,
+   "isVisibleInAccount": true,
+   "id": 1816059595,
+   "title": "Mafia II (Classic)",
+   "isInstallable": true,
+   "globalReleaseDate": "2011-03-22T00:00:00+01:00",
+   "hasProductCard": false,
+   "gogReleaseDate": "2018-03-30T09:55:00+02:00",
+   "category": "GAME",
+   "hasPatrons": false,
+   "hasHowLongToBeatInformation": true,
+   "hasDreamlistStories": true,
+   "hasOpenCriticInformation": true,
+   "hasFaqInformation": true,
+   "isSecret": false,
+   "_links": {
+    "image": {
+     "href": "https://images.gog-statics.com/dc14f7c4609bd284835bf7dfab0e547ca4c93bca7c0326274ba1c46e97351772_{formatter}.png",
+     "templated": true,
+     "formatters": [
+      "800",
+      "1600",
+      "glx_logo",
+      "glx_logo_2x",
+      "product_630",
+      "product_630_2x"
+     ]
+    },
+    "checkout": {
+     "href": "https://www.gog.com/de/checkout/manual/1816059595"
+    },
+    "prices": {
+     "href": "https://api.gog.com/products/1816059595/prices?countryCode={country}",
+     "templated": true
+    }
+   }
+  },
+  "productType": "GAME",
+  "localizations": [
+   {
+    "_embedded": {
+     "language": {
+      "code": "cz",
+      "name": "Czech"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "cz",
+      "name": "Czech"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "de",
+      "name": "German"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "de",
+      "name": "German"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "en",
+      "name": "English"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "en",
+      "name": "English"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "es",
+      "name": "Spanish"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "es",
+      "name": "Spanish"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "fr",
+      "name": "French"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "fr",
+      "name": "French"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "it",
+      "name": "Italian"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "it",
+      "name": "Italian"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "pl",
+      "name": "Polish"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "ru",
+      "name": "Russian"
+     },
+     "localizationScope": {
+      "type": "audio"
+     }
+    }
+   },
+   {
+    "_embedded": {
+     "language": {
+      "code": "ru",
+      "name": "Russian"
+     },
+     "localizationScope": {
+      "type": "text"
+     }
+    }
+   }
+  ],
+  "screenshots": [
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/705714c9b80a8ce1bc947621a849c527b279a28591187749aa0f39ab049c2e9e_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/a559aa55e6f2912f46db5ec89d833ed78d332323eb6ddf3eb89536f86f59c288_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/77542f6d6edea44241fc3efc41db4f9223ea2e5f5b6e6a5cb133c15f1c6812d1_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/e63e312187ddc003ad8cc30f55b253a9e431764a0045c9563fa0f997b4349dcb_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/2c10b6c1c128c9e03ddbc109fe1df8ebde300578d415a24be355bf8c10fe3805_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/94627aca6b7d50cbb3f11c1e081058086dcec30d9d13856bc3b495e0800ab4b3_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/07b4ded5755b30470cc214ccd2a7cc14f7a45a5a25c569706cbd1457f3d8ee73_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/1adeaf49eb01431e9c2a0d2d6324934809fbb7141d6435f4f4dc16e117927d8b_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/22b7ba678fc9ccec23cc23196a7d06a0a3855221735c8868d22932f427c083dd_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/c17bcb3ba1aee45cce3c2545046604b7de4e959435b8828d6bc82a4f5b5ea233_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   },
+   {
+    "_links": {
+     "self": {
+      "href": "https://images.gog-statics.com/03d84f86057d818822ffe371f801ae2c7c89795fac8b77d48f76e0a21b8fcc0a_{formatter}.jpg",
+      "templated": true,
+      "formatters": [
+       "product_card_screenshot_112",
+       "product_card_screenshot_748",
+       "product_card_screenshot_748_2x",
+       "1600"
+      ]
+     }
+    }
+   }
+  ],
+  "publisher": {
+   "name": "2K Games",
+   "searchIndex": "2k-games"
+  },
+  "publishers": [
+   {
+    "name": "2K Games",
+    "searchIndex": "2k-games"
+   }
+  ],
+  "developers": [
+   {
+    "name": "2K Czech",
+    "searchIndex": "2k-czech"
+   }
+  ],
+  "tags": [
+   {
+    "id": 60,
+    "name": "Action",
+    "level": 1,
+    "slug": "action"
+   },
+   {
+    "id": 69,
+    "name": "Abenteuer",
+    "level": 2,
+    "slug": "adventure"
+   },
+   {
+    "id": 123,
+    "name": "Open-World",
+    "level": 3,
+    "slug": "open-world"
+   }
+  ],
+  "esrbRating": {
+   "category": {
+    "name": "Mature 17+",
+    "id": 18
+   },
+   "contentDescriptors": [
+    {
+     "descriptor": "Intense Violence",
+     "id": 26
+    },
+    {
+     "descriptor": "Blood",
+     "id": 30
+    },
+    {
+     "descriptor": "Nudity",
+     "id": 38
+    },
+    {
+     "descriptor": "Sexual Content",
+     "id": 41
+    },
+    {
+     "descriptor": "Strong Language",
+     "id": 46
+    },
+    {
+     "descriptor": "Use of Drugs and Alcohol",
+     "id": 57
+    }
+   ],
+   "ageRating": 17
+  },
+  "pegiRating": {
+   "ageRating": 18,
+   "contentDescriptors": [
+    {
+     "descriptor": "Schimpfworte"
+    },
+    {
+     "descriptor": "Gewaltdarstellung"
+    }
+   ]
+  },
+  "uskRating": {
+   "ageRating": 18,
+   "category": {
+    "name": "Not approved for young persons aged under 18"
+   }
+  },
+  "features": [
+   {
+    "name": "Erfolge",
+    "id": "achievements"
+   },
+   {
+    "name": "Cloud-Speicherstände",
+    "id": "cloud_saves"
+   },
+   {
+    "name": "Controller-Unterstützung",
+    "id": "controller_support"
+   },
+   {
+    "name": "Einblendungen",
+    "id": "overlay"
+   },
+   {
+    "name": "Einzelspieler",
+    "id": "single"
+   }
+  ],
+  "series": {
+   "id": 2905,
+   "name": "Mafia"
+  }
+ }
+}

@@ -1,57 +1,282 @@
 import SwiftUI
 
-/// First-run screen: one button, then a short checklist that fills itself in.
+/// The first start on Home: a welcome, the setup's checklist that fills itself in, the library
+/// check, and how many of the games run here.
 struct SetupView: View {
+    @ObservedObject var setup: SetupModel
+    /// Steam for Mac, which gets ready alongside and signs in right after the library is known.
+    @ObservedObject var macSteam: MacSteamPrep
+
+    var body: some View {
+        Group {
+            switch setup.stage {
+            case .welcome:
+                WelcomePage(setup: setup)
+            case .checklist:
+                ChecklistPage(setup: setup, macSteam: macSteam)
+            case .checking(let check):
+                CheckingPage(check: check, replay: setup.isReplay, macSteam: macSteam) { setup.close() }
+            case .reveal(let reveal):
+                RevealPage(reveal: reveal, macLater: macSteam.state == .later) { setup.close() }
+            }
+        }
+        .transition(.opacity.combined(with: .offset(y: 10)))
+        .animation(.easeOut(duration: 0.3), value: setup.stage)
+    }
+}
+
+private struct WelcomePage: View {
     @ObservedObject var setup: SetupModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 26) {
+        VStack(alignment: .leading, spacing: 28) {
             VStack(alignment: .leading, spacing: 14) {
-                Text(setup.phase == .idle ? L10n.t("Welcome to Nightforge") : L10n.t("Connecting Steam"))
-                    .font(Theme.display(40))
+                Text(L10n.t("Welcome to Nightforge"))
+                    .displayFont(48)
                     .foregroundStyle(Theme.ink)
-                Text(L10n.t("Nightforge sets up everything your Windows games need – free, in the background, in a few minutes. You only sign in to Steam."))
-                    .font(.system(size: 15))
+                    .accessibilityAddTraits(.isHeader)
+                Text(SetupModel.welcomeText(replay: setup.isReplay))
+                    .font(size: 16)
                     .foregroundStyle(Theme.muted)
                     .frame(maxWidth: 560, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            HStack(spacing: 14) {
+                SetupButton(title: L10n.t("Let's Go"), symbol: "arrow.right", preferred: true) { setup.begin() }
+                if setup.isReplay {
+                    SkipButton { setup.close() }
+                }
+            }
+        }
+    }
+}
 
-            if setup.phase != .idle {
-                StepList(setup: setup)
+private struct ChecklistPage: View {
+    @ObservedObject var setup: SetupModel
+    @ObservedObject var macSteam: MacSteamPrep
+
+    /// A narrow window keeps only the checklist.
+    @State private var wide = true
+
+    /// Beside the checklist, while Steam installs and updates itself: something to do – the
+    /// controller test and the tips (SetupSidePanel).
+    var body: some View {
+        HStack(alignment: .center, spacing: 40) {
+            checklist
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if wide {
+                SetupSidePanel(paused: setup.phase == .waitingForSignIn)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 1080 } action: { wide = $0 }
+    }
+
+    private var checklist: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            Text(L10n.t("Connecting Steam"))
+                .displayFont(40)
+                .foregroundStyle(Theme.ink)
+                .accessibilityAddTraits(.isHeader)
+
+            StepList(setup: setup)
+            if macSteam.state != .idle {
+                MacSteamStep(prep: macSteam)
+                    .transition(.opacity)
+            }
+
+            if let note = SetupModel.signInNote(phase: setup.phase, steamStarting: setup.steamStarting) {
+                QRNote(text: macSteam.secondCodeFollows ? note + " " + MacSteamPrep.secondCodeAhead : note)
+                    .transition(.opacity)
             }
 
             actions
         }
         .animation(.easeOut(duration: 0.25), value: setup.phase)
+        .animation(.easeOut(duration: 0.25), value: setup.steamStarting)
+        .animation(.easeOut(duration: 0.25), value: macSteam.state)
     }
 
     @ViewBuilder private var actions: some View {
         switch setup.phase {
-        case .idle:
-            SetupButton(title: L10n.t("Connect Steam"), symbol: "link") { setup.start() }
-
-        case .running:
+        case .idle, .running, .done:
             EmptyView()
 
         case .needsRosetta:
             Note(L10n.t("Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license."))
-            SetupButton(title: L10n.t("Install Rosetta"), symbol: "arrow.down.circle") { setup.installRosetta() }
+            SetupButton(title: L10n.t("Install Rosetta"), symbol: "arrow.down.circle", preferred: true) { setup.installRosetta() }
 
         case .waitingForSignIn:
-            Note(L10n.t("Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login."))
             Button(L10n.t("Show Steam window again")) { setup.reopenSteam() }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .padFocus("setup.showSteam", activate: { setup.reopenSteam() })
+                .buttonStyle(GlassTextButtonStyle())
+                .padFocus("setup.showSteam", cornerRadius: 21, preferred: true, activate: { setup.reopenSteam() })
 
         case .failed(_, let message):
             Note(message, isError: true)
-            SetupButton(title: L10n.t("Try again"), symbol: "arrow.clockwise") { setup.start() }
-
-        case .done:
-            EmptyView()
+            SetupButton(title: L10n.t("Try again"), symbol: "arrow.clockwise", preferred: true) { setup.start() }
         }
+    }
+}
+
+/// Steam's sign-in window and its QR code for the Steam app on the phone.
+private struct QRNote: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "qrcode")
+                .font(size: 17, weight: .semibold, scales: false)
+                .foregroundStyle(Theme.ink)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(size: 14)
+                .foregroundStyle(Theme.ink.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .frame(maxWidth: 560, alignment: .leading)
+        .background(GlassBackground(glass: .regular, shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Steam for Mac's row under the checklist: it gets ready alongside the other steps, so it has a
+/// state of its own.
+private struct MacSteamStep: View {
+    @ObservedObject var prep: MacSteamPrep
+
+    var body: some View {
+        StepRow(title: MacSteamPrep.stepTitle, state: state, progress: prep.progress, detail: prep.detail)
+    }
+
+    private var state: StepRow.State {
+        switch prep.state {
+        case .idle, .ready: return .pending
+        case .preparing: return .active
+        case .signingIn: return .waiting
+        case .done, .later: return .done
+        case .failed: return .failed
+        }
+    }
+}
+
+/// The second code, once the library says which games have a Mac version: Steam for Mac's sign-in
+/// window, with the window again and "Later" (Esc or B).
+private struct MacSignInCard: View {
+    @ObservedObject var prep: MacSteamPrep
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            MacSteamStep(prep: prep)
+            QRNote(text: MacSteamPrep.signInNote(macVersions: prep.macVersions))
+            HStack(spacing: 12) {
+                Button(L10n.t("Show Steam window again")) { prep.showWindow() }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("setup.macSteam.show", cornerRadius: 21, preferred: true, activate: { prep.showWindow() })
+                Button(L10n.t("Later")) { prep.later() }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("setup.macSteam.later", cornerRadius: 21, activate: { prep.later() })
+            }
+        }
+    }
+}
+
+/// "Checking your library … N of M games", while Steam sends the library and each game is looked up.
+/// Then, when the library has Mac versions, Steam for Mac's code (MacSignInCard) in place of "Skip".
+private struct CheckingPage: View {
+    let check: LibraryCheck
+    let replay: Bool
+    @ObservedObject var macSteam: MacSteamPrep
+    let skip: () -> Void
+
+    var body: some View {
+        let texts = SetupModel.checkingTexts(check, replay: replay)
+        VStack(alignment: .leading, spacing: 18) {
+            SectionTitle(L10n.t("Checking your library"))
+            Text(texts.headline)
+                .displayFont(48).monospacedDigit()
+                .foregroundStyle(Theme.ink)
+                .contentTransition(.numericText())
+                .accessibilityAddTraits(.isHeader)
+            Group {
+                if let fraction = check.fraction {
+                    GlassProgressBar(value: fraction, height: 6)
+                } else {
+                    HStack(spacing: 10) {
+                        GlassSpinner()
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .frame(width: 420)
+            Text(texts.line)
+                .font(size: 15)
+                .foregroundStyle(Theme.muted)
+            if macSteam.state == .signingIn {
+                MacSignInCard(prep: macSteam)
+                    .padding(.top, 14)
+                    .transition(.opacity)
+            } else {
+                // Steam for Mac still on its way: what it does, so the wait for its code says why.
+                if macSteam.isGettingReady {
+                    MacSteamStep(prep: macSteam)
+                        .padding(.top, 14)
+                        .transition(.opacity)
+                }
+                SkipButton(action: skip)
+                    .padding(.top, 8)
+            }
+        }
+        .animation(.easeOut(duration: 0.25), value: macSteam.state)
+    }
+}
+
+/// How many of the games run here, then "Let's Play". Epic Games is added in Settings › Stores.
+private struct RevealPage: View {
+    let reveal: LibraryReveal
+    /// Steam for Mac's code was put off: the Mac versions come the first time one is played.
+    let macLater: Bool
+    let play: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SectionTitle(L10n.t("Your library on this Mac"))
+            Text(reveal.headline)
+                .displayFont(48)
+                .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            if reveal.total > 0 {
+                LibraryRevealView(reveal: reveal)
+                    .frame(maxWidth: 760, alignment: .leading)
+                if let line = reveal.macLine(later: macLater) {
+                    Label(line, systemImage: "laptopcomputer")
+                        .font(size: 14)
+                        .foregroundStyle(Theme.ink.opacity(0.9))
+                        .frame(maxWidth: 760, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text(L10n.t("Your Steam library has no games yet – the ones you get in Steam show up here by themselves."))
+                    .font(size: 15)
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: 560, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            SetupButton(title: L10n.t("Let's Play"), symbol: "play.fill", preferred: true, action: play)
+                .padding(.top, 6)
+        }
+    }
+}
+
+private struct SkipButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(L10n.t("Skip"), action: action)
+            .buttonStyle(GlassTextButtonStyle())
+            .padFocus("setup.skip", cornerRadius: 21, activate: action)
     }
 }
 
@@ -61,10 +286,12 @@ private struct StepList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(SetupModel.Step.allCases) { step in
+                let state = state(of: step)
                 StepRow(
                     title: step.title,
-                    state: state(of: step),
-                    progress: setup.currentStep() == step ? setup.progress : nil
+                    state: state,
+                    progress: setup.currentStep() == step ? setup.progress : nil,
+                    detail: state == .done ? setup.summaries[step] : state == .active ? setup.detail : nil
                 )
             }
         }
@@ -88,6 +315,8 @@ struct StepRow: View {
     let title: String
     let state: State
     let progress: Double?
+    /// What it's doing right now, or (done) how long it took – the first start's checklist.
+    var detail: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -96,31 +325,42 @@ struct StepRow: View {
                 case .pending:
                     Circle().strokeBorder(Theme.muted.opacity(0.5), lineWidth: 1.5)
                 case .active:
-                    ProgressView().controlSize(.small)
+                    GlassSpinner()
                 case .waiting:
                     Image(systemName: "hand.point.right.fill").foregroundStyle(Theme.sodium)
                 case .done:
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.sodium)
                 case .failed:
-                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
+                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Theme.danger)
                 }
             }
-            .font(.system(size: 17, weight: .semibold))
+            .font(size: 17, weight: .semibold, scales: false)
             .frame(width: 20, height: 20)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(.system(size: 15, weight: state == .pending ? .regular : .semibold))
+                    .font(size: 15, weight: state == .pending ? .regular : .semibold)
                     .foregroundStyle(state == .pending ? Theme.muted : Theme.ink)
                 if let progress {
-                    ProgressView(value: progress)
-                        .tint(Theme.sodium)
+                    GlassProgressBar(value: progress)
                         .frame(width: 320)
-                    Text("\(Int(progress * 100)) %")
-                        .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    if detail == nil {
+                        Text("\(Int(progress * 100)) %")
+                            .font(size: 12, weight: .medium).monospacedDigit()
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+                if let detail {
+                    Text(detail)
+                        .font(size: state == .done ? 12.5 : 13).monospacedDigit()
                         .foregroundStyle(Theme.muted)
+                        .contentTransition(.numericText())
+                        .frame(maxWidth: 560, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.25), value: detail)
         }
     }
 }
@@ -136,8 +376,8 @@ struct Note: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 14))
-            .foregroundStyle(isError ? Color(red: 1, green: 0.62, blue: 0.58) : Theme.ink.opacity(0.85))
+            .font(size: 14)
+            .foregroundStyle(isError ? Theme.errorText : Theme.ink.opacity(0.85))
             .frame(maxWidth: 560, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -146,26 +386,22 @@ struct Note: View {
 struct SetupButton: View {
     let title: String
     let symbol: String
+    /// In a dialog: where the pad's highlight starts.
+    var preferred = false
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: symbol).font(.system(size: 15, weight: .bold))
-                Text(title).font(Theme.display(17))
+                Image(systemName: symbol).font(size: 15, weight: .bold)
+                Text(title).displayFont(17)
             }
             .foregroundStyle(Theme.night)
             .padding(.horizontal, 32)
             .frame(height: 52)
-            .background(Capsule().fill(Theme.sodium))
-            .shadow(color: Theme.sodium.opacity(hovering ? 0.55 : 0.3), radius: hovering ? 24 : 14)
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.15), value: hovering)
+        .buttonStyle(GlassButtonStyle(glass: .tinted(Theme.sodium, glows: true), shape: Capsule()))
         .keyboardShortcut(.defaultAction)
-        .padFocus("setup.\(symbol)", cornerRadius: 26, activate: action)
+        .padFocus("setup.\(symbol)", cornerRadius: 26, preferred: preferred, activate: action)
     }
 }

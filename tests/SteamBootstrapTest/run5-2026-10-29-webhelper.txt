@@ -1,0 +1,20 @@
+
+
+[2026-10-29 21:36:35] Client version: no bootstrapper found
+[2026-10-29 21:36:35] Startup - webhelper launched pid: 604 commandline: "C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe" -nocrashdialog -lang=de_DE -cachedir="C:\users\crossover\AppData\Local\Steam\htmlcache" -steampid=524 -buildid=1792618285 -steamid=0 -logdir="C:\Program Files (x86)\Steam\logs" -uimode=7 -startcount=0 -steamuniverse=Public -realm=Global -clientui="C:\Program 
+[2026-10-29 21:36:35] Disabling GPU acceleration due to --disable-gpu-compositing (browser)
+
+
+[2026-10-29 21:36:40] Client version: no bootstrapper found
+[2026-10-29 21:36:40] Startup - webhelper launched pid: 404 commandline: "C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_real.exe" --disable-gpu --single-process -nocrashdialog -lang=de_DE -cachedir="C:\users\crossover\AppData\Local\Steam\htmlcache" -steampid=32 -buildid=1792618285 -steamid=0 -logdir="C:\Program Files (x86)\Steam\logs" -uimode=7 -startcount=0 -steamuniverse=Public -
+[2026-10-29 21:36:40] Disabling GPU acceleration due to --disable-gpu-compositing (browser)
+[2026-10-29 21:36:40] NVIDIA AA/sharpening profile checked in 156.5ms (changed: no)
+
+
+[2026-10-29 21:37:05] Client version: no bootstrapper found
+[2026-10-29 21:37:05] Startup - webhelper launched pid: 404 commandline: "C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_real.exe" --disable-gpu --single-process -nocrashdialog -lang=de_DE -cachedir="C:\users\crossover\AppData\Local\Steam\htmlcache" -steampid=32 -buildid=1792618285 -steamid=0 -logdir="C:\Program Files (x86)\Steam\logs" -uimode=7 -startcount=0 -steamuniverse=Public -
+[2026-10-29 21:37:05] Disabling GPU acceleration due to --disable-gpu-compositing (browser)
+[2026-10-29 21:37:05] NVIDIA AA/sharpening profile checked in 172.1ms (changed: no)
+[2026-10-29 21:37:05] src\webhelper\html_chrome.cpp (622) : CefCrashReportingEnabled()
+[2026-10-29 21:37:05] Starting message loop
+[2026-10-29 21:37:06] CreateBrowser 3420621044 type:12 flags:16777216  (-2147483648, -2147483648) 0x0 

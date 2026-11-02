@@ -8,7 +8,9 @@ if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/Command
   export SDKROOT="$CLT_SDK"
 fi
 
-OUT="$(mktemp -d)/components-smoke"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
+OUT="$WORK/components-smoke"
 swiftc -o "$OUT" \
   Sources/Nightforge/Components.swift \
   Sources/Nightforge/Strings.swift \

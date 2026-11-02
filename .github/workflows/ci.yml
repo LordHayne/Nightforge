@@ -14,7 +14,8 @@ permissions:
 
 jobs:
   test:
-    runs-on: macos-15
+    # Nightforge needs macOS 26: its SDK and a Swift that knows its APIs (Xcode 26).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

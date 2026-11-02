@@ -198,6 +198,13 @@ struct EngineLayoutTest {
         check((try? fm.destinationOfSymbolicLink(atPath: users.appendingPathComponent("crossover").path)) == "thomas", "repeating is harmless")
 
         // MARK: AVX
+        // GameLog's file lies in Application Support: only ever in the test's own home (run.sh).
+        let realHome = String(cString: getpwuid(getuid())!.pointee.pw_dir)
+        guard !GameLog.url.path.hasPrefix(realHome + "/") else {
+            check(false, "wine.log would be the player's own (\(GameLog.url.path)): run through run.sh")
+            finish()
+        }
+        gameLog()
         check(GameLog.illegalInstruction(in: "wine: Unhandled illegal instruction at address 0000000140123456"),
               "Wine's crash line is read")
         check(!GameLog.illegalInstruction(in: "err:module:import_dll Library foo.dll not found"), "other errors aren't")
@@ -208,13 +215,13 @@ struct EngineLayoutTest {
         check(!GameLog.illegalInstruction(since: UInt64.max, installDir: game, startedAt: Date().addingTimeInterval(60)),
               "an older crash report doesn't count")
         let noAVXProfile = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"avx": false}"#.utf8))
-        let app = 990_002
-        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app)")
+        let app = GameID.steam(990_002)
+        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app.key)")
         check(LearnedFixes.avx(app, profile: nil), "AVX is advertised by default")
         check(!LearnedFixes.avx(app, profile: noAVXProfile), "a profile turns it off")
         LearnedFixes.setNoAVX(app)
         check(!LearnedFixes.avx(app, profile: nil), "a learned crash turns it off")
-        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app)")
+        UserDefaults.standard.removeObject(forKey: "learned.noAVX.\(app.key)")
 
         // MARK: Steam's environment
         Engine.launchEnvironment = [:]
@@ -252,7 +259,49 @@ struct EngineLayoutTest {
         check((try? String(contentsOf: escape, encoding: .utf8)) == "a", "nothing outside the game folder is touched")
         check(!Engine.applyFileEdits(edits, installDir: game), "a second time there's nothing left to change")
 
+        finish()
+    }
+
+    static func finish() -> Never {
         print(failures == 0 ? "✓ all checks passed" : "\(failures) check(s) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// wine.log as Steam and its games write it: where a start begins, what came after, a fresh one.
+    static func gameLog() {
+        check(GameLog.mark() == 0 && GameLog.text(since: 0).isEmpty, "no log yet: nothing to read")
+        guard let steam = GameLog.handleForSteam() else { return check(false, "Steam gets the log to write to") }
+        steam.write(Data("[Steam] starting\n".utf8))
+        let start = GameLog.mark()
+        check(start == 17, "the mark is where the log ends: \(start)")
+        steam.write(Data("""
+            err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\Games\\Odd\\odd.exe") not found
+            err:   DxvkAdapter: Failed to create device
+            wine: Unhandled illegal instruction at address 0000000140123456
+
+            """.utf8))
+        try? steam.close()
+        check(GameLog.text(since: start).hasPrefix("err:module") && !GameLog.text(since: start).contains("[Steam] starting"),
+              "a start reads only what came after it")
+        check(GameLog.missingRuntimes(since: start, gameFolder: #"C:\Games\Odd"#) == ["vcrun2013"], "the runtime its program missed")
+        check(GameLog.graphicsFailed(since: start, layer: .dxvk) && !GameLog.graphicsFailed(since: GameLog.mark(), layer: .dxvk),
+              "DXVK gave up, since that start only")
+        check(!GameLog.graphicsFailed(since: start, layer: .wined3d), "which isn't a WineD3D start failing")
+        // Before every start: Wine's debugger ends a crashed game at once, with no "Program Error" window
+        // (Control 1.11.2026 ran on behind it, so its next start was turned away as "already running").
+        check(Engine.crashDialogOff == "[HKEY_CURRENT_USER\\Software\\Wine\\WineDbg]\n\"ShowCrashDialog\"=dword:00000000",
+              "Wine's crash window off, as a .reg section")
+        check(GameLog.errors(since: start).contains { $0.contains("DxvkAdapter") }, "the errors for a problem report")
+        check(GameLog.illegalInstruction(since: start, installDir: FileManager.default.temporaryDirectory, startedAt: Date()),
+              "the crash Rosetta's AVX hint causes")
+        check(GameLog.text(since: GameLog.mark() + 1_000).contains("[Steam] starting"), "a mark past the end: a fresh log, read whole")
+
+        // Grown past 8 MB: the next Steam starts a fresh log and keeps the last one beside it.
+        if let handle = FileHandle(forWritingAtPath: GameLog.url.path) { try? handle.truncate(atOffset: 8_000_001); try? handle.close() }
+        let fresh = GameLog.handleForSteam()
+        try? fresh?.close()
+        let previous = GameLog.url.deletingLastPathComponent().appendingPathComponent("wine.previous.log")
+        check(GameLog.mark() == 0 && FileManager.default.fileExists(atPath: previous.path), "a fresh log, the old one kept as wine.previous.log")
+        try? FileManager.default.removeItem(at: GameLog.url.deletingLastPathComponent())
     }
 }

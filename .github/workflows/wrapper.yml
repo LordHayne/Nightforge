@@ -2,6 +2,8 @@ name: Build steamwebhelper wrapper
 
 on:
   push:
+    # Branches only: a tag push (a release) has no branch to commit the rebuilt binary to.
+    branches: ["**"]
     paths:
       - "wrapper/steamwebhelper-wrapper.c"
   pull_request:

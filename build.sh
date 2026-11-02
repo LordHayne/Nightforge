@@ -32,6 +32,8 @@ cp profiles/profiles.json "$OUT/Contents/Resources/profiles.json"
 cp LICENSE "$OUT/Contents/Resources/LICENSE"
 cp profiles/LICENSE-umu-protonfixes "$OUT/Contents/Resources/LICENSE-umu-protonfixes"
 cp profiles/LICENSE-areweanticheatyet "$OUT/Contents/Resources/LICENSE-areweanticheatyet"
+# Apple's licence for D3DMetal, which the dialog shows before anything of Apple's is set up.
+cp Resources/Apple-GPTK-License.rtf "$OUT/Contents/Resources/Apple-GPTK-License.rtf"
 # What else is inside the app (Vulkan headers in the layer, the mingw runtime in the wrapper) and
 # what Nightforge downloads, with their licences.
 cp Resources/THIRD_PARTY_NOTICES.txt "$OUT/Contents/Resources/THIRD_PARTY_NOTICES.txt"
@@ -53,6 +55,11 @@ fi
 # Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
+
+# Starts Steam, Wine, games and downloads apart from Nightforge, so a quit Nightforge leaves the Dock
+# (wrapper/nightforge-helper.c; Nightforge makes an app of it at runtime, see Detached.swift).
+clang -arch arm64 -mmacosx-version-min=14.0 -O2 -Wall \
+  -o "$OUT/Contents/Resources/nightforge-helper" wrapper/nightforge-helper.c
 
 # Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX (x86_64,
 # loaded by Wine's Vulkan loader).

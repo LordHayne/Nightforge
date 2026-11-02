@@ -1,0 +1,55 @@
+{
+ "2672610": {
+  "success": true,
+  "data": {
+   "type": "dlc",
+   "name": "Black Myth: Wukong Deluxe Edition Upgrade",
+   "steam_appid": 2672610,
+   "required_age": 0,
+   "is_free": false,
+   "controller_support": "full",
+   "detailed_description": "Das Black Myth: Wukong Digital Deluxe Edition Upgrade enthäl…",
+   "about_the_game": "Das Black Myth: Wukong Digital Deluxe Edition Upgrade enthäl…",
+   "short_description": "Das Upgrade gewährt Besitzern der Black Myth: Wukong Digital…",
+   "fullgame": {
+    "appid": "2358720",
+    "name": "Black Myth: Wukong"
+   },
+   "supported_languages": "Englisch<strong>*</strong>, Französisch, Deutsch, Spanisch –…",
+   "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2672610/header.jpg?t=1760601579",
+   "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2672610/7bd410bc2bee6eb2ebeec24bc29b1b57a3c1ca42/capsule_231x87.jpg?t=1760601579",
+   "capsule_imagev5": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2672610/7bd410bc2bee6eb2ebeec24bc29b1b57a3c1ca42/capsule_184x69.jpg?t=1760601579",
+   "website": "https://www.gamesci.cn/wukong",
+   "pc_requirements": {
+    "minimum": "<strong>Mindestanforderungen:</strong><br><ul class=\"bb_ul\"><li>Setzt 64-Bit-Prozessor und -Betriebssystem voraus</li></ul>",
+    "recommended": "<strong>Empfohlen:</strong><br><ul class=\"bb_ul\"><li>Setzt 64-Bit-Prozessor und -Betriebssystem voraus</li></ul>"
+   },
+   "mac_requirements": {
+    "minimum": "<strong>Mindestanforderungen:</strong><br><ul class=\"bb_ul\"></ul>",
+    "recommended": "<strong>Empfohlen:</strong><br><ul class=\"bb_ul\"></ul>"
+   },
+   "linux_requirements": {
+    "minimum": "<strong>Mindestanforderungen:</strong><br><ul class=\"bb_ul\"></ul>",
+    "recommended": "<strong>Empfohlen:</strong><br><ul class=\"bb_ul\"></ul>"
+   },
+   "legal_notice": "Copyright © Game Science Interactive Technology Co., Ltd. Al…",
+   "price_overview": {
+    "currency": "EUR",
+    "initial": 1000,
+    "final": 1000,
+    "discount_percent": 0,
+    "initial_formatted": "",
+    "final_formatted": "10,--€"
+   },
+   "platforms": {
+    "windows": true,
+    "mac": false,
+    "linux": false
+   },
+   "release_date": {
+    "coming_soon": false,
+    "date": "19. Aug. 2024"
+   }
+  }
+ }
+}

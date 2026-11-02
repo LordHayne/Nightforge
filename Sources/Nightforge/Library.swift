@@ -18,7 +18,8 @@ enum InstallState: Hashable {
 }
 
 struct Game: Identifiable, Hashable {
-    let appID: Int
+    /// Which store it's from and its ID there: the key for everything Nightforge keeps per game.
+    let gameID: GameID
     let name: String
     let bottle: Bottle
     /// macOS path of the Steam install inside the bottle
@@ -35,6 +36,17 @@ struct Game: Identifiable, Hashable {
     /// Steam stopped its download for lack of disk space: the space it needs for it (download and
     /// unpacking). Steam leaves such a download paused for good, so it waits for the player.
     var downloadNeedsSpace: Int64?
+    /// Installed in a Steam library on a drive that isn't connected (its name, "T7"): plays once
+    /// it's plugged in, and must not be downloaded again meanwhile.
+    var missingDrive: String?
+    /// Add-ons the player owns for it, which download and update with it (Epic's DLCs), by name.
+    var addOns: [String] = []
+    /// Not on the Mac yet: what the download comes to, when that's less than `sizeOnDisk` (Epic's
+    /// files come compressed). Steam's games say only the one size.
+    var downloadSize: Int64?
+    /// Installed, with an update Steam has to download before it starts: what's left of it
+    /// (0 while Steam hasn't worked the size out).
+    var pendingUpdate: Int64?
     /// Name of the folder under steamapps/common (needed to ask Steam for a download).
     var installDirName = ""
     /// Steam also sells a macOS version (which may or may not run on current Macs).
@@ -49,6 +61,13 @@ struct Game: Identifiable, Hashable {
     var windowsBuild = true
     /// Playable with a controller (from the couch) – or only in part, or not.
     var controller = ControllerSupport.none
+    /// … and a store said so: Steam always does, Epic and GOG only through the same game on Steam
+    /// (GameInfoStore) or GOG's own page.
+    var controllerKnown = false
+    /// How it's played: single-player, online or local co-op, split screen (GameInfo).
+    var playModes: Set<PlayMode> = []
+    /// An Epic or GOG game's twin on Steam: its profile, art and store data go by that app ID.
+    var steamTwin: Int?
     /// Its anti-cheat stops it on a Mac (Windows versions only).
     var antiCheatBlock: AntiCheatBlock?
     /// Steam lists no single-player mode: there's nothing to play without going online.
@@ -68,16 +87,103 @@ struct Game: Identifiable, Hashable {
     var macPending: InstallState?
     /// Keeps a game's place in the list when it changes version.
     var listID: String?
+    /// Where another store keeps the game's art (Steam's comes from its own cache and CDN).
+    var art: StoreArt?
     /// Store hits only: price as shown in the store, and the Metacritic score.
     var storePrice: String?
     var metascore: Int?
+    /// … and it costs nothing: Steam adds its licence when asked to install it, as for a demo.
+    var storeFree = false
+    /// A demo, standing in for the game it's the demo of (that game's app ID): the account doesn't own it.
+    var demoOf: Int?
+    /// … and Steam still has to add the demo's free licence to the account, which takes one click in Steam.
+    var demoNeedsLicense = false
+    /// Steam took the download request but won't fetch it – the account doesn't own the game – so it
+    /// shows as a store entry, not as a download that never starts. Cancelling removes the request.
+    var downloadRefused = false
+    /// The same game from the player's other stores (DuplicateGames): one card for all of them. This
+    /// entry is the store it starts, downloads and uninstalls through; the others follow in the
+    /// order they'd take over.
+    var others: [Game] = []
 
-    var id: String { listID ?? "\(bottle.name)#\(appID)" }
+    init(gameID: GameID, name: String, bottle: Bottle, steamRoot: URL, steamExeWindowsPath: String,
+         installDir: URL, sizeOnDisk: Int64, lastPlayed: Date? = nil, playtimeMinutes: Int? = nil) {
+        self.gameID = gameID
+        self.name = name
+        self.bottle = bottle
+        self.steamRoot = steamRoot
+        self.steamExeWindowsPath = steamExeWindowsPath
+        self.installDir = installDir
+        self.sizeOnDisk = sizeOnDisk
+        self.lastPlayed = lastPlayed
+        self.playtimeMinutes = playtimeMinutes
+    }
+
+    /// A Steam game.
+    init(appID: Int, name: String, bottle: Bottle, steamRoot: URL, steamExeWindowsPath: String,
+         installDir: URL, sizeOnDisk: Int64, lastPlayed: Date? = nil, playtimeMinutes: Int? = nil) {
+        self.init(gameID: .steam(appID), name: name, bottle: bottle, steamRoot: steamRoot, steamExeWindowsPath: steamExeWindowsPath,
+                  installDir: installDir, sizeOnDisk: sizeOnDisk, lastPlayed: lastPlayed, playtimeMinutes: playtimeMinutes)
+    }
+
+    /// Steam's app ID; 0 for games from other stores, which never reach Steam's paths with it.
+    var appID: Int { gameID.steamAppID ?? 0 }
+    var provider: Provider { gameID.provider }
+
+    var id: String {
+        listID ?? (provider == .steam ? "\(bottle.name)#\(appID)" : "\(bottle.name)#\(gameID.key)")
+    }
     var isInstalled: Bool { install == .installed }
+
+    /// There's a game folder to show: installed, or on its way down – not after an uninstall, not
+    /// on a drive that's unplugged.
+    var hasFolder: Bool {
+        if case .downloading = install { return true }
+        return isInstalled
+    }
+
+    /// What a running Windows version shows in `ps` (Wine gives its Windows path): Steam's games run
+    /// from steamapps\common, Epic's from Program Files\Epic Games, GOG's from Program Files\GOG Games.
+    var windowsFolderMarker: String {
+        switch provider {
+        case .steam: return "\\steamapps\\common\\\(installDirName)\\"
+        case .epic: return "\\Epic Games\\\(installDirName)\\"
+        case .gog: return "\\GOG Games\\\(installDirName)\\"
+        }
+    }
+    /// Its files are in Nightforge's own folder (the Windows environment, GOG's Mac versions), not
+    /// on an external drive: "Remove Nightforge completely" takes them along.
+    var inNightforgeFolder: Bool {
+        (bottle.isBuiltIn || (provider == .gog && platform == .mac)) && DriveLibrary.drive(of: installDir) == nil
+    }
+    /// One of the player's own games: not a store entry, nor the demo of a game they don't own.
+    var inLibrary: Bool { install != .inStore && demoOf == nil }
+    /// What the library's count counts: the player's own games, and a demo that's on the Mac (or
+    /// downloading) – it shows under "Installed" like one of them.
+    var counted: Bool { inLibrary || install != .inStore && shown.shelfState != .notInstalled }
     /// Anti-cheat stops it on a Mac, but GeForce Now streams it: Play goes there instead.
     var playsInCloud: Bool {
         antiCheatBlock?.geforceNowURL != nil && (install == .notInstalled || install == .installed)
     }
+
+    /// The stores the player has it in, the one it starts through first.
+    var providers: [Provider] { [provider] + others.map(\.provider) }
+    /// Each store's entry of the game, the one it starts through first.
+    var entries: [Game] { [self] + others }
+    /// What Nightforge keeps per store for it: options, marks, what a start taught it.
+    var gameIDs: [GameID] { [gameID] + others.map(\.gameID) }
+    /// `id` is the entry of one of its stores.
+    func holds(_ id: String?) -> Bool { self.id == id || others.contains { $0.id == id } }
+    /// What its cover and the library show: a download under way in one of its stores, else the
+    /// store it starts through.
+    var shown: Game {
+        if case .downloading = install { return self }
+        return others.first { if case .downloading = $0.install { return true } else { return false } } ?? self
+    }
+    /// Controller support as a store says it; nil when none does.
+    var knownController: ControllerSupport? { provider == .steam || controllerKnown ? controller : nil }
+    /// Its Steam app ID, or that of the same game on Steam: what profiles and Steam's data go by.
+    var steamAppID: Int? { gameID.steamAppID ?? steamTwin }
 }
 
 extension Game {
@@ -85,12 +191,16 @@ extension Game {
     mutating func adoptCatalogFacts(_ app: CatalogApp) {
         isVROnly = app.vrOnly
         controller = app.controller
+        controllerKnown = true
+        playModes = app.modes
         onlineOnly = !app.singlePlayer
         macNative = app.macNative
         mac64 = app.mac64
         macAppleSilicon = app.macAppleSilicon
         macSize = app.macSize
         windowsBuild = app.windows
+        demoOf = app.demoOf
+        demoNeedsLicense = app.demoOf != nil && !app.owned
     }
 }
 
@@ -131,7 +241,7 @@ enum LibraryScanner {
         func rank(_ game: Game) -> Int {
             // Switched to its Mac version but still playable (Play fetches it): keeps its place.
             if game.windowsLeftover != nil { return 0 }
-            switch game.install {
+            switch game.shelfState {
             case .installed: return 0
             case .downloading: return 1
             case .notInstalled: return 2
@@ -140,7 +250,7 @@ enum LibraryScanner {
         }
         return games.sorted { a, b in
             if rank(a) != rank(b) { return rank(a) < rank(b) }
-            if a.install == .notInstalled {
+            if a.shelfState == .notInstalled {
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
             switch (a.lastPlayed, b.lastPlayed) {
@@ -167,6 +277,7 @@ enum LibraryScanner {
             guard fm.fileExists(atPath: steamRoot.appendingPathComponent("steam.exe").path) else { continue }
 
             let usage = readUsage(steamRoot: steamRoot)
+            var found: [(game: Game, manifest: URL)] = []
 
             for steamapps in libraryFolders(steamRoot: steamRoot, bottle: bottle) {
                 for manifest in manifests(in: steamapps) {
@@ -175,12 +286,14 @@ enum LibraryScanner {
                         steamRoot: steamRoot, steamExe: candidate.exe, usage: usage
                     ), !seen.contains(game.appID) else { continue }
                     seen.insert(game.appID)
-                    result.append(game)
+                    found.append((game, manifest))
                 }
             }
+            result += markRefused(found, steamRoot: steamRoot)
 
-            // What Steam knows about each game: VR only, a Mac version.
-            let catalog = SteamCatalog.ownedGames(steamRoot: steamRoot)
+            // What Steam knows about each game: VR only, a Mac version. Games the account doesn't own
+            // (an expired free weekend, a store page looked at) come as their demo or from the store.
+            let catalog = SteamCatalog.ownedGames(steamRoot: steamRoot) + SteamCatalog.unownedGames(steamRoot: steamRoot)
             let known = Dictionary(catalog.map { ($0.appID, $0) }, uniquingKeysWith: { first, _ in first })
             for index in result.indices {
                 guard let app = known[result[index].appID] else { continue }
@@ -201,7 +314,7 @@ enum LibraryScanner {
                         lastPlayed: usage[app.appID]?.lastPlayed,
                         playtimeMinutes: usage[app.appID]?.playtimeMinutes
                     )
-                    game.install = .notInstalled
+                    game.install = app.owned || app.demoOf != nil ? .notInstalled : .inStore
                     game.installDirName = app.installDir
                     game.adoptCatalogFacts(app)
                     result.append(game)
@@ -218,9 +331,9 @@ enum LibraryScanner {
         guard FileManager.default.fileExists(atPath: root.appendingPathComponent("steamapps").path) else { return [] }
         let bottle = Bottle(name: MacSteam.bottle.name, url: root)
         let usage = readUsage(steamRoot: root)
-        let catalog = Dictionary(SteamCatalog.ownedGames(steamRoot: root).map { ($0.appID, $0) },
+        let catalog = Dictionary((SteamCatalog.ownedGames(steamRoot: root) + SteamCatalog.unownedGames(steamRoot: root)).map { ($0.appID, $0) },
                                  uniquingKeysWith: { first, _ in first })
-        var result: [Game] = []
+        var found: [(game: Game, manifest: URL)] = []
         var seen = Set<Int>()
         for steamapps in libraryFolders(steamRoot: root, bottle: bottle) {
             for manifest in manifests(in: steamapps) {
@@ -234,16 +347,53 @@ enum LibraryScanner {
                 }
                 if let app = catalog[game.appID] { game.adoptCatalogFacts(app) }
                 game.macNative = true
-                result.append(game)
+                found.append((game, manifest))
             }
         }
-        return result
+        return markRefused(found, steamRoot: root)
+    }
+
+    // MARK: - Downloads Steam won't fetch
+
+    /// Requested downloads (Engine.requestDownload) Steam won't fetch become store entries
+    /// (`downloadRefused`) instead of sitting at "Preparing download …" for good.
+    private static func markRefused(_ found: [(game: Game, manifest: URL)], steamRoot: URL) -> [Game] {
+        let waiting = found.filter { $0.game.install == .downloading(nil) }
+        guard !waiting.isEmpty else { return found.map(\.game) }
+        let signedIn = Engine.signedIn(steamRoot: steamRoot)
+        let busy = found.contains { if case .downloading(.some) = $0.game.install { return true } else { return false } }
+        return found.map { game, manifest in
+            guard game.install == .downloading(nil) else { return game }
+            let modified = (try? manifest.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
+            let lastOwner = VDF.parse(contentsOf: manifest)?["appstate"]?["lastowner"]?.string
+            guard downloadRefused(lastOwner: lastOwner, unchangedFor: Date().timeIntervalSince(modified),
+                                  owned: SteamCatalog.owns(game.appID, steamRoot: steamRoot),
+                                  signedIn: signedIn, otherDownloadRunning: busy)
+            else { return game }
+            var refused = game
+            refused.install = .inStore
+            refused.downloadRefused = true
+            return refused
+        }
+    }
+
+    /// Steam has a download request but won't act on it: the account doesn't own the game. Known
+    /// from the licence list (`owned`); without one, from Steam rewriting the manifest with no owner
+    /// ("LastOwner" "0") while it's signed in and busy with no other download. Either way only once
+    /// the manifest has sat unchanged for a minute: a demo Steam is still adding the free licence
+    /// for gets that long. An owner Steam has written settles it the other way.
+    static func downloadRefused(lastOwner: String?, unchangedFor: TimeInterval, owned: Bool?,
+                                signedIn: Bool, otherDownloadRunning: Bool) -> Bool {
+        guard unchangedFor >= 60 else { return false }
+        if let lastOwner, lastOwner != "0" { return false }
+        if let owned { return !owned }
+        return lastOwner == "0" && signedIn && !otherDownloadRunning
     }
 
     /// One entry per game: the Windows scan's, switched to the Mac version where VersionChoice
     /// says so, plus Mac versions in Steam for Mac that no scanned Windows Steam knows.
     static func merge(_ windows: [Game], mac: [Game], preferWindows: Set<Int>,
-                      choice: (Int) -> GameVersion = { GameOptionsStore.load($0).version },
+                      choice: (Int) -> GameVersion = { GameOptionsStore.load(.steam($0)).version },
                       macFailed: (Int) -> Bool = MacHealth.failed) -> [Game] {
         let onMac = Dictionary(mac.map { ($0.appID, $0) }, uniquingKeysWith: { first, _ in first })
         var taken = Set<Int>()  // two bottles with the same game: one entry gets the Mac version
@@ -324,6 +474,8 @@ enum LibraryScanner {
         entry.lastPlayed = [game.lastPlayed, onMac?.lastPlayed].compactMap { $0 }.max()
         entry.playtimeMinutes = [game.playtimeMinutes, onMac?.playtimeMinutes].compactMap { $0 }.max()
         entry.windowsBuild = game.windowsBuild
+        entry.demoOf = game.demoOf
+        entry.demoNeedsLicense = game.demoNeedsLicense
         entry.switchable = game.switchable
         entry.versionReason = game.versionReason
         entry.listID = game.id
@@ -396,6 +548,10 @@ enum LibraryScanner {
         )
         game.install = install
         game.installDirName = installDirName
+        if install == .installed {
+            game.pendingUpdate = UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
+                                             targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string).pending
+        }
         // UpdateResult 12: Steam's "not enough disk space".
         if flags & 4 == 0, state["updateresult"]?.string == "12" {
             game.downloadNeedsSpace = Int64(max(toDownload, toStage))
@@ -403,7 +559,19 @@ enum LibraryScanner {
         return game
     }
 
-    private static func folderSize(_ url: URL) -> Int64 {
+    /// Whether a game's update is running now, from its manifest (while Nightforge waits for Steam
+    /// to start a game, which updates it first).
+    static func updateState(of game: Game) -> UpdateState? {
+        let manifest = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("appmanifest_\(game.appID).acf")
+        guard let state = VDF.parse(contentsOf: manifest)?["appstate"] else { return nil }
+        return UpdateState(flags: state["stateflags"]?.string.flatMap { Int($0) } ?? 4,
+                           toDownload: state["bytestodownload"]?.string.flatMap { Double($0) } ?? 0,
+                           downloaded: state["bytesdownloaded"]?.string.flatMap { Double($0) } ?? 0,
+                           targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string)
+    }
+
+    static func folderSize(_ url: URL) -> Int64 {
         let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .isRegularFileKey]
         guard let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys)) else { return 0 }
         var total: Int64 = 0
@@ -414,9 +582,57 @@ enum LibraryScanner {
         return total
     }
 
+    // MARK: - Libraries on drives that aren't connected
+
+    /// Games in libraries whose drive isn't plugged in, by app ID, with the drive's name. Steam
+    /// keeps each library's games in libraryfolders.vdf even while its folder is gone.
+    static func missingDrives(steamRoot: URL, bottle: Bottle) -> [Int: String] {
+        let vdfURL = steamRoot.appendingPathComponent("steamapps/libraryfolders.vdf")
+        guard let folders = VDF.parse(contentsOf: vdfURL)?["libraryfolders"]?.object else { return [:] }
+        var missing: [Int: String] = [:]
+        for (_, entry) in folders {
+            guard let path = entry["path"]?.string, let drive = missingVolume(forLibrary: path, in: bottle),
+                  let apps = entry["apps"]?.object
+            else { continue }
+            for key in apps.keys {
+                if let appID = Int(key) { missing[appID] = drive }
+            }
+        }
+        return missing
+    }
+
+    /// The name of the drive a library is on when that drive isn't mounted: "/Volumes/T7/…" with
+    /// no /Volumes/T7, as a Mac path, through Z: or through a drive letter Wine linked to it.
+    static func missingVolume(forLibrary path: String, in bottle: Bottle, volumes: URL = URL(fileURLWithPath: "/Volumes")) -> String? {
+        var mac: String?
+        if path.hasPrefix("/") {
+            mac = path
+        } else {
+            let parts = path.split(whereSeparator: { $0 == "\\" || $0 == "/" }).map(String.init)
+            guard let drive = parts.first?.lowercased(), drive.count == 2, drive.hasSuffix(":") else { return nil }
+            let link = bottle.url.appendingPathComponent("dosdevices/\(drive)").path
+            guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: link) else { return nil }
+            mac = ([target.hasPrefix("/") ? target : "/" + target] + parts.dropFirst()).joined(separator: "/")
+        }
+        let components = (mac ?? "").split(separator: "/").map(String.init)
+        guard components.count >= 2, components[0] == "Volumes" else { return nil }
+        let volume = volumes.appendingPathComponent(components[1], isDirectory: true)
+        return FileManager.default.fileExists(atPath: volume.path) ? nil : components[1]
+    }
+
+    /// Owned games not on this Mac that are installed on a drive that's unplugged.
+    static func markMissingDrives(_ games: [Game], drives: [Int: String]) -> [Game] {
+        guard !drives.isEmpty else { return games }
+        return games.map { game in
+            var game = game
+            if game.install == .notInstalled { game.missingDrive = drives[game.appID] }
+            return game
+        }
+    }
+
     // MARK: - Extra library folders (e.g. D:\SteamLibrary)
 
-    private static func libraryFolders(steamRoot: URL, bottle: Bottle) -> [URL] {
+    static func libraryFolders(steamRoot: URL, bottle: Bottle) -> [URL] {
         var urls = [steamRoot.appendingPathComponent("steamapps", isDirectory: true)]
 
         let vdfURL = steamRoot.appendingPathComponent("steamapps/libraryfolders.vdf")
@@ -484,4 +700,32 @@ enum LibraryScanner {
         }
         return out
     }
+}
+
+/// What a game's manifest says about updates (Steam's StateFlags: 2 update required, 4 fully
+/// installed, 256 update running, 1024 update started, 1048576 downloading, 2097152 staging,
+/// 4194304 committing).
+struct UpdateState: Equatable {
+    let flags: Int
+    let toDownload: Double
+    let downloaded: Double
+    var targetBuild: String?
+    var build: String?
+
+    /// An update waits: Steam flags it, or the build it's heading for isn't the one installed.
+    var isPending: Bool {
+        if flags & 2 != 0 { return true }
+        guard let targetBuild, let build, targetBuild != "0", !targetBuild.isEmpty else { return false }
+        return targetBuild != build
+    }
+
+    /// What's left to download for it; 0 while Steam hasn't worked the size out.
+    var pending: Int64? {
+        isPending ? Int64(max(0, toDownload - downloaded)) : nil
+    }
+
+    /// Steam is downloading or applying it right now.
+    var isRunning: Bool { flags & (256 | 1024 | 1_048_576 | 2_097_152 | 4_194_304) != 0 }
+
+    var fraction: Double? { toDownload > 0 ? min(downloaded / toDownload, 0.99) : nil }
 }

@@ -61,6 +61,23 @@ struct CompatibilityTest {
         let cloud = Compatibility.rate(Facts(antiCheatBlock: streamable))
         check(cloud.level == .no && cloud.note?.contains("GeForce Now") == true, "a streamable game points to GeForce Now")
         check(level(Facts(platform: .mac, antiCheatBlock: blocked)) == .great, "the Mac version isn't stopped by the Windows anti-cheat")
+
+        // Doesn't start yet: "doesn't run", with the profile's reason; the cloud and the test chip beside it.
+        let reason = "Hangs under Rosetta."
+        let later = AntiCheatBlock(antiCheat: [], geforceNow: nil, notYet: reason)
+        let laterCloud = AntiCheatBlock(antiCheat: [], geforceNow: "42", notYet: reason)
+        let tested = profile(#"{"source": "mac", "notYet": "Hangs under Rosetta.", "note": "Tested on M5, winecx: no window"}"#)
+        let notYet = Compatibility.rate(Facts(antiCheatBlock: later, profile: tested))
+        check(notYet.level == .notYet && notYet.note == reason && notYet.testedOn == ["M5"], "not yet: no, with the reason and the chip: \(String(describing: notYet.note))")
+        let notYetCloud = Compatibility.rate(Facts(antiCheatBlock: laterCloud, profile: tested))
+        check(notYetCloud.note == reason + " " + L10n.t("Playable on GeForce Now instead."), "…and the cloud as the way: \(String(describing: notYetCloud.note))")
+        check(level(Facts(profile: tested)) == .notYet, "the profile alone says it, where no block is at hand")
+        check(level(Facts(platform: .mac, antiCheatBlock: later, profile: tested)) == .great, "the Mac version doesn't wait for the engine")
+        check(level(Facts(antiCheatBlock: later, profile: tested, ownRating: GameRating(good: true, issues: []))) == .notYet, "no rating of the player's beats it")
+        check(Compatibility.Level.notYet.stopsGame && Compatibility.Level.no.stopsGame && !Compatibility.Level.untested.stopsGame
+              && !Compatibility.Level.great.stopsGame, "what stops a game, for good or not yet")
+        check(Compatibility.Level.notYet.label != Compatibility.Level.no.label && Compatibility.Level.notYet.label == L10n.t("Doesn't start yet"),
+              "not yet has words of its own, not \"doesn't run\"")
         check(level(Facts(platform: .mac, vrOnly: true)) == .no, "VR only stays no, even on the Mac version")
 
         // What a game needs.
@@ -86,6 +103,55 @@ struct CompatibilityTest {
         check(level(Facts()) == .untested, "nothing known is untested")
         check(Compatibility.chips(in: "MetalFX on, 4K") == [], "no chips in an ordinary note")
 
+        // How it ran for the player beats what the files say, but not what stops the game.
+        let well = GameRating(good: true), badly = GameRating(good: false), choppy = GameRating(good: false, issues: [.stutters, .sound])
+        let said = Compatibility.rate(Facts(analysis: analysis([.d3d12]), ownRating: well))
+        check(said.level == .great && said.note == L10n.t("You said it runs well."), "\"runs well\" beats Direct3D 12 only")
+        check(Compatibility.rate(Facts(ownRating: badly)).note == L10n.t("You said it didn't run well."), "\"not well\" without chips")
+        let issues = Compatibility.rate(Facts(platform: .mac, ownRating: choppy))
+        check(issues.level == .tweaks && issues.note == L10n.t("You said: %@.", GameRating.Issue.stutters.label + ", " + GameRating.Issue.sound.label),
+              "\"not well\" names its chips in their order, even for a Mac version: \(issues.note ?? "nil")")
+        check(level(Facts(antiCheatBlock: blocked, ownRating: well)) == .no && level(Facts(vrOnly: true, ownRating: well)) == .no,
+              "what stops the game beats the player's word")
+
+        // What counts as a fix: anything that changes how the game starts.
+        let fixes = [#""graphics": "dxvk""#, #""arguments": ["-dx11"]"#, #""dllOverrides": {"xinput1_3": "n"}"#,
+                     #""registry": [{"key": "HKCU\\Software\\Game"}]"#, #""windowsVersion": "win7""#, #""winetricks": ["vcrun2019"]"#,
+                     #""metalFX": false"#, #""frameLimit": 30"#, #""vulkanSamplers": 1024"#, #""avx": false"#,
+                     #""fileEdits": [{"path": "a.ini", "find": "x", "replace": "y"}]"#,
+                     #""iniSettings": [{"root": "documents", "path": "a.ini", "section": "s", "values": {"k": "v"}}]"#, #""retina": true"#]
+        for fix in fixes {
+            check(profile("{" + fix + "}").hasFixes, "a fix: \(fix)")
+        }
+        let none = [#""arguments": []"#, #""winetricks": []"#, #""metalFX": true"#, #""avx": true"#, #""retina": false"#,
+                    #""saves": []"#, #""antiCheat": ["BattlEye"]"#, #""note": "Tested on M5""#]
+        for empty in none {
+            check(!profile("{" + empty + "}").hasFixes, "no fix: \(empty)")
+        }
+        check(profile(#"{"source": "mac"}"#).fromNightforge && profile(#"{"source": "umu+mac"}"#).fromNightforge,
+              "Nightforge's own profiles, alone or on top of umu")
+        check(!profile(#"{"source": "umu"}"#).fromNightforge && !profile(#"{"source": "macos"}"#).fromNightforge && !profile("{}").fromNightforge,
+              "not Nightforge's own")
+        let held = Compatibility.rate(Facts(profile: profile(#"{"source": "mac", "antiCheat": ["EAC"]}"#),
+                                            analysis: analysis([.d3d11], antiCheat: ["Easy Anti-Cheat"])))
+        check(held.level == .tweaks, "a Mac profile that keeps the anti-cheat doesn't clear it")
+        let dx12 = Compatibility.rate(Facts(profile: profile(#"{"source": "mac", "note": "M4 Max"}"#), analysis: analysis([.d3d12])))
+        check(dx12.level == .tweaks && dx12.testedOn == ["M4 Max"], "Direct3D 12 only keeps the chips it was tested on")
+        check(Compatibility.chips(in: "M1, M10, M2 Ultra, M3 Pro and M3 Max; not M0, XM5 or M5X") == ["M1", "M10", "M2 Ultra", "M3 Pro", "M3 Max"],
+              "every chip name, nothing that only looks like one: \(Compatibility.chips(in: "M1, M10, M2 Ultra, M3 Pro and M3 Max; not M0, XM5 or M5X"))")
+        check(Compatibility.chips(in: nil).isEmpty, "no note, no chips")
+        check(Set(Compatibility.Level.allCases.map(\.label)).count == 5, "every level has its own words")
+
+        // For a game in the library: what the game itself says goes in (nothing kept about it here).
+        var vr = Game(appID: 9_999_901, name: "VR", bottle: Engine.bottle, steamRoot: Engine.bottle.url, steamExeWindowsPath: "",
+                      installDir: Engine.bottle.url, sizeOnDisk: 0)
+        vr.isVROnly = true
+        check(Compatibility.of(vr, profile: nil, analysis: nil).level == .no, "a VR game in the library")
+        var macGame = vr
+        macGame.isVROnly = false
+        macGame.platform = .mac
+        check(Compatibility.of(macGame, profile: nil, analysis: analysis([.d3d12])).level == .great, "a Mac version in the library")
+
         // Every game in the shipped list gets a level, and the list's own Mac profiles run great.
         struct Document: Decodable { let games: [String: GameProfile] }
         let document = try JSONDecoder().decode(Document.self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
@@ -93,7 +159,8 @@ struct CompatibilityTest {
         for (_, game) in document.games {
             let rating = Compatibility.rate(Facts(profile: game))
             counts[rating.level, default: 0] += 1
-            if game.source == "mac" && game.antiCheat == nil { check(rating.level == .great, "\(game.name ?? "?"): Mac profile runs great") }
+            if game.source == "mac" && game.antiCheat == nil && game.notYet == nil { check(rating.level == .great, "\(game.name ?? "?"): Mac profile runs great") }
+            if let reason = game.notYet { check(rating.level == .notYet && rating.note?.hasPrefix(L10n.t(reason)) == true, "\(game.name ?? "?"): doesn't start yet, with its reason") }
         }
         check(counts.values.reduce(0, +) == document.games.count, "every game has a level")
         if let l4d2 = document.games["550"] { check(Compatibility.rate(Facts(profile: l4d2)).testedOn == ["M5"], "Left 4 Dead 2 tested on M5") }
@@ -106,7 +173,16 @@ struct CompatibilityTest {
             let onNight = contrast(color, night), onTint = contrast(color, blend(color, 0.15, over: night))
             check(onNight >= 4.5 && onTint >= 4.5, "\(level.rawValue): contrast \(onNight) on night, \(onTint) on its tint")
         }
-        check(Set(Compatibility.Level.allCases.map(\.symbol)).count == 4, "every level has its own icon")
+        check(Set(Compatibility.Level.allCases.map(\.symbol)).count == 5, "every level has its own icon")
+
+        // "Welcome back": what's kept the moment it's chosen.
+        check(GameRating.choice(good: false, issues: []).good == false && GameRating.choice(good: false, issues: []).issues.isEmpty,
+              "\"Not well\" alone is kept as soon as it's pressed")
+        check(GameRating.choice(good: false, issues: [.sound, .crashed]).issues == [.crashed, .sound], "with the chips picked, in their order")
+        check(GameRating.choice(good: true, issues: [.sound]).issues.isEmpty, "\"Well\" has no chips")
+        var unconfirmed = Compatibility.Facts(platform: .windows, profile: nil, analysis: analysis([.d3d9]))
+        unconfirmed.launch = (index: 0, confirmed: false)
+        check(level(unconfirmed) != .great, "a start not confirmed (no frames yet) isn't \"Runs great\"")
 
         if failures > 0 {
             print("\(failures) check(s) failed")

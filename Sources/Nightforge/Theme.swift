@@ -13,13 +13,68 @@ enum Theme {
     static let runsGreat = Color(red: 0x7E / 255, green: 0xE2 / 255, blue: 0xA0 / 255)       // #7EE2A0
     static let runsWithTweaks = Color(red: 0xE8 / 255, green: 0xC6 / 255, blue: 0x8A / 255)  // #E8C68A
     static let runsNot = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)         // #FF9E94
+    /// "Doesn't start yet": a warmer amber than "with tweaks", calmer than the red of a game that never runs.
+    static let runsNotYet = Color(red: 0xF2 / 255, green: 0xA6 / 255, blue: 0x5A / 255)      // #F2A65A
 
-    /// Wide, heavy display face for titles and the play button.
-    static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .heavy).width(.expanded)
-    }
+    /// Nightforge's own share in the storage bar, beside the games in sodium (as in the design).
+    static let storageNightforge = Color(red: 0x8C / 255, green: 0xA8 / 255, blue: 0xDB / 255)  // #8CA8DB
+
+    /// A button that deletes something (Uninstall, Remove Everything), the design's `dangerBtn`.
+    static let danger = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x5E / 255)  // #FF6B5E
+    /// A warning sign in a dialog: the paler amber, so sodium stays the main action's.
+    static let warning = runsWithTweaks
+    /// Text that says something failed: paler than `danger`, readable on the night blue.
+    static let errorText = Color(red: 0xFF / 255, green: 0x9E / 255, blue: 0x94 / 255)  // #FF9E94
+
+    /// Wide, heavy display face for titles and the play button. Views take it through `.displayFont(_:)`,
+    /// which adds "Larger text".
+    static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .heavy).width(.expanded) }
 
     static let gutter: CGFloat = 56
+}
+
+/// The N beside the name in the top bar: the app icon's three pieces in brushed silver, with the
+/// blue light seam along the slab. BrandArt draws the big one, in brushed metal (the loading
+/// screen, GameBackdrop; the app icon).
+struct NightforgeMark: View {
+    static let seamColor = Color(red: 0.18, green: 0.48, blue: 1)
+
+    var body: some View {
+        ZStack {
+            NightforgeMarkShape()
+                .fill(LinearGradient(colors: [Theme.ink, Theme.muted], startPoint: .top, endPoint: .bottom))
+            NightforgeMarkShape.Seam()
+                .stroke(Self.seamColor, style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                .shadow(color: Self.seamColor.opacity(0.8), radius: 2)
+        }
+        .aspectRatio(BrandArt.glyphSize.width / BrandArt.glyphSize.height, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct NightforgeMarkShape: Shape {
+    static func point(_ p: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(x: rect.minX + p.x / BrandArt.glyphSize.width * rect.width, y: rect.minY + p.y / BrandArt.glyphSize.height * rect.height)
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        for piece in BrandArt.pieces {
+            path.addLines(piece.map { Self.point($0, in: rect) })
+            path.closeSubpath()
+        }
+        return path
+    }
+
+    /// The light seam along the slab's lower edge.
+    struct Seam: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: NightforgeMarkShape.point(BrandArt.seam.0, in: rect))
+            path.addLine(to: NightforgeMarkShape.point(BrandArt.seam.1, in: rect))
+            return path
+        }
+    }
 }
 
 enum Format {
@@ -27,11 +82,16 @@ enum Format {
         bytes > 0 ? bytes.formatted(.byteCount(style: .file).locale(L10n.locale)) : "–"
     }
 
-    static func relative(_ date: Date) -> String {
+    static func relative(_ date: Date) -> String { relative(date, now: Date()) }
+
+    /// "2 hours ago" – and "just now" within a minute either way: a date a moment ahead of the clock
+    /// (a game that has just ended) would otherwise say "in 0 seconds".
+    static func relative(_ date: Date, now: Date) -> String {
+        if abs(date.timeIntervalSince(now)) < 60 { return L10n.t("just now") }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = L10n.locale
         formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return formatter.localizedString(for: date, relativeTo: now)
     }
 
     static func playtime(_ minutes: Int) -> String {
