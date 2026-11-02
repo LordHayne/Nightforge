@@ -107,6 +107,10 @@ enum L10n {
         "The update download is damaged. Please try again.": "Der Update-Download ist beschädigt. Bitte versuch es noch einmal.",
         "The update isn't signed correctly, so it wasn't installed.":
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
+        "The update holds an older Nightforge than the one you have, so it wasn't installed.":
+            "Das Update enthält ein älteres Nightforge als deines und wurde deshalb nicht installiert.",
+        "An online list of fixes or components wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has.":
+            "Eine Online-Liste mit Spielkorrekturen oder Komponenten war nicht von Nightforge signiert und wurde ausgelassen. Nightforge nutzt weiter die Listen, die es hat.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
         "Games fit": "Spiele passen",

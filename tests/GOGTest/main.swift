@@ -58,16 +58,18 @@ struct GOGTest {
         let json = #"{"formatVersion": 1, "games": {"50130": {"name": "Mafia II (Classic)", "graphics": "wined3d"},"#
             + #""gog.1816059595": {"name": "Mafia II (Classic)", "graphics": "wined3d", "source": "mac"},"#
             + #""epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#
+        // As the app's own copy: one fetched online counts only with its signature (ProfileFilesTest).
+        let list = Engine.supportDir.appendingPathComponent("bundled-profiles.json")
         try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
-        try? Data(json.utf8).write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
-        let store = ProfileStore.shared
+        try? Data(json.utf8).write(to: list)
+        let store = ProfileStore(bundledURL: list)
         check(await store.profile(for: .gog("1816059595"))?.graphics == .wined3d, "a GOG game's profile, by its product ID")
         check(await store.profile(for: .steam(50130))?.graphics == .wined3d, "the Steam version's, by app ID as before")
         check(await store.profile(for: .gog("50130")) == nil, "a GOG ID is not a Steam app ID")
         check(await store.profile(for: .gog("1207658924")) == nil, "a GOG game the list doesn't know has none")
         check(await store.profile(for: .epic("fn")) == nil, "an Epic game starts without: its entry only blocks it")
         check(ProfileStore.decodeGOG(Data(json.utf8)).keys.sorted() == ["1816059595"], "only gog.<id> keys are GOG's")
-        try? FileManager.default.removeItem(at: Engine.supportDir.appendingPathComponent("profiles.json"))
+        try? FileManager.default.removeItem(at: list)
     }
 
     // MARK: - Fixtures (formats as gogdl and Heroic read them)

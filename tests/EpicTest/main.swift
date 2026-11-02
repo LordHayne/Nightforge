@@ -441,16 +441,18 @@ struct EpicTest {
                                    "OddDLC": EpicSize(version: "3", download: 1_000_000_000, install: 2_000_000_000),
                                    "fn": EpicSize(version: "old", download: 1, install: 2)])
             .write(to: epicFolder.appendingPathComponent("sizes.json"))
+        // As the app's own copy: one fetched online counts only with its signature (ProfileFilesTest).
+        let profiles = Engine.supportDir.appendingPathComponent("bundled-profiles.json")
         try? Data(#"{"formatVersion": 1, "games": {"epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#.utf8)
-            .write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
+            .write(to: profiles)
         // A start takes an Epic game's profile by its namespace (Control's is "epic.calluna"; its app name is Calluna).
         check(EpicStore.namespace(of: "fn") == "fn" && EpicStore.namespace(of: "Missing") == nil,
               "an Epic game's namespace, from the library on disk")
-        check(await ProfileStore(bundledURL: nil).profile(for: .epic("fn"))?.antiCheat == ["Easy Anti-Cheat"],
+        check(await ProfileStore(bundledURL: profiles).profile(for: .epic("fn"))?.antiCheat == ["Easy Anti-Cheat"],
               "an Epic game starts with its profile")
-        check(await ProfileStore(bundledURL: nil).profile(for: .epic("Missing")) == nil, "one the library doesn't know has none")
+        check(await ProfileStore(bundledURL: profiles).profile(for: .epic("Missing")) == nil, "one the library doesn't know has none")
 
-        let store = EpicStore()
+        let store = EpicStore(profiles: ProfileStore(bundledURL: profiles))
         check(await store.library().isEmpty, "not connected: no Epic games")
         try? Data(#"{"displayName": "Player"}"#.utf8).write(to: epicFolder.appendingPathComponent("account.json"))
         try? Data(#"{"displayName": "Player", "account_id": "1"}"#.utf8).write(to: Legendary.configDir.appendingPathComponent("user.json"))

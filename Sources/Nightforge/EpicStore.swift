@@ -186,6 +186,12 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     /// Anti-cheat by catalog namespace (profiles.json "epic.<namespace>").
     private var antiCheat: [String: AntiCheatBlock] = [:]
     private var loadedFromDisk = false
+    private let profiles: ProfileStore
+
+    /// `profiles`: where the anti-cheat entries come from; a test hands in its own list.
+    init(profiles: ProfileStore = .shared) {
+        self.profiles = profiles
+    }
 
     private static var folder: URL { Engine.supportDir.appendingPathComponent("Epic", isDirectory: true) }
     private static var libraryFile: URL { folder.appendingPathComponent("library.json") }
@@ -255,7 +261,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     func library() async -> [Game] {
         loadFromDisk()
         guard isConnected else { return [] }
-        antiCheat = await ProfileStore.shared.epicAntiCheatBlocks()
+        antiCheat = await profiles.epicAntiCheatBlocks()
         let config = Legendary.configDir
         let (installed, versions, latest) = await Engine.offMain {
             let installedJSON = (try? Data(contentsOf: config.appendingPathComponent("installed.json"))) ?? Data()

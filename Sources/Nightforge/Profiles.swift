@@ -206,15 +206,16 @@ private struct ProfileDocument: Decodable {
 /// Keeps the profile list current: the online copy (`NightforgeProfilesURL`) once per app run,
 /// else the last one fetched, else the copy bundled with the app. The bundled copy wins over the
 /// other two when it was built later ("generated"): a local build or an update can bring profiles
-/// the online list doesn't have yet.
+/// the online list doesn't have yet. The online copy counts only with the maintainer's signature
+/// (`Signature`) and is kept with it; a cached copy without one is passed over.
 actor ProfileStore {
     static let shared = ProfileStore()
     static let supportedFormat = 1
 
-    private let remoteURL = (Bundle.main.object(forInfoDictionaryKey: "NightforgeProfilesURL") as? String)
-        .flatMap { $0.isEmpty ? nil : URL(string: $0) }
+    private let remoteURL: URL?
     private var cachedURL: URL { Engine.supportDir.appendingPathComponent("profiles.json") }
     private let bundledURL: URL?
+    private let keys: [String]
     private var profiles: [Int: GameProfile]?
     /// Epic games' entries ("epic.<namespace>" in the list), by catalog namespace.
     private var epicProfiles: [String: GameProfile] = [:]
@@ -222,9 +223,15 @@ actor ProfileStore {
     private var gogProfiles: [String: GameProfile] = [:]
     private var refreshed = false
 
-    /// `bundledURL`: the copy that comes with the app; a test hands in its own.
-    init(bundledURL: URL? = Bundle.main.url(forResource: "profiles", withExtension: "json")) {
+    /// `bundledURL`: the copy that comes with the app, `remoteURL` the online one, `keys` the public
+    /// keys its signature must come from; a test hands in its own.
+    init(bundledURL: URL? = Bundle.main.url(forResource: "profiles", withExtension: "json"),
+         remoteURL: URL? = (Bundle.main.object(forInfoDictionaryKey: "NightforgeProfilesURL") as? String)
+             .flatMap { $0.isEmpty ? nil : URL(string: $0) },
+         keys: [String] = SigningKeys.trusted) {
         self.bundledURL = bundledURL
+        self.remoteURL = remoteURL
+        self.keys = keys
     }
 
     func profile(for appID: Int) async -> GameProfile? {
@@ -289,7 +296,7 @@ actor ProfileStore {
 
     private func loadLocalIfNeeded() {
         guard profiles == nil else { return }
-        let cached = try? Data(contentsOf: cachedURL)
+        let cached = Signature.signedContents(of: cachedURL, keys: keys)
         let bundled = bundledURL.flatMap { try? Data(contentsOf: $0) }
         // The newer one first; the other still serves when it can't be read.
         let lists = cached.map { Self.isOlder($0, than: bundled) } == true ? [bundled, cached] : [cached, bundled]
@@ -318,21 +325,23 @@ actor ProfileStore {
         return (try? JSONDecoder().decode(Stamp.self, from: data))?.generated.flatMap { ISO8601DateFormatter().date(from: $0) }
     }
 
-    /// Fetches the online list; keeps what's there when offline, when the list is too new for this
-    /// Nightforge, or when it's older than the bundled one.
+    /// Fetches the online list; keeps what's there when offline, when the list isn't signed, when
+    /// it's too new for this Nightforge, or when it's older than the bundled one.
     func refresh() async {
         refreshed = true
         guard let remoteURL else { return }
-        var request = URLRequest(url: remoteURL)
-        request.timeoutInterval = 15
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }),
-              use(data)
-        else { return }
-        try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
-        try? data.write(to: cachedURL, options: .atomic)
+        switch await Signature.fetch(remoteURL, keys: keys) {
+        case .signed(let data, let signature):
+            SignedLists.note(SignedLists.profiles, refused: false)
+            guard !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }), use(data) else { return }
+            try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
+            try? data.write(to: cachedURL, options: .atomic)
+            try? signature.write(to: Signature.file(for: cachedURL), options: .atomic)
+        case .refused:
+            SignedLists.note(SignedLists.profiles, refused: true)
+        case .unavailable:
+            break
+        }
     }
 
     /// The entries keyed "epic.<namespace>" (older Nightforge versions skip them: not a number).

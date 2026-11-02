@@ -86,23 +86,29 @@ enum ComponentError: LocalizedError {
 ///
 /// The manifest comes from `NightforgeManifestURL` in Info.plist when set, falls back to the last
 /// copy that was fetched, and finally to the one bundled with the app, so a fresh install works offline.
+/// An online copy counts only with the maintainer's signature (`Signature`), and is kept with it: a
+/// cached copy without one (fetched by 0.3.0, or changed on disk) is passed over for the bundled one.
 actor ComponentStore {
     static let shared = ComponentStore()
 
     let root: URL
     private let remoteManifestURL: URL?
     private let bundledManifestURL: URL?
+    private let keys: [String]
 
+    /// `keys`: the public keys a signature must come from; a test hands in its own.
     init(
         root: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge/Components", isDirectory: true),
         remoteManifestURL: URL? = (Bundle.main.object(forInfoDictionaryKey: "NightforgeManifestURL") as? String)
             .flatMap { $0.isEmpty ? nil : URL(string: $0) },
-        bundledManifestURL: URL? = Bundle.main.url(forResource: "manifest", withExtension: "json")
+        bundledManifestURL: URL? = Bundle.main.url(forResource: "manifest", withExtension: "json"),
+        keys: [String] = SigningKeys.trusted
     ) {
         self.root = root
         self.remoteManifestURL = remoteManifestURL
         self.bundledManifestURL = bundledManifestURL
+        self.keys = keys
     }
 
     private var cachedManifestURL: URL { root.appendingPathComponent("manifest.json") }
@@ -118,21 +124,25 @@ actor ComponentStore {
 
         if !triedRemote, let remote = remoteManifestURL {
             triedRemote = true
-            var request = URLRequest(url: remote)
-            request.timeoutInterval = 15
-            request.cachePolicy = .reloadIgnoringLocalCacheData  // a fix published minutes ago should arrive
-            if let (data, response) = try? await URLSession.shared.data(for: request),
-               (response as? HTTPURLResponse)?.statusCode ?? 200 == 200,
-               let manifest = try? decode(data) {
-                try? data.write(to: cachedManifestURL, options: .atomic)
-                fetched = manifest
-                return manifest
+            switch await Signature.fetch(remote, keys: keys) {
+            case .signed(let data, let signature):
+                SignedLists.note(SignedLists.components, refused: false)
+                if let manifest = try? decode(data) {
+                    try? data.write(to: cachedManifestURL, options: .atomic)
+                    try? signature.write(to: Signature.file(for: cachedManifestURL), options: .atomic)
+                    fetched = manifest
+                    return manifest
+                }
+            case .refused:
+                SignedLists.note(SignedLists.components, refused: true)
+            case .unavailable:
+                break
             }
         }
         // A damaged or too-new cached copy mustn't hide the one bundled with the app.
         var failure: Error = ComponentError.noManifest
-        for local in [cachedManifestURL, bundledManifestURL].compactMap({ $0 }) {
-            guard let data = try? Data(contentsOf: local) else { continue }
+        for data in [Signature.signedContents(of: cachedManifestURL, keys: keys),
+                     bundledManifestURL.flatMap { try? Data(contentsOf: $0) }].compactMap({ $0 }) {
             do {
                 return try decode(data)
             } catch {
@@ -142,13 +152,14 @@ actor ComponentStore {
         throw failure
     }
 
-    /// The list at hand without asking the network (Settings › About): the last one fetched, else
-    /// the one bundled with the app.
-    static func localManifest() -> ComponentManifest? {
+    /// The list at hand without asking the network (Settings › About): the last one fetched (with its
+    /// signature), else the one bundled with the app.
+    static func localManifest(keys: [String] = SigningKeys.trusted) -> ComponentManifest? {
         let cached = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge/Components/manifest.json")
-        for url in [cached, Bundle.main.url(forResource: "manifest", withExtension: "json")].compactMap({ $0 }) {
-            if let data = try? Data(contentsOf: url), let manifest = try? JSONDecoder().decode(ComponentManifest.self, from: data) {
+        for data in [Signature.signedContents(of: cached, keys: keys),
+                     Bundle.main.url(forResource: "manifest", withExtension: "json").flatMap { try? Data(contentsOf: $0) }].compactMap({ $0 }) {
+            if let manifest = try? JSONDecoder().decode(ComponentManifest.self, from: data) {
                 return manifest
             }
         }
