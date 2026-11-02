@@ -80,7 +80,10 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   selbst durch – über den normalen Start mit Leiter und Vorhang, bis 120 s auf das Bild, dann 60 s laufen, beenden wie
   „Spiel beenden“ im Overlay – und schreibt `GameTests/<Datum>/report.json` und `report.md` in Nightforges Support-Ordner.
   Nur über den Schalter `defaults write io.github.lordhayne.nightforge gameTest -bool true` (einmalig, wird beim
-  Start gelöscht), Abbruch mit `gameTest.stop`. Lädt und installiert nichts: Spiele mit Update, fehlenden Laufzeiten,
+  Start gelöscht), Abbruch mit `gameTest.stop`. Misst zu Beginn die Systemlast (wartet bis 5 min, bis sie unter der
+  Hälfte der Kerne liegt) und vor jedem Spiel; FPS unter hoher Last sind markiert – also nachts auf dem MacBook, wenn keine
+  Sitzung baut. Mit `gameTest.basket` (compat-dbs `testkorb.json`) spielt er die installierten Korb-Spiele zuerst, nach
+  `score`, und trägt `hint`/`standsFor` in den Bericht ein. Lädt und installiert nichts: Spiele mit Update, fehlenden Laufzeiten,
   D3DMetal-Einrichtung, Anmeldung oder Anti-Cheat stehen unter „Nicht gestartet“. `scripts/import-game-test.py` bringt
   den Bericht nach `docs/spieletest/`. Offen: der erste Lauf mit dem Nutzer, danach nach jeder Engine-Änderung; die
   Einträge (`game`, `store`, `storeID`, `result`, `way`, `issues` wie `compat-report.yml`) in die Kompatibilitätsliste zählen.

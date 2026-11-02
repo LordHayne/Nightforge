@@ -65,9 +65,18 @@ final class GameTestRun {
         for game in model.allGames where game.isInstalled {
             plan.append(await candidate(game))
         }
-        plan = GameTest.plan(plan, only: settings.only)
+        let basket = GameTest.Basket.load(settings.basket)
+        plan = GameTest.plan(plan, only: settings.only, basket: basket)
+        if let basket {
+            report.basket = .init(generated: basket.generated, entries: basket.games.count, installed: plan.filter(\.inBasket).count)
+        } else if !settings.basket.isEmpty {
+            // Its name only: the folder it lies in isn't for the repository.
+            report.notes = ["Testkorb nicht lesbar (\((settings.basket as NSString).lastPathComponent), Format \(GameTest.Basket.format) erwartet) – nach Name gespielt."]
+        }
         let total = plan.filter { $0.skip == nil }.count
         GameLog.note("Game test begins: \(total) of \(plan.count) installed games to start, into \(folder.lastPathComponent)")
+        write()
+        report.load = await waitForLowLoad()
         write()
         var number = 0
         for candidate in plan {
@@ -104,6 +113,21 @@ final class GameTestRun {
         write()
         let pictures = report.games.filter { $0.outcome == .picture }.count
         GameLog.note("Game test ends: \(pictures) of \(number) started games showed a picture – \(folder.lastPathComponent)")
+    }
+
+    /// A Mac busy with other work makes the frame rates worthless: the run waits up to five minutes
+    /// for its load to drop, and says how it was.
+    private func waitForLowLoad() async -> GameTest.Load? {
+        let until = Date().addingTimeInterval(GameTest.loadPatience)
+        var load = GameTest.Load.now
+        while let current = load, !current.low, Date() < until, !UserDefaults.standard.bool(forKey: GameTest.Keys.stop) {
+            try? await Task.sleep(for: .seconds(15))
+            load = GameTest.Load.now
+        }
+        if let load {
+            GameLog.note("Game test: load \(load.average) on \(load.cores) cores" + (load.low ? "" : " – busy, frame rates won't say much"))
+        }
+        return load
     }
 
     /// A locked screen (the player locked it, or it locked before the run began): the run waits.
@@ -166,6 +190,7 @@ final class GameTestRun {
         var idleSince: Date?
         var pid: pid_t?
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
+        let load = GameTest.Load.now
         model.launch(game)
         watching: while true {
             try? await Task.sleep(for: .seconds(1))
@@ -256,6 +281,7 @@ final class GameTestRun {
         entry.issues = GameTest.issues(endedWhilePlaying: endedWhilePlaying, frames: frames)
         entry.result = GameTest.result(outcome, issues: entry.issues)
         entry.startedAt = started
+        entry.load = load
         entry.secondsToProcess = processAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
         entry.secondsToPicture = pictureAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
         entry.frames = frames

@@ -26,6 +26,11 @@ extension GameTest {
         var skip: Skip?
         var ways: [Way] = []
         var notYet: Bool?
+        /// From the test basket: the way expected first, the popular games this result stands for.
+        var hint: String?
+        var standsFor: [String]?
+        /// The Mac's load just before it started.
+        var load: Load?
         var startedAt: Date?
         var secondsToProcess: Double?
         var secondsToPicture: Double?
@@ -47,6 +52,8 @@ extension GameTest {
             self.outcome = outcome
             self.skip = skip
             notYet = candidate.notYet ? true : nil
+            hint = candidate.hint
+            standsFor = candidate.standsFor
             if skip != nil, let note = candidate.skipNote { notes = [note] }
         }
 
@@ -83,7 +90,19 @@ extension GameTest {
         var playSeconds: Double
         /// Minutes the run waited for a locked screen.
         var waitedLocked: Int?
+        /// The Mac's load when the first game started, after waiting up to `loadPatience` for it to drop.
+        var load: Load?
+        /// The test basket it went by: when it was built, how many games it has, how many of them are installed here.
+        var basket: BasketUse?
+        /// In German, for people: what else came up (a basket that couldn't be read).
+        var notes: [String]?
         var games: [Entry] = []
+
+        struct BasketUse: Codable, Equatable {
+            var generated: String?
+            var entries: Int
+            var installed: Int
+        }
     }
 
     static func json(_ report: Report) -> Data {
@@ -143,6 +162,19 @@ extension GameTest {
         let end = report.finished.map { ", Ende \(time($0, "HH:mm"))" } ?? ", noch nicht fertig"
         lines.append("Start \(time(report.started, "HH:mm"))\(end)\(report.stopped ? " (angehalten)" : ""). "
                      + "Je Spiel bis \(Int(report.pictureWait)) s auf das erste Bild gewartet, mit Bild \(Int(report.playSeconds)) s laufen lassen.")
+        if let load = report.load {
+            lines.append("Systemlast zu Beginn: \(decimal(load.average)) bei \(load.cores) Kernen – "
+                         + (load.low ? "niedrig." : "hoch: Andere Arbeit lief mit, die FPS-Werte sind nicht verlässlich."))
+        }
+        let busy = report.games.filter { $0.load?.low == false && $0.outcome != .skipped }.count
+        if busy > 0 {
+            lines.append("Bei \(busy) \(busy == 1 ? "Spiel" : "Spielen") war die Last beim Start hoch (in der Tabelle markiert).")
+        }
+        if let basket = report.basket {
+            lines.append("Testkorb vom \(basket.generated.map { String($0.prefix(10)) } ?? "–"): \(basket.entries) Einträge, "
+                         + "\(basket.installed) davon hier installiert und zuerst gespielt. Die übrigen bräuchten einen Download.")
+        }
+        for note in report.notes ?? [] { lines.append(note) }
         if let locked = report.waitedLocked, locked > 0 {
             lines.append("Der Bildschirm war gesperrt: \(locked) min gewartet.")
         }
@@ -178,7 +210,7 @@ extension GameTest {
             lines += ["## Genauer", ""]
             for entry in troubled {
                 lines += ["### \(entry.game) (\(storeLabel(entry.store)), \(entry.platform == "mac" ? "Mac" : "Windows"))", ""]
-                lines.append("\(german(entry)). Wege: \(waysText(entry)).")
+                lines.append("\(german(entry)). Wege: \(waysText(entry))." + (entry.hint.map { " Erwartet laut Testkorb: \($0)." } ?? ""))
                 for note in entry.notes ?? [] { lines.append("- \(note)") }
                 if let stack = entry.stack, !stack.isEmpty {
                     lines += ["", "Wo es hängt (sample):", "", "```"] + stack + ["```"]
@@ -235,8 +267,14 @@ extension GameTest {
         return text
     }
 
+    private static func decimal(_ value: Double) -> String {
+        String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
+    }
+
     private static func framesText(_ entry: Entry) -> String {
-        if let frames = entry.frames { return "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))" }
+        if let frames = entry.frames {
+            return "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))" + (entry.load?.low == false ? " (Last hoch)" : "")
+        }
         guard entry.outcome == .picture else { return "–" }
         let way = entry.way ?? ""
         if way.hasPrefix("d3dmetal") { return "– (D3DMetal meldet keine)" }

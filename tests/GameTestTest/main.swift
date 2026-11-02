@@ -25,6 +25,8 @@ struct GameTestTest {
         settings()
         skips()
         plan()
+        basket()
+        load()
         looks()
         outcomes()
         waysAndFrames()
@@ -46,7 +48,9 @@ struct GameTestTest {
         defaults.set(5, forKey: GameTest.Keys.pictureWait)
         defaults.set(5000, forKey: GameTest.Keys.playSeconds)
         defaults.set(" steam.570, Black Myth: Wukong ;epic.Calluna\n", forKey: GameTest.Keys.only)
+        defaults.set("~/testkorb.json", forKey: GameTest.Keys.basket)
         let set = GameTest.Settings(defaults)
+        check(set.basket == "~/testkorb.json", "the test basket's file")
         check(set.pictureWait == 30 && set.playSeconds == 600, "waits are kept within bounds: \(set.pictureWait), \(set.playSeconds)")
         check(set.only == ["steam.570", "Black Myth: Wukong", "epic.Calluna"], "only: keys and names by commas, a name's colon kept: \(set.only)")
     }
@@ -90,6 +94,60 @@ struct GameTestTest {
         check(!GameTest.blocked(candidate("epic.X", "C", .epic), after: [signIn]), "… nor another store's")
         signIn.skip = .steamAsks
         check(!GameTest.blocked(candidate("steam.2", "B", .steam), after: [signIn]), "Steam's question is the game's own")
+    }
+
+    static func basket() {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("gametest-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        // compat-db's testkorb.json as scripts/test-basket.py writes it, fields this run doesn't use included.
+        let json = """
+        {"formatVersion": 1, "generated": "2026-11-02T21:23:38Z", "games": [
+          {"key": "steam.3678970", "name": "TBH", "category": "free", "kind": "f2p", "installed": false, "score": 0.6, "hint": null, "standsFor": []},
+          {"key": "epic.Curry", "name": "ABZU", "category": "proxy", "installed": true, "score": 0.497, "hint": "dxmt",
+           "standsFor": ["steam.1426210", "steam.548430"], "agw": null, "rank": null},
+          {"key": "steam.892970", "name": "Valheim", "category": "owned", "installed": true, "score": 0.3, "hint": null, "standsFor": []},
+          {"key": "steam.728880", "name": "Overcooked 2", "category": "owned", "installed": true, "score": 0.45},
+          {"key": "steam.1245620", "name": "Mac game", "category": "owned", "installed": true, "score": 0.9},
+          {"key": "steam.2154900", "name": "SF6 Demo", "category": "free", "kind": "demo", "demoOf": "steam.1364780", "score": 0.43}
+        ]}
+        """
+        let file = folder.appendingPathComponent("testkorb.json")
+        try? json.write(to: file, atomically: true, encoding: .utf8)
+        let basket = GameTest.Basket.load(file.path)
+        check(basket?.games.count == 6 && basket?.generated == "2026-11-02T21:23:38Z", "the basket reads, unknown fields left aside")
+        try? json.replacingOccurrences(of: "\"formatVersion\": 1", with: "\"formatVersion\": 2").write(to: file, atomically: true, encoding: .utf8)
+        check(GameTest.Basket.load(file.path) == nil, "another format isn't guessed at")
+        check(GameTest.Basket.load(folder.appendingPathComponent("none.json").path) == nil && GameTest.Basket.load("") == nil, "no basket")
+
+        let games = [
+            candidate("steam.1245620", "Mac game", .steam, .mac),
+            candidate("steam.892970", "Valheim", .steam),
+            candidate("steam.100", "Aardvark", .steam),
+            candidate("steam.728880", "Overcooked 2", .steam),
+            candidate("epic.curry", "ABZU", .epic),
+            candidate("gog.1", "Mafia II", .gog),
+        ]
+        let plan = GameTest.plan(games, basket: basket)
+        check(plan.map(\.key) == ["steam.728880", "steam.892970", "steam.100", "epic.curry", "gog.1", "steam.1245620"],
+              "the basket's games first by score within each group, the rest by name, Mac Steam still last: \(plan.map(\.key))")
+        let abzu = plan.first { $0.key == "epic.curry" }
+        check(abzu?.inBasket == true && abzu?.hint == "dxmt" && abzu?.standsFor == ["steam.1426210", "steam.548430"],
+              "a basket game carries its hint and the games it stands for, Epic's key in any case")
+        check(plan.first { $0.key == "steam.892970" }?.standsFor == nil, "an empty standsFor stays out")
+        check(plan.first { $0.key == "steam.100" }?.inBasket == false, "not in the basket")
+        let entry = GameTest.Entry(abzu!, outcome: .picture)
+        check(entry.hint == "dxmt" && entry.standsFor?.count == 2, "the entry hands them on to the compatibility list")
+        check(GameTest.plan(games).map(\.key) == ["steam.100", "steam.728880", "steam.892970", "epic.curry", "gog.1", "steam.1245620"],
+              "without a basket: by name")
+    }
+
+    static func load() {
+        check(GameTest.Load(average: 4.94, cores: 10).low, "under half the cores busy: low")
+        check(!GameTest.Load(average: 4.96, cores: 10).low, "shown as 5,0 of 10 cores: not low")
+        check(!GameTest.Load(average: 38.2, cores: 10).low, "24 compilers at once: busy")
+        check(GameTest.Load(average: 1.234, cores: 8) == GameTest.Load(average: 1.2, cores: 8), "one decimal")
+        check(GameTest.Load.now.map { $0.cores > 0 } ?? false, "this Mac's load reads")
     }
 
     static func looks() {
@@ -211,6 +269,7 @@ struct GameTestTest {
         hung.stack = ["read (in libsystem_kernel.dylib) 3000"]
         hung.notes = ["log in \(home)/Desktop", "Meldung: a | pipe"]
         hung.files = ["steam.2357570.log", "steam.2357570.sample.txt"]
+        hung.hint = "dxvk"
         var good = GameTest.Entry(candidate("epic.Calluna", "Control | Ultimate", .epic), outcome: .picture)
         good.ways = [GameTest.Way(way: "d3dmetal", outcome: .picture)]
         good.way = "d3dmetal"
@@ -220,6 +279,12 @@ struct GameTestTest {
         dxmt.way = "dxmt"
         dxmt.frames = GameTest.Frames(average: 59.6, low: 41, periods: 5)
         dxmt.result = "good"
+        dxmt.load = GameTest.Load(average: 1.5, cores: 10)
+        var busy = GameTest.Entry(candidate("steam.892970", "Valheim", .steam), outcome: .picture)
+        busy.way = "dxmt"
+        busy.frames = GameTest.Frames(average: 31, low: 12, periods: 5)
+        busy.result = "good"
+        busy.load = GameTest.Load(average: 38.2, cores: 10)
         var skipped = GameTest.Candidate(key: "steam.9", name: "Shooter", store: .steam, storeID: "9", platform: .windows,
                                          skip: .runtimes, skipNote: "fehlt: vcrun2019")
         skipped.notYet = true
@@ -227,7 +292,9 @@ struct GameTestTest {
         var report = GameTest.Report(started: started, finished: started.addingTimeInterval(3600), nightforge: "0.3.1",
                                      engine: ["winecx@4.7.3", "dxmt@0.80"], mac: "Apple M5 · macOS 26.1",
                                      pictureWait: 120, playSeconds: 60)
-        report.games = [dxmt, good, hung.redacted(home: home, user: "jdoe"), .skipped(skipped, .runtimes),
+        report.load = GameTest.Load(average: 2.04, cores: 10)
+        report.basket = .init(generated: "2026-11-02T21:23:38Z", entries: 239, installed: 4)
+        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), .skipped(skipped, .runtimes),
                         GameTest.Entry(candidate("steam.1", "Store", .steam), outcome: .needsPlayer, skip: .signIn)]
 
         let json = GameTest.json(report)
@@ -251,7 +318,16 @@ struct GameTestTest {
         check(summary.hasPrefix("# Spieletest vom 3.11.2026\n"), "German title with the run's date")
         check(summary.contains("Nightforge 0.3.1 · winecx@4.7.3 · dxmt@0.80 · Apple M5 · macOS 26.1"), "what it ran on")
         check(summary.contains("Start 00:12, Ende 01:12."), "start and end")
-        check(summary.contains("**3 gestartet: 2 mit Bild, 1 ohne (1 hängt). 1 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("**4 gestartet: 3 mit Bild, 1 ohne (1 hängt). 1 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("Systemlast zu Beginn: 2,0 bei 10 Kernen – niedrig."), "the load at the start")
+        check(summary.contains("Bei 1 Spiel war die Last beim Start hoch (in der Tabelle markiert)."), "games started on a busy Mac")
+        check(summary.contains("| Valheim | Steam | Windows | dxmt | Bild | – | 31 / 12 (Last hoch) |"), "their frame rates marked")
+        check(summary.contains("Erwartet laut Testkorb: dxvk."), "the basket's hint next to the way it took")
+        check(summary.contains("Testkorb vom 2026-11-02: 239 Einträge, 4 davon hier installiert und zuerst gespielt."), "the basket it went by")
+        var busyRun = report
+        busyRun.load = GameTest.Load(average: 38.2, cores: 10)
+        check(GameTest.summary(busyRun).contains("38,2 bei 10 Kernen – hoch: Andere Arbeit lief mit, die FPS-Werte sind nicht verlässlich."),
+              "a busy Mac at the start is said plainly")
         check(summary.contains("| Control \\| Ultimate | Epic Games | Windows | d3dmetal | Bild | 34 s | – (D3DMetal meldet keine) |"),
               "a table row, its pipe escaped")
         check(summary.contains("| Overcooked 2 | Steam | Windows | dxmt | Bild | – | 60 / 41 |"), "DXMT's frame rates")

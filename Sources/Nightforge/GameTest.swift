@@ -20,6 +20,8 @@ enum GameTest {
         static let playSeconds = "gameTest.playSeconds"
         /// True: the run ends after the game it's at.
         static let stop = "gameTest.stop"
+        /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
+        static let basket = "gameTest.basket"
     }
 
     /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
@@ -30,11 +32,14 @@ enum GameTest {
         var pictureWait: TimeInterval = 120
         var playSeconds: TimeInterval = 60
         var only: [String] = []
+        /// The test basket's file, "" for none.
+        var basket = ""
 
-        init(pictureWait: TimeInterval = 120, playSeconds: TimeInterval = 60, only: [String] = []) {
+        init(pictureWait: TimeInterval = 120, playSeconds: TimeInterval = 60, only: [String] = [], basket: String = "") {
             self.pictureWait = pictureWait
             self.playSeconds = playSeconds
             self.only = only
+            self.basket = basket
         }
 
         /// From the switches, within sensible bounds: a picture gets 30 s to 15 min, a game runs 10 s to 10 min.
@@ -44,7 +49,8 @@ enum GameTest {
             self.init(pictureWait: wait > 0 ? TimeInterval(min(max(wait, 30), 900)) : 120,
                       playSeconds: play > 0 ? TimeInterval(min(max(play, 10), 600)) : 60,
                       only: (defaults.string(forKey: Keys.only) ?? "").split(whereSeparator: { ",;\n".contains($0) })
-                          .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
+                          .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
+                      basket: defaults.string(forKey: Keys.basket) ?? "")
         }
     }
 
@@ -118,17 +124,64 @@ enum GameTest {
         var skip: Skip?
         /// What the skip is about: the runtimes it lacks.
         var skipNote: String?
+        /// From the test basket: it's in there, the way it expects first, the popular games it stands for.
+        var inBasket = false
+        var hint: String?
+        var standsFor: [String]?
+    }
+
+    /// Which games matter most to test (compat-db, scripts/test-basket.py): by `score`, with the way
+    /// LaunchHealth is expected to take first (`hint`) and the popular games of the same engine and
+    /// graphics each one stands for. It only orders the installed games – never a reason to download.
+    struct Basket: Decodable, Equatable {
+        struct Item: Decodable, Equatable {
+            var key: String
+            var score: Double?
+            var hint: String?
+            var standsFor: [String]?
+        }
+
+        static let format = 1
+
+        var formatVersion: Int
+        var generated: String?
+        var games: [Item]
+
+        static func load(_ path: String) -> Basket? {
+            guard !path.isEmpty, let data = FileManager.default.contents(atPath: (path as NSString).expandingTildeInPath),
+                  let basket = try? JSONDecoder().decode(Basket.self, from: data), basket.formatVersion == format
+            else { return nil }
+            return basket
+        }
     }
 
     /// The games in the order they're played: the Windows versions first – Steam's, then Epic's and
     /// GOG's, all in the one Wine session – then the Mac versions, GOG's and last Steam's: Steam for
-    /// Mac signs the Windows Steam out, so it changes over once. By name within each. With `only`,
-    /// just those games, by key or name.
-    static func plan(_ candidates: [Candidate], only: [String] = []) -> [Candidate] {
+    /// Mac signs the Windows Steam out, so it changes over once. Within each the test basket's games
+    /// first, highest score first – a run cut short has tested what matters most – then by name.
+    /// With `only`, just those games, by key or name.
+    static func plan(_ candidates: [Candidate], only: [String] = [], basket: Basket? = nil) -> [Candidate] {
         let wanted = Set(only.map { $0.lowercased() })
+        let items = (basket?.games ?? []).enumerated().sorted { ($0.element.score ?? 0, -$0.offset) > ($1.element.score ?? 0, -$1.offset) }
+        var place: [String: (index: Int, item: Basket.Item)] = [:]
+        for (index, entry) in items.enumerated() where place[entry.element.key.lowercased()] == nil {
+            place[entry.element.key.lowercased()] = (index, entry.element)
+        }
         return candidates
             .filter { wanted.isEmpty || wanted.contains($0.key.lowercased()) || wanted.contains($0.name.lowercased()) }
-            .sorted { (rank($0), $0.name.lowercased(), $0.key) < (rank($1), $1.name.lowercased(), $1.key) }
+            .map { candidate in
+                var candidate = candidate
+                if let item = place[candidate.key.lowercased()]?.item {
+                    candidate.inBasket = true
+                    candidate.hint = item.hint
+                    candidate.standsFor = item.standsFor?.isEmpty == false ? item.standsFor : nil
+                }
+                return candidate
+            }
+            .sorted {
+                (rank($0), place[$0.key.lowercased()]?.index ?? Int.max, $0.name.lowercased(), $0.key)
+                    < (rank($1), place[$1.key.lowercased()]?.index ?? Int.max, $1.name.lowercased(), $1.key)
+            }
     }
 
     static func rank(_ candidate: Candidate) -> Int {
@@ -316,6 +369,34 @@ enum GameTest {
         return log.split(separator: "\n").last { $0.contains(marker) }
             .flatMap { line in line.range(of: marker).map { String(line[$0.upperBound...]) } }
     }
+
+    // MARK: - The Mac's load
+
+    /// How busy the Mac is when the run, or a game, starts: with other work going on (a build, 24
+    /// compilers at once), the frame rates are not the game's.
+    struct Load: Codable, Equatable {
+        /// The one-minute load average.
+        var average: Double
+        var cores: Int
+        /// Under half the cores busy (`lowLoadShare`).
+        var low: Bool
+
+        init(average: Double, cores: Int) {
+            self.average = (average * 10).rounded() / 10
+            self.cores = cores
+            low = self.average < Double(max(cores, 1)) * GameTest.lowLoadShare
+        }
+
+        static var now: Load? {
+            var averages = [Double](repeating: 0, count: 3)
+            guard getloadavg(&averages, 3) >= 1 else { return nil }
+            return Load(average: averages[0], cores: ProcessInfo.processInfo.activeProcessorCount)
+        }
+    }
+
+    static let lowLoadShare = 0.5
+    /// How long a run waits at its start for a busy Mac to calm down.
+    static let loadPatience: TimeInterval = 5 * 60
 
     // MARK: - Calm between games
 
