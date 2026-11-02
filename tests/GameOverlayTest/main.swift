@@ -117,6 +117,37 @@ struct GameOverlayTest {
         for spared: pid_t in [1, 401, 6058, 6060, 6070, 6080, 6100, 6110, 900] {
             check(!(l4d2 + overcooked + nms).contains(spared), "\(spared) is spared")
         }
+
+        // Control (Epic, 2.11.): its launcher starts the game by its bare name, and Wine starts every
+        // program with launchd as its parent – once the launcher ended, the game counted as ended.
+        // Its working folder is the game's (winecx's spawn_process).
+        let control = #"\Epic Games\Control\"#
+        let prefix = "/Users/tester/Library/Application Support/Nightforge/Prefix/drive_c/Program Files/Epic Games"
+        func runs(_ command: String, _ cwd: String?, _ folder: String = control) -> Bool {
+            GameProcesses.runsFrom([folder], command: command, cwd: cwd)
+        }
+        check(runs(#"C:\Program Files\Epic Games\Control\Control.exe -epicapp=Calluna"#, nil), "the launcher by its Windows path")
+        check(runs("Control_DX11.exe -AUTH_LOGIN=unused -epicapp=Calluna", prefix + "/Control"), "the game by its bare name, in its folder")
+        check(runs("Control_DX11.exe", prefix + "/Control/data"), "in a folder of the game's")
+        check(runs("Control_DX11.exe", "/Volumes/T7/Nightforge Games/Epic Games/Control"), "on an external drive")
+        check(!runs("Control_DX11.exe", prefix + "/Control Ultimate"), "not another game's folder that starts the same")
+        check(!runs("Control_DX11.exe", "/Users/tester"), "not one elsewhere")
+        check(!runs("Control_DX11.exe", nil), "not without a working folder")
+        check(!runs(#"C:\windows\system32\start.exe /unix Control.exe"#, prefix + "/Control"), "not Windows' own programs")
+        check(!runs(#"C:\Program Files (x86)\Steam\gameoverlayui.exe -pid 7000"#, prefix + "/Control"), "not Steam's")
+        check(!runs("/bin/zsh", prefix + "/Control"), "not a Mac program in the folder")
+        check(runs("Game.exe", "/Users/tester/Library/Application Support/Nightforge/Prefix/drive_c/Program Files (x86)/Steam/steamapps/common/Hades",
+                   #"\steamapps\common\Hades\"#), "a Steam game too")
+        check(GameProcesses.runsFrom(GameProcesses.gameFolders, command: "Control_DX11.exe", cwd: prefix + "/Control"),
+              "any game's folder (Engine.windowsGameRunning)")
+        let launched = [GameProcesses.Entry(pid: 6100, parent: 1, command: #"C:\Program Files (x86)\Steam\steam.exe -silent"#,
+                                            cwd: "/Users/tester/Library/Application Support/Nightforge/Prefix/drive_c/Program Files (x86)/Steam"),
+                        GameProcesses.Entry(pid: 7100, parent: 1, command: "Control_DX11.exe -AUTH_LOGIN=unused", cwd: prefix + "/Control"),
+                        GameProcesses.Entry(pid: 7110, parent: 1, command: #"C:\windows\system32\conhost.exe"#, cwd: prefix + "/Control")]
+        check(GameProcesses.targets(windows: control, mac: nil, in: launched, me: 401) == [7100], "the overlay and the curtain have the game")
+        check(GameProcesses.running([control.lowercased(): "epic:Calluna"], in: launched) == ["epic:Calluna": 7100],
+              "it counts as running once its launcher has gone")
+        check(GameProcesses.running([control.lowercased(): "epic:Calluna"], in: Array(launched.prefix(1))).isEmpty, "gone when it's gone")
     }
 
     /// What the curtain waits for: a window of a game's size from one of the game's processes.
@@ -300,5 +331,28 @@ struct GameOverlayTest {
         check(GameProcesses.alive(session.processIdentifier), "the Wine session lives on")
         game.waitUntilExit()
         check(game.terminationReason == .uncaughtSignal && game.terminationStatus == SIGKILL, "it took SIGKILL (\(game.terminationStatus))")
+        bareName()
+    }
+
+    /// A program by its bare name in its game's folder, as Control's launcher starts it (2.11.): found
+    /// by its working folder, the way Wine gives it one.
+    static func bareName() {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("standin-\(getpid())/Epic Games/Bare Game/bin")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()) }
+        let game = Process()
+        game.executableURL = URL(fileURLWithPath: "/bin/bash")
+        game.currentDirectoryURL = folder
+        game.arguments = ["-c", "exec -a 'BareGame_DX11.exe -AUTH_LOGIN=unused' /bin/sleep 5"]
+        guard (try? game.run()) != nil else { return check(false, "the bare stand-in started") }
+        defer { game.terminate() }
+        Thread.sleep(forTimeInterval: 0.4)
+        let table = GameProcesses.table()
+        let entry = table.first { $0.pid == game.processIdentifier }
+        check(entry?.cwd?.lowercased().hasSuffix("/epic games/bare game/bin") == true, "its working folder is read (\(entry?.cwd ?? "none"))")
+        let marker = #"\Epic Games\Bare Game\"#
+        check(GameProcesses.running([marker.lowercased(): "epic:bare"], in: table)["epic:bare"] == game.processIdentifier,
+              "the bare program counts as the game running")
+        check(GameProcesses.targets(windows: marker, mac: nil, in: table) == [game.processIdentifier], "and as the game's process")
     }
 }

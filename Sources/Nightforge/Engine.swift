@@ -256,11 +256,14 @@ enum Engine {
     }
 
     /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
-    /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games).
+    /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games – or,
+    /// started by a launcher with its bare name, runs from there: GameProcesses.runsFrom).
     static var windowsGameRunning: Bool {
         ownProcesses().contains { process in
             let command = process.command.lowercased()
-            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#) || command.contains(#"\gog games\"#)
+            return GameProcesses.gameFolders.contains { command.contains($0.lowercased()) }
+                || command.contains(".exe") && GameProcesses.runsFrom(GameProcesses.gameFolders, command: command,
+                                                                      cwd: GameProcesses.cwd(of: process.pid))
         }
     }
 
@@ -741,11 +744,20 @@ enum Engine {
         has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }
         reopened() { pgrep -qf "Nightforge.app/Contents/MacOS/Nightforge"; }
         steam_running() { has_process '\steam\steam.exe'; }
+        # A Windows program a launcher started by its bare name ("Control_DX11.exe -AUTH_LOGIN=…") shows
+        # no folder; Wine gives it the game's as its working folder. Not Windows' or Steam's own programs.
+        runs_from_game_folder() {
+          local list pids
+          list="$(ps -axo pid=,command=)"
+          pids="$(printf '%s\n' "$list" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }' | paste -sd, -)"
+          [ -n "$pids" ] && lsof -a -d cwd -Fn -p "$pids" 2>/dev/null | grep -qiE '/steamapps/common/|/epic games/|/gog games/'
+        }
         game_running() {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
           has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
           has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
+          runs_from_game_folder && return 0                                               # one a launcher started
           return 1
         }
         busy() {

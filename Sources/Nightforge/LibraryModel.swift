@@ -748,34 +748,10 @@ final class LibraryModel: ObservableObject {
         }, uniquingKeysWith: { first, _ in first })
     }
 
+    /// A game that a launcher started by its bare name counts too (GameProcesses.runsFrom: Control, 2.11.).
     nonisolated private static func runningGames(_ folders: [String: String]) -> [String: pid_t] {
         guard !folders.isEmpty else { return [:] }
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [:] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
-
-        var result: [String: pid_t] = [:]
-        for line in output.split(separator: "\n") {
-            let fields = line.drop { $0 == " " }.split(separator: " ", maxSplits: 1)
-            guard fields.count == 2, let pid = pid_t(fields[0]) else { continue }
-            let command = fields[1].lowercased()
-            // Steam's crash handler and similar helpers live in the same folder; the game's
-            // own process is the first .exe there that isn't one of those.
-            guard !command.contains("crashhandler"), !command.contains("unitycrash") else { continue }
-            let windowsProgram = command.contains(".exe")
-            for (folder, id) in folders where result[id] == nil {
-                // Mac versions: the program itself runs from the folder ("/…/steamapps/common/Game/
-                // Game.app/Contents/MacOS/Game"); a script that merely names the folder doesn't count.
-                let matches = folder.hasPrefix("/") ? command.hasPrefix(folder) : windowsProgram && command.contains(folder)
-                if matches { result[id] = pid }
-            }
-        }
-        return result
+        return GameProcesses.running(folders, in: GameProcesses.table())
     }
 
     /// The running-game check has looked at the processes at least once, knowing the library.

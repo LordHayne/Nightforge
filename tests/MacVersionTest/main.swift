@@ -530,6 +530,27 @@ struct MacVersionTest {
               && reopenedAfter > 4 && reopenedAfter < 20,
               "the quit script brings Nightforge back once the game has ended (after \(Int(reopenedAfter)) s)")
         try? fm.removeItem(at: opened)
+        // A game its launcher started by its bare name (Control_DX11.exe, 2.11.): no folder in its
+        // command line, the game's as its working folder. Unseen, the script would end the Wine session
+        // under it; it waits for it like for any game.
+        let bareFolder = sandbox.appendingPathComponent("Prefix/drive_c/Program Files/Epic Games/Bare Game", isDirectory: true)
+        try? fm.createDirectory(at: bareFolder, withIntermediateDirectories: true)
+        let bareGame = Process()
+        bareGame.executableURL = URL(fileURLWithPath: "/bin/bash")
+        bareGame.currentDirectoryURL = bareFolder
+        // The sandbox in its arguments only so that the ps stand-in lists it.
+        bareGame.arguments = ["-c", "exec -a 'BareGame_DX11.exe --log=\(sandbox.path)/bare.log' /bin/sleep 3"]
+        try? bareGame.run()
+        Thread.sleep(forTimeInterval: 0.5)
+        let bareWait = runScript()
+        let bareStarted = Date()
+        while bareWait.isRunning && Date().timeIntervalSince(bareStarted) < 30 { Thread.sleep(forTimeInterval: 0.5) }
+        let bareAfter = Date().timeIntervalSince(bareStarted)
+        check((try? String(contentsOf: opened, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) == "/Fake/Nightforge.app"
+              && bareAfter > 2 && bareAfter < 20,
+              "a game started by its bare name counts as running, Nightforge comes back after it (after \(Int(bareAfter)) s)")
+        if bareWait.isRunning { bareWait.terminate() }
+        try? fm.removeItem(at: opened)
         let idle = runScript()  // no game: it waits to shut Steam down instead
         Thread.sleep(forTimeInterval: 3)
         check(idle.isRunning && !fm.fileExists(atPath: opened.path), "without a game it doesn't open Nightforge")
