@@ -2,7 +2,8 @@ name: Update game profiles
 
 # Rebuilds profiles/profiles.json every night from umu-protonfixes, AreWeAntiCheatYet and the
 # GeForce Now game list plus profiles/mac.json (see scripts/build-profiles.py) and commits it
-# when something changed. The app downloads it.
+# when something changed. The app downloads it. Beside it profiles/agw.json, what AppleGamingWiki
+# says about games on a Mac (scripts/fetch-agw.py): a file of its own under CC BY-NC-SA 3.0.
 
 on:
   schedule:
@@ -13,13 +14,16 @@ on:
     paths:
       - "profiles/mac.json"
       - "scripts/build-profiles.py"
+      - "scripts/fetch-agw.py"
       - "tests/test_build_profiles.py"
       - ".github/workflows/profiles.yml"
   pull_request:
     paths:
       - "profiles/**"
       - "scripts/build-profiles.py"
+      - "scripts/fetch-agw.py"
       - "tests/test_build_profiles.py"
+      - "tests/test_fetch_agw.py"
 
 permissions:
   contents: write
@@ -35,7 +39,7 @@ jobs:
           python-version: "3.12"
 
       - name: Test the profile builder
-        run: python3 -m unittest tests/test_build_profiles.py
+        run: python3 -m unittest tests/test_build_profiles.py tests/test_fetch_agw.py
 
       - name: Fetch umu-protonfixes
         run: git clone --depth 1 https://github.com/Open-Wine-Components/umu-protonfixes.git "$RUNNER_TEMP/umu-protonfixes"
@@ -87,6 +91,14 @@ jobs:
           print("ok:", len(doc["games"]), "games,", blocked, "blocked by anti-cheat,", cloud, "on GeForce Now")
           PY
 
+      # Its own step: when AppleGamingWiki or Wikidata is down, or the format changed, the script fails
+      # without writing, and the last agw.json stays (marked by its "generated" date). Not for pull
+      # requests, which commit nothing: the wiki gets its ~45 requests once a night.
+      - name: Fetch AppleGamingWiki
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: python3 -I scripts/fetch-agw.py
+
       # GitHub switches off scheduled workflows in public repos after 60 days without activity.
       # Re-enabling them through the API counts as activity, so the nightly jobs keep running
       # even when upstream has been quiet for a while.
@@ -102,13 +114,13 @@ jobs:
       - name: Commit changes
         if: github.event_name != 'pull_request'
         run: |
-          if git diff --quiet profiles/profiles.json; then
+          if git diff --quiet profiles/profiles.json profiles/agw.json; then
             echo "No profile changes."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add profiles/profiles.json
+          git add profiles/profiles.json profiles/agw.json
           git commit -m "Update game profiles"
           git pull --rebase
           git push
