@@ -3703,14 +3703,6 @@
    ],
    "source": "umu"
   },
-  "1436900": {
-   "name": "Sabotaj",
-   "source": "anticheat",
-   "antiCheat": [
-    "Easy Anti-Cheat"
-   ],
-   "geforceNow": "e75a2222-787f-4213-88bf-268297e927ae"
-  },
   "1442910": {
    "name": "Reign Of Dwarf",
    "source": "anticheat",
@@ -5563,6 +5555,14 @@
    ],
    "geforceNow": "d1768dc1-b451-449a-8f7f-cf5b20f98f6f"
   },
+  "epic.456f53b28c384f02865874299f956501": {
+   "name": "Midnight Ghost Hunt",
+   "source": "anticheat",
+   "antiCheatOnline": [
+    "Easy Anti-Cheat"
+   ],
+   "geforceNow": "25e3c75b-728c-414d-83c0-3f041087163c"
+  },
   "epic.45e7cf3c49054f2fb20b673d9b0ae69e": {
    "name": "Sonic Mania",
    "note": "Seen 2026-11-01 on M5 with the Epic version on winecx 4.7.3: its first start writes Settings.ini (Sega/SonicMania in AppData/Local) with windowed=y at 848×480, so it played in a small window on the TV. windowed=n plays full screen at the desktop's resolution (no fsWidth/fsHeight in the file); exclusiveFS stays as the game sets it.",
@@ -5577,14 +5577,6 @@
     }
    ],
    "source": "mac"
-  },
-  "epic.456f53b28c384f02865874299f956501": {
-   "name": "Midnight Ghost Hunt",
-   "source": "anticheat",
-   "antiCheatOnline": [
-    "Easy Anti-Cheat"
-   ],
-   "geforceNow": "25e3c75b-728c-414d-83c0-3f041087163c"
   },
   "epic.50118b7f954e450f8823df1614b24e80": {
    "name": "Fall Guys: Ultimate Knockout",
@@ -5926,5 +5918,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-01T21:36:49Z"
+ "generated": "2026-11-02T19:08:04Z"
 }
