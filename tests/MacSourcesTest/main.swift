@@ -190,8 +190,10 @@ struct MacSourcesTest {
         // MARK: The file in the repository
         if let data = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])), let real = AGWIndex.decode(data) {
             check(real.games.count > 1000, "profiles/agw.json has \(real.games.count) games")
-            check(real.entry(steamAppID: 870780, gogID: nil)?.hint?.graphics == .d3dmetal,
-                  "Control: every Mac source runs it as DirectX 12 on D3DMetal")
+            let control = real.entry(steamAppID: 870780, gogID: nil)
+            check(control?.reports[.crossover]?.graphics == [.d3dmetal] && control?.reports[.crossover]?.directX == ["12"],
+                  "Control: the wiki's CrossOver report runs it as DirectX 12 on D3DMetal")
+            check(control?.hint == nil, "…and no hint, since profiles/mac.json has Control's own layer (mac.json wins)")
             check(real.games.values.allSatisfy { !$0.reports.isEmpty }, "every entry says something")
         } else {
             check(false, "profiles/agw.json reads")

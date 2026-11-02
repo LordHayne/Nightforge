@@ -14441,15 +14441,6 @@
       "d3dmetal"
      ]
     }
-   },
-   "hint": {
-    "graphics": "d3dmetal",
-    "directX": "12",
-    "from": [
-     "crossover",
-     "wine"
-    ],
-    "source": "agw"
    }
   },
   "872200": {
@@ -24532,5 +24523,5 @@
    }
   }
  },
- "generated": "2026-11-02T20:28:49Z"
+ "generated": "2026-11-02T22:25:16Z"
 }

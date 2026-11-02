@@ -106,15 +106,13 @@ struct LaunchHealthTest {
         check(hintedIDs(GameAnalysis(apis: [.d3d12]), d3dMetalHint) == ["d3dmetal"], "DirectX 12 only: unchanged")
         check(hintedIDs(GameAnalysis(apis: [.d3d11]), d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"],
               "DirectX 11 only: D3DMetal first, once, then DXMT and DXVK")
-        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
-              "a profile's D3DMetal for DirectX 11 doesn't list it twice")
 
         // "Most compatible": the hinted way first, as a profile's would be, then the safest.
-        let control = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, d3dMetal: true, vulkanLayer: true)
-        check(LaunchHealth.ladder(control, preset: .compatible, profile: nil, hint: .d3dmetal).map(\.id) == ["d3dmetal", "dxvk", "dxmt"],
+        let hintedControl = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, d3dMetal: true, vulkanLayer: true)
+        check(LaunchHealth.ladder(hintedControl, preset: .compatible, profile: nil, hint: .d3dmetal).map(\.id) == ["d3dmetal", "dxvk", "dxmt"],
               "Most compatible: the hinted way first")
-        check(LaunchHealth.ladder(control, preset: .compatible, profile: nil).map(\.id) == ["dxvk", "dxmt", "d3dmetal"], "…without it, the safest first")
-        check(LaunchHealth.ladder(control, preset: .automatic, profile: nil, hint: .d3dmetal) == control, "Automatic keeps the list")
+        check(LaunchHealth.ladder(hintedControl, preset: .compatible, profile: nil).map(\.id) == ["dxvk", "dxmt", "d3dmetal"], "…without it, the safest first")
+        check(LaunchHealth.ladder(hintedControl, preset: .automatic, profile: nil, hint: .d3dmetal) == hintedControl, "Automatic keeps the list")
 
         // A game that has started by the list without the hint keeps it; a new one follows the hint.
         let fresh = GameID.steam(990_005)
@@ -131,6 +129,28 @@ struct LaunchHealthTest {
         let late = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
         check(late.attempts == followed.attempts && late.hint == .d3dmetal,
               "a game still looking for its way (started before the hint came) takes the hinted list")
+        // A ladder that only grew at the end keeps what was learned (saved(_:for:)), with or without a hint:
+        // confirmed on DXVK before D3DMetal became DirectX 11's last way, it stays on DXVK.
+        let grownGame = GameID.steam(990_006)
+        let dx11Only = GameAnalysis(apis: [.d3d11])
+        LaunchHealth.reset(grownGame)
+        let older = LaunchHealth.attempts(for: dx11Only, profile: nil, d3dMetal: false, vulkanLayer: true)
+        LaunchHealth.recordStart(grownGame, older)
+        _ = LaunchHealth.advance(grownGame, older)
+        LaunchHealth.confirm(grownGame, older)
+        let grownNow = LaunchHealth.attempts(for: dx11Only, profile: nil, hint: d3dMetalHint, game: grownGame, preset: .automatic,
+                                             d3dMetal: true, vulkanLayer: true)
+        check(grownNow.hint == nil && grownNow.attempts.map(\.id) == ["dxmt", "dxvk", "d3dmetal"]
+              && LaunchHealth.current(grownGame, grownNow.attempts) == (1, true),
+              "a game confirmed on a list that since grew at the end keeps its way; the hint doesn't reorder it")
+        LaunchHealth.reset(grownGame)
+        LaunchHealth.recordStart(grownGame, older)
+        let searching = LaunchHealth.attempts(for: dx11Only, profile: nil, hint: d3dMetalHint, game: grownGame, preset: .automatic,
+                                              d3dMetal: true, vulkanLayer: true)
+        check(searching.hint == .d3dmetal && searching.attempts.first?.graphics == .d3dmetal
+              && LaunchHealth.current(grownGame, searching.attempts) == (0, false),
+              "one not confirmed yet takes the hinted list and starts with the reported way")
+        LaunchHealth.reset(grownGame)
         LaunchHealth.reset(fresh)
         LaunchHealth.recordStart(fresh, followed.attempts)
         let again = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
@@ -170,8 +190,8 @@ struct LaunchHealthTest {
               "a ladder that only grew at the end keeps the learned way: DXVK, confirmed")
         check(LaunchHealth.peek(app, grown).map { $0.index == 1 && $0.confirmed } == true, "…also when only looked at")
         check(LaunchHealth.advance(app, grown) && LaunchHealth.current(app, grown) == (2, false), "DXVK failing then moves on to D3DMetal")
-        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt"],
-              "a profile's D3DMetal for a DirectX 11 game comes once")
+        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "a profile's D3DMetal for a DirectX 11 game comes once, and DXMT and DXVK still follow")
         LaunchHealth.reset(app)
 
         // MARK: What a game taught Nightforge (kept under a game ID no store has, removed again)
