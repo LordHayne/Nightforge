@@ -2828,6 +2828,8 @@ final class LibraryModel: ObservableObject {
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
             let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.gameID) : nil
+            // On the first run the wiki's list may still be on its way: a game's first start waits for it.
+            await macSourcesAtHand()
             let insight = await insight(of: game)
             let analysis = insight?.analysis
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
@@ -3509,6 +3511,15 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(400))  // one sheet closes before the next opens
             showingOptions = true
         }
+    }
+
+    /// Waits for this run's download of what AppleGamingWiki says when there's no copy yet (the first
+    /// run): a game's first start should already take the way the reports point to.
+    private func macSourcesAtHand() async {
+        guard macSources.isEmpty else { return }
+        await AGWStore.shared.refresh()
+        let sources = await AGWStore.shared.current()
+        if sources != macSources { macSources = sources }
     }
 
     /// "Didn't start" in "Welcome back": the way it took gave the player nothing, so with "Automatic"

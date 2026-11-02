@@ -101,7 +101,7 @@ struct LaunchHealthTest {
         }
         check(hintedIDs(both, d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"], "Control: DirectX 12 on D3DMetal first, DirectX 11 after")
         check(hintedIDs(both, d3dMetalHint, d3dMetal: false) == ["dxmt", "dxvk"], "…the usual list without D3DMetal")
-        check(hintedIDs(GameAnalysis(apis: [.d3d11]), SourceHint(graphics: .dxvk)) == ["dxvk", "dxmt"], "a DXVK hint goes first")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), SourceHint(graphics: .dxvk)) == ["dxvk", "dxmt", "d3dmetal"], "a DXVK hint goes first")
         check(hintedIDs(both, d3dMetalHint, #"{"graphics": "dxmt"}"#) == ["dxmt", "dxvk", "d3dmetal"], "a profile's layer beats any hint")
         check(hintedIDs(GameAnalysis(apis: [.d3d12]), d3dMetalHint) == ["d3dmetal"], "DirectX 12 only: unchanged")
         check(hintedIDs(GameAnalysis(apis: [.d3d11]), d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"],
@@ -125,6 +125,12 @@ struct LaunchHealthTest {
         LaunchHealth.confirm(fresh, plain)
         let kept = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
         check(kept.attempts == plain && kept.hint == nil, "a way that works isn't given up for a report")
+        LaunchHealth.reset(fresh)
+        LaunchHealth.recordStart(fresh, plain)
+        _ = LaunchHealth.advance(fresh, plain)
+        let late = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(late.attempts == followed.attempts && late.hint == .d3dmetal,
+              "a game still looking for its way (started before the hint came) takes the hinted list")
         LaunchHealth.reset(fresh)
         LaunchHealth.recordStart(fresh, followed.attempts)
         let again = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)

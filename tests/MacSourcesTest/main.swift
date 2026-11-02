@@ -117,6 +117,12 @@ struct MacSourcesTest {
         let said = Compatibility.rate(reported)
         check(said.level == .untested && said.note == L10n.t("According to AppleGamingWiki: %@.", entry?.wineSummary ?? ""),
               "still not tested, but what the wiki says is said")
+        var badly = Compatibility.Facts()
+        badly.reported = index.games["gog.777"]
+        let warned = Compatibility.rate(badly)
+        check(warned.level == .untested && warned.note == L10n.t("According to AppleGamingWiki it runs badly through CrossOver and Wine (%@) – it may not run here either.",
+                                                                 "CrossOver: " + AGWEntry.Rating.unplayable.label),
+              "a bad word is said as a warning before the download, never a block: \(warned.note ?? "-")")
         reported.ownRating = well
         check(Compatibility.rate(reported).level == .great, "the player's own word beats the wiki's")
         reported.ownRating = nil

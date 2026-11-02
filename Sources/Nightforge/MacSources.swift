@@ -183,7 +183,8 @@ actor AGWStore {
     private let remoteURL: URL?
     private let cachedURL: URL
     private var index: AGWIndex?
-    private var refreshed = false
+    /// This run's fetch: callers that come while it's under way wait for it rather than going without.
+    private var refreshing: Task<Void, Never>?
 
     init(remoteURL: URL? = (Bundle.main.object(forInfoDictionaryKey: "NightforgeAGWURL") as? String)
              .flatMap { $0.isEmpty ? nil : URL(string: $0) },
@@ -202,8 +203,14 @@ actor AGWStore {
     /// new for this Nightforge. It only orders the ways a game is tried and shows what the wiki
     /// says – it can't change how a game is set up.
     func refresh() async {
-        guard !refreshed, let remoteURL else { return }
-        refreshed = true
+        if let refreshing { return await refreshing.value }
+        guard let remoteURL else { return }
+        let fetch = Task { await self.fetch(remoteURL) }
+        refreshing = fetch
+        await fetch.value
+    }
+
+    private func fetch(_ remoteURL: URL) async {
         var request = URLRequest(url: remoteURL)
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData

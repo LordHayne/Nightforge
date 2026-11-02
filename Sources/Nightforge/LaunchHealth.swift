@@ -149,10 +149,11 @@ enum LaunchHealth {
         }
     }
 
-    /// The ways for a game, with a source's hint where it fits – unless the game has already been
-    /// started by the list without it: a way that works isn't given up for someone else's report,
-    /// and a game halfway down its list doesn't start over. `hint` in the result: the layer the list
-    /// put first for it, nil when it didn't follow one.
+    /// The ways for a game, with a source's hint where it fits – unless the game already runs on a
+    /// confirmed way of the list without it: a way that works isn't given up for someone else's
+    /// report. One still looking for its way (started before the hint came, on the first run) takes
+    /// the hinted list. `hint` in the result: the layer the list put first for it, nil when it didn't
+    /// follow one.
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
                          preset: GraphicsPreset, d3dMetal: Bool = Engine.d3dMetalReady,
                          vulkanLayer: Bool = Engine.vulkanLayerLoads) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
@@ -161,7 +162,7 @@ enum LaunchHealth {
         let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer)
         let before = ladder(plain, preset: preset, profile: profile)
         let after = ladder(followed, preset: preset, profile: profile, hint: layer)
-        if after != before, peek(game, before) != nil, peek(game, after) == nil { return (plain, nil) }
+        if after != before, peek(game, before)?.confirmed == true, peek(game, after) == nil { return (plain, nil) }
         return (followed, layer)
     }
 

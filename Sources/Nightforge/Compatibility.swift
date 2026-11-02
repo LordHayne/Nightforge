@@ -121,8 +121,11 @@ struct Compatibility: Equatable {
         if facts.launch?.confirmed == true {
             return .init(level: .great)
         }
-        if facts.platform == .windows, let said = facts.reported?.wineSummary {
-            return .init(level: .untested, note: L10n.t("According to AppleGamingWiki: %@.", said))
+        if facts.platform == .windows, let reported = facts.reported, let said = reported.wineSummary {
+            // Said before the download, honestly: a bad word from the wiki is a warning, never a block.
+            let runs = reported.ways.contains { $0.way.throughWine && $0.report.rating.good }
+            return .init(level: .untested, note: runs ? L10n.t("According to AppleGamingWiki: %@.", said)
+                         : L10n.t("According to AppleGamingWiki it runs badly through CrossOver and Wine (%@) – it may not run here either.", said))
         }
         return .init(level: .untested)
     }

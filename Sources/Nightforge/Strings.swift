@@ -1349,6 +1349,8 @@ enum L10n {
         "only to the menu": "nur bis ins Menü",
         "unplayable": "unspielbar",
         "According to AppleGamingWiki: %@.": "Laut AppleGamingWiki: %@.",
+        "According to AppleGamingWiki it runs badly through CrossOver and Wine (%@) – it may not run here either.":
+            "Laut AppleGamingWiki läuft es über CrossOver und Wine schlecht (%@) – hier vielleicht auch nicht.",
         "What others report": "Was andere berichten",
         "According to AppleGamingWiki:": "Laut AppleGamingWiki:",
         "Nightforge tries %@ first, as these reports did.": "Nightforge versucht zuerst %@, wie in diesen Berichten.",

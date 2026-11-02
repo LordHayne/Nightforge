@@ -40,18 +40,23 @@ Nur wenn er klar ist:
 ### Was die App damit macht
 
 - **Startweg** (`LaunchHealth.hinted`): Der Hinweis kommt nur an die erste Stelle, wo er zum Spiel passt.
-  - D3DMetal: Das Spiel hat DX11 **und** einen DX12-Build, Nightforge kennt keinen DX11-Schalter dafür (Unreal und
-    Unity bleiben bei gemessenem `-dx11` auf DXMT), D3DMetal ist eingerichtet, und die Berichte sagen nicht „DX11“.
-    Dann: D3DMetal → DXMT → DXVK. Das ist der Fall Control.
+  - D3DMetal: bei DX11-Spielen (mit oder ohne DX12-Build) und Spielen ohne erkannte API, wenn D3DMetal eingerichtet
+    ist und Nightforge keinen DX11-Schalter für die Engine kennt (Unreal und Unity bleiben bei gemessenem `-dx11` auf
+    DXMT). Seit de1f146 ist D3DMetal für DX11 ohnehin der letzte Weg; der Hinweis holt ihn nach vorn:
+    D3DMetal → DXMT → DXVK. Das ist der Fall Control (DX11-Build läuft nur auf D3DMetal, live 2.11.).
   - DXMT oder DXVK: bei DX11-Spielen an die erste Stelle.
-  - Ein Profil mit Grafikweg gewinnt. Ein Spiel, das schon nach der Liste ohne Hinweis gestartet wurde (bestätigt
-    oder unterwegs), behält sie. „Am kompatibelsten“ setzt den Hinweis an die erste Stelle wie ein Profil.
+  - Ein Profil mit Grafikweg gewinnt. Ein Spiel, das auf einem **bestätigten** Weg der Liste ohne Hinweis läuft,
+    behält sie. Eins, das noch sucht (z. B. vor dem Hinweis gestartet), nimmt die Liste mit Hinweis.
+    „Am kompatibelsten“ setzt den Hinweis an die erste Stelle wie ein Profil.
+  - Beim allerersten Start nach der Einrichtung wartet der Start auf den laufenden Download von `agw.json`, damit
+    schon dieser Start den Hinweis hat.
 - **Spielseite**: Abschnitt „Was andere berichten“ unter „Über das Spiel“: „Laut AppleGamingWiki:“, je Weg die
   Bewertung (farbig, mit Wort), Version · Grafikweg · DX · Chip · Jahr, die englische Notiz (2 Zeilen, voll beim
   Darüberfahren), Herkunft mit Lizenz, Knöpfe zu AppleGamingWiki, CodeWeavers und MacGamingDB. Die Karte „Dieses
   Spiel“ sagt „Noch kein Profil – zuerst D3DMetal, wie im AppleGamingWiki berichtet“.
-- **Plakette**: Ein Spiel, das sonst nichts bewertet, bleibt „Noch nicht getestet“, die Erklärung sagt aber
-  „Laut AppleGamingWiki: CrossOver: perfekt, …“.
+- **Plakette, auch vor dem Download**: Ein Spiel, das sonst nichts bewertet, bleibt „Noch nicht getestet“, die
+  Erklärung sagt aber „Laut AppleGamingWiki: CrossOver: perfekt, …“ – oder ehrlich „Laut AppleGamingWiki läuft es über
+  CrossOver und Wine schlecht (…) – hier vielleicht auch nicht.“
 - **Problembericht**: Die Grafik-Zeile nennt den Hinweis („D3DMetal first from AppleGamingWiki“).
 - Negatives sperrt nie. Eine fremde Bewertung ändert nie Registry, Startoptionen oder Dateien.
 
