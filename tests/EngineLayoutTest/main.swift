@@ -188,6 +188,57 @@ struct EngineLayoutTest {
         check((try? String(contentsOf: unixDir.appendingPathComponent("winebus.so.engine"), encoding: .utf8)) == "plain winebus",
               "installing again keeps the engine's original")
 
+        // MARK: Engine fix package (.github/workflows/enginefix.yml)
+        func text(_ name: String) -> String? { try? String(contentsOf: unixDir.appendingPathComponent(name), encoding: .utf8) }
+        func sha256(_ text: String) -> String {
+            let file = work.appendingPathComponent("hash-\(UUID().uuidString)")
+            write(Data(text.utf8), file)
+            defer { try? fm.removeItem(at: file) }
+            return (try? ComponentStore.sha256(of: file)) ?? ""
+        }
+        write(Data("winecx ntdll".utf8), unixDir.appendingPathComponent("ntdll.so"))
+        write(Data("winecx coreaudio".utf8), unixDir.appendingPathComponent("winecoreaudio.so"))
+        let fixRoot = work.appendingPathComponent("enginefix", isDirectory: true)
+        let fix = fixRoot.appendingPathComponent("nightforge-enginefix-winecx-4.7.3-1", isDirectory: true)
+        write(Data("fixed ntdll".utf8), fix.appendingPathComponent("x86_64-unix/ntdll.so"))
+        write(Data("downmix coreaudio".utf8), fix.appendingPathComponent("x86_64-unix/winecoreaudio.so"))
+        write(Data("\(sha256("winecx ntdll"))  ntdll.so\n\(sha256("winecx coreaudio")) *winecoreaudio.so\n\(sha256("x"))  ../../evil.so\n".utf8),
+              fix.appendingPathComponent("originals.sha256"))
+        check(Engine.engineFixPackage(in: fixRoot)?.lastPathComponent == fix.lastPathComponent, "the package folder is found in the download")
+        check(Engine.engineFixOriginals(in: fix) == ["ntdll.so": sha256("winecx ntdll"), "winecoreaudio.so": sha256("winecx coreaudio")],
+              "originals.sha256 as shasum writes it; names outside the engine fix's files don't count")
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true, "the fix fits the runtime it was built for")
+        check(text("ntdll.so") == "fixed ntdll" && text("winecoreaudio.so") == "downmix coreaudio", "both modules go into the engine")
+        check(text("ntdll.so.engine") == "winecx ntdll" && text("winecoreaudio.so.engine") == "winecx coreaudio", "the engine's own are kept")
+        check(!fm.fileExists(atPath: unixDir.appendingPathComponent("../../evil.so").standardizedFileURL.path), "nothing outside goes anywhere")
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true && text("ntdll.so.engine") == "winecx ntdll",
+              "installing again checks the kept original, and keeps it")
+        // The graphics package of the Gcenx engine brings an msync pair, which winecx doesn't take:
+        // its msync step mustn't count the engine fix's *.engine copies as its own.
+        let graphicsWithMsync = work.appendingPathComponent("graphics-msync/v0.80", isDirectory: true)
+        write(Data("gcenx ntdll".utf8), graphicsWithMsync.appendingPathComponent("msync/x86_64-unix/ntdll.so"))
+        write(Data("gcenx wineserver".utf8), graphicsWithMsync.appendingPathComponent("msync/bin/wineserver"))
+        write(dll("winemetal", builtin: true), graphicsWithMsync.appendingPathComponent("x86_64-windows/winemetal.dll"))
+        try? Engine.installGraphics(work.appendingPathComponent("graphics-msync"), into: wine, matchesEngine: false, nativeInPrefix: true)
+        check(text("ntdll.so") == "fixed ntdll", "winecx's graphics install leaves the engine fix's ntdll.so in place")
+        check((try? Engine.installEngineFix(nil, into: wine)) == false, "without a package…")
+        check(text("ntdll.so") == "winecx ntdll" && text("winecoreaudio.so") == "winecx coreaudio", "…the engine's own come back")
+        // Another runtime's files: a fix built for 4.7.3 mustn't go over them.
+        write(Data("other ntdll".utf8), unixDir.appendingPathComponent("ntdll.so"))
+        try? fm.removeItem(at: unixDir.appendingPathComponent("ntdll.so.engine"))
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == false, "files other than the ones it was built against: not in")
+        check(text("ntdll.so") == "other ntdll" && text("winecoreaudio.so") == "winecx coreaudio", "both stay the engine's own")
+        write(Data("winecx ntdll".utf8), unixDir.appendingPathComponent("ntdll.so"))
+        // A later package with ntdll.so alone: the downmix it no longer has goes back to the engine's own.
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true, "in again")
+        write(Data("\(sha256("winecx ntdll"))  ntdll.so\n".utf8), fix.appendingPathComponent("originals.sha256"))
+        try? fm.removeItem(at: fix.appendingPathComponent("x86_64-unix/winecoreaudio.so"))
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true, "a package with ntdll.so alone")
+        check(text("ntdll.so") == "fixed ntdll" && text("winecoreaudio.so") == "winecx coreaudio", "only what it carries stays replaced")
+        write(Data("not a hash list".utf8), fix.appendingPathComponent("originals.sha256"))
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == false && text("ntdll.so") == "winecx ntdll",
+              "a package that names no originals changes nothing but taking the fix out")
+
         // MARK: Engine test switches (docs/TODO.md › Engine-Tests)
         check(Engine.msync && Engine.environment(wine: wine)["WINEMSYNC"] == "1", "msync is on unless an engine test turns it off")
         check(!Engine.steamConfigSignature.contains("nomsync"), "…and Steam's settings don't mention it then")

@@ -337,6 +337,7 @@ enum L10n {
         "Wine %@ (CrossOver)": "Wine %@ (CrossOver)",
         "Graphics layers": "Grafik-Schichten",
         "Controller support": "Controller-Unterstützung",
+        "Engine fixes (sound, stability)": "Engine-Verbesserungen (Ton, Stabilität)",
         "Creating Windows · %ld system files": "Windows wird angelegt · %ld Systemdateien",
         "Creating Windows …": "Windows wird angelegt …",
         "Setting up the graphics layers …": "Grafik-Schichten werden eingerichtet …",

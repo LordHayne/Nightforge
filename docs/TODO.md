@@ -112,7 +112,7 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
 - **msync (PR #1)** ist auf 11.18 portiert. winecx bringt ein eigenes msync mit, der Patch greift dort nicht.
   Klären, ob der 11.18-Weg noch gebraucht wird. Unter winecx meldet das Log bei jedem Steam-Start
   `msync: up and running` (Test vom 28.10.), also ist dessen eigenes msync aktiv. Beide haben denselben Fehler beim
-  Thread-Ende (unten „Engine-Arbeit“).
+  Thread-Ende (unten „Engine-Arbeit“). Für winecx behebt ihn `enginefix` (Stück B).
 
 ## Engine-Arbeit (ab 0.3.x, seit 2.11.)
 
@@ -125,6 +125,11 @@ ob es ein App-Release braucht oder über die Profil- bzw. Komponentenliste zu de
   nicht: 0.3.0 wertet bei „nur DirectX 12“ das `graphics` eines Profils gar nicht aus. Das `notYet` im Profil fällt über die
   Profilliste weg, sobald der Live-Test grün ist **und** das 0.3.x mit diesem Stück draußen ist. Vorher liefe Overwatch
   unter 0.3.0 wieder auf D3DMetal.
+- **Stück B, `enginefix`** (Zweig `claude/engine-04-703c49`, auf Stück A): msync-Fix und Downmix als eigene Komponente.
+  **Braucht einmal ein App-Release** (`Engine.installEngineFix`, eine 0.3.0 kennt die Komponente nicht und lässt sie
+  liegen). Danach kommen neue Stände allein über die Komponentenliste: ein neuer Patch, ein Lauf von `enginefix.yml` auf
+  `main`, der nächtliche `components.yml`. Workflow und Patches können auch vor dem App-Release nach `main`: Das Release
+  entsteht dann schon, und `sources.json` führt es als `optional`.
 
 ### Overwatch hängt beim Start
 
@@ -152,6 +157,36 @@ Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen ge
   B DXMT ohne msync, C D3DMetal ohne msync, D DXMT mit `enginefix`. Bei einem Hänger jeweils `sample` des Prozesses
   und den Teil von `Logs/wine.log` ab Start. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
 
+### Engine-Fixes (`enginefix`)
+
+Eigene Unix-Module über die gepinnte Runtime 4.7.3, nach dem Vorbild von `gamepad.yml`:
+
+- `engine/patches/winecx-ntdll-msync-alert-fd.patch`: `if (!do_msync()) close( data->alert_fd );`. Genauso macht es Recall.
+- `engine/patches/winecx-winecoreaudio-spatialmixer.patch`: die fünf Commits aus Wine 11.21 (199ae1d, d20f6c7,
+  3e29c36, 8cf6408, 0c61795). Sie passen unverändert, nur mit versetzten Zeilen. Danach gleicht `coreaudio.c` dem aus
+  11.21, bis auf CrossOvers Mikrofonfreigabe und winecx' eigene Zeitstempel.
+- `scripts/build-enginefix.sh`: baut zuerst die Wine-Werkzeuge nativ, dann nur `ntdll.so` und `winecoreaudio.so` für
+  x86_64. Die Configure-Flags sind die von dappermint, das Minimum ist macOS 26.0. Danach prüft das Skript die Ergebnisse
+  gegen die Originale der Runtime: exportierte Symbole (D3DMetal patcht ntdll beim Laden), Bibliotheken und rpaths.
+- `.github/workflows/enginefix.yml` (macos-26): prüft den SHA-256 der Runtime und baut. Unter Wine mit `WINEMSYNC=1`
+  läuft dann `engine/probes/msync-thread-exit.c`, 64- und 32-bit: 1000 Threads enden, 1000 Dateien müssen lesbar
+  bleiben. Zum Vergleich läuft die Probe auch auf dem Original. Danach packt der Workflow das Paket mit
+  `originals.sha256` und das Quell-Asset (LGPL §4: unveränderter Baum, Patches, Skript, Workflow, NOTICE). Jeder Lauf lädt
+  das Paket als Artefakt hoch, ein Release gibt es nur von `main` (`enginefix-winecx4.7.3-N`).
+- `components/sources.json`: `enginefix` (kind `graphics`, `optional` bis zum ersten Release).
+- App: `Engine.installEngineFix` legt die Module nur über genau die Dateien, für die sie gebaut sind (Version
+  `4.7.3-N` zur Engine, SHA-256 aus `originals.sha256`). Die Originale bleiben als `*.engine` liegen und kommen zurück,
+  wenn das Paket fehlt oder nicht passt. Das Paket steht im `EngineBuild`, also hält `EngineRollback` den Stand davor
+  zurück, falls ein Spiel mit dem Fix abstürzt. `installMsync` (das msync-Paar der Gcenx-Engine) läuft unter winecx nicht
+  mehr, sonst hielte es die `*.engine`-Kopien für seine. Tests in `tests/EngineLayoutTest`.
+- **Lokal nicht gebaut:** Den Bau der Wine-Quellen auf diesem Mac hat die Rechteprüfung abgelehnt. Der erste Push des
+  Zweigs baut und prüft im CI, ohne etwas zu veröffentlichen. Erst danach mergen.
+- `graphics.yml` reagiert nur noch auf seine eigenen Patches (`dxmt-*`, `wine-*`, `winebus-11.18-*`) statt auf ganz
+  `engine/**`. Der Merge dieser Änderung baut einmal ein neues Grafikpaket. Das wäre durch die neuen Patches unter
+  `engine/` ohnehin passiert.
+- **Live prüfen, sobald das Release da ist:** Steam-Anmeldung, ein DX12-Spiel auf D3DMetal (Wukong), ein DXMT-Spiel, ein
+  32-Bit-Spiel, Overwatch. Dazu ein 5.1/7.1-Spiel am DENON, einmal mit „7.1 Wide“ und einmal mit Stereo: Ist der Hall weg?
+
 ### Engine-Tests (versteckte Schalter, ohne Knopf in der App)
 
 Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, wenn kein Spiel läuft.
@@ -166,7 +201,8 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 
 ### Später (nicht angefangen)
 
-- Den Pin auf winecx 4.7.4 oder 4.8.1 heben, wenn dappermint/winecx-gptk#24 geklärt ist. Dabei `gamepad.yml` mitziehen.
+- Den Pin auf winecx 4.7.4 oder 4.8.1 heben, wenn dappermint/winecx-gptk#24 geklärt ist. Dabei in `enginefix.yml`
+  (`WINECX_COMMIT`, `RUNTIME`, `RUNTIME_SHA256`) und in `gamepad.yml` mitziehen.
 - Ein Issue bei dappermint: der `alert_fd`-Fix, dazu die Bitte um eine 11.21-Lane oder den Downmix.
 - Selbstheilung bei einem Hänger ohne Fenster: Läuft ein Weg drei Minuten ohne Bild und beendet der Spieler das Spiel,
   könnte Nightforge zum nächsten Weg gehen. Heute bleibt der Weg nur unbestätigt.

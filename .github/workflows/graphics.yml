@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # Only the patches this package is built with: winecx's go to gamepad.yml and enginefix.yml.
     paths:
-      - "engine/**"
+      - "engine/patches/dxmt-*.patch"
+      - "engine/patches/wine-*.patch"
+      - "engine/patches/winebus-11.18-*.patch"
       - ".github/workflows/graphics.yml"
 
 # Only the package job publishes; the build jobs run upstream code (DXMT, LLVM, Wine) and get a
