@@ -86,6 +86,17 @@ keine Signatur. Sobald `claude/signed-updates` gemergt ist, kann `sign-lists.sh`
 Mac-Version, Anti-Cheat, eigenem Test und AGW. Stand 2.11.: 51 Spiele ohne jede Mac-Angabe, 26 davon in den Top 100 –
 dort lohnt sich Testen am meisten.
 
+### Testkorb für den nächtlichen Spieletest
+
+„Ich hab ja nicht alle Games gekauft“ (Nutzer, 2.11.): `scripts/test-basket.py` ordnet die Spiele ohne verlässliche
+Mac-Daten in vier Körbe – **im Besitz** (Steam über `tests/CatalogProbe/run.sh <Steam> --json`, Epic und GOG aus dem
+Support-Ordner, mit Größe und „installiert“), **kostenlos** (Free-to-play ohne Anti-Cheat-Sperre, Steam-Demos der
+Top 200, die Benchmarks von Wukong und Monster Hunter Wilds), **Stellvertreter** (je Engine laut Wikidata und
+DirectX laut Steam-Anforderungen das am leichtesten testbare Spiel; `standsFor` listet die gedeckten Top-Spiele)
+und **nicht testbar** (nur Quellen und Berichte, `coveredBy` nennt einen Stellvertreter). Sortiert nach
+Beliebtheit × fehlenden Daten × Download. Die Ausgabe enthält die eigene Bibliothek und liegt deshalb nur lokal im
+Notizordner der Sessions (`testkorb.json`, `testkorb.md`), nie im Repo; das Skript verweigert einen Pfad im Repo.
+
 ## 4. Berichte → `profiles/reports.json` (Entwurf, nicht gebaut)
 
 ### Ablauf

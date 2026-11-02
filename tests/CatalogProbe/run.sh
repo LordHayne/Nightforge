@@ -1,5 +1,5 @@
 #!/bin/bash
-# Compiles SteamCatalog with a tiny driver and prints what it reads from the given Steam folder.
+# Compiles the app with a tiny driver and prints what SteamCatalog reads from the given Steam folder.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
@@ -9,5 +9,8 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
 OUT="$WORK/catalog-probe"
-swiftc -O -o "$OUT" Sources/Nightforge/SteamCatalog.swift tests/CatalogProbe/main.swift
+# The whole app except its entry point: SteamCatalog's types reach into GameInfo and beyond.
+SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
+# shellcheck disable=SC2086
+swiftc -o "$OUT" $SOURCES tests/CatalogProbe/main.swift
 "$OUT" "$@"
