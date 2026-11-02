@@ -117,6 +117,12 @@ Notizordner der Sessions (`testkorb.json`, `testkorb.md`), nie im Repo; das Skri
    - nur der letzte Bericht je Konto, Spiel und Nightforge-Version zählt (wie ProtonDB); Freitext nie;
    - schreibt `profiles/reports.json` (CC0) – keine Konto-Namen, nur Zahlen.
 3. **Übernehmen** – über denselben PR-Weg wie die Profile (`bot/profiles`, Signatur, Merge durch den Maintainer).
+4. **Eigene Tests** – der nächtliche Spieletest (Zweig `claude/angry-heisenberg-1f2283`) liest `testkorb.json`
+   (`defaults write io.github.lordhayne.nightforge gameTest.basket -string <Pfad>`) und schreibt `report.json` mit
+   denselben Feldern wie das Formular (`game`, `store`, `storeID`, `result`, `way`, `issues`) plus `hint` und
+   `standsFor`. `build-reports.py` kann diese Ergebnisse als „von Nightforge getestet“ zählen (mehr Gewicht als
+   ein einzelner Bericht) und über `standsFor` vorsichtig auf Spiele gleicher Engine und API übertragen – als
+   Hinweis, nie als Profil.
 
 ### Format (Vorschlag)
 
