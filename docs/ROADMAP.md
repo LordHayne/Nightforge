@@ -37,8 +37,8 @@ wenn sie einer Version zugeordnet sind.
 - [x] Landingpage und README. Dann einfrieren, Ersteinrichtung testen, Live-Durchlauf, Version, Release-Notizen.
       Veröffentlichen nur mit ausdrücklichem OK. Stand 2.11.: alles gemergt, Live-Durchlauf sauber, Ersteinrichtung
       bis zum Steam-Anmeldefenster getestet (gut 3 Min., Fenster vorne, kein Zugriff aufs echte Steam), Version 0.3.0,
-      Notizen in `docs/release-notes/v0.3.0.md`. Der Steam-für-Mac-Code nach der Anmeldung lässt sich nur mit einem
-      zweiten macOS-Benutzer echt prüfen.
+      Notizen in `docs/release-notes/v0.3.0.md`. Neuinstallation auf dem Mac mini (Nutzer): einwandfrei, der
+      Steam-für-Mac-Code kam nach der Windows-Anmeldung von selbst.
 - [ ] **Vor dem Release, beim Nutzer:** bei GitHub die Zwei-Faktor-Anmeldung mit Passkey und „Immutable Releases“
       einschalten (`docs/SICHERHEIT-0.3.md` H2, `docs/recherche/gatekeeper.md`).
 
