@@ -199,6 +199,12 @@ struct GameOverlayTest {
         check(turn(asked: true, goesOn: false) == .over, "answered with Cancel: no curtain again")
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
+
+        // A start judged by its first seconds that ends early (Control on 2.11., every way): the start
+        // tells what's next under the same curtain – not when it's an end like any other.
+        check(LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: false), "gone without a picture: the start decides, the curtain stays")
+        check(!LibraryModel.startJudgesEnd(quitByPlayer: true, showedPicture: false), "Quit Game: back to Nightforge at once")
+        check(!LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: true), "it showed a picture: an end like any other")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes
