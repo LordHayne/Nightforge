@@ -7,6 +7,10 @@ SIGNING_SERVICE="nightforge-signing-key"
 SIGNING_ACCOUNT="main"
 SIGNING_REPO="${NIGHTFORGE_REPO:-LordHayne/Nightforge}"
 
+# The online lists the app takes only with their signature (Components.swift, Profiles.swift,
+# MacSources.swift), each with a .sig beside it.
+SIGNED_LISTS=(components/manifest.json profiles/profiles.json profiles/agw.json)
+
 # Builds scripts/signing-tool.swift from the tree in $1 (its Signature.swift and SigningKeys.swift,
 # so the tool knows that tree's keys) into the folder $2, and sets TOOL. NIGHTFORGE_SIGNING_TOOL
 # names one built already (the tests do).

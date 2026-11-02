@@ -135,7 +135,7 @@ jobs:
           # it a signature made for yesterday's).
           git push --force origin "$branch"
           {
-            echo "The nightly run rebuilt the game profiles. Nothing reaches the app until this is signed and merged."
+            echo "The nightly run rebuilt the game profiles (and AppleGamingWiki's list). Nothing reaches the app until this is signed and merged."
             echo
             echo "1. Read the diff: profiles set Wine registry keys, winetricks verbs and game files."
             echo "2. On the maintainer's Mac: \`scripts/sign-lists.sh $branch\` (asks for the Keychain password)."

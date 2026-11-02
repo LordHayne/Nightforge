@@ -7,6 +7,7 @@ import os
 import pathlib
 import plistlib
 import pty
+import re
 import select
 import shutil
 import stat
@@ -19,6 +20,8 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPTS = ["signing-lib.sh", "signing-tool.swift", "make-signing-keys.sh", "sign-release.sh", "sign-lists.sh",
            "check-signatures.sh"]
+# The online lists the scripts sign, as scripts/signing-lib.sh names them.
+LISTS = re.search(r"^SIGNED_LISTS=\((.*)\)$", (ROOT / "scripts/signing-lib.sh").read_text(), re.M).group(1).split()
 
 # A Keychain of one item ($FAKE/keychain), as `security` and `security -i` handle it.
 FAKE_SECURITY = r"""#!/bin/bash
@@ -431,7 +434,7 @@ class SigningScripts(unittest.TestCase):
     def lists_repo(self):
         """The repository copy with a remote of its own: main has the lists, bot/profiles a changed one."""
         (self.repo / "Sources/Nightforge/SigningKeys.swift").write_text(self.keys_file.read_text())
-        for name in ("components/manifest.json", "profiles/profiles.json"):
+        for name in LISTS:
             (self.repo / name).parent.mkdir(exist_ok=True)
             shutil.copy(ROOT / name, self.repo / name)
         origin = self.work / "origin.git"
@@ -496,6 +499,7 @@ class SigningScripts(unittest.TestCase):
         result = self.sign_lists("bot/profiles")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("components/manifest.json is signed already", result.stdout)
+        self.assertIn("profiles/agw.json is signed already", result.stdout)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 0)
 
     def test_a_changed_list_fails_the_check(self):

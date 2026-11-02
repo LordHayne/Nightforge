@@ -970,7 +970,7 @@ private struct AboutSettings: View {
                 // Calm on purpose: nothing is wrong on this Mac, an online list just didn't count.
                 if !SignedLists.refused.isEmpty {
                     Label {
-                        Text(L10n.t("An online list of fixes or components wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has."))
+                        Text(L10n.t("An online list (game fixes, components or AppleGamingWiki's reports) wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

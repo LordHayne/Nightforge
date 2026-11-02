@@ -221,7 +221,8 @@ Schwärzungs-Fällen, `EpicTest` mit der Rechteprüfung, `UpdateStateTest` mit d
 ## Signierte Releases (ab 0.3.1)
 
 Was Nightforge aus dem Netz holt und ausführt, nimmt es nur noch mit deiner Unterschrift an: das Update-ZIP,
-`components/manifest.json` und `profiles/profiles.json`. Neben jeder Datei liegt eine `.sig` (Ed25519, eine Zeile je
+`components/manifest.json`, `profiles/profiles.json` und `profiles/agw.json` (was das AppleGamingWiki sagt; es legt
+die Reihenfolge fest, in der ein Spiel probiert wird). Neben jeder Datei liegt eine `.sig` (Ed25519, eine Zeile je
 Signatur). GitHub hat keinen privaten Schlüssel: Wer das Konto oder einen Workflow übernimmt, kann Dateien ändern,
 aber nicht signieren.
 
@@ -272,7 +273,11 @@ Beide Bots (`components.yml`, `profiles.yml`) schlagen Änderungen nur noch als 
 3. Mergen, wenn der Check **Signatures** grün ist, mit dem Befehl, den das Skript ausgibt (`--match-head-commit`). Hat
    der Bot den Zweig inzwischen neu geschrieben, merged GitHub dann nicht, und du signierst den neuen Stand.
 
+`bot/profiles` bringt neben `profiles.json` auch `agw.json`. Das Skript signiert jede Liste, die sich geändert hat.
+
 Ein Merge ohne Signatur schadet niemandem: Die Apps behalten ihre Liste, und der Check auf `main` wird rot.
+Komponenten wie `enginefix` brauchen keine eigene Signatur. Das signierte `manifest.json` nennt ihre SHA-256, und die
+App prüft jedes Paket dagegen, bevor sie es auspackt.
 
 ### Übergang von 0.3.0
 
@@ -326,4 +331,7 @@ bieten ihn an, kein Spieler sieht ihn. Nur ein Mac, auf dem `UpdateTestRelease` 
   Installationsskript könnte das ZIP zwar prüfen, aber nur mit Schlüsseln, die es selbst von `main` lädt.
 - Das DMG ist nicht signiert (Ad-hoc wie bisher, es dient nur der Hand-Installation).
 - Ein signiertes, älteres Listen-Exemplar könnte jemand erneut ausliefern. Für Profile gilt dabei weiter, dass die
-  mitgelieferte, neuere Liste gewinnt. Bei Komponenten fiele es auf eine früher freigegebene Liste zurück.
+  mitgelieferte, neuere Liste gewinnt. Bei Komponenten und `agw.json` fiele es auf eine früher freigegebene Liste
+  zurück.
+- Was Nightforges eigene Builds enthalten (Grafik, Gamepad, `enginefix`), baut GitHub Actions. Deine Signatur über
+  `manifest.json` bestätigt die Prüfsumme dieses Builds, nicht seinen Inhalt.

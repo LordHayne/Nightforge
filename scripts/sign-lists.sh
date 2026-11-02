@@ -1,6 +1,6 @@
 #!/bin/bash
-# Signs the online lists (components/manifest.json, profiles/profiles.json) on a branch and pushes
-# the signatures there:
+# Signs the online lists (components/manifest.json, profiles/profiles.json, profiles/agw.json) on a
+# branch and pushes the signatures there:
 #
 #   scripts/sign-lists.sh bot/profiles   the nightly pull request, before you merge it
 #   scripts/sign-lists.sh main           main itself (the first time, or after an unsigned merge)
@@ -13,8 +13,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/signing-lib.sh
-
-LISTS=(components/manifest.json profiles/profiles.json)
 
 fail() { echo "✗ $*" >&2; exit 1; }
 usage() { echo "usage: $0 <branch> [--spare] [--add]" >&2; exit 2; }
@@ -48,7 +46,7 @@ git worktree add --quiet --detach "$tree" "origin/$branch"
 build_signing_tool "$tree" "$work"
 
 todo=()
-for list in "${LISTS[@]}"; do
+for list in "${SIGNED_LISTS[@]}"; do
   if [ ${#add[@]} -eq 0 ] && "$TOOL" verify "$tree/$list" > /dev/null 2>&1; then
     echo "✓ $list is signed already."
   else

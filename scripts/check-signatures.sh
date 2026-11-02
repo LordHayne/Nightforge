@@ -10,5 +10,5 @@ cd "$(dirname "$0")/.."
 work="$(mktemp -d)"
 trap 'rm -rf -- "${work:?}"' EXIT
 build_signing_tool . "$work"
-"$TOOL" verify components/manifest.json profiles/profiles.json \
+"$TOOL" verify "${SIGNED_LISTS[@]}" \
   || { echo "Sign them before merging: scripts/sign-lists.sh <branch> (docs/SICHERHEIT-0.3.md › Signierte Releases)"; exit 1; }

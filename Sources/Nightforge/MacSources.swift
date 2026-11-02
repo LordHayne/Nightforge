@@ -175,14 +175,17 @@ private struct AGWDocument: Decodable {
 
 /// Keeps profiles/agw.json at hand: the online copy (`NightforgeAGWURL`) once per app run, else the
 /// last one fetched. There's no copy in the app – the wiki's licence keeps it apart from the app –
-/// so before the first download there's simply nothing to show.
+/// so before the first download there's simply nothing to show. Like the other online lists it counts
+/// only with the maintainer's signature beside it (`Signature`), online and on disk: it orders the
+/// ways a game is tried.
 actor AGWStore {
     static let shared = AGWStore()
     static let supportedFormat = 1
 
     private let remoteURL: URL?
     private let cachedURL: URL
-    private let load: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    private let keys: [String]
+    private let load: Signature.Load
     private var index: AGWIndex?
     /// This run's fetch: callers that come while it's under way wait for it rather than going without.
     private var refreshing: Task<Void, Never>?
@@ -191,19 +194,21 @@ actor AGWStore {
     /// A game's start has waited for it once this run (`beforeFirstStart`).
     private var waitedForStart = false
 
-    /// `load`: how the online copy is fetched; a test hands in a slow or failing one.
+    /// `load`: how the online copy and its signature are fetched; a test hands in a slow or failing one.
     init(remoteURL: URL? = (Bundle.main.object(forInfoDictionaryKey: "NightforgeAGWURL") as? String)
              .flatMap { $0.isEmpty ? nil : URL(string: $0) },
          cachedURL: URL = Engine.supportDir.appendingPathComponent("agw.json"),
-         load: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) }) {
+         keys: [String] = SigningKeys.trusted,
+         load: @escaping Signature.Load = { try await URLSession.shared.data(for: $0) }) {
         self.remoteURL = remoteURL
         self.cachedURL = cachedURL
+        self.keys = keys
         self.load = load
     }
 
     /// What the copy at hand says, without waiting for the online one (like `ProfileStore.knownProfiles`).
     func current() -> AGWIndex {
-        if index == nil { index = (try? Data(contentsOf: cachedURL)).flatMap(AGWIndex.decode) ?? AGWIndex() }
+        if index == nil { index = Signature.signedContents(of: cachedURL, keys: keys).flatMap(AGWIndex.decode) ?? AGWIndex() }
         return index ?? AGWIndex()
     }
 
@@ -238,16 +243,19 @@ actor AGWStore {
 
     private func fetch(_ remoteURL: URL) async {
         defer { fetched = true }
-        var request = URLRequest(url: remoteURL)
-        request.timeoutInterval = 20
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        guard let (data, response) = try? await load(request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let fresh = AGWIndex.decode(data), !fresh.isEmpty
-        else { return }
-        index = fresh
-        try? FileManager.default.createDirectory(at: cachedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: cachedURL, options: .atomic)
+        switch await Signature.fetch(remoteURL, keys: keys, timeout: 20, load: load) {
+        case .signed(let data, let signature):
+            SignedLists.note(SignedLists.agw, refused: false)
+            guard let fresh = AGWIndex.decode(data), !fresh.isEmpty else { return }
+            index = fresh
+            try? FileManager.default.createDirectory(at: cachedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: cachedURL, options: .atomic)
+            try? signature.write(to: Signature.file(for: cachedURL), options: .atomic)
+        case .refused:
+            SignedLists.note(SignedLists.agw, refused: true)
+        case .unavailable:
+            return
+        }
     }
 }
 

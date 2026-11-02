@@ -905,9 +905,11 @@ Entwurf und Regeln: `docs/ENTWURF-BERICHTE.md`. Abdeckung der Top 200: `docs/rec
 - **„Willkommen zurück“:** drei Knöpfe (Lief gut / Mit Problemen / Startet nicht), danach „Bericht teilen …“. Im
   Browser: Sind alle Felder des Formulars gefüllt? Öffnet der alte Problembericht (`issues/new?title=…&body=…`) mit
   dem neuen Vorlagen-Ordner weiter ein leeres Issue? Im Repo das Label `report` anlegen.
-- **Nach dem Merge von signed-updates:** `agw.json` in `sign-lists.sh` aufnehmen und `AGWStore.refresh` auf
-  `Signature.fetch` umstellen. `profiles.yml`: die Zeilen mit `profiles/profiles.json` im PR-Schritt nehmen
-  `profiles/agw.json` mit (`git diff --quiet`, `git add`, `git diff --stat`).
+- **`agw.json` ist signiert** (signed-updates, nach dem Rebase auf compat-db): `AGWStore` nimmt die Online-Kopie und
+  den Cache nur mit `.sig` (`Signature.fetch`), `SIGNED_LISTS` in `scripts/signing-lib.sh` nennt alle drei Listen
+  (`sign-lists.sh`, `check-signatures.sh`), `profiles.yml` bringt `agw.json` im PR `bot/profiles` mit. Vor dem
+  ersten Schlüssel nimmt eine lokale Build-Kopie also auch kein AGW an: kein Hinweis „zuerst D3DMetal, wie im
+  AppleGamingWiki berichtet“, bis `scripts/sign-lists.sh main` gelaufen ist.
 - **Später (nur geplant, Nutzer hat zugestimmt 2.11.): freiwillige, anonyme Spielberichte ohne Konto.** Bedingung:
   erst, wenn die Download-Statistik echte Nutzer zeigt. Vorbild GameHub Lite/BannerHub (über 7.000 Configs per
   „Export Config“ in ein GitHub-Repo, ungeprüft) und EmuReady (Abstimmung, Status „verifiziert“). Unser Gegenstück:
@@ -1578,10 +1580,14 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Entscheidungen
 
-- **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`
-  und `profiles.json`, Schlüssel nur beim Nutzer (`docs/SICHERHEIT-0.3.md` › „Signierte Releases“). Offen: Schlüssel
-  erzeugen (der Nutzer selbst), Listen auf `main` signieren, Test-Release mit rc.1–rc.4, dann `v0.3.1`.
-  `scripts/install.sh` prüft weiter nichts (läuft von `main`, ein Schlüssel von dort brächte keine Herkunft).
+- **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`,
+  `profiles.json` und `agw.json`, Schlüssel nur beim Nutzer (`docs/SICHERHEIT-0.3.md` › „Signierte Releases“).
+  Offen: Schlüssel erzeugen (der Nutzer selbst), Listen auf `main` signieren, Test-Release mit rc.1–rc.4, dann
+  `v0.3.1`. `scripts/install.sh` prüft weiter nichts (läuft von `main`, ein Schlüssel von dort brächte keine Herkunft).
+  `enginefix` fällt unter die Prüfung der Komponentenliste: `Engine` holt es über `ComponentStore.manifest()` (nur
+  signiert) und `install` prüft das Paket gegen dessen SHA-256 vor dem Auspacken. Eine eigene `.sig` braucht es nicht.
+  Was nicht abgedeckt ist: Den Inhalt baut `enginefix.yml` auf GitHub. Die Signatur bestätigt nur, dass du die
+  Prüfsumme dieses Builds freigegeben hast (wie bei Grafik und Gamepad).
 
 ### Vulkan-Layer und winecx
 

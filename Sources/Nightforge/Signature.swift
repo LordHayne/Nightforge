@@ -2,11 +2,12 @@ import CryptoKit
 import Foundation
 
 /// Ed25519 signatures (CryptoKit) over what Nightforge takes from the internet and acts on: the update
-/// zip, components/manifest.json and profiles/profiles.json. Each has a `.sig` file beside it: one
-/// line per signature, the 64 bytes in base64, and one line that holds is enough (after a key change a
-/// file carries the new key's signature and the spare's, for Macs that only know the spare). Only the
-/// maintainer can make one (scripts/sign-release.sh, scripts/sign-lists.sh); GitHub holds neither
-/// private key, so a taken-over account or workflow can change the files but not sign them.
+/// zip, components/manifest.json, profiles/profiles.json and profiles/agw.json. Each has a `.sig` file
+/// beside it: one line per signature, the 64 bytes in base64, and one line that holds is enough (after
+/// a key change a file carries the new key's signature and the spare's, for Macs that only know the
+/// spare). Only the maintainer can make one (scripts/sign-release.sh, scripts/sign-lists.sh); GitHub
+/// holds neither private key, so a taken-over account or workflow can change the files but not sign
+/// them.
 ///
 /// Self-contained (Foundation and CryptoKit only): scripts/signing-tool.swift is built from this file
 /// and SigningKeys.swift, so the scripts check exactly what the app checks.
@@ -53,20 +54,24 @@ enum Signature {
         case unavailable
     }
 
+    /// How a download is made: URLSession's, or a test's slow or failing one.
+    typealias Load = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
     /// Downloads `url` and its `.sig` side by side.
-    static func fetch(_ url: URL, keys: [String] = SigningKeys.trusted) async -> Fetched {
-        async let file = download(url)
-        async let signature = download(self.file(for: url))
+    static func fetch(_ url: URL, keys: [String] = SigningKeys.trusted, timeout: TimeInterval = 15,
+                      load: @escaping Load = { try await URLSession.shared.data(for: $0) }) async -> Fetched {
+        async let file = download(url, timeout: timeout, load: load)
+        async let signature = download(self.file(for: url), timeout: timeout, load: load)
         guard let data = await file else { return .unavailable }
         guard let signature = await signature, isValid(signature, of: data, keys: keys) else { return .refused }
         return .signed(data, signature: signature)
     }
 
-    private static func download(_ url: URL) async -> Data? {
+    private static func download(_ url: URL, timeout: TimeInterval, load: Load) async -> Data? {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = timeout
         request.cachePolicy = .reloadIgnoringLocalCacheData  // a fix published minutes ago should arrive
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        guard let (data, response) = try? await load(request),
               (response as? HTTPURLResponse)?.statusCode ?? 200 == 200
         else { return nil }
         return data
@@ -78,6 +83,7 @@ enum Signature {
 enum SignedLists {
     static let components = "components"
     static let profiles = "profiles"
+    static let agw = "agw"
 
     private static let lock = NSLock()
     private static var turnedAway: Set<String> = []
