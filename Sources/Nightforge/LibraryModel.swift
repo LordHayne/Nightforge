@@ -859,6 +859,7 @@ final class LibraryModel: ObservableObject {
                     steamAsked = false
                     GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.playing.isEmpty == false }
                     hideSteamWindow(for: game)
+                    askAt = Date().addingTimeInterval(Self.curtainPatience)  // the question's time isn't the game's
                     GameLog.note("Curtain up again for \(game.name): Steam's question is answered")
                 case .none:
                     break
