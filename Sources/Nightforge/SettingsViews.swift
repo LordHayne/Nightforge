@@ -405,8 +405,6 @@ private extension GameOptionsSheet {
         return Engine.d3dMetalReady ? [.automatic, .dxmt, .dxvk, .d3dmetal] : [.automatic, .dxmt, .dxvk]
     }
 
-
-
     /// The choosable layers, plus one picked before that no longer fits (D3DMetal, say).
     var layers: [GraphicsLayer] {
         var list = choosableLayers
