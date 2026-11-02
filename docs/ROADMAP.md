@@ -13,20 +13,20 @@ weiter unten bleiben die Fundstelle für Einzelheiten. Neue Ideen landen weiter 
 wenn sie einer Version zugeordnet sind.
 
 ### 0.3.0: fertig machen und veröffentlichen
-- [ ] TV-Modus: Vollbild beim Anschließen (gespiegelt und erweitert), Spiel im echten Vollbild, ruhiger Lade-Vorhang,
+- [x] TV-Modus: Vollbild beim Anschließen (gespiegelt und erweitert), Spiel im echten Vollbild, ruhiger Lade-Vorhang,
       keine flackernde Rückkehr, das Pad holt Nightforge nach vorne. Zweig `claude/tv-fullscreen-61ab1e`.
-- [ ] Gespeicherte Spielauflösungen, die der TV nicht hat (Mafia II, `videoconfig.cfg`).
-- [ ] Mafia II startet wieder: D3D9 unter winecx nur über WineD3D, DXVK-Zeilen beenden keinen WineD3D-Start mehr.
+- [x] Gespeicherte Spielauflösungen, die der TV nicht hat (Mafia II, `videoconfig.cfg`).
+- [x] Mafia II startet wieder: D3D9 unter winecx nur über WineD3D, DXVK-Zeilen beenden keinen WineD3D-Start mehr.
       Zweig `claude/gog-7-3-e69c3b`.
-- [ ] Spielseite: Das Pad scrollt weich bis ganz unten. Zweig `claude/game-metadata-a2cee0`.
-- [ ] Anti-Cheat in beide Richtungen: Overwatch 2 und 42 weitere Spiele frei, fehlende Sperren (ARC Raiders, Tarkov,
+- [x] Spielseite: Das Pad scrollt weich bis ganz unten. Zweig `claude/game-metadata-a2cee0`.
+- [x] Anti-Cheat in beide Richtungen: Overwatch 2 und 42 weitere Spiele frei, fehlende Sperren (ARC Raiders, Tarkov,
       EA FC …) nachtragen. Die neuere Profilliste gewinnt. Zweig `claude/dazzling-bell-750b8e`.
-- [ ] GOG-Offline-Start live prüfen.
-- [ ] Kleine Gatekeeper-Punkte: Texte für die Terminal-Warnung von macOS 26.4, Immutable Releases, Meldung bei
+- [ ] GOG-Offline-Start live prüfen. → 0.3.1 (Nutzer 1.11.: Offenes kommt mit 0.3.x)
+- [x] Kleine Gatekeeper-Punkte: Texte für die Terminal-Warnung von macOS 26.4, Immutable Releases, Meldung bei
       Translocation (`docs/recherche/gatekeeper.md`).
-- [ ] Wenn ein kurzer Test es bestätigt: Steam lädt Updates sofort (`AutoUpdateBehavior 2` statt 0,
+- [ ] → 0.3.1: Wenn ein kurzer Test es bestätigt: Steam lädt Updates sofort (`AutoUpdateBehavior 2` statt 0,
       `docs/recherche/updates.md`).
-- [ ] **Sicherheitsprüfung vor dem Release** (Nutzer, 1.11.), lokal, weil Cloud-Sessions nur das alte `main` sehen:
+- [x] **Sicherheitsprüfung vor dem Release** (Nutzer, 1.11.), lokal, weil Cloud-Sessions nur das alte `main` sehen:
   - Problemberichte dürfen keine Pfade mit Benutzernamen, Tokens oder Anmelde-Codes ins öffentliche Issue tragen.
     `wine.log` enthielt am 1.11. Epics `-AUTH_PASSWORD`-Austauschcode im Startbefehl.
   - Herkunft prüfen bei Update-ZIP, Wine-, DXVK-, DXMT- und KosmicKrisp-Downloads (Prüfsummen, Signatur).
@@ -34,8 +34,11 @@ wenn sie einer Version zugeordnet sind.
   - Shell- und AppleScript-Aufrufe mit Spielnamen oder Pfaden (Injection).
   - Die in Steam geladene dylib und Steams CEF-Debug-Port.
   - Ergebnis: Funde nach Schwere, das Kritische vor dem Tag beheben.
-- [ ] Landingpage und README. Dann einfrieren, Ersteinrichtung testen, Live-Durchlauf, Version, Release-Notizen.
-      Veröffentlichen nur mit ausdrücklichem OK.
+- [x] Landingpage und README. Dann einfrieren, Ersteinrichtung testen, Live-Durchlauf, Version, Release-Notizen.
+      Veröffentlichen nur mit ausdrücklichem OK. Stand 2.11.: alles gemergt, Live-Durchlauf sauber, Ersteinrichtung
+      bis zum Steam-Anmeldefenster getestet (gut 3 Min., Fenster vorne, kein Zugriff aufs echte Steam), Version 0.3.0,
+      Notizen in `docs/release-notes/v0.3.0.md`. Der Steam-für-Mac-Code nach der Anmeldung lässt sich nur mit einem
+      zweiten macOS-Benutzer echt prüfen.
 - [ ] **Vor dem Release, beim Nutzer:** bei GitHub die Zwei-Faktor-Anmeldung mit Passkey und „Immutable Releases“
       einschalten (`docs/SICHERHEIT-0.3.md` H2, `docs/recherche/gatekeeper.md`).
 
