@@ -64,6 +64,11 @@ struct LaunchHealthTest {
         check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "DirectX 11 only: D3DMetal's Direct3D 11 last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: true)
               == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"], "a profile that measured DirectX 12 better starts there, without -dx11")
+        // Control: Control.exe hands over to Control_DX11.exe; Control_DX12.exe is its DirectX 12 (GameProgram).
+        let control = GameAnalysis(apis: [.d3d11, .d3d12], d3d12Program: "Control_DX12.exe")
+        check(ids(control, #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "a game with a DirectX 12 program of its own and a profile for D3DMetal: D3DMetal first")
+        check(ids(control, d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "…without the profile, D3DMetal after DXMT and DXVK")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: false).first == "dxmt -dx11",
               "…but not on an engine without D3DMetal")
         check(ids(GameAnalysis(apis: [.d3d9]), d3dMetal: true) == ["dxvk", "wined3d"], "DirectX 9: unchanged")
@@ -91,6 +96,18 @@ struct LaunchHealthTest {
         UserDefaults.standard.set(true, forKey: "health.dxmtFailed.\(app.key)")
         check(LaunchHealth.current(app, ladder).index == 1, "0.2's \"DXMT failed\" carries over")
         check(UserDefaults.standard.object(forKey: "health.dxmtFailed.\(app.key)") == nil, "the old key is gone")
+        // D3DMetal added at the end of every DirectX 11 ladder (2.11.2026): what was learned before holds.
+        LaunchHealth.reset(app)
+        _ = LaunchHealth.advance(app, ladder)
+        LaunchHealth.confirm(app, ladder)
+        let grown = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil, d3dMetal: true)
+        check(grown.map(\.id) == ["dxmt", "dxvk", "d3dmetal"] && LaunchHealth.current(app, grown) == (1, true),
+              "a ladder that only grew at the end keeps the learned way: DXVK, confirmed")
+        check(LaunchHealth.peek(app, grown).map { $0.index == 1 && $0.confirmed } == true, "…also when only looked at")
+        check(LaunchHealth.advance(app, grown) && LaunchHealth.current(app, grown) == (2, false), "DXVK failing then moves on to D3DMetal")
+        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt"],
+              "a profile's D3DMetal for a DirectX 11 game comes once")
+        LaunchHealth.reset(app)
 
         // MARK: What a game taught Nightforge (kept under a game ID no store has, removed again)
         let taught = GameID.steam(990_003)
@@ -586,6 +603,45 @@ struct LaunchHealthTest {
               "no battery (desktop Mac): nothing to warn about")
         let live = PowerSource.reading()
         check(live.source.adapterWatts.map { $0 > 0 } ?? true, "adapter watts read as a positive number: \(String(describing: live.source.adapterWatts))")
+
+        // MARK: Which program starts (Control: Control.exe hands over to Control_DX11.exe; Control_DX12.exe beside it)
+        let controlDir = FileManager.default.temporaryDirectory.appendingPathComponent("lh-control-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: controlDir) }
+        for name in ["Control.exe", "Control_DX11.exe", "Control_DX12.exe", "VC_redist.x64.exe", "Tools/Editor.exe"] {
+            let file = controlDir.appendingPathComponent(name)
+            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: file.path, contents: Data("MZ".utf8))
+        }
+        let launcher = controlDir.appendingPathComponent("Control.exe")
+        func started(_ layer: GraphicsLayer, chosen: String = "", profile: String? = nil) -> String {
+            GameProgram.resolve(store: launcher, installDir: controlDir, layer: layer, chosen: chosen, profile: profile).lastPathComponent
+        }
+        check(started(.d3dmetal) == "Control_DX12.exe", "on D3DMetal its DirectX 12 program starts")
+        check(started(.dxmt) == "Control.exe" && started(.dxvk) == "Control.exe", "on DXMT and DXVK the store's")
+        check(started(.d3dmetal, chosen: "Control_DX11.exe") == "Control_DX11.exe", "the player's pick comes first")
+        check(started(.dxmt, profile: "Control_DX12.exe") == "Control_DX12.exe", "then the profile's")
+        check(started(.dxmt, chosen: "Tools\\Editor.exe") == "Editor.exe", "a Windows path inside the game folder")
+        check(started(.dxmt, chosen: "../../etc/passwd") == "Control.exe" && started(.dxmt, chosen: "Gone.exe") == "Control.exe"
+              && started(.dxmt, chosen: "Tools") == "Control.exe", "nothing outside the game folder, gone or a folder: the store's")
+        check(GameAnalysis.programs(near: launcher, in: controlDir) == ["Control.exe", "Control_DX11.exe", "Control_DX12.exe"],
+              "the programs to pick from: beside the store's, no installers")
+        var picked = GameOptions()
+        check(!(String(data: (try? JSONEncoder().encode(picked)) ?? Data(), encoding: .utf8) ?? "").contains("program"),
+              "an automatic program isn't stored")
+        picked.program = "Control_DX12.exe"
+        let stored = (try? JSONEncoder().encode(picked)).flatMap { try? JSONDecoder().decode(GameOptions.self, from: $0) }
+        check(stored?.program == "Control_DX12.exe" && stored?.preset == picked.preset, "a picked program is kept")
+        let profileWithProgram = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"executable": "Control_DX12.exe"}"#.utf8))
+        check(profileWithProgram?.executable == "Control_DX12.exe", "a profile can name the program")
+        let controlAnalysis = GameAnalysis(apis: [.d3d11, .d3d12], d3d12Program: "Control_DX12.exe")
+        let d3dMetalProfile = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"graphics": "d3dmetal"}"#.utf8))
+        check(D3DMetalSupply.needed(by: controlAnalysis, picked: .automatic, profile: d3dMetalProfile),
+              "a profile naming D3DMetal for a game with its own DirectX 12 program asks for D3DMetal")
+        check(!D3DMetalSupply.needed(by: controlAnalysis, picked: .automatic, profile: nil)
+              && !D3DMetalSupply.needed(by: GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), picked: .automatic, profile: d3dMetalProfile),
+              "without the profile, or for one program drawing both (Wukong), it isn't asked")
+        check(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal).preferD3D12Arguments == ["-dx12"]
+              && GameAnalysis(apis: [.d3d11]).preferD3D12Arguments.isEmpty, "the switch to DirectX 12 only where both are")
 
         print(failures == 0 ? "✓ all checks passed" : "\(failures) checks failed")
         exit(failures == 0 ? 0 : 1)

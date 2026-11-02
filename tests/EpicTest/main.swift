@@ -443,6 +443,12 @@ struct EpicTest {
             .write(to: epicFolder.appendingPathComponent("sizes.json"))
         try? Data(#"{"formatVersion": 1, "games": {"epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#.utf8)
             .write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
+        // A start takes an Epic game's profile by its namespace (Control's is "epic.calluna"; its app name is Calluna).
+        check(EpicStore.namespace(of: "fn") == "fn" && EpicStore.namespace(of: "Missing") == nil,
+              "an Epic game's namespace, from the library on disk")
+        check(await ProfileStore(bundledURL: nil).profile(for: .epic("fn"))?.antiCheat == ["Easy Anti-Cheat"],
+              "an Epic game starts with its profile")
+        check(await ProfileStore(bundledURL: nil).profile(for: .epic("Missing")) == nil, "one the library doesn't know has none")
 
         let store = EpicStore()
         check(await store.library().isEmpty, "not connected: no Epic games")

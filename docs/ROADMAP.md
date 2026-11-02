@@ -84,6 +84,10 @@ wenn sie einer Version zugeordnet sind.
         MoltenVK abgekündigt ist.
       - D3DMetal je nach Ergebnis der Lizenz-Recherche (Cloud, 1.11.).
       - Spiele mit DX11- und DX12-Fassung (Control, Tomb Raider, Hitman …): DX12 mit D3DMetal wählbar machen.
+        **Gebaut am 2.11.:** D3DMetal ist der letzte Weg jedes DX11-Spiels und wählbar (de1f146, `Control_DX11.exe` läuft
+        live darauf). Stück C (Zweig `claude/engine-04-control`, braucht ein App-Release): DX12-Programm erkennen,
+        Programmwahl als Profilfeld `executable` und in den Optionen (Epic, GOG), Profil für Control. Die Programmwahl für
+        Steam folgt später.
         Heute bietet Nightforge D3DMetal nur von selbst an, und nur für reine DX12-Spiele (`choosableLayers`,
         `onlyD3D12`). Epic startet bei Control `Control_DX11.exe`. Laut allen Mac-Quellen läuft Control aber nur über
         `Control_DX12.exe` mit D3DMetal (`docs/recherche/mac-kompatibilitaet.md`). Dafür braucht es die Wahl der

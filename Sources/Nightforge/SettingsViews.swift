@@ -15,6 +15,9 @@ struct GameOptionsSheet: View {
     /// How tall the options are: they scroll only when the window leaves less room.
     @State private var contentHeight: CGFloat = 0
     @ObservedObject private var padFocus = PadFocus.shared
+    /// The program the store starts (Epic's, GOG's – Steam picks its own), and the game's programs beside it.
+    private let storeProgram: URL?
+    private let programs: [String]
 
     init(game: Game, insight: GameInsight?, report: @escaping () -> Void) {
         self.game = game
@@ -24,6 +27,20 @@ struct GameOptionsSheet: View {
         _options = State(initialValue: stored)
         _expertOpen = State(initialValue: stored.preset == .custom)
         Hardware.refresh()  // so "Automatic (…)" shows what a start now would do
+        storeProgram = Self.storeProgram(of: game)
+        programs = storeProgram.map { GameAnalysis.programs(near: $0, in: game.installDir) } ?? []
+    }
+
+    /// The program an Epic or GOG game's store starts, inside its folder.
+    private static func storeProgram(of game: Game) -> URL? {
+        guard game.bottle.isBuiltIn, game.isInstalled else { return nil }
+        let relative: String?
+        switch game.provider {
+        case .epic: relative = EpicStore.executable(of: game.gameID.id)
+        case .gog: relative = GOGStore.executable(of: game.gameID.id, in: game.installDir)
+        case .steam: relative = nil
+        }
+        return relative.map { game.installDir.appendingPathComponent($0.replacingOccurrences(of: "\\", with: "/")) }
     }
 
     var body: some View {
@@ -44,6 +61,8 @@ struct GameOptionsSheet: View {
                             .id("options.hud")
                         }
                         if game.bottle.isBuiltIn { expertSection }
+                        // A few programs side by side (Control's DirectX 11 and 12); more is a folder of tools.
+                        if (2...4).contains(programs.count) { programChoice }
                         launchOptions
                     }
                     // Room for the pad's highlight, which reaches a little past each control.
@@ -90,7 +109,8 @@ struct GameOptionsSheet: View {
 
     /// The parts that scroll into view with the pad, by the start of their controls' ids.
     private static let sections = ["options.reset", "options.version", "options.preset", "options.hud", "options.expert",
-                                   "options.graphics", "options.frameLimit", "options.upscaling", "options.hdr", "options.args"]
+                                   "options.graphics", "options.frameLimit", "options.upscaling", "options.hdr", "options.program",
+                                   "options.args"]
 }
 
 // MARK: - Parts
@@ -262,6 +282,25 @@ private extension GameOptionsSheet {
         .id("options.hdr")
     }
 
+    /// Which of the game's programs starts it (GameProgram): Automatic, or one picked by hand.
+    var programChoice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            title(L10n.t("Program"))
+            Segmented(options: [("", L10n.t("Automatic"), nil)]
+                        + programs.map { ($0, (($0 as NSString).lastPathComponent as NSString).deletingPathExtension, nil) },
+                      selection: options.program, id: "options.program") { program in options.program = program }
+            caption(L10n.t("Which of the game's programs starts. Automatic: %@.", automaticProgram))
+        }
+        .id("options.program")
+    }
+
+    /// The program "Automatic" starts with the layer the game draws with.
+    var automaticProgram: String {
+        guard let storeProgram else { return "" }
+        return GameProgram.resolve(store: storeProgram, installDir: game.installDir, layer: drawsWith, chosen: "",
+                                   profile: profile?.executable).lastPathComponent
+    }
+
     var launchOptions: some View {
         VStack(alignment: .leading, spacing: 8) {
             title(L10n.t("Launch Options"))
@@ -366,6 +405,8 @@ private extension GameOptionsSheet {
         return Engine.d3dMetalReady ? [.automatic, .dxmt, .dxvk, .d3dmetal] : [.automatic, .dxmt, .dxvk]
     }
 
+
+
     /// The choosable layers, plus one picked before that no longer fits (D3DMetal, say).
     var layers: [GraphicsLayer] {
         var list = choosableLayers
@@ -396,6 +437,8 @@ private extension GameOptionsSheet {
         }
         if analysis.usesD3D11 {
             return L10n.t("This game uses %@. DXMT translates DirectX 10/11 straight to Metal and is usually faster; DXVK takes a detour through Vulkan and works with more games. Automatic switches by itself if a game doesn't start.", analysis.summary)
+                + (!choosableLayers.contains(.d3dmetal) ? ""
+                   : " " + (analysis.apis.contains(.d3d12) ? L10n.t("D3DMetal draws its DirectX 12 version.") : L10n.t("D3DMetal, Apple's own, runs it too.")))
         }
         if analysis.usesD3D9 {
             return L10n.t("This game uses %@. DXVK is usually faster; WineD3D runs some older games DXVK can't. Automatic switches by itself if a game doesn't start.", analysis.summary)

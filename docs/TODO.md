@@ -130,6 +130,50 @@ ob es ein App-Release braucht oder über die Profil- bzw. Komponentenliste zu de
   liegen). Danach kommen neue Stände allein über die Komponentenliste: ein neuer Patch, ein Lauf von `enginefix.yml` auf
   `main`, der nächtliche `components.yml`. Workflow und Patches können auch vor dem App-Release nach `main`: Das Release
   entsteht dann schon, und `sources.json` führt es als `optional`.
+- **Stück C, Control** (Zweig `claude/engine-04-control`, auf Stück A): DX12-Programm erkennen, Programmwahl,
+  Epic-Profile beim Start. **Braucht ein App-Release (0.3.x).** Das Control-Profil
+  (`epic.calluna`, `gog.2049187585`) kommt über die Profilliste, wirkt aber erst mit diesem Release: 0.3.0 startet
+  Epic-Spiele ohne Profil und kennt `Control_DX12.exe` nicht.
+
+### Control startet nicht (Epic, GOG; Stück C)
+
+Befund vom 2.11. (Nutzer, Release 0.3.0): Epic startet `Control.exe`, ein kleiner Starter, der an `Control_DX11.exe`
+übergibt. Direkt nach „Using feature level D3D_FEATURE_LEVEL_11_0“ kommt ein Seitenfehler auf Adresse 0. Das passiert auf
+DXMT und auf DXVK, ein Fenster erscheint nie. Laut Mac-Quellen läuft Control nur als `Control_DX12.exe` mit D3DMetal
+(`docs/recherche/mac-kompatibilitaet.md`). D3DMetal stand nicht auf der Leiter, weil `GameAnalysis` gar kein
+DirectX fand: Die Renderer liegen in DLLs, die sie nicht ansieht.
+
+Gebaut:
+
+- `GameAnalysis`: Programme neben dem des Stores, die DX12/D3D12 bzw. DX11/D3D11 im Namen tragen, zählen als
+  DirectX-12- und DirectX-11-Weg. `d3d12Program` merkt sich das DX12-Programm. Control gilt damit als DirectX 11 + 12.
+- `GameProgram`: welches Programm startet. Zuerst die Wahl in den Optionen, dann das Profilfeld `executable`, dann auf
+  D3DMetal das DX12-Programm, sonst das des Stores. Nur für Epic und GOG, die Nightforge selbst startet. Epics
+  Anmeldeparameter gehen mit, ein anderes Programm läuft in seinem eigenen Ordner. `wine.log` meldet
+  „<Spiel> starts Control_DX12.exe on d3dmetal instead of Control.exe“.
+- Optionen: D3DMetal ist seit de1f146 (koordinierende Session) für jedes DX11-Spiel wählbar und dessen letzter Weg, sobald
+  es eingerichtet ist. Live: `Control_DX11.exe` läuft darauf. Wer D3DMetal ausdrücklich wählt, bei dem bekommt Unreal
+  `-dx12` und Unity `-force-d3d12`, und die Erklärzeile sagt, was D3DMetal zeichnet. Für Epic- und GOG-Spiele mit 2 bis 4 Programmen gibt es die Zeile „Programm“ (Automatisch oder eines
+  davon).
+- Die D3DMetal-Frage kommt auch, wenn das Profil D3DMetal nennt und das Spiel ein eigenes DX12-Programm hat.
+- Epic-Spiele starten jetzt mit ihrem Profil (`epic.<namespace>`, der Namespace aus `Epic/library.json`). Davon
+  profitiert auch Sonic Mania, dessen `iniSettings` (Vollbild) bisher nie angewendet wurden.
+- Profil Control: `graphics: d3dmetal`, für Epic und GOG. `profiles.json` hat den neuen `generated`-Stempel, damit die
+  Kopie im Build die ältere Online-Liste schlägt. Beim Merge nach `main` gibt es dort einen Konflikt, weil der
+  nächtliche Lauf `profiles.json` neu schreibt. Dann einfach neu bauen lassen.
+- Die Leiter selbst bleibt, wie sie war (D3DMetal ohne Argumente). So behalten Wukong und The Last Caretaker ihren
+  bestätigten Weg.
+- `LaunchHealth` (eigener Commit, lässt sich allein übernehmen): Bisher fing ein Spiel mit geänderter Leiter von vorn an.
+  Wächst die Leiter nur am Ende (D3DMetal als letzter DX11-Weg), behält das Spiel jetzt, was es gelernt hat. Ohne das
+  wäre jedes DX11-Spiel einmal auf DXMT zurückgefallen, auch eines, das DXVK gelernt hatte.
+
+Live-Test (der Nutzer setzt die Grafik vorher auf „Automatisch“): Control (Epic) starten. Ist D3DMetal nicht
+eingerichtet, kommt erst die Frage danach. Dann muss `Control_DX12.exe` auf D3DMetal laufen, siehe die Zeile in
+`wine.log`. Danach die GOG-Fassung. In den Optionen prüfen: Grafik bietet D3DMetal, die Zeile „Programm“ zeigt
+Control, Control_DX11 und Control_DX12. Sonic Mania (Epic) startet jetzt im Vollbild.
+
+Offen: die Programmwahl für Steam (die Startoption mit `%command%` in `localconfig.vdf`). Control gibt es bei Steam
+ohnehin als Mac-Version.
 
 ### Overwatch hängt beim Start
 

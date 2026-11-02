@@ -36,6 +36,10 @@ struct GameAnalysis: Codable, Equatable {
     var launcher: String?
     /// Microsoft WebView2 draws some of its windows (login, news); under Wine they often stay empty.
     var usesWebView2 = false
+    /// The game's own DirectX 12 program beside the one the store starts, relative to the game
+    /// folder (Control: Control.exe hands over to Control_DX11.exe, Control_DX12.exe lies beside
+    /// it). D3DMetal starts it (GameProgram); the other layers have no DirectX 12 and keep the store's.
+    var d3d12Program: String?
 
     /// Direct3D 10/11 is what DXMT and DXVK translate.
     var usesD3D11: Bool { apis.contains(.d3d10) || apis.contains(.d3d11) }
@@ -50,6 +54,17 @@ struct GameAnalysis: Codable, Equatable {
         switch engine {
         case .unreal: return ["-dx11"]
         case .unity: return ["-force-d3d11"]
+        case .other: return []
+        }
+    }
+
+    /// … and the ones that make it pick 12, for a player who picked D3DMetal for it (UE5 starts on 12
+    /// by itself, UE4 and Unity on 11). Self-healing's D3DMetal way goes without, as before.
+    var preferD3D12Arguments: [String] {
+        guard apis.contains(.d3d12), usesD3D11 else { return [] }
+        switch engine {
+        case .unreal: return ["-dx12"]
+        case .unity: return ["-force-d3d12"]
         case .other: return []
         }
     }
@@ -122,6 +137,15 @@ extension GameAnalysis {
             analysis.apis.insert(.d3d9)
         }
         if agilitySDK { analysis.apis.insert(.d3d12) }
+        // Programs of its own for DirectX 11 and 12 beside the store's: the game draws each there,
+        // whatever libraries hold its renderer (Control's sit in DLLs the look above doesn't reach).
+        if let started = targets.first(where: { fm.fileExists(atPath: $0.path) }) {
+            if let d3d12 = d3d12Program(near: started, in: installDir) {
+                analysis.d3d12Program = d3d12
+                analysis.apis.insert(.d3d12)
+            }
+            if program(named: "dx11|d3d11", near: started, in: installDir) != nil { analysis.apis.insert(.d3d11) }
+        }
         if analysis.engine == .other, programs.contains(where: { $0.lastPathComponent.lowercased().contains("-win64-shipping") })
             || fm.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path) {
             analysis.engine = .unreal
@@ -174,13 +198,49 @@ extension GameAnalysis {
         func hasItem(named name: String) -> Bool { paths.contains(name) || paths.contains { $0.hasSuffix("/" + name) } }
     }
 
+    /// Programs that aren't the game, by a part of their name: installers, crash reporters, anti-cheat services.
+    private static let helpers = ["crash", "redist", "dxsetup", "vcredist", "setup", "installer", "unins", "easyanticheat", "beservice", "report"]
+
+    /// The game's programs beside `program` (the one the store starts), relative to the game folder,
+    /// by name – what a player can pick to start instead (GameOptions.program). Not installers and
+    /// the like.
+    static func programs(near program: URL, in installDir: URL) -> [String] {
+        let folder = program.deletingLastPathComponent()
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        return files
+            .filter { $0.pathExtension.lowercased() == "exe" && !helpers.contains(where: $0.lastPathComponent.lowercased().contains) }
+            .compactMap { relative($0, to: installDir) }
+            .sorted { $0.lowercased() < $1.lowercased() }
+    }
+
+    /// The program beside `program` named for DirectX 12 ("Control_DX12.exe", "Game-D3D12.exe"),
+    /// relative to the game folder; nil when there's none.
+    static func d3d12Program(near program: URL, in installDir: URL) -> String? {
+        self.program(named: "dx12|d3d12", near: program, in: installDir)
+    }
+
+    /// The program beside `program` with one of `tags` ("dx12|d3d12") as a word of its name.
+    private static func program(named tags: String, near program: URL, in installDir: URL) -> String? {
+        guard let tag = try? Regex("(^|[^a-z0-9])(\(tags))($|[^a-z0-9])") else { return nil }
+        return programs(near: program, in: installDir).first { path in
+            let name = (path as NSString).lastPathComponent.lowercased().replacingOccurrences(of: ".exe", with: "")
+            return name.firstMatch(of: tag) != nil
+        }
+    }
+
+    /// `file`'s path inside `dir` ("Binaries/Win64/Game.exe"); nil when it lies elsewhere.
+    private static func relative(_ file: URL, to dir: URL) -> String? {
+        let base = dir.standardizedFileURL.path + "/"
+        let path = file.standardizedFileURL.path
+        return path.hasPrefix(base) ? String(path.dropFirst(base.count)) : nil
+    }
+
     private static func scan(_ dir: URL) -> Contents {
         var contents = Contents()
         guard let files = FileManager.default.enumerator(
             at: dir, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return contents }
         let base = dir.standardizedFileURL.path.count + 1
-        let helpers = ["crash", "redist", "dxsetup", "vcredist", "setup", "installer", "unins", "easyanticheat", "beservice", "report"]
         for case let file as URL in files {
             if files.level > 4 { files.skipDescendants(); continue }
             let path = String(file.standardizedFileURL.path.dropFirst(base)).lowercased()

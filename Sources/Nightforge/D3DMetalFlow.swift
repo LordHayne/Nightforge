@@ -54,15 +54,16 @@ extension LibraryModel {
         guard game.bottle.isBuiltIn, game.platform == .windows, d3dMetalDialog == nil, !Engine.d3dMetalReady,
               Engine.installedWineNow().map({ Engine.isGPTKCapable(wine: $0) }) == true else { return false }
         let picked = GameOptionsStore.load(game.gameID).graphics
-        if let analysis = insights[game.gameID]?.analysis {
+        if let analysis = insights[game.gameID]?.analysis, analysis.d3d12Program == nil {
             guard D3DMetalSupply.needed(by: analysis, picked: picked) else { return false }
             askAboutD3DMetal(for: game)
             return true
         }
-        // Not looked at yet: look, then decide.
+        // Not looked at yet – or a DirectX 12 program of its own, where the profile decides: look, then decide.
         Task {
             let insight = await self.insight(of: game)
-            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked) {
+            let profile = await ProfileStore.shared.profile(for: game.gameID)
+            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked, profile: profile) {
                 askAboutD3DMetal(for: game)
             } else {
                 launch(game, d3dMetalChecked: true)

@@ -71,6 +71,10 @@ jobs:
               assert game.get("antiCheatOnline") is None or isinstance(game["antiCheatOnline"], list), (app_id, game.get("antiCheatOnline"))
               assert game.get("geforceNow") is None or isinstance(game["geforceNow"], str), (app_id, game.get("geforceNow"))
               assert game.get("notYet") is None or isinstance(game["notYet"], str), (app_id, game.get("notYet"))
+              # A program inside the game's folder (GameProgram), relative to it.
+              program = game.get("executable")
+              assert program is None or (isinstance(program, str) and program and not program.startswith(("/", "\\"))
+                                          and ".." not in re.split(r"[\\/]", program)), (app_id, program)
               for entry in game.get("registry") or []:
                   assert build_profiles.registry_key_allowed(entry["key"]), (app_id, entry["key"])
                   assert all("\n" not in str(v) and "\r" not in str(v) for v in entry.values()), (app_id, entry)
