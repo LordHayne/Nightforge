@@ -92,7 +92,63 @@ struct SpaceCheckTest {
               "the nearest existing folder: \(SpaceCheck.existingFolder(for: missing).path)")
         check(SpaceCheck.sameVolume(missing, FileManager.default.temporaryDirectory), "a folder and its parent share a volume")
 
+        clones()
+
         print(failures == 0 ? "✓ SpaceCheck" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func randomFile(_ url: URL, bytes: Int) {
+        var data = [UInt8](repeating: 0, count: bytes)
+        arc4random_buf(&data, bytes)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(data).write(to: url)
+    }
+
+    /// Settings › Storage: the held engine is an APFS clone of the engine (Components/.held) and costs
+    /// nothing while the two are the same. Real clones, made the way the engine's are.
+    static func clones() {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("space-clones-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: root) }
+        let engine = root.appendingPathComponent("winecx/4.7.3", isDirectory: true)
+        randomFile(engine.appendingPathComponent("lib/wine/ntdll.so"), bytes: 3 << 20)
+        randomFile(engine.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll"), bytes: 1 << 20)
+        let alone = LibraryScanner.folderSize(root)
+        check(alone >= 4 << 20, "the engine's own size: \(alone)")
+
+        let held = root.appendingPathComponent(".held/winecx-4.7.3/winecx", isDirectory: true)
+        try? fm.createDirectory(at: held.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? ComponentStore.cloneFolder(engine, to: held)
+        let keys: Set<URLResourceKey> = [.mayShareFileContentKey]
+        guard (try? held.appendingPathComponent("lib/wine/ntdll.so").resourceValues(forKeys: keys))?.mayShareFileContent == true else {
+            print("– no APFS clones in \(fm.temporaryDirectory.path), the clone checks are skipped")
+            return
+        }
+        check(LibraryScanner.folderSize(root) == alone, "a clone the engine hasn't changed costs nothing: \(LibraryScanner.folderSize(root)) for \(alone)")
+        check(LibraryScanner.folderSize(held) == alone, "on its own it is the whole engine")
+
+        // The engine's DLL is replaced (an update, D3DMetal): the held copy keeps the old one, which counts now.
+        let dll = engine.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll")
+        let oldDLL = Int64((try? held.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll")
+            .resourceValues(forKeys: [.totalFileAllocatedSizeKey]))?.totalFileAllocatedSize ?? -1)
+        try? fm.removeItem(at: dll)
+        randomFile(dll, bytes: 1 << 20)
+        check(LibraryScanner.folderSize(root) == alone + oldDLL, "a file replaced in the engine: the held one's old file counts")
+
+        // A copy that isn't a clone counts in full, as before.
+        let copy = root.appendingPathComponent("copy/ntdll.so")
+        if let bytes = try? Data(contentsOf: engine.appendingPathComponent("lib/wine/ntdll.so")) {
+            try? fm.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? bytes.write(to: copy)
+        }
+        check(LibraryScanner.folderSize(root) == alone + oldDLL + LibraryScanner.folderSize(copy.deletingLastPathComponent()),
+              "a plain copy of the same bytes is counted in full")
+        try? fm.removeItem(at: copy.deletingLastPathComponent())
+
+        // The engine goes (a new one came): the held copy's blocks are its own.
+        try? fm.removeItem(at: engine)
+        check(LibraryScanner.folderSize(root) == LibraryScanner.folderSize(held) && LibraryScanner.folderSize(held) == alone,
+              "without the engine the held copy is the whole size")
     }
 }

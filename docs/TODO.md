@@ -329,9 +329,6 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 
 ### Engine-Rückfall (3.3, Branch `claude/engine-rollback-02a61e`)
 
-- **Speicher-Anzeige zählt die gehaltene Engine doppelt.** Sie ist ein APFS-Klon und teilt ihre Blöcke mit dem
-  Original. `Library.folderSize` summiert aber `totalFileAllocatedSize`, also erscheint sie in Einstellungen ›
-  Speicher mit voller Größe (bis 1,4 GB), solange das Original noch da ist.
 - **Nach dem Zusammenführen mit 0.2 (GameID):** `EngineRollback` merkt sich Spiele unter der Steam-App-ID, und
   `LaunchHealth.confirmedWays` liest `launchHealth.<id>`. Beides auf die neue ID umstellen.
 - **Nur Abstürze eines Spiels zählen.** Startet Steam selbst mit der neuen Engine nicht, greift der Rückfall nicht.
