@@ -198,7 +198,7 @@ cd Nightforge
 ./build.sh --install
 ```
 
-The app ends up in `~/Applications/Nightforge.app` and starts right away. To publish a release, push a tag such as `v0.1.0`: `.github/workflows/release.yml` builds the app and attaches the zip (used by the installer) and the DMG. The logo and app icon are drawn by `scripts/render-brand.swift`. A static page about Nightforge lives in `site/` (no build step).
+The app ends up in `~/Applications/Nightforge.app` and starts right away. To publish a release, push a tag such as `v0.1.0`: `.github/workflows/release.yml` builds the app and attaches the zip (used by the installer) and the DMG. The logo and app icon are drawn by `scripts/render-brand.swift`. A static page about Nightforge lives in `site/` (no build step); `.github/workflows/pages.yml` puts it on [GitHub Pages](https://lordhayne.github.io/Nightforge/) whenever it changes on main.
 
 ## Licence
 
