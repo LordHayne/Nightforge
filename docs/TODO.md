@@ -76,6 +76,15 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 
 Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR #7 läuft winecx 4.7.3.
 
+- **Spieletest über Nacht** (2.11., Zweig `claude/angry-heisenberg-1f2283`): Nightforge spielt alle installierten Spiele
+  selbst durch – über den normalen Start mit Leiter und Vorhang, bis 120 s auf das Bild, dann 60 s laufen, beenden wie
+  „Spiel beenden“ im Overlay – und schreibt `GameTests/<Datum>/report.json` und `report.md` in Nightforges Support-Ordner.
+  Nur über den Schalter `defaults write io.github.lordhayne.nightforge gameTest -bool true` (einmalig, wird beim
+  Start gelöscht), Abbruch mit `gameTest.stop`. Lädt und installiert nichts: Spiele mit Update, fehlenden Laufzeiten,
+  D3DMetal-Einrichtung, Anmeldung oder Anti-Cheat stehen unter „Nicht gestartet“. `scripts/import-game-test.py` bringt
+  den Bericht nach `docs/spieletest/`. Offen: der erste Lauf mit dem Nutzer, danach nach jeder Engine-Änderung; die
+  Einträge (`game`, `store`, `storeID`, `result`, `way`, `issues` wie `compat-report.yml`) in die Kompatibilitätsliste zählen.
+  Die zweite Fassung eines Spiels (Windows-Rest neben der Mac-Version) testet er nicht, nur die gewählte.
 - **Getestete Spiele auf winecx gegenprüfen.** Palworld (DXMT, 60 FPS), Deadlock (DXVK, 60–120 FPS),
   Left 4 Dead 2 (WineD3D) und 7 Days to Die. Die Ergebnisse und Profile in
   `profiles/mac.json` beziehen sich auf 11.18. OxyRail ist am 28.10. auf winecx bestätigt: DXMT mit MetalFX,

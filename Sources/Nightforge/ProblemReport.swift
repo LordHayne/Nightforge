@@ -90,7 +90,7 @@ enum ProblemReport {
         return components?.url
     }
 
-    private static var chip: String {
+    static var chip: String {
         var size = 0
         sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
         var bytes = [CChar](repeating: 0, count: max(size, 1))
@@ -99,7 +99,7 @@ enum ProblemReport {
         return name.isEmpty ? "Mac" : name
     }
 
-    private static var osVersion: String {
+    static var osVersion: String {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         return "\(version.majorVersion).\(version.minorVersion)"
     }

@@ -89,7 +89,8 @@ enum Prefs {
         // Hidden – behind the game, which no longer hides the app (LibraryModel.stepBack), the same
         // as kept open – Nightforge is back the moment the game ends; quitting frees a little
         // memory and comes back too, a few seconds later.
-        AfterLaunch(rawValue: UserDefaults.standard.string(forKey: Keys.afterLaunch) ?? "") ?? .hide
+        if GameTest.active { return .stay }  // the game test starts the next game from it
+        return AfterLaunch(rawValue: UserDefaults.standard.string(forKey: Keys.afterLaunch) ?? "") ?? .hide
     }
 }
 
