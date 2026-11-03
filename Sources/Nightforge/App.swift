@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         GameDisplay.follow()
         GameOverlay.resumeLeftovers()
         MacIntegration.setUp(delegate: self)
+        // Game apps an older Nightforge wrote get the key that lets their link start the game.
+        Task.detached(priority: .utility) { GameShortcut.addKey(GameShortcut.key()) }
     }
 
     /// Right-click on the Dock icon: the last games played, one click to play.
@@ -60,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         MacIntegration.dockMenu(target: self, action: #selector(playFromDock(_:)))
     }
 
-    /// nightforge://play/<app ID> – from a game's app in ~/Applications, Spotlight or a shortcut.
+    /// nightforge://play/<app ID> – from a game's app in ~/Applications (with its key it plays, else its page shows).
     func application(_ application: NSApplication, open urls: [URL]) {
         urls.forEach { MacIntegration.open($0) }
     }

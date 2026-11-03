@@ -50,7 +50,7 @@ enum MacIntegration {
     private static var pendingLink: GameShortcut.Action?
 
     static func open(_ url: URL) {
-        guard let action = GameShortcut.action(from: url) else { return }
+        guard let action = GameShortcut.action(from: url, key: GameShortcut.key()) else { return }
         guard let model, !model.allGames.isEmpty else {
             pendingLink = action
             return
