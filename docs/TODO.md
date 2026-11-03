@@ -898,6 +898,25 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
         Shader-Vorbereitung), bei „startet nicht?“ A, B und Steuerkreuz drücken. Geht es nicht: die Zeilen ab
         „Overlay up (notStarting)“ zeigen, ob die Tasten Nightforge erreichen („the pad reaches Nightforge“) und
         bis zum Overlay kommen.
+      - **Abfrage von macOS unter dem Vorhang** (Zweig `claude/system-prompt-curtain-1a4e06` von 29e458a, 3.11.;
+        Spieletest in der Nacht: Tomb Raider, Mac-Fassung auf dem Stick): macOS fragte nach dem Zugriff auf den
+        Wechseldatenträger, das Fenster lag unter dem Vorhang („in front UserNotificationCenter …, asks no“), und
+        zweimal kam „startet nicht?“. tccd zeigt seine Abfragen über CFUserNotification, die
+        UserNotificationCenter zeichnet, neuere über AuthorizationPromptService; dazu Gatekeeper
+        (CoreServicesUIAgent), Bedienungshilfen (universalAccessAuthWarn), Ortung (CoreLocationAgent), Passwort
+        und Touch ID (SecurityAgent, coreautha). Zeigt eines dieser Systemprogramme (nach Pfad unter /System)
+        ein Fenster auf dem sichtbaren Space, macht der Vorhang Platz wie bei einer Frage des Spiels (darunter,
+        über allem anderen), egal wo der Start gerade ist, sagt „macOS fragt um Erlaubnis – antworte mit Maus oder
+        Trackpad.“, schließt ein offenes „startet nicht?“ und lässt es nicht kommen, solange gefragt wird. Danach
+        Vorhang wieder über allem, bis das Bild kommt. Ist der Vorhang schon unten, bleibt er unten (vorher hob
+        ihn die Abfrage als „andere App vorne“ über sie). Der Zeiger wird dabei weder versteckt noch geholt (das
+        Panel dafür nimmt die Tasten, auch einem Passwortfeld). Nichts wird bestätigt, keine Einstellung
+        geändert. Live: ein Spiel, für das macOS noch fragt (Tomb Raider vom Stick, falls die Erlaubnis noch
+        nicht erteilt ist; sonst ein Mac-Spiel auf einem anderen Wechseldatenträger): Abfrage über dem Vorhang,
+        die Zeile darunter, kein „startet nicht?“ auch nach über einer Minute; nach der Antwort Vorhang wieder,
+        dann das Spiel. In `wine.log` „Curtain under a question of macOS's for …: UserNotificationCenter in
+        front“ und „Curtain up again for …: macOS's question is answered“. Nicht live geprüft: auf welcher Ebene
+        die Abfrage liegt (der Vorhang geht auf normale Ebene direkt unter sie, das reicht für jede).
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die

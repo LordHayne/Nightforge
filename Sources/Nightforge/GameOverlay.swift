@@ -589,6 +589,49 @@ enum GameProcesses {
         return question(windows, pids: pids)
     }
 
+    /// The programs macOS asks the player through. TCC's permissions – files on a removable or
+    /// network volume, a folder, the camera, the microphone, the local network: tccd shows them
+    /// through CFUserNotification, which UserNotificationCenter draws (Tomb Raider's on its drive lay
+    /// under the curtain on 2.11.), or through AuthorizationPromptService – Accessibility's
+    /// (universalAccessAuthWarn), location's (CoreLocationAgent), Gatekeeper's for an app from the
+    /// internet (CoreServicesUIAgent), a password or Touch ID (SecurityAgent, coreautha).
+    nonisolated static let macOSAskers = [
+        "/System/Library/CoreServices/UserNotificationCenter.app/",
+        "/System/Library/CoreServices/AuthorizationPromptService.app/",
+        "/System/Library/PrivateFrameworks/UniversalAccess.framework/Versions/A/Resources/universalAccessAuthWarn.app/",
+        "/System/Library/CoreServices/CoreLocationAgent.app/",
+        "/System/Library/CoreServices/CoreServicesUIAgent.app/",
+        "/System/Library/Frameworks/Security.framework/Versions/A/MachServices/SecurityAgent.bundle/",
+        "/System/Library/Frameworks/LocalAuthentication.framework/Support/coreautha.bundle/",
+    ]
+
+    /// Their processes in `table`.
+    nonisolated static func macOSAskers(in table: [Entry]) -> Set<pid_t> {
+        Set(table.filter { entry in macOSAskers.contains { entry.command.hasPrefix($0) } }.map(\.pid))
+    }
+
+    /// A window of theirs on the Space shown – they show one only while they ask, none of a picture's
+    /// size: its number, the frontmost first. At any level from the windows' up, an alert may lie
+    /// high; more than a sliver.
+    nonisolated static func macOSQuestion(_ windows: [[String: Any]], askers: Set<pid_t>) -> Int? {
+        let asking = windows.first { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, askers.contains(owner),
+                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= 0,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return false }
+            return width >= 150 && height >= 60
+        }
+        return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    nonisolated static func macOSQuestion(askers: Set<pid_t>) -> Int? {
+        guard !askers.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        return macOSQuestion(windows, askers: askers)
+    }
+
     /// The game's windows as the curtain sees them, for wine.log: "380×332 L3, 1512×982 L0, 2 hidden".
     nonisolated static func windowList(_ pids: Set<pid_t>) -> String {
         guard !pids.isEmpty,

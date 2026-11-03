@@ -860,6 +860,8 @@ final class LibraryModel: ObservableObject {
         var madeWay = false
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
+        /// The curtain under a question of macOS's (`GameProcesses.macOSQuestion`), until it's gone.
+        var macOSAsked = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
@@ -903,12 +905,40 @@ final class LibraryModel: ObservableObject {
             }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let (pids, companion) = await Task.detached(priority: .utility) {
+            let (pids, companion, askers, macOSQuestion) = await Task.detached(priority: .utility) {
                 let table = GameProcesses.table()
+                let askers = GameProcesses.macOSAskers(in: table)
                 return (Set(GameProcesses.targets(windows: marker, mac: folder, in: table)),
-                        marker != nil && front.map { GameProcesses.windowsCompanion($0, in: table) } == true)
+                        marker != nil && front.map { GameProcesses.windowsCompanion($0, in: table) } == true,
+                        askers, GameProcesses.macOSQuestion(askers: askers))
             }.value
             seenOnce = seenOnce || !pids.isEmpty
+            // macOS asks the player something – Tomb Raider's access to its drive (2.11.), a password,
+            // an app from the internet – whatever the start is at: the curtain makes way under it as
+            // for a question of the game's and says so, and no "Not starting?" comes over it. Down
+            // already, it stays down: up again over it, the player could never answer. The pointer
+            // isn't shown nor hidden – the panel that does it takes the keys, a password field's too.
+            if let macOSQuestion {
+                pointerFront = front
+                frontSince = nil  // the game's time in front starts again after it
+                guard loweredAt == nil else { continue }
+                if GameOverlay.asksAboutStart { GameOverlay.close() }
+                GameBackdrop.makeWay(under: macOSQuestion)  // again at each look: nothing gets between
+                sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: false, shaders: buildsShaders, macOSAsks: true)
+                askAt = Date().addingTimeInterval(Self.curtainPatience)
+                if !macOSAsked {
+                    macOSAsked = true
+                    let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
+                    GameLog.note("Curtain under a question of macOS's for \(game.name): \(name) in front")
+                }
+                continue
+            }
+            if macOSAsked {
+                macOSAsked = false
+                madeWay = false
+                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
+            }
             if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
@@ -945,7 +975,8 @@ final class LibraryModel: ObservableObject {
             // the mouse.
             let newFront = front != pointerFront
             pointerFront = front
-            if loweredAt == nil, !asks, !madeWay {
+            // Nor while one of macOS's askers has the front before its window shows.
+            if loweredAt == nil, !asks, !madeWay, !(front.map(askers.contains) ?? false) {
                 if gameFront, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
                     pointerHidden = since
                     InputRouter.hidePointerOverGame()
@@ -1035,18 +1066,19 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false) {
+    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown,
-                                                  asks: asks),
-                               detail: asks ? nil : launchHint)
+                                                  asks: asks, macOSAsks: macOSAsks),
+                               detail: asks || macOSAsks ? nil : launchHint)
     }
 
-    /// The step the curtain names: a question of the game's on it (`asks`), else the start's own
-    /// (`phase`, "Starting Steam …") while it has one, then what the game does until its window
-    /// shows. Nil: "Starting …".
+    /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
+    /// else the start's own (`phase`, "Starting Steam …") while it has one, then what the game does
+    /// until its window shows. Nil: "Starting …".
     nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool,
-                                          asks: Bool = false) -> String? {
+                                          asks: Bool = false, macOSAsks: Bool = false) -> String? {
+        if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
         guard gameRuns, !windowShown else { return nil }
