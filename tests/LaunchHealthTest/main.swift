@@ -777,6 +777,12 @@ struct LaunchHealthTest {
         check(started(.dxmt, chosen: "Tools\\Editor.exe") == "Editor.exe", "a Windows path inside the game folder")
         check(started(.dxmt, chosen: "../../etc/passwd") == "Control.exe" && started(.dxmt, chosen: "Gone.exe") == "Control.exe"
               && started(.dxmt, chosen: "Tools") == "Control.exe", "nothing outside the game folder, gone or a folder: the store's")
+        let elsewhere = controlDir.deletingLastPathComponent().appendingPathComponent("lh-elsewhere-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: elsewhere) }
+        try? FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: elsewhere.appendingPathComponent("Other.exe").path, contents: Data("MZ".utf8))
+        try? FileManager.default.createSymbolicLink(at: controlDir.appendingPathComponent("Linked"), withDestinationURL: elsewhere)
+        check(started(.dxmt, profile: "Linked\\Other.exe") == "Control.exe", "nor one behind a folder the game linked in from elsewhere")
         check(GameAnalysis.programs(near: launcher, in: controlDir) == ["Control.exe", "Control_DX11.exe", "Control_DX12.exe"],
               "the programs to pick from: beside the store's, no installers")
         var picked = GameOptions()
