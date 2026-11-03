@@ -1167,6 +1167,31 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
         the start goes on“, und der Start läuft weiter wie ohne Frage, „startet nicht?“ eingeschlossen. Eine
         hängende oder von einem anderen Fenster verdeckte Abfrage hält den Start so nicht mehr fest. Ist der
         Vorhang schon unten, kommt er nach der Antwort nicht über das Spiel.
+        Live-Befund 3.11. (Staging 51662a5): Tomb Raiders Abfrage (UserNotificationCenter, 297×208, Ebene 8) blieb
+        nach dem Spieletest offen stehen, und jeder spätere Start meldete „Curtain under a question of macOS's
+        for …: Nightforge in front“ und schaute nicht mehr nach dem Spiel: ABZU lief mit 57/41 FPS und zählte
+        trotzdem als „hängt ohne Bild“, ebenso The Forest (GameTests/2026-11-03-0735). Behoben: Unter einer
+        Abfrage schaut der Vorhang weiter nach dem Spiel. Er liegt unter allen Abfragen von macOS auf dem
+        Bildschirm (unter der hintersten), und zeigt das Spiel sein Fenster vorne, sinkt er wie sonst; die
+        Abfrage bleibt über dem Spiel. Warten (kein „startet nicht?“, die Zeile „macOS fragt um Erlaubnis …“,
+        kein Übergeben der Front an das Spiel, Zeiger unangetastet) gibt es nur für eine Abfrage, die während
+        dieses Starts aufkam (`LibraryModel.macOSAsksNow`: nicht unter den Fenstern beim ersten Blick des
+        Starts, über alle Wege eines Starts gemerkt). Eine Abfrage von vorher hält nichts an, der Vorhang sagt
+        darunter nur „macOS hat noch eine Frage offen.“ (wenn der Start keinen eigenen Hinweis hat), `wine.log`
+        „Curtain under a question of macOS's from before …'s start: the start doesn't wait for it“, in den
+        Blick-Zeilen „macOS asks now“ bzw. „from before“. M8 passt dazu: Nach 3 Minuten wird eine neue Abfrage
+        wie eine von vorher behandelt (Hinweis statt Warten), der Vorhang geht nicht mehr über sie. Hat die
+        Abfrage selbst die Front, bekommt das Spiel sie nicht, und ein gesunkener Vorhang kommt nicht wieder.
+        Live-Prüfung: (1) Eine Abfrage von macOS offen lassen (z. B. Tomb Raider vom Stick ohne Antwort), dann
+        ein anderes Spiel starten (ABZU): Abfrage über dem Vorhang, nach ein paar Sekunden „macOS hat noch eine
+        Frage offen.“, das Spiel bekommt die Front, der Vorhang sinkt, „Curtain down for ABZU“ in `wine.log`,
+        die Abfrage bleibt über dem Spiel sichtbar; der Spieletest zählt ABZU nicht als „hängt ohne Bild“.
+        (2) Eine Abfrage, die während des Starts kommt (Tomb Raider vom Stick ohne Erlaubnis): Zeile „macOS
+        fragt um Erlaubnis …“, auch nach über einer Minute kein „startet nicht?“, nach der Antwort weiter wie
+        oben. (3) Diese Abfrage über 3 Minuten stehen lassen: „Curtain stops waiting … after 180 s“, danach nur
+        noch der Hinweis, „startet nicht?“ darf kommen. Nicht live geprüft: ob die Abfrage über einem Spiel in
+        einem eigenen Vollbild-Space sichtbar bleibt (bei Wine-Spielen ohne eigenen Space liegt sie mit Ebene 8
+        über dem Spiel).
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die

@@ -98,9 +98,10 @@ enum GameBackdrop {
     }
 
     /// A window of the game's asks something (GameProcesses.question), or one of macOS's
-    /// (`macOSQuestion`): the curtain stays, right under it – the game or macOS has the front – and
-    /// over everything else, so the question shows on the curtain as on a console. A click beside it lands on the curtain, not on Nightforge's page,
-    /// which would come to the front over the question. Back over everything with `raise`.
+    /// (`macOSQuestions`, the backmost: they all show): the curtain stays, right under it – the game
+    /// or macOS has the front – and over everything else, so the question shows on the curtain as on a console. A click beside it lands on the curtain, not on Nightforge's page,
+    /// which would come to the front over the question. Back over everything with `raise`; the
+    /// game's window coming over it in front lowers it as ever.
     static func makeWay(under question: Int) {
         guard let window, isRaised else { return }
         window.level = .normal

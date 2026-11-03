@@ -847,6 +847,9 @@ final class LibraryModel: ObservableObject {
     private var curtainWatch: Task<Void, Never>?
     /// Nightforge opened Steam's window for a question (`showSteamWindow`) and hasn't hidden it since.
     private var steamWindowShown = false
+    /// The questions of macOS's on screen at the first look of this start, for each way it tries:
+    /// they came before it and don't hold it (`macOSAsksNow`).
+    private var macOSQuestionsBefore: Set<Int>?
 
     /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
     /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
@@ -856,6 +859,7 @@ final class LibraryModel: ObservableObject {
         curtainWatch?.cancel()
         // The tip for new players on a curtain that comes up for this start, not again for each way it tries.
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
+        if !GameBackdrop.isRaised { macOSQuestionsBefore = nil }
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
@@ -876,10 +880,14 @@ final class LibraryModel: ObservableObject {
         var madeWay = false
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
-        /// The curtain under a question of macOS's since then (`GameProcesses.macOSQuestion`), until it's
-        /// gone – or until it waited `macOSPatience` (`macOSGaveUp`), and the start goes on as without one.
+        /// macOS's questions on screen at the last look (`GameProcesses.macOSQuestions`), the frontmost
+        /// first: the curtain lies under them while it's up.
+        var macOSOnScreen: [Int] = []
+        /// The start waits for one that came up during it since then, until it's gone – or until it
+        /// waited `macOSPatience` (`macOSGaveUp`), and the start goes on as without one.
         var macOSAskedSince: Date?
         var macOSGaveUp = false
+        var macOSBeforeNoted = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
@@ -888,6 +896,11 @@ final class LibraryModel: ObservableObject {
         /// Looks in a row without a process list.
         var blindLooks = 0
         func end(_ why: String) { GameLog.note("Curtain watch for \(game.name) ends: \(why)") }
+        /// The curtain over everything again – under macOS's questions on screen still, which have to show.
+        func curtainUp() {
+            GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+            if let lowest = macOSOnScreen.last { GameBackdrop.makeWay(under: lowest) }
+        }
         GameLog.note("Curtain watch for \(game.name) begins")
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
@@ -909,7 +922,7 @@ final class LibraryModel: ObservableObject {
                     return end("Steam asked, the start is over")
                 case .back:
                     steamAsked = false
-                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                    curtainUp()
                     hideSteamWindow(for: game)
                     askAt = Date().addingTimeInterval(Self.curtainPatience)  // the question's time isn't the game's
                     GameLog.note("Curtain up again for \(game.name): Steam's question is answered")
@@ -925,11 +938,11 @@ final class LibraryModel: ObservableObject {
             }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let (listing, askers, macOSQuestion) = await Task.detached(priority: .utility) {
+            let (listing, askers, macOSQuestions) = await Task.detached(priority: .utility) {
                 let listing = GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
                 // macOS's own askers from the same list (none without one).
                 let askers = GameProcesses.lookup(allowOld: true).value.map { GameProcesses.macOSAskers(in: $0) } ?? []
-                return (listing, askers, GameProcesses.macOSQuestion(askers: askers))
+                return (listing, askers, GameProcesses.macOSQuestions(askers: askers))
             }.value
             // No process list (ps doesn't answer): the game's absence is not known, so nothing is decided at
             // this look – above all not that it is gone. The old list stands in for a while (GameProcesses.lookup);
@@ -946,49 +959,58 @@ final class LibraryModel: ObservableObject {
             blindLooks = 0
             seenOnce = seenOnce || !pids.isEmpty
             // macOS asks the player something – Tomb Raider's access to its drive (2.11.), a password,
-            // an app from the internet – whatever the start is at: the curtain makes way under it as
-            // for a question of the game's and says so, and no "Not starting?" comes over it. Down
-            // already, it stays down: up again over it, the player could never answer. The pointer
-            // isn't shown nor hidden – the panel that does it takes the keys, a password field's too.
-            switch Self.macOSTurn(asking: macOSQuestion != nil, since: macOSAskedSince, gaveUp: macOSGaveUp, now: Date()) {
+            // an app from the internet: the curtain lies under its window as under a question of the
+            // game's, so it shows over everything, and the watch goes on looking for the game – one
+            // that shows its window in front lowers the curtain as ever, the question over it still.
+            // Down already, it stays down: up again over the game, the player couldn't see it. Only a
+            // question that came up during this start holds anything: no "Not starting?" over it, the
+            // curtain says so, the game isn't handed the front, the pointer is neither shown nor
+            // hidden (the panel that does it takes the keys, a password field's too). One there
+            // before it gets a word on the curtain, no more: Tomb Raider's, left unanswered on 3.11.,
+            // held every start after it, and ABZU running at 57 FPS counted as hanging.
+            let before = macOSQuestionsBefore ?? Set(macOSQuestions)
+            macOSQuestionsBefore = before
+            macOSOnScreen = macOSQuestions
+            let asksNow = Self.macOSAsksNow(macOSQuestions, before: before)
+            let turn = Self.macOSTurn(asking: asksNow, since: macOSAskedSince, gaveUp: macOSGaveUp, now: Date())
+            switch turn {
             case .makeWay:
-                pointerFront = front
-                frontSince = nil  // the game's time in front starts again after it
                 if macOSAskedSince == nil {
                     macOSAskedSince = Date()
                     let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
                     GameLog.note("Curtain under a question of macOS's for \(game.name): \(name) in front")
                 }
-                guard loweredAt == nil, let macOSQuestion else { continue }
-                if GameOverlay.asksAboutStart { GameOverlay.close() }
-                GameBackdrop.makeWay(under: macOSQuestion)  // again at each look: nothing gets between
-                sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: false, shaders: buildsShaders, macOSAsks: true)
-                askAt = Date().addingTimeInterval(Self.curtainPatience)
-                continue
-            case .giveUp:
-                // A question that hangs, or one under another window, never holds the start: it goes on
-                // as without one, "Not starting?" included (review M8, 3.11.).
-                macOSGaveUp = true
-                madeWay = false
                 if loweredAt == nil {
-                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                    if GameOverlay.asksAboutStart { GameOverlay.close() }
+                    askAt = Date().addingTimeInterval(Self.curtainPatience)
                 }
+            case .giveUp:
+                // A question that hangs, or one under another window, never holds the start: from now
+                // on it's as one from before it (review M8, 3.11.).
+                macOSGaveUp = true
                 GameLog.note("Curtain stops waiting for macOS's question for \(game.name) after \(Int(Self.macOSPatience)) s: the start goes on")
             case .answered:
                 macOSAskedSince = nil
-                madeWay = false
                 // Down already, the game has the screen: no curtain over it.
-                if loweredAt == nil {
-                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
-                }
+                if loweredAt == nil { curtainUp() }
                 GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
             case .none:
-                if macOSQuestion == nil {
+                if !asksNow {
                     macOSAskedSince = nil
                     macOSGaveUp = false
                 }
             }
-            if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
+            if !macOSBeforeNoted, macOSQuestions.contains(where: before.contains) {
+                macOSBeforeNoted = true
+                GameLog.note("Curtain under a question of macOS's from before \(game.name)'s start: the start doesn't wait for it")
+            }
+            // Under all of them, the backmost lowest; again at each look: nothing gets between.
+            if loweredAt == nil, let lowest = macOSQuestions.last { GameBackdrop.makeWay(under: lowest) }
+            let macOSAsks = turn == .makeWay
+            let macOSOpen = !macOSQuestions.isEmpty && !macOSAsks
+            if pids.isEmpty {
+                sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+            }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
                 // The start judges its first seconds: it tells what's next, under this curtain.
@@ -1013,6 +1035,7 @@ final class LibraryModel: ObservableObject {
             let look = "\(pids.count) processes, in front \(frontName) (\(front.map(String.init) ?? "-"), \(gameFront ? "the game's" : "not the game's")), "
                 + "windows \(windows), picture \(here ? "here" : anywhere ? "elsewhere" : "none"), asks \(asks ? "yes" : "no"), "
                 + "curtain \(loweredAt == nil ? (madeWay ? "under the question" : "up") : "down")"
+                + (macOSQuestions.isEmpty ? "" : ", macOS asks \(macOSAsks ? "now" : "from before")")
             if look != lastLook {
                 lastLook = look
                 GameLog.note("Curtain look at \(game.name): \(look)")
@@ -1024,8 +1047,8 @@ final class LibraryModel: ObservableObject {
             // the mouse.
             let newFront = front != pointerFront
             pointerFront = front
-            // Nor while one of macOS's askers has the front before its window shows.
-            if loweredAt == nil, !asks, !madeWay, !(front.map(askers.contains) ?? false) {
+            // Nor while macOS asks, nor while one of its askers has the front before its window shows.
+            if loweredAt == nil, !asks, !madeWay, !macOSAsks, !(front.map(askers.contains) ?? false) {
                 if gameFront, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
                     pointerHidden = since
                     InputRouter.hidePointerOverGame()
@@ -1036,10 +1059,12 @@ final class LibraryModel: ObservableObject {
             // Its question answered, no picture yet: the curtain over everything again until there is one.
             if madeWay, !asks, !here, loweredAt == nil {
                 madeWay = false
-                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                curtainUp()
             }
-            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks)
+            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks,
+                         macOSAsks: macOSAsks, macOSOpen: macOSOpen)
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
+                                    macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
                                     windowHere: here, windowAnywhere: anywhere, asks: asks,
                                     frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     settle: raisedAgain == 0 ? 1 : Self.settleAgain,
@@ -1069,7 +1094,7 @@ final class LibraryModel: ObservableObject {
             case .raiseAgain:
                 // Another app took the front from the game – Unity builds its window anew for full
                 // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
-                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                curtainUp()
                 loweredAt = nil
                 frontSince = nil
                 raisedAgain += 1
@@ -1090,10 +1115,10 @@ final class LibraryModel: ObservableObject {
     /// How long the curtain waits under a question of macOS's before the start goes on without it.
     nonisolated static let macOSPatience: TimeInterval = 180
 
-    /// The curtain around a question of macOS's (`asking`; `since`: when it began, `gaveUp`: the
-    /// curtain stopped waiting for this one): under it while it stands, for `macOSPatience` at most –
-    /// one that hangs, or lies under another window, would hold the start forever (review M8) –
-    /// and over everything again once it's gone.
+    /// The start around a question of macOS's that came up during it (`asking`, `macOSAsksNow`;
+    /// `since`: when it began, `gaveUp`: the start stopped waiting for this one): it waits while it
+    /// stands, for `macOSPatience` at most – one that hangs, or lies under another window, would
+    /// hold it forever (review M8) – and the curtain is over everything again once it's gone.
     nonisolated static func macOSTurn(asking: Bool, since: Date?, gaveUp: Bool, now: Date) -> MacOSTurn {
         if asking {
             if gaveUp { return .none }
@@ -1101,6 +1126,12 @@ final class LibraryModel: ObservableObject {
             return .makeWay
         }
         return since != nil && !gaveUp ? .answered : .none
+    }
+
+    /// Whether one of macOS's questions on screen (`questions`) came up during this start: not among
+    /// those at its first look (`before`). One left from before holds no start (3.11.).
+    nonisolated static func macOSAsksNow(_ questions: [Int], before: Set<Int>) -> Bool {
+        questions.contains { !before.contains($0) }
     }
 
     /// Steam waits for the player in its window during a start: a question before it (licence,
@@ -1132,12 +1163,20 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// The curtain's lines at a look (`curtainStatus`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false) {
+    /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
+    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
+                              macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown,
                                                   asks: asks, macOSAsks: macOSAsks),
-                               detail: asks || macOSAsks ? nil : launchHint)
+                               detail: Self.curtainDetail(launchHint: launchHint, asks: asks || macOSAsks, macOSOpen: macOSOpen))
+    }
+
+    /// The curtain's second line: none under a question it waits for (`asks`), else the start's
+    /// hint, else a word on a question of macOS's the start doesn't wait for (`macOSOpen`).
+    nonisolated static func curtainDetail(launchHint: String?, asks: Bool, macOSOpen: Bool) -> String? {
+        if asks { return nil }
+        return launchHint ?? (macOSOpen ? L10n.t("macOS still has a question open.") : nil)
     }
 
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
@@ -1161,16 +1200,21 @@ final class LibraryModel: ObservableObject {
     /// the front raises it again; Nightforge in front (Go to Nightforge) ends the watch. A window of
     /// the game's that asks something (`asks`) before any picture gets the front too, over the
     /// curtain (`makeWay`): under it the player could never answer (Black Myth: Wukong, 1.11.).
-    nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, windowHere: Bool,
-                                        windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
+    /// While macOS asks something the start waits for, or its question has the front (`macOSAsks`),
+    /// the game isn't handed the front – the question may have it, and the keys – but taking it
+    /// with its window, it sinks the curtain as ever; down already, the curtain stays down, the
+    /// question over the game.
+    nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, macOSAsks: Bool = false,
+                                        windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
                                         settle: TimeInterval = 1, guardOver: Bool) -> CurtainStep {
         if lowered {
             if guardOver || nightforgeFront { return .done }
-            return gameFront ? .wait : .raiseAgain
+            return gameFront || macOSAsks ? .wait : .raiseAgain
         }
-        if asks, !windowHere { return gameFront ? .makeWay : .handOver }
+        let handOver: CurtainStep = macOSAsks ? .wait : .handOver
+        if asks, !windowHere { return gameFront ? .makeWay : handOver }
         guard windowHere || windowAnywhere else { return .wait }
-        guard gameFront else { return .handOver }
+        guard gameFront else { return handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
         // page while the game had the front (1.11.).
         return windowHere && frontFor >= settle ? .lower : .wait

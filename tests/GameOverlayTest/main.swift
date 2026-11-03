@@ -219,6 +219,9 @@ struct GameOverlayTest {
         check(GameProcesses.macOSQuestion([], askers: askers) == nil, "nothing asks: none")
         check(GameProcesses.macOSQuestion([window(78961, 420, 190, number: 123), window(59116, 500, 300, number: 124)], askers: askers) == 123,
               "two: the frontmost")
+        check(GameProcesses.macOSQuestions([window(78961, 420, 190, number: 123), window(7000, 420, 190, number: 125),
+                                            window(59116, 500, 300, number: 124)], askers: askers) == [123, 124],
+              "all of them, the frontmost first: the curtain goes under the backmost")
 
         // The game test samples the game's own program, not a launcher waiting for it.
         check(GameProcesses.biggest([]) == nil, "no processes, nothing to sample")
@@ -228,12 +231,12 @@ struct GameOverlayTest {
     /// The curtain at each look: down only once the game itself is in front, and up again when
     /// another app takes the front from it (the TV test on 1.11.: the Claude app came up instead).
     static func curtain() {
-        func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, here: Bool = false,
-                  anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0, settle: TimeInterval = 1,
-                  guardOver: Bool = false) -> LibraryModel.CurtainStep {
-            LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, windowHere: here,
-                                     windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor, settle: settle,
-                                     guardOver: guardOver)
+        func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, macOS: Bool = false,
+                  here: Bool = false, anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0,
+                  settle: TimeInterval = 1, guardOver: Bool = false) -> LibraryModel.CurtainStep {
+            LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, macOSAsks: macOS,
+                                     windowHere: here, windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor,
+                                     settle: settle, guardOver: guardOver)
         }
         check(step() == .wait, "no window yet: the curtain waits")
         check(step(here: true) == .handOver, "its window is there, another app in front: the game gets the front")
@@ -260,6 +263,17 @@ struct GameOverlayTest {
         check(step(gameFront: true, anywhere: true, asks: true) == .makeWay, "a picture elsewhere doesn't keep it under")
         check(step(gameFront: true, here: true, asks: true, frontFor: 1) == .lower, "the picture is there: the curtain sinks as ever")
         check(step(lowered: true, gameFront: true, asks: true) == .wait, "down already: nothing more")
+        // macOS asks during the start: the watch looks for the game all the same (ABZU and The Forest
+        // ran under Tomb Raider's question on 3.11. and counted as hanging without a picture).
+        check(step(nightforgeFront: true, macOS: true, here: true) == .wait, "macOS asks, the game's window is there: not handed the front")
+        check(step(macOS: true, asks: true) == .wait, "nor for a question of its own")
+        check(step(gameFront: true, macOS: true, here: true, frontFor: 0.5) == .wait, "the game took the front: a moment more")
+        check(step(gameFront: true, macOS: true, here: true, frontFor: 1) == .lower,
+              "the game in front with its window: the curtain sinks, the question over it")
+        check(step(gameFront: true, macOS: true, asks: true) == .makeWay, "the game's question in front: over the curtain too")
+        check(step(lowered: true, macOS: true) == .wait, "down, macOS's question in front: the curtain stays down")
+        check(step(lowered: true, nightforgeFront: true, macOS: true) == .done, "Go to Nightforge meanwhile: the watch ends")
+        check(step(lowered: true, macOS: true, guardOver: true) == .done, "after the guard time: the watch ends")
 
         // Steam's question before the start (ShowInterstitials, Black Myth: Wukong on 1.11.): the
         // curtain goes for it and comes back once it's answered, the watch goes on.
@@ -311,6 +325,14 @@ struct GameOverlayTest {
         check(turn(asking: false, since: start, after: 30) == .answered, "answered: over everything again")
         check(turn(asking: false, since: start, gaveUp: true, after: 300) == .none, "gone after giving up: nothing more to do")
         check(LibraryModel.macOSPatience == 180, "three minutes")
+
+        // A question from before the start (Tomb Raider's, unanswered on 3.11.) holds none: only one
+        // that came up during it does.
+        check(!LibraryModel.macOSAsksNow([297], before: [297]), "there at the first look: the start doesn't wait for it")
+        check(turn(asking: LibraryModel.macOSAsksNow([297], before: [297])) == .none, "no wait, no \"answered\" later")
+        check(LibraryModel.macOSAsksNow([301], before: []), "came up during the start: it waits")
+        check(LibraryModel.macOSAsksNow([297, 301], before: [297]), "a new one beside the old one: it waits for that")
+        check(!LibraryModel.macOSAsksNow([], before: [297]), "the old one answered meanwhile: nothing")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes
@@ -340,6 +362,13 @@ struct GameOverlayTest {
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),
               "macOS asks: said, before the game's question and any step")
+        func detail(_ hint: String? = nil, asks: Bool = false, macOSOpen: Bool = false) -> String? {
+            LibraryModel.curtainDetail(launchHint: hint, asks: asks, macOSOpen: macOSOpen)
+        }
+        check(detail() == nil, "nothing to add")
+        check(detail(macOSOpen: true) == L10n.t("macOS still has a question open."), "a question from before the start: a word on it")
+        check(detail("Steam updates the game first", macOSOpen: true) == "Steam updates the game first", "the start's hint goes first")
+        check(detail("Steam updates the game first", asks: true, macOSOpen: true) == nil, "under a question it waits for: none")
     }
 
     /// The loading screen's N: drawn at the screen's scale, its seam left out for the layer on top.
