@@ -42,7 +42,11 @@ struct WineSandboxTest {
         let home = root.appendingPathComponent(#"Jane "Q" Doe\x"#, isDirectory: true)
         let support = home.appendingPathComponent("Library/Application Support/Nightforge", isDirectory: true)
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
-        let places = WineSandbox.Places(home: home, support: support)
+        // The app and the temporary folder of a Mac of its own as well.
+        let app = root.appendingPathComponent("Applications/Nightforge.app", isDirectory: true)
+        let temporary = root.appendingPathComponent("T", isDirectory: true)
+        for folder in [app, temporary] { try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        let places = WineSandbox.Places(home: home, support: support, app: app, temporary: temporary)
 
         // MARK: Profile
         check(WineSandbox.quoted("/a b") == #""/a b""#, "a space stays as it is")
@@ -63,6 +67,14 @@ struct WineSandboxTest {
         } else {
             check(false, "the profile has a denial and an exception:\n\(profile)")
         }
+        // What Nightforge runs itself, outside, can't be changed from inside (review H2, 3.11.2026).
+        let readOnly = profile.range(of: "(deny file-write*").map { String(profile[$0.lowerBound...]) } ?? ""
+        for path in [realSupport + "/Components", realSupport + "/Nightforge Helper.app", realSupport + "/hide-steam-dock.dylib",
+                     realSupport + "/steam-shutdown.sh", realSupport + "/D3DMetal", WineSandbox.canonical(app),
+                     WineSandbox.canonical(temporary) + "/Nightforge-runs", WineSandbox.canonical(home) + "/Applications/Nightforge Games"] {
+            check(readOnly.contains(WineSandbox.quoted(path)!), "can't be changed inside: \(path)")
+        }
+        check(!readOnly.contains("/Prefix") && !profile.contains(realSupport + "\")"), "the prefix and the data folder as a whole stay writable")
 
         // MARK: Switch
         let wine = URL(fileURLWithPath: "/engine/bin/wine")
@@ -82,10 +94,10 @@ struct WineSandboxTest {
             check(false, "the error says the helper is missing: \(error)")
         }
         try? WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: helper, places: places)
-        let file = WineSandbox.profileFile(places)
-        check(executable == helper && programArguments == [file.path, wine.path, "steam.exe", "-silent"],
-              "switched on: the helper, the profile, then the program: \(programArguments ?? [])")
-        check((try? String(contentsOf: file, encoding: .utf8)) == profile, "the profile is written where the helper reads it")
+        check(executable == helper && programArguments == [profile, wine.path, "steam.exe", "-silent"],
+              "switched on: the helper, the profile's text, then the program: \(programArguments?.dropFirst() ?? [])")
+        check(!FileManager.default.fileExists(atPath: support.appendingPathComponent("wine-sandbox.sb").path),
+              "no profile file in the data folder that a program inside could change before the helper reads it")
 
         // MARK: Every Wine start goes through WineSandbox.process
         everyWineStartWrapped()
@@ -107,23 +119,46 @@ struct WineSandboxTest {
         for url in secrets + open { write("x", url) }
         let cat = URL(fileURLWithPath: "/bin/cat"), touch = URL(fileURLWithPath: "/usr/bin/touch")
         for secret in secrets {
-            check(run(realHelper, [file.path, cat.path, secret.path]).status != 0, "can't be read inside: \(secret.lastPathComponent)")
+            check(run(realHelper, [profile, cat.path, secret.path]).status != 0, "can't be read inside: \(secret.lastPathComponent)")
         }
         for allowed in open {
-            check(run(realHelper, [file.path, cat.path, allowed.path]).output == "x", "can be read inside: \(allowed.lastPathComponent)")
+            check(run(realHelper, [profile, cat.path, allowed.path]).output == "x", "can be read inside: \(allowed.lastPathComponent)")
         }
         let planted = home.appendingPathComponent(".ssh/authorized_keys")
-        _ = run(realHelper, [file.path, touch.path, planted.path])
+        _ = run(realHelper, [profile, touch.path, planted.path])
         check(!FileManager.default.fileExists(atPath: planted.path), "nothing can be planted in a denied folder either")
-        check(run(realHelper, [file.path, cat.path, secrets[0].path]).status != 0 && run(cat, [secrets[0].path]).output == "x",
+        check(run(realHelper, [profile, cat.path, secrets[0].path]).status != 0 && run(cat, [secrets[0].path]).output == "x",
               "outside the sandbox the same file reads as usual")
 
         var environment = ProcessInfo.processInfo.environment
         environment["DYLD_FALLBACK_LIBRARY_PATH"] = "/usr/lib"
-        check(run(realHelper, [file.path, showenv.path], environment: environment).output == "/usr/lib\n",
+        check(run(realHelper, [profile, showenv.path], environment: environment).output == "/usr/lib\n",
               "DYLD_* reaches the program (sandbox-exec would drop it, and with it DockHider's library)")
-        check(run(realHelper, [root.appendingPathComponent("missing.sb").path, cat.path, open[0].path]).status == 71,
-              "without its profile the helper starts nothing")
+        check(run(realHelper, ["(version 1)(allow nonsense)", cat.path, open[0].path]).status == 71,
+              "with a profile it can't apply the helper starts nothing")
+        check(run(realHelper, ["", cat.path, open[0].path]).status == 71, "nor with none")
+
+        // Read, yes; changed, no – and the prefix stays writable.
+        let ownCode = [support.appendingPathComponent("Components/winecx/4.7.3/Libraries/Wine/bin/wineserver"),
+                       support.appendingPathComponent("Nightforge Helper.app/Contents/MacOS/nightforge-helper"),
+                       support.appendingPathComponent("hide-steam-dock.dylib"), support.appendingPathComponent("steam-shutdown.sh"),
+                       app.appendingPathComponent("Contents/MacOS/Nightforge"),
+                       temporary.appendingPathComponent("Nightforge-runs/1234/request")]
+        for url in ownCode { write("x", url) }
+        let sh = URL(fileURLWithPath: "/bin/sh")
+        for url in ownCode {
+            check(run(realHelper, [profile, cat.path, url.path]).output == "x", "can be read inside: \(url.lastPathComponent)")
+            _ = run(realHelper, [profile, sh.path, "-c", "printf y > \"$1\"", "sh", url.path])
+            check((try? String(contentsOf: url, encoding: .utf8)) == "x", "can't be overwritten inside: \(url.lastPathComponent)")
+        }
+        let swapped = support.appendingPathComponent("Components/winecx/4.7.3/Libraries/Wine/bin/wine64")
+        _ = run(realHelper, [profile, touch.path, swapped.path])
+        check(!FileManager.default.fileExists(atPath: swapped.path), "nothing new can be put among them")
+        _ = run(realHelper, [profile, URL(fileURLWithPath: "/bin/rm").path, ownCode[2].path])
+        check(FileManager.default.fileExists(atPath: ownCode[2].path), "nor taken away")
+        let save = support.appendingPathComponent("Prefix/drive_c/save.dat")
+        _ = run(realHelper, [profile, sh.path, "-c", "printf y > \"$1\"", "sh", save.path])
+        check((try? String(contentsOf: save, encoding: .utf8)) == "y", "the prefix stays writable inside")
         finish()
     }
 

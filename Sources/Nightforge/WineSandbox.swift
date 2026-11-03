@@ -19,10 +19,13 @@ enum WineSandbox {
     /// Steam would be back in the Dock (DockHider).
     static var helper: URL? { Bundle.main.url(forResource: "nightforge-sandbox", withExtension: nil) }
 
-    /// Whose places the profile names: the Mac's home and Nightforge's data folder.
+    /// Whose places the profile names: the Mac's home, Nightforge's data folder, the app itself and
+    /// the temporary folder (where DetachedProcess hands its helper app the programs to start).
     struct Places {
         var home = FileManager.default.homeDirectoryForCurrentUser
         var support = Engine.supportDir
+        var app = URL(fileURLWithPath: Bundle.main.bundlePath)
+        var temporary = FileManager.default.temporaryDirectory
     }
 
     /// Kept away from Windows programs, reading and writing: in Nightforge's data folder (paths
@@ -46,6 +49,20 @@ enum WineSandbox {
     /// legendary's tmp folder. In a profile the later rule wins.
     static let allowedInSupport = ["Epic/legendary/tmp"]
 
+    /// Readable, but not to be changed from inside: what Nightforge runs itself, outside the sandbox
+    /// – a program inside could otherwise swap in its own and have it run without (review H2,
+    /// 3.11.2026). In the data folder: the engines and the stores' tools (Components: wine,
+    /// wineserver, legendary, gogdl), DetachedProcess's helper app, the library DockHider puts into
+    /// every Wine process, the scripts Nightforge runs, Apple's D3DMetal and GOG's Mac games. Wine
+    /// writes to the prefix and to the games' folders, never here.
+    static let readOnlyInSupport: [(path: String, folder: Bool)] = [
+        ("Components", true), (DetachedProcess.helperName, true), (DockHider.name, false), ("steam-shutdown.sh", false),
+        ("steam-priority.sh", false), ("steam-priority.pid", false), ("D3DMetal", true), ("GOG/Games", true),
+    ]
+
+    /// In the home folder: the small apps "Add to Applications" makes, which open Nightforge (GameShortcut).
+    static let readOnlyInHome: [(path: String, folder: Bool)] = [("Applications/Nightforge Games", true)]
+
     /// The profile: everything allowed, then the denied places, then the exceptions.
     static func profile(_ places: Places = Places()) -> String {
         let home = canonical(places.home), support = canonical(places.support)
@@ -54,10 +71,16 @@ enum WineSandbox {
         }
         let denied = deniedInSupport.compactMap { rule(support, $0) } + deniedInHome.compactMap { rule(home, $0) }
         let allowed = allowedInSupport.compactMap { rule(support, ($0, true)) }
-        var lines = ["(version 1)", "; Written by Nightforge (WineSandbox.swift): Wine may do anything but read or write these.",
+        // The app and the helper's requests: subpaths of folders that exist (the runs folder may not yet).
+        let readOnly = readOnlyInSupport.compactMap { rule(support, $0) } + readOnlyInHome.compactMap { rule(home, $0) }
+            + [quoted(canonical(places.app)), quoted(canonical(places.temporary) + "/Nightforge-runs")].compactMap { $0 }
+                .map { "    (subpath \($0))" }
+        var lines = ["(version 1)", "; Nightforge (WineSandbox.swift): Wine may do anything but read or write the first places,",
+                     "; or change the last ones.",
                      "(allow default)"]
         if !denied.isEmpty { lines += ["(deny file-read* file-write*"] + denied + [")"] }
         if !allowed.isEmpty { lines += ["(allow file-read* file-write*"] + allowed + [")"] }
+        if !readOnly.isEmpty { lines += ["(deny file-write*"] + readOnly + [")"] }
         return lines.joined(separator: "\n") + "\n"
     }
 
@@ -76,21 +99,6 @@ enum WineSandbox {
         return String(cString: resolved)
     }
 
-    static func profileFile(_ places: Places = Places()) -> URL {
-        places.support.appendingPathComponent("wine-sandbox.sb")
-    }
-
-    /// Writes the profile where the helper reads it, unless it's there already.
-    static func writeProfile(_ places: Places = Places()) -> URL {
-        let file = profileFile(places)
-        let text = profile(places)
-        if (try? String(contentsOf: file, encoding: .utf8)) != text {
-            try? FileManager.default.createDirectory(at: places.support, withIntermediateDirectories: true)
-            try? text.write(to: file, atomically: true, encoding: .utf8)
-        }
-        return file
-    }
-
     /// Switched on, but the helper isn't in the app (a build without an x86_64 clang, a damaged
     /// bundle): Wine doesn't start at all, as when the helper can't apply the profile (exit 71).
     struct HelperMissing: LocalizedError {
@@ -100,15 +108,15 @@ enum WineSandbox {
     }
 
     /// Turns a start of `executable` with `arguments` into one inside the sandbox when it's switched
-    /// on; leaves it alone when it's off. Switched on, Wine never runs outside: without the helper
-    /// this throws, and without its profile the helper starts nothing.
+    /// on; leaves it alone when it's off. The profile goes to the helper as text, never as a file a
+    /// program inside could change first. Switched on, Wine never runs outside: without the helper
+    /// this throws, and with a profile it can't apply the helper starts nothing.
     static func wrap(_ executable: inout URL?, _ arguments: inout [String]?, enabled: Bool = enabled,
                      helper: URL? = helper, places: Places = Places()) throws {
         guard enabled, let program = executable else { return }
         guard let helper else { throw HelperMissing() }
-        let file = writeProfile(places)
         executable = helper
-        arguments = [file.path, program.path] + (arguments ?? [])
+        arguments = [profile(places), program.path] + (arguments ?? [])
     }
 
     /// A process for a Wine program – `wine`, its loader, winetricks – inside the sandbox when it's
