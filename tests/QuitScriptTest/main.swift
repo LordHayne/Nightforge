@@ -88,12 +88,13 @@ struct QuitScriptTest {
         /// Runs the script; what the stand-ins were asked, one call a line.
         /// `switchAfter`: the stand-in ps lists `later` instead of `processes` from its n-th answer on.
         func run(limit: Int? = nil, quitting: Int = 0, app: String? = nil, lastGame: Int? = nil,
-                 switchAfter: Int? = nil) -> (calls: [String], status: Int32, timedOut: Bool) {
+                 switchAfter: Int? = nil, psLimit: Int? = nil) -> (calls: [String], status: Int32, timedOut: Bool) {
             try? FileManager.default.removeItem(at: log)
             try? FileManager.default.removeItem(at: sleepLog)
             var environment = ["PATH": bin.path + ":/usr/bin:/bin:/usr/sbin", "FAKE_PS": processList.path, "FAKE_LOG": log.path,
                                "FAKE_PIDFILE": pidFile.path, "FAKE_PIDLOG": pidLog.path, "HOME": root.path]
             if let limit { environment["NIGHTFORGE_QUIT_LIMIT"] = String(limit) }
+            if let psLimit { environment["NIGHTFORGE_PS_LIMIT"] = String(psLimit) }
             environment["FAKE_SLEEPLOG"] = sleepLog.path
             environment["FAKE_COUNT"] = root.appendingPathComponent("ps-count").path
             if let switchAfter {
@@ -234,6 +235,25 @@ struct QuitScriptTest {
             let result = world.run(app: "", switchAfter: 3)
             check(!result.timedOut && shutDown(result.calls), "a game ends while the script waits: then Steam is ended: \(result.calls)")
             check(sleeps(world).contains("30"), "… after the 30 s for the cloud saves (slept \(sleeps(world)))")
+        }
+
+        // A ps that answers nothing (a real one always lists the script) is "unknown", not "no game": the
+        // script waits, and after its limit leaves everything as it is. Once ps answers again, it goes on.
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([])
+            let result = world.run(app: "", psLimit: 1)
+            check(!result.timedOut && result.status == 0 && !result.calls.contains { $0.contains("-shutdown") }
+                  && !result.calls.contains("wineserver -k"), "no process list: nothing ended, and it ends at its limit: \(result.calls)")
+        }
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([])
+            QuitScriptTest.write("200\t\(steam)\n", to: world.later)
+            let result = world.run(app: "", switchAfter: 6)
+            check(!result.timedOut && shutDown(result.calls), "the list comes back without a game: then Steam is ended: \(result.calls)")
         }
 
         // A game started from Steam's window just as Steam is asked to end: Steam refuses -shutdown then, and

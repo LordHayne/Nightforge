@@ -998,9 +998,21 @@ enum Engine {
         PIDFILE="${0%/*}/steam-shutdown.pid"
         echo $$ > "$PIDFILE" 2>/dev/null
         trap '[ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"' EXIT
+        # A ps that doesn't answer, or answers nothing (it always lists this script), is "unknown", not
+        # "no process": a game may be running. Unknown counts as one; unknown for half an hour on end
+        # (NIGHTFORGE_PS_LIMIT, seconds), the script leaves everything as it is and ends.
+        PS_LIMIT="${NIGHTFORGE_PS_LIMIT:-1800}"
+        UNKNOWN_SINCE=""
+        PS_OUT=""
+        read_processes() {
+          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$PS_OUT" ]; then UNKNOWN_SINCE=""; return 0; fi
+          [ -n "$UNKNOWN_SINCE" ] || UNKNOWN_SINCE="$(date +%s)"
+          return 1
+        }
+        unknown_too_long() { [ -n "$UNKNOWN_SINCE" ] && [ $(( $(date +%s) - UNKNOWN_SINCE )) -ge "$PS_LIMIT" ]; }
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
-        has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }
+        has_process() { read_processes -axo command || return 0; printf '%s\n' "$PS_OUT" | grep -qiF -- "$1"; }
         # Nightforge runs again: a process whose command line BEGINS with this app's program – not one
         # that merely names it (a build in another folder, lldb, codesign, a tail in a terminal), and
         # not the Nightforge that is quitting. The needle goes in by environment, so that no command
@@ -1061,6 +1073,7 @@ enum Engine {
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
             late && exit 0
+            unknown_too_long && exit 0
             sleep 2
             if game_running; then gone=0; else gone=$((gone + 1)); fi
           done
@@ -1074,7 +1087,7 @@ enum Engine {
         # game with it.
         while true; do
           while true; do
-            while busy; do reopened && exit 0; late && exit 0; sleep 10; done
+            while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0
             busy || break
