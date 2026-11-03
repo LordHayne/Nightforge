@@ -114,6 +114,29 @@ struct GameShortcutTest {
             try? FileManager.default.removeItem(at: home)
         }
         check(splits == 0, "300 rounds of 16 at once: one key for all, the one in the file (\(splits) rounds split)")
+
+        // The same where a file without a key is in the way (cut short by an older Nightforge, or empty): every one
+        // replaces it – and the later rename must not leave the earlier one with a key the file no longer holds.
+        for leftover in ["", "cut"] {
+            var split = 0
+            for round in 0..<300 {
+                let home = folder.appendingPathComponent("support-leftover-\(round)", isDirectory: true)
+                try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+                try? Data(leftover.utf8).write(to: home.appendingPathComponent("shortcut-key"))
+                let keys = LockedValue<[String]>([])
+                DispatchQueue.concurrentPerform(iterations: 16) { _ in
+                    let key = GameShortcut.key(in: home)
+                    keys.withLock { $0.append(key) }
+                }
+                let kept = (try? String(contentsOf: home.appendingPathComponent("shortcut-key"), encoding: .utf8)) ?? ""
+                let all = keys.withLock { $0 }
+                if all.count != 16 || Set(all) != [kept] || kept.count != 32 { split += 1 }
+                let mode = ((try? FileManager.default.attributesOfItem(atPath: home.appendingPathComponent("shortcut-key").path))?[.posixPermissions] as? Int) ?? -1
+                if mode != 0o600 { split += 1 }
+                try? FileManager.default.removeItem(at: home)
+            }
+            check(split == 0, "300 rounds of 16 at once over a leftover file \(leftover.debugDescription): one key, the file's, mode 600 (\(split) rounds split)")
+        }
         check(modes == [0o600], "…readable by the player alone: \(modes)")
         check(stray == 0, "…and nothing left beside it: \(stray) files")
     }
