@@ -66,13 +66,24 @@ enum WineSandbox {
     /// line entered there as Nightforge's would be replaced or removed at the next change (review of
     /// 3.11.2026). And the signed lists it keeps (the profiles, AppleGamingWiki's, each with its .sig;
     /// the component list is in Components): nothing forged would be accepted, but deleted or
-    /// replaced they'd cost the online copy until the next download. Wine writes to the prefix and
-    /// to the games' folders, never here.
+    /// replaced they'd cost the online copy until the next download. And everything else only
+    /// Nightforge and its own tools (legendary, gogdl, outside the sandbox) write – the stores' lists
+    /// (installed games, download destinations, sizes …), the logs, the game info, the game tests,
+    /// the save backups, Steam's packages ahead of setup (review of 3.11.2026, every file of the data
+    /// folder traced to its writer). Wine's output reaches the logs through handles the helper opens
+    /// outside. Wine writes to the prefix, the games' folders, GOG/Support (GOG's install scripts,
+    /// /supportDir) and GOG/Redist, never here; legendary's tmp stays open (allowedInSupport).
     static let readOnlyInSupport: [(path: String, folder: Bool)] = [
         ("Components", true), (DetachedProcess.helperName, true), (DockHider.name, false), ("steam-shutdown.sh", false),
         ("steam-priority.sh", false), ("steam-priority.pid", false), ("D3DMetal", true), ("GOG/Games", true),
         ("launchoptions-written.json", false), ("profiles.json", false), ("profiles.json.sig", false),
         ("agw.json", false), ("agw.json.sig", false),
+        ("Epic/library.json", false), ("Epic/sizes.json", false), ("Epic/downloads.json", false), ("Epic/destinations.json", false),
+        ("Epic/playtime.json", false), ("Epic/Logs", true),
+        ("GOG/library.json", false), ("GOG/sizes.json", false), ("GOG/builds.json", false), ("GOG/downloads.json", false),
+        ("GOG/installed.json", false), ("GOG/releases.json", false), ("GOG/playtime.json", false), ("GOG/saves.json", false),
+        ("GOG/mac-unfit.json", false), ("GOG/Logs", true),
+        ("GameInfo", true), ("GameTests", true), ("Backups", true), ("Logs", true), ("Steam packages", true),
     ]
 
     /// The profile: everything allowed, then the denied places, then the exceptions, then what keeps
