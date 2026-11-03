@@ -93,6 +93,8 @@ enum Updater {
         case download, unpack, signature, notWritable, protectedPlace
         /// The zip holds a Nightforge no newer than this one: an older signed release passed off as new.
         case notNewer
+        /// The zip holds another version than its release names: a signed zip put under another tag.
+        case otherVersion(found: String, named: String)
         /// The new version needs a newer macOS than this Mac has: it would not open after the swap.
         case needsNewerMac(required: String)
 
@@ -102,6 +104,8 @@ enum Updater {
             case .unpack: return L10n.t("The update download is damaged. Please try again.")
             case .signature: return L10n.t("The update isn't signed correctly, so it wasn't installed.")
             case .notNewer: return L10n.t("The update holds an older Nightforge than the one you have, so it wasn't installed.")
+            case .otherVersion(let found, let named):
+                return L10n.t("The update says it's Nightforge %@ but holds %@, so it wasn't installed.", named, found)
             case .notWritable: return L10n.t("Nightforge can't replace itself in this folder. Download the update from the release page instead.")
             case .needsNewerMac(let required):
                 let running = ProcessInfo.processInfo.operatingSystemVersion
@@ -158,9 +162,8 @@ enum Updater {
         guard run("/usr/bin/ditto", ["-x", "-k", zip.path, unpacked.path]) else { throw Failure.unpack }
         let fresh = unpacked.appendingPathComponent("Nightforge.app", isDirectory: true)
         guard Bundle(url: fresh)?.bundleIdentifier == Bundle.main.bundleIdentifier else { throw Failure.unpack }
-        // Older releases are signed too: one passed off as new would take back its fixes.
         let freshVersion = Bundle(url: fresh)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        guard isNewer(freshVersion, than: currentVersion) else { throw Failure.notNewer }
+        try Self.check(freshVersion, named: update.version)
         // Ad hoc signed (build.sh): this shows the bundle arrived whole. Who built it, the Ed25519
         // signature above says; a requirement (-R) needs a Developer ID.
         guard run("/usr/bin/codesign", ["--verify", "--deep", fresh.path]) else { throw Failure.signature }
@@ -178,6 +181,14 @@ enum Updater {
                               app.path, String(getpid())]
         try relaunch.run()
         await MainActor.run { NSApp.terminate(nil) }
+    }
+
+    /// The version in the downloaded app against its release. Older releases are signed too: one passed
+    /// off as new would take back its fixes, and a signed zip under another tag (an old one as "v9.9.9")
+    /// would hold the update back. So it has to be exactly the version its release names (review C).
+    static func check(_ found: String, named: String, current: String = currentVersion) throws {
+        guard found == named else { throw Failure.otherVersion(found: found, named: named) }
+        guard isNewer(found, than: current) else { throw Failure.notNewer }
     }
 
     /// Whether `signature` (the `.sig` file's text) holds for the downloaded zip.

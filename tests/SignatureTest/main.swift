@@ -155,6 +155,19 @@ struct SignatureTest {
         check(!Updater.isSigned(zip, signature: sign(bytes), keys: keys), "not when one bit changed on the way")
         check(!Updater.isSigned(work.appendingPathComponent("missing.zip"), signature: sign(bytes), keys: keys), "not without a download")
         check(Updater.Failure.notNewer.errorDescription?.isEmpty == false, "an older release passed off as new has its message")
+        // The app in the zip has to be exactly its release's version (review C).
+        func outcome(_ found: String, named: String) -> String {
+            do { try Updater.check(found, named: named, current: "0.3.1"); return "installs" }
+            catch Updater.Failure.otherVersion { return "other version" }
+            catch Updater.Failure.notNewer { return "not newer" }
+            catch { return "\(error)" }
+        }
+        check(outcome("0.3.2", named: "0.3.2") == "installs", "the version its release names, newer: installs")
+        check(outcome("0.3.1", named: "9.9.9") == "other version", "an old signed zip under a new tag doesn't")
+        check(outcome("0.3.2", named: "9.9.9") == "other version", "nor a newer one under another tag")
+        check(outcome("0.3.1", named: "0.3.1") == "not newer", "the same version again doesn't either")
+        check(Updater.Failure.otherVersion(found: "0.3.1", named: "9.9.9").errorDescription?.contains("9.9.9") == true,
+              "its message names both")
     }
 
     static func components() async {
