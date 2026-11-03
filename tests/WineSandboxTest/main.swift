@@ -175,6 +175,8 @@ struct WineSandboxTest {
             ("WineSandbox.swift", "program"),                   // the start it built, wrapped
             ("Engine.swift", "lsregister"), ("Legendary.swift", "binary"), ("GOGStore.swift", "program"),  // Mac programs
             ("MacSteamTestHome.swift", "executable"),
+            // h1-h3's runner with a time limit: system tools (ProcessList's ps) and wineserver -k, no Wine start.
+            ("Subprocess.swift", "URL(fileURLWithPath: executable)"),
         ]
         let folder = URL(fileURLWithPath: "Sources/Nightforge", isDirectory: true)
         let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
