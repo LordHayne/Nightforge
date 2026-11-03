@@ -155,6 +155,20 @@ struct MacSourcesTest {
         await AGWStore(remoteURL: remote, cachedURL: quickCopy, keys: keys, load: online(answer, signature: signed)).refresh()
         check(!SignedLists.refused.contains(SignedLists.agw), "a signed one later takes the note back")
 
+        // An earlier signed list put back (review M1): the copy kept stays.
+        func stamped(_ generated: String) -> Data {
+            Data(sample.replacingOccurrences(of: #""formatVersion": 1,"#, with: #""formatVersion": 1, "generated": "\#(generated)","#).utf8)
+        }
+        let newer = stamped("2026-11-03T00:00:00Z"), older = stamped("2026-11-01T00:00:00Z")
+        let rollback = folder.appendingPathComponent("rollback.json")
+        try newer.write(to: rollback)
+        try signature(of: newer, by: signer).write(to: Signature.file(for: rollback))
+        await AGWStore(remoteURL: remote, cachedURL: rollback, keys: keys, load: online(older, signature: try signature(of: older, by: signer))).refresh()
+        check(Signature.signedContents(of: rollback, keys: keys) == newer, "an older signed list isn't kept over the newer one")
+        check(SignedLists.older.contains(SignedLists.agw), "noted for Settings › About")
+        await AGWStore(remoteURL: remote, cachedURL: rollback, keys: keys, load: online(newer, signature: try signature(of: newer, by: signer))).refresh()
+        check(!SignedLists.older.contains(SignedLists.agw), "the same list again counts, and the note goes")
+
         // MARK: Links
         check(MacSources.wikiPage("Some Game: Deluxe")?.absoluteString == "https://www.applegamingwiki.com/wiki/Some_Game:_Deluxe",
               "the wiki page by its title: \(MacSources.wikiPage("Some Game: Deluxe")?.absoluteString ?? "-")")

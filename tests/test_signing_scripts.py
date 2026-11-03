@@ -101,6 +101,11 @@ else:
 """
 
 
+def stamped(text, generated):
+    """A list's text with another "generated" stamp."""
+    return re.sub(r'"generated": "[^"]*"', f'"generated": "{generated}"', text, count=1)
+
+
 def write_executable(path, text):
     path.write_text(text)
     path.chmod(0o755)
@@ -322,6 +327,8 @@ class SigningScripts(unittest.TestCase):
             plistlib.dump({"CFBundleShortVersionString": version, "CFBundleIdentifier": "io.github.lordhayne.nightforge"}, plist)
         known = keys if keys is not None else [self.main_public, self.spare_public]
         (app / "Contents/MacOS/Nightforge").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0".join(k.encode() for k in known) + b"\0rest")
+        (app / "Contents/Resources").mkdir()
+        (app / "Contents/Resources/steamwebhelper.exe").write_bytes(b"MZ wrapper")
         assets = self.fake / "assets"
         assets.mkdir()
         subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(assets / f"Nightforge-{tag[1:]}.zip")], check=True)
@@ -329,11 +336,49 @@ class SigningScripts(unittest.TestCase):
         (self.fake / "release.json").write_text(json.dumps({"tag": tag, "isDraft": draft, "isPrerelease": prerelease}))
         return assets / f"Nightforge-{tag[1:]}.zip"
 
-    def sign_release(self, *args, key=None, env=None):
+    def sign_release(self, *args, key=None, env=None, answer="yes"):
         env = dict(env or self.env)
         if key:
             env["NIGHTFORGE_SIGNING_KEY_FILE"] = self.key_file(key)
-        return subprocess.run(["bash", "scripts/sign-release.sh", *args], cwd=self.repo, env=env, capture_output=True, text=True)
+        return subprocess.run(["bash", "scripts/sign-release.sh", *args], cwd=self.repo, env=env, capture_output=True, text=True,
+                              input=answer + "\n")
+
+    def test_it_names_the_tags_commit_and_compares_the_wrapper(self):
+        self.draft()
+        (self.repo / "wrapper").mkdir()
+        (self.repo / "wrapper/steamwebhelper.exe").write_bytes(b"MZ wrapper")
+        origin = self.work / "origin.git"
+        subprocess.run(["git", "init", "--quiet", "--bare", "-b", "main", str(origin)], check=True)
+        self.git("init", "--quiet", "-b", "main")
+        self.git("remote", "add", "origin", str(origin))
+        self.git("add", ".")
+        self.git("commit", "--quiet", "-m", "Release 0.3.1")
+        self.git("tag", "v0.3.1")
+        self.git("push", "--quiet", "origin", "main", "v0.3.1")
+        result = self.sign_release("v0.3.1", answer="no")
+        self.assertIn("Release 0.3.1 (Test,", result.stdout)
+        self.assertIn("the same as wrapper/steamwebhelper.exe at v0.3.1", result.stdout)
+        (self.repo / "wrapper/steamwebhelper.exe").write_bytes(b"MZ other")
+        self.git("commit", "--quiet", "-am", "Another wrapper")
+        self.git("tag", "-f", "v0.3.1")
+        self.git("push", "--quiet", "--force", "origin", "v0.3.1")
+        self.assertIn("✗ not the one at v0.3.1", self.sign_release("v0.3.1", answer="no").stdout)
+
+    def test_it_shows_what_it_signs_and_asks(self):
+        """Review M5: the zip's SHA-256 and the wrapper's before the signature; only "yes" signs."""
+        zip_file = self.draft()
+        (self.fake / "keychain").write_text(self.main)
+        result = self.sign_release("v0.3.1", answer="no")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Nothing signed", result.stderr)
+        self.assertIn(hashlib.sha256(zip_file.read_bytes()).hexdigest(), result.stdout)
+        self.assertIn(hashlib.sha256(b"MZ wrapper").hexdigest(), result.stdout)
+        self.assertFalse((self.fake / "assets" / f"{zip_file.name}.sig").exists(), "nothing uploaded")
+        calls = self.fake / "security.argv"
+        self.assertNotIn("find-generic-password", calls.read_text() if calls.exists() else "", "the key wasn't even read")
+        result = self.sign_release("v0.3.1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.fake / "assets" / f"{zip_file.name}.sig").exists())
 
     def verify(self, file):
         return subprocess.run([str(self.keyed_tool), "verify", str(file)], capture_output=True, text=True)
@@ -448,7 +493,8 @@ class SigningScripts(unittest.TestCase):
         self.git("push", "--quiet", "origin", "main")
         self.git("checkout", "--quiet", "-b", "bot/profiles")
         profiles = self.repo / "profiles/profiles.json"
-        profiles.write_text(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "tonight"', 1))
+        profiles.write_text(stamped(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "tonight"', 1),
+                                    "2099-01-01T00:00:00Z"))
         self.git("commit", "--quiet", "-am", "Update game profiles")
         self.git("push", "--quiet", "origin", "bot/profiles")
         self.git("checkout", "--quiet", "main")
@@ -493,7 +539,7 @@ class SigningScripts(unittest.TestCase):
         self.git("fetch", "--quiet", "origin")
         self.git("checkout", "--quiet", "-B", "bot/profiles", "origin/bot/profiles")
         profiles = self.repo / "profiles/profiles.json"
-        profiles.write_text(profiles.read_text().replace('"note": "tonight"', '"note": "tomorrow"'))
+        profiles.write_text(stamped(profiles.read_text().replace('"note": "tonight"', '"note": "tomorrow"'), "2099-01-02T00:00:00Z"))
         self.git("commit", "--quiet", "-am", "Update game profiles")
         self.git("push", "--quiet", "origin", "bot/profiles")
         self.git("checkout", "--quiet", "main")
@@ -503,6 +549,21 @@ class SigningScripts(unittest.TestCase):
         self.assertIn("components/manifest.json is signed already", result.stdout)
         self.assertIn("profiles/agw.json is signed already", result.stdout)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 0)
+
+    def test_a_changed_list_needs_a_newer_stamp_than_mains(self):
+        """The app takes no list older than the one it has (review M1): signing one that would be, fails."""
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        profiles = self.repo / "profiles/profiles.json"
+        main_stamp = json.loads(self.git("show", "main:profiles/profiles.json"))["generated"]
+        profiles.write_text(stamped(profiles.read_text().replace('"note": "tonight"', '"note": "again"'), main_stamp))
+        self.git("commit", "--quiet", "-am", "Update game profiles")
+        self.git("push", "--quiet", "--force", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("isn't newer than main's", result.stderr)
+        self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
 
     def test_a_changed_list_fails_the_check(self):
         origin = self.lists_repo()
@@ -623,6 +684,99 @@ class SigningScripts(unittest.TestCase):
                 s = int.from_bytes(signature[32:], "little") + order
                 self.assertFalse(holds(key, message, signature[:32] + s.to_bytes(32, "little")), "S + L")
         self.assertFalse(holds(bytes.fromhex(vectors[0][0]), b"", bytes.fromhex(vectors[1][2])), "another key's signature")
+
+
+CHECK_SWIFT = """import Foundation
+// check FILE SIGFILE KEY…: exit 0 when Signature.isValid, the app's own check, holds.
+@main struct Check {
+    static func main() {
+        let args = CommandLine.arguments
+        guard args.count >= 3, let data = FileManager.default.contents(atPath: args[1]),
+              let signature = FileManager.default.contents(atPath: args[2]) else { exit(2) }
+        exit(Signature.isValid(signature, of: data, keys: Array(args.dropFirst(3))) ? 0 : 1)
+    }
+}
+"""
+
+
+class Ed25519Agreement(unittest.TestCase):
+    """install.sh's Perl Ed25519 decides as the app's CryptoKit check does (review M6): RFC 8032 §7.1's vectors
+    and invalid ones (S not below L, signs flipped, points of small order, non-canonical encodings)."""
+    ORDER = 2 ** 252 + 27742317777372353535851937790883648493
+    PRIME = 2 ** 255 - 19
+    BASE = bytes.fromhex("5866666666666666666666666666666666666666666666666666666666666666")
+    # The eight points of small order Ed25519 has, as libsodium lists them (their sign bit set or not).
+    SMALL_ORDER = ["0100000000000000000000000000000000000000000000000000000000000000",
+                   "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+                   "0000000000000000000000000000000000000000000000000000000000000000",
+                   "0000000000000000000000000000000000000000000000000000000000000080",
+                   "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+                   "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="nightforge-ed25519-"))
+        (cls.tmp / "check.swift").write_text(CHECK_SWIFT)
+        cls.check = cls.tmp / "check"
+        env = dict(os.environ)
+        sdk = "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
+        if "SDKROOT" not in env and os.path.isdir(sdk) and subprocess.run(
+                ["xcode-select", "-p"], capture_output=True, text=True).stdout.strip() == "/Library/Developer/CommandLineTools":
+            env["SDKROOT"] = sdk
+        subprocess.run(["swiftc", "-parse-as-library", "-o", str(cls.check), str(cls.tmp / "check.swift"),
+                        str(ROOT / "Sources/Nightforge/Signature.swift"), str(ROOT / "Sources/Nightforge/SigningKeys.swift")],
+                       check=True, env=env, capture_output=True)
+        text = (ROOT / "scripts/install.sh").read_text()
+        cls.function = re.search(r"^ed25519_verify\(\) \{\n.*?^PERL\n\}\n", text, re.M | re.S).group(0)
+        cls.vectors = json.loads((ROOT / "tests/data/ed25519-rfc8032.json").read_text())["vectors"]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def decide(self, key, message, signature):
+        """(CryptoKit, Perl): whether each takes the signature."""
+        (self.tmp / "message").write_bytes(message)
+        (self.tmp / "message.sig").write_text(base64.b64encode(signature).decode() + "\n")
+        files, key = [str(self.tmp / "message"), str(self.tmp / "message.sig")], base64.b64encode(key).decode()
+        app = subprocess.run([str(self.check), *files, key]).returncode == 0
+        perl = subprocess.run(["bash", "-c", self.function + 'ed25519_verify "$@"', "-", *files, key]).returncode == 0
+        return app, perl
+
+    @staticmethod
+    def number(n):
+        return n.to_bytes(32, "little")
+
+    def cases(self):
+        """(name, key, message, signature, holds)."""
+        for vector in self.vectors:
+            key, message, signature = (bytes.fromhex(vector[k]) for k in ("public", "message", "signature"))
+            s = int.from_bytes(signature[32:], "little")
+            name = f"TEST {vector['name']}"
+            yield name, key, message, signature, True
+            yield f"{name}, S + L", key, message, signature[:32] + self.number(s + self.ORDER), False
+            yield f"{name}, S = L", key, message, signature[:32] + self.number(self.ORDER), False
+            yield f"{name}, R's sign flipped", key, message, signature[:31] + bytes([signature[31] ^ 0x80]) + signature[32:], False
+            yield f"{name}, the key's sign flipped", key[:31] + bytes([key[31] ^ 0x80]), message, signature, False
+            yield f"{name}, another message", key, message + b"!", signature, False
+        first = self.vectors[0]
+        key, signature = bytes.fromhex(first["public"]), bytes.fromhex(first["signature"])
+        for point in map(bytes.fromhex, self.SMALL_ORDER):
+            # Whether a key of small order takes "R = B, S = 1" depends on the message's hash; only agreeing counts.
+            yield f"key of small order {point.hex()[:8]}", point, b"any", self.BASE + self.number(1), None
+            yield f"R of small order {point.hex()[:8]}", key, b"", point + self.number(0), False
+        yield "key y = p, not canonical", self.number(self.PRIME), b"", signature, False
+        yield "key y = p + 1, the neutral point not canonical", self.number(self.PRIME + 1), b"any", self.BASE + self.number(1), False
+        yield "R y = p + 1, not canonical", key, b"", self.number(self.PRIME + 1) + signature[32:], False
+        yield "a signature of zeros", key, b"", bytes(64), False
+
+    def test_perl_and_cryptokit_decide_alike(self):
+        for name, key, message, signature, holds in self.cases():
+            with self.subTest(name):
+                app, perl = self.decide(key, message, signature)
+                self.assertEqual(perl, app, "install.sh and the app disagree")
+                if holds is not None:
+                    self.assertEqual(app, holds)
 
 
 class InstallScript(unittest.TestCase):

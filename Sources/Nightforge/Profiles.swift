@@ -331,14 +331,18 @@ actor ProfileStore {
     }
 
     /// Fetches the online list; keeps what's there when offline, when the list isn't signed, when
-    /// it's too new for this Nightforge, or when it's older than the bundled one.
+    /// it's too new for this Nightforge, or when it's older than the bundled one or the one kept.
     func refresh() async {
         refreshed = true
         guard let remoteURL else { return }
         switch await Signature.fetch(remoteURL, keys: keys) {
         case .signed(let data, let signature):
             SignedLists.note(SignedLists.profiles, refused: false)
-            guard !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }), use(data) else { return }
+            // Older than the list kept: an earlier one put back (said in Settings › About). Older than the
+            // app's own is just an app newer than main's list.
+            let older = SignedLists.isOlder(data, than: Signature.signedContents(of: cachedURL, keys: keys))
+            SignedLists.note(SignedLists.profiles, older: older)
+            guard !older, !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }), use(data) else { return }
             try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
             try? data.write(to: cachedURL, options: .atomic)
             try? signature.write(to: Signature.file(for: cachedURL), options: .atomic)

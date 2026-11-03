@@ -87,6 +87,7 @@ enum SignedLists {
 
     private static let lock = NSLock()
     private static var turnedAway: Set<String> = []
+    private static var outdated: Set<String> = []
 
     static func note(_ list: String, refused: Bool) {
         lock.withLock {
@@ -95,4 +96,28 @@ enum SignedLists {
     }
 
     static var refused: Set<String> { lock.withLock { turnedAway } }
+
+    /// A signed list older than the one at hand, turned away too: an earlier signed state put back
+    /// by someone who can write the repository but can't sign (review M1).
+    static func note(_ list: String, older: Bool) {
+        lock.withLock {
+            if older { outdated.insert(list) } else { outdated.remove(list) }
+        }
+    }
+
+    static var older: Set<String> { lock.withLock { outdated } }
+
+    /// Whether `fresh` was built before `kept`, by the "generated" stamp each list carries in its
+    /// signed bytes (ISO 8601 in UTC, so the text orders them). One without a stamp is older than one
+    /// with it; with no kept stamp nothing is older. The same stamp counts: a list signed again.
+    static func isOlder(_ fresh: Data, than kept: Data?) -> Bool {
+        guard let theirs = kept.flatMap(stamp), !theirs.isEmpty else { return false }
+        guard let ours = stamp(fresh) else { return true }
+        return ours < theirs
+    }
+
+    private static func stamp(_ data: Data) -> String? {
+        struct Stamp: Decodable { let generated: String? }
+        return (try? JSONDecoder().decode(Stamp.self, from: data))?.generated
+    }
 }

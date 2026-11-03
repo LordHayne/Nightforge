@@ -132,7 +132,10 @@ actor ComponentStore {
             switch await Signature.fetch(remote, keys: keys) {
             case .signed(let data, let signature):
                 SignedLists.note(SignedLists.components, refused: false)
-                if let manifest = try? decode(data) {
+                // Older than the list kept: an earlier one put back. The kept one stays (below).
+                let older = SignedLists.isOlder(data, than: Signature.signedContents(of: cachedManifestURL, keys: keys))
+                SignedLists.note(SignedLists.components, older: older)
+                if !older, let manifest = try? decode(data) {
                     try? data.write(to: cachedManifestURL, options: .atomic)
                     try? signature.write(to: Signature.file(for: cachedManifestURL), options: .atomic)
                     fetched = manifest

@@ -9,7 +9,9 @@
 # Releases are immutable once published, so the signature goes onto the draft. The script downloads
 # the draft's zip, checks that the app inside is the tag's version and knows both public keys (an app
 # without them could never update again), signs the zip with the main key from your Keychain (macOS
-# asks for your password: click "Allow") and uploads Nightforge-<version>.zip.sig beside it.
+# asks for your password: click "Allow") and uploads Nightforge-<version>.zip.sig beside it. Before it
+# signs it shows what you sign and asks: the signature says you saw these bytes, not that they were
+# built from the tag.
 # A tag with a suffix (v0.3.1-rc.1) is a test release: published as a prerelease, which neither the
 # app nor scripts/install.sh offers (docs/SICHERHEIT-0.3.md › Test-Release).
 set -euo pipefail
@@ -66,6 +68,32 @@ while read -r role key; do
     || fail "The app in $zip doesn't know the $role key of this checkout. Its players couldn't update again: build the release from a commit with these keys."
 done <<< "$keys"
 echo "✓ Nightforge $version, knows both keys."
+
+# What you sign (review M5): the zip as it came down (and as GitHub lists it), the commit the tag
+# points at on GitHub, and the steamwebhelper wrapper in the app beside the repository's at that commit.
+zip_sha="$(shasum -a 256 "$work/$zip" | cut -d' ' -f1)"
+listed="$(jq -r --arg zip "$zip" '.assets[] | select(.name == $zip) | .digest // empty' <<< "$release")"
+[ -z "$listed" ] || [ "$listed" = "sha256:$zip_sha" ] || fail "$zip came down other than GitHub lists it ($listed)."
+commit="$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}" 2>/dev/null | tail -1 | cut -f1 || true)"
+built_from="${commit:-unknown (no tag $tag on origin)}"
+[ -z "$commit" ] || built_from="$(git log -1 --format='%h %s (%an, %ad)' --date=short "$commit" 2>/dev/null \
+  || echo "$commit (not in this checkout: git fetch)")"
+wrapper="$(shasum -a 256 "$app/Contents/Resources/steamwebhelper.exe" 2>/dev/null | cut -d' ' -f1 || true)"
+if [ -z "$wrapper" ]; then
+  wrapper_note="✗ none in the app"
+elif [ -n "$commit" ] && git show "$commit:wrapper/steamwebhelper.exe" > "$work/wrapper.exe" 2>/dev/null; then
+  ours="$(shasum -a 256 "$work/wrapper.exe" | cut -d' ' -f1)"
+  if [ "$ours" = "$wrapper" ]; then wrapper_note="the same as wrapper/steamwebhelper.exe at $tag"
+  else wrapper_note="✗ not the one at $tag ($ours): look before you sign"; fi
+else
+  wrapper_note="nothing here to compare it with"
+fi
+echo "▸ You're about to sign:"
+echo "    $zip  sha256 $zip_sha"
+echo "    built from  $built_from"
+echo "    steamwebhelper.exe  sha256 ${wrapper:--}  ($wrapper_note)"
+read -r -p "Sign it? Type yes: " answer || answer=""
+[ "$answer" = "yes" ] || fail "Nothing signed."
 
 echo "▸ Signing (macOS asks for your password: click Allow) …"
 read_private_key | "$TOOL" sign ${add[@]+"${add[@]}"} "$work/$zip"

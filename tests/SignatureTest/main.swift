@@ -199,14 +199,29 @@ struct SignatureTest {
         publish("2026-11-04T04:17:00Z", signedBy: spareKey)
         check((try? await store().manifest())?.generated == "2026-11-04T04:17:00Z", "the spare key's signature counts")
         check(!SignedLists.refused.contains(SignedLists.components), "and the note goes away")
+
+        // An earlier signed list put back (review M1): the kept, newer one counts.
+        publish("2026-11-02T04:17:00Z", signedBy: mainKey)
+        check((try? await store().manifest())?.generated == "2026-11-04T04:17:00Z", "an older signed list isn't taken")
+        check(SignedLists.older.contains(SignedLists.components), "Settings › About says so")
+        let keptStamp = Signature.signedContents(of: root.appendingPathComponent("manifest.json"), keys: keys)
+            .flatMap { try? JSONDecoder().decode(ComponentManifest.self, from: $0) }?.generated
+        check(keptStamp == "2026-11-04T04:17:00Z", "the kept copy stays the newer one")
+        publish("2026-11-04T04:17:00Z", signedBy: mainKey)
+        check((try? await store().manifest())?.generated == "2026-11-04T04:17:00Z" && !SignedLists.older.contains(SignedLists.components),
+              "the same list signed again counts, and the note goes")
+        check(SignedLists.isOlder(Data(#"{"generated": "2026-11-04"}"#.utf8), than: Data(#"{"generated": "2026-11-04T04:17:00Z"}"#.utf8))
+              && SignedLists.isOlder(Data("{}".utf8), than: Data(#"{"generated": "2026-11-04"}"#.utf8))
+              && !SignedLists.isOlder(Data("{}".utf8), than: Data("{}".utf8)),
+              "a date alone is older than a time that day; no stamp is older than one; without a kept stamp nothing is")
     }
 
     static func profiles() async {
         let online = work.appendingPathComponent("profiles-online", isDirectory: true)
         try? FileManager.default.createDirectory(at: online, withIntermediateDirectories: true)
         let remote = online.appendingPathComponent("profiles.json")
-        func publish(_ name: String, signedBy key: Curve25519.Signing.PrivateKey?) {
-            let data = Data(#"{"formatVersion": 1, "generated": "2026-11-02T04:37:00Z", "games": {"50130": {"name": "\#(name)"}}}"#.utf8)
+        func publish(_ name: String, signedBy key: Curve25519.Signing.PrivateKey?, generated: String = "2026-11-02T04:37:00Z") {
+            let data = Data(#"{"formatVersion": 1, "generated": "\#(generated)", "games": {"50130": {"name": "\#(name)"}}}"#.utf8)
             try? data.write(to: remote)
             try? FileManager.default.removeItem(at: Signature.file(for: remote))
             if let key { try? sign(data, key).write(to: Signature.file(for: remote)) }
@@ -226,5 +241,10 @@ struct SignatureTest {
               "the kept copy wasn't overwritten")
         publish("spare", signedBy: spareKey)
         check(await name() == "spare" && !SignedLists.refused.contains(SignedLists.profiles), "the spare key's counts, and the note goes")
+        publish("old", signedBy: mainKey, generated: "2026-11-01T04:37:00Z")
+        check(await name() == "spare", "an earlier signed list put back isn't taken (review M1)")
+        check(SignedLists.older.contains(SignedLists.profiles), "noted for Settings › About")
+        publish("newer", signedBy: mainKey, generated: "2026-11-03T04:37:00Z")
+        check(await name() == "newer" && !SignedLists.older.contains(SignedLists.profiles), "a newer one is taken, and the note goes")
     }
 }

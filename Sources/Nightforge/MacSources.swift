@@ -246,7 +246,10 @@ actor AGWStore {
         switch await Signature.fetch(remoteURL, keys: keys, timeout: 20, load: load) {
         case .signed(let data, let signature):
             SignedLists.note(SignedLists.agw, refused: false)
-            guard let fresh = AGWIndex.decode(data), !fresh.isEmpty else { return }
+            // Older than the copy kept: an earlier one put back.
+            let older = SignedLists.isOlder(data, than: Signature.signedContents(of: cachedURL, keys: keys))
+            SignedLists.note(SignedLists.agw, older: older)
+            guard !older, let fresh = AGWIndex.decode(data), !fresh.isEmpty else { return }
             index = fresh
             try? FileManager.default.createDirectory(at: cachedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: cachedURL, options: .atomic)

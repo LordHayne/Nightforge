@@ -1,8 +1,16 @@
 name: Build steamwebhelper wrapper
 
+# Builds wrapper/steamwebhelper.exe from wrapper/steamwebhelper-wrapper.c with mingw-w64. build.sh
+# takes the checked-in binary on Macs without mingw-w64, the release build among them, so the .exe
+# goes into every release. A rebuilt one on main is proposed in a pull request (branch bot/wrapper)
+# and never pushed, so a person sees the change before it ships; scripts/sign-release.sh shows its
+# SHA-256 beside the app's before signing. Other branches and pull requests only check that it
+# builds. The repository setting Actions › General › "Allow GitHub Actions to create and approve
+# pull requests" has to be on (components.yml and profiles.yml need it too).
+
 on:
   push:
-    # Branches only: a tag push (a release) has no branch to commit the rebuilt binary to.
+    # Branches only: a tag push (a release) has nothing to propose.
     branches: ["**"]
     paths:
       - "wrapper/steamwebhelper-wrapper.c"
@@ -12,13 +20,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install mingw-w64
         run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
 
@@ -29,13 +41,64 @@ jobs:
           # Beside it, its SHA-256 as a line a review can read: build.sh takes no other binary.
           (cd wrapper && sha256sum steamwebhelper.exe | tee steamwebhelper.exe.sha256)
 
-      # build.sh falls back to the checked-in binary on Macs without mingw-w64, so keep it current.
-      - name: Commit rebuilt binary
-        if: github.event_name == 'push'
+      - name: Hand the binary to the next job
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wrapper
+          # With its SHA-256 line: build.sh takes the binary only with it.
+          path: |
+            wrapper/steamwebhelper.exe
+            wrapper/steamwebhelper.exe.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    # The only job that writes: the bot's own branch and its pull request, never main.
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # The commit the binary was built from, even when main moved on meanwhile.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wrapper
+          path: wrapper
+
+      - name: Propose the rebuilt binary in a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet wrapper/steamwebhelper.exe wrapper/steamwebhelper.exe.sha256; then exit 0; fi
+          if git diff --quiet wrapper/steamwebhelper.exe wrapper/steamwebhelper.exe.sha256; then
+            echo "The checked-in binary is current."
+            exit 0
+          fi
+          branch=bot/wrapper
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
           git add wrapper/steamwebhelper.exe wrapper/steamwebhelper.exe.sha256
           git commit -m "Rebuild steamwebhelper wrapper"
-          git push
+          git push --force origin "$branch"
+          {
+            echo "wrapper/steamwebhelper-wrapper.c changed on main; this is the binary built from it (commit $GITHUB_SHA)."
+            echo "It goes into every release: merge it only for a source change you know."
+            echo
+            echo '```'
+            sha256sum wrapper/steamwebhelper.exe
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$branch" --title "Rebuild steamwebhelper wrapper" --body-file "$RUNNER_TEMP/body.md" || {
+              echo "::error::The branch is pushed, the pull request isn't (may Actions open pull requests here?). Open it: https://github.com/$GITHUB_REPOSITORY/compare/main...$branch"
+              exit 1
+            }
+          else
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          fi

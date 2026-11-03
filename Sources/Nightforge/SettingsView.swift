@@ -992,6 +992,16 @@ private struct AboutSettings: View {
                         Image(systemName: "checkmark.shield")
                     }
                 }
+                if !SignedLists.older.isEmpty {
+                    Label {
+                        Text(L10n.t("An online list was older than the one Nightforge already has, so it was left out. Nightforge keeps the newer one."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "checkmark.shield")
+                    }
+                }
             } header: {
                 SectionTitle(L10n.t("Nightforge %@", Updater.currentVersion))
             }
