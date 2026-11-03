@@ -337,8 +337,19 @@ enum CompleteRemoval {
         let scripts = Set([support.path, Engine.realPath(support)].map { $0 + "/steam-shutdown.sh" })
         // The list may be an old one (ProcessList): only a bash still running under that pid is ended.
         for process in Engine.processTable() where process.pid != getpid() && isBash(process.pid)
-            && scripts.contains(where: { process.command.contains($0) }) {
+            && scripts.contains(where: { runsScript(process.command, $0) }) {
             kill(process.pid, SIGKILL)
+        }
+    }
+
+    /// Whether `command` (as `ps` shows it) is a bash that runs `script`: the script is bash's first argument,
+    /// the way Nightforge starts it. A command that only has the path in it – `less`, `tail -f`, a bash that is
+    /// given the path as text – is no script. The path may hold spaces ("Application Support"), so the
+    /// command is compared by its beginning, not split into words.
+    static func runsScript(_ command: String, _ script: String) -> Bool {
+        ["/bin/bash", "bash"].contains { shell in
+            let head = shell + " " + script
+            return command == head || command.hasPrefix(head + " ")
         }
     }
 

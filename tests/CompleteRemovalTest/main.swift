@@ -335,17 +335,32 @@ struct CompleteRemovalTest {
             bystander.executableURL = URL(fileURLWithPath: "/bin/sleep")
             bystander.arguments = ["60"]
             try? bystander.run()
+            // A bash that only has the script's path as an argument after something else (`bash -c … <path>`): not the script.
+            let named = Process()
+            named.executableURL = URL(fileURLWithPath: "/bin/bash")
+            named.arguments = ["-c", "sleep 60", script.path]
+            try? named.run()
             usleep(300_000)
-            // The list of a stand-in: the bash with the script's path in its command, and a bystander that only names the script.
+            // The list of a stand-in: the bash with the script's path in its command, a bystander that only names the script,
+            // and a bash that is given the path as an argument of its own.
             FakeProcesses.install {
-                [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path)"),
-                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)")]
+                [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path) /wine /prefix"),
+                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)"),
+                 FakeProcesses.Row(pid: named.processIdentifier, command: "/bin/bash -c sleep 60 \(script.path)")]
             }
             CompleteRemoval.endScripts(under: support)
             check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
             check(bystander.isRunning, "… a program that only names the script is not a bash, and stays")
+            check(named.isRunning, "… nor is a bash that only has the path as a later argument (less, tail, bash -c …)")
             bystander.terminate()
+            named.terminate()
             FakeProcesses.installEmpty()
+            let spaced = "/Users/x/Library/Application Support/Nightforge/steam-shutdown.sh"
+            check(CompleteRemoval.runsScript("/bin/bash \(spaced) /wine /prefix 1 0", spaced) && CompleteRemoval.runsScript("bash \(spaced)", spaced),
+                  "the script is bash's first argument, spaces in the path or not")
+            check(!CompleteRemoval.runsScript("less \(spaced)", spaced) && !CompleteRemoval.runsScript("tail -f \(spaced)", spaced)
+                  && !CompleteRemoval.runsScript("/bin/bash -c cat \(spaced)", spaced) && !CompleteRemoval.runsScript("/bin/bash \(spaced)2", spaced),
+                  "less, tail, bash -c and a longer name are not the script")
         }
 
         // Saves next to the program, in the game's own folder in the prefix (outside review of deleting, item 1):
