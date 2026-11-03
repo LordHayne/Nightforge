@@ -129,9 +129,9 @@ struct GameAudioTest {
         }
         (action, state) = GameAudio.decide(.plugged, tv: "DENON-AVR", devices: home, current: speakers, switched: .none, wantsTV: nil)
         check(action == .switchTo(home[1]), "a TV never seen: its sound, as before")
-        // Kept in their own suite here, never in Nightforge's settings (HOME doesn't move UserDefaults).
-        let suite = "nightforge.game-audio-test.\(getpid())"
-        if let defaults = UserDefaults(suiteName: suite) {
+        // Kept in a suite of their own here, never in Nightforge's settings (HOME doesn't move UserDefaults).
+        do {
+            let defaults = TestDefaults.suite("tv-settings")
             let key = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
             check(TVSettings.soundOnTV(key, in: defaults) == nil, "a TV not seen before: nothing kept")
             TVSettings.setSoundOnTV(false, for: key, in: defaults)
@@ -144,9 +144,6 @@ struct GameAudioTest {
             TVSettings.setFullScreen(true, for: key, in: defaults)
             check(TVSettings.fullScreen(key, in: defaults) == true && TVSettings.soundOnTV(key, in: defaults) == true,
                   "full screen kept beside its sound")
-            defaults.removePersistentDomain(forName: suite)
-        } else {
-            check(false, "a defaults suite of its own")
         }
 
         // The overlay's line: Wine keeps the device the game opened.

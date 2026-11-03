@@ -936,8 +936,22 @@ Person hängen (Whisky ist 2025 daran gescheitert).
   `manifest.json` auf `main`. Besser: ein Bot-PR, den die Tests (`tests/*/run.sh` auf einem macOS-Runner)
   durchlaufen müssen und der erst nach einem kurzen Spieltest gemergt wird. Dazu ein Rückweg: Die vorherige
   Version bleibt im Manifest, und Nightforge kann auf sie zurückfallen (`ComponentStore`).
-- **Tests in der CI** laufen seit PR #5 (`ci.yml`: Build, alle `tests/*/run.sh`, Profil- und Manifest-Prüfung).
+- **Tests in der CI** laufen seit PR #5 (`ci.yml`: Build, alle `tests/*Test` parallel über `scripts/run-tests.sh`,
+  Profil- und Manifest-Prüfung). Von den Python-Tests läuft dort nur `test_build_profiles.py`.
   Offen: dieselben Tests als Pflicht für die Bot-PRs aus dem Punkt darüber. Echte Spiele bleiben Handarbeit.
+- **Liegengebliebene Test-Plists aufräumen (macht der Nutzer).** Die Swift-Testreihen schrieben UserDefaults-Domänen
+  in das echte `~/Library/Preferences`; jetzt liegen sie im Arbeitsordner jeder Reihe (`tests/Shared/TestDefaults.swift`).
+  Übrig sind (Stand 2.11.): 466× `ProfileFilesTest-<UUID>`, 332× `mvt-<UUID>`, 232× `nightforge.engine-rollback-test-<UUID>`,
+  61× `nightforge.game-audio-test.<PID>`, 9× `io.github.lordhayne.nightforge.gametest-<UUID>`,
+  2× `io.github.lordhayne.nightforge.removal-test-<UUID>` (vom Code-Review-Zweig), je eine
+  `io.github.lordhayne.nightforge.removal-test`, `nightforge.duplicate-games-test`, `nightforge.navigation-test`,
+  `nightforge.shader-test`, `nightforge.launch-phase-test`, `nightforge.test.oldgame`/`moderngame`/`sdlgame`/`playerchoice`
+  und die Standard-Domänen der Testbinaries: `download-rate-test`, `engine-layout-test`, `engine-rollback-test`,
+  `gameid-test`, `graphics-preset-test`, `launch-health-test`, `mac-version-test`, `scan-freshness-test`,
+  `steam-switch-test`, `store-facts-test`. Ältere Proben ohne Testreihe: `f2w-testA`/`B`/`C`, `nf.test.probe`,
+  `local.probe.fullscreen`. Nicht dazu gehören `io.github.lordhayne.nightforge` (die App) und
+  `io.github.lordhayne.nightforge.game` (Spiele aus Nightforge). `defaults delete` und `removePersistentDomain` leeren
+  eine Domäne nur, die Datei bleibt; also die Dateien selbst löschen, wenn gerade keine Testreihe läuft.
 - **Problembericht ausbauen.** `ProblemReport` öffnet schon ein GitHub-Issue. Ergänzen: Komponenten-Versionen,
   Grafik-Layer und Profil mitschicken, Issue-Vorlage im Repo, der Nutzer sieht vorher alles. Nichts automatisch
   senden, kein Tracking. Vorher den Benutzernamen-Befund unter „Aus dem Code-Audit“ beheben.
@@ -1665,6 +1679,10 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 - `LibraryModel`, `Engine` und `LibraryView` haben je über 1000 Zeilen. Den SDK-Fallback gibt es 7-mal
   (`build.sh`, `tests/*/run.sh`), dazu etwa 10 eigene Process-Helfer und mehrfach definierte Pfadkonstanten.
+- **`CompleteRemoval.Places.settingsDomain`** fällt ohne Bundle-ID auf `io.github.lordhayne.nightforge` zurück, und
+  ohne Bundle-ID läuft jede Testbinary. Ein Test, der `CompleteRemoval.remove` ohne eigene Domäne aufruft, leert die
+  Einstellungen der echten App. `CompleteRemovalTest` setzt seine eigene; sicherer wäre kein Rückfall auf die echte
+  Domäne außerhalb der App.
 - **`engine/patches`:** Die Patches werden in Glob-Reihenfolge angewendet (`frame-log` baut auf `metalfx-fit-window`
   auf, sortiert aber davor). Nummerieren und eine README mit Upstream-Stand anlegen; ein Umbenennen löst auf `main`
   einen neuen Grafik-Build aus.

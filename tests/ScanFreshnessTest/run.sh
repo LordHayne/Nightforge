@@ -12,5 +12,5 @@ trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
 OUT="$WORK/scan-freshness-test"
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/ScanFreshnessTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/ScanFreshnessTest/main.swift
 "$OUT"

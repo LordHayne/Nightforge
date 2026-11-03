@@ -68,7 +68,7 @@ struct CompleteRemovalTest {
                         "Steam userdata/158043902/550"], "the saves, no caches or Steam's own: \(names.sorted())")
         check(CompleteRemoval.targets(places).count == 6, "six things to remove: \(CompleteRemoval.targets(places).map(\.lastPathComponent))")
 
-        places.settingsDomain = "io.github.lordhayne.nightforge.removal-test"
+        places.settingsDomain = TestDefaults.domain("settings")
         let defaults = UserDefaults(suiteName: places.settingsDomain)!
         defaults.set(true, forKey: "library.hidden")
         let saves = try? CompleteRemoval.remove(places, defaults: defaults)
