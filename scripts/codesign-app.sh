@@ -7,15 +7,21 @@
 # certificate, every build has the same requirement – this identifier, signed with that certificate – and
 # macOS keeps those answers across updates (Apple's TN3127). The certificate isn't Apple's: Gatekeeper
 # treats the app as before.
-# NIGHTFORGE_CODESIGN_IDENTITY (the certificate's SHA-1) and NIGHTFORGE_CODESIGN_KEYCHAIN come from
-# release.yml; here the "Nightforge Code Signing" identity in your keychains, if there is one; else ad hoc.
+# NIGHTFORGE_CODESIGN_IDENTITY (the certificate's SHA-1) is what scripts/sign-release.sh hands in, the one
+# pinned in scripts/codesign-certificate.sha1; NIGHTFORGE_CODESIGN_KEYCHAIN a keychain file to take it from.
+# Without them the "Nightforge Code Signing" identity in your keychains, if there is one; else ad hoc
+# (the release workflow: the certificate is only on the maintainer's Mac). NIGHTFORGE_AD_HOC=1 signs ad hoc
+# whatever the keychain holds: a build no one watches (a session, a test run) mustn't wait on macOS asking
+# whether codesign may use the key.
 set -euo pipefail
 APP_PATH="${1:?usage: $0 <app>}"
 
 IDENTITY="${NIGHTFORGE_CODESIGN_IDENTITY:-}"
 KEYCHAIN=()
 [ -z "${NIGHTFORGE_CODESIGN_KEYCHAIN:-}" ] || KEYCHAIN=(--keychain "$NIGHTFORGE_CODESIGN_KEYCHAIN")
-if [ -z "$IDENTITY" ]; then
+if [ -n "${NIGHTFORGE_AD_HOC:-}" ]; then
+  IDENTITY=""
+elif [ -z "$IDENTITY" ]; then
   # Without -v: the certificate is its own root, which macOS doesn't trust – codesign doesn't need it to.
   IDENTITY="$(security find-identity -p codesigning 2>/dev/null | awk '/"Nightforge Code Signing"/ { print $2; exit }' || true)"
 fi

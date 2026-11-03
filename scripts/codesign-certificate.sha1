@@ -1,3 +1,3 @@
 # The SHA-1 of the "Nightforge Code Signing" certificate releases are signed with (docs/CODESIGNATUR.md).
-# release.yml refuses a secret with another one. No line below: not set up yet, releases are signed ad hoc.
+# scripts/sign-release.sh signs releases with it on the maintainer's Mac; it's never on GitHub.
 B60A2D36F80B5A52CCFA38A54E7A9BB068F06A3F
