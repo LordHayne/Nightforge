@@ -210,6 +210,10 @@ struct GameTestTest {
               "not Unity: a small window may be a splash, judged only when the wait runs out")
         check(!GameTest.startWindowStands(unity: true, picture: true, standing: 100, helper: false), "a picture came: no start window")
         check(!GameTest.startWindowStands(unity: true, picture: false, standing: nil, helper: false), "no window: nothing")
+        check(GameTest.Keys.unityDialogPlay == "unityDialogPlay", "the helper's own switch (UnityDialog.switchKey)")
+        check(GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window \"The Forest Configuration\": pressed Play!\n"),
+              "the helper's line: it pressed Play!")
+        check(!GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window: didn't come up\n"), "no window, nothing pressed")
         check(GameTest.outcome(.init(process: true, startWindow: true)) == .startWindow && GameTest.result(.startWindow, issues: []) == nil,
               "a start window: needs a click, says nothing yet about how it runs")
         check(GameTest.outcome(.init(process: true, picture: true, startWindow: true)) == .picture, "the picture after Play!: a picture")

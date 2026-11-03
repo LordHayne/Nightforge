@@ -201,7 +201,7 @@ final class GameTestRun {
         var frontTakers: [String] = []
         // Unity's start window, from when it stood (GameTest.startWindowStands).
         let unity = game.platform == .windows ? await model.insight(of: game)?.analysis.engine == .unity : false
-        let helper = UserDefaults.standard.bool(forKey: GameTest.Keys.unityPlay)
+        let helper = UserDefaults.standard.bool(forKey: GameTest.Keys.unityDialogPlay)
         var startWindowSince: Date?
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
         let load = GameTest.Load.now
@@ -377,6 +377,7 @@ final class GameTestRun {
         if !learned.isEmpty { notes.append("laut Log fehlen Laufzeiten, im Test nicht installiert: " + learned.joined(separator: ", ")) }
         if log.contains("Curtain under a window of \(game.name)'s") { notes.append("das Spiel zeigte vor dem Bild ein Fenster mit einer Frage") }
         if outcome != .picture, let look = GameTest.lastLook(of: game.name, in: log) { notes.append("letzter Blick des Vorhangs: " + look) }
+        if GameTest.helperPressedPlay(in: log) { notes.append("der Play-Helfer drückte „Play!“ in Unitys Startfenster") }
         if outcome != .picture || endedWhilePlaying {
             let errors = GameLog.errors(in: log, limit: 20)
             entry.errors = errors.isEmpty ? nil : errors

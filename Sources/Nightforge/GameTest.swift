@@ -22,9 +22,10 @@ enum GameTest {
         static let stop = "gameTest.stop"
         /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
         static let basket = "gameTest.basket"
-        /// The helper that presses "Play!" in Unity's start window is on (kosmickrisp-dx9's switch):
-        /// the run gives it time before it calls the window one that needs a click.
-        static let unityPlay = "unityPlay"
+        /// The helper that presses "Play!" in Unity's start window is on (UnityDialog.switchKey on
+        /// kosmickrisp-dx9's branch, read at every start): the run gives it time before it calls the
+        /// window one that needs a click. Whether it runs for a game says UnityDialog.programs.
+        static let unityDialogPlay = "unityDialogPlay"
     }
 
     /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
@@ -300,8 +301,14 @@ enum GameTest {
         unity && !picture && (standing ?? 0) >= startWindowGrace(helper: helper)
     }
 
-    /// With the helper on, long enough for it to press "Play!" first.
+    /// With the helper on, long enough for it to press "Play!" first: it presses 0.5–1 s after the
+    /// window comes, and once more 3 s later.
     static func startWindowGrace(helper: Bool) -> TimeInterval { helper ? 30 : 10 }
+
+    /// The helper pressed "Play!" in the start's stretch of wine.log: `Unity's window "…": pressed Play!`.
+    static func helperPressedPlay(in log: String) -> Bool {
+        log.split(separator: "\n").contains { $0.contains("Unity's window") && $0.contains("pressed Play!") }
+    }
 
     /// What the run saw of a start.
     struct Seen: Equatable {
