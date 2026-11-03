@@ -246,6 +246,18 @@ struct EngineLayoutTest {
         check(Engine.msyncSessionEnds(wanted: false, session: nil) && Engine.msyncSessionEnds(wanted: true, session: false)
               && !Engine.msyncSessionEnds(wanted: true, session: nil) && !Engine.msyncSessionEnds(wanted: false, session: false),
               "a session started with msync the other way ends; one from before the switch had it")
+        // Steam's last start is written off the main thread and read on it (review N12): never half of one value.
+        let engines = (0..<4).map { URL(fileURLWithPath: "/engine/\($0)/bin/wine") }
+        let torn = LockedValue(0)
+        DispatchQueue.concurrentPerform(iterations: 4000) { index in
+            let which = index % 4
+            Engine.lastSteamStart = (engines[which], Date(timeIntervalSince1970: Double(which)))
+            if let start = Engine.lastSteamStart, engines.firstIndex(of: start.wine).map(Double.init) != start.at.timeIntervalSince1970 {
+                torn.withLock { $0 += 1 }
+            }
+        }
+        check(torn.withLock { $0 } == 0 && Engine.lastSteamStart != nil, "lastSteamStart under concurrent writes: always one start's engine and time")
+        Engine.lastSteamStart = nil
         // No process list (review N7): whether a session runs is not known – none is ended, and the switch isn't
         // noted as if one had been; with a list that says "none", it is noted.
         let msyncSession = TestDefaults.suite("msync-session")

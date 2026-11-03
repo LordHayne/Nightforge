@@ -1042,7 +1042,14 @@ enum Engine {
     }
 
     /// The engine Nightforge last started Steam with, and when (SteamStartCheck judges that start).
-    static var lastSteamStart: (wine: URL, at: Date)?
+    /// Written by a Steam start (off the main thread, in a task) and read by the watch of that start (on it):
+    /// one value at a time, under a lock.
+    static var lastSteamStart: (wine: URL, at: Date)? {
+        get { steamStart.withLock { $0 } }
+        set { steamStart.withLock { $0 = newValue } }
+    }
+
+    private static let steamStart = LockedValue<(wine: URL, at: Date)?>(nil)
 
     /// The engine a fresh Steam starts with: `wine` – or, when Steam didn't come up on the newest
     /// engine, the build held back for it (EngineRollback.steamPinnedBuild), its share of the prefix
