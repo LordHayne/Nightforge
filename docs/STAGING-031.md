@@ -199,20 +199,110 @@ Konflikte und Anpassungen:
 - **Alle 59 Swift-Reihen grün:** 58 auf 8157ca4. `WineSandboxTest` schlug dort mit dem Fund oben fehl und ist nach
   897b94a grün. `tests/ProcessListLive` (echtes `ps`) lief wieder nicht.
 
-## Nicht mehr in dieser Runde (bis zum Merge nicht fertig oder nicht aufgeführt)
+## Nicht in der vierten Runde
 
-- `claude/signed-updates-dda700`: 435e399 ca3d748 d36f7b1, nach Merge 22 dazugekommen (die RFC-8032-Prüfung in `install.sh` und mehr).
-- `claude/engine-env-0f3a`: 5c8edd0 4aaf428 4e02fbf cb18659. Darunter die Übernahme von 8b5314d, die auf Staging schon steht, und eine neue
-  Engine-Prüfung hinter einem Schalter. Fertig gemeldet war es nicht.
-- code-review M3 ist gemergt (26). Noch nicht da sind: compat-db M3/N7, `claude/game-test-fixes` (unverändert seit
-  e76b825, 23:55), `claude/profile-guide-1a4e06` und der KosmicKrisp-Zweig `claude/quirky-clarke-81fd65`.
+signed-updates' drei neuere Commits, engine-env und profile-guide sind in der fünften Runde nachgezogen (28–30).
+
+## Nach dem Neustart: das echte `ps` (auf 51662a5)
+
+`ps -ax` antwortet seit etwa 06:30 wieder.
+
+- **`tests/ProcessListLive/run.sh`:** grün. `ProcessList.ps`, `Engine.processTable` und `GameProcesses.table`
+  finden das Prüfprogramm in der echten Liste, die Spalten kommen wie verlangt.
+- **Die neun früheren ps-Reihen:** alle mit rc=0, zwei gleichzeitig und mit Zeitgrenze, keine hing. Einen Schalter
+  für das echte `ps` bietet keine der Reihen:
+  - `CompleteRemovalTest`, `DetachedProcessTest`, `EpicTest`, `GOGTest`, `GameOverlayTest` und
+    `SteamBackgroundTest` setzen `FakeProcesses` fest. Die Prozesse, die sie selbst starten, lesen sie einzeln
+    über ihre PID.
+  - `SubprocessTest` nimmt ein Stand-in als `ProcessList.program`, `QuitScriptTest` Stand-ins für `pgrep` und
+    `lsof`. `MacVersionTest` ruft kein `ps` mehr auf.
+  - Auf die echte Liste umgebaut habe ich die Reihen nicht. Dann entschieden `CompleteRemovalTest` und
+    `DetachedProcessTest` über das, was gerade läuft, und in der App lief der Spieletest. Das echte `ps` prüft
+    `ProcessListLive`.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 59 Reihen grün (1550 s). **pytest:** 108 von 108.
+- In `~/Library/Preferences` änderten sich in dieser Zeit Test-Plists: `ProfileFilesTest-<UUID>` paarweise um
+  06:56 und 07:05, dazu `mvt-<UUID>`, `io.github.lordhayne.nightforge.gametest-<UUID>`, `engine-layout-test`,
+  `engine-rollback-test`, `io.github.lordhayne.nightforge.removal-test` und andere.
+  - Von Staging kommen sie nicht. Stagings `ProfileFilesTest` endete um 07:02, `EngineLayoutTest` um 06:50.
+    Ausnahme ist `nightforge.wine-sandbox-test-<UUID>` (07:11), siehe die Tests der fünften Runde.
+  - Gleichzeitig lief im Worktree `angry-heisenberg-1f2283` (`claude/game-test-fixes`) eine eigene Testreihe mit
+    `xargs -P 2`. Dieser Zweig hat `tests/Shared/TestDefaults.swift` noch nicht.
+  - Gelöscht habe ich nichts.
+
+## Fünfte Runde (3.11., auf 51662a5)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 28 | `claude/signed-updates-dda700` (Review M1, M5, M6) | 435e399 | bc83342 | `.github/workflows/wrapper.yml` | 0 |
+| 29 | `claude/engine-env-0f3a` | 5c8edd0 | 5564e29 | `Launcher.swift`, `LibraryModel.swift`, `tests/CompleteRemovalTest/run.sh`, `tests/EngineLayoutTest/main.swift` | 0 |
+| 30 | `claude/profile-guide-1a4e06` | bf214f5 | d8b4d9c | keine | 0 |
+
+Die Merges entstanden in einem zweiten Worktree, während die Reihen auf 51662a5 liefen. `claude/staging-031` ist
+danach per Fast-Forward auf d8b4d9c gegangen. Jeder der drei Merges ist für sich gebaut.
+
+Konflikte und Anpassungen:
+- **28, `.github/workflows/wrapper.yml`:** signed-updates baut den Wrapper jetzt in einem Job und schlägt ihn in
+  einem zweiten als Pull Request vor (Zweig `bot/wrapper`), statt auf main zu pushen. Staging hatte dazu die Zeile mit
+  der SHA-256 (audit-low, Merge 4). Beides gilt:
+  - Das Artefakt trägt `steamwebhelper.exe` und `steamwebhelper.exe.sha256`.
+  - Der Vorschlag vergleicht und committet beide Dateien. Mit dem `.exe` allein käme ein neues Programm ohne
+    passende Zeile, und `build.sh` lehnte es ab.
+  - `tests/test_wrapper_checksum.py` prüft genau diese Zeilen.
+- **29, `Launcher.swift`:** Zuerst kommt engine-envs Notiz zum Vulkan-Loader, dann `SteamProgram.prepare`, dann M3s
+  `steamRunningKnown == false` mit steam-programms Kommentar.
+- **29, `LibraryModel.swift`:** Der Aufruf hat engine-envs Argument `vulkan:` und steam-programms
+  `|| programChanged`.
+- **29, `tests/CompleteRemovalTest/run.sh`:** Stagings Zeile mit `FakeProcesses` (h1-h3) bleibt.
+- **29, `tests/EngineLayoutTest/main.swift`:** engine-envs neue Prüfungen (Registry, Vulkan-Loader) stehen hinter
+  dem Block der Spiel-Schalter.
+- **29, ohne Konflikt:** 4e02fbf entspricht Stagings 8b5314d und cb18659 kleinkrams 85f6a1f. Beide gingen ohne
+  Änderung durch. 5c8edd0 nimmt `applyGameEnvironment` heraus, auf Staging ruft es danach niemand mehr auf.
+
+## Tests der fünften Runde (auf d8b4d9c)
+
+- **`tests/ProcessListLive/run.sh`:** grün, das echte `ps`.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 59 Reihen grün (1440 s), jede Reihe für sich mit rc=0.
+- **pytest:** 112 von 112. Die vier neuen kommen mit signed-updates (28): Perl gegen CryptoKit mit RFC 8032, der
+  Stempel einer neueren Liste und zwei zu `sign-release.sh`.
+- **Ein Fund, 7374066 (Staging-Commit):** `WineSandboxTest` legte bei jedem Lauf eine Suite
+  `nightforge.wine-sandbox-test-<UUID>` im echten `~/Library/Preferences` an. Sie kam mit Sandbox H1 (01e234d, Merge
+  23). Die Reihe leerte die Suite am Ende nur, die Datei blieb.
+  - Vier solche Dateien stammen aus Stagings Läufen (04:55, 04:57, 07:11, 07:42).
+  - Jetzt kompiliert die Reihe `tests/Shared/TestDefaults.swift` und nimmt `TestDefaults.suite("wine-sandbox")`.
+  - Danach ist sie grün und hinterlässt keine Datei mehr.
+- Die übrigen Test-Plists, die sich während des Laufs änderten (`ProfileFilesTest-<UUID>` um 07:21, `mvt-<UUID>`,
+  `…gametest-<UUID>`, `engine-layout-test` und andere), passen wieder nicht zu Stagings Reihen. Sie passen zur Reihe
+  in `angry-heisenberg-1f2283`, die noch lief, als Stagings Lauf schon zu Ende war.
+
+## Nicht in dieser Runde
+
+- **`claude/game-test-fixes`, jetzt 1ec9167 (07:30, davor a34e251 und ee28d32):** nicht fertig gemeldet, die
+  Sitzung arbeitet noch. Ein Probe-Merge (`git merge-tree`) zeigt zwei Konflikte, die von Hand zusammengeführt werden
+  müssen:
+  - `GameTestRun.swift`, in der Schleife des Spieletests. M3 zählt dort Blicke ohne Prozessliste, game-test-fixes
+    verfolgt jetzt mehrere PIDs, Steams Fragen und wer den Vordergrund nimmt.
+  - `tests/GameOverlayTest/main.swift`, wo beide Seiten an derselben Stelle einen Testblock anfügen.
+- **compat-db M3 und N7:** stehen auf `claude/report-url-m3` (ce91765 06:39, b87dee7 06:51). Nicht fertig
+  gemeldet, die Sitzung arbeitet noch. Ein Probe-Merge geht ohne Konflikt.
+- **KosmicKrisp:** `claude/wine-sandbox` hat nach a4d0cdd nichts Neues, H1 bis H3 sind seit Merge 27 da.
+  `claude/quirky-clarke-81fd65` (DirectX 9) stand nicht auf der Liste.
+- **`claude/tested-on-mac`, 1a35913 (06:40):** eine zweite Anleitung für Profile, neben der von profile-guide.
+  - tested-on-mac schreibt `docs/CONTRIBUTING.md` und `.github/pull_request_template.md`, profile-guide (30)
+    `docs/PROFILE.md` und `.github/PULL_REQUEST_TEMPLATE/profile.md`.
+  - Beide ändern dieselbe Zeile im README.
+  - Nicht gemergt. Es sollte nur eine der beiden gelten.
 
 ## Für die echten Merges
 
-- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes` und compat-db M3/N7.
-- Nach dem Neustart: `tests/ProcessListLive/run.sh` (das echte `ps`).
+- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes` und compat-db M3/N7 (`claude/report-url-m3`).
+- Die zwei Anleitungen für Profile: nur eine sollte gelten (siehe oben).
+- Nur auf Staging stehen:
+  - 8b5314d. engine-env hat dasselbe jetzt als 4e02fbf.
+  - 49e249d, M4s „Steam ist aus“ über M3. Gehört in den M4-Zweig, sobald der M3 hat.
+  - 897b94a, `WineSandboxTest` kennt `Subprocess.run`. Sollten die Sandbox- und die h1-h3-Seite übernehmen.
+  - 7374066, `WineSandboxTest` legt seine Suite im Arbeitsordner an. Für `claude/wine-sandbox`.
 - Der Stand je Befund steht jetzt in `docs/AUDIT-SICHERHEIT.md` (Merge 16).
 - Mit N1 (audit-low) startet ein `nightforge://play`-Link nur noch mit dem Schlüssel der eigenen Spiel-Apps. Eigene
   Kurzbefehle des Nutzers mit solchen Links zeigen danach die Spielseite (für den Nutzer in `docs/TODO.md`).
 - Die vor Merge 1 liegengebliebenen Test-Plists räumt der Nutzer auf (Liste in `docs/TODO.md`, Wartung und
-  Community).
+  Community). Dazu kommen die aus Läufen anderer Zweige ohne `TestDefaults`, etwa der Reihe auf `claude/game-test-fixes`.
