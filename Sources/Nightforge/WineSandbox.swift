@@ -26,12 +26,16 @@ enum WineSandbox {
         var support = Engine.supportDir
         var app = URL(fileURLWithPath: Bundle.main.bundlePath)
         var temporary = FileManager.default.temporaryDirectory
+        /// Nightforge's preferences domain: the sandbox switch itself is in it.
+        var preferences = Bundle.main.bundleIdentifier ?? "io.github.lordhayne.nightforge"
     }
 
     /// Kept away from Windows programs, reading and writing: in Nightforge's data folder (paths
-    /// relative to it), the sign-in tokens of legendary and gogdl and the store accounts.
+    /// relative to it), the sign-in tokens of legendary and gogdl, the store accounts, and the key in
+    /// the game apps' links (GameShortcut), which keeps others from starting games through them.
     static let deniedInSupport: [(path: String, folder: Bool)] = [
         ("Epic/legendary", true), ("GOG/gogdl", true), ("Epic/account.json", false), ("GOG/account.json", false),
+        ("shortcut-key", false),
     ]
 
     /// In the home folder: where other programs keep keys and passwords that macOS doesn't guard
@@ -53,11 +57,14 @@ enum WineSandbox {
     /// – a program inside could otherwise swap in its own and have it run without (review H2,
     /// 3.11.2026). In the data folder: the engines and the stores' tools (Components: wine,
     /// wineserver, legendary, gogdl), DetachedProcess's helper app, the library DockHider puts into
-    /// every Wine process, the scripts Nightforge runs, Apple's D3DMetal and GOG's Mac games. Wine
-    /// writes to the prefix and to the games' folders, never here.
+    /// every Wine process, the scripts Nightforge runs, Apple's D3DMetal and GOG's Mac games. And what
+    /// tells Nightforge what to do: the LaunchOptions it wrote into Steam's settings (SteamProgram) – a
+    /// line entered there as Nightforge's would be replaced or removed at the next change (review of
+    /// 3.11.2026). Wine writes to the prefix and to the games' folders, never here.
     static let readOnlyInSupport: [(path: String, folder: Bool)] = [
         ("Components", true), (DetachedProcess.helperName, true), (DockHider.name, false), ("steam-shutdown.sh", false),
         ("steam-priority.sh", false), ("steam-priority.pid", false), ("D3DMetal", true), ("GOG/Games", true),
+        ("launchoptions-written.json", false),
     ]
 
     /// In the home folder: the small apps "Add to Applications" makes, which open Nightforge (GameShortcut).
@@ -76,7 +83,8 @@ enum WineSandbox {
         let allowed = allowedInSupport.map { place(support, ($0, true)) }
         // The app and the helper's requests: subpaths of folders that exist (the runs folder may not yet).
         let readOnly = readOnlyInSupport.map { place(support, $0) } + readOnlyInHome.map { place(home, $0) }
-            + [(canonical(places.app), true), (canonical(places.temporary) + "/Nightforge-runs", true)]
+            + [(canonical(places.app), true), (canonical(places.temporary) + "/Nightforge-runs", true),
+               (home + "/Library/Preferences/" + places.preferences + ".plist", false)]
         // Seatbelt checks a rename at the old and the new path, not at what's inside: renaming a folder
         // above a place moves the place to a path no rule names. "Epic" to "Epic-alt", and legendary's
         // token read; "Nightforge" away and a new one with Components of its own, which Nightforge
@@ -94,6 +102,11 @@ enum WineSandbox {
         if !denied.isEmpty { lines += ["(deny file-read* file-write*"] + rules(denied) + [")"] }
         if !allowed.isEmpty { lines += ["(allow file-read* file-write*"] + rules(allowed) + [")"] }
         if !readOnly.isEmpty { lines += ["(deny file-write*"] + rules(readOnly) + [")"] }
+        // Nightforge's preferences, the sandbox switch among them: cfprefsd writes them for a program
+        // that asks (`defaults write`) and refuses only when both this and the plist's rule above say
+        // no – either alone let the write through (review of 3.11.2026, tried with the helper).
+        // Reading stays; other programs' domains stay writable.
+        if let domain = quoted(places.preferences) { lines += ["(deny user-preference-write (preference-domain \(domain)))"] }
         if !anchored.isEmpty { lines += ["(deny file-write-unlink"] + anchored + [")"] }
         if !fixed.isEmpty { lines += ["(deny file-write-unlink file-write-create"] + fixed + [")"] }
         return lines.joined(separator: "\n") + "\n"

@@ -85,6 +85,14 @@ struct WineSandboxTest {
         check(profile.contains("(deny file-write-unlink file-write-create\n") && profile.contains("(literal \(denied))"),
               "nor the places themselves")
         check(!anchored.contains(WineSandbox.quoted(realSupport + "/Prefix")!), "the prefix can still be renamed inside it")
+        // What tells Nightforge what to do, and its preferences with the sandbox switch (review of 3.11.2026).
+        check(readOnly.contains(WineSandbox.quoted(realSupport + "/launchoptions-written.json")!), "the LaunchOptions Nightforge wrote can't be changed inside")
+        check(readOnly.contains(WineSandbox.quoted(WineSandbox.canonical(home) + "/Library/Preferences/io.github.lordhayne.nightforge.plist")!)
+              && profile.contains(#"(deny user-preference-write (preference-domain "io.github.lordhayne.nightforge"))"#),
+              "nor Nightforge's preferences, as a file or through cfprefsd")
+        check(profile.contains("(literal \(WineSandbox.quoted(realSupport + "/shortcut-key")!))")
+              && (profile.range(of: "(deny file-read* file-write*").map { profile[$0.lowerBound...].contains("shortcut-key") } ?? false),
+              "the game apps' key can't even be read")
         check(WineSandbox.ancestors(of: "/Users/jane/Library/x") == ["/Users/jane/Library", "/Users/jane", "/Users"]
               && WineSandbox.ancestors(of: "/x").isEmpty, "the folders above a path, down to /")
 
@@ -115,7 +123,7 @@ struct WineSandboxTest {
         everyWineStartWrapped()
         let plain = try? WineSandbox.process(wine, ["regedit", "/S", "x.reg"], sandboxed: false)
         check(plain?.executableURL == wine && plain?.arguments == ["regedit", "/S", "x.reg"], "a CrossOver bottle's Wine starts as it is")
-        sessionSwitch(wine)
+        sessionSwitch(wine, folder: root)
 
         // MARK: The helper with the real profile
         guard arguments.count >= 3 else {
@@ -192,6 +200,15 @@ struct WineSandboxTest {
         let renamed = save.deletingLastPathComponent().appendingPathComponent("save-old.dat")
         _ = run(realHelper, [profile, mv.path, save.path, renamed.path])
         check(FileManager.default.fileExists(atPath: renamed.path), "and its files can be renamed, as games do when they save")
+        // Files and preferences that steer Nightforge, from inside (review of 3.11.2026).
+        let record = support.appendingPathComponent("launchoptions-written.json"), key = support.appendingPathComponent("shortcut-key")
+        write("{}", record)
+        write("0123456789abcdef0123456789abcdef", key)
+        _ = run(realHelper, [profile, sh.path, "-c", "printf '{\"570\":[\"-novid\"]}' > \"$1\"", "sh", record.path])
+        check((try? String(contentsOf: record, encoding: .utf8)) == "{}" && run(realHelper, [profile, cat.path, record.path]).output == "{}",
+              "launchoptions-written.json reads inside, but can't be changed there")
+        check(run(realHelper, [profile, cat.path, key.path]).status != 0, "the game apps' key doesn't read inside")
+        preferences(realHelper: realHelper, places: places)
         // The quit script's Wine start (review of 3.11.2026): it ran steam.exe from the prefix – which programs
         // inside can change – outside the sandbox. Its wine_program, from the script itself, with the helper.
         shutdownScript(realHelper: realHelper, profile: profile, token: secrets[0], prefix: support.appendingPathComponent("Prefix"))
@@ -199,6 +216,32 @@ struct WineSandboxTest {
         check((try? FileManager.default.removeItem(at: support)) != nil && !FileManager.default.fileExists(atPath: support.path),
               "outside, the data folder can be removed as a whole (CompleteRemoval)")
         finish()
+    }
+
+    /// The sandbox switch is in Nightforge's preferences, and cfprefsd writes for a program that asks
+    /// (`defaults write`) whatever the plist file's rule says – tried with the helper on 3.11.2026. With
+    /// a test domain of its own, never Nightforge's: written and deleted inside, no; read, yes; another
+    /// domain stays writable.
+    static func preferences(realHelper: URL, places: WineSandbox.Places) {
+        let domain = "nightforge.wine-sandbox-prefs-\(UUID().uuidString)", other = domain + "-other"
+        var mine = places
+        mine.preferences = domain
+        // cfprefsd writes the real ~/Library/Preferences, so the plist's rule has to name that one.
+        mine.home = FileManager.default.homeDirectoryForCurrentUser
+        let profile = WineSandbox.profile(mine)
+        let defaults = URL(fileURLWithPath: "/usr/bin/defaults")
+        defer {
+            for name in [domain, other] { _ = run(defaults, ["delete", name]) }
+            forget([domain, other])
+        }
+        _ = run(defaults, ["write", domain, WineSandbox.defaultsKey, "-bool", "true"])
+        check(run(realHelper, [profile, defaults.path, "write", domain, WineSandbox.defaultsKey, "-bool", "false"]).status != 0
+              && run(defaults, ["read", domain, WineSandbox.defaultsKey]).output == "1\n", "the switch can't be turned off inside")
+        _ = run(realHelper, [profile, defaults.path, "delete", domain])
+        check(run(defaults, ["read", domain, WineSandbox.defaultsKey]).output == "1\n", "nor deleted")
+        check(run(realHelper, [profile, defaults.path, "read", domain, WineSandbox.defaultsKey]).output == "1\n", "reading stays")
+        _ = run(realHelper, [profile, defaults.path, "write", other, "k", "-bool", "true"])
+        check(run(defaults, ["read", other, "k"]).output == "1\n", "other programs' preferences stay writable inside")
     }
 
     /// steam-shutdown.sh starts Steam's -shutdown through `wine_program`: with the switch on through the
@@ -268,10 +311,10 @@ struct WineSandboxTest {
 
     /// A Wine session begun with the switch the other way ends before anything else starts in it,
     /// but never under a running game.
-    static func sessionSwitch(_ wine: URL) {
-        let suite = "nightforge.wine-sandbox-test-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+    static func sessionSwitch(_ wine: URL, folder: URL) {
+        // A suite named by a path keeps its plist there, in the test's folder: one named like a domain
+        // left an empty plist in ~/Library/Preferences after every run, written when the test ended.
+        let defaults = UserDefaults(suiteName: folder.appendingPathComponent("session-defaults").path)!
         var ended: [URL] = []
         func settle(_ enabled: Bool, game: Bool = false) {
             WineSandbox.settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: { game }, end: { ended.append($0) })
@@ -322,6 +365,16 @@ struct WineSandboxTest {
         background.wait()
         check(checkedOnMain == false && endedOnMain == false && defaults.bool(forKey: WineSandbox.sessionKey),
               "settled in the background: checked and ended off the main thread")
+    }
+
+    /// Test domains gone for good: cfprefsd leaves an empty plist behind when a domain is deleted, a
+    /// moment later – removed once it's there (it doesn't come back), not in a race with it.
+    static func forget(_ domains: [String]) {
+        Thread.sleep(forTimeInterval: 1)
+        for name in domains {
+            try? FileManager.default.removeItem(at: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Preferences/\(name).plist"))
+        }
     }
 
     static func finish() -> Never {
