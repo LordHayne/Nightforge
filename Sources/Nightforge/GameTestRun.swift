@@ -378,15 +378,7 @@ final class GameTestRun {
     }
 
     nonisolated private static func ps() -> String {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pcpu=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return "" }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
-        return output
+        ProcessList.ps("pcpu=,command=") ?? ""
     }
 
     /// Five seconds of `sample` on the game's process, written to `file` without paths or the

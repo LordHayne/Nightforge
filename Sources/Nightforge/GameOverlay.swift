@@ -399,16 +399,20 @@ enum GameProcesses {
     }
 
     /// Every process with its parent and command line, as ps shows them – a Windows program with
-    /// its working folder too (`runsFrom`).
+    /// its working folder too (`runsFrom`). [] when ps doesn't answer (`ProcessList`): what acts on
+    /// pids (ending a game) takes this one.
     nonisolated static func table() -> [Entry] {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,ppid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
+        entries(from: ProcessList.ps("pid=,ppid=,command="))
+    }
+
+    /// The same for looking only: when ps has stopped answering, the last list (up to ten minutes old) –
+    /// a game running when ps hung is still running then, as far as anyone can tell.
+    nonisolated static func tableForWatching() -> [Entry] {
+        entries(from: ProcessList.ps("pid=,ppid=,command=", stale: true))
+    }
+
+    nonisolated private static func entries(from output: String?) -> [Entry] {
+        guard let output else { return [] }
         return parse(output).map { entry in
             var entry = entry
             if entry.command.lowercased().contains(".exe") { entry.cwd = cwd(of: entry.pid) }

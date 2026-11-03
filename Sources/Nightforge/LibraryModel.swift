@@ -755,7 +755,7 @@ final class LibraryModel: ObservableObject {
     /// A game that a launcher started by its bare name counts too (GameProcesses.runsFrom: Control, 2.11.).
     nonisolated private static func runningGames(_ folders: [String: String]) -> [String: pid_t] {
         guard !folders.isEmpty else { return [:] }
-        return GameProcesses.running(folders, in: GameProcesses.table())
+        return GameProcesses.running(folders, in: GameProcesses.tableForWatching())
     }
 
     /// The running-game check has looked at the processes at least once, knowing the library.

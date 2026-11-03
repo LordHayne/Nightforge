@@ -845,6 +845,13 @@ enum L10n {
         "The newer save couldn't be copied over (%@). %@ starts with its own.":
             "Der neuere Spielstand ließ sich nicht übernehmen (%@). %@ startet mit seinem eigenen.",
         "Removing …": "Wird entfernt …",
+        "Nightforge can only remove itself when it runs as the app.":
+            "Nightforge kann sich nur entfernen, wenn es als App läuft.",
+        "Ending Steam and Wine …": "Steam und Wine werden beendet …",
+        "Copying saves …": "Spielstände werden kopiert …",
+        "Deleting files …": "Dateien werden gelöscht …",
+        "Not everything could be deleted (%@). The rest is still there – try again, or delete it in Finder.":
+            "Nicht alles ließ sich löschen (%@). Der Rest ist noch da – versuch es noch einmal oder lösch ihn im Finder.",
         "Measuring …": "Wird gemessen …",
         "Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first.":
             "Löscht die Spiel-Engine, die Windows-Umgebung mit ihren Spielen, die Caches und die Einstellungen. Spielstände, die nur auf diesem Mac liegen, werden vorher nach „Dokumente“ kopiert.",

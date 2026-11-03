@@ -276,21 +276,22 @@ enum Engine {
     /// line ps shows – Wine rewrites that to the Windows program. Not Nightforge Helper, which only
     /// waits for the program it started (and ending it would look as if that program had failed).
     static func ownProcesses(under folder: URL = supportDir) -> [(pid: pid_t, command: String)] {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
-        return output.split(separator: "\n").compactMap { line in
-            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+        return processTable().filter { process in
             // Inside the folder, not merely a sibling with the same start (engine 4.7.3 vs 4.7.3-3).
-            guard parts.count == 2, let pid = pid_t(parts[0]), let path = executablePath(pid),
-                  path == root || path.hasPrefix(root + "/"), !path.hasPrefix(helper) else { return nil }
+            guard let path = executablePath(process.pid) else { return false }
+            return (path == root || path.hasPrefix(root + "/")) && !path.hasPrefix(helper)
+        }
+    }
+
+    /// Every process with the command line `ps` shows (`ProcessList`: limited, and the last list when `ps`
+    /// has stopped answering – the callers check each pid they act on).
+    static func processTable() -> [(pid: pid_t, command: String)] {
+        guard let text = ProcessList.ps("pid=,command=", stale: true) else { return [] }
+        return text.split(separator: "\n").compactMap { line in
+            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+            guard parts.count == 2, let pid = pid_t(parts[0]) else { return nil }
             return (pid, String(parts[1]))
         }
     }
@@ -358,14 +359,17 @@ enum Engine {
     /// is another engine's while a game is held back on one (EngineRollback).
     static func stopAll(_ wine: URL) {
         let wine = sessionWine() ?? wine
-        let server = Process()
-        server.executableURL = wine.deletingLastPathComponent().appendingPathComponent("wineserver")
-        server.arguments = ["-k"]
-        server.environment = environment(wine: wine)
-        try? server.run()
-        server.waitUntilExit()
+        // `wineserver -k` asks the server to end and waits for it. A server that doesn't (a process of
+        // the session stuck in the kernel) must not hold up what comes after – Steam's restart, the
+        // engine switch, "Remove Nightforge completely": after the limit it is dropped, and
+        // `killLeftovers` ends what is still there.
+        Subprocess.run(wine.deletingLastPathComponent().appendingPathComponent("wineserver").path, ["-k"],
+                       environment: environment(wine: wine), timeout: serverTimeout)
         killLeftovers()
     }
+
+    /// How long `stopAll` waits for `wineserver -k`.
+    static let serverTimeout: TimeInterval = 15
 
     /// Wine helpers (winedevice.exe in particular) sometimes outlive `wineserver -k` and then
     /// hang around for days. A Wine program still running with its working directory in our
@@ -745,6 +749,8 @@ enum Engine {
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
     /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`).
+    /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
+    /// counts a download only if it isn't paused. Its process is in `steam-shutdown.pid` beside it while it waits.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
@@ -752,10 +758,29 @@ enum Engine {
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
         WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"; MSYNC="${7:-1}"
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
+        # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
+        # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
+        LIMIT="${NIGHTFORGE_QUIT_LIMIT:-43200}"
+        late() { [ "$SECONDS" -gt "$LIMIT" ]; }
+        # Where "Remove Nightforge completely" finds this script, without asking ps (CompleteRemoval.endScripts).
+        PIDFILE="${0%/*}/steam-shutdown.pid"
+        echo $$ > "$PIDFILE" 2>/dev/null
+        trap '[ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"' EXIT
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
         has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }
-        reopened() { pgrep -qf "Nightforge.app/Contents/MacOS/Nightforge"; }
+        # Nightforge runs again: a process whose command line BEGINS with this app's program – not one
+        # that merely names it (a build in another folder, lldb, codesign, a tail in a terminal), and
+        # not the Nightforge that is quitting. The needle goes in by environment, so that no command
+        # line of ours holds it.
+        reopened() {
+          ps -axo pid=,command= | NEEDLE="$APP/Contents/MacOS/Nightforge" QUITTING="$QUITTING" awk '
+            BEGIN { needle = ENVIRON["NEEDLE"]; quitting = ENVIRON["QUITTING"]; found = 0 }
+            { pid = $1; line = $0; sub(/^[ ]*[0-9]+[ ]+/, "", line) }
+            pid == quitting { next }
+            index(line, needle) == 1 { rest = substr(line, length(needle) + 1); if (rest == "" || substr(rest, 1, 1) == " ") found = 1 }
+            END { exit found ? 0 : 1 }'
+        }
         steam_running() { has_process '\steam\steam.exe'; }
         # A Windows program a launcher started by its bare name ("Control_DX11.exe -AUTH_LOGIN=…") shows
         # no folder; Wine gives it the game's as its working folder. Not Windows' or Steam's own programs.
@@ -773,10 +798,24 @@ enum Engine {
           runs_from_game_folder && return 0                                               # one a launcher started
           return 1
         }
+        # A download is under way in this steamapps folder: a folder in downloading/ whose appmanifest is
+        # not marked paused (StateFlags 512). Steam leaves the folders of paused and failed downloads
+        # there for good; counted, they would keep Steam and this script running for as long as the Mac
+        # is on. A folder without a manifest is a leftover Steam doesn't carry on with.
+        downloading_in() {
+          local dir flags
+          for dir in "$1"/downloading/*/; do
+            [ -d "$dir" ] || continue
+            flags="$(sed -n 's/.*"StateFlags"[[:space:]]*"\([0-9]*\)".*/\1/p' "$1/appmanifest_$(basename "$dir").acf" 2>/dev/null | head -n 1)"
+            [ -n "$flags" ] || continue
+            [ $(( flags & 512 )) -ne 0 ] || return 0
+          done
+          return 1
+        }
         busy() {
           game_running && return 0
-          [ -n "$WINE" ] && find "$STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
-          [ -n "$MAC_STEAMAPPS" ] && find "$MAC_STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
+          [ -n "$WINE" ] && downloading_in "$STEAMAPPS" && return 0
+          [ -n "$MAC_STEAMAPPS" ] && downloading_in "$MAC_STEAMAPPS" && return 0
           return 1
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
@@ -789,6 +828,7 @@ enum Engine {
           gone=0
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
+            late && exit 0
             sleep 2
             if game_running; then gone=0; else gone=$((gone + 1)); fi
           done
@@ -796,7 +836,7 @@ enum Engine {
           exit 0
         fi
         while true; do
-          while busy; do reopened && exit 0; sleep 10; done
+          while busy; do reopened && exit 0; late && exit 0; sleep 10; done
           sleep 30                       # cloud saves of a game that just ended
           reopened && exit 0
           busy || break
@@ -1649,9 +1689,18 @@ enum Engine {
         regedit.standardOutput = FileHandle.nullDevice
         regedit.standardError = FileHandle.nullDevice
         guard (try? regedit.run()) != nil else { return false }
-        regedit.waitUntilExit()
+        // A regedit takes seconds, the first of a session a few more (it starts the wineserver). One
+        // that is still at it after half a minute is stuck in a session that doesn't answer: ended,
+        // so the game start that asked for the import goes on – or fails – instead of waiting for good.
+        guard regedit.waitUntilExit(timeout: registryTimeout) else {
+            regedit.end()
+            return false
+        }
         return regedit.terminationStatus == 0
     }
+
+    /// How long `importRegistry` waits for regedit.
+    static let registryTimeout: TimeInterval = 30
 
     /// macOS only turns Game Mode on (CPU and GPU priority, lower Bluetooth latency) for apps whose
     /// bundle says they're games. Wine's loader is a bare binary, so this builds a small "Nightforge

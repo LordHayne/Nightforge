@@ -76,6 +76,62 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     `main` (0.2.0) lädt D3DMetal bis zum Release noch von dort.
   - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
 
+## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
+
+Gebaut und mit Stand-ins getestet (`tests/SubprocessTest`, `tests/QuitScriptTest`, `tests/CompleteRemovalTest`), noch nicht in der
+echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `claude/code-review-plan-2f9ae5`, 87e6ef1).
+
+- **Was sich ändert:**
+  - `Subprocess.run(…, timeout:)` (neu, `Subprocess.swift`): `Engine.stopAll` (`wineserver -k` 15 s), `Engine.ownProcesses`
+    (`ps` 5 s, über `Engine.processTable`), `importRegistry` (regedit 30 s, `DetachedProcess.waitUntilExit(timeout:)`/`end()`),
+    `open` und `codesign` in `Detached.swift` (10 s/30 s). Ein Befehl, der nicht zurückkommt, wird beendet (SIGTERM, nach 2 s SIGKILL).
+  - „Komplett entfernen“ (`CompleteRemoval`): Steam wird höchstens 20 s freundlich beendet (`withDeadline`), dann SIGKILL für alles, was
+    aus Nightforges Ordner läuft (`proc_listallpids`, kein `ps`, kein `wineserver -k`), und für ein wartendes `steam-shutdown.sh`.
+    Die Zeile unter dem Knopf zeigt die Phase. Ein Ziel, das sich nicht löschen lässt, hält die anderen nicht auf; die Einstellungen
+    bleiben dann stehen, die Meldung nennt, was blieb („Nicht alles ließ sich löschen (…)“). „Spielstände nicht kopiert“ kommt nur noch,
+    wenn es wirklich das Kopieren war (dann ist nichts gelöscht). Ordner ohne Schreibrecht werden beschreibbar gemacht und noch einmal versucht.
+  - Beenden-Skript: „Nightforge läuft wieder“ heißt jetzt, dass eine Befehlszeile mit dem Programm *dieser* App BEGINNT (nicht nur
+    den Pfad nennt) und nicht die beendende Nightforge selbst ist. Wartet höchstens 12 h auf ein Spiel oder einen Download
+    (`NIGHTFORGE_QUIT_LIMIT`, Sekunden) und lässt dann alles, wie es ist. Ein pausierter Download (`StateFlags` 512) und ein Rest
+    ohne Manifest in `steamapps/downloading` halten Steam nicht mehr.
+  - Die Entfernung braucht kein `ps` mehr für das Beenden-Skript: es schreibt seine PID in `steam-shutdown.pid` neben sich (und
+    löscht sie am Ende), die Entfernung beendet genau diese PID (nur wenn sie eine `/bin/bash` ist, die beim Schreiben der Datei
+    begann). Ein Skript aus einer Nightforge von davor wird über seine Befehlszeile gefunden (`ps`, höchstens ~9 s). Grund: Am 3.11. um
+    0:30 hing `ps -ax` auf dem MacBook für alle Aufrufer (56 feststehende `ps`, `ps -p 1` antwortete, SIGKILL half nicht).
+  - **`ProcessList`** (`Subprocess.swift`): alle `ps -axo`-Aufrufe (`Engine.processTable`/`ownProcesses`/`isSteamRunning`, `GameProcesses.table`,
+    `GameTestRun.ps`, `Legendary.processTable`) laufen mit Frist (4 s); verfehlt `ps` sie, wird eine Minute lang gar keins mehr gestartet
+    (jedes wäre nur ein weiteres, das nie endet, und ein weiterer Wartender – oft der Hauptthread). In der Minute bekommen Aufrufer, die eine
+    alte Liste vertragen (`isSteamRunning` & Co., `GameProcesses.tableForWatching` für die Spielerkennung), die letzte gute (bis 10 Minuten
+    alt), die anderen (Spiel beenden) nichts. `nettop` in `MacSteamProgress` hat ebenfalls eine Frist. Anlass: 3.11. ab ~0:40 hing
+    `ps -ax` auf dem MacBook für alle Aufrufer (angehaltene Wine-Prozesse nach einem abgebrochenen winedbg), Nightforge (e8f11cc) stand
+    auf dem Hauptthread in `watchDrives` → `Engine.isSteamRunning` → `ps`. Offen: die übrigen `waitUntilExit`/`readDataToEndOfFile`-Stellen
+    (Liste in `docs/CODE-PRUEFUNG.md`), und dass der Hauptthread bei einem ersten verfehlten `ps` einmal bis ~6 s steht.
+  - `CompleteRemoval.Places()` zeigt außerhalb der App (ohne Bundle-ID `io.github.lordhayne.nightforge`, also in jeder Testbinary)
+    ins Leere und nimmt die Domäne `nightforge.not-the-app`: ein Test, der einen Ort zu überschreiben vergisst, löscht nichts
+    Echtes, und `CompleteRemoval.run()` verweigert sich dort (`requireApp`, bevor etwas beendet wird).
+- **Live zu prüfen** (alles im Test-HOME `build/fh`, nicht im eigenen Konto; „Komplett entfernen“ nie mit dem echten HOME):
+  1. Entfernen mit laufender, angemeldeter Steam: die Zeile wechselt „Steam und Wine werden beendet …“ → „Spielstände werden kopiert …“ →
+     „Dateien werden gelöscht …“, Nightforge geht in den Papierkorb und endet, nach dem Beenden liegt nichts mehr im Test-HOME außer
+     `Documents/Nightforge Saves` (`find build/fh -newer …`; besonders `Saved Application State` und `Preferences`, die AppKit beim
+     Beenden neu schreiben könnte).
+  2. Dasselbe, nachdem sich Steam abgemeldet hat (die Lage am Mac mini): darf nicht länger als ~25 s bis zum Löschen brauchen. Hängt es
+     doch, in der Aktivitätsanzeige „Prozess analysieren“ und den Stapel aufheben.
+  3. Entfernen mit absichtlich veraltetem Log: `bootstrap_log.txt` des Test-Prefix mit einem Block, der in „Found pending update“ endet,
+     und Steam läuft: früher 120 s Warten, jetzt höchstens 20 s.
+  4. Löschfehler: in `build/fh/Library/Caches/Nightforge` eine Datei mit `chflags uchg` sperren, entfernen: Meldung nennt „Nightforge“,
+     der Rest ist weg, die Einstellungen bleiben; `chflags nouchg`, zweiter Versuch geht durch.
+  5. Ein wartendes Beenden-Skript: Nightforge beenden, während ein Download läuft (neben dem Skript liegt `steam-shutdown.pid`,
+     `ps` zeigt `steam-shutdown.sh`), Nightforge neu starten und entfernen: das Skript ist danach weg, die PID-Datei auch.
+  6. Beenden-Skript, mit der installierten Nightforge: daneben einen Entwicklungsbau (anderer Ordner) offen lassen, die installierte beenden:
+     Steam und die Wine-Sitzung gehen nach ~30 s trotzdem (früher blieben sie, weil der Entwicklungsbau als „wieder geöffnet“ zählte).
+  7. Pausierter Download: in Steam einen Download pausieren, Nightforge beenden: Steam geht nach ~30 s aus, kein `steam-shutdown.sh` bleibt.
+     Aktiver Download: Steam bleibt, das Skript wartet; Nightforge wieder öffnen beendet das Skript.
+  8. Spielstart nach einem festgefahrenen Wine (nur im Test-HOME: den `wineserver` des Test-Prefix mit `kill -STOP` anhalten, ein
+     Spiel starten): „Startet …“ endet nach der Frist von `importRegistry` (30 s) mit einem Fehler oder einem Neustart von Steam, statt für
+     immer zu stehen. Danach `kill -CONT`/beenden.
+- **Nicht gemacht (bleibt für den Umbau):** die übrigen 17 `waitUntilExit()` (Liste in `docs/CODE-PRUEFUNG.md`, H2), die Wartezeit auf
+  „installing“ in `stopSteam` (M6), `ComponentStore` entpackt auf dem Actor (M1), `windowsGameRunning` in `applyRetinaMode` (H4).
+
 ## Nach dem Engine-Wechsel neu prüfen
 
 Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR #7 läuft winecx 4.7.3.
