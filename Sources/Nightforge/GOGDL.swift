@@ -137,22 +137,23 @@ enum GOGDL {
         return process
     }
 
-    /// gogdl downloads running, also from an earlier Nightforge, by product ID.
-    static func runningDownloads() -> Set<String> {
+    /// gogdl downloads running, also from an earlier Nightforge, by product ID. Without a process list the
+    /// last look stands; nil when there is none either (the first look, with `ps` down): a download may be
+    /// running then, and "none" would start a second one of the same game. `remembered`: for the test.
+    static func runningDownloads(remembered: LockedValue<Set<String>?> = lastRunning) -> Set<String>? {
         let root = ComponentStore.shared.root.appendingPathComponent(componentID, isDirectory: true)
-        // Without a process list the last look stands: "none" would start a second download of the same game.
-        guard let processes = Engine.ownProcessesKnown(under: root) else { return lastRunning.withLock { $0 } }
+        guard let processes = Engine.ownProcessesKnown(under: root) else { return remembered.withLock { $0 } }
         let running = Set(processes.compactMap { process -> String? in
             let words = process.command.split(separator: " ")
             guard let index = words.firstIndex(where: { ["download", "update", "repair"].contains($0) }), index + 1 < words.count
             else { return nil }
             return String(words[index + 1])
         })
-        lastRunning.withLock { $0 = running }
+        remembered.withLock { $0 = running }
         return running
     }
 
-    private static let lastRunning = LockedValue<Set<String>>([])
+    private static let lastRunning = LockedValue<Set<String>?>(nil)
 
     // MARK: - What gogdl says
 

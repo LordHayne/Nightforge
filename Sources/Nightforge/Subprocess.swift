@@ -178,6 +178,10 @@ enum ProcessList {
     /// or none at all. While it is set no process is started – a `ps` that hangs on the Mac doesn't stop a series.
     nonisolated(unsafe) static var source: ((String) -> String?)?
 
+    /// With `source` set: what it hands in stands for the last good list while `ps` is down – `.old` for whoever
+    /// may take one, nothing for the rest – as a list from before a game started would.
+    nonisolated(unsafe) static var sourceIsOld = false
+
     /// Tests of ProcessList itself point it at a stand-in program.
     nonisolated(unsafe) static var program = "/bin/ps"
     nonisolated(unsafe) static var timeout: TimeInterval = 4
@@ -192,7 +196,10 @@ enum ProcessList {
     /// `.unavailable`: whoever concludes from an empty list ("the game has ended", "Steam isn't running") has
     /// to ask which of the two it is.
     static func listing(_ columns: String, allowOld: Bool = false) -> ProcessListing<String> {
-        if let source { return source(columns).map { .fresh($0) } ?? .unavailable }
+        if let source {
+            guard let text = source(columns) else { return .unavailable }
+            return !sourceIsOld ? .fresh(text) : allowOld ? .old(text) : .unavailable
+        }
         let down = lock.withLock { Date() < downUntil }
         if !down {
             let result = Subprocess.run(program, ["-axo", columns], capture: true, timeout: timeout, grace: 0.5)
@@ -200,7 +207,9 @@ enum ProcessList {
                 lock.withLock { lastGood[columns] = (result.text, Date()) }
                 return .fresh(result.text)
             }
-            if result.timedOut { lock.withLock { downUntil = Date().addingTimeInterval(pause) } }
+            // One that misses its limit, or can't even be started (no process left, the program gone): no new
+            // try at every look – each would only cost the same again.
+            if result.timedOut || !result.launched { lock.withLock { downUntil = Date().addingTimeInterval(pause) } }
         }
         guard allowOld, let old = lock.withLock({ lastGood[columns] }), Date().timeIntervalSince(old.date) < 600 else {
             return .unavailable

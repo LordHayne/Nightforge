@@ -412,6 +412,12 @@ struct EngineRollbackTest {
         check(SteamStartCheck.judge(busy) == .undecided, "still writing its logs: only slow")
         busy.running = false
         check(SteamStartCheck.judge(busy) == .failed, "its process gone: not come up")
+        // No process list (ps doesn't answer): not known, so not a failure – whatever the logs say.
+        var unknown = quiet
+        unknown.running = nil
+        check(SteamStartCheck.judge(unknown) == .undecided, "no process list, logs quiet: undecided, not come up")
+        unknown.signedIn = true
+        check(SteamStartCheck.judge(unknown) == .cameUp, "no process list, signed in: it came up all the same")
 
         // From the logs: the last session's "Logged On" doesn't count for a start that wrote nothing.
         let steam = work.appendingPathComponent("steam-check", isDirectory: true)

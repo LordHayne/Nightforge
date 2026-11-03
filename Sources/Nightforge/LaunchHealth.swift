@@ -458,3 +458,49 @@ enum LearnedFixes {
         UserDefaults.standard.string(forKey: markKey(game)).flatMap(UInt64.init)
     }
 }
+
+/// The first-seconds watch of a start, a look a second (LibraryModel.survivesFirstSeconds). A launcher
+/// handing over to the game leaves a gap of a few seconds, so only a longer absence counts as the game
+/// having ended – and only one seen in a list asked for just now. A look without an answer (no list, or
+/// an old one from before the start that doesn't know the game: GameProcesses.Presence) counts for
+/// neither side; a watch that gets none for long says `unknown`, which learns nothing – not that the
+/// game ended, which would start it again another way, nor that it survived.
+struct FirstSecondsWatch {
+    enum Verdict: Equatable { case survived, ended, unknown }
+
+    /// Looks in a row at an absent game that end the watch.
+    static let goneLooks = 10
+    /// Looks in a row without an answer that end the watch as unknown.
+    static let silentLooks = 30
+
+    private var absent = 0
+    private var silent = 0
+    private var sawRunning = false
+
+    /// Whether the watch goes on `elapsed` seconds in: for the failure window, and beyond it for an
+    /// absence that has begun and isn't over yet.
+    func continues(after elapsed: TimeInterval) -> Bool {
+        elapsed < LaunchHealth.failureWindow || (absent > 0 && absent < Self.goneLooks)
+    }
+
+    /// Takes a look; the verdict when it settles the watch.
+    mutating func look(_ presence: GameProcesses.Presence) -> Verdict? {
+        switch presence {
+        case .running:
+            absent = 0
+            silent = 0
+            sawRunning = true
+        case .gone:
+            absent += 1
+            silent = 0
+        case .unknown:
+            silent += 1
+        }
+        if absent >= Self.goneLooks { return .ended }
+        if silent >= Self.silentLooks { return .unknown }
+        return nil
+    }
+
+    /// What the watch says when its time is up: survived if the game was seen running and wasn't seen gone since.
+    var verdictAtEnd: Verdict { sawRunning && absent == 0 ? .survived : .unknown }
+}

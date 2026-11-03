@@ -531,9 +531,10 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         context.requested()
     }
 
-    /// Nothing of this Nightforge's – nor of an earlier one's – has legendary installing.
-    private func isFree(running: Set<String>) -> Bool {
-        downloads.isEmpty && starting.isEmpty && updates.isEmpty && updatingGame == nil && running.isEmpty
+    /// Nothing of this Nightforge's – nor of an earlier one's – has legendary installing. Not known what an
+    /// earlier one's does (`running` nil): not free.
+    private func isFree(running: Set<String>?) -> Bool {
+        downloads.isEmpty && starting.isEmpty && updates.isEmpty && updatingGame == nil && running?.isEmpty == true
     }
 
     private func startDownload(_ appName: String) async throws {
@@ -590,34 +591,38 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         catalog.games.first { $0.appName == game }?.dlcs?.first { $0.appName == appName }?.title
     }
 
-    /// legendary downloads still running from an earlier Nightforge, by app name.
-    nonisolated private static func runningDownloads() -> Set<String> {
+    /// legendary downloads still running from an earlier Nightforge, by app name. Without a process list the
+    /// last look stands; nil when there is none either (the first look, with `ps` down): a download may be
+    /// running then, and "none" would start a second one of the same game. `remembered`: for the test.
+    nonisolated static func runningDownloads(remembered: LockedValue<Set<String>?> = lastRunning) -> Set<String>? {
         let root = ComponentStore.shared.root.appendingPathComponent(Legendary.componentID, isDirectory: true)
-        // Without a process list the last look stands: "none" would start a second download of the same game.
-        guard let processes = Engine.ownProcessesKnown(under: root) else { return lastRunning.withLock { $0 } }
+        guard let processes = Engine.ownProcessesKnown(under: root) else { return remembered.withLock { $0 } }
         let running = Set(processes.compactMap { process -> String? in
             let words = process.command.split(separator: " ")
             guard let index = words.firstIndex(of: "install"), index + 1 < words.count else { return nil }
             return String(words[index + 1])
         })
-        lastRunning.withLock { $0 = running }
+        remembered.withLock { $0 = running }
         return running
     }
 
-    nonisolated private static let lastRunning = LockedValue<Set<String>>([])
+    nonisolated private static let lastRunning = LockedValue<Set<String>?>(nil)
 
     /// Keeps the line of downloads in order: a game's download leaves it once the game and all its
     /// add-ons are there (also when that happened while Nightforge was away), add-ons whose game is
     /// neither here nor coming leave it, and what's next starts – legendary picks a download up
     /// where it stopped.
-    private func carryOn(versions: [String: String], running: Set<String>) {
+    /// `running`: nil when it isn't known which downloads run (no process list): no job is taken off the line then.
+    private func carryOn(versions: [String: String], running: Set<String>?) {
         let before = wanted
-        for base in Set(wanted.map { game(ofAddOn: $0) ?? $0 }) {
-            let job = wanted.filter { $0 == base || game(ofAddOn: $0) == base }
-            let busy = job.contains { downloads[$0] != nil || starting.contains($0) || running.contains($0) }
-            let done = job.allSatisfy { versions[$0] != nil || isEmptyAddOn($0) }
-            let orphaned = versions[base] == nil && !wanted.contains(base)
-            if !busy && (done || orphaned) { wanted.removeAll(where: job.contains) }
+        if let running {
+            for base in Set(wanted.map { game(ofAddOn: $0) ?? $0 }) {
+                let job = wanted.filter { $0 == base || game(ofAddOn: $0) == base }
+                let busy = job.contains { downloads[$0] != nil || starting.contains($0) || running.contains($0) }
+                let done = job.allSatisfy { versions[$0] != nil || isEmptyAddOn($0) }
+                let orphaned = versions[base] == nil && !wanted.contains(base)
+                if !busy && (done || orphaned) { wanted.removeAll(where: job.contains) }
+            }
         }
         if wanted != before { save(wanted, to: Self.wantedFile) }
         Task { await startNext() }
@@ -766,7 +771,8 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         let running = await Engine.offMain { Self.runningDownloads() }
         // legendary installs one thing at a time: while another Epic download runs, the game starts
         // as it is. One of its own parts an earlier Nightforge started is followed instead.
-        if !downloads.isEmpty || !starting.isEmpty || !running.isSubset(of: Set(parts)) { return .skipped(.busy) }
+        // Not known which downloads run (no process list): as if another did.
+        guard let running, downloads.isEmpty, starting.isEmpty, running.isSubset(of: Set(parts)) else { return .skipped(.busy) }
         for (index, part) in parts.enumerated() {
             let outcome = await updatePart(part, installed: versions[part] != nil, following: running.contains(part)) { fraction in
                 let share = fraction ?? 0
@@ -820,7 +826,8 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
             if let process {
                 ended = !process.isRunning
             } else {
-                ended = !(await Engine.offMain { Self.runningDownloads() }).contains(appName)
+                // Ended only as a list says so: without one it goes on (the 90 quiet seconds below end it).
+                ended = await Engine.offMain { Self.runningDownloads() }.map { !$0.contains(appName) } ?? false
             }
             if ended { return Self.updateOutcome(state, status: process?.terminationStatus) }
             // Not a word from Epic for 90 s (a network that doesn't answer): the game starts as it is.

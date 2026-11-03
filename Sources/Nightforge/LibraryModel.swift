@@ -938,16 +938,16 @@ final class LibraryModel: ObservableObject {
             }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let (listing, askers, macOSQuestions) = await Task.detached(priority: .utility) {
+            // One list for all of it: the game's processes and macOS's askers come from the same look.
+            let (listing, macOSQuestions) = await Task.detached(priority: .utility) {
                 let listing = GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
-                // macOS's own askers from the same list (none without one).
-                let askers = GameProcesses.lookup(allowOld: true).value.map { GameProcesses.macOSAskers(in: $0) } ?? []
-                return (listing, askers, GameProcesses.macOSQuestions(askers: askers))
+                return (listing, GameProcesses.macOSQuestions(askers: listing?.askers ?? []))
             }.value
             // No process list (ps doesn't answer): the game's absence is not known, so nothing is decided at
-            // this look – above all not that it is gone. The old list stands in for a while (GameProcesses.lookup);
-            // past three minutes without any, the curtain goes rather than stay for good.
-            guard let (pids, companion) = listing.map({ ($0.pids, $0.companion) }) else {
+            // this look – above all not that it is gone. The old list stands in for a while, but only to say the
+            // game is there (GameProcesses.curtainLook); past three minutes without any, the curtain goes rather
+            // than stay for good.
+            guard let (pids, companion, askers) = listing.map({ ($0.pids, $0.companion, $0.askers) }) else {
                 blindLooks += 1
                 if blindLooks == 1 { GameLog.note("Curtain look at \(game.name): no process list (ps doesn't answer), nothing decided") }
                 if blindLooks > 360 {
@@ -1621,7 +1621,7 @@ final class LibraryModel: ObservableObject {
     private func steamStartFailed(since began: Date) async -> Bool {
         guard let start = Engine.lastSteamStart, start.at >= began.addingTimeInterval(-60) else { return false }
         let (outcome, build) = await Engine.offMain {
-            (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.isSteamRunning)),
+            (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.steamRunningKnown)),
              EngineRollback.shared.build(running: start.wine))
         }
         guard outcome == .failed, let build else { return false }
@@ -2283,9 +2283,11 @@ final class LibraryModel: ObservableObject {
                 }.value
                 // A picture before its end: it started (LaunchHealth.earlyEnd), no Windows version for it.
                 // Called off by a new start: nothing else starts either.
-                if await survivesFirstSeconds(game) || LaunchHealth.showedPicture(game.gameID, since: launchStarted) {
+                // Without a process list nothing is known of it: no confirmation, no crash report held against it.
+                let first = await survivesFirstSeconds(game)
+                if first == .survived || LaunchHealth.showedPicture(game.gameID, since: launchStarted) {
                     MacHealth.confirm(game.appID)
-                } else if !Task.isCancelled, !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
+                } else if first == .ended, !Task.isCancelled, !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
                           let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
                     return
                 }
@@ -3183,8 +3185,9 @@ final class LibraryModel: ObservableObject {
                 await bringToFront(game)
                 guard watchFirstSeconds else { break }
 
-                // The first start with this way: is the game still there after its first seconds?
-                if await survivesFirstSeconds(game, logMark: logMark, layer: layer) {
+                // The first start with this way: is the game still there after its first seconds? Not known
+                // (no process list): nothing learned either way – only a picture confirms it then (confirmOnceDrawing).
+                if await survivesFirstSeconds(game, logMark: logMark, layer: layer) != .ended {
                     if judging?.id == game.id { judging = nil }  // its end is a session's like any other
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
@@ -3230,9 +3233,11 @@ final class LibraryModel: ObservableObject {
                 // not ended after a graphics error: a second copy is only turned away ("Game Already
                 // Running", Control, 1.11.2026). Every other way below starts it again.
                 let folders = Self.processFolders([game])
-                let stillRunning = await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value != nil
+                let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
                 if Task.isCancelled { return }
-                if stillRunning {
+                // Not known (no process list, or an old one from before the start) counts as running too.
+                if presence.mayBeRunning {
+                    if presence == .unknown { GameLog.note("\(game.name): no process list to tell if it still runs – not started again") }
                     errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
                     return
                 }
@@ -3563,9 +3568,9 @@ final class LibraryModel: ObservableObject {
             var absent = 0
             while true {
                 let (text, running) = await Task.detached(priority: .utility) {
-                    // Without a process list the game counts as running: its absence would end the watch
-                    // and mark the way as failed.
-                    (GameLog.text(since: logMark), Self.runningGamesKnown(folders).map { $0[game.id] != nil } ?? true)
+                    // Without a process list – or with an old one that doesn't show the game – it counts as running:
+                    // its absence would end the watch and mark the way as failed.
+                    (GameLog.text(since: logMark), GameProcesses.presence(of: game.id, folders: folders).mayBeRunning)
                 }.value
                 // Gone for two looks (10 s): a launcher handing over leaves a shorter gap.
                 absent = running ? 0 : absent + 1
@@ -3591,21 +3596,22 @@ final class LibraryModel: ObservableObject {
 
     /// Whether the game is still running `LaunchHealth.failureWindow` seconds after it started.
     /// A launcher handing over to the game leaves a gap of a few seconds, so only a longer absence
-    /// counts as the game having ended. A game whose Direct3D layer failed (GameLog) is ended here:
-    /// it would only sit behind its own error box.
+    /// counts as the game having ended (FirstSecondsWatch) – by a list asked for just now; a look without
+    /// an answer counts for neither, and a watch that gets none says `unknown`. A game whose Direct3D
+    /// layer failed (GameLog) is ended here: it would only sit behind its own error box.
     /// `layer`: the way it started with – only that layer's failure ends it (GameLog.graphicsFailed).
-    /// False at once when a new start calls the watch off: nothing is known then.
-    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil, layer: GraphicsLayer? = nil) async -> Bool {
+    /// `ended` at once when a new start calls the watch off: nothing is known then.
+    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil,
+                                      layer: GraphicsLayer? = nil) async -> FirstSecondsWatch.Verdict {
         let folders = Self.processFolders([game])
         let started = Date()
-        var absent = 0
-        while Date().timeIntervalSince(started) < LaunchHealth.failureWindow || (absent > 0 && absent < 10) {
+        var watch = FirstSecondsWatch()
+        while watch.continues(after: Date().timeIntervalSince(started)) {
             try? await Task.sleep(for: .seconds(1))
-            if Task.isCancelled { return false }
-            let pid = await Task.detached(priority: .utility) { Self.runningGames(folders)[game.id] }.value
-            absent = pid == nil ? absent + 1 : 0
-            if absent >= 10 { return false }
-            if let pid, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
+            if Task.isCancelled { return .ended }
+            let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
+            if let verdict = watch.look(presence) { return verdict }
+            if case .running(let pid) = presence, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
                 kill(pid, SIGTERM)
                 // Steam has to see it gone before the next way can start.
                 for _ in 0..<15 {
@@ -3613,10 +3619,10 @@ final class LibraryModel: ObservableObject {
                     if Task.isCancelled { break }
                     if await Task.detached(priority: .utility, operation: { Self.runningGames(folders)[game.id] }).value == nil { break }
                 }
-                return false
+                return .ended
             }
         }
-        return true
+        return watch.verdictAtEnd
     }
 
     /// What a game's files reveal (read once per game and app run) and the ways to start it.
@@ -3795,9 +3801,15 @@ final class LibraryModel: ObservableObject {
         let folders = Self.processFolders([game])
         var absent = 0
         for _ in 0..<60 {
-            let pid = await Task.detached(priority: .utility) { Self.runningGames(folders)[game.id] }.value
-            absent = pid == nil ? absent + 1 : 0
+            let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
+            // Only a list asked for just now says it is gone; a look without an answer counts for neither.
+            switch presence {
+            case .gone: absent += 1
+            case .running: absent = 0
+            case .unknown: break
+            }
             if absent >= 10 { return }  // gone again: it crashed before showing a window
+            let pid: pid_t? = { if case .running(let pid) = presence { return pid } else { return nil } }()
             if let pid, let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular {
                 guard NSApp.isActive else { return }  // the player has moved on to something else
                 // Already there while macOS changes to the game's Space (on a TV it has one of its own).
@@ -3840,7 +3852,7 @@ final class LibraryModel: ObservableObject {
         Task {
             guard let wine = await Engine.installedWine() else { return }
             await SteamWindow.reveal()  // hidden after its last question (hideSteamWindow)
-            Engine.showSteamWindow(wine)
+            await Engine.showSteamWindow(wine)
             await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
     }
@@ -3988,7 +4000,7 @@ final class LibraryModel: ObservableObject {
         Task {
             guard let wine = await Engine.installedWine() else { return }
             do {
-                try Engine.startSteam(wine)
+                try await Engine.startSteamOffMain(wine)
             } catch {
                 errorMessage = error.localizedDescription
             }

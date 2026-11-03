@@ -246,6 +246,46 @@ struct EngineLayoutTest {
         check(Engine.msyncSessionEnds(wanted: false, session: nil) && Engine.msyncSessionEnds(wanted: true, session: false)
               && !Engine.msyncSessionEnds(wanted: true, session: nil) && !Engine.msyncSessionEnds(wanted: false, session: false),
               "a session started with msync the other way ends; one from before the switch had it")
+        // Starting Steam from the window's side takes seconds (ps, an engine held back, the helper app; extra review,
+        // 3.11.): nothing outside Engine calls the synchronous startSteam – the callers on the main actor wait for the
+        // off-main one – and the window variant is awaited.
+        let sources = URL(fileURLWithPath: "Sources/Nightforge", isDirectory: true)
+        var startLines = 0
+        for file in ((try? FileManager.default.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)) ?? [])
+        where file.pathExtension == "swift" && file.lastPathComponent != "Engine.swift" {
+            for (number, line) in ((try? String(contentsOf: file, encoding: .utf8)) ?? "").components(separatedBy: "\n").enumerated() {
+                if line.contains("Engine.startSteam(") {
+                    check(false, "\(file.lastPathComponent):\(number + 1) starts Steam synchronously: Engine.startSteamOffMain")
+                }
+                if line.contains("Engine.showSteamWindow(") || line.contains("Engine.startSteamOffMain(") {
+                    startLines += 1
+                    check(line.contains("await"), "\(file.lastPathComponent):\(number + 1) doesn't wait for the off-main start")
+                }
+            }
+        }
+        check(startLines >= 5, "the callers of the off-main start were found: \(startLines)")
+        // Steam's last start is written off the main thread and read on it (review N12): never half of one value.
+        let engines = (0..<4).map { URL(fileURLWithPath: "/engine/\($0)/bin/wine") }
+        let torn = LockedValue(0)
+        DispatchQueue.concurrentPerform(iterations: 4000) { index in
+            let which = index % 4
+            Engine.lastSteamStart = (engines[which], Date(timeIntervalSince1970: Double(which)))
+            if let start = Engine.lastSteamStart, engines.firstIndex(of: start.wine).map(Double.init) != start.at.timeIntervalSince1970 {
+                torn.withLock { $0 += 1 }
+            }
+        }
+        check(torn.withLock { $0 } == 0 && Engine.lastSteamStart != nil, "lastSteamStart under concurrent writes: always one start's engine and time")
+        Engine.lastSteamStart = nil
+        // No process list (review N7): whether a session runs is not known – none is ended, and the switch isn't
+        // noted as if one had been; with a list that says "none", it is noted.
+        let msyncSession = TestDefaults.suite("msync-session")
+        msyncSession.set(false, forKey: "msyncSession")
+        FakeProcesses.installDown()
+        Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
+        check(msyncSession.object(forKey: "msyncSession") as? Bool == false, "msync switch without a process list: not noted, the next start looks again")
+        FakeProcesses.installEmpty()
+        Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
+        check(msyncSession.object(forKey: "msyncSession") as? Bool == true, "… with a list that shows no process: noted")
         check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),
               "the quit script's Wine agrees with the session (msync on when it isn't told)")
         check(GameLog.extraChannels("+loaddll,+timestamp,warn+msync") == "+loaddll,+timestamp,warn+msync"

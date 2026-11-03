@@ -14,17 +14,31 @@ enum FakeProcesses {
     }
 
     /// No process at all.
-    static func installEmpty() { ProcessList.source = { _ in "" } }
+    static func installEmpty() { install { [] } }
 
     /// No list at all, as when `ps` doesn't answer: "not known", which is not "no process".
-    static func installDown() { ProcessList.source = { _ in nil } }
+    static func installDown() {
+        ProcessList.sourceIsOld = false
+        ProcessList.source = { _ in nil }
+    }
 
     /// Exactly these rows, asked for each time (a game that has ended is left out by the caller).
     static func install(_ rows: @escaping () -> [Row]) {
+        ProcessList.sourceIsOld = false
         ProcessList.source = { columns in render(rows(), columns: columns) }
     }
 
-    static func uninstall() { ProcessList.source = nil }
+    /// `ps` is down and these rows are the last good list, from before whatever started since: only whoever
+    /// may take an old list gets them (`ProcessList.listing(allowOld:)`).
+    static func installOld(_ rows: @escaping () -> [Row]) {
+        install(rows)
+        ProcessList.sourceIsOld = true
+    }
+
+    static func uninstall() {
+        ProcessList.sourceIsOld = false
+        ProcessList.source = nil
+    }
 
     /// `ps -axo <columns>` for the rows: pid=, ppid=, pcpu=, command= in the order asked.
     static func render(_ rows: [Row], columns: String) -> String {

@@ -427,17 +427,53 @@ enum GameProcesses {
         return lookup(allowOld: true).value.map { running(folders, in: $0) }
     }
 
-    /// What the curtain's look at the start needs from the list: the game's processes, and whether the app in
-    /// front is a Windows program of the game's. Nil when there is no list: nothing is decided at that look.
+    /// Where one game stands by the list at hand. Only a list asked for just now says it is `gone`: an
+    /// old one (`ps` is down) says `running` for a game that was in it – it ran when the list was made –
+    /// and `unknown` for one that wasn't, which may have started since. `unknown` decides nothing.
+    enum Presence: Equatable {
+        case running(pid_t)
+        case gone
+        case unknown
+
+        /// A game that may be running: it was seen, or can't be told apart from one that is.
+        var mayBeRunning: Bool { self != .gone }
+    }
+
+    /// `id`'s standing by `listing`; `folders` as for `running` (marker → id).
+    nonisolated static func presence(of id: String, folders: [String: String], in listing: ProcessListing<[Entry]>) -> Presence {
+        switch listing {
+        case .fresh(let table): return running(folders, in: table)[id].map(Presence.running) ?? .gone
+        case .old(let table): return running(folders, in: table)[id].map(Presence.running) ?? .unknown
+        case .unavailable: return .unknown
+        }
+    }
+
+    /// The same for the list asked for now (the last good one stands in while `ps` is down).
+    nonisolated static func presence(of id: String, folders: [String: String]) -> Presence {
+        presence(of: id, folders: folders, in: lookup(allowOld: true))
+    }
+
+    /// What the curtain's look at the start needs from the list: the game's processes, whether the app in
+    /// front is a Windows program of the game's, and macOS's own askers – all from the one list, so that a
+    /// look is one `ps` (and one scan of the programs' folders). Nil when nothing can be decided at that look:
+    /// no list, or an old one that doesn't show the game (it may have started since; an old list only says "there").
     struct CurtainLook: Equatable {
         var pids: Set<pid_t>
         var companion: Bool
+        var askers: Set<pid_t>
     }
 
     nonisolated static func curtainLook(marker: String?, folder: String?, front: pid_t?) -> CurtainLook? {
-        guard let table = lookup(allowOld: true).value else { return nil }
-        return CurtainLook(pids: Set(targets(windows: marker, mac: folder, in: table)),
-                           companion: marker != nil && front.map { windowsCompanion($0, in: table) } == true)
+        curtainLook(marker: marker, folder: folder, front: front, in: lookup(allowOld: true))
+    }
+
+    nonisolated static func curtainLook(marker: String?, folder: String?, front: pid_t?,
+                                        in listing: ProcessListing<[Entry]>) -> CurtainLook? {
+        guard let table = listing.value else { return nil }
+        let pids = Set(targets(windows: marker, mac: folder, in: table))
+        if case .old = listing, pids.isEmpty { return nil }
+        return CurtainLook(pids: pids, companion: marker != nil && front.map { windowsCompanion($0, in: table) } == true,
+                           askers: macOSAskers(in: table))
     }
 
     /// A process's working folder (another user's, or one gone meanwhile: nil).

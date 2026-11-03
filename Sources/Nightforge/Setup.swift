@@ -404,7 +404,7 @@ final class SetupModel: ObservableObject {
     func reopenSteam() {
         Task {
             guard let wine = await Engine.installedWine() else { return }
-            try? Engine.startSteam(wine)
+            try? await Engine.startSteamOffMain(wine)
             await SteamWindow.bringForward()
         }
     }
@@ -452,7 +452,7 @@ final class SetupModel: ObservableObject {
         defer { steamStarting = false }
         if let prefetch { await placeSteamUpdate(prefetch) }
         browser.ignore(SteamBrowser(steamRoot: Engine.steamRoot).launch)
-        try Engine.startSteam(wine)
+        try await Engine.startSteamOffMain(wine)
         detail = L10n.t("Steam is starting …")
 
         // Two moments last about a second, and are watched every 50 ms while they're near (the log
@@ -588,7 +588,7 @@ final class SetupModel: ObservableObject {
         if waited < 40, !Engine.isSteamSignedIn {
             for cache in Engine.steamBrowserCaches() { try? FileManager.default.removeItem(at: cache) }
         }
-        try Engine.startSteam(wine)
+        try await Engine.startSteamOffMain(wine)
     }
 
     private func watchForSignIn() {
@@ -652,7 +652,7 @@ final class SetupModel: ObservableObject {
 }
 
 enum SetupError: LocalizedError {
-    case engineBroken, environmentFailed, steamDownloadFailed, steamInstallFailed, steamWontStart
+    case engineBroken, environmentFailed, steamDownloadFailed, steamInstallFailed, steamWontStart, sessionUnknown
 
     var errorDescription: String? {
         switch self {
@@ -661,6 +661,7 @@ enum SetupError: LocalizedError {
         case .steamDownloadFailed: return L10n.t("Steam could not be downloaded. Check your internet connection.")
         case .steamInstallFailed: return L10n.t("Steam could not be installed.")
         case .steamWontStart: return L10n.t("Steam keeps stopping during its first start. Please try again.")
+        case .sessionUnknown: return L10n.t("Wine's session can't be looked at just now, so the engine isn't changed under it. It's tried again at the next start.")
         }
     }
 }

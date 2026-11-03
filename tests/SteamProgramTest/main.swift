@@ -410,6 +410,31 @@ struct SteamProgramTest {
               "a player's loader of the same form: no restart for it")
         apply()
         check(launchOptions(read(first), control) == loader, "and it stays")
+        check(SteamProgram.written(record).isEmpty, "…and what Nightforge wanted for it was never noted as its own: \(SteamProgram.written(record))")
+        try? localconfig.write(to: first, atomically: true, encoding: .utf8)
+
+        // Every write fails (extra review, item 4): what was noted beforehand is taken back out of the record, so a
+        // line the player puts there later, the same by chance, is never taken for Nightforge's.
+        let folderOfFirst = first.deletingLastPathComponent()
+        _ = SteamProgram.prepare(appID: control, value: value, steamRoot: steam, record: record)
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folderOfFirst.path)
+        apply()
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folderOfFirst.path)
+        check(read(first) == localconfig && SteamProgram.written(record).isEmpty,
+              "no write took: the file as it was, and nothing noted as Nightforge's: \(SteamProgram.written(record))")
+        let playersOwn = SteamProgram.edited(localconfig, appID: control, value: value, ours: []) ?? ""
+        try? playersOwn.write(to: first, atomically: true, encoding: .utf8)
+        _ = SteamProgram.prepare(appID: control, value: nil, steamRoot: steam, record: record)
+        apply()
+        check(read(first) == playersOwn, "the player's identical line is left alone when the route goes back")
+        check(SteamProgram.written(record).isEmpty, "…and the same line there already was never claimed either")
+
+        // And when it works, it is claimed: the run after a failed one.
+        try? localconfig.write(to: first, atomically: true, encoding: .utf8)
+        _ = SteamProgram.prepare(appID: control, value: value, steamRoot: steam, record: record)
+        apply()
+        check(launchOptions(read(first), control) == value && SteamProgram.written(record) == [control: [value]],
+              "a write that took is Nightforge's: \(SteamProgram.written(record))")
     }
 
     static func steamCommands() {

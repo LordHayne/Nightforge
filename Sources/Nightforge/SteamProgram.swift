@@ -106,17 +106,27 @@ enum SteamProgram {
         let changes = lock.withLock { wanted }.sorted { $0.key < $1.key }
         guard !changes.isEmpty else { return }
         guard isDown() else { return log("LaunchOptions not written: it isn't certain that Steam is down") }
-        var known = written(record)
+        let before = written(record)
+        var known = before
         // Noted before the files change: a line Nightforge wrote is always one it knows, even after a crash.
         for (appID, value) in changes where !value.isEmpty { known[appID, default: []].insert(value) }
         guard save(known, to: record) else { return log("LaunchOptions not written: \(record.lastPathComponent) can't be saved") }
+        let noted = known
         let fm = FileManager.default
         var complete = true
+        /// A value that a file holds because this run wrote it.
+        struct Claim: Hashable { var appID: Int; var value: String }
+        var wrote = Set<Claim>()
         for config in configs(steamRoot: steamRoot) {
             guard let data = try? Data(contentsOf: config) else { continue }
             let original = String(decoding: data, as: UTF8.self)
-            let text = changes.reduce(original) { text, change in
-                edited(text, appID: change.key, value: change.value.isEmpty ? nil : change.value, ours: known[change.key] ?? []) ?? text
+            var text = original
+            var touched: [Claim] = []
+            for change in changes {
+                let value = change.value.isEmpty ? nil : change.value
+                guard let next = edited(text, appID: change.key, value: value, ours: known[change.key] ?? []) else { continue }
+                text = next
+                if let value { touched.append(Claim(appID: change.key, value: value)) }
             }
             guard text != original else { continue }
             let backup = config.appendingPathExtension("nightforge-backup")
@@ -126,11 +136,22 @@ enum SteamProgram {
                 complete = false
                 continue
             }
+            wrote.formUnion(touched)
+        }
+        // A value noted above but written to no file (every write failed, or the line was there already – the
+        // player's own, the same by chance) isn't Nightforge's: it would take the player's away later as its own.
+        for (appID, value) in changes where !value.isEmpty {
+            if !wrote.contains(Claim(appID: appID, value: value)), !(before[appID]?.contains(value) ?? false) {
+                known[appID]?.remove(value)
+            }
         }
         // Every file says what was wanted now: each game keeps only that value (none once taken away).
-        guard complete else { return }
-        for (appID, value) in changes { known[appID] = value.isEmpty ? nil : [value] }
-        _ = save(known, to: record)
+        if complete {
+            for (appID, value) in changes {
+                known[appID] = !value.isEmpty && known[appID]?.contains(value) == true ? [value] : nil
+            }
+        }
+        if known != noted { _ = save(known, to: record) }
     }
 
     /// Steam is known to be down: a process list that is there says so (ProcessListing). One that

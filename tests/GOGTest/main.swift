@@ -14,6 +14,19 @@ struct GOGTest {
         }
     }
 
+    /// Which gogdl downloads run, without a process list (extra review, 3.11.): not known is not "none" –
+    /// the first look with `ps` down says nothing, and a look that was made before stands.
+    static func runningDownloads() {
+        let memory = LockedValue<Set<String>?>(nil)
+        defer { FakeProcesses.installEmpty() }
+        FakeProcesses.installDown()
+        check(GOGDL.runningDownloads(remembered: memory) == nil, "no list and no earlier look: not known – a second download of the game must not start")
+        FakeProcesses.installEmpty()
+        check(GOGDL.runningDownloads(remembered: memory) == [], "a list without a download: none")
+        FakeProcesses.installDown()
+        check(GOGDL.runningDownloads(remembered: memory) == [], "no list after that look: the look stands")
+    }
+
     @MainActor
     static func main() async {
         // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
@@ -27,6 +40,7 @@ struct GOGTest {
             print("✗ runs only in its own home (tests/GOGTest/run.sh)")
             exit(1)
         }
+        runningDownloads()
         await profiles()
         gameIDs()
         owned()

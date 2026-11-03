@@ -446,7 +446,8 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// Starts the next download in line once nothing else downloads from GOG.
     private func startNext() async {
         guard isFree, let job = wanted.first else { return }
-        guard (await Engine.offMain { GOGDL.runningDownloads() }).isEmpty, isFree else { return }
+        // Nothing starts while it isn't known what runs (no process list): a second download of the same game.
+        guard (await Engine.offMain { GOGDL.runningDownloads() })?.isEmpty == true, isFree else { return }
         do {
             try await startDownload(job)
         } catch {
@@ -540,10 +541,13 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// Keeps the line of downloads in order after a look at the processes: a download that ended
     /// while Nightforge was away is recorded (or reported), one cut off by a restart of the Mac
     /// starts again – gogdl carries on where it stopped.
-    private func carryOn(running: Set<String>) {
-        for job in wanted where downloads[job.id] == nil && !starting.contains(job.id) && !running.contains(job.id) {
-            let progress = GOGDL.progress(inLog: GOGDL.logText(for: job.id))
-            if progress.exitCode != nil { ended(job, progress: progress) }
+    /// `running`: nil when it isn't known which downloads run (no process list): no job is judged ended then.
+    private func carryOn(running: Set<String>?) {
+        if let running {
+            for job in wanted where downloads[job.id] == nil && !starting.contains(job.id) && !running.contains(job.id) {
+                let progress = GOGDL.progress(inLog: GOGDL.logText(for: job.id))
+                if progress.exitCode != nil { ended(job, progress: progress) }
+            }
         }
         Task { await startNext() }
     }
@@ -643,7 +647,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         loadFromDisk()
         let id = game.gameID.id
         guard let install = installs[id] else { return .updated }
-        guard isFree, (await Engine.offMain { GOGDL.runningDownloads() }).isEmpty else { return .skipped(.busy) }
+        guard isFree, (await Engine.offMain { GOGDL.runningDownloads() })?.isEmpty == true else { return .skipped(.busy) }
         updatingGame = id
         let job = GOGJob(id: id, platform: install.platform, update: true)
         defer {
