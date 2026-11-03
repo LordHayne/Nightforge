@@ -953,7 +953,9 @@ enum Engine {
     /// that does it wait 30 s for the cloud saves before it ends Steam. $9 and $10 Wine's sandbox helper and
     /// profile (WineSandbox; review of 3.11.2026: it ran steam.exe from the prefix outside the sandbox).
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
-    /// counts a download only if it isn't paused. Its process is in `steam-shutdown.pid` beside it while it waits.
+    /// counts a download only if it isn't paused. A game that starts while Steam is being ended (from Steam's
+    /// window) sends it back to waiting, never under `wineserver -k`. Its process is in `steam-shutdown.pid`
+    /// beside it while it waits.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
@@ -1052,27 +1054,38 @@ enum Engine {
           open "$APP"
           exit 0
         fi
-        while true; do
-          while busy; do reopened && exit 0; late && exit 0; sleep 10; done
-          recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
-          reopened && exit 0
-          busy || break
-        done
-        if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
-          osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
-        fi
-        [ -n "$WINE" ] || exit 0
         # WINEMSYNC like every other Wine process of the session (Engine.environment).
         export WINEPREFIX="$PREFIX" WINEDEBUG=-all WINEMSYNC="$MSYNC"
-        # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
-        # away): asked again before each step that would end the session.
-        reopened && exit 0
-        if steam_running; then
-          # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
-          wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
-          for i in $(seq 1 20); do steam_running || break; reopened && exit 0; sleep 1; done
-        fi
-        reopened && exit 0
+        # A game started from Steam's window meanwhile (Steam refuses -shutdown then) is waited for like
+        # any other: looked for while Steam ends and right before the session does, which would end the
+        # game with it.
+        while true; do
+          while true; do
+            while busy; do reopened && exit 0; late && exit 0; sleep 10; done
+            recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
+            reopened && exit 0
+            busy || break
+          done
+          if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
+            osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
+          fi
+          [ -n "$WINE" ] || exit 0
+          # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
+          # away): asked again before each step that would end the session.
+          reopened && exit 0
+          if steam_running; then
+            # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
+            wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
+            for i in $(seq 1 20); do
+              steam_running || break
+              reopened && exit 0
+              game_running && continue 2
+              sleep 1
+            done
+          fi
+          reopened && exit 0
+          game_running || break
+        done
         "$(dirname "$WINE")/wineserver" -k
         sleep 2
         # Wine helpers that outlive the server, recognisable by their working directory in the prefix –
