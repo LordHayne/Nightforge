@@ -10,6 +10,11 @@
 // process started from a bundle a Dock app right away, without asking setActivationPolicy:. So
 // all of them start as accessory apps, and only a process that shows a window (a game) gets one.
 //
+// Steam's tray icon stays out of the menu bar too: winemac makes a menu bar item of every tray icon
+// (cocoa_status_item.m), one for each Windows Steam that runs – beside Steam for Mac's own, the
+// player saw three at once (27.10.2026). Its menu (Store, Friends, Exit) is nothing to click for a
+// Steam Nightforge runs in the background. Steam for Mac isn't a Wine process and keeps its own.
+//
 // Build (x86_64, like Wine): clang -arch x86_64 -dynamiclib -framework AppKit -o hide-steam-dock.dylib hide-steam-dock.m
 
 #import <AppKit/AppKit.h>
@@ -37,7 +42,24 @@ static BOOL nightforgeSetActivationPolicy(id self, SEL _cmd, NSApplicationActiva
     return originalSetActivationPolicy(self, _cmd, policy);
 }
 
+static NSStatusItem *(*originalStatusItem)(id, SEL, CGFloat);
+static unsigned long steamItems = 0;
+
+// Hidden under a name of its own: macOS keeps a hidden item's state by that name, in the defaults of
+// the Wine bundle Steam shares with the games – so it's never the name a game's first item gets.
+static NSStatusItem *nightforgeStatusItem(id self, SEL _cmd, CGFloat length) {
+    NSStatusItem *item = originalStatusItem(self, _cmd, length);
+    if (item && isSteamProcess()) {
+        item.autosaveName = [NSString stringWithFormat:@"nightforge.steam-tray.%lu", steamItems++];
+        item.visible = NO;
+    }
+    return item;
+}
+
 __attribute__((constructor)) static void install(void) {
+    Method statusItem = class_getInstanceMethod([NSStatusBar class], @selector(statusItemWithLength:));
+    if (statusItem) originalStatusItem = (void *)method_setImplementation(statusItem, (IMP)nightforgeStatusItem);
+
     Method method = class_getInstanceMethod([NSApplication class], @selector(setActivationPolicy:));
     if (!method) return;
     originalSetActivationPolicy = (void *)method_setImplementation(method, (IMP)nightforgeSetActivationPolicy);

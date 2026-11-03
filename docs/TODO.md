@@ -1315,7 +1315,23 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
 - **Mehrere Steam-Symbole in der Menüleiste** (Nutzer, 27.10. 21:58: drei auf einmal). Vermutlich bildet Wine das
   Tray-Symbol des unsichtbaren Windows-Steam als macOS-Statussymbol ab, und nach Neustarts von Steam bleiben alte stehen
   (dazu kommt das echte Steam für Mac). Prüfen: wer welches Symbol besitzt; Tray-Symbol des Windows-Steam abschalten
-  oder beim Beenden aufräumen.
+  oder beim Beenden aufräumen. Gebaut am 3.11. auf `claude/steam-tray-1a4e06` (von 29e458a), mit Probe geprüft, live
+  offen. Wer welches Symbol hat (winecx-Quelltext): `Shell_NotifyIcon` geht an explorer.exe, das jedes Symbol zuerst
+  an den Mac-Treiber gibt (`programs/explorer/systray.c`, `handle_incoming`); winemac macht daraus ein
+  `NSStatusItem` im Prozess, der es anlegt (`systray.c`, `cocoa_status_item.m`). Also eins je laufendem Windows-Steam
+  (`steam.exe`), weg erst mit dessen Prozess; dazu das eigene von Steam für Mac. Drei auf einmal heißt: zwei
+  Windows-Steams zugleich (etwa eins aus einem Test-Prefix oder ein altes, das nach `-shutdown` noch lief) und Steam
+  für Mac. Ein Schalter hilft nicht: `NoTrayItemsDisplay` und `ShowSystray` wirken erst nach dem Treiber, und
+  `HKCU\Software\Wine\Mac Driver` hat keinen für die Menüleiste (`macdrv_main.c`); eine Steam-Option dafür gibt es
+  nicht (`-silent` startet gerade in den Tray). Jetzt blendet die Dock-Bibliothek, die ohnehin in jedem
+  Wine-Prozess von Steam steckt (`wrapper/hide-steam-dock.m`), Steams Menüleisten-Symbole aus
+  (`statusItemWithLength:` → `visible = NO`, unter eigenem Namen `nightforge.steam-tray.N`, weil macOS den
+  Zustand in den Einstellungen des Wine-Bundles behält, das Steam mit den Spielen teilt). Spiele und Steam für Mac
+  behalten ihre. Probe (SteamBackgroundTest): Ein x86_64-Programm mit der Bibliothek, `argv[0]` wie Steam →
+  „hidden nightforge.steam-tray.0“, wie ein Spiel → „shown Item-0“, ohne Bibliothek „shown“. Live: Nightforge
+  starten (die neue Bibliothek gilt ab dem nächsten Steam-Start: Steam einmal neu starten lassen), dann in der
+  Menüleiste nur noch das Symbol von Steam für Mac (wenn es läuft), kein zweites Steam-Logo; auch nach einem
+  Steam-Neustart über Nightforge nicht.
 - **Nightforge Helper (Dock-Fix vom 28.10.) – noch offen:** Steam, Wine, Spiele, Epic-Downloads und die Skripte
   starten über `Nightforge Helper.app` (Datenordner, `Detached.swift`), damit eine beendete Nightforge nicht im Dock
   stehen bleibt. Geprüft: ⌘Q mit Steam, ⌘Q während eines Spiels, Neustart, Spielende. Noch nicht gesehen:
