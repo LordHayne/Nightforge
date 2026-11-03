@@ -613,6 +613,19 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
        Programm wartet 180 s).
     5. Ein Unity-Spiel ohne das Fenster (Overcooked 2, 20 Minutes Till Dawn, Oxygen Train): keine Unity-Zeile im
        `wine.log`.
+  - **„Quit“ im Fenster galt als gescheiterter Start** (live 3.11. abends, Build fbab7b7): Der Nutzer drückte im
+    Fenster „Quit“, das Spiel endete ohne Bild, Nightforge startete es sofort auf DXVK, und
+    `launchHealth.steam.242760` stand danach auf `index: 1` (der nächste Start bliebe bei DXVK; den Wert von Hand auf
+    `index: 0` zurücksetzen oder in den Spieloptionen eine Grafik wählen und wieder Automatisch). Auf
+    `claude/own-question-end` (von 1426ead): Endet ein Spiel ohne Bild höchstens 3 s, nachdem der Vorhang seine eigene
+    Frage gesehen hat, und hat der Spieler kurz vorher geklickt oder eine Taste gedrückt (macOS sagt das ohne
+    Berechtigung), schreibt der Vorhang `LaunchHealth.endedAtOwnQuestion` und `wine.log` „… ended right at a
+    question of its own, answered by the player: no other way“. Der Start versucht dann keinen anderen Weg („Start
+    of …: it ended at a question of its own“), außer das Log zeigt einen Grafikfehler oder Absturz (wie nach
+    „Play!“ und sofortigem Scheitern). Auch die Nachschau beim nächsten Start rückt nicht weiter. Ein dünnes Fenster
+    (mindestens 2,5 : 1, ABZUs Unreal-Splash 601×201) gilt erst nach 4 s als Frage: der Splash zeigte kurz „fragt
+    etwas“. Live: The Forest, im Fenster „Quit“ → Nightforge kommt zurück, kein zweiter Start, `index` bleibt;
+    ABZU-Start ohne „fragt etwas“; Black Myth: Wukongs Treiberwarnung erscheint weiter sofort über dem Vorhang.
     6. Gegenprobe: lokal `"skipUnityDialog": false` für The Forest in `profiles/mac.json`, App bauen. Das Fenster bleibt.
     7. Danach entscheiden, ob der Schalter wegfällt. Der automatische Spieletest zählte The Forest als Hänger.
   - Beim Zusammenführen mit `claude/wine-sandbox`: `UnityDialog.start` setzt `executableURL = wine`. Dort auf

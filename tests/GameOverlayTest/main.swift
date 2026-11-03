@@ -291,6 +291,8 @@ struct GameOverlayTest {
 
         // A window that asks something: Black Myth: Wukong's driver warning lay under the curtain (1.11.).
         check(GameProcesses.question([window(7000, 380, 330, number: 88)], pids: game) == 88, "the driver warning: its window")
+        check(GameProcesses.questionWindow([window(7000, 601, 201, number: 87)], pids: game).map { $0.number == 87 && $0.size == CGSize(width: 601, height: 201) } == true,
+              "with its size")
         check(GameProcesses.question([window(7010, 800, 300, number: 89)], pids: game) == 89, "a wide, low launcher question")
         check(GameProcesses.question([window(7000, 1920, 1080)], pids: game) == nil, "a picture asks nothing")
         check(GameProcesses.question([window(7000, 120, 60)], pids: game) == nil, "a sliver (a hidden helper window) doesn't")
@@ -414,6 +416,7 @@ struct GameOverlayTest {
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
         macOSWait()
+        ownQuestion()
 
         // Steam's question itself: its hidden window first, the player only if it still waits
         // (Left 4 Dead 2 on 2.11.: ShowInterstitials went on 1 s after the window, 5 s in).
@@ -431,6 +434,34 @@ struct GameOverlayTest {
         check(LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: false), "gone without a picture: the start decides, the curtain stays")
         check(!LibraryModel.startJudgesEnd(quitByPlayer: true, showedPicture: false), "Quit Game: back to Nightforge at once")
         check(!LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: true), "it showed a picture: an end like any other")
+    }
+
+    /// The game's own question, answered by the player – Unity's configuration window, Quit: The Forest
+    /// ended without a picture on 3.11., and the start went on to its next way. And a splash isn't a
+    /// question (ABZU's Unreal splash, 601×201, showed "asking" for a moment).
+    static func ownQuestion() {
+        // The order: its question seen (the curtain made way), the player clicks Quit, its processes go.
+        check(LibraryModel.endedAtOwnQuestion(sinceAsked: 0.8, sinceInput: 1.0), "gone 0.8 s after its question, a click before: the player's")
+        check(LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: false),
+              "so the start tries no other way")
+        // Not the player's: a splash gone before a crash, a crash long after answering, no question at all.
+        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: 0.8, sinceInput: 30), "no click or key: no one answered it")
+        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: 20, sinceInput: 20), "Wukong's warning answered long before the end: the way's")
+        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: nil, sinceInput: 0.5), "no question seen: the way's")
+        check(LibraryModel.endedAtOwnQuestion(sinceAsked: LibraryModel.ownQuestionGrace, sinceInput: LibraryModel.ownQuestionGrace + 1),
+              "Wine takes a moment to end it: within \(LibraryModel.ownQuestionGrace) s")
+        // Play in Unity's window, then the graphics fail at once: the way's after all.
+        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: true, crashed: false), "the graphics failed: the next way")
+        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: true), "a crash in its log: the next way")
+        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: false, graphicsFailed: false, crashed: false), "not at its question: as ever")
+
+        // A thin window takes a while to count as a question; a dialog counts at once.
+        check(!LibraryModel.takenAsQuestion(CGSize(width: 601, height: 201), standing: 1), "ABZU's splash, a second in: not asking")
+        check(LibraryModel.takenAsQuestion(CGSize(width: 601, height: 201), standing: LibraryModel.thinPatience),
+              "standing \(Int(LibraryModel.thinPatience)) s: a question after all (a wide error box)")
+        check(LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: 0), "Unity's configuration window: at once")
+        check(LibraryModel.takenAsQuestion(CGSize(width: 286, height: 251), standing: 0), "Wukong's driver warning: at once")
+        check(LibraryModel.takenAsQuestion(CGSize(width: 800, height: 330), standing: 0), "a wide launcher question under 2.5 : 1: at once")
     }
 
     /// A question of macOS's: the curtain under it, for three minutes at most – one that hangs or lies

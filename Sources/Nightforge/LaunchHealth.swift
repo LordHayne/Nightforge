@@ -321,6 +321,7 @@ enum LaunchHealth {
     /// Choosing a layer by hand starts over: the player wants to try for themselves.
     static func reset(_ game: GameID) {
         UserDefaults.standard.removeObject(forKey: quitKey(game))
+        UserDefaults.standard.removeObject(forKey: questionKey(game))
         UserDefaults.standard.removeObject(forKey: pictureKey(game))
         UserDefaults.standard.removeObject(forKey: key(game))
         UserDefaults.standard.removeObject(forKey: "health.dxmtFailed.\(game.key)")
@@ -341,6 +342,22 @@ enum LaunchHealth {
 
     private static func quitKey(_ game: GameID) -> String { "launchHealth.playerQuit.\(game.key)" }
 
+    /// The game ended right at a question of its own, answered by the player (the curtain saw it,
+    /// LibraryModel.endedAtOwnQuestion): Unity's configuration window closed with Quit – The Forest
+    /// on 3.11. went on to its next way for it. The player's choice like Quit Game: no other way,
+    /// the way keeps its standing – unless the start's log says the graphics failed or it crashed.
+    static func endedAtOwnQuestion(_ game: GameID, at date: Date = Date()) {
+        UserDefaults.standard.set(date, forKey: questionKey(game))
+    }
+
+    /// Whether the game ended at a question of its own since `start`.
+    static func endedAtOwnQuestion(_ game: GameID, since start: Date) -> Bool {
+        guard let ended = UserDefaults.standard.object(forKey: questionKey(game)) as? Date else { return false }
+        return ended >= start
+    }
+
+    private static func questionKey(_ game: GameID) -> String { "launchHealth.ownQuestion.\(game.key)" }
+
     /// The curtain sank for the game: its window in picture size had the front. Kept like Quit
     /// Game, so a start that ends soon after still counts as one that showed a picture – in the
     /// start flow (`earlyEnd`) and in Steam's log later (`review`), also when a new start called
@@ -360,7 +377,7 @@ enum LaunchHealth {
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
     static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
         let state = load(game, attempts)
-        guard !state.trusted, let started = state.startedAt, !quitByPlayer(game, since: started),
+        guard !state.trusted, let started = state.startedAt, !quitByPlayer(game, since: started), !endedAtOwnQuestion(game, since: started),
               let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
         if span < failureWindow, showedPicture(game, since: started) {
@@ -476,6 +493,9 @@ struct FirstSecondsWatch {
     private var absent = 0
     private var silent = 0
     private var sawRunning = false
+
+    /// Looks in a row at an absent game so far.
+    var absentLooks: Int { absent }
 
     /// Whether the watch goes on `elapsed` seconds in: for the failure window, and beyond it for an
     /// absence that has begun and isn't over yet.
