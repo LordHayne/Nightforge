@@ -408,8 +408,14 @@ struct MacVersionTest {
         check(!fm.fileExists(atPath: folder.path) && !fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_1001.acf").path),
               "files and manifest removed")
         check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path), "other games stay")
-        try? Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps)
+        var oddLeft: [URL] = []
+        do { try Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps) } catch let error as Engine.FilesLeft {
+            oddLeft = error.files
+        } catch {}
         check(fm.fileExists(atPath: steamapps.path), "an odd folder name never removes the library")
+        check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path)
+              && oddLeft.map(\.lastPathComponent) == ["appmanifest_2000.acf"],
+              "nor its manifest, while its folder can't be removed: still there, and said so (\(oddLeft))")
         // One that can't all go (a read-only folder inside it): the rest is tried, the manifest stays while
         // the game's folder is there, and the error names what's left.
         let locked = steamapps.appendingPathComponent("common/Locked/Data", isDirectory: true)

@@ -2650,14 +2650,16 @@ enum Engine {
     /// A game's manifest, files, download leftovers and shader cache in one Steam library folder. Each
     /// is tried, whatever happened to the others; the manifest goes last and only once the game's folder
     /// is gone, so Steam never forgets a game whose files are still there (it's still installed then and
-    /// can be removed again). Whatever stays is in the error.
+    /// can be removed again). A folder name that can't be one (empty, "..", with a "/") removes no
+    /// folder, so the manifest stays too. Whatever stays is in the error.
     static func removeGameFiles(appID: Int, installDirName: String, steamapps: URL) throws {
         let fm = FileManager.default
         var targets: [URL] = []
         // Never let an empty or odd folder name turn into deleting all of steamapps/common.
         let name = installDirName.trimmingCharacters(in: .whitespaces)
         let folder = steamapps.appendingPathComponent("common/\(name)", isDirectory: true)
-        if !name.isEmpty, !name.contains("/"), name != ".", name != ".." { targets.append(folder) }
+        let plain = !name.isEmpty && !name.contains("/") && name != "." && name != ".."
+        if plain { targets.append(folder) }
         targets += [steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true),
                     steamapps.appendingPathComponent("shadercache/\(appID)", isDirectory: true)]
         var left: [URL] = []
@@ -2665,7 +2667,7 @@ enum Engine {
             if (try? fm.removeItem(at: target)) == nil { left.append(target) }
         }
         let manifest = steamapps.appendingPathComponent("appmanifest_\(appID).acf")
-        if fm.fileExists(atPath: manifest.path), left.contains(folder) || (try? fm.removeItem(at: manifest)) == nil {
+        if fm.fileExists(atPath: manifest.path), !plain || left.contains(folder) || (try? fm.removeItem(at: manifest)) == nil {
             left.append(manifest)
         }
         guard left.isEmpty else { throw FilesLeft(folder: steamapps, files: left) }
