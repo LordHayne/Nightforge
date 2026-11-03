@@ -3197,6 +3197,9 @@ final class LibraryModel: ObservableObject {
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
                     launchPhase = nil
                 }
+                if viaSteam, game.bottle.isBuiltIn, layer == .d3dmetal {
+                    GameLog.note(GameLog.d3dMetalStart(game.name, environment: Engine.steamEnvironment, retina: Engine.launchRetina))
+                }
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
                 // Starting it again another way, and the player pressed Play meanwhile: theirs has the curtain.
@@ -3573,6 +3576,11 @@ final class LibraryModel: ObservableObject {
         let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                          vulkan: vulkan)
+        if layer == .d3dmetal {
+            let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
+            GameLog.note(GameLog.d3dMetalStart(game.name, environment: environment.merging(switches) { _, game in game },
+                                               retina: Engine.retinaModeApplied))
+        }
         let process: DetachedProcess
         do {
             process = try await Task.detached(priority: .userInitiated) {

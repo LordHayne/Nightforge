@@ -32,6 +32,14 @@ enum GameLog {
         FileHandle(fileDescriptor: descriptor, closeOnDealloc: true).write(Data(("info:  [nightforge] " + text + "\n").utf8))
     }
 
+    /// What a start on D3DMetal goes with, by name and 1/0: MetalFX for the game's DLSS, a frame limit,
+    /// another GPU's identity, ray tracing, and Wine's Retina mode – so a live test can tell what was on.
+    static func d3dMetalStart(_ game: String, environment: [String: String], retina: Bool) -> String {
+        let names = ["D3DM_ENABLE_METALFX", "D3DM_MAX_FPS", "D3DM_VENDOR_ID", "D3DM_DEVICE_ID", "D3DM_SUPPORT_DXR"]
+        let settings = names.map { "\($0)=\(environment[$0]?.isEmpty == false ? 1 : 0)" } + ["retina=\(retina ? 1 : 0)"]
+        return "\(game) starts on D3DMetal: " + settings.joined(separator: " ")
+    }
+
     /// For a Steam about to start: appends to the log, starting a fresh one when it has grown large.
     static func handleForSteam() -> FileHandle? {
         let fm = FileManager.default

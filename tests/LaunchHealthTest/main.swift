@@ -460,6 +460,9 @@ struct LaunchHealthTest {
         check(GameLog.graphicsFailed(in: "warn:  DXVK: No state cache file found\nerr:   DxvkBuffer: Failed to create buffer:\nerr:     size:  65536"),
               "DXVK's failed buffer counts as a failed start")
         check(GameLog.graphicsFailed(in: "err:   DxvkAdapter: Failed to create device"), "DXVK's failed device counts as a failed start")
+        check(GameLog.d3dMetalStart("Control", environment: ["D3DM_ENABLE_METALFX": "1", "D3DM_MAX_FPS": "60", "D3DM_VENDOR_ID": ""], retina: true)
+              == "Control starts on D3DMetal: D3DM_ENABLE_METALFX=1 D3DM_MAX_FPS=1 D3DM_VENDOR_ID=0 D3DM_DEVICE_ID=0 D3DM_SUPPORT_DXR=0 retina=1",
+              "a D3DMetal start's settings in the game log: names and 1/0, an emptied one is 0")
         check(!GameLog.graphicsFailed(in: "warn:  DXVK: No state cache file found\nerr:   DXGI: Failed to create swap chain"),
               "other DXVK errors don't end a game")
         check(GameLog.missingRuntimes(in: "0040:err:mscoree:CLRRuntimeInfo_GetRuntimeHost Wine Mono is not installed", gameFolder: "x")
