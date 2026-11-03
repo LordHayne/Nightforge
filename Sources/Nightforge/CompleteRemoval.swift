@@ -156,21 +156,37 @@ enum CompleteRemoval {
         return found
     }
 
-    /// Copies the saves into Documents/Nightforge Saves/<date>; nil when there were none.
-    /// Throws if anything couldn't be copied – then nothing gets deleted.
+    /// Copies the saves into a new folder of its own, Documents/Nightforge Saves/<date and time>; nil when
+    /// there were none. Never into or over one that is there (an earlier removal's backup, the same day or
+    /// the same minute): a second folder gets a number. Throws if anything couldn't be copied – then
+    /// nothing gets deleted, and the folder begun is taken away again, so no half copy is taken for a whole one.
     static func copySaves(_ places: Places = Places(), now: Date = Date(), profileRules: [Int: [SaveRule]] = [:],
                           catalog: ((Int) -> [SaveRule])? = nil) throws -> URL? {
         let sources = saveSources(places, profileRules: profileRules, catalog: catalog)
         guard !sources.isEmpty else { return nil }
-        let stamp = ISO8601DateFormatter.string(from: now, timeZone: .current, formatOptions: [.withFullDate])
-        let target = places.documents.appendingPathComponent("Nightforge Saves/\(stamp)", isDirectory: true)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        let stamp = formatter.string(from: now)
+        let parent = places.documents.appendingPathComponent("Nightforge Saves", isDirectory: true)
         let fm = FileManager.default
-        for (source, name) in sources {
-            let isFolder = (try? source.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-            let destination = target.appendingPathComponent(name, isDirectory: isFolder)
-            try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-            try fm.copyItem(at: source, to: destination)
+        var target = parent.appendingPathComponent(stamp, isDirectory: true)
+        var number = 2
+        while fm.fileExists(atPath: target.path) {
+            target = parent.appendingPathComponent("\(stamp)-\(number)", isDirectory: true)
+            number += 1
+        }
+        do {
+            for (source, name) in sources {
+                let isFolder = (try? source.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                let destination = target.appendingPathComponent(name, isDirectory: isFolder)
+                try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                // Two sources can't share a name; if one did, the first stays (and the copy of the second fails loudly).
+                try fm.copyItem(at: source, to: destination)
+            }
+        } catch {
+            try? fm.removeItem(at: target)
+            throw error
         }
         return target
     }

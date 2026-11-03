@@ -386,6 +386,27 @@ struct CompleteRemovalTest {
                       && !exists(first.appendingPathComponent("Steam games/Quiet Game/Mods"))
                       && !exists(first.appendingPathComponent("Steam games/Quiet Game/Saves/slot1.png")),
                       "the game itself isn't")
+                check(first.lastPathComponent.range(of: #"^\d{4}-\d{2}-\d{2}-\d{6}$"#, options: .regularExpression) != nil,
+                      "the folder is named by date and time: \(first.lastPathComponent)")
+
+                // A second removal in the same second: a folder of its own, the first one untouched (item 2).
+                write(game.appendingPathComponent("profile.dat"), "profile 2")
+                let second = (try? CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog)) ?? nil
+                check(second != nil && second != first && second?.lastPathComponent == first.lastPathComponent + "-2",
+                      "the same time again: a second folder, \(second?.lastPathComponent ?? "–")")
+                check(text("Steam games/Quiet Game/profile.dat") == "profile"
+                      && (try? String(contentsOf: second!.appendingPathComponent("Steam games/Quiet Game/profile.dat"), encoding: .utf8)) == "profile 2",
+                      "the first backup is as it was, the second has the newer save")
+
+                // A copy that fails: the folder begun is taken away, the earlier backups stay (item 2).
+                let locked = game.appendingPathComponent("Saves/slot1.sav")
+                try? FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+                let before = ((try? FileManager.default.contentsOfDirectory(atPath: first.deletingLastPathComponent().path)) ?? []).sorted()
+                let failed = works { try CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog) }
+                try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path)
+                let after = ((try? FileManager.default.contentsOfDirectory(atPath: first.deletingLastPathComponent().path)) ?? []).sorted()
+                check(!failed && after == before && text("Steam games/Quiet Game/Saves/slot1.sav") == "slot one",
+                      "a copy that fails throws, leaves no half folder and the earlier backups alone: \(before) → \(after)")
             } else {
                 check(false, "the saves of the game's folder were copied")
             }
