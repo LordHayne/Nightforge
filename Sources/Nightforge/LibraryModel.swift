@@ -2938,7 +2938,9 @@ final class LibraryModel: ObservableObject {
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: profile?.retina == true,
-                                                   environment: GameEnvironment.wanted(for: game.gameID, profile: profile)),
+                                                   environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
+                                                   vulkan: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
+                                                                                          wine: runner.map(URL.init(fileURLWithPath:)))),
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))

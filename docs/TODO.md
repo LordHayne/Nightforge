@@ -1638,6 +1638,27 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   `VK_EXT_external_memory_host` und nimmt die `HOST_ALLOCATION`-Puffer an, die Wines WoW64 anlegt (ebenfalls Probe).
   Offen: den x86_64-Loader liefern (Apache-2.0, am besten in CI gebaut) und die Umgebung in `Engine.gameEnvironment`.
   Erst dann L4D2, Mafia II und No Man's Sky auf DXVK bzw. Vulkan prüfen.
+- **Warum OxyRail auf DXVK läuft und L4D2/Mafia II nicht** (DXVK-macOS v1.10.3-20230507 gelesen): Das Direct3D 11 von
+  DXVK verlangt `geometryShader` und `shaderCullDistance` nur, wenn die GPU sie meldet (`d3d11_device.cpp`:
+  `= supported…`). Das Direct3D 9 setzt beide fest auf `VK_TRUE` (`d3d9_device.cpp`), und genau das lehnt MoltenVK ab.
+  Der Hebel gehört also zu **Direct3D 9 auf DXVK**. OxyRail (D3D11) braucht ihn nicht, und es bleibt ohne ihn.
+- **Gebaut als Testschalter, aus** (Zweig `claude/engine-env-0f3a`): `defaults write io.github.lordhayne.nightforge
+  vulkanLoader -bool true`. Er nimmt den Khronos-Loader der Gcenx-Engine (`Components/wine/11.18/…/lib/libvulkan.1.dylib`).
+  Statt `true` geht auch der Pfad zu einem anderen x86_64-Loader. Dann bekommt ein D3D9-Spiel auf DXVK unter winecx
+  `CX_LIBVULKAN`, `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, `VK_DRIVER_FILES` und `VK_ADD_IMPLICIT_LAYER_PATH`, über Steam
+  in Steams Umgebung (Steam startet neu) und bei Epic/GOG direkt. Die D3D9-Leiter bekommt dann wieder DXVK vorn
+  (`vulkanLayerLoads`). Weil sie sich dabei ändert, lernt ein D3D9-Spiel seinen Weg einmal neu. `wine.log` meldet
+  „<Spiel> draws Direct3D 9 on DXVK through the Vulkan loader (engine test …)“. Zurück mit
+  `defaults delete io.github.lordhayne.nightforge vulkanLoader`. Braucht ein App-Release, wenn es dabei bleibt. Dann
+  sollte auch der Loader als eigene Komponente kommen, nicht aus der Gcenx-Engine.
+- **Live-Test** (nach dem Neustart, Build von `claude/engine-env-0f3a`, Schalter an):
+  1. Left 4 Dead 2: Optionen › Grafik › DXVK (oder Automatisch, dann steht DXVK vorn). Im Log die Zeile oben, dazu
+     keine „DxvkAdapter: Failed to create device“ mehr und nach 10 s eine `[nightforge-vulkan] … FPS`-Zeile des Layers.
+     Bild? Ton? Absturz nach einer Minute wie bei WineD3D?
+  2. Mafia II (GOG): genauso, im Vergleich zu WineD3D (Bild nach 21 s im Spieletest). FPS, Bildfehler.
+  3. Gegenprobe OxyRail (D3D11 auf DXVK): Er bleibt ohne Loader, die Zeile darf nicht erscheinen, Bild wie heute
+     Nacht (nach 6 s).
+  4. Hängt oder scheitert etwas, das Log ab Start sichern: `vkCreateDevice`, `vkCreateBuffer`, `VK_ERROR`, `[mvk-error]`.
 - **winecx hat keinen Vulkan-Loader, der Layer wird nie geladen.** Seine `winevulkan.so` lädt `libMoltenVK.dylib`
   direkt (Gcenx' 11.18 ging über `libvulkan.1.dylib`), also findet sich kein Layer aus
   `Nightforge Game.app/…/implicit_layer.d`. Seit PR #7 fehlen damit für Vulkan- und DXVK-Spiele: das Aussortieren

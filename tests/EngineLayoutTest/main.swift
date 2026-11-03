@@ -277,6 +277,38 @@ struct EngineLayoutTest {
                   "the test switch wins over the profile, numbers as `defaults` writes them count, the rest stays out")
             check(GameEnvironment.wanted(for: .steam(550), profile: nil, defaults: test).isEmpty, "another game gets none of it")
         }
+        // MARK: Direct3D 9 on DXVK through the Vulkan loader (engine test switch vulkanLoader, off)
+        do {
+            let switches = TestDefaults.suite("vulkan-loader")
+            let loader = work.appendingPathComponent("loader/libvulkan.1.dylib")
+            write(Data("loader".utf8), loader)
+            check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "off unless an engine test turns it on")
+            switches.set(loader.path, forKey: "vulkanLoader")
+            check(Engine.vulkanLoader(for: wine, defaults: switches)?.path == loader.path, "a loader named by its path")
+            let plain = work.appendingPathComponent("plain/bin/wine")
+            write(Data("#!/bin/sh\n".utf8), plain)
+            check(Engine.vulkanLoader(for: plain, defaults: switches) == nil, "only for winecx: the Gcenx engine has a loader of its own")
+            let env = Engine.vulkanLoaderEnvironment(layer: .dxvk, d3d9: true, wine: wine, defaults: switches)
+            let bundle = winecx.appendingPathComponent("Libraries/Wine/Nightforge Game.app/Contents/Resources/vulkan").path
+            check(env == ["CX_LIBVULKAN": loader.path, "CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                          "VK_DRIVER_FILES": bundle + "/icd.d/MoltenVK_icd.json", "VK_ADD_IMPLICIT_LAYER_PATH": bundle + "/implicit_layer.d"],
+                  "Direct3D 9 on DXVK: the loader, wined3d for CW Hack 25909, MoltenVK and the layer from the game bundle")
+            check(Engine.vulkanLoaderEnvironment(layer: .dxvk, d3d9: false, wine: wine, defaults: switches).isEmpty
+                  && Engine.vulkanLoaderEnvironment(layer: .dxmt, d3d9: true, wine: wine, defaults: switches).isEmpty,
+                  "Direct3D 11 on DXVK (OxyRail draws without) and other layers: nothing")
+            switches.set("/nowhere/libvulkan.1.dylib", forKey: "vulkanLoader")
+            check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "a path that isn't there: off")
+            let before = Engine.launchEnvironment
+            Engine.launchEnvironment = [:]
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                                  environment: ["CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], vulkan: env)
+                  && Engine.steamEnvironment["CX_LIBVULKAN"] == loader.path && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d",
+                  "through Steam: the loader's variables, and wined3d over a profile's backend")
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+                  && Engine.steamEnvironment["CX_LIBVULKAN"] == nil && Engine.steamEnvironment["VK_DRIVER_FILES"] == nil,
+                  "the next game without it: Steam restarts without them")
+            Engine.launchEnvironment = before
+        }
         // Through Steam they go into its environment; the next game without them takes them away again.
         let launchBefore = Engine.launchEnvironment
         Engine.launchEnvironment = [:]
