@@ -2334,6 +2334,7 @@ final class LibraryModel: ObservableObject {
         var quietSeconds = 0
         var seconds = 0
         var askingSince: Int?
+        var shownAt: Int?
         var handledRejections = 0
         var resent = 0
         awaitingSteam = true
@@ -2377,6 +2378,7 @@ final class LibraryModel: ObservableObject {
             case .continued?:
                 launchNeedsConfirmation = false
                 askingSince = nil
+                shownAt = nil
                 quietSeconds = 0
             case .cancelled?:
                 return .cancelled
@@ -2384,10 +2386,15 @@ final class LibraryModel: ObservableObject {
                 return .failed
             case nil:
                 if let since = askingSince {
-                    // Steam logs routine steps as questions too and answers them within a second.
-                    if seconds - since >= 3, !launchNeedsConfirmation {
+                    switch Self.steamQuestionStep(waited: seconds - since, shownFor: shownAt.map { seconds - $0 }) {
+                    case .showWindow:
+                        shownAt = seconds
+                        MacSteam.show()
+                    case .askPlayer where !launchNeedsConfirmation:
                         launchNeedsConfirmation = true
                         MacSteam.show()
+                    default:
+                        break
                     }
                 } else {
                     quietSeconds += 1
@@ -3287,6 +3294,7 @@ final class LibraryModel: ObservableObject {
         var quietSeconds = 0
         var totalSeconds = 0
         var askingSince: Int?
+        var shownAt: Int?
         var retriedAfterRestart = false
         var signedInSince: Int?
         var resent = false
@@ -3322,6 +3330,7 @@ final class LibraryModel: ObservableObject {
             case .continued?:
                 launchNeedsConfirmation = false
                 askingSince = nil
+                shownAt = nil
                 quietSeconds = 0
             case .cancelled?:
                 return false
@@ -3392,12 +3401,17 @@ final class LibraryModel: ObservableObject {
                     quietSeconds += 1
                     continue
                 }
-                // Steam logs routine steps as questions too and answers them within a second;
-                // a real question waits for the player in Steam's window, which runs hidden –
-                // so only then say so and show it.
-                if totalSeconds - since >= 3, !launchNeedsConfirmation {
-                    launchNeedsConfirmation = true
+                // A question that stands: Steam's window first, which runs hidden – some steps go on
+                // only once it's shown – and the player only if it still waits (steamQuestionStep).
+                switch Self.steamQuestionStep(waited: totalSeconds - since, shownFor: shownAt.map { totalSeconds - $0 }) {
+                case .showWindow:
+                    shownAt = totalSeconds
                     if game.bottle.isBuiltIn { showSteamWindow() }
+                case .askPlayer where !launchNeedsConfirmation:
+                    launchNeedsConfirmation = true
+                    if game.bottle.isBuiltIn { showSteamWindow() }  // in front again, now for the player
+                default:
+                    break
                 }
             }
         }
@@ -3746,6 +3760,25 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(1))
         }
     }
+
+    enum SteamQuestionStep: Equatable { case wait, showWindow, askPlayer }
+
+    /// What a start does about a question of Steam's that has stood `waited` seconds, its window
+    /// shown `shownFor` seconds ago (nil: not yet). Steam logs routine steps as questions too and
+    /// answers them within a second or two. Some – ShowInterstitials – go on only once its hidden
+    /// window has been shown, and then within 0–2 s with nobody there: of 129 such waits in the
+    /// Windows Steam's log up to 2.11., all over 4 s came after Nightforge had shown the window;
+    /// Left 4 Dead 2 went on 1 s after it, at 5 s. Saying "Confirm in the Steam window" at 3 s took
+    /// the curtain away for those, and the game test called the start off. So the window comes at
+    /// 3 s as before, and the player is asked – curtain away, Steam's window in front – only when
+    /// the question still stands `steamAnswerGrace` seconds later: a real one (an EULA, launch
+    /// options, the Wukong benchmark's notice) shows that much later.
+    nonisolated static func steamQuestionStep(waited: Int, shownFor: Int?) -> SteamQuestionStep {
+        guard let shownFor else { return waited >= 3 ? .showWindow : .wait }
+        return shownFor >= steamAnswerGrace ? .askPlayer : .wait
+    }
+
+    nonisolated static let steamAnswerGrace = 5
 
     /// Brings Steam's main window, with the question it's waiting on, in front of Nightforge.
     func showSteamWindow() {

@@ -175,6 +175,10 @@ struct GameOverlayTest {
         check(GameProcesses.question([window(7000, 120, 60)], pids: game) == nil, "a sliver (a hidden helper window) doesn't")
         check(GameProcesses.question([window(7000, 380, 330, layer: 3, number: 92)], pids: game) == 92,
               "a topmost one, which Wine lifts to the floating level (the warning over Nightforge's page, 1.11.)")
+        check(GameProcesses.question([window(7000, 286, 251, layer: 21, number: 93)], pids: game) == 93,
+              "winecx's level for a topmost window, just above the Dock (Wukong's driver warning in the game tests, 2.11.)")
+        check(GameProcesses.question([window(7000, 286, 251, layer: 20)], pids: game) == nil
+              && GameProcesses.question([window(7000, 286, 251, layer: 19)], pids: game) == nil, "the Dock's and utility levels aren't Wine's")
         check(GameProcesses.question([window(7000, 380, 330, layer: 101)], pids: game) == nil, "a menu doesn't")
         check(GameProcesses.question([window(7000, 380, 330, layer: -20)], pids: game) == nil, "nor one below the windows")
         check(GameProcesses.question([window(7000, 380, 330, alpha: 0)], pids: game) == nil, "an invisible one doesn't")
@@ -215,6 +219,10 @@ struct GameOverlayTest {
         check(GameProcesses.macOSQuestion([], askers: askers) == nil, "nothing asks: none")
         check(GameProcesses.macOSQuestion([window(78961, 420, 190, number: 123), window(59116, 500, 300, number: 124)], askers: askers) == 123,
               "two: the frontmost")
+
+        // The game test samples the game's own program, not a launcher waiting for it.
+        check(GameProcesses.biggest([]) == nil, "no processes, nothing to sample")
+        check(GameProcesses.biggest([999_999, getpid()]) == getpid(), "the one with memory, not one that's gone")
     }
 
     /// The curtain at each look: down only once the game itself is in front, and up again when
@@ -267,6 +275,17 @@ struct GameOverlayTest {
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
         macOSWait()
+
+        // Steam's question itself: its hidden window first, the player only if it still waits
+        // (Left 4 Dead 2 on 2.11.: ShowInterstitials went on 1 s after the window, 5 s in).
+        func question(_ waited: Int, shownFor: Int? = nil) -> LibraryModel.SteamQuestionStep {
+            LibraryModel.steamQuestionStep(waited: waited, shownFor: shownFor)
+        }
+        check(question(2) == .wait, "a routine step Steam answers within seconds: nothing")
+        check(question(3) == .showWindow, "3 s: Steam's window, which some steps need before they go on")
+        check(question(4, shownFor: 1) == .wait, "the window shown: the curtain stays while Steam may go on by itself")
+        check(question(7, shownFor: 4) == .wait, "still within its grace")
+        check(question(8, shownFor: LibraryModel.steamAnswerGrace) == .askPlayer, "still waiting 5 s after the window: the player is asked")
 
         // A start judged by its first seconds that ends early (Control on 2.11., every way): the start
         // tells what's next under the same curtain – not when it's an end like any other.

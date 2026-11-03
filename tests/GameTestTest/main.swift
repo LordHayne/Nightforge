@@ -28,6 +28,7 @@ struct GameTestTest {
         basket()
         load()
         looks()
+        questionsAndFront()
         outcomes()
         waysAndFrames()
         hangsAndCalm()
@@ -162,10 +163,37 @@ struct GameTestTest {
         check(look(running: true, waited: 10, total: 30 * 60) == .tooLong, "a game starting itself over and over")
     }
 
+    static func questionsAndFront() {
+        check(!GameTest.callsOff(.steamAsks, after: 5), "Steam's question that goes on by itself after 5 s (Left 4 Dead 2): no call-off")
+        check(GameTest.callsOff(.steamAsks, after: 30), "one that stands 30 s needs the player")
+        for need in [GameTest.Skip.signIn, .update, .d3dMetal, .macSteamSetup, .runtimes] {
+            check(GameTest.callsOff(need, after: 0), "\(need) calls the start off at once")
+        }
+
+        let wine = "/Users/someone/Library/Application Support/Nightforge/Components/winecx/4.7.3/Libraries/Wine/bin/wine64-preloader"
+        check(GameTest.foreignFront(path: "/Applications/Claude.app/Contents/MacOS/Claude", bundleID: "com.anthropic.claudefordesktop",
+                                    gameFolder: nil), "the Claude app in front: foreign (2.11.)")
+        check(!GameTest.foreignFront(path: "/Applications/Nightforge.app/Contents/MacOS/Nightforge", bundleID: "io.github.lordhayne.nightforge",
+                                     gameFolder: nil), "Nightforge itself")
+        check(!GameTest.foreignFront(path: wine, bundleID: nil, gameFolder: nil), "a Windows game or Steam's window under Wine")
+        check(!GameTest.foreignFront(path: "/Applications/Steam.app/Contents/MacOS/steam_osx", bundleID: "com.valvesoftware.steam",
+                                     gameFolder: nil), "Steam for Mac, asking something")
+        let folder = "/Users/someone/Library/Application Support/Steam/steamapps/common/Valheim"
+        check(!GameTest.foreignFront(path: folder + "/Valheim.app/Contents/MacOS/Valheim", bundleID: "com.irongate.valheim",
+                                     gameFolder: folder), "the Mac version being tested")
+        check(GameTest.foreignFront(path: "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder", bundleID: "com.apple.finder",
+                                    gameFolder: folder), "the Finder")
+        check(!GameTest.foreignFront(path: nil, bundleID: nil, gameFolder: nil), "nothing known about it: left alone")
+    }
+
     static func outcomes() {
         check(GameTest.outcome(.init(process: true, picture: true, crashSigns: true)) == .picture, "a picture is a picture")
         check(GameTest.outcome(.init(process: true, needs: .steamAsks)) == .needsPlayer, "Steam's question calls it off")
         check(GameTest.outcome(.init(process: true, stillRunning: true)) == .hang, "running without a picture: hang")
+        check(GameTest.outcome(.init(process: true, stillRunning: true, smallWindow: true)) == .dialog,
+              "running with a window of its own smaller than a picture all along: it waits for a click (Wukong, 2.11.)")
+        check(GameTest.outcome(.init(process: true, picture: true, smallWindow: true)) == .picture, "a picture after a start window: a picture")
+        check(GameTest.result(.dialog, issues: []) == nil, "waiting for a click says nothing yet about how it runs")
         check(GameTest.outcome(.init(process: true, crashSigns: true)) == .crash, "ended with Wine's crash lines: crash")
         check(GameTest.outcome(.init(crashSigns: true)) == .crash, "a crash before the first look is a crash too")
         check(GameTest.outcome(.init(process: true)) == .noWindow, "ended quietly without a window")
@@ -292,7 +320,10 @@ struct GameTestTest {
                                      pictureWait: 120, playSeconds: 60)
         report.load = GameTest.Load(average: 2.04, cores: 10)
         report.basket = .init(generated: "2026-11-02T21:23:38Z", entries: 239, installed: 4)
-        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), .skipped(skipped, .runtimes),
+        var dialog = GameTest.Entry(candidate("steam.3132990", "Black Myth: Wukong Benchmark Tool", .steam), outcome: .dialog)
+        dialog.way = "d3dmetal"
+        dialog.notes = ["Fenster des Spiels: 286×251 L21, 1 hidden"]
+        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, .skipped(skipped, .runtimes),
                         GameTest.Entry(candidate("steam.1", "Store", .steam), outcome: .needsPlayer, skip: .signIn)]
 
         let json = GameTest.json(report)
@@ -316,7 +347,9 @@ struct GameTestTest {
         check(summary.hasPrefix("# Spieletest vom 3.11.2026\n"), "German title with the run's date")
         check(summary.contains("Nightforge 0.3.1 · winecx@4.7.3 · dxmt@0.80 · Apple M5 · macOS 26.1"), "what it ran on")
         check(summary.contains("Start 00:12, Ende 01:12."), "start and end")
-        check(summary.contains("**4 gestartet: 3 mit Bild, 1 ohne (1 hängt). 1 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("**5 gestartet: 3 mit Bild, 2 ohne (1 hängt, 1 wartet auf einen Klick). 1 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("| Black Myth: Wukong Benchmark Tool | Steam | Windows | d3dmetal | wartet auf einen Klick in seinem eigenen Fenster (Starter oder Dialog) | – | – |")
+              && summary.contains("- Fenster des Spiels: 286×251 L21, 1 hidden"), "a start window or dialog named as such, not as a hang")
         check(summary.contains("Systemlast zu Beginn: 2,0 bei 10 Kernen – niedrig."), "the load at the start")
         check(summary.contains("Bei 1 Spiel war die Last beim Start hoch (in der Tabelle markiert)."), "games started on a busy Mac")
         check(summary.contains("| Valheim | Steam | Windows | dxmt | Bild | – | 31 / 12 (Last hoch) |"), "their frame rates marked")
@@ -345,5 +378,6 @@ struct GameTestTest {
         check(source.contains("GameLog.note(GameTest.startNote(game: game.name, way: way, engine: build?.engine))"),
               "LibraryModel.launch notes each start's way")
         check(source.contains("if !missing.isEmpty, !GameTest.active {"), "no runtimes installed during a run")
+        check(source.contains("func comeToFront("), "NSApp.comeToFront, which the run takes the front back with")
     }
 }

@@ -1712,26 +1712,37 @@ enum Engine {
     /// AMD list and, once that was cleared, with NVIDIA's – 30.0.15.1233 is 512.33 in NVIDIA's numbering, and
     /// Unreal checks the version against more than the one vendor's list. The lists come from the game's
     /// Hardware.ini, and the player's file in Saved/Config is read last: it clears them all. (The version
-    /// can't be changed from outside – D3DMetal states it itself.) Set before every start of an Unreal game
-    /// on D3DMetal, as the game may rewrite the file when it quits.
+    /// can't be changed from outside – D3DMetal states it itself.) The lists alone didn't do it: with all
+    /// three cleared the warning came again in both game tests on 2.11. So the check itself goes off as
+    /// well – the console variable r.WarnOfBadDrivers (0: off; in the game's code beside the warning's
+    /// text), which the player's Engine.ini sets in [SystemSettings] before the graphics start, in
+    /// shipped games too. Set before every start of an Unreal game on D3DMetal, as the game may rewrite
+    /// the files when it quits.
     static func clearUnrealDriverDenyList(installDir: URL) {
         let fm = FileManager.default
+        let lists = Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") })
         for project in unrealProjects(in: installDir) {
             let config = project.appendingPathComponent("Saved/Config", isDirectory: true)
             // Unreal 5 keeps its saved files under Windows, Unreal 4 under WindowsNoEditor (once it has run).
             let platforms = ["Windows"] + (fm.fileExists(atPath: config.appendingPathComponent("WindowsNoEditor").path) ? ["WindowsNoEditor"] : [])
             for platform in platforms {
-                let file = config.appendingPathComponent("\(platform)/Hardware.ini")
-                let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-                var merged = text
-                for section in unrealDriverSections {
-                    merged = mergingIni(merged, section: section, values: Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") }))
-                }
-                guard merged != text else { continue }
-                try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? merged.write(to: file, atomically: true, encoding: .utf8)
+                let folder = config.appendingPathComponent(platform, isDirectory: true)
+                mergeIniFile(folder.appendingPathComponent("Hardware.ini"), unrealDriverSections.map { ($0, lists) })
+                mergeIniFile(folder.appendingPathComponent("Engine.ini"), [unrealDriverWarningOff])
             }
         }
+    }
+
+    /// Unreal's switch for the driver check, in Engine.ini.
+    static let unrealDriverWarningOff = (section: "SystemSettings", values: ["r.WarnOfBadDrivers": "0"])
+
+    /// `sections` merged into an ini file (`mergingIni`), written only when that changes it.
+    private static func mergeIniFile(_ file: URL, _ sections: [(section: String, values: [String: String])]) {
+        let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        let merged = sections.reduce(text) { mergingIni($0, section: $1.section, values: $1.values) }
+        guard merged != text else { return }
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? merged.write(to: file, atomically: true, encoding: .utf8)
     }
 
     /// No "Program Error – … has encountered a serious problem" window: Wine's debugger (AeDebug's
