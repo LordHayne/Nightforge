@@ -270,7 +270,7 @@ enum GameLog {
     }()
 
     /// The error lines since `mark`, for a problem report: Wine, DXVK and MoltenVK errors, without
-    /// repeats and with the Mac's home folder left out.
+    /// repeats, Steam's own noise (`steamNoise`) and the Mac's home folder.
     static func errors(since mark: UInt64, limit: Int = 30) -> [String] {
         errors(in: text(since: mark), limit: limit)
     }
@@ -281,7 +281,7 @@ enum GameLog {
         for line in text.split(whereSeparator: \.isNewline) {
             let lower = line.lowercased()
             guard lower.contains(":err:") || lower.contains("mvk-error") || lower.hasPrefix("err:")
-                || lower.hasPrefix("wine:") || lower.contains("unhandled")
+                || lower.hasPrefix("wine:") || lower.contains("unhandled"), !steamNoise(lower)
             else { continue }
             // Thread ids ("0124:err:…") differ between otherwise equal lines.
             var cleaned = String(line)
@@ -292,5 +292,16 @@ enum GameLog {
             if seen.insert(cleaned).inserted { result.append(cleaned) }
         }
         return Array(result.suffix(limit))
+    }
+
+    /// An error Steam's own helpers print at every start, whatever the game: its driver probes
+    /// (bin\gldriverquery.exe, vulkandriverquery.exe) miss SDL2.dll under Wine, and its browser
+    /// (steamwebhelper, bin\cef\…). In a report they hid the game's own lines (live test of
+    /// Control, 3.11.2026). No game lives in Steam\bin – Steam puts them under steamapps; steam.exe's
+    /// own lines stay, a Steam that can't load its client matters.
+    static func steamNoise(_ line: String) -> Bool {
+        let lower = line.lowercased().replacingOccurrences(of: #"\\"#, with: #"\"#).replacingOccurrences(of: "/", with: #"\"#)
+        return lower.contains(#"\steam\bin\"#)
+            || ["gldriverquery", "vulkandriverquery", "steamwebhelper"].contains { lower.contains($0) }
     }
 }

@@ -259,9 +259,12 @@ struct MacSourcesTest {
         check(!link.contains("jane") && !link.contains("abc123"), "no home folder, account or token in the link: \(link)")
         check(problem.body.contains("| Game | Some Game (Steam 870) |") && problem.body.contains("DXMT \\| odd"),
               "the facts as a table, a | in a value escaped")
-        check(problem.body.contains("**From the last start:**") && problem.body.contains("clipboard"),
-              "the form says where the error lines are")
+        check(problem.body.contains("\n### From the last start\n<!-- ") && problem.body.contains("clipboard"),
+              "the form says where the error lines are, the heading on a line of its own")
+        check(problem.body.hasSuffix("-->\n\n"), "…the hint too, and an empty last line to paste into: \(problem.body.suffix(40))")
         let clip = problem.clipboard ?? ""
+        check(clip.hasPrefix("\n<details>") && clip.hasSuffix("`\n"),
+              "the clipboard text starts and ends a line of its own, wherever it's pasted")
         check(clip.contains("Errors from the last start") && clip.contains("Unhandled exception") && clip.contains("Its last download stopped")
               && clip.contains("Launch options:"), "the error lines, the stopped download and the launch options go on the clipboard")
         check(!clip.contains("/Users/jane") && !clip.contains("jane@example.com") && !clip.contains("abc123secret") && clip.contains("<email>"),
