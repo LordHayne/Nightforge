@@ -596,6 +596,42 @@ Nachtrag dazu.
 - **Test-Plists:** `ProfileFilesTest-<UUID>` um 11:21, vor Stagings `ProfileFilesTest`. Sie stammen also aus einer
   anderen Sitzung.
 
+## Zehnte Runde (3.11., auf 5392523)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 51 | `claude/signed-updates-dda700` bis 83d10d2 (externes Review der Signierkette, A bis H) | 83d10d2 | d39a28a | `docs/TODO.md` | 0 |
+| 52 | `claude/game-test-fixes` bis c5f4b07 (Spieletest ohne Prozessliste) | c5f4b07 | 41bb13d | `GameTestRun.swift` | 0 |
+
+- **51, A bis H:**
+  - A: `sign-lists.sh` baut sein Werkzeug aus dem eigenen Checkout, nie aus dem Zweig, den es signiert.
+  - `Profiles` vergleicht mit `SignedLists.isOlder`, Stempel als Datum.
+  - Der Updater bindet die Version im ZIP an den Tag.
+  - `signatures.yml` prüft mit den Schlüsseln und dem Prüfer von main.
+  - Die Eingaben der CI sind über Hashes festgelegt, dmgbuild in `release.yml` mit `--require-hashes`.
+- **51, ungeprüft auf GitHub:** Die Änderungen an den Workflows (`components.yml`, `release.yml`,
+  `signatures.yml`, `tools.yml`) sind nur lokal geprüft. Auf GitHub ist keiner gelaufen, hier nur das Lesen als YAML
+  (geht). In `release.yml` bleiben die Schritte der Codesignatur aus 41 unverändert.
+- **51, `docs/TODO.md`:** Bei den Rechten von `components.yml` gilt signed-updates' „seit dem Review G erledigt“.
+  Die Zeile dazu, was die CI ausführt, bleibt die von Staging.
+- **52, `GameTestRun.swift`:** Der Zweig hat h1-h3 selbst gemergt (052d9a6) und geht weiter als Stagings Merge 31.
+  - `clearStage` und `quit` warten ohne Liste auf eine frische (`knownProcesses`), statt sie zu überspringen.
+  - Zwei Minuten ohne Liste heißen „unbekannt“, nicht „startet nicht“.
+  - In jeder Stelle gilt seine Seite.
+  - `GameTest.macOSQuestion` liest die drei Zeilen des Vorhangs so, wie Stagings `LibraryModel` sie seit 34
+    schreibt, auch die Zeile, mit der er aufgibt.
+  - `GameTest.Keys.unityDialogPlay` bleibt `UnityDialog.switchKey` (78205cf).
+
+## Tests der zehnten Runde (auf 41bb13d)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Vorab allein:** `GameTestTest` und `GameOverlayTest` grün.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 60 Reihen grün (1225 s). **pytest:** 129 von 129.
+- **`MacVersionTest`** ist diesmal im vollen Lauf grün (62 s). In den acht vollen Läufen seit Runde acht schlug er
+  einmal fehl, bei c90d1d0 unter Last, und war danach allein zweimal grün. Die drei Läufe allein, die für einen neuen
+  Fehler vorgesehen waren, entfallen. Als Kandidat für die Stabilisierung bleibt er wegen des einen Fehlers.
+- **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
