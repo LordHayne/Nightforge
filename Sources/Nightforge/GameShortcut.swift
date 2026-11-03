@@ -50,6 +50,11 @@ enum GameShortcut {
     /// The key in the game apps' links: made once per Mac and kept with Nightforge's files, where no web
     /// page can read it. Without a file to keep it in, a key of the moment: plain links then show the page.
     static func key(in folder: URL = Engine.supportDir) -> String {
+        // One at a time in this program, the whole job: a file that holds no key is replaced, and two that both
+        // find it so would each rename their own over it – the earlier one has handed out a key by then that the
+        // file no longer holds. (A second Nightforge at once isn't a case: the app is one instance.)
+        keyLock.lock()
+        defer { keyLock.unlock() }
         let file = folder.appendingPathComponent("shortcut-key")
         func kept() -> String? {
             guard let text = try? String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
@@ -78,6 +83,8 @@ enum GameShortcut {
         if rename(temporary.path, file.path) == 0 { return kept() ?? key }
         return kept() ?? key
     }
+
+    private static let keyLock = NSLock()
 
     /// What a game's app runs: open its link, with the key.
     static func script(_ game: GameID, key: String) -> String {

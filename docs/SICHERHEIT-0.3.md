@@ -447,7 +447,7 @@ gelaufen.
 | `launchoptions-written.json`, die Einstellungen mit dem Schalter und `shortcut-key` waren von innen änderbar oder lesbar. `defaults write` aus der Sandbox schreibt über cfprefsd: nur beide Verbote zusammen (Einstellungen der Domäne und Datei) halten | behoben 77e0bba. Die Einstellungen anderer Programme bleiben schreibbar, damit Wines eigene nicht stören |
 | Die Caches der signierten Listen (`profiles.json`, `agw.json`, je mit `.sig`) waren löschbar; `~/Applications/Nightforge Games` war nur lesbar, die Skripte tragen den Schlüssel im Klartext | behoben 76f1b50: die Caches innen nur lesbar, der Ordner der Spiel-Apps ganz gesperrt |
 | Ein Ordner über einem geschützten Ort ließ sich umbenennen | behoben ae198a1 (N2) |
-| **Offen:** `Epic/destinations.json` (Ziel je Epic-Spiel) und `GOG/installed.json` (Pfade der GOG-Spiele) sind von innen beschreibbar. Ein Programm in der Sandbox könnte dort Pfade ändern, nach denen sich Nightforge später richtet | Live-Test am Abend des 3.11.; danach entscheiden: von innen nur lesbar machen oder bewusst lassen |
+| `Epic/destinations.json` (Ziel je Epic-Spiel) und `GOG/installed.json` (Pfade der GOG-Spiele) waren von innen beschreibbar: ein Programm in der Sandbox konnte dort Pfade ändern, nach denen sich Nightforge später richtet | behoben 5cc5402 (`wine-sandbox`): alles im Datenordner außerhalb von `Prefix/`, was nur Nightforge schreibt, ist innen nur lesbar (Epic und GOG: Bibliothek, Größen, Downloads, Ziele, Installationen, Spielzeiten, Logs; dazu `GameInfo/`, `GameTests/`, `Backups/`, `Logs/`, Steams `packages/`). Wines Ausgabe erreicht `wine.log` über ein draußen geöffnetes Handle. **Offen für den Live-Test:** `GOG/Redist` (Wine führt dort die Installer aus) und `GOG/Support/<id>` (GOGs Installationsskripte schreiben dorthin) bleiben beschreibbar, wie `Prefix/` und legendarys `tmp` |
 | **Offen:** die Zwischendatei `shortcut-key.<UUID>.tmp` (siehe Extern 4) | eine Regel mit Präfix |
 | **Offen:** der Schalter bleibt aus, bis Steam, Spiele, Epic, GOG, Controller und der Spielmodus mit der Sandbox zusammen live gelaufen sind | `docs/TODO.md` |
 
@@ -489,7 +489,7 @@ DLL-Overrides). Ein Widerspruch ist es nicht: Die App lässt aus oder begrenzt, 
 
 ### 9. Was offen ist und warum
 
-- **Live-Tests, die noch fehlen:** der Schalter der Sandbox mit allem zusammen; M7/N9 (Apple Event beim Beenden und Abmelden); `Epic/destinations.json` und `GOG/installed.json` aus der Sandbox (Abend des 3.11.).
+- **Live-Tests, die noch fehlen:** der Schalter der Sandbox mit allem zusammen, darunter die zwei Ordner, die innen beschreibbar bleiben (`GOG/Redist`, `GOG/Support/<id>`; 5cc5402); M7/N9 (Apple Event beim Beenden und Abmelden).
 - **Auf GitHub noch nicht gelaufen:** die geänderten Workflows (Abschnitt 4); die Einstellungen von GitHub selbst (Schutz für `main` und Tags, „Allow GitHub Actions to create and approve pull requests“) sieht man im Code nicht (`docs/AUDIT-SICHERHEIT.md` › „Zu prüfen“).
 - **Bewusst gelassen:** K3 (Steam lauscht auf 27036), K4 (`SteamSetup.exe`), K6/K6a (derselbe Benutzer hat ohnehin alles), N5 (Dock-Bibliothek ohne Sandbox), N10, N11, N13, die Hinweise L1–L7.
 - **Ein Anker für `install.sh` außerhalb von GitHub** und Regeln für `main`/Tags (M2, C): `docs/TODO.md`.

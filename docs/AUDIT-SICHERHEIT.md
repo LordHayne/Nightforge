@@ -110,8 +110,9 @@ Reviews: jeder Wine-Start läuft in ihr (01e234d), was Nightforge außen ausfüh
 Wine-Start (d493cd4), das Beenden-Skript startet Steams `-shutdown` in ihr (3d257f1), Steuerdateien und Einstellungen sind innen nicht
 änderbar (77e0bba), die Caches der signierten Listen nur lesbar und die Spiel-Apps gesperrt (76f1b50), kein Ordner über einem
 geschützten Ort lässt sich verschieben (ae198a1), das Umschalten steht unter einer Sperre (5300f05). Offen: der Live-Test, ohne den der
-Schalter nicht eingeschaltet wird; `Epic/destinations.json` und `GOG/installed.json` sind von innen noch beschreibbar (Live-Test steht
-aus, siehe `docs/SICHERHEIT-0.3.md`).
+Schalter nicht eingeschaltet wird. Die Dateien im Datenordner, die nur Nightforge schreibt (darunter `Epic/destinations.json` und
+`GOG/installed.json`), sind innen nur lesbar (5cc5402); beschreibbar bleiben `Prefix/`, legendarys `tmp`, `GOG/Redist` und
+`GOG/Support/<id>` (siehe `docs/SICHERHEIT-0.3.md`).
 
 **Wo**
 - Im Prefix zeigt `dosdevices/z:` auf `/`. Das ist Wines Standard aus `wineboot`. Nightforge verlässt sich darauf:
