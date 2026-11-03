@@ -97,6 +97,14 @@ jobs:
                   assert all("\n" not in str(v) and "\r" not in str(v) for v in entry.values()), (app_id, entry)
               for verb in game.get("winetricks") or []:
                   assert re.fullmatch(r"[a-z0-9_]{1,64}", verb) and verb not in commands, (app_id, verb)
+                  # The Windows version for the whole prefix: a profile says windowsVersion instead.
+                  assert verb not in build_profiles.WINDOWS_VERSION_VERBS, (app_id, verb)
+              # The game's own settings files and saves (review of 3.11.2026): roots from the app's list,
+              # paths under them, .ini names that stay names, no edit that grows the file at each start,
+              # no save rule that carries a whole AppData folder.
+              for field, allowed in (("fileEdits", build_profiles.file_edits_allowed), ("iniSettings", build_profiles.ini_settings_allowed),
+                                     ("resolution", build_profiles.resolution_allowed), ("saves", build_profiles.saves_allowed)):
+                  assert field not in game or allowed(game[field]), (app_id, field)
               # The same rules as the builder's (Audit M1): bare DLL names, Wine's orders, plain arguments.
               assert build_profiles.overrides_allowed(game.get("dllOverrides") or {}), (app_id, game.get("dllOverrides"))
               assert build_profiles.arguments_allowed(game.get("arguments") or []), (app_id, game.get("arguments"))
