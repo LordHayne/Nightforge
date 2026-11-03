@@ -71,13 +71,18 @@ struct ThisGameCard: View {
                     .padFocus("detail.thisGame.reset", cornerRadius: 8, activate: backToProfile)
             }
         } else {
-            Label(origin?.text ?? L10n.t("No profile yet – Nightforge uses its automatic settings."),
-                  systemImage: origin?.symbol ?? "wand.and.stars")
+            Label(origin?.text ?? reported ?? L10n.t("No profile yet – Nightforge uses its automatic settings."),
+                  systemImage: origin?.symbol ?? (reported == nil ? "wand.and.stars" : "text.book.closed"))
                 .font(size: 12.5)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
                 .help(origin?.note ?? "")
         }
+    }
+
+    /// No profile of its own, but the ways start with the one AppleGamingWiki's reports used.
+    private var reported: String? {
+        model.insights[game.gameID]?.hint.map { L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", $0.shortLabel) }
     }
 
     private var origin: ProfileOrigin? { ProfileOrigin(profile) }
@@ -94,7 +99,8 @@ struct ThisGameCard: View {
         if options.preset == .custom, options.graphics != .automatic {
             return options.preset.label + " · " + options.graphics.shortLabel
         }
-        let attempts = LaunchHealth.ladder(model.insights[game.gameID]?.attempts ?? [], preset: options.preset, profile: profile)
+        let insight = model.insights[game.gameID]
+        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile, hint: insight?.hint)
         guard !attempts.isEmpty else { return options.preset.label }
         return options.preset.label + " · " + attempts[LaunchHealth.current(game.gameID, attempts).index].graphics.shortLabel
     }

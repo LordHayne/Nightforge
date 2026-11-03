@@ -160,8 +160,8 @@ enum L10n {
             "Dieses Spiel nutzt nur DirectX 12, das auf dem Mac bestenfalls teilweise läuft.",
         "Uses %@: online play with it doesn't work on a Mac, single player usually does.":
             "Nutzt %@: Online-Spiel damit geht auf dem Mac nicht, Einzelspieler meistens schon.",
-        "Opens a problem report on GitHub, filled in with what Nightforge knows about the game. Nothing is sent until you submit it there.":
-            "Öffnet eine Problemmeldung auf GitHub, ausgefüllt mit dem, was Nightforge über das Spiel weiß. Gesendet wird erst, wenn du sie dort abschickst.",
+        "Opens a problem report on GitHub, filled in with the game and its settings. GitHub gets that as the page opens; it's public only once you submit it. The error lines from the last start go on your clipboard, to paste if you want.":
+            "Öffnet eine Problemmeldung auf GitHub, ausgefüllt mit dem Spiel und seinen Einstellungen. GitHub erhält das schon beim Öffnen der Seite, öffentlich wird sie erst, wenn du sie abschickst. Die Fehlerzeilen des letzten Starts legt Nightforge in die Zwischenablage, zum Einfügen, wenn du willst.",
         "This game uses %@. DXMT translates DirectX 10/11 straight to Metal and is usually faster; DXVK takes a detour through Vulkan and works with more games. Automatic switches by itself if a game doesn't start.":
             "Dieses Spiel nutzt %@. DXMT übersetzt DirectX 10/11 direkt in Metal und ist meist schneller; DXVK nimmt den Umweg über Vulkan und läuft mit mehr Spielen. Automatisch wechselt von selbst, wenn ein Spiel nicht startet.",
         "This game uses %@. DXVK is usually faster; WineD3D runs some older games DXVK can't. Automatic switches by itself if a game doesn't start.":
@@ -515,8 +515,8 @@ enum L10n {
         "Button labels": "Tastensymbole",
         "Like my controller": "Wie mein Controller",
         "No account. No telemetry. No background service.": "Kein Konto. Keine Telemetrie. Kein Hintergrunddienst.",
-        "Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it.":
-            "Nichts verlässt deinen Mac, außer du schickst es ab – ein Problembericht öffnet sich ausgefüllt auf GitHub und geht nirgendwohin, bis du ihn absendest.",
+        "Nightforge sends nothing by itself. A problem report opens on GitHub, filled in with the game and its settings – GitHub gets that as the page opens, it's public only once you submit it. Error lines stay on your clipboard until you paste them.":
+            "Nightforge sendet nichts von selbst. Ein Problembericht öffnet sich ausgefüllt auf GitHub, mit dem Spiel und seinen Einstellungen – GitHub erhält das schon beim Öffnen, öffentlich wird er erst, wenn du ihn abschickst. Fehlerzeilen bleiben in deiner Zwischenablage, bis du sie einfügst.",
         "Nightforge %@": "Nightforge %@",
         "Nightforge is free software under the GPL-3.0. It stands on these projects – thank you to everyone behind them. Their licence files ship inside the app.":
             "Nightforge ist freie Software unter der GPL-3.0. Es baut auf diesen Projekten auf – danke an alle, die dahinterstehen. Ihre Lizenzdateien liegen in der App.",
@@ -720,8 +720,8 @@ enum L10n {
         "Helps when something got in the way the first time – Steam updating, a window asking something.":
             "Hilft, wenn beim ersten Mal etwas dazwischenkam – ein Steam-Update oder ein Fenster mit einer Frage.",
         "Choose Graphics by Hand …": "Grafik selbst wählen …",
-        "Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there.":
-            "Immer noch nicht? Ein Problembericht öffnet sich auf GitHub, ausgefüllt mit dem, was Nightforge versucht hat – nichts wird gesendet, bis du ihn dort abschickst.",
+        "Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – GitHub gets that as the page opens, it's public only once you submit it. The error lines go on your clipboard, to paste if you want.":
+            "Immer noch nicht? Ein Problembericht öffnet sich auf GitHub, ausgefüllt mit dem, was Nightforge versucht hat – GitHub erhält das schon beim Öffnen, öffentlich wird er erst, wenn du ihn abschickst. Die Fehlerzeilen legt Nightforge in die Zwischenablage, zum Einfügen, wenn du willst.",
         "Close": "Schließen",
 
         // Launch phases
@@ -790,8 +790,9 @@ enum L10n {
             "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
-        "Well": "Gut",
-        "Not well": "Nicht gut",
+        "Ran well": "Lief gut",
+        "With problems": "Mit Problemen",
+        "Didn't start": "Startet nicht",
         "Stutters": "Ruckelt",
         "Crashed": "Abgestürzt",
         "Low frame rate": "Niedrige Bildrate",
@@ -1345,6 +1346,36 @@ enum L10n {
         "Your games in the Dock": "Deine Spiele im Dock",
         "Right-click Nightforge in the Dock: your last five games are there to start right away.":
             "Klick mit rechts auf Nightforge im Dock: Dort stehen deine letzten fünf Spiele zum Direktstart.",
+
+        // What others report (AppleGamingWiki)
+        "Mac version (Intel)": "Mac-Version (Intel)",
+        "Wine / Game Porting Toolkit": "Wine / Game Porting Toolkit",
+        "perfect": "perfekt",
+        "playable": "spielbar",
+        "runs, with big flaws": "läuft, mit großen Fehlern",
+        "only to the menu": "nur bis ins Menü",
+        "unplayable": "unspielbar",
+        "According to AppleGamingWiki: %@.": "Laut AppleGamingWiki: %@.",
+        "According to AppleGamingWiki it runs badly through CrossOver and Wine (%@) – it may not run here either.":
+            "Laut AppleGamingWiki läuft es über CrossOver und Wine schlecht (%@) – hier vielleicht auch nicht.",
+        "What others report": "Was andere berichten",
+        "According to AppleGamingWiki:": "Laut AppleGamingWiki:",
+        "Nightforge tries %@ first, as these reports did.": "Nightforge versucht zuerst %@, wie in diesen Berichten.",
+        "From AppleGamingWiki (CC BY-NC-SA 3.0), shortened. Found by the game's name – it may be another edition.":
+            "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Über den Namen des Spiels gefunden – vielleicht eine andere Ausgabe.",
+        "From AppleGamingWiki (CC BY-NC-SA 3.0), shortened. Tested with other versions than Nightforge's.":
+            "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Getestet mit anderen Versionen als denen von Nightforge.",
+        "AppleGamingWiki has no ratings for this game yet.": "Im AppleGamingWiki gibt es für dieses Spiel noch keine Bewertung.",
+        "No profile yet – %@ first, as AppleGamingWiki reports.": "Noch kein Profil – zuerst %@, wie im AppleGamingWiki berichtet.",
+
+        "Thanks – noted on this Mac. Next time Nightforge starts it another way.":
+            "Danke – auf diesem Mac vermerkt. Beim nächsten Mal startet Nightforge es auf einem anderen Weg.",
+        "You said it didn't start.": "Du hast gesagt, es startet nicht.",
+        "Share Report …": "Bericht teilen …",
+        "Opens a GitHub form in your browser, filled in with the game, your answer and the way it ran – no paths, account names or logs. GitHub gets these values as the page opens; the report is public only once you submit it, with your GitHub name on it.":
+            "Öffnet ein GitHub-Formular im Browser, ausgefüllt mit dem Spiel, deiner Antwort und dem Weg, auf dem es lief – ohne Pfade, Kontonamen oder Logs. GitHub erhält diese Werte schon beim Öffnen der Seite; öffentlich wird der Bericht erst, wenn du ihn abschickst, mit deinem GitHub-Namen daran.",
+        "The error lines from the last start are on your clipboard – paste them into the report if you want to share them.":
+            "Die Fehlerzeilen des letzten Starts sind in deiner Zwischenablage – füge sie in den Bericht ein, wenn du sie teilen willst.",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

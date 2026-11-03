@@ -76,6 +76,91 @@ struct LaunchHealthTest {
         check(ids(GameAnalysis(apis: [.d3d12]), #"{"graphics": "dxvk"}"#, d3dMetal: true) == ["d3dmetal"],
               "a DirectX 11 layer in a profile doesn't apply to a DirectX 12 game")
 
+        // MARK: Hints from other sources (AppleGamingWiki)
+        let d3dMetalHint = SourceHint(graphics: .d3dmetal, directX: "12")
+        let both = GameAnalysis(apis: [.d3d11, .d3d12])  // Control: no DirectX 11 switch Nightforge knows
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: both, d3dMetal: true) == .d3dmetal, "D3DMetal for a DirectX 12 build without a known switch")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: both, d3dMetal: false) == nil, "…not on an engine without D3DMetal")
+        check(LaunchHealth.hinted(SourceHint(graphics: .d3dmetal), analysis: both, d3dMetal: true) == .d3dmetal, "…also when the reports name no DirectX")
+        check(LaunchHealth.hinted(SourceHint(graphics: .d3dmetal, directX: "11"), analysis: both, d3dMetal: true) == .d3dmetal,
+              "…and when they ran it with DirectX 11: D3DMetal runs both")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), d3dMetal: true) == nil,
+              "Unreal's measured DirectX 11 on DXMT isn't left for a report")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d11]), d3dMetal: true) == .d3dmetal,
+              "DirectX 11 only: Apple's Direct3D 11 (Control's DX11 build)")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(), d3dMetal: true) == .d3dmetal, "…and a game nothing was detected for")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d9]), d3dMetal: true) == nil, "not for DirectX 9")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis(apis: [.d3d11])) == .dxvk, "DXVK for DirectX 11")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis()) == .dxvk, "…and when nothing was detected")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis(apis: [.d3d9])) == nil, "a DirectX 11 layer doesn't fit DirectX 9")
+        check(LaunchHealth.hinted(SourceHint(graphics: .wined3d), analysis: GameAnalysis(apis: [.d3d9])) == nil, "no WineD3D hints")
+        check(LaunchHealth.hinted(nil, analysis: both, d3dMetal: true) == nil, "no hint, nothing")
+
+        func hintedIDs(_ analysis: GameAnalysis, _ hint: SourceHint, _ profileJSON: String? = nil, d3dMetal: Bool = true) -> [String] {
+            let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
+            return LaunchHealth.attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: true).map(\.id)
+        }
+        check(hintedIDs(both, d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"], "Control: DirectX 12 on D3DMetal first, DirectX 11 after")
+        check(hintedIDs(both, d3dMetalHint, d3dMetal: false) == ["dxmt", "dxvk"], "…the usual list without D3DMetal")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), SourceHint(graphics: .dxvk)) == ["dxvk", "dxmt", "d3dmetal"], "a DXVK hint goes first")
+        check(hintedIDs(both, d3dMetalHint, #"{"graphics": "dxmt"}"#) == ["dxmt", "dxvk", "d3dmetal"], "a profile's layer beats any hint")
+        check(hintedIDs(GameAnalysis(apis: [.d3d12]), d3dMetalHint) == ["d3dmetal"], "DirectX 12 only: unchanged")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"],
+              "DirectX 11 only: D3DMetal first, once, then DXMT and DXVK")
+
+        // "Most compatible": the hinted way first, as a profile's would be, then the safest.
+        let hintedControl = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, d3dMetal: true, vulkanLayer: true)
+        check(LaunchHealth.ladder(hintedControl, preset: .compatible, profile: nil, hint: .d3dmetal).map(\.id) == ["d3dmetal", "dxvk", "dxmt"],
+              "Most compatible: the hinted way first")
+        check(LaunchHealth.ladder(hintedControl, preset: .compatible, profile: nil).map(\.id) == ["dxvk", "dxmt", "d3dmetal"], "…without it, the safest first")
+        check(LaunchHealth.ladder(hintedControl, preset: .automatic, profile: nil, hint: .d3dmetal) == hintedControl, "Automatic keeps the list")
+
+        // A game that has started by the list without the hint keeps it; a new one follows the hint.
+        let fresh = GameID.steam(990_005)
+        LaunchHealth.reset(fresh)
+        let followed = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(followed.attempts.map(\.id) == ["d3dmetal", "dxmt", "dxvk"] && followed.hint == .d3dmetal, "a game not started yet follows the hint")
+        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true)
+        LaunchHealth.confirm(fresh, plain)
+        let kept = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(kept.attempts == plain && kept.hint == nil, "a way that works isn't given up for a report")
+        LaunchHealth.reset(fresh)
+        LaunchHealth.recordStart(fresh, plain)
+        _ = LaunchHealth.advance(fresh, plain)
+        let late = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(late.attempts == followed.attempts && late.hint == .d3dmetal,
+              "a game still looking for its way (started before the hint came) takes the hinted list")
+        // A ladder that only grew at the end keeps what was learned (saved(_:for:)), with or without a hint:
+        // confirmed on DXVK before D3DMetal became DirectX 11's last way, it stays on DXVK.
+        let grownGame = GameID.steam(990_006)
+        let dx11Only = GameAnalysis(apis: [.d3d11])
+        LaunchHealth.reset(grownGame)
+        let older = LaunchHealth.attempts(for: dx11Only, profile: nil, d3dMetal: false, vulkanLayer: true)
+        LaunchHealth.recordStart(grownGame, older)
+        _ = LaunchHealth.advance(grownGame, older)
+        LaunchHealth.confirm(grownGame, older)
+        let grownNow = LaunchHealth.attempts(for: dx11Only, profile: nil, hint: d3dMetalHint, game: grownGame, preset: .automatic,
+                                             d3dMetal: true, vulkanLayer: true)
+        check(grownNow.hint == nil && grownNow.attempts.map(\.id) == ["dxmt", "dxvk", "d3dmetal"]
+              && LaunchHealth.current(grownGame, grownNow.attempts) == (1, true),
+              "a game confirmed on a list that since grew at the end keeps its way; the hint doesn't reorder it")
+        LaunchHealth.reset(grownGame)
+        LaunchHealth.recordStart(grownGame, older)
+        let searching = LaunchHealth.attempts(for: dx11Only, profile: nil, hint: d3dMetalHint, game: grownGame, preset: .automatic,
+                                              d3dMetal: true, vulkanLayer: true)
+        check(searching.hint == .d3dmetal && searching.attempts.first?.graphics == .d3dmetal
+              && LaunchHealth.current(grownGame, searching.attempts) == (0, false),
+              "one not confirmed yet takes the hinted list and starts with the reported way")
+        LaunchHealth.reset(grownGame)
+        LaunchHealth.reset(fresh)
+        LaunchHealth.recordStart(fresh, followed.attempts)
+        let again = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(again.attempts == followed.attempts && again.hint == .d3dmetal, "a game started by the hinted list stays on it")
+        let ownLayer = LaunchHealth.attempts(for: both, profile: try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"graphics": "dxvk"}"#.utf8)),
+                                             hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(ownLayer.attempts.first?.graphics == .dxvk && ownLayer.hint == nil, "with a profile's layer there's no hint to follow")
+        LaunchHealth.reset(fresh)
+
         // MARK: State
         let appID = 990_001
         let app = GameID.steam(appID)
@@ -106,8 +191,8 @@ struct LaunchHealthTest {
               "a ladder that only grew at the end keeps the learned way: DXVK, confirmed")
         check(LaunchHealth.peek(app, grown).map { $0.index == 1 && $0.confirmed } == true, "…also when only looked at")
         check(LaunchHealth.advance(app, grown) && LaunchHealth.current(app, grown) == (2, false), "DXVK failing then moves on to D3DMetal")
-        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt"],
-              "a profile's D3DMetal for a DirectX 11 game comes once")
+        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "a profile's D3DMetal for a DirectX 11 game comes once, and DXMT and DXVK still follow")
         LaunchHealth.reset(app)
 
         // MARK: What a game taught Nightforge (kept under a game ID no store has, removed again)
@@ -507,6 +592,38 @@ struct LaunchHealthTest {
               "another name that starts the same stays")
         check(GameLog.errors(in: "0124:err:module:foo L\"C:\\\\users\\\\thomas\\\\x.exe -AUTH_PASSWORD=zzzz1111\"", limit: 5).joined().contains("zzzz1111") == false,
               "error lines for a report are redacted")
+
+        // Audit N7, with lines from a real wine.log and Steam log (2026-11-01), names changed: an external
+        // drive named after its owner, the Mac's names, the account's temp folder, a GOG user id.
+        let machine = GameLog.machineNameList(["Jane’s MacBook Pro", "Janes-MacBook-Pro.local", "Janes-MacBook-Pro", "Janes-MacBook-P", "Mac"])
+        check(machine == ["Janes-MacBook-Pro.local", "Jane’s MacBook Pro", "Janes-MacBook-Pro", "Janes-MacBook-P"],
+              "the Mac's names, longest first, without a short one that would eat words: \(machine)")
+        func scrub(_ line: String) -> String { GameLog.redacted(line, home: "/Users/jane", user: "jane", machine: machine) }
+        let tracked = scrub(#"[2026-11-01 15:39:01] Game process added : AppID 2357570 ""Z:\Volumes\Jane SSD\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"", ProcID 1876, IP 0.0.0.0:0"#)
+        check(tracked.contains(#"Z:\Volumes\<drive>\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"#) && !tracked.contains("Jane"),
+              "Steam's Z:\\Volumes\\<name>: the drive's name goes, the rest of the path stays: \(tracked)")
+        let mesa = scrub(#"[2026-11-01 15:39:01] Setting MESA_GLSL_CACHE_DIR=Z:\Volumes\Jane SSD\Nightforge Games\steamapps\shadercache\2357570 MESA_DISK_CACHE_READ_ONLY_FOZ_DBS=steam_cache"#)
+        check(mesa.contains(#"Z:\Volumes\<drive>\Nightforge Games"#) && mesa.hasSuffix("steam_cache"), "a drive in an environment line: \(mesa)")
+        let doubled = scrub(#"0124:err:module:import_dll Library d3d12.dll (needed by L"Z:\\Volumes\\Jane SSD\\Games\\x.exe") not found"#)
+        check(doubled.contains(#"Z:\\Volumes\\<drive>\\Games\\x.exe"#) && !doubled.contains("Jane"), "Wine's doubled backslashes: \(doubled)")
+        let dyld = scrub(#"dyld[23696]: tried: '/Volumes/Jane SSD/Nightforge Games/hide-steam-dock.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/x'"#)
+        check(dyld.contains("'/Volumes/<drive>/Nightforge Games/hide-steam-dock.dylib'") && !dyld.contains("Jane"), "a Mac path: \(dyld)")
+        let host = scrub("[2026-10-23 19:56:50] SteamUI: INFO: Storing new config params ?LOCAL_HOSTNAME=Janes-MacBook-Pro&LANGUAGE=german&COUNTRY=")
+        check(host.contains("LOCAL_HOSTNAME=<computer>&LANGUAGE=german"), "Steam's LOCAL_HOSTNAME: \(host)")
+        let netbios = scrub("fixme:netapi32:NetWkstaGetInfo COMPUTERNAME=JANES-MACBOOK-P, host janes-macbook-pro.local, named Jane’s MacBook Pro")
+        check(!netbios.lowercased().contains("janes") && !netbios.contains("Jane’s"), "Wine's NetBIOS name, the host and computer names: \(netbios)")
+        let temp = scrub("err:winediag: /private/var/folders/x7/abcd1234efgh5678/T/com.apple.x and /var/folders/x7/abcd1234efgh5678/C/y")
+        check(temp.contains("/private/var/folders/<id>/T/com.apple.x") && temp.contains("/var/folders/<id>/C/y"), "the account's temp folder: \(temp)")
+        let others = scrub("launchd[1]: uid 501 (jane) is owner jane; a path /Users/jane/x and janet, jane_doe stay")
+        check(!others.contains("(jane)") && !others.contains("owner jane") && others.contains("~/x") && others.contains("janet") && others.contains("jane_doe"),
+              "the account name in other programs' lines, as a word only: \(others)")
+        let gog = scrub(#"GET https://galaxy-library.gog.com/users/48628349957132247/releases {"user_id": "48628349957132247", "galaxy_user_id":48628349957132247}"#)
+        check(!gog.contains("48628349957132247") && gog.contains("users/<gog user>/releases"), "GOG user ids: \(gog)")
+        check(scrub(tracked) == tracked && scrub(host) == host, "redacting twice changes nothing")
+        check(!GameTest.leaks(tracked + host + temp, home: "/Users/jane", user: "jane", machine: machine)
+              && GameTest.leaks(#"Z:\Volumes\Jane SSD\x"#, home: "/Users/jane", user: "jane", machine: machine)
+              && GameTest.leaks("LOCAL_HOSTNAME=janes-macbook-pro", home: "/Users/jane", user: "jane", machine: machine),
+              "the game test's second check knows drives and the Mac's names too")
 
         // Winetricks verbs from the online fixes: install verbs pass, commands and options don't.
         for verb in ["vcrun2019", "d3dcompiler_47", "xact_x64"] {

@@ -321,6 +321,10 @@ private struct DetailLevel: View {
 
     var body: some View {
         let info = model.info(for: game).flatMap { GameAboutSection.hasContent($0) ? $0 : nil }
+        // What others report about a Windows game on a Mac: with "About the game", or alone when the wiki knows it.
+        let reported = game.platform == .windows ? model.macSources.entry(for: game) : nil
+        let sources = game.platform == .windows && (info != nil || reported != nil)
+        let lower = info != nil || sources
         GeometryReader { geo in
             ScrollViewReader { scroll in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -331,15 +335,15 @@ private struct DetailLevel: View {
                         .frame(height: 0)
                         firstScreen
                             // With "About the game" below, its title and the screenshots' top peek in.
-                            .frame(height: max(geo.size.height - (info == nil ? 0 : 70), 0), alignment: .topLeading)
+                            .frame(height: max(geo.size.height - (lower ? 70 : 0), 0), alignment: .topLeading)
                             // It fades as the page goes up, rather than being cut by the top bar.
                             .scrollTransition(.interactive, axis: .vertical) { content, phase in
                                 content.opacity(phase.value < 0 ? max(0, 1 + phase.value * 2.5) : 1)
                             }
-                        if let info {
+                        if lower {
                             Button { withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) } } label: {
                                 HStack(spacing: 8) {
-                                    SectionTitle(L10n.t("About the game"))
+                                    SectionTitle(info == nil ? L10n.t("What others report") : L10n.t("About the game"))
                                     Image(systemName: "chevron.down")
                                         .font(size: 9, weight: .bold)
                                         .foregroundStyle(Theme.muted)
@@ -351,14 +355,21 @@ private struct DetailLevel: View {
                                 withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) }
                             }
                             .padding(.bottom, 18)
-                            GameAboutSection(game: game, info: info, narrow: geo.size.width < 1100)
-                                .id("about")
-                                .padding(.bottom, 40)
+                            VStack(alignment: .leading, spacing: 24) {
+                                if let info {
+                                    GameAboutSection(game: game, info: info, narrow: geo.size.width < 1100)
+                                }
+                                if sources {
+                                    MacSourcesSection(game: game, entry: reported)
+                                }
+                            }
+                            .id("about")
+                            .padding(.bottom, 40)
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
                     .background(alignment: .top) {
-                        if info != nil {
+                        if lower {
                             // Darkens the art behind as the section comes up: a gradient that scrolls with
                             // the page, no blur (UI power budget).
                             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Theme.night.opacity(0.92), location: 0.5),
@@ -636,7 +647,7 @@ struct FailedLaunchSheet: View {
                 }
             }
             HStack(alignment: .center, spacing: 12) {
-                Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there."))
+                Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – GitHub gets that as the page opens, it's public only once you submit it. The error lines go on your clipboard, to paste if you want."))
                     .font(size: 12.5)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)

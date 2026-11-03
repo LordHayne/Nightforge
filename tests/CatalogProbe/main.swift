@@ -1,7 +1,17 @@
 // Prints the owned games Nightforge reads from a Steam install: tests/CatalogProbe/run.sh <Steam folder>
+// With --json, all of them as JSON, for scripts/test-basket.py.
 import Foundation
 
 let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+if CommandLine.arguments.contains("--json") {
+    let rows: [[String: Any]] = SteamCatalog.ownedGames(steamRoot: root).map {
+        ["appID": $0.appID, "name": $0.name, "size": $0.size, "mac": $0.macNative && $0.mac64, "vrOnly": $0.vrOnly,
+         "singlePlayer": $0.singlePlayer]
+    }
+    let json = try JSONSerialization.data(withJSONObject: rows, options: [.sortedKeys])
+    print(String(decoding: json, as: UTF8.self))
+    exit(0)
+}
 let start = Date()
 let games = SteamCatalog.ownedGames(steamRoot: root)
 print("\(games.count) owned games in \(Int(Date().timeIntervalSince(start) * 1000)) ms")

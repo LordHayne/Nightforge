@@ -55,7 +55,15 @@ class ImportGameTestTests(unittest.TestCase):
                 self.assertFalse(docs.exists(), text)
 
     def test_a_name_like_the_account_is_no_leak(self):
-        self.assertFalse(importer.leaks("users/jdoey · Thomas Was Alone · ~/Desktop", HOME, USER))
+        self.assertFalse(importer.leaks("users/jdoey · Thomas Was Alone · ~/Desktop", HOME, USER, machine=[]))
+
+    def test_drive_and_computer_names_are_leaks(self):
+        machine = ["Janes-MacBook-Pro", "JANES-MACBOOK-P"]
+        for text in ("Z:\\Volumes\\Jane SSD\\Games\\x.exe", "/Volumes/Jane SSD/Games", "LOCAL_HOSTNAME=janes-macbook-pro&x=1"):
+            self.assertTrue(importer.leaks(text, HOME, USER, machine=machine), text)
+        for text in ("Z:\\Volumes\\<drive>\\Games\\x.exe", "/Volumes/<drive>/x", "/System/Volumes/Preboot/x", "LOCAL_HOSTNAME=<computer>"):
+            self.assertFalse(importer.leaks(text, HOME, USER, machine=machine), text)
+        self.assertTrue(all(len(name) >= 4 for name in importer.machine_names()))
 
     def test_refuses_another_format(self):
         with tempfile.TemporaryDirectory() as tmp:

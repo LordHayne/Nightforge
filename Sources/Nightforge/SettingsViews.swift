@@ -88,7 +88,7 @@ struct GameOptionsSheet: View {
                 if game.bottle.isBuiltIn {
                     Button(L10n.t("Report problem …"), action: reportProblem)
                         .buttonStyle(GlassTextButtonStyle())
-                        .help(L10n.t("Opens a problem report on GitHub, filled in with what Nightforge knows about the game. Nothing is sent until you submit it there."))
+                        .help(L10n.t("Opens a problem report on GitHub, filled in with the game and its settings. GitHub gets that as the page opens; it's public only once you submit it. The error lines from the last start go on your clipboard, to paste if you want."))
                         .padFocus("options.report", cornerRadius: 21, activate: reportProblem)
                 }
                 Spacer()
@@ -415,7 +415,7 @@ private extension GameOptionsSheet {
 
     /// The way a preset's list takes right now (LaunchHealth).
     func way(for preset: GraphicsPreset) -> LaunchAttempt {
-        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: preset, profile: profile)
+        let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: preset, profile: profile, hint: insight?.hint)
         guard !attempts.isEmpty else { return LaunchAttempt(graphics: Engine.defaultGraphics) }
         return attempts[LaunchHealth.current(game.gameID, attempts).index]
     }

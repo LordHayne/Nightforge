@@ -116,6 +116,8 @@ final class LibraryModel: ObservableObject {
     private var analyses: [GameID: GameAnalysis] = [:]
     /// The profile list at hand, for how well each game runs (Compatibility), by Steam app ID.
     @Published private(set) var profiles: [Int: GameProfile] = [:]
+    /// What AppleGamingWiki says about games on a Mac (profiles/agw.json), the copy at hand.
+    @Published private(set) var macSources = AGWIndex()
     /// What each game is, kept on the Mac (GameInfoStore): its page's text and facts, and for Epic and
     /// GOG games the same game on Steam, which the filters and profiles go by.
     @Published private(set) var gameInfo = GameInfoStore.load()
@@ -581,6 +583,8 @@ final class LibraryModel: ObservableObject {
     private var playing: Set<String> = []
     /// When each of them started running, and the play time Steam had for it then.
     private var sessionStarts: [String: (date: Date, totalBefore: Int)] = [:]
+    /// The way each Windows game's last start took (`LaunchAttempt.id`), for "How did it run?".
+    private var waysUsed: [GameID: String] = [:]
     /// The "Welcome back" sheet after a real session (a minute or more).
     @Published var sessionSummary: SessionSummary?
     private var goneFor = 0
@@ -681,7 +685,7 @@ final class LibraryModel: ObservableObject {
             if game.provider == .epic { afterEpicSession(game, minutes: minutes) }
             if game.provider == .gog { afterGOGSession(game, minutes: minutes) }
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
-                                                 endedAt: endedAt) : nil
+                                                 endedAt: endedAt, way: game.platform == .mac ? "mac" : waysUsed[game.gameID]) : nil
         }
         if judged { return }
         // An end like any other while the start still judges (the player quit, it showed a picture):
@@ -1255,6 +1259,8 @@ final class LibraryModel: ObservableObject {
     private func rescan() async {
         antiCheatBlocks = await ProfileStore.shared.antiCheatBlocks()
         profiles = await ProfileStore.shared.knownProfiles()
+        let sources = await AGWStore.shared.current()
+        if sources != macSources { macSources = sources }
         var found: [Game] = []
         for store in stores {
             found += await store.library()
@@ -1421,6 +1427,11 @@ final class LibraryModel: ObservableObject {
         // onAppear can fire more than once; one start per app run is enough.
         guard SetupModel.isComplete, steamStartup == nil else { return }
         Task { await ProfileStore.shared.refresh() }
+        Task {
+            await AGWStore.shared.refresh()
+            let sources = await AGWStore.shared.current()
+            if sources != macSources { macSources = sources }
+        }
         steamStartup = Task {
             // Let the running-game check see the processes before deciding on a restart – or on
             // replacing the engine's files, which ends the Wine session a game would run in.
@@ -2851,6 +2862,8 @@ final class LibraryModel: ObservableObject {
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
             let profile = game.bottle.isBuiltIn ? await ProfileStore.shared.profile(for: game.gameID) : nil
+            // On the first run the wiki's list may still be on its way: one start waits a few seconds for it.
+            await macSourcesAtHand()
             let insight = await insight(of: game)
             let analysis = insight?.analysis
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
@@ -2858,7 +2871,7 @@ final class LibraryModel: ObservableObject {
             // A preset fixes frame limit and MetalFX; "Most compatible" tries the safest way first.
             var options = GameOptionsStore.load(game.gameID).resolved(refreshRate: refreshRate, profile: profile)
             let automatic = game.bottle.isBuiltIn && options.graphics == .automatic
-            let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile)
+            let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile, hint: insight?.hint)
             if automatic { LaunchHealth.review(game.gameID, attempts, steamRoot: game.steamRoot) }
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
@@ -2906,6 +2919,10 @@ final class LibraryModel: ObservableObject {
                     watchFirstSeconds = true
                     wayConfirmed = confirmed
                     if !confirmed { LaunchHealth.recordStart(game.gameID, attempts) }
+                }
+                if game.bottle.isBuiltIn {
+                    waysUsed[game.gameID] = LaunchAttempt(graphics: options.graphics == .automatic ? Engine.defaultGraphics : options.graphics,
+                                                          arguments: arguments).id
                 }
                 let logMark = GameLog.mark()
                 let startedAt = Date()
@@ -3432,7 +3449,10 @@ final class LibraryModel: ObservableObject {
             analyses[game.gameID] = analysis
         }
         let profile = await ProfileStore.shared.profile(for: game.gameID)
-        let insight = GameInsight(analysis: analysis, attempts: LaunchHealth.attempts(for: analysis, profile: profile))
+        // What AppleGamingWiki reports orders the ways too, where it fits and no profile names a layer.
+        let (attempts, hint) = LaunchHealth.attempts(for: analysis, profile: profile, hint: macSources.entry(for: game)?.hint,
+                                                     game: game.gameID, preset: GameOptionsStore.load(game.gameID).preset)
+        let insight = GameInsight(analysis: analysis, attempts: attempts, hint: hint)
         if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
     }
@@ -3440,7 +3460,8 @@ final class LibraryModel: ObservableObject {
     /// How well it runs on a Mac, from the profile list and what this Mac learned about it.
     func compatibility(of game: Game) -> Compatibility {
         // Epic's and GOG's games by the same game on Steam, whose profile it is.
-        Compatibility.of(game, profile: game.steamAppID.flatMap { profiles[$0] }, analysis: insights[game.gameID]?.analysis)
+        Compatibility.of(game, profile: game.steamAppID.flatMap { profiles[$0] }, analysis: insights[game.gameID]?.analysis,
+                         insight: insights[game.gameID], reported: macSources.entry(for: game))
     }
 
     /// The previous engine this game runs with, because the newest crashed it (EngineRollback).
@@ -3533,6 +3554,38 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(400))  // one sheet closes before the next opens
             showingOptions = true
         }
+    }
+
+    /// What AppleGamingWiki says, when there's no copy yet (the first run): the first start waits a
+    /// few seconds for this run's download, once (`AGWStore.beforeFirstStart`), so it can already take
+    /// the way the reports point to; offline it starts without, and the list comes in the background.
+    private func macSourcesAtHand() async {
+        guard macSources.isEmpty else { return }
+        await AGWStore.shared.beforeFirstStart()
+        let sources = await AGWStore.shared.current()
+        if sources != macSources { macSources = sources }
+    }
+
+    /// "Didn't start" in "Welcome back": the way it took gave the player nothing, so with "Automatic"
+    /// the next start goes the next way, as after a start that ended at once (LaunchHealth). True when it does.
+    func wayDidntWork(_ game: Game) async -> Bool {
+        guard game.bottle.isBuiltIn, game.platform == .windows, let insight = await insight(of: game) else { return false }
+        let profile = await ProfileStore.shared.profile(for: game.gameID)
+        let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: GameDisplay.screen?.maximumFramesPerSecond ?? 60,
+                                                                  profile: profile)
+        let attempts = LaunchHealth.ladder(insight.attempts, preset: options.preset, profile: profile, hint: insight.hint)
+        guard options.graphics == .automatic, attempts.count > 1 else { return false }
+        _ = LaunchHealth.advance(game.gameID, attempts)
+        return true
+    }
+
+    /// Opens the report form for how the game ran, filled in, in the browser (CompatReport).
+    func shareReport(_ game: Game, rating: GameRating) {
+        let options = GameOptionsStore.load(game.gameID)
+        let url = CompatReport.url(game: game, rating: rating, preset: game.platform == .windows ? options.preset : nil,
+                                   engine: game.platform == .windows && game.bottle.isBuiltIn ? EngineRollback.shared.history().current : nil,
+                                   chip: ProblemReport.chip, macOS: ProblemReport.osVersion, nightforge: Updater.currentVersion)
+        if let url { NSWorkspace.shared.open(url) }
     }
 
     /// Opens a pre-filled problem report for the game in the browser.

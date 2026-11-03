@@ -5,7 +5,8 @@ Nightforge writes each run (GameTestRun, `defaults write io.github.lordhayne.nig
 -bool true`) to ~/Library/Application Support/Nightforge/GameTests/<yyyy-MM-dd-HHmm>/: report.json,
 report.md, and per game the log since its start and a sample of a hang. Only the first two go into
 the repository, and only when neither gives away whose Mac it ran on – no home folder, no account
-name in a path. Nightforge leaves both out already; this checks again before anything is copied.
+name in a path, no drive or computer name. Nightforge leaves them out already; this checks again
+before anything is copied.
 
 Usage: import-game-test.py [run folder]   (default: the newest run)
 """
@@ -17,6 +18,8 @@ import os
 import pathlib
 import re
 import shutil
+import socket
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -24,9 +27,35 @@ RUNS = pathlib.Path.home() / "Library/Application Support/Nightforge/GameTests"
 FORMAT_VERSION = 1
 
 
-def leaks(text, home, user):
-    """The home folder, or the account name in a path (/Users/<name>, C:\\users\\<name>)."""
+def machine_names():
+    """The Mac's computer name, host name (with and without ".local") and Wine's NetBIOS name for it
+    (upper case, 15 characters), each at least 4 characters – as GameLog.machineNames has them."""
+    names = []
+    try:
+        names.append(subprocess.run(["scutil", "--get", "ComputerName"], capture_output=True, text=True, timeout=5).stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    host = socket.gethostname()
+    short = host.split(".")[0]
+    names += [host, short, short[:15]]
+    seen, result = set(), []
+    for name in names:
+        if len(name) >= 4 and name.lower() not in seen:
+            seen.add(name.lower())
+            result.append(name)
+    return result
+
+
+def leaks(text, home, user, machine=None):
+    """The home folder, the account name in a path (/Users/<name>, C:\\users\\<name>), an external
+    drive's name (/Volumes/<name>, Z:\\Volumes\\<name>) or the Mac's own: Nightforge leaves "<drive>"
+    and "<computer>" in their place."""
     if home and home in text:
+        return True
+    if re.search(r"(?<!System)(/|\\{1,2})Volumes(/|\\{1,2})(?!<drive>)", text):
+        return True
+    lower = text.lower()
+    if any(name.lower() in lower for name in (machine_names() if machine is None else machine)):
         return True
     return bool(user) and re.search(r"(?i)users(\\{1,2}|/)" + re.escape(user) + r"(?![\w])", text) is not None
 

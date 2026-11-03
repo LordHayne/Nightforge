@@ -120,10 +120,14 @@ extension GameTest {
         return try? decoder.decode(Report.self, from: data)
     }
 
-    /// Whether `text` gives away whose Mac it ran on: the home folder, or the account name in a
-    /// path (/Users/<name>, C:\users\<name>).
-    static func leaks(_ text: String, home: String = NSHomeDirectory(), user: String = NSUserName()) -> Bool {
+    /// Whether `text` gives away whose Mac it ran on: the home folder, the account name in a path
+    /// (/Users/<name>, C:\users\<name>), an external drive's name or the Mac's own (GameLog.redacted
+    /// leaves "<drive>" and "<computer>").
+    static func leaks(_ text: String, home: String = NSHomeDirectory(), user: String = NSUserName(),
+                      machine: [String] = GameLog.machineNames) -> Bool {
         if !home.isEmpty, text.contains(home) { return true }
+        if text.range(of: #"(?<!System)(/|\\{1,2})Volumes(/|\\{1,2})(?!<drive>)"#, options: .regularExpression) != nil { return true }
+        if machine.contains(where: { text.range(of: $0, options: .caseInsensitive) != nil }) { return true }
         guard !user.isEmpty else { return false }
         let path = #"(?i)users(\\{1,2}|/)"# + NSRegularExpression.escapedPattern(for: user) + #"(?![\p{L}\p{N}_])"#
         return text.range(of: path, options: .regularExpression) != nil
