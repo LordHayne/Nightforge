@@ -1340,10 +1340,17 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   die Datei (`AppData/Local/AbzuGame/Saved/Config/WindowsNoEditor/GameUserSettings.ini`), änderte aber nichts:
   ABZU hat eine eigene Klasse ohne `FullscreenMode`/`ResolutionSizeX`, nur `Fullscreen=ON`,
   `bUseDesktopResolutionForFullscreen=False` und `DesiredScreenWidth/Height=1280×720`. Behoben für alle Spiele
-  dieser älteren Art (`GameResolution.olderFitted`): bei `Fullscreen=ON` die Bildschirmgröße in
-  `DesiredScreenWidth/Height` und `bUseDesktopResolutionForFullscreen=True`, nur Werte, die das Spiel selbst
-  geschrieben hat. **Live prüfen:** ABZU über Epic starten; im wine.log „Full screen GameUserSettings.ini:
-  1512×982“, Vollbild ohne Rand.
+  dieser älteren Art (`GameResolution.olderFitted`), nur Werte, die das Spiel selbst geschrieben hat.
+  - Erst (65e2983) Vollbild in Bildschirmgröße (`bUseDesktopResolutionForFullscreen=True`). **Live-Test 3.11.
+    abends:** Damit stürzt ABZU gleich nach dem Start ab, vor dem ersten Fenster, ohne Wine- oder UE-Fehler im Log.
+    Mit `Fullscreen=OFF` bei sonst gleichen Werten (1512×982) startet es, Nightforge macht das Fenster bildschirmfüllend.
+    Vermutlich kann winecx ohne Retina diesen Modus nicht schalten, oder DXMTs Vollbild-Swapchain scheitert.
+  - Jetzt (Zweig `claude/abzu-windowed`): ein Fenster in Bildschirmgröße – `Fullscreen=OFF` (bzw. `False`/`0`),
+    `DesiredScreenWidth/Height` = Bildschirm, `PreferredFullscreenMode` und `bUseDesktopResolutionForFullscreen`
+    bleiben. Auch ein Fenster bekommt die Bildschirmgröße, damit es am TV mitwächst. Eine Datei, die 65e2983 schon
+    auf Vollbild geschrieben hat, wird beim nächsten Start ein Fenster.
+  - **Live prüfen:** ABZU über Epic starten; im wine.log „Full screen GameUserSettings.ini: 1512×982“, in der Datei
+    `Fullscreen=OFF`, das Spiel bildschirmfüllend ohne Rand. Offen: das kleine Fenster 601×201 vor dem Spiel.
 - **The Forest (Steam 242760, Unity 5.6.5p4) zeigt Unitys Auswahlfenster** („The Forest Configuration“, 464×438,
   „Play!“). Der Spieletest hat es als Hänger gezählt, weil niemand klickte. Ein normaler Start zeigt es unter dem
   Vorhang, mit dem Pad ist es aber nicht bedienbar (PCGamingWiki: „Launcher requires mouse input“).
