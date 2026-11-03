@@ -1,6 +1,8 @@
-// Checks iniSettings, fileEdits with a Windows root or `once`, the save folders a rule may name, the Retina mode a profile asks
-// for, and the profile list Nightforge keeps (ProfileStore, in a home of the test's own):
+// Checks iniSettings, fileEdits with a Windows root or `once`, the save folders a rule may name, the Retina mode a
+// profile asks for, and the profile list Nightforge keeps (ProfileStore, in a home of the test's own, signed with a
+// key of the test's own):
 // tests/ProfileFilesTest/run.sh
+import CryptoKit
 import Foundation
 
 @main
@@ -242,11 +244,18 @@ struct ProfileFilesTest {
         exit(failures == 0 ? 0 : 1)
     }
 
-    /// The list in Application Support (the test's own home), as the online copy left it.
+    /// The list in Application Support (the test's own home), as the online copy left it: with its
+    /// signature beside it.
     static func profileStore() async {
         let fm = FileManager.default
         let cached = Engine.supportDir.appendingPathComponent("profiles.json")
         try? fm.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
+        let signer = Curve25519.Signing.PrivateKey()
+        let keys = [signer.publicKey.rawRepresentation.base64EncodedString()]
+        func keep(_ data: Data, signedBy key: Curve25519.Signing.PrivateKey? = nil) {
+            try? data.write(to: cached)
+            try? (key ?? signer).signature(for: data).base64EncodedString().write(to: Signature.file(for: cached), atomically: true, encoding: .utf8)
+        }
         let list = #"""
             {"formatVersion": 1, "games": {
               "570": {"name": "Dota 2", "preferWindows": true},
@@ -262,8 +271,8 @@ struct ProfileFilesTest {
               "epic.Later": {"notYet": "Needs a newer engine."},
               "epic.Fine": {"note": "Tested on M5"}}}
             """#
-        try? Data(list.utf8).write(to: cached)
-        let store = ProfileStore()
+        keep(Data(list.utf8))
+        let store = ProfileStore(keys: keys)
         let known = await store.knownProfiles()
         check(Set(known.keys) == [570, 730, 440, 100, 2357570, 2], "Steam games by app ID; an odd entry costs only itself: \(known.keys.sorted())")
         check(await store.preferWindows() == [570], "kept on the Windows version")
@@ -280,12 +289,12 @@ struct ProfileFilesTest {
         check(dota?.name == "Dota 2" && unknown == nil, "a game's profile, with no online copy to ask (the test has no app bundle)")
 
         // A list too new for this Nightforge is no list: nothing, rather than a misread one.
-        try? Data(list.replacingOccurrences(of: #""formatVersion": 1"#, with: #""formatVersion": 2"#).utf8).write(to: cached)
-        check(await ProfileStore().knownProfiles().isEmpty, "a newer format isn't read")
+        keep(Data(list.replacingOccurrences(of: #""formatVersion": 1"#, with: #""formatVersion": 2"#).utf8))
+        check(await ProfileStore(keys: keys).knownProfiles().isEmpty, "a newer format isn't read")
         check(ProfileStore.decodeEpic(Data(list.replacingOccurrences(of: #""formatVersion": 1"#, with: #""formatVersion": 2"#).utf8)).isEmpty
               && ProfileStore.decodeEpic(Data("not json".utf8)).isEmpty, "nor its Epic entries, nor a broken file")
-        try? Data("{".utf8).write(to: cached)
-        check(await ProfileStore().antiCheatBlocks().isEmpty, "a broken file: nothing stopped")
+        keep(Data("{".utf8))
+        check(await ProfileStore(keys: keys).antiCheatBlocks().isEmpty, "a broken file: nothing stopped")
 
         // The list bundled with the app against the one fetched before: the one built later counts.
         let bundled = Engine.supportDir.appendingPathComponent("bundled.json")
@@ -293,22 +302,36 @@ struct ProfileFilesTest {
             Data((#"{"formatVersion": \#(format), "# + (generated.map { #""generated": "\#($0)", "# } ?? "")
                   + #""games": {"50130": {"name": "\#(name)"}}}"#).utf8)
         }
-        func mafia() async -> String? { await ProfileStore(bundledURL: bundled).knownProfiles()[50130]?.name }
+        func mafia() async -> String? { await ProfileStore(bundledURL: bundled, keys: keys).knownProfiles()[50130]?.name }
         try? dated("2026-10-27T20:21:54Z", "bundled").write(to: bundled)
-        try? dated("2026-10-26T16:32:00Z", "cached").write(to: cached)
+        keep(dated("2026-10-26T16:32:00Z", "cached"))
         check(await mafia() == "bundled", "an older cached list: the bundled one counts")
-        try? dated("2026-11-01T04:37:00Z", "cached").write(to: cached)
+        keep(dated("2026-11-01T04:37:00Z", "cached"))
         check(await mafia() == "cached", "a newer cached list counts")
-        try? dated("2026-10-27T20:21:54Z", "cached").write(to: cached)
+        keep(dated("2026-10-27T20:21:54Z", "cached"))
         check(await mafia() == "cached", "one from the same run too")
-        try? dated(nil, "cached").write(to: cached)
+        // Only a signed list counts: one without its signature (fetched by 0.3.0), signed with another
+        // key, or changed on disk after signing gives way to the bundled one.
+        let newer = dated("2026-11-01T04:37:00Z", "cached")
+        keep(newer)
+        try? fm.removeItem(at: Signature.file(for: cached))
+        check(await mafia() == "bundled", "a cached list without its signature: the bundled one counts")
+        keep(newer, signedBy: Curve25519.Signing.PrivateKey())
+        check(await mafia() == "bundled", "nor one signed with a stranger's key")
+        keep(newer)
+        try? dated("2026-11-01T04:37:00Z", "changed").write(to: cached)
+        check(await mafia() == "bundled", "nor one changed after signing")
+        keep(newer)
+        check(await mafia() == "cached", "signed again, it counts again")
+        keep(dated(nil, "cached"))
         check(await mafia() == "bundled", "a cached list without a date counts as older")
-        try? dated("2026-10-26T16:32:00Z", "cached").write(to: cached)
+        keep(dated("2026-10-26T16:32:00Z", "cached"))
         try? dated("2026-12-01T00:00:00Z", "bundled", format: 2).write(to: bundled)
         check(await mafia() == "cached", "a bundled list this Nightforge can't read: the cached one still serves")
         try? fm.removeItem(at: bundled)
         try? fm.removeItem(at: cached)
-        check(await ProfileStore().preferWindows().isEmpty, "no list at all")
+        try? fm.removeItem(at: Signature.file(for: cached))
+        check(await ProfileStore(keys: keys).preferWindows().isEmpty, "no list at all")
     }
 
     /// A save rule never names a root itself: `takeNewer` empties a save folder of what the other side lacks.

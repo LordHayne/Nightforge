@@ -1053,9 +1053,11 @@ Entwurf und Regeln: `docs/ENTWURF-BERICHTE.md`. Abdeckung der Top 200: `docs/rec
 - **„Willkommen zurück“:** drei Knöpfe (Lief gut / Mit Problemen / Startet nicht), danach „Bericht teilen …“. Im
   Browser: Sind alle Felder des Formulars gefüllt? Öffnet der alte Problembericht (`issues/new?title=…&body=…`) mit
   dem neuen Vorlagen-Ordner weiter ein leeres Issue? Im Repo das Label `report` anlegen.
-- **Nach dem Merge von signed-updates:** `agw.json` in `sign-lists.sh` aufnehmen und `AGWStore.refresh` auf
-  `Signature.fetch` umstellen. `profiles.yml`: die Zeilen mit `profiles/profiles.json` im PR-Schritt nehmen
-  `profiles/agw.json` mit (`git diff --quiet`, `git add`, `git diff --stat`).
+- **`agw.json` ist signiert** (signed-updates, nach dem Rebase auf compat-db): `AGWStore` nimmt die Online-Kopie und
+  den Cache nur mit `.sig` (`Signature.fetch`), `SIGNED_LISTS` in `scripts/signing-lib.sh` nennt alle drei Listen
+  (`sign-lists.sh`, `check-signatures.sh`), `profiles.yml` bringt `agw.json` im PR `bot/profiles` mit. Vor dem
+  ersten Schlüssel nimmt eine lokale Build-Kopie also auch kein AGW an: kein Hinweis „zuerst D3DMetal, wie im
+  AppleGamingWiki berichtet“, bis `scripts/sign-lists.sh main` gelaufen ist.
 - **Später (nur geplant, Nutzer hat zugestimmt 2.11.): freiwillige, anonyme Spielberichte ohne Konto.** Bedingung:
   erst, wenn die Download-Statistik echte Nutzer zeigt. Vorbild GameHub Lite/BannerHub (über 7.000 Configs per
   „Export Config“ in ein GitHub-Repo, ungeprüft) und EmuReady (Abstimmung, Status „verifiziert“). Unser Gegenstück:
@@ -1740,9 +1742,26 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Entscheidungen
 
-- **Updates sind nicht echt signiert.** `Updater.install` prüft nur `codesign --verify` auf eine Ad-hoc-Signatur,
-  `scripts/install.sh` lädt ohne Prüfsumme. Bewusst offen gelassen. Wege: ein Ed25519-Schlüssel als Repo-Secret
-  (Release-Zip signieren, im Updater und in install.sh prüfen) oder ein Apple-Developer-Account (Developer ID, Notarisierung).
+- **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`,
+  `profiles.json` und `agw.json`, Schlüssel nur beim Nutzer (`docs/SICHERHEIT-0.3.md` › „Signierte Releases“).
+  Offen: Schlüssel erzeugen (der Nutzer selbst), Listen auf `main` signieren, Test-Release mit rc.1–rc.4, dann
+  `v0.3.1`. `scripts/install.sh` prüft dieselbe Signatur vor dem Auspacken (Ed25519 in `/usr/bin/perl`, Schlüssel
+  aus `SigningKeys.swift` auf `main`), unsigniert nur das ZIP von 0.3.0 über seine SHA-256 (Audit H1).
+  - **Für den Nutzer, auf GitHub (Einstellungen macht er selbst):**
+    - **Tags schützen:** Repository › Settings › Rules › Rulesets, neues *Tag ruleset* für `v*`: Creation,
+      Update und Deletion nur für dich (Bypass: Repository admin). Dann kann ein gestohlenes Token mit Schreibrecht
+      keinen Release-Tag anlegen, und `release.yml` startet nicht.
+    - **`main` schützen:** ein *Branch ruleset* für `main` mit „Require a pull request before merging“ und ohne
+      Force-Push. `install.sh` und die Schlüssel kommen von `main`. Mit Schreibrecht allein wären sie sonst
+      änderbar. Achtung: `scripts/sign-lists.sh main` pusht direkt auf `main`. Mit der Regel braucht es dich als
+      Bypass oder den Umweg über einen Zweig mit Pull Request.
+    - **Release-Environment mit Freigabe:** Settings › Environments › `release` mit „Required reviewers“ (du),
+      dann in `release.yml` beim Job `environment: release` eintragen. Jeder Release-Lauf wartet so auf deinen Klick.
+      Die Zeile in `release.yml` erst einfügen, wenn das Environment existiert, sonst legt GitHub es ohne Regel an.
+  `enginefix` fällt unter die Prüfung der Komponentenliste: `Engine` holt es über `ComponentStore.manifest()` (nur
+  signiert) und `install` prüft das Paket gegen dessen SHA-256 vor dem Auspacken. Eine eigene `.sig` braucht es nicht.
+  Was nicht abgedeckt ist: Den Inhalt baut `enginefix.yml` auf GitHub. Die Signatur bestätigt nur, dass du die
+  Prüfsumme dieses Builds freigegeben hast (wie bei Grafik und Gamepad).
 
 ### Wine-Sandbox (Audit M2, Zweig `claude/wine-sandbox`): Live-Test offen
 

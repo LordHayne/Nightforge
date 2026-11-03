@@ -1,9 +1,13 @@
 name: Update game profiles
 
 # Rebuilds profiles/profiles.json every night from umu-protonfixes, AreWeAntiCheatYet and the
-# GeForce Now game list plus profiles/mac.json (see scripts/build-profiles.py) and commits it
-# when something changed. The app downloads it. Beside it profiles/agw.json, what AppleGamingWiki
-# says about games on a Mac (scripts/fetch-agw.py): a file of its own under CC BY-NC-SA 3.0.
+# GeForce Now game list plus profiles/mac.json (see scripts/build-profiles.py), and beside it
+# profiles/agw.json, what AppleGamingWiki says about games on a Mac (scripts/fetch-agw.py): a file of
+# its own under CC BY-NC-SA 3.0. When either changed it proposes them in a pull request (branch
+# bot/profiles); it never pushes to main. The app downloads both from main and takes each only with
+# the maintainer's signature, which scripts/sign-lists.sh bot/profiles adds before the merge. The
+# repository setting Actions › General › "Allow GitHub Actions to create and approve pull requests"
+# has to be on (components.yml needs it too).
 
 on:
   schedule:
@@ -27,6 +31,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   actions: write
 
 jobs:
@@ -113,16 +118,37 @@ jobs:
             gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/enable"
           done
 
-      - name: Commit changes
+      - name: Propose the change in a pull request
         if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet profiles/profiles.json profiles/agw.json; then
             echo "No profile changes."
             exit 0
           fi
+          branch=bot/profiles
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
           git add profiles/profiles.json profiles/agw.json
           git commit -m "Update game profiles"
-          git pull --rebase
-          git push
+          # The bot's own branch: this night's list replaces yesterday's if it wasn't merged (and with
+          # it a signature made for yesterday's).
+          git push --force origin "$branch"
+          {
+            echo "The nightly run rebuilt the game profiles (and AppleGamingWiki's list). Nothing reaches the app until this is signed and merged."
+            echo
+            echo "1. Read the diff: profiles set Wine registry keys, winetricks verbs and game files."
+            echo "2. On the maintainer's Mac: \`scripts/sign-lists.sh $branch\` (asks for the Keychain password)."
+            echo "3. Merge once the **Signatures** check is green, with the command the script prints."
+            echo
+            echo '```'
+            git diff --stat HEAD~1 -- profiles/profiles.json profiles/agw.json
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$branch" --title "Update game profiles" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          fi

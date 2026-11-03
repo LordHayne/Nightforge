@@ -5,43 +5,75 @@ import Foundation
 struct AppUpdate: Equatable {
     let version: String
     let archive: URL
+    /// The zip's Ed25519 signature (`Nightforge-<version>.zip.sig`), see `Signature`.
+    let signature: URL
     let page: URL
 }
 
 /// Keeps Nightforge itself current: one look at the newest GitHub release per app start, and a
-/// one-click install that downloads the zip, checks its signature, swaps the app and restarts it.
+/// one-click install that downloads the zip, checks it against the maintainer's signature, swaps the
+/// app and restarts it.
 enum Updater {
-    private static let latestRelease = URL(string: "https://api.github.com/repos/LordHayne/Nightforge/releases/latest")!
+    private static let releases = "https://api.github.com/repos/LordHayne/Nightforge/releases/"
+
+    /// Names a test release for this Mac to update to (docs/SICHERHEIT-0.3.md › Test-Release):
+    /// `defaults write io.github.lordhayne.nightforge UpdateTestRelease v0.3.1-rc.2`. Test releases
+    /// are prereleases, which the newest-release address leaves out, so no one else is offered them.
+    /// The signature counts for them as for any release.
+    static let testReleaseKey = "UpdateTestRelease"
 
     static var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
+    /// The newest release, or the test release this Mac is set to.
+    static func releaseURL(testRelease: String? = UserDefaults.standard.string(forKey: testReleaseKey)) -> URL {
+        if let tag = testRelease, !tag.isEmpty, tag.count <= 64,
+           tag.unicodeScalars.allSatisfy({ $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "._-".unicodeScalars.contains($0)) }) {
+            return URL(string: releases + "tags/" + tag)!
+        }
+        return URL(string: releases + "latest")!
+    }
+
     /// The newest release when it's newer than this copy, else nil (also when offline).
     static func check() async -> AppUpdate? {
-        var request = URLRequest(url: latestRelease)
+        var request = URLRequest(url: releaseURL())
         request.timeoutInterval = 15
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = json["tag_name"] as? String,
-              let page = (json["html_url"] as? String).flatMap(URL.init(string:)),
-              let assets = json["assets"] as? [[String: Any]],
-              let zip = assets.compactMap({ $0["browser_download_url"] as? String })
-                  .first(where: { $0.hasSuffix(".zip") && $0.contains("Nightforge-") })
-                  .flatMap(URL.init(string:))
+              (response as? HTTPURLResponse)?.statusCode == 200
         else { return nil }
-        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-        guard isNewer(version, than: currentVersion) else { return nil }
-        return AppUpdate(version: version, archive: zip, page: page)
+        return release(from: data)
     }
 
-    /// "0.2.0" > "0.1.10" > "0.1.4"; a version with a suffix ("0.2.0-dev") comes before the plain one.
+    /// The release in a GitHub API answer when it's newer than `current`. One without the zip's
+    /// signature isn't offered: it couldn't be installed (from 0.3.1 on, every release is signed
+    /// before it's published).
+    static func release(from data: Data, newerThan current: String = currentVersion) -> AppUpdate? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tag = json["tag_name"] as? String,
+              let page = (json["html_url"] as? String).flatMap(URL.init(string:)),
+              let assets = json["assets"] as? [[String: Any]]
+        else { return nil }
+        let addresses = assets.compactMap { $0["browser_download_url"] as? String }
+        guard let zip = addresses.first(where: { $0.hasSuffix(".zip") && $0.contains("Nightforge-") }),
+              let archive = URL(string: zip)
+        else { return nil }
+        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        guard isNewer(version, than: current) else { return nil }
+        guard addresses.contains(zip + ".sig"), let signature = URL(string: zip + ".sig") else {
+            GameLog.note("Nightforge \(version) has no signature (\(archive.lastPathComponent).sig), so it isn't offered")
+            return nil
+        }
+        return AppUpdate(version: version, archive: archive, signature: signature, page: page)
+    }
+
+    /// "0.2.0" > "0.1.10" > "0.1.4"; a version with a suffix ("0.2.0-dev") comes before the plain one,
+    /// and of two with a suffix the later one counts ("0.3.1-rc.10" > "0.3.1-rc.9").
     static func isNewer(_ candidate: String, than current: String) -> Bool {
-        func split(_ version: String) -> (numbers: [Int], suffix: Bool) {
+        func split(_ version: String) -> (numbers: [Int], suffix: String?) {
             let parts = version.split(separator: "-", maxSplits: 1)
-            return (parts[0].split(separator: ".").map { Int($0) ?? 0 }, parts.count > 1)
+            return ((parts.first ?? "").split(separator: ".").map { Int($0) ?? 0 }, parts.count > 1 ? String(parts[1]) : nil)
         }
         let (a, aSuffix) = split(candidate)
         let (b, bSuffix) = split(current)
@@ -50,11 +82,17 @@ enum Updater {
             let y = index < b.count ? b[index] : 0
             if x != y { return x > y }
         }
-        return !aSuffix && bSuffix
+        switch (aSuffix, bSuffix) {
+        case let (ours?, theirs?): return ours.compare(theirs, options: .numeric) == .orderedDescending
+        case (nil, _?): return true
+        default: return false
+        }
     }
 
     enum Failure: LocalizedError {
         case download, unpack, signature, notWritable, protectedPlace
+        /// The zip holds a Nightforge no newer than this one: an older signed release passed off as new.
+        case notNewer
         /// The new version needs a newer macOS than this Mac has: it would not open after the swap.
         case needsNewerMac(required: String)
 
@@ -63,6 +101,7 @@ enum Updater {
             case .download: return L10n.t("The update could not be downloaded. Check your internet connection.")
             case .unpack: return L10n.t("The update download is damaged. Please try again.")
             case .signature: return L10n.t("The update isn't signed correctly, so it wasn't installed.")
+            case .notNewer: return L10n.t("The update holds an older Nightforge than the one you have, so it wasn't installed.")
             case .notWritable: return L10n.t("Nightforge can't replace itself in this folder. Download the update from the release page instead.")
             case .needsNewerMac(let required):
                 let running = ProcessInfo.processInfo.operatingSystemVersion
@@ -102,16 +141,28 @@ enum Updater {
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: work) }
 
-        guard let (download, response) = try? await URLSession.shared.download(from: update.archive),
+        guard let (signature, signatureResponse) = try? await URLSession.shared.data(from: update.signature),
+              (signatureResponse as? HTTPURLResponse)?.statusCode == 200,
+              let (download, response) = try? await URLSession.shared.download(from: update.archive),
               (response as? HTTPURLResponse)?.statusCode == 200
         else { throw Failure.download }
         let zip = work.appendingPathComponent("Nightforge.zip")
         try fm.moveItem(at: download, to: zip)
+        // Nothing of the download is opened before the maintainer's signature holds for it.
+        guard isSigned(zip, signature: signature) else {
+            GameLog.note("The download of Nightforge \(update.version) doesn't match its signature: not installed")
+            throw Failure.signature
+        }
 
         let unpacked = work.appendingPathComponent("unpacked", isDirectory: true)
         guard run("/usr/bin/ditto", ["-x", "-k", zip.path, unpacked.path]) else { throw Failure.unpack }
         let fresh = unpacked.appendingPathComponent("Nightforge.app", isDirectory: true)
         guard Bundle(url: fresh)?.bundleIdentifier == Bundle.main.bundleIdentifier else { throw Failure.unpack }
+        // Older releases are signed too: one passed off as new would take back its fixes.
+        let freshVersion = Bundle(url: fresh)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        guard isNewer(freshVersion, than: currentVersion) else { throw Failure.notNewer }
+        // Ad hoc signed (build.sh): this shows the bundle arrived whole. Who built it, the Ed25519
+        // signature above says; a requirement (-R) needs a Developer ID.
         guard run("/usr/bin/codesign", ["--verify", "--deep", fresh.path]) else { throw Failure.signature }
         // A release that raises the macOS it needs would not open after the swap: this copy stays.
         let minimum = Bundle(url: fresh)?.object(forInfoDictionaryKey: "LSMinimumSystemVersion") as? String
@@ -127,6 +178,12 @@ enum Updater {
                               app.path, String(getpid())]
         try relaunch.run()
         await MainActor.run { NSApp.terminate(nil) }
+    }
+
+    /// Whether `signature` (the `.sig` file's text) holds for the downloaded zip.
+    static func isSigned(_ zip: URL, signature: Data, keys: [String] = SigningKeys.trusted) -> Bool {
+        guard let data = try? Data(contentsOf: zip, options: .mappedIfSafe) else { return false }
+        return Signature.isValid(signature, of: data, keys: keys)
     }
 
     private static func run(_ tool: String, _ arguments: [String]) -> Bool {

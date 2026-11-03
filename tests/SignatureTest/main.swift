@@ -1,0 +1,224 @@
+// Checks the Ed25519 signatures Nightforge asks for before it installs an update or takes an online
+// list: a good one, the spare key's, a stranger's, a changed file, a missing or broken signature; the
+// release the updater picks from GitHub's answer (and what 0.3.0's updater picks from a signed
+// release); and the component and profile lists, fetched from file:// "online" copies into a home of
+// the test's own: tests/SignatureTest/run.sh
+import CryptoKit
+import Foundation
+
+@main
+struct SignatureTest {
+    static var failures = 0
+
+    static func check(_ condition: Bool, _ message: String) {
+        if !condition {
+            failures += 1
+            print("✗ " + message)
+        }
+    }
+
+    static let mainKey = Curve25519.Signing.PrivateKey()
+    static let spareKey = Curve25519.Signing.PrivateKey()
+    static let strangerKey = Curve25519.Signing.PrivateKey()
+    static let keys = [mainKey, spareKey].map { $0.publicKey.rawRepresentation.base64EncodedString() }
+
+    static func sign(_ data: Data, _ key: Curve25519.Signing.PrivateKey = mainKey) -> Data {
+        Data(((try? key.signature(for: data))?.base64EncodedString() ?? "").utf8 + [0x0a])
+    }
+
+    static let work = FileManager.default.temporaryDirectory
+        .appendingPathComponent("nightforge-signature-test-\(UUID().uuidString)", isDirectory: true)
+
+    static func main() async {
+        try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        signatures()
+        files()
+        await fetching()
+        updates()
+        await components()
+        await profiles()
+        try? FileManager.default.removeItem(at: work)
+        print(failures == 0 ? "✓ Signature" : "\(failures) failed")
+        exit(failures == 0 ? 0 : 1)
+    }
+
+    static func signatures() {
+        let data = Data("{\"schemaVersion\": 1}".utf8)
+        check(Signature.isValid(sign(data), of: data, keys: keys), "signed with the main key: it holds")
+        check(Signature.signer(of: data, signature: sign(data), keys: keys) == keys[0], "and says it's the main key")
+        check(Signature.signer(of: data, signature: sign(data, spareKey), keys: keys) == keys[1], "the spare key's holds as well")
+        check(!Signature.isValid(sign(data, strangerKey), of: data, keys: keys), "a stranger's key doesn't")
+        check(!Signature.isValid(sign(data), of: Data("{\"schemaVersion\": 2}".utf8), keys: keys), "a file changed after signing doesn't")
+        check(!Signature.isValid(Data(), of: data, keys: keys), "no signature at all doesn't")
+        check(!Signature.isValid(Data("not base64 !".utf8), of: data, keys: keys)
+              && !Signature.isValid(Data(String(String(decoding: sign(data), as: UTF8.self).dropLast(5)).utf8), of: data, keys: keys),
+              "nor a broken or cut-off one")
+        check(!Signature.isValid(sign(data), of: data, keys: []) && !Signature.isValid(sign(data), of: data, keys: ["", "AAAA"]),
+              "with no keys (before make-signing-keys.sh) nothing counts")
+        let crlf = Data(String(decoding: sign(data), as: UTF8.self).replacingOccurrences(of: "\n", with: "\r\n").utf8)
+        check(Signature.isValid(crlf, of: data, keys: keys), "a line end from Windows doesn't matter")
+        // After a key change a file carries two signatures: one that holds is enough.
+        let two = sign(data, strangerKey) + sign(data, spareKey)
+        check(Signature.signer(of: data, signature: two, keys: keys) == keys[1], "two lines: the spare's holds, the stranger's is passed over")
+        check(!Signature.isValid(sign(data, strangerKey) + sign(Data("old".utf8)), of: data, keys: keys), "two lines, neither holds: no")
+        check(!SigningKeys.trusted.contains(""), "an empty key in SigningKeys.swift isn't trusted")
+    }
+
+    static func files() {
+        let file = work.appendingPathComponent("manifest.json")
+        let data = Data("{\"a\": 1}".utf8)
+        try? data.write(to: file)
+        check(Signature.file(for: file).lastPathComponent == "manifest.json.sig", "the signature lies beside the file")
+        check(Signature.file(for: URL(string: "https://raw.githubusercontent.com/LordHayne/Nightforge/main/profiles/profiles.json")!).absoluteString
+              == "https://raw.githubusercontent.com/LordHayne/Nightforge/main/profiles/profiles.json.sig", "online too")
+        check(Signature.signedContents(of: file, keys: keys) == nil, "a file without its signature isn't read")
+        try? sign(data).write(to: Signature.file(for: file))
+        check(Signature.signedContents(of: file, keys: keys) == data, "with it, it is")
+        try? Data("{\"a\": 2}".utf8).write(to: file)
+        check(Signature.signedContents(of: file, keys: keys) == nil, "changed on disk, it isn't")
+    }
+
+    static func fetching() async {
+        let online = work.appendingPathComponent("online", isDirectory: true)
+        try? FileManager.default.createDirectory(at: online, withIntermediateDirectories: true)
+        let list = online.appendingPathComponent("list.json")
+        let data = Data("{\"b\": 1}".utf8)
+        try? data.write(to: list)
+        if case .refused = await Signature.fetch(list, keys: keys) {} else { check(false, "a list without its .sig is turned away") }
+        try? sign(data, strangerKey).write(to: Signature.file(for: list))
+        if case .refused = await Signature.fetch(list, keys: keys) {} else { check(false, "one with a stranger's signature too") }
+        try? sign(data).write(to: Signature.file(for: list))
+        if case .signed(let got, let signature) = await Signature.fetch(list, keys: keys) {
+            check(got == data && Signature.isValid(signature, of: got, keys: keys), "a signed one comes with its signature")
+        } else {
+            check(false, "a signed list is taken")
+        }
+        if case .unavailable = await Signature.fetch(online.appendingPathComponent("gone.json"), keys: keys) {} else {
+            check(false, "nothing at the address: unavailable, not refused")
+        }
+    }
+
+    /// GitHub's answer for a release, its assets in the order GitHub lists them (by name).
+    static func release(_ tag: String, signed: Bool) -> Data {
+        let version = tag.dropFirst()
+        let base = "https://github.com/LordHayne/Nightforge/releases/download/\(tag)/Nightforge-\(version)"
+        let names = [".dmg", ".zip"] + (signed ? [".zip.sig"] : [])
+        let assets = names.map { #"{"name": "Nightforge-\#(version)\#($0)", "browser_download_url": "\#(base)\#($0)"}"# }
+        return Data(#"{"tag_name": "\#(tag)", "html_url": "https://github.com/LordHayne/Nightforge/releases/tag/\#(tag)", "assets": [\#(assets.joined(separator: ","))]}"#.utf8)
+    }
+
+    static func updates() {
+        let update = Updater.release(from: release("v0.3.2", signed: true), newerThan: "0.3.1")
+        check(update?.version == "0.3.2" && update?.archive.lastPathComponent == "Nightforge-0.3.2.zip"
+              && update?.signature.lastPathComponent == "Nightforge-0.3.2.zip.sig", "a signed release: the zip and its signature")
+        check(Updater.release(from: release("v0.3.2", signed: false), newerThan: "0.3.1") == nil, "an unsigned one isn't offered")
+        check(Updater.release(from: release("v0.3.1", signed: true), newerThan: "0.3.1") == nil
+              && Updater.release(from: release("v0.3.0", signed: false), newerThan: "0.3.1-rc.1") == nil, "nor one that isn't newer")
+        check(Updater.release(from: release("v0.3.1-rc.2", signed: true), newerThan: "0.3.1-rc.1")?.version == "0.3.1-rc.2",
+              "the next test release is")
+        check(Updater.release(from: Data("{}".utf8), newerThan: "0.3.1") == nil, "nor an answer that isn't a release")
+        // 0.3.0 (no keys yet) takes the first asset ending in .zip: still the app, with the .sig in
+        // the list, whichever order GitHub gives them in.
+        func picked030(_ answer: Data) -> String? {
+            let json = (try? JSONSerialization.jsonObject(with: answer)) as? [String: Any]
+            return (json?["assets"] as? [[String: Any]])?.compactMap { $0["browser_download_url"] as? String }
+                .first { $0.hasSuffix(".zip") && $0.contains("Nightforge-") }
+        }
+        let signed = release("v0.3.1", signed: true)
+        check(picked030(signed)?.hasSuffix("/Nightforge-0.3.1.zip") == true, "0.3.0's updater picks the zip of a signed release")
+        let reversed = Data(String(decoding: signed, as: UTF8.self).replacingOccurrences(of: ".zip\"", with: ".zip.tmp\"")
+            .replacingOccurrences(of: ".zip.sig\"", with: ".zip\"").replacingOccurrences(of: ".zip.tmp\"", with: ".zip.sig\"").utf8)
+        check(picked030(reversed)?.hasSuffix(".zip") == true, "and never the .sig")
+
+        check(Updater.releaseURL(testRelease: nil).absoluteString.hasSuffix("/releases/latest"), "normally the newest release")
+        check(Updater.releaseURL(testRelease: "v0.3.1-rc.2").absoluteString.hasSuffix("/releases/tags/v0.3.1-rc.2"), "a test release when one is set")
+        check(Updater.releaseURL(testRelease: "../../evil?x=1").absoluteString.hasSuffix("/releases/latest")
+              && Updater.releaseURL(testRelease: "").absoluteString.hasSuffix("/releases/latest"), "an odd name: the newest release again")
+
+        check(Updater.isNewer("0.3.1-rc.2", than: "0.3.1-rc.1") && Updater.isNewer("0.3.1-rc.10", than: "0.3.1-rc.9"),
+              "a later test release is newer")
+        check(Updater.isNewer("0.3.1", than: "0.3.1-rc.2") && !Updater.isNewer("0.3.1-rc.2", than: "0.3.1"), "the release comes after its tests")
+        check(Updater.isNewer("0.3.1-rc.1", than: "0.3.0") && Updater.isNewer("0.3.1", than: "0.3.0") && !Updater.isNewer("0.3.0", than: "0.3.1"),
+              "0.3.1 is newer than 0.3.0")
+        check(!Updater.isNewer("0.3.1-rc.1", than: "0.3.1-rc.1") && !Updater.isNewer("0.3.1", than: "0.3.1") && !Updater.isNewer("", than: "0.3.0"),
+              "the same version isn't newer, nor an empty one")
+
+        let zip = work.appendingPathComponent("Nightforge-0.3.2.zip")
+        let bytes = Data((0..<4096).map { UInt8($0 % 251) })
+        try? bytes.write(to: zip)
+        check(Updater.isSigned(zip, signature: sign(bytes), keys: keys), "the downloaded zip with its signature")
+        check(Updater.isSigned(zip, signature: sign(bytes, spareKey), keys: keys), "with the spare's")
+        check(!Updater.isSigned(zip, signature: sign(bytes, strangerKey), keys: keys), "not with a stranger's")
+        var changed = bytes
+        changed[100] ^= 1
+        try? changed.write(to: zip)
+        check(!Updater.isSigned(zip, signature: sign(bytes), keys: keys), "not when one bit changed on the way")
+        check(!Updater.isSigned(work.appendingPathComponent("missing.zip"), signature: sign(bytes), keys: keys), "not without a download")
+        check(Updater.Failure.notNewer.errorDescription?.isEmpty == false, "an older release passed off as new has its message")
+    }
+
+    static func components() async {
+        let online = work.appendingPathComponent("components-online", isDirectory: true)
+        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge/Components", isDirectory: true)
+        try? FileManager.default.createDirectory(at: online, withIntermediateDirectories: true)
+        let bundled = URL(fileURLWithPath: "components/manifest.json")
+        let remote = online.appendingPathComponent("manifest.json")
+        func publish(_ generated: String, signedBy key: Curve25519.Signing.PrivateKey?) {
+            var text = (try? String(contentsOf: bundled, encoding: .utf8)) ?? ""
+            text = text.replacingOccurrences(of: #""generated": "[^"]*""#, with: #""generated": "\#(generated)""#, options: .regularExpression)
+            try? Data(text.utf8).write(to: remote)
+            try? FileManager.default.removeItem(at: Signature.file(for: remote))
+            if let key { try? sign(Data(text.utf8), key).write(to: Signature.file(for: remote)) }
+        }
+        func store() -> ComponentStore { ComponentStore(root: root, remoteManifestURL: remote, bundledManifestURL: bundled, keys: keys) }
+
+        publish("2026-11-02T04:17:00Z", signedBy: mainKey)
+        check((try? await store().manifest())?.generated == "2026-11-02T04:17:00Z", "a signed online list is taken")
+        check(Signature.signedContents(of: root.appendingPathComponent("manifest.json"), keys: keys) != nil, "and kept with its signature")
+        check(!SignedLists.refused.contains(SignedLists.components), "nothing to tell")
+        check(ComponentStore.localManifest(keys: keys)?.generated == "2026-11-02T04:17:00Z", "Settings › About sees the kept one")
+
+        publish("2026-11-03T04:17:00Z", signedBy: strangerKey)
+        check((try? await store().manifest())?.generated == "2026-11-02T04:17:00Z", "a wrongly signed one: the last signed list still counts")
+        check(SignedLists.refused.contains(SignedLists.components), "and Settings › About says so, calmly")
+        publish("2026-11-03T04:17:00Z", signedBy: nil)
+        check((try? await store().manifest())?.generated == "2026-11-02T04:17:00Z", "an unsigned one too")
+
+        try? Data("x".utf8).write(to: Signature.file(for: root.appendingPathComponent("manifest.json")))
+        let own = try? JSONDecoder().decode(ComponentManifest.self, from: Data(contentsOf: bundled))
+        check((try? await store().manifest())?.generated == own?.generated, "the kept list's signature broken: the app's own list")
+        check(ComponentStore.localManifest(keys: keys)?.generated != "2026-11-02T04:17:00Z", "Settings › About passes it over too")
+
+        publish("2026-11-04T04:17:00Z", signedBy: spareKey)
+        check((try? await store().manifest())?.generated == "2026-11-04T04:17:00Z", "the spare key's signature counts")
+        check(!SignedLists.refused.contains(SignedLists.components), "and the note goes away")
+    }
+
+    static func profiles() async {
+        let online = work.appendingPathComponent("profiles-online", isDirectory: true)
+        try? FileManager.default.createDirectory(at: online, withIntermediateDirectories: true)
+        let remote = online.appendingPathComponent("profiles.json")
+        func publish(_ name: String, signedBy key: Curve25519.Signing.PrivateKey?) {
+            let data = Data(#"{"formatVersion": 1, "generated": "2026-11-02T04:37:00Z", "games": {"50130": {"name": "\#(name)"}}}"#.utf8)
+            try? data.write(to: remote)
+            try? FileManager.default.removeItem(at: Signature.file(for: remote))
+            if let key { try? sign(data, key).write(to: Signature.file(for: remote)) }
+        }
+        func name() async -> String? { await ProfileStore(bundledURL: nil, remoteURL: remote, keys: keys).profile(for: 50130)?.name }
+
+        publish("signed", signedBy: mainKey)
+        check(await name() == "signed", "a signed online profile list is taken")
+        let cached = Engine.supportDir.appendingPathComponent("profiles.json")
+        check(Signature.signedContents(of: cached, keys: keys) != nil, "and kept with its signature")
+        publish("forged", signedBy: strangerKey)
+        check(await name() == "signed", "a wrongly signed one: the kept list still counts")
+        check(SignedLists.refused.contains(SignedLists.profiles), "noted for Settings › About")
+        publish("unsigned", signedBy: nil)
+        check(await name() == "signed", "an unsigned one too")
+        check(Signature.signedContents(of: cached, keys: keys).map { String(decoding: $0, as: UTF8.self).contains("signed") } == true,
+              "the kept copy wasn't overwritten")
+        publish("spare", signedBy: spareKey)
+        check(await name() == "spare" && !SignedLists.refused.contains(SignedLists.profiles), "the spare key's counts, and the note goes")
+    }
+}

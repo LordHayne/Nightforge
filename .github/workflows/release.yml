@@ -1,10 +1,16 @@
 name: Release app
 
-# Builds Nightforge.app and publishes it as a GitHub release (zip for the installer script,
-# DMG for people who download by hand). Triggered by pushing a tag like v0.1.0.
+# Builds Nightforge.app and drafts a GitHub release with it (zip for the installer script and the
+# in-app updater, DMG for people who download by hand). Triggered by pushing a tag like v0.1.0.
 # The app is ad-hoc signed (no paid Apple developer account): scripts/install.sh downloads it
 # without the quarantine flag, so macOS opens it straight away; the DMG needs one
 # "Open Anyway" in System Settings → Privacy & Security.
+#
+# The release stays a draft: the app installs an update only with the maintainer's Ed25519
+# signature, and the private key isn't on GitHub. scripts/sign-release.sh <tag> --publish on the
+# maintainer's Mac adds Nightforge-<version>.zip.sig and publishes; with immutable releases nothing
+# can be added after that. A tag with a suffix (v0.3.1-rc.1) becomes a prerelease, a test release
+# that neither the app nor install.sh offers (docs/SICHERHEIT-0.3.md › Test-Release).
 
 on:
   push:
@@ -31,6 +37,15 @@ jobs:
         run: |
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "$GITHUB_REF_NAME is not on main"; exit 1; }
+
+      # A release without the public keys would turn down every update after it: its players could
+      # only come back through the curl line.
+      - name: Signing keys are in
+        if: github.ref_type == 'tag'
+        run: |
+          . scripts/signing-lib.sh
+          build_signing_tool . "$RUNNER_TEMP"
+          "$TOOL" keys > /dev/null || { echo "Sources/Nightforge/SigningKeys.swift needs both keys (scripts/make-signing-keys.sh)"; exit 1; }
 
       - name: Set version
         run: |
@@ -60,11 +75,14 @@ jobs:
           name: nightforge-test-build
           path: Nightforge-*
 
-      - name: Publish release
+      - name: Draft the release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A test release (a tag with a suffix) is a prerelease: /releases/latest leaves it out.
+          kind=()
+          case "$VERSION" in *-*) kind=(--prerelease) ;; esac
           # Notes written for this tag (docs/release-notes/<tag>.md) come first, the install text after them.
           notes="docs/release-notes/$GITHUB_REF_NAME.md"
           {
@@ -83,4 +101,5 @@ jobs:
           Privacy & Security, scroll down and click **Open Anyway**.
           NOTES
           } | gh release create "$GITHUB_REF_NAME" "Nightforge-$VERSION.zip" "Nightforge-$VERSION.dmg" \
-            --repo "$GITHUB_REPOSITORY" --latest --title "Nightforge $VERSION" --notes-file -
+            --repo "$GITHUB_REPOSITORY" --draft ${kind[@]+"${kind[@]}"} --title "Nightforge $VERSION" --notes-file -
+          echo "Drafted. On the maintainer's Mac: scripts/sign-release.sh $GITHUB_REF_NAME --publish" >> "$GITHUB_STEP_SUMMARY"
