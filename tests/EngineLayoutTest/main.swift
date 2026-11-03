@@ -264,8 +264,8 @@ struct EngineLayoutTest {
               "a profile's environment, without what isn't allowed")
         let onlyBad = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"environment": {"DYLD_INSERT_LIBRARIES": "/x"}}"#.utf8))
         check(onlyBad != nil && onlyBad?.environment == nil, "nothing allowed: no environment, and the profile still reads")
-        let suite = "nightforge.game-environment-test.\(getpid())"
-        if let test = UserDefaults(suiteName: suite) {
+        do {
+            let test = TestDefaults.suite("game-environment")
             let overwatch = GameID.steam(2357570)
             check(GameEnvironment.wanted(for: overwatch, profile: withSwitches, defaults: test)
                   == ["WINE_SIMULATE_WRITECOPY": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], "without a test switch: the profile's")
@@ -276,7 +276,6 @@ struct EngineLayoutTest {
                   == ["WINE_SIMULATE_WRITECOPY": "0", "CX_HACK_FILESYSTEM_TYPE": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"],
                   "the test switch wins over the profile, numbers as `defaults` writes them count, the rest stays out")
             check(GameEnvironment.wanted(for: .steam(550), profile: nil, defaults: test).isEmpty, "another game gets none of it")
-            UserDefaults.standard.removePersistentDomain(forName: suite)
         }
         // Through Steam they go into its environment; the next game without them takes them away again.
         let launchBefore = Engine.launchEnvironment
