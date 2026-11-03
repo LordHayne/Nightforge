@@ -314,16 +314,24 @@ struct CompleteRemovalTest {
             bystander.executableURL = URL(fileURLWithPath: "/bin/sleep")
             bystander.arguments = ["60"]
             try? bystander.run()
+            // A shell of the player's that has the script's path in its command line (a `tail -f` on it).
+            let shell = Process()
+            shell.executableURL = URL(fileURLWithPath: "/bin/bash")
+            shell.arguments = ["-c", "sleep 60; true"]
+            try? shell.run()
             usleep(300_000)
             // The list of a stand-in: the bash with the script's path in its command, and a bystander that only names the script.
             FakeProcesses.install {
                 [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path)"),
-                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)")]
+                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)"),
+                 FakeProcesses.Row(pid: shell.processIdentifier, command: "/bin/bash -c tail -f \(script.path)")]
             }
             CompleteRemoval.endScripts(under: support)
             check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
             check(bystander.isRunning, "… a program that only names the script is not a bash, and stays")
+            check(shell.isRunning, "… nor is a bash that only names it (as Migration's pkill -f once hit)")
             bystander.terminate()
+            shell.terminate()
             FakeProcesses.installEmpty()
         }
 

@@ -258,9 +258,11 @@ enum CompleteRemoval {
         }
         guard byCommandLine else { return }
         let scripts = Set([support.path, Engine.realPath(support)].map { $0 + "/steam-shutdown.sh" })
-        // The list may be an old one (ProcessList): only a bash still running under that pid is ended.
+        // The list may be an old one (ProcessList): only a bash still running under that pid is ended,
+        // and only one that runs the script as Nightforge starts it, not a shell that merely names it
+        // (`bash -c "tail -f …/steam-shutdown.sh"`).
         for process in Engine.processTable() where process.pid != getpid() && isBash(process.pid)
-            && scripts.contains(where: { process.command.contains($0) }) {
+            && scripts.contains(where: { process.command == "/bin/bash \($0)" || process.command.hasPrefix("/bin/bash \($0) ") }) {
             kill(process.pid, SIGKILL)
         }
     }
