@@ -274,5 +274,28 @@ struct GameResolutionTest {
               "the project named after its program")
         check(GameResolution.unrealSettings(installDir: root.appendingPathComponent("Overcooked2"), places: places).isEmpty,
               "a Unity game has no GameUserSettings.ini")
+
+        // A folder the game links elsewhere isn't written through: the atomic write would land at its end.
+        write("Outside/Saved/Config/Windows/GameUserSettings.ini", "[/Script/Engine.GameUserSettings]")
+        write("Linked/Linked/Binaries/Win64/Linked-Win64-Shipping.exe")
+        try? fm.createSymbolicLink(at: prefix.appendingPathComponent("drive_c/users/tester/AppData/Local/Linked"),
+                                   withDestinationURL: root.appendingPathComponent("Outside"))
+        check(GameResolution.unrealSettings(installDir: root.appendingPathComponent("Linked"), places: places).isEmpty,
+              "Unreal's settings behind a project folder linked out of the prefix: left alone")
+        typealias Saved = GameProfile.SavedResolution
+        let mafia = Saved(root: "WinAppDataLocal", path: "2K Games/Mafia II/Saves/videoconfig.cfg", fields: .init(width: 2, height: 3))
+        check(GameResolution.savedFile(mafia, installDir: root, places: places)?.path
+              == prefix.appendingPathComponent("drive_c/users/tester/AppData/Local/2K Games/Mafia II/Saves/videoconfig.cfg").path,
+              "a profile's file in its root")
+        let linked = Saved(root: "WinAppDataLocal", path: "Linked/Saved/Config/Windows/GameUserSettings.ini", section: "S",
+                           keys: .init(width: "W", height: "H"))
+        check(GameResolution.savedFile(linked, installDir: root, places: places) == nil, "and none behind a link out of it")
+        write("Game/settings.ini")
+        try? fm.createSymbolicLink(at: root.appendingPathComponent("Game/Config"), withDestinationURL: root.appendingPathComponent("Outside"))
+        let inGame = Saved(path: "settings.ini", section: "Video", keys: .init(width: "W", height: "H"))
+        let throughLink = Saved(path: "Config/Saved/Config/Windows/GameUserSettings.ini", section: "Video", keys: .init(width: "W", height: "H"))
+        check(GameResolution.savedFile(inGame, installDir: root.appendingPathComponent("Game"), places: places) != nil
+              && GameResolution.savedFile(throughLink, installDir: root.appendingPathComponent("Game"), places: places) == nil,
+              "in the game folder the same: its own file yes, one behind a link out no")
     }
 }

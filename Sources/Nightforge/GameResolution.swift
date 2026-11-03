@@ -62,15 +62,11 @@ enum GameResolution {
             notes.append("\(key.split(separator: "\\").last ?? ""): \(unitySize(values).map { "\($0) → " } ?? "")\(size)")
         }
         // A game whose profile says where it keeps its resolution (its own format).
-        if let saved = profile?.resolution,
-           let base = saved.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? game.installDir {
-            let file = base.appendingPathComponent(saved.path).standardizedFileURL
-            if file.path.hasPrefix(base.standardizedFileURL.path + "/"),
-               let text = try? String(contentsOf: file, encoding: .utf8),
-               let fitted = savedFitted(text, saved, size: size),
-               (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil {
-                notes.append("\(file.lastPathComponent): \(size)")
-            }
+        if let saved = profile?.resolution, let file = savedFile(saved, installDir: game.installDir, places: places),
+           let text = try? String(contentsOf: file, encoding: .utf8),
+           let fitted = savedFitted(text, saved, size: size),
+           (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil {
+            notes.append("\(file.lastPathComponent): \(size)")
         }
         for file in unrealSettings(installDir: game.installDir, places: places) {
             guard let text = try? String(contentsOf: file, encoding: .utf8), let fitted = unrealFitted(text, size: size),
@@ -84,6 +80,15 @@ enum GameResolution {
         guard descriptor >= 0 else { return }
         let log = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         log.write(Data(("info:  [nightforge] Full screen " + notes.joined(separator: ", ") + "\n").utf8))
+    }
+
+    /// The file a profile names for the game's resolution, if it lies in its root (the game folder or
+    /// a Windows one) with the links on the way resolved (Engine.isInside): a folder the game links
+    /// elsewhere isn't written through, the atomic write would land at the link's end.
+    static func savedFile(_ saved: GameProfile.SavedResolution, installDir: URL, places: SaveTransfer.Places) -> URL? {
+        guard let base = saved.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir else { return nil }
+        let file = base.appendingPathComponent(saved.path).standardizedFileURL
+        return Engine.isInside(file, base) ? file : nil
     }
 
     // MARK: - Unity
@@ -304,7 +309,8 @@ enum GameResolution {
                 let platforms = (try? fm.contentsOfDirectory(atPath: config.path)) ?? []
                 for platform in platforms.sorted() where platform.lowercased().hasPrefix("windows") {
                     let file = config.appendingPathComponent("\(platform)/GameUserSettings.ini")
-                    if fm.fileExists(atPath: file.path) { found.append(file) }
+                    // Both roots are in the prefix; a project folder the game links out of it isn't written through.
+                    if fm.fileExists(atPath: file.path), Engine.isInside(file, places.prefix) { found.append(file) }
                 }
             }
         }
