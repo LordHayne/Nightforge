@@ -111,9 +111,42 @@ struct SubprocessTest {
         check(!stubbornProgram.isRunning && gone(stubbornPid), "end() kills a program that ignores SIGTERM")
         check(seconds < 4, "… in \(seconds) s")
 
-        // The process list: read-only.
-        let table = Engine.processTable()
-        check(table.count > 10 && table.contains { $0.pid == getpid() }, "the process table has this program in it (\(table.count) processes)")
+        // The process list, with a stand-in for ps (a real ps answers for every process on the Mac, and
+        // is exactly what can hang): its answer; no second ps for a while after one that missed its limit;
+        // the last good answer only to whoever may take an old one.
+        let work = FileManager.default.temporaryDirectory.appendingPathComponent("processlist-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: work) }
+        let standIn = work.appendingPathComponent("ps")
+        let hangs = work.appendingPathComponent("hang")
+        let counter = work.appendingPathComponent("calls")
+        let script = "#!/bin/sh\necho x >> '\(counter.path)'\n[ -f '\(hangs.path)' ] && exec /bin/sleep 30\necho \"1 launchd $*\"\n"
+        try? Data(script.utf8).write(to: standIn)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: standIn.path)
+        func calls() -> Int { ((try? String(contentsOf: counter, encoding: .utf8)) ?? "").split(separator: "\n").count }
+        ProcessList.program = standIn.path
+        ProcessList.timeout = 0.5
+        ProcessList.pause = 60
+        ProcessList.reset()
+        let good = ProcessList.ps("pid=,command=")
+        check(good?.contains("launchd") == true && good?.contains("-axo pid=,command=") == true, "the list is what ps printed: \(good ?? "nil")")
+        check(ProcessList.ps("pid=,command=", stale: true) == good && calls() == 2, "asked again, ps is asked again (\(calls()) calls)")
+        try? Data().write(to: hangs)
+        var answer: String? = "?"
+        seconds = timed { answer = ProcessList.ps("pid=,command=") }
+        check(answer == nil, "ps that misses its limit: no list")
+        check(seconds < 4, "… after \(seconds) s")
+        let asked = calls()
+        var again: String? = "?"
+        seconds = timed { again = ProcessList.ps("pid=,command=") }
+        check(again == nil && calls() == asked, "… and for the next minute ps isn't asked at all (\(calls() - asked) more calls)")
+        check(seconds < 0.2, "… so nobody waits (\(seconds) s)")
+        check(ProcessList.ps("pid=,command=", stale: true) == good, "whoever may take an old list gets the last good one")
+        check(ProcessList.ps("pid=,ppid=", stale: true) == nil, "… but only of the same kind (other columns: none yet)")
+        try? FileManager.default.removeItem(at: hangs)
+        check(ProcessList.ps("pid=,command=") == nil, "ps answers again, but the pause isn't over yet")
+        ProcessList.reset()
+        check(ProcessList.ps("pid=,command=") != nil, "after the pause (here: a reset), ps is asked again")
 
         print(failures == 0 ? "✓ Subprocess" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

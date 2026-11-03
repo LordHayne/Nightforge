@@ -297,23 +297,33 @@ struct CompleteRemovalTest {
             otherScript.terminate()
         }
 
-        // A script of a Nightforge from before the pid file is found by its command line – if ps answers at all.
+        // A script of a Nightforge from before the pid file is found by its command line – here in the list
+        // of a stand-in ps (a real one lists every process on the Mac).
         do {
             let scenario = fixture(root.appendingPathComponent("oldscript", isDirectory: true))
             let support = scenario.places.support
-            if Engine.processTable().isEmpty {
-                print("(skipped: ps doesn't answer here)")
-            } else {
-                let script = support.appendingPathComponent("steam-shutdown.sh")
-                write(script, "#!/bin/bash\nwhile true; do sleep 1; done\n")
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/bin/bash")
-                process.arguments = [script.path]
-                try? process.run()
-                usleep(300_000)
-                CompleteRemoval.endScripts(under: support)
-                check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
-            }
+            let script = support.appendingPathComponent("steam-shutdown.sh")
+            write(script, "#!/bin/bash\nwhile true; do sleep 1; done\n")
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [script.path]
+            try? process.run()
+            let bystander = Process()
+            bystander.executableURL = URL(fileURLWithPath: "/bin/sleep")
+            bystander.arguments = ["60"]
+            try? bystander.run()
+            usleep(300_000)
+            let list = root.appendingPathComponent("oldscript/ps")
+            write(list, "#!/bin/sh\ncat <<'EOF'\n \(process.processIdentifier) /bin/bash \(script.path)\n \(bystander.processIdentifier) /bin/sleep 60 \(script.path)\nEOF\n")
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: list.path)
+            ProcessList.program = list.path
+            ProcessList.reset()
+            CompleteRemoval.endScripts(under: support)
+            check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
+            check(bystander.isRunning, "… a program that only names the script is not a bash, and stays")
+            bystander.terminate()
+            ProcessList.program = "/bin/ps"
+            ProcessList.reset()
         }
 
         // The polite way is given its time and no more.

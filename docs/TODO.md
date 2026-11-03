@@ -98,6 +98,14 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
     löscht sie am Ende), die Entfernung beendet genau diese PID (nur wenn sie eine `/bin/bash` ist, die beim Schreiben der Datei
     begann). Ein Skript aus einer Nightforge von davor wird über seine Befehlszeile gefunden (`ps`, höchstens ~9 s). Grund: Am 3.11. um
     0:30 hing `ps -ax` auf dem MacBook für alle Aufrufer (56 feststehende `ps`, `ps -p 1` antwortete, SIGKILL half nicht).
+  - **`ProcessList`** (`Subprocess.swift`): alle `ps -axo`-Aufrufe (`Engine.processTable`/`ownProcesses`/`isSteamRunning`, `GameProcesses.table`,
+    `GameTestRun.ps`, `Legendary.processTable`) laufen mit Frist (4 s); verfehlt `ps` sie, wird eine Minute lang gar keins mehr gestartet
+    (jedes wäre nur ein weiteres, das nie endet, und ein weiterer Wartender – oft der Hauptthread). In der Minute bekommen Aufrufer, die eine
+    alte Liste vertragen (`isSteamRunning` & Co., `GameProcesses.tableForWatching` für die Spielerkennung), die letzte gute (bis 10 Minuten
+    alt), die anderen (Spiel beenden) nichts. `nettop` in `MacSteamProgress` hat ebenfalls eine Frist. Anlass: 3.11. ab ~0:40 hing
+    `ps -ax` auf dem MacBook für alle Aufrufer (angehaltene Wine-Prozesse nach einem abgebrochenen winedbg), Nightforge (e8f11cc) stand
+    auf dem Hauptthread in `watchDrives` → `Engine.isSteamRunning` → `ps`. Offen: die übrigen `waitUntilExit`/`readDataToEndOfFile`-Stellen
+    (Liste in `docs/CODE-PRUEFUNG.md`), und dass der Hauptthread bei einem ersten verfehlten `ps` einmal bis ~6 s steht.
   - `CompleteRemoval.Places()` zeigt außerhalb der App (ohne Bundle-ID `io.github.lordhayne.nightforge`, also in jeder Testbinary)
     ins Leere und nimmt die Domäne `nightforge.not-the-app`: ein Test, der einen Ort zu überschreiben vergisst, löscht nichts
     Echtes, und `CompleteRemoval.run()` verweigert sich dort (`requireApp`, bevor etwas beendet wird).

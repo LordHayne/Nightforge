@@ -166,3 +166,43 @@ func withDeadline<T: Sendable>(_ seconds: TimeInterval, _ work: @escaping @Senda
         }
     }
 }
+
+/// The list of every process, from `ps` – which has been seen not answering at all, for good, whatever
+/// was done to it (2.11.2026, after a Wine process was stopped in the middle of a debugger: `ps -ax`
+/// hung, and could not be ended, in every program that asked; Nightforge's own window hung in it).
+/// So: a limit on the wait, and once `ps` has missed it, no new one for a minute (each would only be one
+/// more that never ends, and one more wait for whoever asks – often the main thread). In that minute
+/// whoever may do with an old list gets the last good one (up to ten minutes old), the others nil.
+enum ProcessList {
+    /// Tests point it at a stand-in.
+    nonisolated(unsafe) static var program = "/bin/ps"
+    nonisolated(unsafe) static var timeout: TimeInterval = 4
+    nonisolated(unsafe) static var pause: TimeInterval = 60
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var downUntil = Date.distantPast
+    nonisolated(unsafe) private static var lastGood: [String: (text: String, date: Date)] = [:]
+
+    /// `ps -axo <columns>`. nil when it didn't answer (`stale`: the last answer, if it is not ten minutes old).
+    static func ps(_ columns: String, stale: Bool = false) -> String? {
+        let down = lock.withLock { Date() < downUntil }
+        if !down {
+            let result = Subprocess.run(program, ["-axo", columns], capture: true, timeout: timeout, grace: 0.5)
+            if result.launched, !result.timedOut {
+                lock.withLock { lastGood[columns] = (result.text, Date()) }
+                return result.text
+            }
+            if result.timedOut { lock.withLock { downUntil = Date().addingTimeInterval(pause) } }
+        }
+        guard stale, let old = lock.withLock({ lastGood[columns] }), Date().timeIntervalSince(old.date) < 600 else { return nil }
+        return old.text
+    }
+
+    /// For the test: a new start.
+    static func reset() {
+        lock.withLock {
+            downUntil = .distantPast
+            lastGood = [:]
+        }
+    }
+}

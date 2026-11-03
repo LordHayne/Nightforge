@@ -285,13 +285,11 @@ enum Engine {
         }
     }
 
-    /// Every process with the command line `ps` shows. A `ps` that doesn't answer within 5 s (the
-    /// Mac under heavy load, a process table the kernel is slow to give out) counts as no list: the
-    /// callers ask again at their next look.
+    /// Every process with the command line `ps` shows (`ProcessList`: limited, and the last list when `ps`
+    /// has stopped answering – the callers check each pid they act on).
     static func processTable() -> [(pid: pid_t, command: String)] {
-        let ps = Subprocess.run("/bin/ps", ["-axo", "pid=,command="], capture: true, timeout: 5)
-        guard ps.launched, !ps.timedOut else { return [] }
-        return ps.text.split(separator: "\n").compactMap { line in
+        guard let text = ProcessList.ps("pid=,command=", stale: true) else { return [] }
+        return text.split(separator: "\n").compactMap { line in
             let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
             guard parts.count == 2, let pid = pid_t(parts[0]) else { return nil }
             return (pid, String(parts[1]))

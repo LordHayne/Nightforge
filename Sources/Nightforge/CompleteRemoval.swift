@@ -258,17 +258,22 @@ enum CompleteRemoval {
         }
         guard byCommandLine else { return }
         let scripts = Set([support.path, Engine.realPath(support)].map { $0 + "/steam-shutdown.sh" })
-        for process in Engine.processTable() where process.pid != getpid()
+        // The list may be an old one (ProcessList): only a bash still running under that pid is ended.
+        for process in Engine.processTable() where process.pid != getpid() && isBash(process.pid)
             && scripts.contains(where: { process.command.contains($0) }) {
             kill(process.pid, SIGKILL)
         }
     }
 
+    private static func isBash(_ pid: pid_t) -> Bool {
+        guard pid > 1 else { return false }
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        return proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 && String(cString: buffer) == "/bin/bash"
+    }
+
     /// `pid` is a bash that began within half a minute of `file` being written.
     private static func isQuitScript(_ pid: pid_t, writtenTo file: URL) -> Bool {
-        guard pid > 1, pid != getpid() else { return false }
-        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
-        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0, String(cString: buffer) == "/bin/bash",
+        guard pid != getpid(), isBash(pid),
               let started = Engine.processStart(pid),
               let written = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         else { return false }
