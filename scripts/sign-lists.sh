@@ -76,11 +76,16 @@ done
 # The app takes no list older than the one it has, by its "generated" stamp: a list that changed
 # needs a newer one than main's, or every Nightforge would turn it away. And none from the future: once
 # taken, it would turn away the right lists after it (review N5).
+# Both by the app's own rules, through the tool built from its Signature.swift: as dates, an offset
+# or a day alone included, so the script never signs what every Nightforge would turn away.
 stamp() { plutil -extract generated raw -o - "$1" 2>/dev/null || true; }
-limit="$(date -u -v+1d +%Y-%m-%dT%H:%M:%SZ)"
 for list in "${todo[@]}"; do
-  ours="$(stamp "$tree/$list")"
-  [[ ! "$ours" > "$limit" ]] || fail "$list has \"generated\" $ours, more than a day ahead: fix the clock or the stamp first."
+  status=0
+  "$TOOL" ahead "$tree/$list" || status=$?
+  case "$status" in
+    0) fail "$list has \"generated\" $(stamp "$tree/$list"), more than a day ahead: fix the clock or the stamp first." ;;
+    2) fail "$list has no \"generated\" date Nightforge can read ($(stamp "$tree/$list"))." ;;
+  esac
 done
 for list in "${todo[@]}"; do
   if [ "$branch" = main ]; then
@@ -93,10 +98,9 @@ for list in "${todo[@]}"; do
   fi
   git -C "$tree" cat-file -e "$ref:$list" 2>/dev/null || continue
   git -C "$tree" diff --quiet "$ref" HEAD -- "$list" && continue
-  ours="$(stamp "$tree/$list")"
-  theirs="$(git -C "$tree" show "$ref:$list" > "$work/before-list" && stamp "$work/before-list")"
-  [[ "$ours" > "$theirs" ]] \
-    || fail "$list changed, but its \"generated\" (${ours:-none}) isn't newer than $before (${theirs:-none}): Nightforge would turn it away."
+  git -C "$tree" show "$ref:$list" > "$work/before-list"
+  "$TOOL" newer "$tree/$list" "$work/before-list" \
+    || fail "$list changed, but its \"generated\" ($(stamp "$tree/$list")) isn't newer than $before ($(stamp "$work/before-list")): Nightforge would turn it away."
 done
 
 echo "▸ Signing what $branch holds now:"

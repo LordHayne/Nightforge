@@ -134,6 +134,26 @@ enum SignedLists {
         return full.date(from: stamp) ?? fraction.date(from: stamp) ?? day.date(from: stamp)
     }
 
+    /// Whether a changed list `fresh` may be signed over `before` (scripts/sign-lists.sh, through the
+    /// signing tool): strictly newer by the rules of isOlder, so every Nightforge that has `before` takes
+    /// it and a list with the same stamp can't stand in for another. A `before` the app would count as
+    /// none (more than two days ahead, no stamp) counts as none here too.
+    static func isNewer(_ fresh: Data, than before: Data?, now: Date = Date()) -> Bool {
+        guard !isOlder(fresh, than: before, now: now) else { return false }
+        guard let theirs = before.flatMap(stamp), !theirs.isEmpty, let ours = stamp(fresh) else { return true }
+        let theirDate = date(of: theirs)
+        if let theirDate, theirDate > now.addingTimeInterval(2 * 86_400) { return true }
+        if let ourDate = date(of: ours), let theirDate { return ourDate > theirDate }
+        return ours > theirs
+    }
+
+    /// Whether a list's stamp lies more than a day ahead of `now`: sign-lists.sh doesn't sign one (once
+    /// taken, it would turn away the right lists after it). nil: no stamp that reads as a date.
+    static func isAhead(_ data: Data, now: Date = Date()) -> Bool? {
+        guard let stamp = stamp(data), let date = date(of: stamp) else { return nil }
+        return date > now.addingTimeInterval(86_400)
+    }
+
     private static func stamp(_ data: Data) -> String? {
         struct Stamp: Decodable { let generated: String? }
         return (try? JSONDecoder().decode(Stamp.self, from: data))?.generated
