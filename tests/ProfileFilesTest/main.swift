@@ -137,6 +137,19 @@ struct ProfileFilesTest {
         try? "B=1\n".write(to: gameFile, atomically: true, encoding: .utf8)
         check(Engine.applyFileEdits([GameProfile.FileEdit(path: "b1/Settings.ini", find: "B=1", replace: "B=0")], installDir: installDir)
               && (try? String(contentsOf: gameFile, encoding: .utf8)) == "B=0\n", "edits in the game folder work as before")
+        // One whose `replace` holds its `find` (a line added after it) is made once, not again at every start.
+        try? "[Video]\nWidth=1\n".write(to: gameFile, atomically: true, encoding: .utf8)
+        let adding = [GameProfile.FileEdit(path: "b1/Settings.ini", find: "[Video]\n", replace: "[Video]\nVSync=0\n")]
+        check(Engine.applyFileEdits(adding, installDir: installDir)
+              && (try? String(contentsOf: gameFile, encoding: .utf8)) == "[Video]\nVSync=0\nWidth=1\n", "the line goes in once")
+        check(!Engine.applyFileEdits(adding, installDir: installDir) && !Engine.applyFileEdits(adding, installDir: installDir)
+              && (try? String(contentsOf: gameFile, encoding: .utf8)) == "[Video]\nVSync=0\nWidth=1\n",
+              "the next starts find it done: the file doesn't grow")
+        check(Engine.editing("[Video]\nVSync=0\nA=1\n[Video]\nB=1\n", find: "[Video]\n", replace: "[Video]\nVSync=0\n")
+              == "[Video]\nVSync=0\nA=1\n[Video]\nVSync=0\nB=1\n", "a place the game wrote since still gets it")
+        check(Engine.editing("A=1\n", find: "A=1", replace: "A=1") == "A=1\n"
+              && !Engine.applyFileEdits([GameProfile.FileEdit(path: "b1/Settings.ini", find: "Width=1", replace: "Width=1")], installDir: installDir),
+              "an edit that changes nothing writes nothing")
 
         // MARK: Save folders a rule may name (SaveTransfer: rules from Steam's catalog and the profiles)
         saveFolders(temp)

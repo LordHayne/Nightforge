@@ -2351,12 +2351,27 @@ enum Engine {
                   let text = try? String(contentsOf: file, encoding: .utf8)
             else { continue }
             if edit.once == true { defaults.set(true, forKey: done) }
-            guard text.contains(edit.find) else { continue }
-            if (try? text.replacingOccurrences(of: edit.find, with: edit.replace).write(to: file, atomically: true, encoding: .utf8)) != nil {
+            let edited = editing(text, find: edit.find, replace: edit.replace)
+            guard edited != text else { continue }
+            if (try? edited.write(to: file, atomically: true, encoding: .utf8)) != nil {
                 changed = true
             }
         }
         return changed
+    }
+
+    /// `text` with `find` made `replace`. Where `replace` holds `find` (a line added after it, say),
+    /// the places replaced at an earlier start stay as they are: else `find` would be there again
+    /// after every start and the file would grow by one `replace` each time.
+    static func editing(_ text: String, find: String, replace: String) -> String {
+        guard !find.isEmpty, text.contains(find) else { return text }
+        guard replace.contains(find) else { return text.replacingOccurrences(of: find, with: replace) }
+        // The earlier ones out of the way under a mark that can't be part of `find`, then back.
+        let mark = "\u{1}\u{2}"
+        guard !text.contains(mark), !find.unicodeScalars.contains(where: { $0.value == 1 || $0.value == 2 }) else { return text }
+        return text.replacingOccurrences(of: replace, with: mark)
+            .replacingOccurrences(of: find, with: replace)
+            .replacingOccurrences(of: mark, with: replace)
     }
 
     /// Whether `file` lies in `base` with the links on the way resolved: a link in the prefix or the
