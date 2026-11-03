@@ -314,6 +314,9 @@ enum GameResolution {
     /// GameUserSettings.ini with its remembered resolution set to `size`, in every section where the
     /// game is set to full screen (FullscreenMode 0 exclusive, 1 full-screen window; 2 is a window).
     /// Games with their own settings class keep these in its section ([/Script/Game.GameSettings]).
+    /// Older ones with a class of their own (ABZU, Unreal 4.8) say "Fullscreen=ON" instead and keep
+    /// the size in DesiredScreenWidth/Height, the desktop's only with bUseDesktopResolutionForFullscreen:
+    /// ABZU came up 1920×1200 on a 1512×982 MacBook (game test, 3.11.2026), its file untouched.
     /// Only values the game wrote itself. Nil when nothing changes.
     static func unrealFitted(_ text: String, size: Size) -> String? {
         guard size.width > 0, size.height > 0 else { return nil }
@@ -331,6 +334,10 @@ enum GameResolution {
         }
         var result = text
         for (name, values) in sections {
+            if values["FullscreenMode"] == nil, let older = olderFitted(values, size: size) {
+                result = Engine.mergingIni(result, section: name, values: older)
+                continue
+            }
             guard let mode = values["FullscreenMode"].flatMap(Int.init), mode == 0 || mode == 1 else { continue }
             let resolution: [String: String] = ["ResolutionSizeX": "\(size.width)", "ResolutionSizeY": "\(size.height)",
                                                 "LastUserConfirmedResolutionSizeX": "\(size.width)",
@@ -342,5 +349,17 @@ enum GameResolution {
             result = Engine.mergingIni(result, section: name, values: wanted)
         }
         return result == text ? nil : result
+    }
+
+    /// For a section of the older kind (no FullscreenMode): set to full screen ("Fullscreen=ON",
+    /// True or 1), the desktop's resolution and DesiredScreenWidth/Height at `size`. Nil for a
+    /// window or when nothing differs.
+    static func olderFitted(_ values: [String: String], size: Size) -> [String: String]? {
+        guard let fullscreen = values["Fullscreen"]?.lowercased(), ["on", "true", "1"].contains(fullscreen) else { return nil }
+        let screen: [String: String] = ["DesiredScreenWidth": "\(size.width)", "DesiredScreenHeight": "\(size.height)"]
+        var wanted = screen.filter { values[$0.key] != nil && values[$0.key] != $0.value }
+        if values["bUseDesktopResolutionForFullscreen"]?.lowercased() == "false" { wanted["bUseDesktopResolutionForFullscreen"] = "True" }
+        guard !wanted.isEmpty else { return nil }
+        return wanted
     }
 }
