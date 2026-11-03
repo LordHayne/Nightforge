@@ -26,15 +26,16 @@ jobs:
         run: |
           x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -Werror -municode -mwindows -static \
             -o wrapper/steamwebhelper.exe wrapper/steamwebhelper-wrapper.c
-          sha256sum wrapper/steamwebhelper.exe
+          # Beside it, its SHA-256 as a line a review can read: build.sh takes no other binary.
+          (cd wrapper && sha256sum steamwebhelper.exe | tee steamwebhelper.exe.sha256)
 
       # build.sh falls back to the checked-in binary on Macs without mingw-w64, so keep it current.
       - name: Commit rebuilt binary
         if: github.event_name == 'push'
         run: |
-          if git diff --quiet wrapper/steamwebhelper.exe; then exit 0; fi
+          if git diff --quiet wrapper/steamwebhelper.exe wrapper/steamwebhelper.exe.sha256; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add wrapper/steamwebhelper.exe
+          git add wrapper/steamwebhelper.exe wrapper/steamwebhelper.exe.sha256
           git commit -m "Rebuild steamwebhelper wrapper"
           git push
