@@ -463,25 +463,52 @@ Konflikte und Anpassungen:
   `engine-layout-test` um 09:22), entstanden, bevor Stagings Reihen dieser Namen liefen. Deren Ende: 09:23,
   09:44 und 09:25. Sie stammen also aus dem Lauf einer anderen Sitzung.
 
-## Offen in der achten Runde: KosmicKrisp DirectX 9 (`claude/quirky-clarke-81fd65` bis 763efd2)
+## Achte Runde, Nachtrag: KosmicKrisp DirectX 9 (Merge 44)
 
-- Die Lösung in `kosmickrisp-staging-merge.diff` stammt von 02:36, aus der Zeit vor engine-envs 4aaf428. Heute gibt
-  es fünf Konfliktstellen statt drei.
-- Drei sind klar und in einem eigenen Worktree schon gelöst:
-  - Mesas Shader-Ordner neben engine-envs Registry-Aufräumen. KosmicKrisp hat `applyGameEnvironment` selbst nicht
-    geändert, 5c8edd0 hat es entfernt.
-  - `preparePrefix` ohne `applyGameEnvironment`, mit `d3d9From`.
-  - `ensureEngine` und `useHeld` wie in der Notiz.
-- **Unklar ist der Parameter `vulkan:` von `prepareLaunchEnvironment`.**
-  - engine-env (4aaf428) hat einen eigenen Weg für Direct3D 9 auf DXVK unter winecx: Gcenx' Khronos-Loader, MoltenVK
-    und Nightforges Layer, hinter dem Schalter `vulkanLoader` (aus), mit `vulkan: [String: String]`.
-  - KosmicKrisp hat `vulkan: VulkanDriver?`. Beide setzen `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, `CX_LIBVULKAN` und
-    `VK_DRIVER_FILES`.
-  - engine-env schreibt die Loader-Variablen bei jedem Start, ohne Loader leer, also weg. KosmicKrisps `nil` lässt
-    dagegen Steams Treiber stehen, damit ein Wechsel zwischen Mafia II und einem DXMT-Spiel keinen Neustart von Steam
-    kostet.
-  - Welcher Weg bei beiden Schaltern gilt, ist eine Entscheidung. Gefragt ist die KosmicKrisp-Sitzung (09:21), mit
-    einem Vorschlag: KosmicKrisp nur bei `kosmicKrispReady`, sonst der Loader. Eine Antwort steht noch aus.
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 44 | `claude/quirky-clarke-81fd65` bis 763efd2 | 763efd2 | fbeab53 | `Engine.swift` (vier Stellen), `LibraryModel.swift` | 0 |
+
+Die Lösung in `kosmickrisp-staging-merge.diff` (02:36) ist älter als engine-envs 4aaf428. Den Teil, den sie nicht
+abdeckt, habe ich mit der KosmicKrisp-Sitzung abgestimmt (Frage 09:21, ihre Antwort danach).
+
+- **Zwei Wege für Direct3D 9 auf DXVK unter winecx, ein Aufruf:** `prepareLaunchEnvironment` nimmt KosmicKrisps
+  `vulkan: VulkanDriver?` und engine-envs Loader als `vulkanLoader: [String: String]`.
+  - Zuerst kommt KosmicKrisps Weiche. `.kosmicKrisp` setzt seine Variablen und nimmt `VK_ADD_IMPLICIT_LAYER_PATH`
+    weg. `.moltenVK` nimmt alle weg, nur das Backend eines Profils bleibt. `nil` lässt Steams Treiber stehen.
+  - Danach kommt der Loader, aber nur, wenn er Werte hat. Vorher schrieb engine-env seine Variablen bei jedem Start,
+    ohne Loader leer. Das hätte KosmicKrisps Werte gelöscht und nach Mafia II einen Neustart von Steam gekostet.
+  - Meine Ergänzung: `nil` behält auch „wined3d“, solange ein `CX_LIBVULKAN` gesetzt ist und das Profil kein eigenes
+    Backend hat. engine-envs Schleife über die Schalter des Spiels setzt `CX_ACTIVE_GRAPHICS_BACKEND` sonst bei jedem
+    Start zurück. Ein DXMT-Spiel nach Mafia II hätte dann doch einen Neustart gekostet, und KosmicKrisps eigene
+    Prüfung dazu wäre rot gewesen. Der KosmicKrisp-Sitzung ist das zum Übernehmen gemeldet.
+- **Beide Schalter an:** Der Loader gewinnt. `LibraryModel` wählt KosmicKrisp nur bei `kosmicKrispReady`, und das ist
+  bei eingeschaltetem Loader über `vulkanLayerLoads` falsch. Die Direktstarts (Epic, GOG) bekommen dieselbe Wahl.
+- **Aus der Notiz:**
+  - Mesas Shader-Ordner steht neben engine-envs Registry-Aufräumen.
+  - `preparePrefix` hat kein `applyGameEnvironment` mehr (5c8edd0), aber `d3d9From`.
+  - `ensureEngine` und `useHeld` nehmen auch upstream-DXVKs Direct3D 9 mit.
+- **`EngineLayoutTest`:**
+  - Der Fall des Loaders steht unter dem neuen Namen.
+  - Ein DXMT-Spiel nach dem Loader kostet keinen Neustart, das war vorher „Steam startet ohne sie neu“.
+  - KosmicKrisp nach dem Loader hat seine Variablen und keine des Loaders.
+  - Der Loader wieder: KosmicKrisps Cache-Ordner fällt weg.
+  - Ein DirectX-11-Spiel auf DXVK räumt alles ab.
+- **KosmicKrisp bleibt aus.** Die Komponentenliste nennt nur upstream-DXVK 3.1.1, nicht `kosmickrisp`. Das steht
+  erst als optionaler Eintrag in `components/sources.json`, bis es ein Release gibt. Ohne Komponente ist
+  `kosmicKrispNow` nil, und upstream-DXVK wird nur zusammen mit KosmicKrisp eingerichtet.
+- Neu, nicht von `run-tests.sh` ausgeführt und nicht gelaufen: `tests/kosmickrisp/` (D3D9-Probe, Live-Test-Skript)
+  und `.github/workflows/kosmickrisp.yml`.
+
+## Tests nach Merge 44 (auf fbeab53)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 60 Reihen grün (1291 s), auch `PadFocusTest` bei gesperrtem
+  Bildschirm und `WineSandboxTest`. **pytest:** 123 von 123.
+- Vorab allein: `EngineLayoutTest` und `LaunchHealthTest` grün.
+- Neue Test-Plists in dieser Zeit (`nightforge.wine-sandbox-test-<UUID>` um 10:12 und 10:15, `com.example.other`)
+  kommen nicht von Staging. Stagings `WineSandboxTest` legt seine Suite seit 7374066 im Arbeitsordner an, und keine
+  Staging-Reihe nennt `com.example.other`.
 
 ## Für die echten Merges
 
@@ -498,6 +525,8 @@ Konflikte und Anpassungen:
   - 78205cf, der Schalter des Play!-Helfers im Spieletest heißt `UnityDialog.switchKey`. Erst sinnvoll, wenn
     unity-play und game-test-fixes zusammenkommen.
   - 5dd6d71, Unitys Play!-Helfer startet über `WineSandbox.process`. Für `claude/unity-play`.
+  - fbeab53 ist ein Merge, aber mit eigener Lösung: Was davon in `claude/quirky-clarke-81fd65` gehört, steht im
+    Merge-Commit und oben im Nachtrag.
 - Der Stand je Befund steht jetzt in `docs/AUDIT-SICHERHEIT.md` (Merge 16).
 - Mit N1 (audit-low) startet ein `nightforge://play`-Link nur noch mit dem Schlüssel der eigenen Spiel-Apps. Eigene
   Kurzbefehle des Nutzers mit solchen Links zeigen danach die Spielseite (für den Nutzer in `docs/TODO.md`).
