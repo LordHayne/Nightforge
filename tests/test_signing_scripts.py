@@ -620,6 +620,24 @@ class SigningScripts(unittest.TestCase):
         self.assertIn("more than a day ahead", result.stderr)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
 
+    def test_a_pull_request_is_checked_with_the_bases_tool_and_keys(self):
+        """Review D: the check reads the pull request's lists, but takes its checker and keys from the base."""
+        origin = self.lists_repo()
+        self.assertEqual(self.sign_lists("bot/profiles").returncode, 0)
+        pull_request = self.checkout(origin, "bot/profiles")
+        check = lambda tree: subprocess.run(["bash", "scripts/check-signatures.sh", str(tree)], cwd=self.repo, env=self.env,
+                                            capture_output=True, text=True)
+        self.assertEqual(check(pull_request).returncode, 0, "signed lists, the same checker: green")
+        keys = pull_request / "Sources/Nightforge/SigningKeys.swift"
+        stranger = self.tool(self.plain_tool, "public", stdin=self.stranger).strip()
+        keys.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), stranger, ""))
+        result = check(pull_request)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("changes Sources/Nightforge/SigningKeys.swift", result.stdout)
+        tool = pull_request / "scripts/signing-tool.swift"
+        tool.write_text(tool.read_text() + "\n// always green\n")
+        self.assertIn("changes scripts/signing-tool.swift", check(pull_request).stdout)
+
     def test_a_changed_list_fails_the_check(self):
         origin = self.lists_repo()
         result = self.sign_lists("main")
