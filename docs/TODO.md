@@ -385,9 +385,6 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 
 ### Engine-Rückfall (3.3, Branch `claude/engine-rollback-02a61e`)
 
-- **Speicher-Anzeige zählt die gehaltene Engine doppelt.** Sie ist ein APFS-Klon und teilt ihre Blöcke mit dem
-  Original. `Library.folderSize` summiert aber `totalFileAllocatedSize`, also erscheint sie in Einstellungen ›
-  Speicher mit voller Größe (bis 1,4 GB), solange das Original noch da ist.
 - **Nach dem Zusammenführen mit 0.2 (GameID):** `EngineRollback` merkt sich Spiele unter der Steam-App-ID, und
   `LaunchHealth.confirmedWays` liest `launchHealth.<id>`. Beides auf die neue ID umstellen.
 - **Nur Abstürze eines Spiels zählen.** Startet Steam selbst mit der neuen Engine nicht, greift der Rückfall nicht.
@@ -410,17 +407,18 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     Laufwerk. Dafür die Einträge bei Steam (`libraryfolders.vdf`), Epic (legendary) und GOG (`installed.json`) entfernen.
     Spielstände liegen im Prefix auf dem Mac und bleiben.
   - Auf der Spielseite zusätzlich „Neu laden“, das die alte Kopie vergisst.
-- **Platzprüfung zählt laufende Downloads nicht mit, und die Reserve ist knapp** (Nutzer, 1.11.). Die Lage: Control
-  (Epic, 27,8 GB) und The Evil Within 2 (GOG, 35,2 GB) luden zugleich, 44 GB waren frei, CleanMyMac warnte
-  „Speicherplatz wird knapp“. Beide passen noch, danach bleiben etwa 10 GB.
-  - `SpaceCheck.shortfall` vergleicht aber nur das neue Spiel mit dem freien Platz plus 1 GB Reserve
-    (`LibraryModel.downloadIfRoom`). Was andere Downloads auf demselben Laufwerk noch brauchen, fehlt.
-  - Vorschlag: Die Reste aller laufenden und wartenden Downloads je Laufwerk abziehen. Dazu eine Reserve, die macOS Luft
-    lässt (etwa 10 GB statt 1 GB). Bleibt danach wenig übrig, sagt Nightforge vorher ruhig, wie viel frei bleibt.
-  - Dazu eine kleine Meldung, wenn ein Laufwerk mit Spielen knapp wird (Nutzer, 1.11.: „Macintosh HD nur noch wenig
-    Speicherplatz“). Am 1.11. waren noch 6,1 GB frei. Ruhig auf der Startseite oder im Download-Panel, mit dem Weg zur
-    Lösung: Spiele auf ein externes Laufwerk verschieben oder lange nicht gespielte entfernen (das Platz-Sheet gibt es
-    schon).
+- **Platzprüfung, was noch fehlt** (Nutzer, 1.11.: Control von Epic und The Evil Within 2 von GOG zugleich, 44 GB frei).
+  Laufende und wartende Downloads zählen mit (`SpaceCheck.committed`), der Mac behält 10 GB, unter 20 GB fragt Nightforge
+  vorher, und ein knappes Laufwerk zeigt eine ruhige Meldung (676d87f). Seit 3.11. zählt ein Download mit dem, was er
+  auf der Platte belegt (`Game.installedSize`: Epics und GOGs Dateien kommen gepackt, Steam entpackt mehr), nicht mit
+  dem, was herunterkommt. Offen:
+  - Epic- und GOG-Updates beim Start („Aktualisieren und spielen“) prüfen keinen Platz: Ihre Größe kennt Nightforge
+    vorher nicht (`pendingUpdate` ist 0). legendary und gogdl könnten sie nennen.
+  - Steam für Mac belegt die ganze Größe eines Spiels gleich zu Beginn (`MacSteamProgress`). Ein laufender Download
+    dort zählt trotzdem mit seinem Rest, also womöglich doppelt. Am echten Download prüfen, ob der freie Platz sofort
+    fällt; dann für Mac-Downloads von Steam nichts mehr anrechnen.
+  - `EpicTest` und `GOGTest` liefen für die neue Größe nicht (am 3.11. hing `ps`). Sie haben noch keinen Fall für
+    einen laufenden Download.
 
 ## Controller
 

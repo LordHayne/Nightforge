@@ -177,6 +177,9 @@ struct UpdateStateTest {
         let staged = LibraryScanner.folderSize(steamapps.appendingPathComponent("downloading/3000"))
         check(staged >= 20_000, "unpacked files counted, in subfolders too: \(staged)")
         check(byID[3000]?.install == .downloading(min(Double(staged) / 40_000, 0.99)), "unpacked so far: \(String(describing: byID[3000]?.install))")
+        check(byID[3000]?.installedSize == 40_000 && byID[5000]?.installedSize == 3000 && byID[5000]?.sizeOnDisk == 2000,
+              "what a download takes on disk once unpacked, beside what comes down (the space check counts that)")
+        check(byID[2000]?.installedSize == nil && byID[1623730]?.installedSize == nil, "none for a plain download or an installed game")
         check(byID[4000]?.install == .downloading(nil), "size not known yet")
         check(byID[5000]?.downloadNeedsSpace == 3000 && byID[5000]?.install == .downloading(0), "Steam's full disk: the space it needs")
         check(byID[6100]?.installDir.path.hasSuffix("DriveD/SteamLibrary/steamapps/common/Hades") == true, "a game on drive D:")

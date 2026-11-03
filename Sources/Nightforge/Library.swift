@@ -44,6 +44,10 @@ struct Game: Identifiable, Hashable {
     /// Not on the Mac yet: what the download comes to, when that's less than `sizeOnDisk` (Epic's
     /// files come compressed). Steam's games say only the one size.
     var downloadSize: Int64?
+    /// While it downloads, `sizeOnDisk` is what comes down (the size its progress is a share of): this
+    /// is what it takes on disk once it's down, when that's more. Epic's and GOG's files come
+    /// compressed, and Steam unpacks into more than it downloads (BytesToStage).
+    var installedSize: Int64?
     /// Installed, with an update Steam has to download before it starts: what's left of it
     /// (0 while Steam hasn't worked the size out).
     var pendingUpdate: Int64?
@@ -548,6 +552,7 @@ enum LibraryScanner {
         )
         game.install = install
         game.installDirName = installDirName
+        if install != .installed, toStage > toDownload { game.installedSize = Int64(toStage) }
         if install == .installed {
             game.pendingUpdate = UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
                                              targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string).pending
@@ -571,12 +576,18 @@ enum LibraryScanner {
                            targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string)
     }
 
+    /// What a folder's files take on disk. An APFS clone (the held engine is one of the engine,
+    /// `ComponentStore.cloneFolder`) shares its blocks with its original until one of them changes;
+    /// until then both carry the same content identifier, and the blocks count once. A clone that was
+    /// changed counts in full, so the size can come out a little high, never low.
     static func folderSize(_ url: URL) -> Int64 {
-        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .isRegularFileKey]
+        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .isRegularFileKey, .mayShareFileContentKey, .fileContentIdentifierKey]
         guard let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys)) else { return 0 }
         var total: Int64 = 0
+        var shared: Set<Int64> = []
         for case let file as URL in files {
             guard let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true else { continue }
+            if values.mayShareFileContent == true, let content = values.fileContentIdentifier, !shared.insert(content).inserted { continue }
             total += Int64(values.totalFileAllocatedSize ?? 0)
         }
         return total
