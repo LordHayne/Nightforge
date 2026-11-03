@@ -145,10 +145,24 @@ IGNORED_VERBS = {"ubisoftconnect"}
 # (`annihilate` deletes the whole prefix). Engine.isSafeWinetricksVerb checks the same.
 WINETRICKS_COMMANDS = {"annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version"}
 SAFE_VERB = re.compile(r"[a-z0-9_]{1,64}")
+# winetricks verbs that would change every game in the one prefix Nightforge shares, not just the one
+# that asks – the same lists as Engine.windowsVersionVerbs and Engine.sharedPrefixUnsafeVerbs in the app,
+# which never runs them (test_build_profiles compares them with Engine.swift). The Windows versions
+# first: a profile says windowsVersion instead, which the app applies to the game's programs only.
+WINDOWS_VERSION_VERBS = {"nt351", "nt40", "vista", "win20", "win2k", "win2k3", "win2k8", "win2k8r2", "win30", "win31",
+                         "win7", "win8", "win81", "win10", "win11", "win95", "win98", "winme", "winxp"}
+SHARED_PREFIX_UNSAFE_VERBS = WINDOWS_VERSION_VERBS | {
+    "dsound", "bad", "good", "fontfix", "forcemono", "heapcheck", "hosts", "isolate_home", "native_mdac",
+    "native_oleaut32", "nocrashdialog", "remove_mono", "sandbox", "set_mididevice", "set_userpath",
+}
 
 
 def safe_verb(verb) -> bool:
-    return isinstance(verb, str) and SAFE_VERB.fullmatch(verb) is not None and verb not in WINETRICKS_COMMANDS
+    """A plain install verb the app runs (Engine.isSafeWinetricksVerb): no command, nothing that
+    changes the shared prefix for every game. A profile with another would be signed and then
+    quietly do nothing."""
+    return isinstance(verb, str) and SAFE_VERB.fullmatch(verb) is not None and verb not in WINETRICKS_COMMANDS \
+        and verb not in SHARED_PREFIX_UNSAFE_VERBS
 
 
 # DLL overrides and arguments go from a stranger's repository to every player's game start, so only
@@ -196,10 +210,6 @@ def arguments_allowed(arguments) -> bool:
 # case aside. Anything else the app skips; here it fails the build instead of shipping silently.
 WINDOWS_ROOTS = {"gameinstall", "winappdataroaming", "winappdatalocal", "winappdatalocallow", "winmydocuments", "winsavedgames"}
 MAC_ROOTS = {"gameinstall", "macappsupport", "maccaches"}
-# winetricks verbs that set the Windows version, for the whole prefix – Steam and every game. A Mac
-# profile says windowsVersion instead, which the app applies to the game's programs only.
-WINDOWS_VERSION_VERBS = WINDOWS_VERSIONS | {"win20", "win30", "win31", "win95", "win98", "winme", "nt351", "nt40",
-                                            "win2k8", "win2k8r2"}
 MAX_FILE_RULES = 32
 
 
@@ -324,8 +334,10 @@ def mac_problems(mac_games) -> list:
             if field in profile and not allowed(profile[field]):
                 problems.append(f"{key}: {field}")
         for verb in profile.get("winetricks") or []:
-            if not safe_verb(verb) or verb in WINDOWS_VERSION_VERBS:
-                problems.append(f"{key}: winetricks {verb!r}" + (" (say windowsVersion)" if verb in WINDOWS_VERSION_VERBS else ""))
+            if not safe_verb(verb):
+                why = " (say windowsVersion)" if verb in WINDOWS_VERSION_VERBS else \
+                    " (changes every game in the shared prefix)" if verb in SHARED_PREFIX_UNSAFE_VERBS else ""
+                problems.append(f"{key}: winetricks {verb!r}{why}")
         for entry in profile.get("registry") or []:
             if not isinstance(entry, dict) or not registry_key_allowed(entry.get("key")) \
                     or any("\n" in str(v) or "\r" in str(v) for v in entry.values()):
