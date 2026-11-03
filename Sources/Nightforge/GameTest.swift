@@ -300,6 +300,39 @@ enum GameTest {
         macOSQuestion(game, in: log)?.asker
     }
 
+    /// How the report names an app that had the front: Nightforge, Steam, Wine's programs and macOS's own
+    /// (its askers, the Finder) by name, any other as "eine andere App" – a password manager or a
+    /// messenger has no place in a report that may go public.
+    static func frontName(_ name: String?, path: String?, bundleID: String?) -> String {
+        guard let name, !name.isEmpty else { return "keine App" }
+        if bundleID?.hasPrefix("io.github.lordhayne") == true { return "Nightforge" }
+        let lower = path?.lowercased() ?? ""
+        // Under Wine the program is Wine's loader; Steam's window there says so by its name.
+        if lower.contains("steam") || name.lowercased().contains("steam") { return "Steam" }
+        if lower.contains("wine") { return "ein Windows-Programm" }
+        if lower.hasPrefix("/system/") { return name }
+        return "eine andere App"
+    }
+
+    /// The names macOS asks through (GameProcesses.macOSAskers on the curtain's side) and what else
+    /// may stand in a look of the curtain's by name.
+    static let knownFront = ["Nightforge", "Nightforge Game", "Steam", "steamwebhelper", "nobody", "UserNotificationCenter",
+                             "AuthorizationPromptService", "universalAccessAuthWarn", "CoreLocationAgent", "CoreServicesUIAgent",
+                             "SecurityAgent", "coreautha", "Finder"]
+
+    /// A look of the curtain's for the report: who had the front only when it's the game, Nightforge,
+    /// Steam or macOS's own ("in front Claude (1276, not the game's)" → "in front eine andere App …").
+    static func reportLook(_ look: String, game: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"in front (.+?) \(([0-9-]+), (the game's|not the game's)\)"#) else { return look }
+        let range = NSRange(look.startIndex..., in: look)
+        guard let match = regex.firstMatch(in: look, range: range), let nameRange = Range(match.range(at: 1), in: look),
+              let ownerRange = Range(match.range(at: 3), in: look)
+        else { return look }
+        let name = String(look[nameRange])
+        if look[ownerRange] == "the game's" || name == game || knownFront.contains(name) { return look }
+        return look.replacingCharacters(in: nameRange, with: "eine andere App")
+    }
+
     /// An app in front that has nothing to do with the start – not Nightforge, the game, Wine or
     /// Steam. Unattended, the curtain then never hands the front to the game, which only Nightforge
     /// in front can do: on 2.11. the Claude app had it, and Black Myth: Wukong counted as hanging.

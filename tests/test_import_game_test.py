@@ -63,7 +63,17 @@ class ImportGameTestTests(unittest.TestCase):
             self.assertTrue(importer.leaks(text, HOME, USER, machine=machine), text)
         for text in ("Z:\\Volumes\\<drive>\\Games\\x.exe", "/Volumes/<drive>/x", "/System/Volumes/Preboot/x", "LOCAL_HOSTNAME=<computer>"):
             self.assertFalse(importer.leaks(text, HOME, USER, machine=machine), text)
-        self.assertTrue(all(len(name) >= 4 for name in importer.machine_names()))
+        self.assertTrue(all(len(name) >= 3 for name in importer.machine_names()))
+
+    def test_what_redacted_knows_is_a_leak_its_placeholders_are_not(self):
+        machine = ["Mini", "Studio-7"]
+        for text in ("write to jane@example.com", "access_token=abc123", '"refresh_token": "xyz"', "-AUTH_PASSWORD=abc",
+                     "Bearer abcdefgh12", "owner jdoe", "[U:1:12345]", "userdata/123456", "users/48628349957132247/releases",
+                     "/var/folders/x7/abcd/T/x", "COMPUTERNAME=mini", "host studio-7.local"):
+            self.assertTrue(importer.leaks(text, HOME, USER, machine=machine), text)
+        for text in ("<email>", "access_token=<hidden>", '"refresh_token": "<hidden>"', "-AUTH_PASSWORD=<hidden>", '"-AUTH_PASSWORD=<hidden>"',
+                     "owner <user>", "<steam id>", "users/<gog user>/releases", "/var/folders/<id>/T/x", "Minigolf", "Studios", "Mini2", "jdoey"):
+            self.assertFalse(importer.leaks(text, HOME, USER, machine=machine), text)
 
     def test_refuses_another_format(self):
         with tempfile.TemporaryDirectory() as tmp:

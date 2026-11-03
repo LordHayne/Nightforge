@@ -233,9 +233,9 @@ final class GameTestRun {
                         notes.append(Self.macOSNote(question))
                         break
                     }
-                    let name = app.localizedName ?? "?"
+                    let name = GameTest.frontName(app.localizedName, path: app.executableURL?.path, bundleID: app.bundleIdentifier)
                     if !frontTakers.contains(name) { frontTakers.append(name) }
-                    GameLog.note("Game test: \(name) had the front before the picture – Nightforge takes it back")
+                    GameLog.note("Game test: \(app.localizedName ?? "?") had the front before the picture – Nightforge takes it back")
                     NSApp.comeToFront()
                     foreignSince = nil
                 }
@@ -353,7 +353,7 @@ final class GameTestRun {
                 }
                 // Another app took the front: the game back in front, as Switch to Game does.
                 if let app = foreignApp(for: game) {
-                    let name = app.localizedName ?? "?"
+                    let name = GameTest.frontName(app.localizedName, path: app.executableURL?.path, bundleID: app.bundleIdentifier)
                     if !playTakers.contains(name) { playTakers.append(name) }
                     model.switchToGame(game)
                 }
@@ -401,7 +401,9 @@ final class GameTestRun {
         let learned = LearnedFixes.winetricks(game.gameID).filter { !learnedBefore.contains($0) }
         if !learned.isEmpty { notes.append("laut Log fehlen Laufzeiten, im Test nicht installiert: " + learned.joined(separator: ", ")) }
         if log.contains("Curtain under a window of \(game.name)'s") { notes.append("das Spiel zeigte vor dem Bild ein Fenster mit einer Frage") }
-        if outcome != .picture, let look = GameTest.lastLook(of: game.name, in: log) { notes.append("letzter Blick des Vorhangs: " + look) }
+        if outcome != .picture, let look = GameTest.lastLook(of: game.name, in: log) {
+            notes.append("letzter Blick des Vorhangs: " + GameTest.reportLook(look, game: game.name))
+        }
         if GameTest.helperPressedPlay(in: log) { notes.append("der Play-Helfer drückte „Play!“ in Unitys Startfenster") }
         if outcome != .picture || endedWhilePlaying {
             let errors = GameLog.errors(in: log, limit: 20)
@@ -423,11 +425,12 @@ final class GameTestRun {
     /// game (bringToFront, handFocus). What had it instead goes into the report.
     private func takeFront() async -> [String] {
         guard !NSApp.isFrontmost else { return [] }
-        let before = NSWorkspace.shared.frontmostApplication?.localizedName ?? "keine App"
+        let app = NSWorkspace.shared.frontmostApplication
+        let before = GameTest.frontName(app?.localizedName, path: app?.executableURL?.path, bundleID: app?.bundleIdentifier)
         NSApp.comeToFront()
         for _ in 0..<20 where !NSApp.isFrontmost { try? await Task.sleep(for: .milliseconds(250)) }
         let took = NSApp.isFrontmost
-        GameLog.note("Game test: \(before) had the front before the start" + (took ? " – Nightforge took it" : " and kept it"))
+        GameLog.note("Game test: \(app?.localizedName ?? "nobody") had the front before the start" + (took ? " – Nightforge took it" : " and kept it"))
         return [took ? "vor dem Start war \(before) vorne, Nightforge holte die Front" : "vor dem Start war \(before) vorne und blieb es"]
     }
 
@@ -611,6 +614,7 @@ final class GameTestRun {
     }
 
     private func write() {
+        let report = report.redacted()
         try? GameTest.json(report).write(to: folder.appendingPathComponent("report.json"), options: .atomic)
         try? GameTest.summary(report).write(to: folder.appendingPathComponent("report.md"), atomically: true, encoding: .utf8)
     }

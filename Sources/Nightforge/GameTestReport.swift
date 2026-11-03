@@ -100,6 +100,14 @@ extension GameTest {
         var notes: [String]?
         var games: [Entry] = []
 
+        /// For writing: the run's own notes through GameLog.redacted as the entries' are (a basket's file
+        /// name may be anything).
+        func redacted(home: String = NSHomeDirectory(), user: String = NSUserName(), machine: [String] = GameLog.machineNames) -> Report {
+            var report = self
+            report.notes = notes?.map { GameLog.redacted($0, home: home, user: user, machine: machine) }
+            return report
+        }
+
         struct BasketUse: Codable, Equatable {
             var generated: String?
             var entries: Int
@@ -120,17 +128,16 @@ extension GameTest {
         return try? decoder.decode(Report.self, from: data)
     }
 
-    /// Whether `text` gives away whose Mac it ran on: the home folder, the account name in a path
-    /// (/Users/<name>, C:\users\<name>), an external drive's name or the Mac's own (GameLog.redacted
-    /// leaves "<drive>" and "<computer>").
+    /// Whether `text` still holds what GameLog.redacted takes out: whatever redacting it once more
+    /// would change – the home folder, the account name in a path or as a word, an external drive's
+    /// name, the Mac's names as words (a Mac called "Mini" or "Studio" mustn't stop every import),
+    /// the temp folder, e-mail addresses, tokens and sign-in arguments, Steam and GOG ids. Redacted
+    /// text stays as it is (its "<drive>", "<computer>", "<hidden>" …). macOS's own /System/Volumes is
+    /// no drive.
     static func leaks(_ text: String, home: String = NSHomeDirectory(), user: String = NSUserName(),
                       machine: [String] = GameLog.machineNames) -> Bool {
-        if !home.isEmpty, text.contains(home) { return true }
-        if text.range(of: #"(?<!System)(/|\\{1,2})Volumes(/|\\{1,2})(?!<drive>)"#, options: .regularExpression) != nil { return true }
-        if machine.contains(where: { text.range(of: $0, options: .caseInsensitive) != nil }) { return true }
-        guard !user.isEmpty else { return false }
-        let path = #"(?i)users(\\{1,2}|/)"# + NSRegularExpression.escapedPattern(for: user) + #"(?![\p{L}\p{N}_])"#
-        return text.range(of: path, options: .regularExpression) != nil
+        let plain = text.replacingOccurrences(of: "/System/Volumes/", with: "/System/")
+        return GameLog.redacted(plain, home: home, user: user, machine: machine) != plain
     }
 
     /// The run's folder, and its date for docs/spieletest: "2026-11-03-0112".
