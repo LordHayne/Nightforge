@@ -1,4 +1,4 @@
-// Checks iniSettings, fileEdits with a Windows root or `once`, the Retina mode a profile asks
+// Checks iniSettings, fileEdits with a Windows root or `once`, the save folders a rule may name, the Retina mode a profile asks
 // for, and the profile list Nightforge keeps (ProfileStore, in a home of the test's own):
 // tests/ProfileFilesTest/run.sh
 import Foundation
@@ -71,6 +71,38 @@ struct ProfileFilesTest {
         Engine.applyIniSettings([GameProfile.IniSetting(root: "WinSomewhere", path: "x.ini", section: "S", values: ["a": "b"])], places: places)
         check((try? fm.contentsOfDirectory(atPath: local.path)) == ["Voyage"], "an unknown root writes nothing")
 
+        // A link on the way that leads out (users\<name>\Documents once led to the Mac's own) isn't written through.
+        let outside = temp.appendingPathComponent("outside", isDirectory: true)
+        try? fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        try? fm.createSymbolicLink(at: local.appendingPathComponent("Linked"), withDestinationURL: outside)
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Linked/Game/Engine.ini",
+                                                        section: "S", values: ["a": "b"])], places: places)
+        check((try? fm.contentsOfDirectory(atPath: outside.path)) == [], "no file and no folder behind a link out of the prefix")
+        try? "[S]\na=1\n".write(to: outside.appendingPathComponent("existing.ini"), atomically: true, encoding: .utf8)
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Linked/existing.ini",
+                                                        section: "S", values: ["a": "b"])], places: places)
+        check((try? String(contentsOf: outside.appendingPathComponent("existing.ini"), encoding: .utf8)) == "[S]\na=1\n",
+              "nor is a file there changed")
+        let linkedGame = temp.appendingPathComponent("linked-game", isDirectory: true)
+        try? fm.createDirectory(at: linkedGame, withIntermediateDirectories: true)
+        try? "B=1\n".write(to: outside.appendingPathComponent("Settings.ini"), atomically: true, encoding: .utf8)
+        try? fm.createSymbolicLink(at: linkedGame.appendingPathComponent("Settings.ini"),
+                                   withDestinationURL: outside.appendingPathComponent("Settings.ini"))
+        check(!Engine.applyFileEdits([GameProfile.FileEdit(path: "Settings.ini", find: "B=1", replace: "B=0")], installDir: linkedGame)
+              && (try? String(contentsOf: outside.appendingPathComponent("Settings.ini"), encoding: .utf8)) == "B=1\n",
+              "an edit in the game folder doesn't follow a linked file out of it")
+        try? fm.createSymbolicLink(at: local.appendingPathComponent("Gone"), withDestinationURL: temp.appendingPathComponent("gone"))
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Gone/x.ini", section: "S", values: ["a": "b"])],
+                                places: places)
+        check(!fm.fileExists(atPath: temp.appendingPathComponent("gone").path), "a link that leads nowhere counts as outside")
+        try? fm.createSymbolicLink(at: local.appendingPathComponent("Alias"), withDestinationURL: local.appendingPathComponent("Voyage"))
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Alias/Saved/Config/Windows/Engine.ini",
+                                                        section: "SystemSettings", values: ["r.Other": "1"])], places: places)
+        check((try? String(contentsOf: engineIni, encoding: .utf8))?.contains("r.Other=1") == true, "a link that stays inside is fine")
+        check(Engine.isInside(local.appendingPathComponent("Voyage/new/x.ini"), local) && !Engine.isInside(local, local)
+              && !Engine.isInside(local.appendingPathComponent("Linked/x.ini"), local), "inside, with what isn't there yet")
+        for name in ["Linked", "Gone", "Alias"] { try? fm.removeItem(at: local.appendingPathComponent(name)) }
+
         // MARK: Edits in the user folder, once and every time
         let defaults = TestDefaults.suite("file-edits")
         let installDir = temp.appendingPathComponent("game", isDirectory: true)
@@ -103,6 +135,9 @@ struct ProfileFilesTest {
         try? "B=1\n".write(to: gameFile, atomically: true, encoding: .utf8)
         check(Engine.applyFileEdits([GameProfile.FileEdit(path: "b1/Settings.ini", find: "B=1", replace: "B=0")], installDir: installDir)
               && (try? String(contentsOf: gameFile, encoding: .utf8)) == "B=0\n", "edits in the game folder work as before")
+
+        // MARK: Save folders a rule may name (SaveTransfer: rules from Steam's catalog and the profiles)
+        saveFolders(temp)
 
         // MARK: Retina mode starts a new Steam session
         Engine.launchEnvironment = [:]
@@ -274,5 +309,61 @@ struct ProfileFilesTest {
         try? fm.removeItem(at: bundled)
         try? fm.removeItem(at: cached)
         check(await ProfileStore().preferWindows().isEmpty, "no list at all")
+    }
+
+    /// A save rule never names a root itself: `takeNewer` empties a save folder of what the other side lacks.
+    static func saveFolders(_ temp: URL) {
+        let fm = FileManager.default
+        func rule(_ root: String, _ path: String, _ pattern: String = "*", recursive: Bool = true,
+                  mac: String? = "MacAppSupport", macPath: String = "") -> SaveRule {
+            SaveRule(root: root, path: path, pattern: pattern, recursive: recursive, macRoot: mac, macAddPath: macPath)
+        }
+        let all = rule("WinAppDataRoaming", "")
+        check(!SaveTransfer.isSaveFolder("", root: "MacAppSupport", all) && !SaveTransfer.isSaveFolder("/", root: "MacCaches", all)
+              && !SaveTransfer.isSaveFolder("./", root: "WinAppDataRoaming", all), "a root itself, never")
+        check(SaveTransfer.isSaveFolder("/7DaysToDie/Saves", root: "MacAppSupport", all) && SaveTransfer.isSaveFolder("Game", root: "WinAppDataRoaming", all),
+              "a folder below one")
+        check(SaveTransfer.isSaveFolder("", root: "GameInstall", rule("GameInstall", "", "*.sav", recursive: false)),
+              "the game's own folder, for its saves")
+        check(!SaveTransfer.isSaveFolder("", root: "gameinstall", rule("GameInstall", "")) && !SaveTransfer.isSaveFolder("", root: "GameInstall", rule("GameInstall", "", "*.*")),
+              "but not all of it")
+        check(!SaveTransfer.isSaveFolder("Game/../..", root: "MacAppSupport", all), "nothing that climbs out")
+
+        // The Windows version's saves are newer; Application Support holds other apps' files too.
+        let prefix = temp.appendingPathComponent("saves-prefix", isDirectory: true)
+        let home = temp.appendingPathComponent("saves-home", isDirectory: true)
+        let roaming = prefix.appendingPathComponent("drive_c/users/player/AppData/Roaming", isDirectory: true)
+        let support = home.appendingPathComponent("Library/Application Support", isDirectory: true)
+        func write(_ text: String, _ url: URL, hoursAgo: Double) {
+            try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data(text.utf8).write(to: url)
+            try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(-hoursAgo * 3600)], ofItemAtPath: url.path)
+        }
+        write("new", roaming.appendingPathComponent("loose.sav"), hoursAgo: 0)
+        write("new", roaming.appendingPathComponent("Game/Saves/slot1.sav"), hoursAgo: 0)
+        let others = [support.appendingPathComponent("OtherApp/library.db"), support.appendingPathComponent("loose.plist"),
+                      home.appendingPathComponent("Library/Caches/cache.db")]
+        for file in others { write("someone else's", file, hoursAgo: 5) }
+        let oldSave = support.appendingPathComponent("Game/Saves/slot0.sav")
+        write("old", oldSave, hoursAgo: 5)
+        let places = SaveTransfer.Places(prefix: prefix, windowsUser: "player", windowsInstall: nil, macHome: home, macInstall: nil)
+        let backup = temp.appendingPathComponent("saves-backup", isDirectory: true)
+        for (dangerous, name) in [(all, "all of Roaming onto Application Support"),
+                                  (rule("WinAppDataRoaming", "", recursive: false), "Roaming's files onto Application Support's"),
+                                  (rule("WinAppDataRoaming", "", mac: "MacCaches"), "onto Caches"),
+                                  (rule("WinAppDataRoaming", "", "*.*"), "with *.*")] {
+            check(SaveTransfer.newerElsewhere(to: .mac, rules: [dangerous], places: places) == nil, "\(name): nothing to ask about")
+            let taken = (try? SaveTransfer.takeNewer(to: .mac, rules: [dangerous], places: places, backup: backup)) ?? -1
+            check(taken == 0, "\(name): nothing taken (\(taken))")
+        }
+        check((try? SaveTransfer.takeNewer(to: .windows, rules: [all], places: places, backup: backup)) == 0, "nor the other way round")
+        check(others.allSatisfy { fm.fileExists(atPath: $0.path) } && fm.fileExists(atPath: oldSave.path) && !fm.fileExists(atPath: backup.path),
+              "takeNewer deleted and backed up nothing at a root")
+
+        // The same saves named below the root: the old ones go to the backup, the newer ones come over.
+        let taken = (try? SaveTransfer.takeNewer(to: .mac, rules: [rule("WinAppDataRoaming", "Game/Saves")], places: places, backup: backup)) ?? -1
+        check(taken == 1 && fm.fileExists(atPath: support.appendingPathComponent("Game/Saves/slot1.sav").path) && !fm.fileExists(atPath: oldSave.path)
+              && fm.fileExists(atPath: backup.appendingPathComponent("WinAppDataRoaming/Game/Saves/slot0.sav").path)
+              && others.allSatisfy { fm.fileExists(atPath: $0.path) }, "a save folder below the root still works: \(taken)")
     }
 }

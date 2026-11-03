@@ -157,7 +157,8 @@ struct GOGTest {
         check(Provider.gog.label == "GOG" && Provider.gog.short == "GOG", "GOG's name")
         check(Provider.allCases == [.steam, .epic, .gog], "GOG is the third store, after Steam and Epic")
         check(GameShortcut.url(play: .gog("1207664663")).absoluteString == "nightforge://play/gog.1207664663", "links: nightforge://play/gog.<id>")
-        check(GameShortcut.action(from: URL(string: "nightforge://play/gog.1207664663")!) == .play(.gog("1207664663")), "and they lead to the game")
+        check(GameShortcut.action(from: GameShortcut.url(play: .gog("1207664663"), key: String(repeating: "a", count: 32)),
+                                  key: String(repeating: "a", count: 32)) == .play(.gog("1207664663")), "and they lead to the game")
     }
 
     static func owned() {

@@ -550,6 +550,23 @@ struct LaunchHealthTest {
                     "HKEY_CURRENT_USER\\Software\\Game]\n[HKEY_CURRENT_USER\\Software\\Microsoft", #"HKEY_CURRENT_USER\Software\"#] {
             check(!Engine.isAllowedRegistryKey(key), "registry key \(key.debugDescription) refused")
         }
+        // A game's programs name their AppDefaults section: a file name can't close it and open another.
+        for name in ["Game.exe", "Baldur's Gate 3 (x64).exe", "UE4-Win64-Shipping.exe", "Ünïcødé – Spiel.exe"] {
+            check(Engine.isPlainProgramName(name), "program \(name) gets its settings")
+        }
+        let planted = "x.exe]\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n\"a\"=\"b\"\n[y.exe"
+        for name in [planted, "a[b.exe", "line\nbreak.exe", "tab\t.exe", "back\\slash.exe", "del\u{7F}.exe", ""] {
+            check(!Engine.isPlainProgramName(name), "program \(name.debugDescription) is skipped")
+        }
+        let programs = fm.temporaryDirectory.appendingPathComponent("nf-programs-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: programs, withIntermediateDirectories: true)
+        for name in ["Game.exe", planted.replacingOccurrences(of: "/", with: "-")] {
+            try? Data().write(to: programs.appendingPathComponent(name))
+        }
+        let found = Engine.executables(in: programs)
+        check(found.count == 2 && found.filter(Engine.isPlainProgramName) == ["Game.exe"],
+              "a planted name is found in the folder but gets no section: \(found.map(\.debugDescription))")
+        try? fm.removeItem(at: programs)
 
         // Migration from Nachtschicht into a Nightforge folder that already exists: the prefix it lacks
         // comes over, what it has stays its own.

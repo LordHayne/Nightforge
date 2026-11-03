@@ -1539,7 +1539,7 @@ enum Engine {
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
         var sections = [crashDialogOff]
-        for exe in exes {
+        for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
             overrides.merge(layerOverrides(layer, d3dMetalEngine: d3dMetalEngine)) { _, layer in layer }
@@ -1619,6 +1619,13 @@ enum Engine {
     /// Where a profile from the online fixes may write: a game's own settings under Software, and
     /// drive letters (MountedDevices). Never autostart entries, file associations, policies or Wine's
     /// own settings, which would reach every program in the prefix. scripts/build-profiles.py checks the same.
+    /// A program's file name that can stand in a .reg section's name (AppDefaults\<name>): a game
+    /// folder's name with "]", a line break and a section of its own (…\CurrentVersion\Run) would
+    /// write that too. No control characters, brackets or backslashes, which no Windows program has.
+    static func isPlainProgramName(_ name: String) -> Bool {
+        !name.isEmpty && !name.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F || "[]\\".unicodeScalars.contains($0) }
+    }
+
     static func isAllowedRegistryKey(_ key: String) -> Bool {
         guard !key.unicodeScalars.contains(where: { $0.value < 0x20 || $0 == "[" || $0 == "]" }) else { return false }
         let lower = key.lowercased()
@@ -2061,7 +2068,7 @@ enum Engine {
                   let base = edit.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir
             else { continue }
             let file = base.appendingPathComponent(edit.path).standardizedFileURL
-            guard file.path.hasPrefix(base.standardizedFileURL.path + "/"), !edit.find.isEmpty,
+            guard isInside(file, base), !edit.find.isEmpty,
                   let text = try? String(contentsOf: file, encoding: .utf8)
             else { continue }
             if edit.once == true { defaults.set(true, forKey: done) }
@@ -2073,13 +2080,35 @@ enum Engine {
         return changed
     }
 
+    /// Whether `file` lies in `base` with the links on the way resolved: a link in the prefix or the
+    /// game folder that leads out (users\<name>\Documents once led to the Mac's own) isn't written
+    /// through. resolvingSymlinksInPath leaves a path alone whose end isn't there yet (an .ini the game
+    /// hasn't written), so the part that is there is resolved and the rest goes on it; a link that
+    /// leads nowhere counts as outside.
+    static func isInside(_ file: URL, _ base: URL) -> Bool {
+        let fm = FileManager.default
+        func resolved(_ url: URL) -> String? {
+            var existing = url.standardizedFileURL
+            var rest: [String] = []
+            while (try? fm.attributesOfItem(atPath: existing.path)) == nil, existing.pathComponents.count > 1 {
+                rest.insert(existing.lastPathComponent, at: 0)
+                existing.deleteLastPathComponent()
+            }
+            let real = existing.resolvingSymlinksInPath()
+            guard (try? fm.destinationOfSymbolicLink(atPath: real.path)) == nil else { return nil }
+            return rest.reduce(real) { $0.appendingPathComponent($1) }.path
+        }
+        guard let inner = resolved(file), let outer = resolved(base) else { return false }
+        return inner.hasPrefix(outer + "/")
+    }
+
     /// A profile's values for the game's own .ini files (GameProfile.iniSettings), set in their
     /// section before every start; the file and its folders are made when the game hasn't yet.
     static func applyIniSettings(_ settings: [GameProfile.IniSetting], places: SaveTransfer.Places = SaveTransfer.Places()) {
         for setting in settings where !setting.values.isEmpty {
             guard let base = SaveTransfer.windowsRoot(setting.root, places) else { continue }
             let file = base.appendingPathComponent(setting.path).standardizedFileURL
-            guard file.path.hasPrefix(base.standardizedFileURL.path + "/") else { continue }
+            guard isInside(file, base) else { continue }
             let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
             let merged = mergingIni(text, section: setting.section, values: setting.values)
             guard merged != text else { continue }

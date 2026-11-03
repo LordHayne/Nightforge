@@ -49,6 +49,13 @@ if [ -n "$MINGW" ]; then
   "$MINGW" -O2 -Wall -Wextra -municode -mwindows -static \
     -o "$OUT/Contents/Resources/steamwebhelper.exe" wrapper/steamwebhelper-wrapper.c
 else
+  # It stands in for Steam's own helper for every player, and a binary diff can't be read in a review:
+  # only the build whose SHA-256 the workflow wrote beside it (a line that can) goes into the app.
+  if ! (cd wrapper && shasum -a 256 -c -s steamwebhelper.exe.sha256); then
+    echo "✗ wrapper/steamwebhelper.exe doesn't match wrapper/steamwebhelper.exe.sha256." >&2
+    echo "  Install mingw-w64 (brew install mingw-w64) to build it from wrapper/steamwebhelper-wrapper.c." >&2
+    exit 1
+  fi
   cp wrapper/steamwebhelper.exe "$OUT/Contents/Resources/steamwebhelper.exe"
 fi
 
