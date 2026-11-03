@@ -1,5 +1,8 @@
 # Sicherheitsprüfung vor 0.3.0 (Stand 1.11.2026)
 
+> Den Stand aller Funde der Nachprüfungen vom 3.11.2026 (Review der Probe-Zusammenführung, Signierkette, Sandbox, Profile, Berichte)
+> findest du am Ende, unter „Nachprüfungen vom 3.11.2026: Stand je Fund“.
+
 Geprüft: Code des Release-Kandidaten (Integrationszweig plus TV, Spielinfos, GOG, Anti-Cheat), die Skripte in
 `scripts/`, die Workflows in `.github/workflows/`, `components/` und `profiles/`. Dazu gezielte Versuche: Archive mit
 `..`, absoluten Pfaden und Symlinks gegen `ditto` und `tar`, die Schwärzung an echten Wine-Zeilen, die Rechte der echten
@@ -153,7 +156,7 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
 
 ## Klein
 
-- **K1 – Profil: Zeilenumbruch in `iniSettings`-Werten.** `Engine.swift:1780` (`mergingIni`) schreibt `Schlüssel=Wert` ohne
+- **K1 – Profil: Zeilenumbruch in `iniSettings`-Werten (behoben, ecf59d4).** `Engine.swift:1780` (`mergingIni`) schreibt `Schlüssel=Wert` ohne
   Steuerzeichen zu entfernen; ein Wert mit `\n` fügt Zeilen und Abschnitte in die `.ini` **des Spiels** ein. Bleibt in der
   Spielkonfiguration (Pfad ist auf Windows-Wurzel/Spielordner begrenzt). Vorschlag: Steuerzeichen in Schlüssel und
   Wert verwerfen, wie `regString` es tut.
@@ -166,7 +169,7 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
 - **K4 – `SteamSetup.exe` wird nicht auf Signatur geprüft.** `Setup.swift:645-651`: HTTPS vom Valve-CDN, Ausführung unter Wine.
   Steam für Mac wird dagegen per Team-ID geprüft (`MacSteam.swift:12, 157`). Windows-Authenticode lässt sich auf dem Mac nicht
   einfach prüfen; Risiko gering (HTTPS, Valve-Host fest im Code).
-- **K5 – Profil-`arguments` werden ungefiltert an Steam und Spiel gehängt.** `Launcher.swift:512, 561`. Das
+- **K5 – Profil-`arguments` werden ungefiltert an Steam und Spiel gehängt (behoben, e5197f1).** `Launcher.swift:512, 561`. Das
   erreicht nur die Kommandozeile des Spiels beziehungsweise von Steam nach `-applaunch`. Vorschlag: nur Einträge mit
   führendem `-` oder `+` zulassen.
 - **K6 – `hide-steam-dock.dylib`:** wird per `DYLD_INSERT_LIBRARIES` in jeden Wine-Prozess geladen (`Engine.swift:1600`). Die Datei
@@ -351,3 +354,133 @@ Update die installierten Apps mehr, dann hilft nur die Neuinstallation per Einze
   auch eine alte, signierte (für Profile gilt dann noch die neuere mitgelieferte).
 - Was Nightforges eigene Builds enthalten (Grafik, Gamepad, `enginefix`), baut GitHub Actions. Deine Signatur über
   `manifest.json` bestätigt die Prüfsumme dieses Builds, nicht seinen Inhalt.
+
+## Nachprüfungen vom 3.11.2026: Stand je Fund
+
+Die Probe-Zusammenführung für 0.3.1 (`claude/staging-031`, Stand 4f0d00a) wurde am 3.11. mehrfach geprüft: von der Sitzung code-review
+(Bericht `docs/REVIEW-STAGING-031.md` auf `claude/review-staging-031`, dazu `docs/CODE-PRUEFUNG.md` auf `claude/code-review-plan-2f9ae5`) und
+von unabhängigen Durchsichten (Signierkette, Sandbox, Profile, Berichte, ein Review anderer Modelle). **Wer weiter prüft, fange hier an: Was hier
+steht, ist bekannt.** Jede Zeile nennt den Fund und den Commit, der ihn behebt (der Zweig steht in Klammern, alle Commits stehen auf
+`claude/staging-031`), oder warum er offen bleibt. „Behoben“ heißt gebaut und mit einem Test, nicht live am laufenden Mac gesehen, wo
+nichts anderes steht. Der Schalter der Sandbox (`wineSandbox`) ist **aus**, die Sandbox-Zeilen gelten also für den Tag, an dem er an geht.
+Die Funde des Audits vom 3.11. (H1, M1–M4, N1–N9) stehen in `docs/AUDIT-SICHERHEIT.md`.
+
+### 1. Review der Probe-Zusammenführung, erster Durchgang (H1–H3, M1–M10, L1–L10)
+
+| Nr. | Fund | Stand |
+|---|---|---|
+| H1 | Der Wineserver einer Sitzung startete außerhalb der Sandbox (`importRegistry`, `installWineMono`) | behoben 01e234d (`wine-sandbox`): jeder Wine-Start geht über `WineSandbox.process`, ein Test liest die Quellen. Unitys Play!-Helfer 5dd6d71 (nur auf Staging, gehört zu `unity-play`); das Beenden-Skript 3d257f1 (unten) |
+| H2 | Von innen änderbar, was Nightforge später ohne Sandbox ausführt; das Profil lag als Datei im Datenordner | behoben a4d0cdd (`wine-sandbox`): `Components/`, Helfer-App, Dock-Bibliothek, Skripte, D3DMetal, GOG-Mac-Spiele, die App und die Anfragen des Helfers sind innen nur lesbar, das Profil geht als Text über argv. Nachgebessert: 77e0bba, 76f1b50, ae198a1 (unten) |
+| H3 | Ohne den Helfer der Sandbox startete Wine still ohne Sandbox | behoben d493cd4 (`wine-sandbox`): `HelperMissing`, Wine startet nicht |
+| M1 | Eine ältere, richtig signierte Liste wurde angenommen | behoben d36f7b1 (`signed-updates`): Stempel `generated` in den signierten Bytes. Danach B 4584ecf, F 3f510f9, N5/N6 9f7c5ec. Offen: der erste Abruf eines Macs ohne gespeicherte Liste nimmt auch eine alte signierte (für Profile gilt dann noch die mitgelieferte) |
+| M2 | `install.sh`: Schlüssel und Skript kommen aus demselben Repository | die Texte stimmen jetzt (0fa0330, `signed-updates`): Schutz vor ausgetauschten Release-Dateien, nicht vor Schreibrecht auf `main`. Offen: Regeln auf GitHub und ein Anker außerhalb von GitHub (`docs/TODO.md`) |
+| M3 | `ps` hängt oder fehlt, und die leere Liste heißt „nichts läuft“ | 69ad783 (`h1-h3-031`), unvollständig; der Rest steht unter N1, N3, N4, N7 und den Zusatzfunden |
+| M4 | `SteamProgram` fasst die Starteinstellung des Spielers an, ohne Sicherung | behoben d92494f (`steam-program-m4`): nur Zeilen, die Nightforge selbst schrieb (`launchoptions-written.json`), Kopie `localconfig.vdf.nightforge-backup`, nur bei bekannt ausgeschaltetem Steam. Nachbesserung 49f721f (Zusatzfund 4) |
+| M5 | `sign-release.sh` bestätigt nur, was im Entwurf liegt | behoben ca3d748 (`signed-updates`): zeigt SHA-256 der ZIP, den Commit des Tags und den Wrapper-Vergleich und fragt. `wrapper.yml` schlägt die neu gebaute `.exe` per Pull Request vor |
+| M6 | Perl-Ed25519 in `install.sh` ohne Gegenprobe | behoben 435e399 (`signed-updates`): RFC 8032 §7.1 und ungültige Signaturen, je gegen CryptoKit verglichen |
+| M7 | Das Beenden per Apple Event antwortet, bevor Nightforge sich beendet | gebaut 38b4418 (`quit-always`). Offen: Live-Test (`osascript … quit` mit offenen Einstellungen, Abmelden) |
+| M8 | Eine Frage von macOS hielt den Start ohne Ende | behoben a9a7b5e (`system-prompt-curtain`): nach drei Minuten geht der Start ohne sie weiter |
+| M9 | Zwischengespeicherte Listen von 0.3.0 werden ignoriert | gewollt (593e80e, `signed-updates`): `removeUnusedComponents` läuft nur nach einer signierten Liste, der 0.3.0-Cache zählt nicht (eine unsignierte Datei gälte sonst) |
+| M10 | Kurzbefehle: der erste Klick nach dem Update, der Schlüssel im Klartext in den Skripten | Hinweis 324d46b (`audit-low`); der Schlüssel entsteht mit Modus 600 von Anfang an (9ba69ab). Bleibt: Er steht im Klartext im Skript der Spiel-Apps, das Bedrohungsmodell ist „eine Webseite kann ihn nicht lesen“; mit der Sandbox sind die Apps innen gesperrt (76f1b50) |
+| L1 | Die `LastPlayed`-Regel blendet ein kurz gespieltes, danach aktualisiertes Spiel aus „Weiterspielen“ aus | offen, nur Anzeige |
+| L2 | `folderSize` liest zwei Eigenschaften mehr je Datei | offen, nur Leistung (läuft nicht auf dem Hauptthread) |
+| L3 | D3DMetal: Prüfsummen für 3.0/4.0b3 nicht gegen Apples Images prüfbar; `hdiutil` ohne Frist | offen, Hinweis. Jede neue Toolkit-Fassung wird abgelehnt, bis Nightforge sie kennt |
+| L4 | Hauptthread: `DetachedProcess.run()` bis 20 s synchron | teilweise: Steam starten geht nicht mehr über den Hauptthread (00a03bf); die übrigen Stellen stehen offen in `docs/CODE-PRUEFUNG.md` |
+| L5 | Swift 6.3/6.4 | offen bis zum Lauf der CI mit 6.3; im Diff stand kein Konstrukt, das nur 6.4 kennt |
+| L6 | Signatur ohne Zweckbindung (ein Schlüssel für ZIP und Listen, kein Präfix) | offen; bei den heutigen Inhalten (ZIP, JSON) nicht zu verwechseln |
+| L7 | Beenden während „Entfernen“ steht nur in `wine.log` | offen, Hinweis |
+| L8–L10 | `GameShortcut.addKey`, `Updater` (`notNewer`, `releaseURL`), `.option` in `SteamProgram` | in Ordnung, kein Handlungsbedarf |
+
+### 2. Nachtrag (N1–N14)
+
+| Nr. | Fund | Stand |
+|---|---|---|
+| N1 | Ein Ausfall von `ps` ließ ein laufendes Spiel in den ersten Sekunden als „nicht da“ gelten (Rückstufung der Engine, zweiter Start) | behoben 7034fc7 (`review-n-031`): eine alte Liste sagt nur „da“, nie „weg“ (`GameProcesses.Presence`, `FirstSecondsWatch`) |
+| N2 | Die Pfadregeln der Sandbox schützen die Elternordner nicht (umbenennen, dann lesen) | behoben ae198a1 (`wine-sandbox`), mit dem echten Helfer nachgewiesen |
+| N3 | `SteamStartCheck` urteilte ohne Prozessliste „läuft nicht“ | behoben fd9b821 (`review-n-031`) |
+| N4 | Der Vorhang fragte `ps` zweimal je Blick | behoben 260c2de (`review-n-031`) |
+| N5 | Ein Stempel aus der Zukunft sperrt den Kanal einer Liste | behoben 9f7c5ec (`signed-updates`), auch `sign-lists.sh` lehnt ihn ab |
+| N6 | Komponenten nur gegen die gespeicherte Liste verglichen | behoben 9f7c5ec |
+| N7 | Weitere Stellen mit „leere Liste heißt nichts läuft“ (Engine-Wechsel, msync) | behoben f39b3b1 (`review-n-031`). Bleibt: `DockHider`, `Setup`, `SteamSwitch` lesen `isSteamRunning` zur Anzeige oder zum Warten, `false` ist dort das Vorsichtige |
+| N8 | Sandbox: Rennen beim Umschalten, Steam beim Wechsel ungefragt beendet, Hauptthread | behoben 5300f05 (`wine-sandbox`) |
+| N9 | Apple Event: die Antwort geht vor `terminate` hinaus | offen, Live-Test (wie M7) |
+| N10 | Der Problembericht ersetzt den Inhalt der Zwischenablage (Universal Clipboard) | offen, bewusst: der Text ist geschwärzt, der Hinweis sagt es |
+| N11 | `SteamProgram`: die Sicherung wird nie erneuert, ungültiges UTF-8 wird ersetzt, die Rechte der Datei gehen beim atomaren Schreiben verloren | offen, Hinweis; die Sicherung ist der Grund, es dabei zu lassen |
+| N12 | `Engine.lastSteamStart` ohne Sperre | behoben 22d800b (`review-n-031`) |
+| N13 | `wrapper.yml`: Hashes der Actions offline nicht prüfbar; ein Pull Request von `GITHUB_TOKEN` löst keine Workflows aus | offen, Hinweis (bei `components.yml` und `profiles.yml` genauso) |
+| N14 | `sign-release.sh`: der Digest-Vergleich entfällt, wenn GitHub keinen nennt | gewollt: er prüft die Übertragung, den Inhalt prüft der Mensch |
+
+### 3. Zusatzfunde der zweiten Durchsicht und das externe Review der Robustheit
+
+| Fund | Stand |
+|---|---|
+| Zusatz 1: Epic/GOG: die zuletzt bekannte Menge laufender Downloads begann leer, nach einem Neustart mit `ps` aus startete ein zweiter Download desselben Spiels | behoben 2b5596a (`review-n-031`): `nil` entscheidet nichts |
+| Zusatz 2: ein `ps`, das gar nicht startet, wurde bei jedem Blick neu versucht | behoben 75bb9ce: die Pause gilt auch dafür |
+| Zusatz 3: Steam starten lief über den Hauptthread (`showSteamWindow`, `openSteam`, Setup, `addDemoLicense`) | behoben 00a03bf: `Engine.startSteamOffMain`, ein Test liest die Quellen |
+| Zusatz 4: `SteamProgram.apply` behielt einen vorab notierten Wert, auch wenn kein Schreiben gelang | behoben 49f721f: beansprucht wird nur, was eine Datei wegen dieses Laufs hält |
+| Extern 1: `BinaryKV.parse` ohne Tiefengrenze, `appinfo.vdf` liegt im Prefix (Stapelüberlauf bei jedem Scan) | behoben fb48a4c: 64 Ebenen |
+| Extern 2: `URL(string:)!` im Link eines Spiels, GOG-IDs ungeprüft | behoben adea626: Link aus Teilen gebaut, GOG nimmt nur Produkt-IDs, `create` verweigert unbrauchbare |
+| Extern 3: ein Play-Link galt mit beliebig vielen Pfadsegmenten | behoben 26611c6: genau eins |
+| Extern 4: Rennen beim Anlegen des Schlüssels der Spiel-Apps | behoben b0d6863. Offen für die Sandbox: die Zwischendatei `shortcut-key.<UUID>.tmp` im Datenordner besteht einen Augenblick (nur für den Spieler lesbar); die Regel sperrt nur den Namen `shortcut-key`. Ein Präfix-Muster fehlt noch |
+
+### 4. Signierkette, externes Review A–H (`signed-updates`)
+
+| Nr. | Fund | Stand |
+|---|---|---|
+| A | `sign-lists.sh` baute das Signierwerkzeug aus dem Zweig, den es signiert; der private Schlüssel geht in dieses Werkzeug | behoben 907161e: gebaut aus dem eigenen Checkout. Ein Zweig, der mehr ändert als Listen, ihre `.sig` und `components/sources.json`, oder andere Signierquellen hat, wird nicht signiert |
+| B | `ProfileStore` verglich die mitgelieferte Liste ohne den Schutz vor Stempeln aus der Zukunft | behoben 4584ecf |
+| C | Der Updater prüfte nur „neuer als diese Kopie“: ein signiertes ZIP unter einem anderen Tag ging durch | behoben 400bd06: die Version im ZIP muss die des Tags sein. Bleibt: Wer das Repository beschreiben kann, hält Updates zurück (ein falsches „latest“, Releases löschen); Regeln für Tags (`docs/TODO.md`) |
+| D | `signatures.yml` prüfte Pull Requests mit dem Prüfer und den Schlüsseln des Pull Requests selbst | behoben 5fdcbbb: Prüfer und Schlüssel von der Basis, rot, wenn der Pull Request sie ändert |
+| E | „Eine geänderte Liste braucht einen neueren Stempel“ galt nur für Zweige | behoben 407f122: auch auf `main`, gegen den Stand beim letzten Signieren |
+| F | Stempel wurden als Text verglichen (Zeitzone, Sekundenbruchteile) | behoben 3f510f9: als Datum |
+| G | Eingaben der CI nicht an Hashes gebunden; `components.yml` lief mit Schreibrechten | behoben a71421b: Tarball von cabextract per SHA-256, dmgbuild mit `--require-hashes`, Rechte je Job |
+| H | Erst prüfen, dann auspacken: zwei Lesevorgänge | als Restrisiko K6a notiert (83d10d2): es braucht einen Prozess desselben Benutzers. Abhilfe wäre ein Ordner mit 700 zum Auspacken |
+
+Offen: Die Änderungen an `components.yml`, `release.yml`, `signatures.yml` und `tools.yml` sind nur lokal geprüft (als YAML gelesen); auf GitHub ist keiner
+gelaufen.
+
+### 5. Sandbox: Beenden-Skript, Caches, Steuerdateien (zweites Review der Sandbox)
+
+| Fund | Stand |
+|---|---|
+| `steam-shutdown.sh` startete Steams `-shutdown` außerhalb der Sandbox (ein verändertes `steam.exe` im Prefix lief dann ohne sie, und die Sitzung blieb unsichtbar für `settleSession`) | behoben 3d257f1 (`wine-sandbox`) |
+| `launchoptions-written.json`, die Einstellungen mit dem Schalter und `shortcut-key` waren von innen änderbar oder lesbar. `defaults write` aus der Sandbox schreibt über cfprefsd: nur beide Verbote zusammen (Einstellungen der Domäne und Datei) halten | behoben 77e0bba. Die Einstellungen anderer Programme bleiben schreibbar, damit Wines eigene nicht stören |
+| Die Caches der signierten Listen (`profiles.json`, `agw.json`, je mit `.sig`) waren löschbar; `~/Applications/Nightforge Games` war nur lesbar, die Skripte tragen den Schlüssel im Klartext | behoben 76f1b50: die Caches innen nur lesbar, der Ordner der Spiel-Apps ganz gesperrt |
+| Ein Ordner über einem geschützten Ort ließ sich umbenennen | behoben ae198a1 (N2) |
+| **Offen:** `Epic/destinations.json` (Ziel je Epic-Spiel) und `GOG/installed.json` (Pfade der GOG-Spiele) sind von innen beschreibbar. Ein Programm in der Sandbox könnte dort Pfade ändern, nach denen sich Nightforge später richtet | Live-Test am Abend des 3.11.; danach entscheiden: von innen nur lesbar machen oder bewusst lassen |
+| **Offen:** die Zwischendatei `shortcut-key.<UUID>.tmp` (siehe Extern 4) | eine Regel mit Präfix |
+| **Offen:** der Schalter bleibt aus, bis Steam, Spiele, Epic, GOG, Controller und der Spielmodus mit der Sandbox zusammen live gelaufen sind | `docs/TODO.md` |
+
+### 6. Profil-Grenzen, externes Review der Profile (Punkte 1–8, K1)
+
+| Nr. | Fund | Stand |
+|---|---|---|
+| 1 | Eine Dateiänderung, deren Ersetzung ihr Suchmuster enthält, ließ die Datei bei jedem Start wachsen | behoben 18c92d2 (`profile-limits`) |
+| 2 | `.ini`-Werte, Abschnitte und Schlüssel konnten Zeilen und Abschnitte einfügen (K1) | behoben ecf59d4 |
+| 3 | Winetricks-Verben für Windows-Versionen und andere Einstellungen liefen im gemeinsamen Prefix | behoben b149a87: 19 Windows-Versionen und die übrigen Einstellungen stehen auf der Liste |
+| 4 | Die Auflösungsdatei wurde durch einen Link des Spiels nach außen geschrieben | behoben 0daa1b8 |
+| 5 | `SaveTransfer.windowsRoot`: ein Ordner `Prefix-evil` neben dem Prefix zählte als innen | behoben 05c16ce |
+| 6 | Die App prüfte `dllOverrides` und `arguments` nicht selbst (nur die CI) | behoben e5197f1 |
+| 7 | `frameLimit` und `vulkanSamplers` ohne Grenze (`-1` wurde als `%u` gelesen) | behoben 63053eb |
+| 8 | Das gewählte Programm lag nur dem Pfad nach im Spielordner | behoben 6e8dc40 |
+| – | Die Profil-CI prüfte `fileEdits`, `iniSettings`, `resolution`, `saves` und `mac.json` nicht | behoben 6ec6878 (`profile-ci`) |
+
+Offen: Die CI übernimmt die strengeren Regeln der App noch nicht (15 weitere winetricks-Verben, Grenzen für `frameLimit`, `vulkanSamplers` und die Zahl der
+DLL-Overrides). Ein Widerspruch ist es nicht: Die App lässt aus oder begrenzt, was die CI durchlässt.
+
+### 7. Berichte und Schwärzung
+
+| Fund | Stand |
+|---|---|
+| Audit M3: der Problembericht trug Fehlerzeilen in der Adresse | behoben ce91765 (`report-url-m3`) |
+| Audit N7: Lücken in der Schwärzung (Laufwerke, Rechnername, GOG-Kennungen, Kontoname) | behoben b87dee7 |
+| Berichte des Spieletests: die Notizen des Laufs ungeschwärzt, die Prüfung vor dem Import kannte zu wenig und zu viel (Teilwörter des Rechnernamens) | behoben 44f09e8 (`game-test-fixes`): alles, was `GameLog.redacted` noch ändern würde, hält den Import an; nur bekannte Apps beim Namen |
+| Audit N6: der Bericht im öffentlichen Repo nennt die installierten Spiele | offen, entscheidet der Nutzer |
+| Die Schwärzung ist eine Liste bekannter Muster | bleibt; ein unbekanntes Format kann durchrutschen. Nichts geht ab, bevor der Spieler absendet |
+
+### 8. Was offen ist und warum
+
+- **Live-Tests, die noch fehlen:** der Schalter der Sandbox mit allem zusammen; M7/N9 (Apple Event beim Beenden und Abmelden); `Epic/destinations.json` und `GOG/installed.json` aus der Sandbox (Abend des 3.11.).
+- **Auf GitHub noch nicht gelaufen:** die geänderten Workflows (Abschnitt 4); die Einstellungen von GitHub selbst (Schutz für `main` und Tags, „Allow GitHub Actions to create and approve pull requests“) sieht man im Code nicht (`docs/AUDIT-SICHERHEIT.md` › „Zu prüfen“).
+- **Bewusst gelassen:** K3 (Steam lauscht auf 27036), K4 (`SteamSetup.exe`), K6/K6a (derselbe Benutzer hat ohnehin alles), N5 (Dock-Bibliothek ohne Sandbox), N10, N11, N13, die Hinweise L1–L7.
+- **Ein Anker für `install.sh` außerhalb von GitHub** und Regeln für `main`/Tags (M2, C): `docs/TODO.md`.

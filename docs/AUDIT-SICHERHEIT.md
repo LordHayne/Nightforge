@@ -1,6 +1,8 @@
 # Sicherheits- und Datenschutz-Audit
 
-Stand: `claude/ux-roadmap-next` 29e458a, 3.11.2026. Was seitdem behoben oder beauftragt ist, steht in der Übersicht und unter jedem Befund.
+Stand: `claude/ux-roadmap-next` 29e458a, 3.11.2026. Was seitdem behoben oder beauftragt ist, steht in der Übersicht und unter jedem Befund
+(Stand der Probe-Zusammenführung `claude/staging-031`, 4f0d00a). Die Nachprüfungen desselben Tages – Review der Probe-Zusammenführung,
+Signierkette A–H, Sandbox, Profil-Grenzen, Berichte – haben ihren Stand je Fund in `docs/SICHERHEIT-0.3.md` › „Nachprüfungen vom 3.11.2026“.
 
 Wie geprüft: Code, Skripte und Workflows gelesen. Ausgeführt wurde nichts. Einzige Ausnahme sind `ls -ld` und `ls -l`
 auf die Orte der Anmeldedaten, um die Dateirechte zu sehen; Inhalte wurden nicht gelesen. Der Zweig `signed-updates`
@@ -15,26 +17,28 @@ Schwere:
 
 | Nr. | Schwere | Thema | Ort | Stand (3.11.) |
 |---|---|---|---|---|
-| H1 | hoch | App-Update und `install.sh` prüfen nicht, von wem die App stammt | `Updater.swift:115`, `scripts/install.sh:46` | behoben auf `claude/signed-updates-dda700` (29b9f7f) |
-| M1 | mittel | Nächtliche Profile aus fremdem `HEAD` gehen ungeprüft nach `main` und zu allen Nutzern | `.github/workflows/profiles.yml:45` | in Arbeit auf `claude/signed-updates-dda700` (b1c26c9, 700fd70) |
-| M2 | mittel | Windows-Programme sehen über `Z:` den ganzen Mac, auch Nightforges Anmeldedaten | Prefix `dosdevices/z:` | Entwurf `claude/laufwerke-z`, Sandbox `claude/wine-sandbox` (Schalter aus) |
-| M3 | mittel | Der Problembericht geht schon beim Öffnen des Links an GitHub | `ProblemReport.swift:88` | compat-db (in Arbeit) |
+| H1 | hoch | App-Update und `install.sh` prüfen nicht, von wem die App stammt | `Updater.swift:115`, `scripts/install.sh:46` | behoben auf `claude/signed-updates-dda700` (29b9f7f); die Nachprüfung der Signierkette (A–H) ist behoben, 907161e bis a71421b |
+| M1 | mittel | Nächtliche Profile aus fremdem `HEAD` gehen ungeprüft nach `main` und zu allen Nutzern | `.github/workflows/profiles.yml:45` | behoben: `claude/signed-updates-dda700` (b1c26c9, 700fd70), Profil-CI `claude/profile-ci` (6ec6878), die App prüft Overrides und Argumente beim Lesen selbst (e5197f1) |
+| M2 | mittel | Windows-Programme sehen über `Z:` den ganzen Mac, auch Nightforges Anmeldedaten | Prefix `dosdevices/z:` | Entwurf `claude/laufwerke-z`; Sandbox `claude/wine-sandbox` (Schalter aus), nachgebessert 01e234d, a4d0cdd, d493cd4, 77e0bba, 3d257f1, 76f1b50, ae198a1, 5300f05; Live-Test steht aus |
+| M3 | mittel | Der Problembericht geht schon beim Öffnen des Links an GitHub | `ProblemReport.swift:88` | behoben auf `claude/report-url-m3` (ce91765) |
 | M4 | mittel | D3DMetal-Import übernimmt ungeprüfte Windows-DLLs, auch ohne Rückfrage aus „Downloads“ | `D3DMetalFlow.swift:162`, `Engine.swift:1009` | behoben auf `claude/d3dmetal-import-m4` (7829e1b) |
 | N1 | niedrig | `nightforge://play/…` startet installierte Spiele von jeder Webseite aus | `GameShortcut.swift:18` | behoben auf `claude/audit-low` (b0cbf66) |
 | N2 | niedrig | Programmnamen gehen ungefiltert in `.reg`-Abschnitte | `Engine.swift:1503` | behoben auf `claude/audit-low` (1b5330f) |
 | N3 | niedrig | Spielstand-Regeln dürfen leere Pfade und `*` an der Wurzel haben; `takeNewer` löscht dort | `SaveTransfer.swift:52`, `:122` | behoben auf `claude/audit-low` (271d2a9) |
 | N4 | niedrig | `fileEdits` und `iniSettings` prüfen den Ordner ohne Symlinks aufzulösen | `Engine.swift:2014`, `:2032` | behoben auf `claude/audit-low` (3a39b81) |
-| N5 | niedrig | Dock-Bibliothek aus dem beschreibbaren Datenordner in jedem Wine-Prozess | `Engine.swift:1865` | offen |
+| N5 | niedrig | Dock-Bibliothek aus dem beschreibbaren Datenordner in jedem Wine-Prozess | `Engine.swift:1865` | offen; mit eingeschalteter Sandbox innen nur lesbar (a4d0cdd) |
 | N6 | niedrig | Spieletest-Bericht im öffentlichen Repo nennt die installierten Spiele | `scripts/import-game-test.py` | offen, entscheidet der Nutzer |
-| N7 | niedrig | Lücken in der Schwärzung (Laufwerksnamen, Rechnername, GOG-Kennungen) | `GameLog.swift:176` | compat-db (in Arbeit) |
+| N7 | niedrig | Lücken in der Schwärzung (Laufwerksnamen, Rechnername, GOG-Kennungen) | `GameLog.swift:176` | behoben auf `claude/report-url-m3` (b87dee7); die Berichte des Spieletests 44f09e8 |
 | N8 | niedrig | Eingecheckte `steamwebhelper.exe` ohne Prüfsumme in `build.sh` | `wrapper.yml:31`, `build.sh:52` | behoben auf `claude/audit-low` (a652cee) |
-| N9 | niedrig | `profiles.yml` hat `actions: write` für alle Läufe | `profiles.yml:28` | auf `claude/signed-updates-dda700` (700fd70) |
+| N9 | niedrig | `profiles.yml` hat `actions: write` für alle Läufe | `profiles.yml:28` | behoben auf `claude/signed-updates-dda700` (700fd70); `components.yml` mit Rechten je Job (a71421b) |
 
 ## Hoch
 
 ### H1 App-Update und `install.sh` prüfen nicht, von wem die App stammt
 
-**Stand 3.11.:** Behoben auf `claude/signed-updates-dda700` (29b9f7f), noch nicht gemergt.
+**Stand 3.11.:** Behoben auf `claude/signed-updates-dda700` (29b9f7f). Die Nachprüfung der Signierkette (Review A–H, 3.11.) fand
+Lücken um die Signatur herum, alle behoben: A 907161e, B 4584ecf, C 400bd06, D 5fdcbbb, E 407f122, F 3f510f9, G a71421b, H 83d10d2
+(als Restrisiko K6a notiert). Einzelheiten: `docs/SICHERHEIT-0.3.md` › „Nachprüfungen vom 3.11.2026“.
 
 **Wo**
 - `Sources/Nightforge/Updater.swift:21–37`: Nimmt das erste Asset aus `releases/latest`, dessen URL `Nightforge-` enthält
@@ -68,7 +72,12 @@ Dateien, Anmeldedaten der Stores, alles, was der Nutzer selbst darf. Neue Nutzer
 
 ### M1 Nächtliche Profile aus fremdem `HEAD` gehen ungeprüft nach `main` und zu allen Nutzern
 
-**Stand 3.11.:** In Arbeit auf `claude/signed-updates-dda700`: b1c26c9 nimmt DLL-Overrides und Startargumente aus umu-protonfixes nur noch als einfache Werte, 700fd70 vergibt die Rechte in `profiles.yml` pro Job (die Signatur bleibt beim Maintainer). Noch nicht geprüft.
+**Stand 3.11.:** Behoben. `claude/signed-updates-dda700`: b1c26c9 nimmt DLL-Overrides und Startargumente aus umu-protonfixes nur noch als
+einfache Werte, 700fd70 vergibt die Rechte in `profiles.yml` pro Job (die Signatur bleibt beim Maintainer). `claude/profile-ci`: 6ec6878 prüft
+auch `fileEdits`, `iniSettings`, `resolution`, `saves` und `mac.json`, bevor etwas signiert wird. `claude/profile-limits`: e5197f1 liest
+`dllOverrides` und `arguments` mit denselben Regeln wie `build-profiles.py` (die App verlässt sich nicht auf die CI), dazu die Grenzen
+18c92d2, ecf59d4, b149a87, 0daa1b8, 05c16ce, 63053eb, 6e8dc40. Offen: Die CI übernimmt die strengeren Regeln der App noch nicht
+(15 weitere winetricks-Verben, Grenzen für `frameLimit`, `vulkanSamplers` und die Zahl der Overrides), kein Widerspruch.
 
 **Wo**
 - `.github/workflows/profiles.yml:45`: klont `umu-protonfixes` per `--depth 1` ab `HEAD`, also ungepinnt.
@@ -95,7 +104,14 @@ Das begrenzt den Schaden auf Spielstarts.
 
 ### M2 Windows-Programme sehen über `Z:` den ganzen Mac, auch Nightforges Anmeldedaten
 
-**Stand 3.11.:** Entwurf auf `claude/laufwerke-z` (98b98e7): `Z:` bleibt, geschützt werden die Anmeldedaten. Die Sandbox steht auf `claude/wine-sandbox` (ce39bf7), hinter einem Schalter, der aus ist.
+**Stand 3.11.:** Entwurf auf `claude/laufwerke-z` (98b98e7): `Z:` bleibt, geschützt werden die Anmeldedaten. Die Sandbox steht auf
+`claude/wine-sandbox` (ce39bf7), hinter einem Schalter, der **aus** ist. Nach dem Review der Probe-Zusammenführung und zwei externen
+Reviews: jeder Wine-Start läuft in ihr (01e234d), was Nightforge außen ausführt, ist innen nur lesbar (a4d0cdd), kein Helfer heißt kein
+Wine-Start (d493cd4), das Beenden-Skript startet Steams `-shutdown` in ihr (3d257f1), Steuerdateien und Einstellungen sind innen nicht
+änderbar (77e0bba), die Caches der signierten Listen nur lesbar und die Spiel-Apps gesperrt (76f1b50), kein Ordner über einem
+geschützten Ort lässt sich verschieben (ae198a1), das Umschalten steht unter einer Sperre (5300f05). Offen: der Live-Test, ohne den der
+Schalter nicht eingeschaltet wird; `Epic/destinations.json` und `GOG/installed.json` sind von innen noch beschreibbar (Live-Test steht
+aus, siehe `docs/SICHERHEIT-0.3.md`).
 
 **Wo**
 - Im Prefix zeigt `dosdevices/z:` auf `/`. Das ist Wines Standard aus `wineboot`. Nightforge verlässt sich darauf:
@@ -130,7 +146,10 @@ verhalten sich genauso.
 
 ### M3 Der Problembericht geht schon beim Öffnen des Links an GitHub
 
-**Stand 3.11.:** In Arbeit bei compat-db.
+**Stand 3.11.:** Behoben auf `claude/report-url-m3` (ce91765): Der Link trägt nur feste Fakten (Spiel, Versionen, Mac, Erkanntes), Fehlerzeilen
+und Startoptionen liegen auf der Zwischenablage, jede Zeile durch die Schwärzung. Die Texte in den Optionen, im Blatt „Startet nicht?“, in
+den Einstellungen, in der README, auf der Landingpage und in `compat-report.yml` sagen jetzt, dass GitHub die Werte beim Öffnen der Seite
+bekommt und der Bericht erst beim Absenden öffentlich ist.
 
 **Wo**
 - `Sources/Nightforge/ProblemReport.swift:20–21`: Der Kommentar sagt „Nothing leaves the Mac unless the player submits
@@ -242,7 +261,8 @@ früher bei Wine auf den Mac-Ordner), schreibt eine `iniSettings`-Regel durch ih
 
 ### N5 Dock-Bibliothek aus dem beschreibbaren Datenordner in jedem Wine-Prozess
 
-**Stand 3.11.:** Offen.
+**Stand 3.11.:** Offen. Mit eingeschalteter Sandbox ist die Datei innen nur lesbar (a4d0cdd); ohne sie bleibt es bei der Überlegung unten
+(derselbe Benutzer darf ohnehin alles).
 
 **Wo:** `Engine.swift:1862–1866` setzt `DYLD_INSERT_LIBRARIES` auf die Bibliothek in
 `~/Library/Application Support/Nightforge` (`DockHider.swift:3–43`). Steam reicht sie an alles weiter, was es startet,
@@ -269,7 +289,10 @@ Datum zu kürzen.
 
 ### N7 Lücken in der Schwärzung
 
-**Stand 3.11.:** In Arbeit bei compat-db.
+**Stand 3.11.:** Behoben auf `claude/report-url-m3` (b87dee7): Laufwerksnamen (`<drive>`), Rechner- und Hostnamen (`<computer>`), der
+Ordner `/var/folders/<id>`, GOG-Benutzerkennungen (`<id>`, `<gog user>`) und der Kontoname in anderen Zeilen (`<user>`, als Wort, damit
+„Thomas Was Alone“ bleibt). Die Berichte des Spieletests laufen in `claude/game-test-fixes` (44f09e8) durch dieselbe Schwärzung, auch die
+Notizen des Laufs; die zweite Prüfung vor dem Import (`GameTest.leaks`, `scripts/import-game-test.py`) kennt dasselbe.
 
 **Wo:** `GameLog.swift:176–207`.
 
@@ -308,7 +331,9 @@ Ein Release-Build auf einem Mac ohne mingw liefert sie aus.
 
 ### N9 `profiles.yml` hat `actions: write` für alle Läufe
 
-**Stand 3.11.:** Auf `claude/signed-updates-dda700` (700fd70): Rechte pro Job, der Bau liest nur. Noch nicht geprüft.
+**Stand 3.11.:** Behoben auf `claude/signed-updates-dda700` (700fd70): Rechte pro Job, der Bau liest nur. Dasselbe für `components.yml`
+(a71421b, Review G): „update“ liest nur und holt ohne Zugangsdaten, nur „propose“ schreibt. Auf GitHub ist noch keiner dieser Workflows
+gelaufen (nur als YAML gelesen und lokal geprüft).
 
 **Wo:** `.github/workflows/profiles.yml:28–30`: `contents: write` und `actions: write` gelten für den ganzen
 Workflow, auch für `pull_request` aus dem eigenen Repo. `actions: write` braucht nur der Zeitplan-Schritt, der die
