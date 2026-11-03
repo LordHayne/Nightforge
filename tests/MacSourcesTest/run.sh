@@ -1,6 +1,7 @@
 #!/bin/bash
 # Checks what Nightforge reads from profiles/agw.json (AppleGamingWiki), the links on a game's page,
-# the shared report and the "How did it run?" answers: tests/MacSourcesTest/run.sh
+# the shared report, the problem report's link and clipboard, and the "How did it run?" answers:
+# tests/MacSourcesTest/run.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"

@@ -80,7 +80,7 @@ After every game Nightforge shows how long you played and asks how it ran. It re
 - **Store search.** Search also finds games in the Steam store, with price and Metascore; you buy in your browser, and they appear in your library. Free games you add right away with **Add for Free** – Steam asks once in its own window.
 - **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it by themselves.
 - **Larger text and less motion.** One switch makes all of Nightforge's text a step larger; another turns zooming and sliding into plain cross-fades.
-- **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub, filled in, and goes nowhere until you submit it.
+- **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub filled in with the game and its settings, and is public only once you submit it; error lines stay on your clipboard until you paste them.
 
 ### Settings in plain words
 

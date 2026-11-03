@@ -274,7 +274,7 @@ struct SessionSummarySheet: View {
             let share = { model.shareReport(summary.game, rating: rating) }
             Button(L10n.t("Share Report …"), action: share)
                 .buttonStyle(GlassTextButtonStyle(small: true))
-                .help(L10n.t("Opens a GitHub form in your browser with the game, the answer and the way it ran – no paths or account names. Nothing is sent until you submit it there, and your GitHub name shows on it."))
+                .help(L10n.t("Opens a GitHub form in your browser, filled in with the game, your answer and the way it ran – no paths, account names or logs. GitHub gets these values as the page opens; the report is public only once you submit it, with your GitHub name on it."))
                 .padFocus("session.share", cornerRadius: 16, activate: share)
         }
     }

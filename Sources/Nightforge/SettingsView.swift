@@ -959,7 +959,7 @@ private struct AboutSettings: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L10n.t("No account. No telemetry. No background service."))
                             .fontWeight(.semibold)
-                        Text(L10n.t("Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it."))
+                        Text(L10n.t("Nightforge sends nothing by itself. A problem report opens on GitHub, filled in with the game and its settings – GitHub gets that as the page opens, it's public only once you submit it. Error lines stay on your clipboard until you paste them."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

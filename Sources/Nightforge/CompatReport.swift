@@ -1,10 +1,10 @@
 import Foundation
 
 /// "Share report …" after "How did it run?": the issue form .github/ISSUE_TEMPLATE/compat-report.yml,
-/// filled in with the player's answer and the way the game ran, opened in their browser. Nothing
-/// leaves the Mac unless they submit it there, under their GitHub name. Only fixed values go in – no
-/// paths, account names, launch options or log lines – and each still passes GameLog.redacted, as
-/// the problem report's do. A nightly workflow could count the valid ones into profiles/reports.json
+/// filled in with the player's answer and the way the game ran, opened in their browser. The values
+/// are in the link, so GitHub and the browser's history get them as the page opens; the report is
+/// public once the player submits it, under their GitHub name. That's why only fixed values go in –
+/// no paths, account names, launch options or log lines – and each still passes GameLog.redacted. A nightly workflow could count the valid ones into profiles/reports.json
 /// (docs/ENTWURF-BERICHTE.md).
 enum CompatReport {
     static let form = "compat-report.yml"

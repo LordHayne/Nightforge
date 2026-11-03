@@ -647,7 +647,7 @@ struct FailedLaunchSheet: View {
                 }
             }
             HStack(alignment: .center, spacing: 12) {
-                Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there."))
+                Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – GitHub gets that as the page opens, it's public only once you submit it. The error lines go on your clipboard, to paste if you want."))
                     .font(size: 12.5)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
