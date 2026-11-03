@@ -110,10 +110,21 @@ enum SignedLists {
     /// Whether `fresh` was built before `kept`, by the "generated" stamp each list carries in its
     /// signed bytes (ISO 8601 in UTC, so the text orders them). One without a stamp is older than one
     /// with it; with no kept stamp nothing is older. The same stamp counts: a list signed again.
-    static func isOlder(_ fresh: Data, than kept: Data?) -> Bool {
+    /// A kept stamp more than two days ahead of `now` counts as none (review N5): one wrong clock or
+    /// typo would otherwise turn away every right list after it until that day came.
+    static func isOlder(_ fresh: Data, than kept: Data?, now: Date = Date()) -> Bool {
         guard let theirs = kept.flatMap(stamp), !theirs.isEmpty else { return false }
+        if let date = date(of: theirs), date > now.addingTimeInterval(2 * 86_400) { return false }
         guard let ours = stamp(fresh) else { return true }
         return ours < theirs
+    }
+
+    /// A stamp as a date: to the second ("2026-11-03T04:17:00Z") or the day ("2026-10-27").
+    static func date(of stamp: String) -> Date? {
+        let full = ISO8601DateFormatter()
+        let day = ISO8601DateFormatter()
+        day.formatOptions = [.withFullDate]
+        return full.date(from: stamp) ?? day.date(from: stamp)
     }
 
     private static func stamp(_ data: Data) -> String? {

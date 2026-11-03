@@ -101,6 +101,11 @@ else:
 """
 
 
+def utc_stamp(offset=0):
+    """Now (plus `offset` seconds) as a list's "generated" stamp."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + offset))
+
+
 def stamped(text, generated):
     """A list's text with another "generated" stamp."""
     return re.sub(r'"generated": "[^"]*"', f'"generated": "{generated}"', text, count=1)
@@ -494,7 +499,7 @@ class SigningScripts(unittest.TestCase):
         self.git("checkout", "--quiet", "-b", "bot/profiles")
         profiles = self.repo / "profiles/profiles.json"
         profiles.write_text(stamped(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "tonight"', 1),
-                                    "2099-01-01T00:00:00Z"))
+                                    utc_stamp(-60)))
         self.git("commit", "--quiet", "-am", "Update game profiles")
         self.git("push", "--quiet", "origin", "bot/profiles")
         self.git("checkout", "--quiet", "main")
@@ -539,7 +544,7 @@ class SigningScripts(unittest.TestCase):
         self.git("fetch", "--quiet", "origin")
         self.git("checkout", "--quiet", "-B", "bot/profiles", "origin/bot/profiles")
         profiles = self.repo / "profiles/profiles.json"
-        profiles.write_text(stamped(profiles.read_text().replace('"note": "tonight"', '"note": "tomorrow"'), "2099-01-02T00:00:00Z"))
+        profiles.write_text(stamped(profiles.read_text().replace('"note": "tonight"', '"note": "tomorrow"'), utc_stamp()))
         self.git("commit", "--quiet", "-am", "Update game profiles")
         self.git("push", "--quiet", "origin", "bot/profiles")
         self.git("checkout", "--quiet", "main")
@@ -563,6 +568,20 @@ class SigningScripts(unittest.TestCase):
         result = self.sign_lists("bot/profiles")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("isn't newer than main's", result.stderr)
+        self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
+
+    def test_a_stamp_from_the_future_isnt_signed(self):
+        """Review N5: one list from the future would turn away every right one after it."""
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        profiles = self.repo / "profiles/profiles.json"
+        profiles.write_text(stamped(profiles.read_text(), utc_stamp(3 * 86_400)))
+        self.git("commit", "--quiet", "-am", "Update game profiles")
+        self.git("push", "--quiet", "--force", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("more than a day ahead", result.stderr)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
 
     def test_a_changed_list_fails_the_check(self):
