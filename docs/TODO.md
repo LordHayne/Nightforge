@@ -36,7 +36,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
     Gebaut und mit einem Testprogramm belegt (Zweig `claude/quirky-clarke-81fd65`, siehe „Vulkan-Layer und winecx“ ›
     KosmicKrisp). Offen: Live-Test mit Mafia II, L4D2 und einem dritten DX9-Spiel, danach die Profile; zum Ausliefern
-    `kosmickrisp.yml` auf `main` laufen lassen.
+    `kosmickrisp.yml` auf `main` laufen lassen. Plan dort unter „Live-Test“ (Stand 3.11., nach dem Rebase auf 29e458a).
   - Landingpage und README.
   - **Kleine Anzeigefehler kommen in späteren Releases** (Nutzer, 1.11. abends: „diese kleinen anzeige bugs …
     können wir in weiteren releases dann auch beheben. der grundstein ist gelegt“). Damit gemeint sind:
@@ -1689,6 +1689,45 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     - Ohne `VK_EXT_graphics_pipeline_library` kompiliert DXVK Pipelines beim Zeichnen. Das gibt Ruckler beim ersten
       Mal (dappermint: Portal min. 27 bei Ø 72 FPS).
     - Die beiden Patches gehören nach Mesa. Bei jedem neuen Pin prüfen, ob sie noch nötig sind.
+  - **Stand 3.11.: Rebase auf `claude/ux-roadmap-next` 29e458a** (mit display-polish, Engine-Stücken A/B/C, Spieletest,
+    compat-db). So sind die Konflikte gelöst:
+    - LaunchHealth:
+      - Ohne Vulkan-Layer und ohne KosmicKrisp ist die D3D9-Leiter nur „WineD3D“ (Stand 1.11.). Mit KosmicKrisp ist
+        sie „DXVK, WineD3D“.
+      - Die Leiter mit Quellen-Hinweis (AGW) gibt `kosmicKrisp` weiter. Für D3D9 gibt es keine Hinweise.
+      - `saved(_:for:)` behält nur Leitern, die hinten gewachsen sind. Ein D3D9-Spiel, das „WineD3D“ bestätigt hat,
+        fängt mit KosmicKrisp also neu an, mit DXVK.
+      - Das Mafia-II-Profil (`graphics: wined3d`) ändert bei Automatisch nichts, die D3D9-Leiter fragt das Profil nicht.
+    - GameLog: DXVKs Fehlerzeilen zählen nur für einen Start auf DXVK, so wie es die Base vorsieht. „No adapters found“
+      und „Failed to create Vulkan device“ kommen als Zeichen dazu.
+    - Engine: Der Build hat das Engine-Fix und D3DMetal als eigenen Parameter, dazu `kosmickrisp` und `dxvk`.
+    - Komponenten: Das `optional` der Base (für D3DMetal und enginefix) trägt auch `kosmickrisp`. `dxvk` (Upstream)
+      ist jetzt `propose`: Neuere Releases kommen als Pull Request.
+    - Getestet nach dem Rebase: LaunchHealth, EngineLayout, ShaderCaches, ProfileFiles, Strings und pytest (63).
+      EngineRollbackTest lief wegen des ps-Hängers nicht: `prefixSwitch()` liest über `engineForStart` die
+      Prozessliste, und dort steckt auch der D3D9-Teil dieses Zweigs. Der volle Lauf kommt nach dem Neustart.
+  - **Mit `claude/staging-031`** gibt es drei Konflikte, bei 285dd99 und schon bei b2ee5e5 (`git merge-tree`):
+    - `Engine.prepareLaunchEnvironment` braucht `environment` und `vulkan`.
+    - `engineForStart` und `useHeld` brauchen den D3D9-Ordner, auch für gehaltene Builds.
+    - In `LibraryModel` kommen `programChanged` und der Vulkan-Treiber zusammen.
+    - Die Lösung ist ausprobiert und typgeprüft: `kosmickrisp-staging-merge.diff` in den Session-Notizen.
+    - Dabei aufgefallen: `CX_ACTIVE_GRAPHICS_BACKEND` ist auf Staging ein Schalter, den ein Spiel setzen darf
+      (`GameEnvironment`). Auf MoltenVK bleibt der Wert des Spiels stehen. KosmicKrisp braucht „wined3d“ und setzt es.
+  - **Live-Test** (nach dem Neustart des Macs; Anleitung `kosmickrisp-dx9.md` in den Session-Notizen):
+    1. Komponenten bereitstellen: `tests/kosmickrisp/stage-live-test.sh` mit einem Testbau, der
+       `NightforgeManifestURL ""` hat. Am Ende `--undo`.
+    2. Mafia II (GOG), Grafik Automatisch, am MacBook-Display (das Vollbild am Fernseher ist eine eigene Baustelle).
+       Erwartet:
+       - DXVK auf KosmicKrisp: In `wine.log` steht das Gerät „KosmicKrisp“, und der Layer loggt FPS.
+       - Kein Rückfall auf WineD3D.
+       - Ruckler beim ersten Durchgang sind ohne Graphics Pipeline Library zu erwarten.
+       - `tests/kosmickrisp/thread-cpu.py <pid> 5` zeigt, welcher Thread voll läuft.
+    3. Left 4 Dead 2 (Steam): dasselbe. Auf WineD3D stürzte es nach etwa einer Minute ab.
+    4. Ein drittes DX9-Spiel, etwa Portal, Team Fortress 2 oder Garry's Mod.
+    5. Gegenprobe nach `--undo`: D3D9-Spiele starten nur mit WineD3D, ohne DXVK-Versuch.
+    6. Ruckelt Mafia II stark: A/B mit DXVK-macOS 1.10.3-async auf KosmicKrisp (zeichnet laut Probe).
+    7. Danach die Profile (50130, gog.1816059595, 550) auf `graphics: dxvk` stellen. Zum Ausliefern muss
+       `kosmickrisp.yml` auf `main` laufen; das braucht das OK des Nutzers.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit
