@@ -288,7 +288,8 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         let folder = install?.path ?? base(for: entry.appName).appendingPathComponent(entry.folder, isDirectory: true)
         let addOns = entry.dlcs ?? []
         // The game and its add-ons download as one, one part after the other.
-        let parts = ([entry.appName] + addOns.map(\.appName)).filter(wanted.contains).map { part in
+        let names = ([entry.appName] + addOns.map(\.appName)).filter(wanted.contains)
+        let parts = names.map { part in
             JobPart(done: versions[part] != nil || progress[part]?.finished == true || isEmptyAddOn(part),
                     progress: progress[part], size: knownSize(part)?.download)
         }
@@ -305,6 +306,9 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         game.addOns = addOns.map(\.title)
         if isDownloading {
             game.install = .downloading(job.fraction)
+            // What it takes on disk once it's down: legendary's install size, else what Epic said before.
+            let unpacked = names.map { progress[$0]?.installSize ?? knownSize($0)?.install ?? (isEmptyAddOn($0) ? 0 : nil) }
+            if !unpacked.contains(nil) { game.installedSize = unpacked.reduce(0) { $0 + ($1 ?? 0) } }
         } else if let install {
             game.install = .installed
             game.onlineOnly = !install.canRunOffline  // Epic's own say on offline play

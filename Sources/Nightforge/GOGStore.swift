@@ -172,6 +172,8 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         game.steamTwin = releases.items[entry.id]?.steamAppID
         if isDownloading {
             game.install = .downloading(progress?.fraction)
+            // What gogdl writes in all, else what the game page said: more than comes down.
+            game.installedSize = progress?.total ?? size?.install
         } else if let install {
             game.install = .installed
             if needsUpdate(install, entry: entry) { game.pendingUpdate = 0 }

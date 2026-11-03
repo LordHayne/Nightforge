@@ -38,6 +38,13 @@ struct SpaceCheckTest {
         check(SpaceCheck.remaining(waiting) == 35 * gb, "not started counting: all of it")
         check(SpaceCheck.remaining(updating) == 2 * gb && SpaceCheck.remaining(game(14, .installed, gb: 9)) == 0, "an update's rest; nothing for a game that's done")
         check(SpaceCheck.remaining(stuck) == 0 && SpaceCheck.remaining(game(15, .notInstalled, gb: 20)) == 0, "a download Steam stopped and a game not on the Mac add nothing")
+        // A download counts at what it takes on disk: Epic's and GOG's files come compressed, Steam unpacks into more.
+        var packed = game(17, .downloading(0.1), gb: 28); packed.installedSize = 42 * gb
+        check(SpaceCheck.remaining(packed) == Int64(Double(42 * gb) * 0.9), "the rest of what it unpacks to, not of what comes down: \(SpaceCheck.remaining(packed))")
+        var odd = game(18, .downloading(nil), gb: 28); odd.installedSize = 20 * gb
+        check(SpaceCheck.remaining(odd) == 28 * gb, "never less than what comes down")
+        var installed = game(19, .installed, gb: 30); installed.installedSize = 99 * gb
+        check(SpaceCheck.remaining(installed) == 0, "an installed game's size isn't counted again")
         let others = [control, waiting, updating, stuck, game(16, .installed, gb: 80)]
         let all = SpaceCheck.committed(by: others, except: game(99, .notInstalled, gb: 10)) { _ in true }
         check(all == SpaceCheck.remaining(control) + 35 * gb + 2 * gb, "the others' rests add up: \(all)")
@@ -54,6 +61,17 @@ struct SpaceCheckTest {
               && SpaceCheck.shortfall(needed: 34 * gb, free: free, margin: SpaceCheck.macReserve) == nil
               && SpaceCheck.shortfall(needed: 34 * gb + 1, free: free, margin: SpaceCheck.macReserve) == 1, "the reserve is 10 GB: 34 GB fit in 44, one byte more doesn't")
         check(SpaceCheck.macReserve == 10 * gb && SpaceCheck.margin == gb, "10 GB on the Mac, Steam's 1 GB on a drive")
+        // The same evening as Epic and GOG report it: Control comes down as 27.8 GB but unpacks to more; with
+        // what that takes, a second download that seemed to fit with room over doesn't.
+        var control2 = Game(gameID: .epic("Calluna"), name: "Control", bottle: Engine.bottle, steamRoot: Engine.bottle.url,
+                            steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: running)
+        control2.install = .downloading(0.25)
+        let byDownload = SpaceCheck.remaining(control2)
+        control2.installedSize = 42 * gb
+        let byDisk = SpaceCheck.remaining(control2)
+        check(SpaceCheck.shortfall(needed: 12 * gb, free: free, committed: byDownload, margin: SpaceCheck.macReserve) == nil
+              && SpaceCheck.shortfall(needed: 12 * gb, free: free, committed: byDisk, margin: SpaceCheck.macReserve) != nil,
+              "counted by what comes down it would fit, by what it takes on disk it doesn't: \(byDownload) / \(byDisk)")
         check(SpaceCheck.kept(needed: 27 * gb, free: free, committed: 5 * gb) == 12 * gb, "what stays free after all of them")
         check(SpaceCheck.isTight(kept: 12 * gb) && SpaceCheck.isTight(kept: 20 * gb - 1) && !SpaceCheck.isTight(kept: 20 * gb), "tight below 20 GB")
         check(SpaceCheck.margin(for: FileManager.default.homeDirectoryForCurrentUser) == SpaceCheck.macReserve, "the Mac's own disk keeps the reserve")

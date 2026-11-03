@@ -44,6 +44,10 @@ struct Game: Identifiable, Hashable {
     /// Not on the Mac yet: what the download comes to, when that's less than `sizeOnDisk` (Epic's
     /// files come compressed). Steam's games say only the one size.
     var downloadSize: Int64?
+    /// While it downloads, `sizeOnDisk` is what comes down (the size its progress is a share of): this
+    /// is what it takes on disk once it's down, when that's more. Epic's and GOG's files come
+    /// compressed, and Steam unpacks into more than it downloads (BytesToStage).
+    var installedSize: Int64?
     /// Installed, with an update Steam has to download before it starts: what's left of it
     /// (0 while Steam hasn't worked the size out).
     var pendingUpdate: Int64?
@@ -548,6 +552,7 @@ enum LibraryScanner {
         )
         game.install = install
         game.installDirName = installDirName
+        if install != .installed, toStage > toDownload { game.installedSize = Int64(toStage) }
         if install == .installed {
             game.pendingUpdate = UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
                                              targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string).pending

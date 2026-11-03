@@ -41,12 +41,14 @@ enum SpaceCheck {
     }
 
     /// What a game's download or update has still to bring: the rest of the download (all of it while
-    /// Steam hasn't counted yet), or what's left of an update.
+    /// Steam hasn't counted yet), or what's left of an update. A download counts at what it takes on
+    /// disk, not at what comes down (1.11.: Control from Epic and The Evil Within 2 from GOG at once).
     static func remaining(_ game: Game) -> Int64 {
         guard game.downloadNeedsSpace == nil, !game.downloadRefused else { return 0 }
         switch game.install {
         case .downloading(let fraction):
-            return Int64(Double(max(game.sizeOnDisk, 0)) * (1 - min(max(fraction ?? 0, 0), 1)))
+            let size = max(game.sizeOnDisk, game.installedSize ?? 0, 0)
+            return Int64(Double(size) * (1 - min(max(fraction ?? 0, 0), 1)))
         case .installed:
             return max(game.pendingUpdate ?? 0, 0)
         case .notInstalled, .inStore:
