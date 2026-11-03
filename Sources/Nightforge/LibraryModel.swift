@@ -938,16 +938,16 @@ final class LibraryModel: ObservableObject {
             }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let (listing, askers, macOSQuestions) = await Task.detached(priority: .utility) {
+            // One list for all of it: the game's processes and macOS's askers come from the same look.
+            let (listing, macOSQuestions) = await Task.detached(priority: .utility) {
                 let listing = GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
-                // macOS's own askers from the same list (none without one).
-                let askers = GameProcesses.lookup(allowOld: true).value.map { GameProcesses.macOSAskers(in: $0) } ?? []
-                return (listing, askers, GameProcesses.macOSQuestions(askers: askers))
+                return (listing, GameProcesses.macOSQuestions(askers: listing?.askers ?? []))
             }.value
             // No process list (ps doesn't answer): the game's absence is not known, so nothing is decided at
-            // this look – above all not that it is gone. The old list stands in for a while (GameProcesses.lookup);
-            // past three minutes without any, the curtain goes rather than stay for good.
-            guard let (pids, companion) = listing.map({ ($0.pids, $0.companion) }) else {
+            // this look – above all not that it is gone. The old list stands in for a while, but only to say the
+            // game is there (GameProcesses.curtainLook); past three minutes without any, the curtain goes rather
+            // than stay for good.
+            guard let (pids, companion, askers) = listing.map({ ($0.pids, $0.companion, $0.askers) }) else {
                 blindLooks += 1
                 if blindLooks == 1 { GameLog.note("Curtain look at \(game.name): no process list (ps doesn't answer), nothing decided") }
                 if blindLooks > 360 {

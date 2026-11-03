@@ -453,12 +453,14 @@ enum GameProcesses {
         presence(of: id, folders: folders, in: lookup(allowOld: true))
     }
 
-    /// What the curtain's look at the start needs from the list: the game's processes, and whether the app in
-    /// front is a Windows program of the game's. Nil when nothing can be decided at that look: no list, or an
-    /// old one that doesn't show the game (it may have started since; an old list only says "there").
+    /// What the curtain's look at the start needs from the list: the game's processes, whether the app in
+    /// front is a Windows program of the game's, and macOS's own askers – all from the one list, so that a
+    /// look is one `ps` (and one scan of the programs' folders). Nil when nothing can be decided at that look:
+    /// no list, or an old one that doesn't show the game (it may have started since; an old list only says "there").
     struct CurtainLook: Equatable {
         var pids: Set<pid_t>
         var companion: Bool
+        var askers: Set<pid_t>
     }
 
     nonisolated static func curtainLook(marker: String?, folder: String?, front: pid_t?) -> CurtainLook? {
@@ -470,7 +472,8 @@ enum GameProcesses {
         guard let table = listing.value else { return nil }
         let pids = Set(targets(windows: marker, mac: folder, in: table))
         if case .old = listing, pids.isEmpty { return nil }
-        return CurtainLook(pids: pids, companion: marker != nil && front.map { windowsCompanion($0, in: table) } == true)
+        return CurtainLook(pids: pids, companion: marker != nil && front.map { windowsCompanion($0, in: table) } == true,
+                           askers: macOSAskers(in: table))
     }
 
     /// A process's working folder (another user's, or one gone meanwhile: nil).

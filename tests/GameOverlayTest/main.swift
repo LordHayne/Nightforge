@@ -183,13 +183,24 @@ struct GameOverlayTest {
         // The curtain's look: an old list that doesn't show the game decides nothing (the !seenOnce case).
         func look() -> GameProcesses.CurtainLook? { GameProcesses.curtainLook(marker: marker, folder: nil, front: nil) }
         FakeProcesses.install { [other] }
-        check(look() == GameProcesses.CurtainLook(pids: [], companion: false), "the curtain: a list just asked for, no game – an empty look")
+        check(look() == GameProcesses.CurtainLook(pids: [], companion: false, askers: []), "the curtain: a list just asked for, no game – an empty look")
         FakeProcesses.installOld { [other] }
         check(look() == nil, "the curtain: an old list without the game – nothing decided")
         FakeProcesses.installOld { [other, game] }
         check(look()?.pids == [4201], "the curtain: an old list with the game – it is there")
         FakeProcesses.installDown()
         check(look() == nil, "the curtain: no list – nothing decided")
+
+        // One look is one list (review N4): the game's processes and macOS's askers come from it together.
+        let asker = FakeProcesses.Row(pid: 4210, command: "/System/Library/CoreServices/UserNotificationCenter.app/Contents/MacOS/UserNotificationCenter")
+        var asked = 0
+        FakeProcesses.install {
+            asked += 1
+            return [other, game, asker]
+        }
+        let both = look()
+        check(asked == 1, "the curtain's look asks for the process list once (\(asked) times)")
+        check(both?.pids == [4201] && both?.askers == [4210], "… and has the game's processes and macOS's asker from it")
     }
 
     /// The first-seconds watch (review N1): a look without an answer counts for neither side.
