@@ -15,5 +15,5 @@ clang -arch arm64 -o "$WORK/modern" "$WORK/game.c" -framework GameController
 clang -arch x86_64 -dynamiclib -o "$WORK/libSDL2.dylib" "$WORK/game.c" -framework GameController
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$WORK/test" $SOURCES tests/ControllerCompatibilityTest/main.swift
+swiftc -parse-as-library -o "$WORK/test" $SOURCES tests/Shared/TestDefaults.swift tests/ControllerCompatibilityTest/main.swift
 "$WORK/test" "$WORK"

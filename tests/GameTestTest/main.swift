@@ -42,9 +42,7 @@ struct GameTestTest {
     }
 
     static func settings() {
-        let suite = "io.github.lordhayne.nightforge.gametest-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = TestDefaults.suite("game-test")
         check(GameTest.Settings(defaults) == GameTest.Settings(), "without switches: 120 s for a picture, 60 s of play, all games")
         defaults.set(5, forKey: GameTest.Keys.pictureWait)
         defaults.set(5000, forKey: GameTest.Keys.playSeconds)

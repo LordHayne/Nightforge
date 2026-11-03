@@ -162,10 +162,7 @@ struct DuplicateGamesTest {
 
     /// The store picked on a game's page, kept under each of its entries.
     static func choice() {
-        let suite = "nightforge.duplicate-games-test"
-        guard let defaults = UserDefaults(suiteName: suite) else { return check(false, "test defaults") }
-        defaults.removePersistentDomain(forName: suite)
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = TestDefaults.suite("store-choice")
 
         let ids: [GameID] = [.steam(1_808_500), .epic("Pioneer")]
         check(StoreChoice.load(ids, from: defaults) == nil, "nothing picked yet")

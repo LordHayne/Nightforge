@@ -13,5 +13,5 @@ OUT="$WORK/game-overlay-test"
 # The whole app except its entry point, plus the test driver.
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/GameOverlayTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/FakeProcesses.swift tests/GameOverlayTest/main.swift
 "$OUT" tests/GameOverlayTest

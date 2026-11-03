@@ -15,6 +15,7 @@ struct GameIDTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         // Keys and what reads them back.
         check(GameID.steam(570).key == "steam.570" && GameID.epic("Fortnite").key == "epic.Fortnite", "keys name the store")
         check(GameID(key: "steam.570") == .steam(570) && GameID(key: "epic.Fortnite") == .epic("Fortnite"), "keys read back")

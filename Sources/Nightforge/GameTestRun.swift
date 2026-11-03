@@ -195,6 +195,7 @@ final class GameTestRun {
         var appeared: Date?
         var idleSince: Date?
         var pids: [pid_t] = []
+        var blind = 0  // looks in a row without a process list
         /// What only the player could do, since when: Steam's question gets `steamAskPatience` to answer itself.
         var asking: (need: GameTest.Skip, since: Date)?
         var foreignSince: Date?
@@ -244,7 +245,18 @@ final class GameTestRun {
                 model.answerSaveChoice(takeNewer: false)  // its own saves, nothing overwritten
                 notes.append("Spielstand-Frage beantwortet: die eigenen behalten")
             }
-            pids = await processes(of: game)
+            // No process list (ps doesn't answer): the game's presence isn't known, so no look is judged – not
+            // "never appeared", not "ended". Two minutes of that end the test of this game with a note.
+            guard let listed = await processes(of: game) else {
+                blind += 1
+                if blind >= 120 {
+                    notes.append("keine Prozessliste (ps antwortet nicht): nach 2 min abgebrochen")
+                    break watching
+                }
+                continue
+            }
+            blind = 0
+            pids = listed
             if pids.isEmpty {
                 appeared = nil
                 idleSince = model.launchingID == game.id ? nil : idleSince ?? now
@@ -321,7 +333,8 @@ final class GameTestRun {
             var playTakers: [String] = []
             while Date() < until {
                 try? await Task.sleep(for: .seconds(2))
-                gone = await processes(of: game).isEmpty ? gone + 1 : 0
+                // Without a process list nothing counts: a game isn't gone because ps doesn't say.
+                if let pids = await processes(of: game) { gone = pids.isEmpty ? gone + 1 : 0 }
                 if gone >= 3 {
                     endedWhilePlaying = true
                     break
@@ -420,7 +433,7 @@ final class GameTestRun {
     /// start is waited for, up to ten minutes.
     private func clearStage() async -> [String] {
         var notes: [String] = []
-        for earlier in startedGames where await !processes(of: earlier).isEmpty {
+        for earlier in startedGames where await processes(of: earlier)?.isEmpty == false {
             await quit(earlier)
             notes.append("vorher lief noch \(earlier.name) – beendet")
             GameLog.note("Game test: \(earlier.name) still ran – ended before the next game")
@@ -443,7 +456,7 @@ final class GameTestRun {
         let until = Date().addingTimeInterval(45)
         while Date() < until {
             try? await Task.sleep(for: .seconds(1))
-            if await !processes(of: game).isEmpty {
+            if await processes(of: game)?.isEmpty == false {
                 came = true
                 await quit(game)
             }
@@ -479,11 +492,12 @@ final class GameTestRun {
     }
 
     /// The game's processes: a Windows game's by its folder in Wine's command lines, a Mac game's by its folder.
-    private func processes(of game: Game) async -> [pid_t] {
+    /// Nil when there is no process list just now (`GameProcesses.lookup`): "none" and "not known" differ.
+    private func processes(of game: Game) async -> [pid_t]? {
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
         return await Task.detached(priority: .utility) {
-            GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table())
+            GameProcesses.lookup().freshValue.map { GameProcesses.targets(windows: marker, mac: folder, in: $0) }
         }.value
     }
 
@@ -491,7 +505,7 @@ final class GameTestRun {
     /// processes ended, also when it hangs.
     private func quit(_ game: Game) async {
         if GameOverlay.isOpen { GameOverlay.close() }
-        guard await !processes(of: game).isEmpty else { return }
+        guard await processes(of: game)?.isEmpty == false else { return }
         LaunchHealth.playerQuit(game.gameID)
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
@@ -521,23 +535,16 @@ final class GameTestRun {
         var looks: [Double] = []
         let until = Date().addingTimeInterval(120)
         while Date() < until {
-            looks.append(await Engine.offMain { GameTest.sessionCPU(Self.ps()) })
+            // No process list: no look counts as calm.
+            if let cpu = await Engine.offMain({ Self.ps().map(GameTest.sessionCPU) }) { looks.append(cpu) }
             if GameTest.calm(looks), !model.storeSaves.values.contains(.syncing) { return }
             try? await Task.sleep(for: .seconds(2))
         }
         GameLog.note("Game test: Steam and Wine still busy after two minutes – on to the next game")
     }
 
-    nonisolated private static func ps() -> String {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pcpu=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return "" }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
-        return output
+    nonisolated private static func ps() -> String? {
+        ProcessList.ps("pcpu=,command=")
     }
 
     /// Five seconds of `sample` on the game's process, written to `file` without paths or the

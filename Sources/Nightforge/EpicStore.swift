@@ -583,12 +583,18 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     /// legendary downloads still running from an earlier Nightforge, by app name.
     nonisolated private static func runningDownloads() -> Set<String> {
         let root = ComponentStore.shared.root.appendingPathComponent(Legendary.componentID, isDirectory: true)
-        return Set(Engine.ownProcesses(under: root).compactMap { process in
+        // Without a process list the last look stands: "none" would start a second download of the same game.
+        guard let processes = Engine.ownProcessesKnown(under: root) else { return lastRunning.withLock { $0 } }
+        let running = Set(processes.compactMap { process -> String? in
             let words = process.command.split(separator: " ")
             guard let index = words.firstIndex(of: "install"), index + 1 < words.count else { return nil }
             return String(words[index + 1])
         })
+        lastRunning.withLock { $0 = running }
+        return running
     }
+
+    nonisolated private static let lastRunning = LockedValue<Set<String>>([])
 
     /// Keeps the line of downloads in order: a game's download leaves it once the game and all its
     /// add-ons are there (also when that happened while Nightforge was away), add-ons whose game is

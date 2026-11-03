@@ -13,7 +13,7 @@ OUT="$WORK/steam-switch-test"
 # The whole app except its entry point, plus the test driver.
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/SteamSwitchTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/SteamSwitchTest/main.swift
 "$OUT"
 # Again in a home of its own, the way a first-start test runs: Steam for Mac must stay inside it.
 mkdir -p "$WORK/fh"

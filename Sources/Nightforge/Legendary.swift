@@ -122,18 +122,9 @@ enum Legendary {
         for child in family { kill(child, SIGTERM) }
     }
 
-    /// `ps -axo pid=,ppid=`: each process and its parent.
+    /// `ps -axo pid=,ppid=`: each process and its parent ("" when ps doesn't answer, `ProcessList`).
     private static func processTable() -> String {
-        let ps = Process()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,ppid="]
-        let pipe = Pipe()
-        ps.standardOutput = pipe
-        ps.standardError = FileHandle.nullDevice
-        guard (try? ps.run()) != nil else { return "" }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        while ps.isRunning { usleep(10_000) }  // see run
-        return String(decoding: data, as: UTF8.self)
+        ProcessList.ps("pid=,ppid=") ?? ""
     }
 
     /// The processes below `pid`, children and theirs, from a `pid ppid` table.

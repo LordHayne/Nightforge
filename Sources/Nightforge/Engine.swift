@@ -162,9 +162,8 @@ enum Engine {
     static func applyRetinaMode(_ wine: URL, defaults: UserDefaults = .standard) {
         let key = "retinaMode"
         // Never under a running game: ending the session would end it too.
-        guard defaults.bool(forKey: key) != launchRetina,
-              !ownProcesses().contains(where: { $0.command.lowercased().contains(#"\steamapps\common\"#) })
-        else { return }
+        // Any Windows game (Steam's, Epic's, GOG's), and not when that can't be told.
+        guard defaults.bool(forKey: key) != launchRetina, windowsGameRunningKnown == false else { return }
         importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
                        wine: wine)
         stopAll(wine)
@@ -254,21 +253,39 @@ enum Engine {
     /// Whether Steam's main process is running (any prefix; good enough to notice a crash or restart).
     /// Only Nightforge's own Steam counts – not one from a CrossOver bottle, and not a Steam left
     /// behind without its wineserver (it can't do anything any more and would block a fresh start).
-    static var isSteamRunning: Bool {
-        let ours = ownProcesses()
-        return ours.contains { $0.command.lowercased().contains(#"\steam\steam.exe"#) }
-            && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+    /// False also when `ps` doesn't answer: where "not running" lets Nightforge start, write or move
+    /// something, ask `steamRunningKnown` (nil: not known) or `steamMayBeRunning`.
+    static var isSteamRunning: Bool { steamRunningKnown ?? false }
+
+    /// Whether Steam runs, nil when no process list is to be had (`ProcessList`: `ps` has been seen not answering
+    /// for good). An empty list that was asked for says "no".
+    static var steamRunningKnown: Bool? {
+        ownProcessesKnown().map { ours in
+            ours.contains { $0.command.lowercased().contains(#"\steam\steam.exe"#) }
+                && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+        }
     }
+
+    /// For what mustn't happen to a Steam that runs (its files written, its game moved): true while it can't be
+    /// told it doesn't.
+    static var steamMayBeRunning: Bool { steamRunningKnown != false }
 
     /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
     /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games – or,
     /// started by a launcher with its bare name, runs from there: GameProcesses.runsFrom).
-    static var windowsGameRunning: Bool {
-        ownProcesses().contains { process in
-            let command = process.command.lowercased()
-            return GameProcesses.gameFolders.contains { command.contains($0.lowercased()) }
-                || command.contains(".exe") && GameProcesses.runsFrom(GameProcesses.gameFolders, command: command,
-                                                                      cwd: GameProcesses.cwd(of: process.pid))
+    /// True also when no process list is to be had: it is asked before things that mustn't happen under a game
+    /// (an engine switch, a graphics install, D3DMetal's removal, a Steam restart), which wait then.
+    static var windowsGameRunning: Bool { windowsGameRunningKnown ?? true }
+
+    /// Whether a Windows game runs, nil when that isn't known (`ProcessList`).
+    static var windowsGameRunningKnown: Bool? {
+        ownProcessesKnown().map { ours in
+            ours.contains { process in
+                let command = process.command.lowercased()
+                return GameProcesses.gameFolders.contains { command.contains($0.lowercased()) }
+                    || command.contains(".exe") && GameProcesses.runsFrom(GameProcesses.gameFolders, command: command,
+                                                                          cwd: GameProcesses.cwd(of: process.pid))
+            }
         }
     }
 
@@ -276,22 +293,36 @@ enum Engine {
     /// line ps shows – Wine rewrites that to the Windows program. Not Nightforge Helper, which only
     /// waits for the program it started (and ending it would look as if that program had failed).
     static func ownProcesses(under folder: URL = supportDir) -> [(pid: pid_t, command: String)] {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
+        ownProcessesKnown(under: folder) ?? []
+    }
+
+    /// The same, nil when no process list is to be had (`ProcessList`): "none" and "not known" are two answers.
+    /// An old list counts (its pids are checked again by their programs below); whoever needs to know that
+    /// something is gone looks at `processLookup(allowOld: false)`.
+    static func ownProcessesKnown(under folder: URL = supportDir) -> [(pid: pid_t, command: String)]? {
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
-        return output.split(separator: "\n").compactMap { line in
-            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+        return processLookup().value?.filter { process in
             // Inside the folder, not merely a sibling with the same start (engine 4.7.3 vs 4.7.3-3).
-            guard parts.count == 2, let pid = pid_t(parts[0]), let path = executablePath(pid),
-                  path == root || path.hasPrefix(root + "/"), !path.hasPrefix(helper) else { return nil }
-            return (pid, String(parts[1]))
+            guard let path = executablePath(process.pid) else { return false }
+            return (path == root || path.hasPrefix(root + "/")) && !path.hasPrefix(helper)
+        }
+    }
+
+    /// Every process with the command line `ps` shows (`ProcessList`: limited, and the last list when `ps`
+    /// has stopped answering – the callers check each pid they act on). [] when there is none at all: callers
+    /// that conclude from an empty list use `processLookup`.
+    static func processTable() -> [(pid: pid_t, command: String)] {
+        processLookup().value ?? []
+    }
+
+    static func processLookup(allowOld: Bool = true) -> ProcessListing<[(pid: pid_t, command: String)]> {
+        ProcessList.listing("pid=,command=", allowOld: allowOld).map { text in
+            text.split(separator: "\n").compactMap { line in
+                let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+                guard parts.count == 2, let pid = pid_t(parts[0]) else { return nil }
+                return (pid, String(parts[1]))
+            }
         }
     }
 
@@ -358,14 +389,17 @@ enum Engine {
     /// is another engine's while a game is held back on one (EngineRollback).
     static func stopAll(_ wine: URL) {
         let wine = sessionWine() ?? wine
-        let server = Process()
-        server.executableURL = wine.deletingLastPathComponent().appendingPathComponent("wineserver")
-        server.arguments = ["-k"]
-        server.environment = environment(wine: wine)
-        try? server.run()
-        server.waitUntilExit()
+        // `wineserver -k` asks the server to end and waits for it. A server that doesn't (a process of
+        // the session stuck in the kernel) must not hold up what comes after – Steam's restart, the
+        // engine switch, "Remove Nightforge completely": after the limit it is dropped, and
+        // `killLeftovers` ends what is still there.
+        Subprocess.run(wine.deletingLastPathComponent().appendingPathComponent("wineserver").path, ["-k"],
+                       environment: environment(wine: wine), timeout: serverTimeout)
         killLeftovers()
     }
+
+    /// How long `stopAll` waits for `wineserver -k`.
+    static let serverTimeout: TimeInterval = 15
 
     /// Wine helpers (winedevice.exe in particular) sometimes outlive `wineserver -k` and then
     /// hang around for days. A Wine program still running with its working directory in our
@@ -610,7 +644,7 @@ enum Engine {
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
             removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal)
-            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
+            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { ownProcessesKnown(under: $0)?.isEmpty != true }
         }
         return wine
     }
@@ -661,7 +695,8 @@ enum Engine {
             && (try? id.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
             let versions = (try? fm.contentsOfDirectory(at: id, includingPropertiesForKeys: nil)) ?? []
             for version in versions where version.lastPathComponent != wanted[id.lastPathComponent] {
-                guard ownProcesses(under: version).isEmpty else { continue }
+                // Not one something runs from – nor one whose users can't be told.
+                guard ownProcessesKnown(under: version)?.isEmpty == true else { continue }
                 try? fm.removeItem(at: version)
             }
             if (try? fm.contentsOfDirectory(atPath: id.path))?.isEmpty == true { try? fm.removeItem(at: id) }
@@ -718,6 +753,12 @@ enum Engine {
             }
     }
 
+    /// When a game last ran, or was last asked to start (Play pressed): the quit script waits for its cloud
+    /// saves only within five minutes of that, and only then. Set by `noteGameActivity`.
+    nonisolated(unsafe) static var lastGameActivity: Date?
+
+    static func noteGameActivity(_ date: Date = Date()) { lastGameActivity = date }
+
     /// When Nightforge quits, Steam should go too – but not while a game runs (it uploads cloud
     /// saves after the game ends) or a download is going. Nightforge itself quits right after a
     /// launch, so a small detached script waits for that and then stops Steam and the Wine session.
@@ -735,7 +776,7 @@ enum Engine {
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid()), msync ? "1" : "0"]
+                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -744,18 +785,45 @@ enum Engine {
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
-    /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`).
+    /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`), $8 when a
+    /// game last ran or was asked to start (`lastGameActivity`, epoch seconds): only within five minutes of
+    /// that does it wait 30 s for the cloud saves before it ends Steam.
+    /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
+    /// counts a download only if it isn't paused. Its process is in `steam-shutdown.pid` beside it while it waits.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
         WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"; MSYNC="${7:-1}"
+        # When a game last ran or was asked to start (epoch seconds, 0: not for long), told by Nightforge and
+        # kept up to date here whenever one is seen running.
+        LAST_GAME="${8:-0}"
+        recent_game() { [ $(( $(date +%s) - LAST_GAME )) -lt 300 ]; }
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
+        # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
+        # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
+        LIMIT="${NIGHTFORGE_QUIT_LIMIT:-43200}"
+        late() { [ "$SECONDS" -gt "$LIMIT" ]; }
+        # Where "Remove Nightforge completely" finds this script, without asking ps (CompleteRemoval.endScripts).
+        PIDFILE="${0%/*}/steam-shutdown.pid"
+        echo $$ > "$PIDFILE" 2>/dev/null
+        trap '[ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"' EXIT
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
         has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }
-        reopened() { pgrep -qf "Nightforge.app/Contents/MacOS/Nightforge"; }
+        # Nightforge runs again: a process whose command line BEGINS with this app's program – not one
+        # that merely names it (a build in another folder, lldb, codesign, a tail in a terminal), and
+        # not the Nightforge that is quitting. The needle goes in by environment, so that no command
+        # line of ours holds it.
+        reopened() {
+          ps -axo pid=,command= | NEEDLE="$APP/Contents/MacOS/Nightforge" QUITTING="$QUITTING" awk '
+            BEGIN { needle = ENVIRON["NEEDLE"]; quitting = ENVIRON["QUITTING"]; found = 0 }
+            { pid = $1; line = $0; sub(/^[ ]*[0-9]+[ ]+/, "", line) }
+            pid == quitting { next }
+            index(line, needle) == 1 { rest = substr(line, length(needle) + 1); if (rest == "" || substr(rest, 1, 1) == " ") found = 1 }
+            END { exit found ? 0 : 1 }'
+        }
         steam_running() { has_process '\steam\steam.exe'; }
         # A Windows program a launcher started by its bare name ("Control_DX11.exe -AUTH_LOGIN=…") shows
         # no folder; Wine gives it the game's as its working folder. Not Windows' or Steam's own programs.
@@ -773,10 +841,24 @@ enum Engine {
           runs_from_game_folder && return 0                                               # one a launcher started
           return 1
         }
+        # A download is under way in this steamapps folder: a folder in downloading/ whose appmanifest is
+        # not marked paused (StateFlags 512). Steam leaves the folders of paused and failed downloads
+        # there for good; counted, they would keep Steam and this script running for as long as the Mac
+        # is on. A folder without a manifest is a leftover Steam doesn't carry on with.
+        downloading_in() {
+          local dir flags
+          for dir in "$1"/downloading/*/; do
+            [ -d "$dir" ] || continue
+            flags="$(sed -n 's/.*"StateFlags"[[:space:]]*"\([0-9]*\)".*/\1/p' "$1/appmanifest_$(basename "$dir").acf" 2>/dev/null | head -n 1)"
+            [ -n "$flags" ] || continue
+            [ $(( flags & 512 )) -ne 0 ] || return 0
+          done
+          return 1
+        }
         busy() {
-          game_running && return 0
-          [ -n "$WINE" ] && find "$STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
-          [ -n "$MAC_STEAMAPPS" ] && find "$MAC_STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
+          if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
+          [ -n "$WINE" ] && downloading_in "$STEAMAPPS" && return 0
+          [ -n "$MAC_STEAMAPPS" ] && downloading_in "$MAC_STEAMAPPS" && return 0
           return 1
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
@@ -789,6 +871,7 @@ enum Engine {
           gone=0
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
+            late && exit 0
             sleep 2
             if game_running; then gone=0; else gone=$((gone + 1)); fi
           done
@@ -796,8 +879,8 @@ enum Engine {
           exit 0
         fi
         while true; do
-          while busy; do reopened && exit 0; sleep 10; done
-          sleep 30                       # cloud saves of a game that just ended
+          while busy; do reopened && exit 0; late && exit 0; sleep 10; done
+          recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
           reopened && exit 0
           busy || break
         done
@@ -1660,9 +1743,18 @@ enum Engine {
         regedit.standardOutput = FileHandle.nullDevice
         regedit.standardError = FileHandle.nullDevice
         guard (try? regedit.run()) != nil else { return false }
-        regedit.waitUntilExit()
+        // A regedit takes seconds, the first of a session a few more (it starts the wineserver). One
+        // that is still at it after half a minute is stuck in a session that doesn't answer: ended,
+        // so the game start that asked for the import goes on – or fails – instead of waiting for good.
+        guard regedit.waitUntilExit(timeout: registryTimeout) else {
+            regedit.end()
+            return false
+        }
         return regedit.terminationStatus == 0
     }
+
+    /// How long `importRegistry` waits for regedit.
+    static let registryTimeout: TimeInterval = 30
 
     /// macOS only turns Game Mode on (CPU and GPU priority, lower Bluetooth latency) for apps whose
     /// bundle says they're games. Wine's loader is a bare binary, so this builds a small "Nightforge
@@ -1958,6 +2050,8 @@ enum Engine {
     static func ensureSteamRunning(_ wine: URL, busy: Bool = false) async throws {
         let key = "steamConfigSignature"
         let current = UserDefaults.standard.string(forKey: key) == steamConfigSignature
+        // No process list to be had: neither a second Steam is started nor this one ended.
+        guard steamRunningKnown != nil else { return }
         // A Steam whose wineserver is gone: clear it away before starting afresh. A running game's
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
@@ -2150,19 +2244,33 @@ enum Engine {
     /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
     /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
-        guard isSteamRunning else { return }
+        try await stopSteam(wine, running: { isSteamRunning },
+                            installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
+                            shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
+                            hardStop: { stopAll($0) })
+    }
+
+    /// The steps of `stopSteam`, with what they ask and do handed in (a test hands in a Steam of its own):
+    /// "-shutdown" only to a Steam that is running – asked of none, it starts one – and the hard way
+    /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't.
+    static func stopSteam(_ wine: URL, running: () -> Bool, installing: () -> Bool, shutdown: (URL) throws -> Void,
+                          hardStop: (URL) -> Void, pause: Duration = .seconds(1), installWait: Int = 120,
+                          endWait: Int = 20) async throws {
+        guard running() else { return }
         // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
         var waited = 0
-        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
-            try await Task.sleep(for: .seconds(1))
+        while waited < installWait, installing() {
+            try await Task.sleep(for: pause)
             waited += 1
         }
-        try startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
-        for _ in 0..<20 {
-            guard isSteamRunning else { return }
-            try await Task.sleep(for: .seconds(1))
+        // It may have ended meanwhile (the update's restart, the player): a "-shutdown" would start a new one.
+        guard running() else { return }
+        try shutdown(wine)
+        for _ in 0..<endWait {
+            guard running() else { return }
+            try await Task.sleep(for: pause)
         }
-        stopAll(wine)
+        hardStop(wine)
     }
 
     /// Removes a game (or a download in progress) without any Steam window: with Steam stopped,
@@ -2266,7 +2374,7 @@ enum Engine {
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
-        if !isSteamRunning { SteamGuideButton.turnOff(steamRoot: steamRoot) }
+        if steamRunningKnown == false { SteamGuideButton.turnOff(steamRoot: steamRoot) }
         let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader

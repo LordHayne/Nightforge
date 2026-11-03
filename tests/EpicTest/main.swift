@@ -15,6 +15,8 @@ struct EpicTest {
 
     @MainActor
     static func main() async {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         guard FileManager.default.homeDirectoryForCurrentUser.path.contains("/home") else {
             print("✗ runs only in its own home (tests/EpicTest/run.sh)")
             exit(1)

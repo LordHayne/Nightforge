@@ -14,6 +14,7 @@ struct DownloadRateTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let mb = 1_000_000.0

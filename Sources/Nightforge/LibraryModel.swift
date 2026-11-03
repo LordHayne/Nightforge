@@ -508,8 +508,16 @@ final class LibraryModel: ObservableObject {
             while !Task.isCancelled {
                 let loaded = libraryLoaded
                 let folders = Self.processFolders(allGames)
-                let found = await Task.detached(priority: .utility) { Self.runningGames(folders) }.value
+                let known = await Task.detached(priority: .utility) { Self.runningGamesKnown(folders) }.value
+                // No process list at all (ps doesn't answer, GameProcesses.lookup): nothing is concluded from
+                // "no games" – no game ended, no play time stopped, no idle Steam restarted.
+                guard let found = known else {
+                    nap = Task { try? await Task.sleep(for: .seconds(3)) }
+                    await nap?.value
+                    continue
+                }
                 if found != running { running = found }
+                if !found.isEmpty { Engine.noteGameActivity() }
                 if loaded { runningScanned = true }  // only a look with the games known counts
                 await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
@@ -750,8 +758,13 @@ final class LibraryModel: ObservableObject {
 
     /// A game that a launcher started by its bare name counts too (GameProcesses.runsFrom: Control, 2.11.).
     nonisolated private static func runningGames(_ folders: [String: String]) -> [String: pid_t] {
-        guard !folders.isEmpty else { return [:] }
-        return GameProcesses.running(folders, in: GameProcesses.table())
+        runningGamesKnown(folders) ?? [:]
+    }
+
+    /// The same, nil when no process list is to be had (GameProcesses.runningNow): for what decides from a
+    /// game's absence – its end, a start that failed – which mustn't at such a time.
+    nonisolated private static func runningGamesKnown(_ folders: [String: String]) -> [String: pid_t]? {
+        GameProcesses.runningNow(folders)
     }
 
     /// The running-game check has looked at the processes at least once, knowing the library.
@@ -861,6 +874,8 @@ final class LibraryModel: ObservableObject {
         // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
         // Wukong's driver warning stayed hidden on 1.11. with not one line of the curtain's).
         var lastLook = ""
+        /// Looks in a row without a process list.
+        var blindLooks = 0
         func end(_ why: String) { GameLog.note("Curtain watch for \(game.name) ends: \(why)") }
         GameLog.note("Curtain watch for \(game.name) begins")
         while !Task.isCancelled {
@@ -899,11 +914,22 @@ final class LibraryModel: ObservableObject {
             }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let (pids, companion) = await Task.detached(priority: .utility) {
-                let table = GameProcesses.table()
-                return (Set(GameProcesses.targets(windows: marker, mac: folder, in: table)),
-                        marker != nil && front.map { GameProcesses.windowsCompanion($0, in: table) } == true)
+            let listing = await Task.detached(priority: .utility) {
+                GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
             }.value
+            // No process list (ps doesn't answer): the game's absence is not known, so nothing is decided at
+            // this look – above all not that it is gone. The old list stands in for a while (GameProcesses.lookup);
+            // past three minutes without any, the curtain goes rather than stay for good.
+            guard let (pids, companion) = listing.map({ ($0.pids, $0.companion) }) else {
+                blindLooks += 1
+                if blindLooks == 1 { GameLog.note("Curtain look at \(game.name): no process list (ps doesn't answer), nothing decided") }
+                if blindLooks > 360 {
+                    GameBackdrop.hide(after: .zero)
+                    return end("no process list for three minutes")
+                }
+                continue
+            }
+            blindLooks = 0
             seenOnce = seenOnce || !pids.isEmpty
             if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
             // Started and gone again, nothing starting any more: the start flow says what happened.
@@ -2763,6 +2789,7 @@ final class LibraryModel: ObservableObject {
         // way – ends with a Play: OxyRail, quit a few seconds in on 1.11., started again on DXVK
         // while Valheim started, and took Valheim's curtain.
         launchTask?.cancel()
+        Engine.noteGameActivity()  // the quit script waits for cloud saves if Nightforge quits soon after (Engine.steamShutdownScript)
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
@@ -3327,7 +3354,9 @@ final class LibraryModel: ObservableObject {
             var absent = 0
             while true {
                 let (text, running) = await Task.detached(priority: .utility) {
-                    (GameLog.text(since: logMark), Self.runningGames(folders)[game.id] != nil)
+                    // Without a process list the game counts as running: its absence would end the watch
+                    // and mark the way as failed.
+                    (GameLog.text(since: logMark), Self.runningGamesKnown(folders).map { $0[game.id] != nil } ?? true)
                 }.value
                 // Gone for two looks (10 s): a launcher handing over leaves a shorter gap.
                 absent = running ? 0 : absent + 1
@@ -3665,7 +3694,7 @@ final class LibraryModel: ObservableObject {
             if wantsWindows, let wine = await Engine.installedWine() {
                 let wasRunning = Engine.isSteamRunning
                 try await Engine.stopSteam(wine)
-                guard !Engine.isSteamRunning else { throw DriveError.steamStarted }
+                guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }
                 defer { if wasRunning { Task { try? await Engine.restartSteamInBackground(wine) } } }
                 try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle) }
             }
