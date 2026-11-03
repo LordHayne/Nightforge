@@ -12,16 +12,32 @@ enum GameShortcut {
     /// already in Applications keep working; other stores' games their key ("epic.Fortnite").
     static func linkID(_ game: GameID) -> String { game.steamAppID.map(String.init) ?? game.key }
 
-    /// A game's own app adds `key`: nightforge://play/570?key=….
+    /// A game's own app adds `key`: nightforge://play/570?key=…. Built from parts: an ID with a space, a % or a ?
+    /// (GameID(provider:id:) takes any string) is encoded, never a crash – and never a link that means
+    /// something else; `isUsable` says which games get an app at all.
     static func url(play game: GameID, key: String? = nil) -> URL {
-        URL(string: "nightforge://play/\(linkID(game))" + (key.map { "?key=\($0)" } ?? ""))!
+        var parts = URLComponents()
+        parts.scheme = "nightforge"
+        parts.host = "play"
+        parts.path = "/" + linkID(game)
+        if let key { parts.queryItems = [URLQueryItem(name: "key", value: key)] }
+        return parts.url ?? URL(fileURLWithPath: "/")
+    }
+
+    /// Whether the link of `game` reads back as the same game: only plain IDs do (GameID.isPlain).
+    static func isUsable(_ game: GameID) -> Bool { GameID(key: linkID(game)) == game }
+
+    struct UnusableID: LocalizedError {
+        var errorDescription: String? { L10n.t("its ID can't be used in a link") }
     }
 
     /// nightforge://play/570, nightforge://show/570 or nightforge://play/epic.Fortnite. Any web page can
     /// open such a link, so one that plays only does so with `key`, which only the game apps Nightforge
     /// wrote carry; without it Nightforge shows the game's page, and Play is the player's click.
     static func action(from url: URL, key: String) -> Action? {
-        guard url.scheme == "nightforge", let game = GameID(key: url.lastPathComponent) else { return nil }
+        // Exactly one segment after the host: .../anything/else/570 isn't the link of 570.
+        let segments = url.pathComponents.filter { $0 != "/" }
+        guard url.scheme == "nightforge", segments.count == 1, let game = GameID(key: segments[0]) else { return nil }
         switch url.host {
         case "play":
             let given = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "key" }?.value
@@ -45,16 +61,22 @@ enum GameShortcut {
         arc4random_buf(&bytes, bytes.count)
         let key = bytes.map { String(format: "%02x", $0) }.joined()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        if FileManager.default.fileExists(atPath: file.path) {
-            try? FileManager.default.removeItem(at: file)  // there, but no key (cut short)
-        }
-        // Readable by the player alone from the moment it's there, and never over one written
-        // meanwhile (the start's addKey and a link at once): that one counts.
-        let descriptor = open(file.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        // Written whole to a file of its own, readable by the player alone from the moment it's there, and put
+        // in place in one step: the start's addKey and "Add to Applications" at once never see half a key, and
+        // the one that links first wins – the others hand out what the file holds, not a key of their own.
+        let temporary = folder.appendingPathComponent("shortcut-key.\(UUID().uuidString).tmp")
+        let descriptor = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard descriptor >= 0 else { return kept() ?? key }
-        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        guard (try? handle.write(contentsOf: Data(key.utf8))) != nil else { return kept() ?? key }
-        return key
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: false)
+        let written = (try? handle.write(contentsOf: Data(key.utf8))) != nil
+        close(descriptor)
+        defer { unlink(temporary.path) }
+        guard written else { return kept() ?? key }
+        if link(temporary.path, file.path) == 0 { return key }
+        // There already: a key, whole (the other one's), or a file that holds none (cut short), which is replaced.
+        if let other = kept() { return other }
+        if rename(temporary.path, file.path) == 0 { return kept() ?? key }
+        return kept() ?? key
     }
 
     /// What a game's app runs: open its link, with the key.
@@ -100,6 +122,7 @@ enum GameShortcut {
     /// Writes the little app: a script that opens the game's link with the key, with the cover as its icon.
     @discardableResult
     static func create(for game: Game, icon: NSImage?, in folder: URL = folder, key: String = GameShortcut.key()) throws -> URL {
+        guard isUsable(game.gameID) else { throw UnusableID() }
         let app = appURL(for: game, in: folder)
         let contents = app.appendingPathComponent("Contents", isDirectory: true)
         let macOS = contents.appendingPathComponent("MacOS", isDirectory: true)

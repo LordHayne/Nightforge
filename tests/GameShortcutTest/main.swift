@@ -68,6 +68,8 @@ struct GameShortcutTest {
         }
 
         keys(folder)
+        concurrentKeys(folder)
+        strangeLinks(folder)
         olderApps(folder)
 
         print(failures == 0 ? "✓ GameShortcut" : "\(failures) failed")
@@ -88,6 +90,60 @@ struct GameShortcutTest {
         check(replaced != first && replaced.count == 32 && GameShortcut.key(in: home) == replaced, "a file that holds no key gets a new one")
         let other = GameShortcut.key(in: folder.appendingPathComponent("other", isDirectory: true))
         check(other != replaced, "each Mac its own")
+    }
+
+    /// "Add to Applications" and the start's addKey at once: every one gets the key the file holds, never a key of
+    /// its own that was not kept (outside review, item 4). The window is microseconds wide: many rounds.
+    static func concurrentKeys(_ folder: URL) {
+        var splits = 0
+        var stray = 0
+        var modes = Set<Int>()
+        for round in 0..<300 {
+            let home = folder.appendingPathComponent("support-race-\(round)", isDirectory: true)
+            let keys = LockedValue<[String]>([])
+            DispatchQueue.concurrentPerform(iterations: 16) { _ in
+                let key = GameShortcut.key(in: home)
+                keys.withLock { $0.append(key) }
+            }
+            let file = home.appendingPathComponent("shortcut-key")
+            let kept = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let all = keys.withLock { $0 }
+            if all.count != 16 || Set(all) != [kept] || kept.count != 32 { splits += 1 }
+            modes.insert(((try? FileManager.default.attributesOfItem(atPath: file.path))?[.posixPermissions] as? Int) ?? -1)
+            stray += ((try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []).filter { $0 != "shortcut-key" }.count
+            try? FileManager.default.removeItem(at: home)
+        }
+        check(splits == 0, "300 rounds of 16 at once: one key for all, the one in the file (\(splits) rounds split)")
+        check(modes == [0o600], "…readable by the player alone: \(modes)")
+        check(stray == 0, "…and nothing left beside it: \(stray) files")
+    }
+
+    /// Links and IDs that aren't what they look like (outside review, items 2 and 3).
+    static func strangeLinks(_ folder: URL) {
+        // Exactly one segment after the host.
+        check(action("nightforge://play/anything/else/570?key=\(key)") == nil, "a path of several segments isn't a game's link")
+        check(action("nightforge://show/x/570") == nil, "…nor is a show link")
+        check(action("nightforge://play/570/?key=\(key)") == .play(.steam(570)), "a slash at the end is no second segment")
+        check(action("nightforge://play?key=\(key)") == nil && action("nightforge://play/") == nil, "no game in it")
+        // IDs that GameID(provider:id:) takes but a link can't carry: no crash, and no app.
+        for id in ["a b", "a%b", "a?b", "a#b", "é", "a/b", ""] {
+            let game = GameID.gog(id)
+            let link = GameShortcut.url(play: game, key: key)
+            check(link.scheme == "nightforge" && !GameShortcut.isUsable(game) && GameShortcut.action(from: link, key: key) == nil,
+                  "ID \(id.debugDescription): a link that is nobody's game, not a crash (\(link.absoluteString))")
+        }
+        check(GameShortcut.isUsable(.steam(570)) && GameShortcut.isUsable(.epic("Fortnite")) && GameShortcut.isUsable(.gog("1207664663")),
+              "plain IDs are usable")
+        var strange = Game(gameID: .gog("a b"), name: "Strange", bottle: Engine.bottle, steamRoot: Engine.bottle.url,
+                           steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: 0)
+        strange.install = .installed
+        do {
+            _ = try GameShortcut.create(for: strange, icon: nil, in: folder.appendingPathComponent("strange", isDirectory: true), key: key)
+            check(false, "an app for an ID that can't be in a link")
+        } catch {
+            check(error is GameShortcut.UnusableID && !error.localizedDescription.isEmpty, "no app for it: \(error)")
+        }
+        check(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("strange").path), "…and nothing written")
     }
 
     /// Apps an older Nightforge wrote open their link without the key: at the start their script gets it.

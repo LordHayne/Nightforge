@@ -30,6 +30,7 @@ struct SteamProgramTest {
         try? fm.createDirectory(at: steam.appendingPathComponent("appcache"), withIntermediateDirectories: true)
         try? appinfo(apps).write(to: steam.appendingPathComponent("appcache/appinfo.vdf"))
         launchEntries()
+        deepFiles()
         routes()
         launchOptionsValue()
         editing()
@@ -139,6 +140,28 @@ struct SteamProgramTest {
             ("2", option("Game_Vulkan.exe", type: "option1", description: "Vulkan")),
         ])),
     ]
+
+    /// An appinfo.vdf whose objects nest without end (a Windows program can write the file): no crash, no entries
+    /// – the recursion stops at a fixed depth. 200,000 levels overflowed the stack before.
+    static func deepFiles() {
+        let root = temp.appendingPathComponent("deep-steam", isDirectory: true)
+        try? fm.createDirectory(at: root.appendingPathComponent("appcache"), withIntermediateDirectories: true)
+        let levels = 200_000
+        let table = ["appinfo", "a"]
+        var kv: [UInt8] = [0] + le32(0)                                  // "appinfo": {
+        for _ in 0..<levels { kv += [0] + le32(1) }                      // "a": { … the same again
+        kv += [UInt8](repeating: 8, count: levels + 2)                   // … and all closed
+        let header = [UInt8](repeating: 0, count: 60)
+        var body = le32(UInt32(control)) + le32(UInt32(header.count + kv.count)) + header + kv
+        body += le32(0)
+        var strings = le32(UInt32(table.count))
+        for key in table { strings += Array(key.utf8) + [0] }
+        let file = Data(le32(0x0756_4429) + le32(1) + le64(UInt64(16 + body.count)) + body + strings)
+        try? file.write(to: root.appendingPathComponent("appcache/appinfo.vdf"))
+        check(SteamCatalog.launchEntries(appID: control, steamRoot: root).isEmpty, "a file with objects nested 200,000 deep: no entries, and still here")
+        // The same game with a normal file is read as ever.
+        check(!entries(control).isEmpty, "…and a normal file still gives its entries")
+    }
 
     /// A game folder with empty programs.
     static func folder(_ name: String, _ programs: [String]) -> URL {
