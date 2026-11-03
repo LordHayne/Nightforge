@@ -348,12 +348,70 @@ Konflikte und Anpassungen:
 - **`claude/profile-guide-1a4e06` bf214f5:** notiert, siehe 33.
 - **`claude/quirky-clarke-81fd65` (KosmicKrisp DirectX 9):** stand nicht auf der Liste.
 
+## Siebte Runde (3.11., auf a3245b4)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 34 | `claude/system-prompt-curtain-1a4e06` (Vorhang unter macOS-Fragen) | c696a64 | 85e89eb | `LibraryModel.swift`, `tests/GameOverlayTest/main.swift` | 0 |
+| 35 | `claude/game-test-fixes` bis 1ec9167 | 1ec9167 | b74875a | keine | 0 |
+| 36 | `claude/h1-h3-031` (`SubprocessTest` unter Last) | a097ccb | 2ab3cb1 | keine | 0 |
+
+engine-env bis 5c8edd0 war mit 29 schon da.
+
+Konflikte und Anpassungen:
+- **34, `LibraryModel.swift`, der Blick des Vorhangs:** M3s `GameProcesses.curtainLook` bleibt (ohne Liste wird nichts
+  entschieden, `blindLooks`). Dazu kommt das neue `macOSQuestions` des Zweigs, also alle Fragen von macOS statt nur
+  der vordersten, aus denselben Fragestellern wie bisher. Die Fragen werden wie bisher erst nach der Prüfung „keine
+  Liste“ behandelt.
+- **34, `tests/GameOverlayTest/main.swift`:** Die neue Prüfung von `macOSQuestions` steht im Block der Fragesteller,
+  danach game-test-fixes' `biggest(_:)`.
+- **35, ohne Konflikt:** `GameTest.macOSAsking` liest im Log die Zeile des Vorhangs „Curtain under a question of
+  macOS's for <Spiel>: …“. Seit 34 kommt sie nur für eine Frage, die während des Starts aufkam. Die neue Zeile für eine
+  Frage von vorher passt nicht darauf. Eine alte Frage bricht also auch im Spieletest keinen Start ab.
+- **36:** ein Commit auf `claude/h1-h3-031`, gebaut und geprüft in einem eigenen Worktree. Der Zweig ist im Worktree
+  `code-review-plan-2f9ae5` (sauber) per `--ff-only` auf a097ccb gegangen.
+  - Das Stand-in-`ps` hat jetzt 3 s statt 0,5 s. Bei 0,5 s kam es unter Last manchmal nicht einmal bis zu seiner ersten
+    Zeile, und alle Prüfungen danach schlugen fehl.
+  - Damit der Test nicht zahnlos wird, wird gegen diese Grenze gemessen. Ein hängendes `ps` muss an der Grenze
+    zurückkommen (3 bis 6 s) statt nur unter 4 s, also nicht nach den 30 s des Stand-ins. In der Pause wartet niemand
+    länger als ein Drittel davon.
+  - Die Shell, die vor ihrer Grenze schreibt, hat ebenfalls 3 s statt 1 s.
+
+## Tests der siebten Runde (auf 2ab3cb1)
+
+- **`tests/ProcessListLive/run.sh`:** grün, das echte `ps`.
+- **pytest:** 113 von 113.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** 58 von 59. `SubprocessTest` ist grün.
+- **Der Vergleich unter Last:** Während des vollen Laufs lief der alte und der neue `SubprocessTest` je zwölfmal im
+  Wechsel, bei einer Last von 6,4 bis 8,9. Der alte schlug einmal fehl (bei 8,9), der neue keinmal. Ein Lauf des neuen
+  dauert etwa 10 s statt 5 s.
+- **`PadFocusTest` schlug fehl, mit 6 Prüfungen, und zwar wegen des ausgeschalteten Bildschirms, nicht wegen der
+  Merges:**
+  - Betroffen sind die Prüfungen des weichen Scrollens („the control below shows with room under it: 0.0“ und die
+    folgenden). Sie geben der Animation 0,5 s (`RunLoop.main.run`) und erwarten dann das Ziel. Die Seite hatte sich gar
+    nicht bewegt.
+  - Laut `pmset -g log` ist der Bildschirm seit 08:08:55 aus, der Nutzer ist weg. In der sechsten Runde war die Reihe um
+    08:05 noch grün.
+  - Allein lief sie danach dreimal mit demselben Fehler. Auf dem alten Kopf a3245b4 schlägt sie jetzt genauso fehl.
+  - 34 bis 36 ändern weder `PadFocus.swift` noch `PageScroll` noch die Reihe.
+  - Für die Controller-Seite: Die Reihe braucht einen eingeschalteten Bildschirm, ein Lauf über Nacht oder mit
+    zugeklapptem Mac scheitert daran.
+- Die Test-Plists, die sich in dieser Zeit änderten (`ProfileFilesTest-<UUID>` um 08:23, 08:48 und 08:50,
+  `engine-layout-test` und andere), passen wieder nicht zu Stagings Reihen. Stagings `ProfileFilesTest` endete um
+  08:43, `EngineLayoutTest` um 08:32.
+
+## Nicht in der siebten Runde
+
+- `claude/engine-env-0f3a` 03e7843: nur `docs/TODO.md`, nach 5c8edd0.
+- `claude/profile-guide-1a4e06` bf214f5: notiert, siehe 33.
+- `claude/quirky-clarke-81fd65` (KosmicKrisp DirectX 9): stand nicht auf der Liste.
+
 ## Für die echten Merges
 
-- Später nachzuziehen: `claude/game-test-fixes` ab a34e251.
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
   von 5720a1d.
-- `SubprocessTest`: die Grenze von 0,5 s für das Stand-in-`ps` (h1-h3), siehe die Tests der sechsten Runde.
+- `SubprocessTest` ist auf h1-h3 behoben (a097ccb, Merge 36).
+- `PadFocusTest` braucht einen eingeschalteten Bildschirm, siehe die Tests der siebten Runde.
 - Nur auf Staging stehen:
   - 8b5314d. engine-env hat dasselbe jetzt als 4e02fbf.
   - 49e249d, M4s „Steam ist aus“ über M3. Gehört in den M4-Zweig, sobald der M3 hat.
