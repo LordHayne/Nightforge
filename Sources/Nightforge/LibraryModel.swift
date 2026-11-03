@@ -2324,6 +2324,9 @@ final class LibraryModel: ObservableObject {
             let backup = SaveTransfer.backupFolder(game: game.name, platform: platform)
             do {
                 try await Engine.offMain { try SaveTransfer.takeNewer(to: platform, rules: rules, places: places, backup: backup) }
+            } catch let error as SaveTransfer.PartlyTaken {
+                errorMessage = L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
+                                      error.reason, error.backup.path)
             } catch {
                 errorMessage = L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name)
             }
