@@ -686,6 +686,99 @@ class SigningScripts(unittest.TestCase):
         self.assertFalse(holds(bytes.fromhex(vectors[0][0]), b"", bytes.fromhex(vectors[1][2])), "another key's signature")
 
 
+CHECK_SWIFT = """import Foundation
+// check FILE SIGFILE KEY…: exit 0 when Signature.isValid, the app's own check, holds.
+@main struct Check {
+    static func main() {
+        let args = CommandLine.arguments
+        guard args.count >= 3, let data = FileManager.default.contents(atPath: args[1]),
+              let signature = FileManager.default.contents(atPath: args[2]) else { exit(2) }
+        exit(Signature.isValid(signature, of: data, keys: Array(args.dropFirst(3))) ? 0 : 1)
+    }
+}
+"""
+
+
+class Ed25519Agreement(unittest.TestCase):
+    """install.sh's Perl Ed25519 decides as the app's CryptoKit check does (review M6): RFC 8032 §7.1's vectors
+    and invalid ones (S not below L, signs flipped, points of small order, non-canonical encodings)."""
+    ORDER = 2 ** 252 + 27742317777372353535851937790883648493
+    PRIME = 2 ** 255 - 19
+    BASE = bytes.fromhex("5866666666666666666666666666666666666666666666666666666666666666")
+    # The eight points of small order Ed25519 has, as libsodium lists them (their sign bit set or not).
+    SMALL_ORDER = ["0100000000000000000000000000000000000000000000000000000000000000",
+                   "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+                   "0000000000000000000000000000000000000000000000000000000000000000",
+                   "0000000000000000000000000000000000000000000000000000000000000080",
+                   "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+                   "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="nightforge-ed25519-"))
+        (cls.tmp / "check.swift").write_text(CHECK_SWIFT)
+        cls.check = cls.tmp / "check"
+        env = dict(os.environ)
+        sdk = "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
+        if "SDKROOT" not in env and os.path.isdir(sdk) and subprocess.run(
+                ["xcode-select", "-p"], capture_output=True, text=True).stdout.strip() == "/Library/Developer/CommandLineTools":
+            env["SDKROOT"] = sdk
+        subprocess.run(["swiftc", "-parse-as-library", "-o", str(cls.check), str(cls.tmp / "check.swift"),
+                        str(ROOT / "Sources/Nightforge/Signature.swift"), str(ROOT / "Sources/Nightforge/SigningKeys.swift")],
+                       check=True, env=env, capture_output=True)
+        text = (ROOT / "scripts/install.sh").read_text()
+        cls.function = re.search(r"^ed25519_verify\(\) \{\n.*?^PERL\n\}\n", text, re.M | re.S).group(0)
+        cls.vectors = json.loads((ROOT / "tests/data/ed25519-rfc8032.json").read_text())["vectors"]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def decide(self, key, message, signature):
+        """(CryptoKit, Perl): whether each takes the signature."""
+        (self.tmp / "message").write_bytes(message)
+        (self.tmp / "message.sig").write_text(base64.b64encode(signature).decode() + "\n")
+        files, key = [str(self.tmp / "message"), str(self.tmp / "message.sig")], base64.b64encode(key).decode()
+        app = subprocess.run([str(self.check), *files, key]).returncode == 0
+        perl = subprocess.run(["bash", "-c", self.function + 'ed25519_verify "$@"', "-", *files, key]).returncode == 0
+        return app, perl
+
+    @staticmethod
+    def number(n):
+        return n.to_bytes(32, "little")
+
+    def cases(self):
+        """(name, key, message, signature, holds)."""
+        for vector in self.vectors:
+            key, message, signature = (bytes.fromhex(vector[k]) for k in ("public", "message", "signature"))
+            s = int.from_bytes(signature[32:], "little")
+            name = f"TEST {vector['name']}"
+            yield name, key, message, signature, True
+            yield f"{name}, S + L", key, message, signature[:32] + self.number(s + self.ORDER), False
+            yield f"{name}, S = L", key, message, signature[:32] + self.number(self.ORDER), False
+            yield f"{name}, R's sign flipped", key, message, signature[:31] + bytes([signature[31] ^ 0x80]) + signature[32:], False
+            yield f"{name}, the key's sign flipped", key[:31] + bytes([key[31] ^ 0x80]), message, signature, False
+            yield f"{name}, another message", key, message + b"!", signature, False
+        first = self.vectors[0]
+        key, signature = bytes.fromhex(first["public"]), bytes.fromhex(first["signature"])
+        for point in map(bytes.fromhex, self.SMALL_ORDER):
+            # Whether a key of small order takes "R = B, S = 1" depends on the message's hash; only agreeing counts.
+            yield f"key of small order {point.hex()[:8]}", point, b"any", self.BASE + self.number(1), None
+            yield f"R of small order {point.hex()[:8]}", key, b"", point + self.number(0), False
+        yield "key y = p, not canonical", self.number(self.PRIME), b"", signature, False
+        yield "key y = p + 1, the neutral point not canonical", self.number(self.PRIME + 1), b"any", self.BASE + self.number(1), False
+        yield "R y = p + 1, not canonical", key, b"", self.number(self.PRIME + 1) + signature[32:], False
+        yield "a signature of zeros", key, b"", bytes(64), False
+
+    def test_perl_and_cryptokit_decide_alike(self):
+        for name, key, message, signature, holds in self.cases():
+            with self.subTest(name):
+                app, perl = self.decide(key, message, signature)
+                self.assertEqual(perl, app, "install.sh and the app disagree")
+                if holds is not None:
+                    self.assertEqual(app, holds)
+
+
 class InstallScript(unittest.TestCase):
     def test_the_installer_takes_the_zip_not_its_signature(self):
         """scripts/install.sh (from main, also for 0.3.0 players) picks the zip of a signed release."""
