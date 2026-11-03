@@ -164,6 +164,19 @@ struct SubprocessTest {
         ProcessList.reset()
         check(ProcessList.ps("pid=,command=") != nil, "after the pause (here: a reset), ps is asked again")
 
+        // A ps that can't even be started (extra review, item 2): the pause holds for it too, no new try at every look.
+        let notThere = work.appendingPathComponent("no-such-ps")
+        ProcessList.program = notThere.path
+        ProcessList.reset()
+        check(ProcessList.ps("pid=,command=") == nil, "a ps that can't be started: no list")
+        try? FileManager.default.copyItem(at: standIn, to: notThere)  // it could be started from now on
+        let askedBefore = calls()
+        check(ProcessList.ps("pid=,command=") == nil && calls() == askedBefore,
+              "… and for the next minute it isn't tried again (\(calls() - askedBefore) more calls)")
+        ProcessList.reset()
+        check(ProcessList.ps("pid=,command=") != nil, "… after the pause it is")
+        ProcessList.program = standIn.path
+
         // A source handed in answers instead, and no program is started.
         let before = calls()
         ProcessList.source = { columns in "from the source: \(columns)" }

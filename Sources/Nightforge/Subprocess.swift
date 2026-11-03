@@ -207,7 +207,9 @@ enum ProcessList {
                 lock.withLock { lastGood[columns] = (result.text, Date()) }
                 return .fresh(result.text)
             }
-            if result.timedOut { lock.withLock { downUntil = Date().addingTimeInterval(pause) } }
+            // One that misses its limit, or can't even be started (no process left, the program gone): no new
+            // try at every look – each would only cost the same again.
+            if result.timedOut || !result.launched { lock.withLock { downUntil = Date().addingTimeInterval(pause) } }
         }
         guard allowOld, let old = lock.withLock({ lastGood[columns] }), Date().timeIntervalSince(old.date) < 600 else {
             return .unavailable
