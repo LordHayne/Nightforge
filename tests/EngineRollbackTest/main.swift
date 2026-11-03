@@ -301,6 +301,9 @@ struct EngineRollbackTest {
         steamStartCheck(work)
         steamItself(work)
 
+        // MARK: The day a build was set up
+        setUpDays(work)
+
         // MARK: The prefix follows the build a game starts with
         // It reads the process list (Engine.sessionWine): left out with --without-processes, for a
         // Mac whose process list hangs.
@@ -310,6 +313,67 @@ struct EngineRollbackTest {
             await prefixSwitch()
         }
         finish()
+    }
+
+    /// The parts of `build` installed under `root` as if downloaded on `date`: their markers
+    /// (.sha256, as ComponentStore writes them) and the engine's graphics stamp carry that date.
+    static func date(_ build: EngineBuild, root: URL, _ date: Date) {
+        for part in build.parts.map(EngineBuild.split) {
+            let folder = root.appendingPathComponent("\(part.id)/\(part.version)", isDirectory: true)
+            guard fm.fileExists(atPath: folder.path) else { continue }
+            let marker = folder.appendingPathComponent(".sha256")
+            write("0000", marker)
+            try? fm.setAttributes([.modificationDate: date], ofItemAtPath: marker.path)
+        }
+        let stamp = root.appendingPathComponent("winecx/\(build.engineVersion)/Libraries/Wine/lib/wine/.nightforge-graphics")
+        try? fm.setAttributes([.modificationDate: date], ofItemAtPath: stamp.path)
+    }
+
+    /// The day the player sees for a build ("the previous engine from 20 Oct") is the day it came
+    /// together – from its folders – not the day Nightforge with 3.3 first saw it.
+    static func setUpDays(_ work: URL) {
+        let root = work.appendingPathComponent("setup-days", isDirectory: true)
+        let rollback = EngineRollback(root: root)
+        let a = build("4.7.3", "11.18-dxmt0.80-17"), b = build("4.7.4", "11.18-dxmt0.80-18")
+        let day: TimeInterval = 86_400
+        let firstRun = Date().addingTimeInterval(-5 * day)       // Nightforge with 3.3 first ran
+        let arrived = firstRun.addingTimeInterval(-10 * day)      // engine a had come ten days before
+        func same(_ x: Date?, _ y: Date) -> Bool { x.map { abs($0.timeIntervalSince(y)) < 1 } ?? false }
+
+        install(a, root: root)
+        date(a, root: root, arrived)
+        check(same(rollback.setUpDate(of: a), arrived), "the folders say when a came")
+        rollback.settle(a, now: firstRun)
+        check(same(rollback.history().currentSetUp, arrived), "the first time: the day it came, not the day 3.3 first ran")
+        rollback.recordGood(.steam(100), build: a, way: "dxmt")
+        update(rollback, to: b, now: firstRun.addingTimeInterval(day))
+        guard let held = rollback.history().held.first(where: { $0.build == a }) else { return check(false, "a is held back") }
+        check(same(held.setUp, arrived), "held back with that day: \(EngineRollback.day(held.setUp))")
+        check(same(rollback.setUpDate(of: a, held: held), arrived), "the copy still knows it")
+        check(same(rollback.history().currentSetUp, firstRun.addingTimeInterval(day)), "b: the day it came, as before")
+
+        // A history from that first run kept its day: the next start puts the right one in.
+        var wrong = rollback.history()
+        wrong.held[0].setUp = firstRun
+        wrong.currentSetUp = firstRun.addingTimeInterval(2 * day)
+        write(String(decoding: (try? JSONEncoder().encode(wrong)) ?? Data(), as: UTF8.self), root.appendingPathComponent("engine-history.json"))
+        date(b, root: root, firstRun.addingTimeInterval(day))
+        rollback.settle(b, now: Date())
+        check(same(rollback.history().held.first?.setUp, arrived), "a held build's day put right from its copy")
+        check(same(rollback.history().currentSetUp, firstRun.addingTimeInterval(day)), "the current build's too")
+        rollback.settle(b, now: Date())
+        check(same(rollback.history().held.first?.setUp, arrived), "and it stays")
+
+        // What the folders don't say isn't guessed.
+        let c = build("4.7.5", "11.18-dxmt0.80-19")
+        let other = EngineRollback(root: work.appendingPathComponent("setup-days-2", isDirectory: true))
+        install(c, root: other.root)
+        let stamp = other.root.appendingPathComponent("winecx/4.7.5/Libraries/Wine/lib/wine/.nightforge-graphics")
+        write("graphics something else", stamp)
+        try? fm.setAttributes([.modificationDate: arrived], ofItemAtPath: stamp.path)
+        check(other.setUpDate(of: c) == nil, "no markers, and a stamp of another build: no day from the folders")
+        other.settle(c, now: firstRun)
+        check(same(other.history().currentSetUp, firstRun), "then the day it was first seen")
     }
 
     /// When a Steam start counts as not come up (SteamStartCheck): never while Steam updates itself

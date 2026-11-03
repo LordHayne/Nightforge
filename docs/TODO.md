@@ -368,8 +368,15 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     `NightforgeManifestURL`). Prüfen: Nach zwei Fehlstarts steht in `wine.log` „Steam didn't come up on engine … twice“,
     Steam läuft auf der Kopie in `.held`, und ein Steam-Spiel startet. Ein Steam mit Client-Update beim Start darf
     nichts auslösen.
-- **Datum der ersten gehaltenen Engine:** Es ist der Tag, an dem 3.3 zum ersten Mal lief, nicht der Tag, an dem
-  diese Engine kam.
+- **Datum der ersten gehaltenen Engine: behoben (3.11., Zweig `claude/engine-rueckfall-33`).**
+  - `settle` nimmt als Einrichtungstag den Tag, den die Ordner eines Builds nennen (`EngineRollback.setUpDate`):
+    den neuesten `.sha256`-Marker seiner Teile und den Grafik-Stempel der Engine, solange er zu diesem Build passt.
+    D3DMetal, MoltenVK und der Rest gehen in die Engine, also gilt der Stempel für sie.
+  - Die Kopien in `.held` behalten diese Daten (clonefile). Schon gespeicherte falsche Tage stellt der nächste
+    App-Start richtig. Sie werden dabei nur früher, nie später.
+  - Sagen die Ordner nichts, bleibt es beim Tag, an dem Nightforge den Build zuerst sah.
+  - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
+    erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
 ## Mac-Versionen
 

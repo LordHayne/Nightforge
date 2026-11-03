@@ -40,7 +40,8 @@ struct HeldBuild: Codable, Equatable {
     var build: EngineBuild
     /// Its folder in `.held`: one copy per part it needs (the engine, the graphics the prefix takes).
     var folder: String
-    /// When it was set up – what the player sees: "the previous engine from 20 Oct".
+    /// When it was set up – what the player sees: "the previous engine from 20 Oct". From its
+    /// folders (EngineRollback.setUpDate).
     var setUp: Date
     /// When a newer build took its place.
     var heldSince: Date
@@ -212,10 +213,19 @@ struct EngineRollback {
             }
             if history.current != build {
                 history.current = build
-                history.currentSetUp = now
+                // When it came together, not when this was first called: the first time, that's
+                // the day the version of Nightforge with 3.3 first ran.
+                history.currentSetUp = min(setUpDate(of: build) ?? now, now)
                 history.pinned = [:]
                 history.steamPinned = nil
                 history.steamFailures = nil
+            } else if let date = setUpDate(of: build), date < history.currentSetUp ?? now {
+                history.currentSetUp = date
+            }
+            // Builds held back with the day of that first call: their copies know better.
+            for index in history.held.indices {
+                let held = history.held[index]
+                if let date = setUpDate(of: held.build, held: held), date < held.setUp { history.held[index].setUp = date }
             }
             let gone = Self.unneeded(history, now: now).filter { !inUse(folder(of: $0, part: $0.build.engineID)) }
             history.held.removeAll { held in gone.contains(held) }
@@ -236,6 +246,25 @@ struct EngineRollback {
             let url = heldRoot.appendingPathComponent(folder, isDirectory: true)
             if !inUse(url) { try? fm.removeItem(at: url) }
         }
+    }
+
+    /// When `build` came together, from its folders – installed, or `held`'s copy: the newest of its
+    /// parts' download markers (.sha256) and of the engine's graphics stamp while that still
+    /// describes it (D3DMetal, MoltenVK and the rest go into the engine). A copy keeps these dates
+    /// (clonefile). nil when no folder says.
+    func setUpDate(of build: EngineBuild, held: HeldBuild? = nil) -> Date? {
+        func modified(_ file: URL) -> Date? {
+            (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        }
+        func dir(_ id: String) -> URL? { held.map { folder(of: $0, part: id) } ?? installedFolder(of: build, part: id) }
+        var dates = build.parts.map(EngineBuild.split).compactMap { part in
+            dir(part.id).flatMap { modified($0.appendingPathComponent(".sha256")) }
+        }
+        if let engine = dir(build.engineID), let wine = Engine.wineBinary(in: engine) {
+            let stamp = Engine.graphicsStampFile(wine: wine)
+            if (try? String(contentsOf: stamp, encoding: .utf8)) == build.stamp, let date = modified(stamp) { dates.append(date) }
+        }
+        return dates.max()
     }
 
     /// Held builds no game needs: none last ran well on it, or it was replaced over `keepDays`
