@@ -606,11 +606,11 @@ enum GameProcesses {
         Set(table.filter { entry in macOSAskers.contains { entry.command.hasPrefix($0) } }.map(\.pid))
     }
 
-    /// A window of theirs on the Space shown – they show one only while they ask, none of a picture's
-    /// size: its number, the frontmost first. At any level from the windows' up, an alert may lie
+    /// Their windows on the Space shown – they show one only while they ask, none of a picture's
+    /// size: their numbers, the frontmost first. At any level from the windows' up, an alert may lie
     /// high; more than a sliver.
-    nonisolated static func macOSQuestion(_ windows: [[String: Any]], askers: Set<pid_t>) -> Int? {
-        let asking = windows.first { window in
+    nonisolated static func macOSQuestions(_ windows: [[String: Any]], askers: Set<pid_t>) -> [Int] {
+        windows.filter { window in
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, askers.contains(owner),
                   (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= 0,
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
@@ -618,14 +618,18 @@ enum GameProcesses {
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
             else { return false }
             return width >= 150 && height >= 60
-        }
-        return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+        }.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
     }
 
-    nonisolated static func macOSQuestion(askers: Set<pid_t>) -> Int? {
+    /// The frontmost of them.
+    nonisolated static func macOSQuestion(_ windows: [[String: Any]], askers: Set<pid_t>) -> Int? {
+        macOSQuestions(windows, askers: askers).first
+    }
+
+    nonisolated static func macOSQuestions(askers: Set<pid_t>) -> [Int] {
         guard !askers.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
-        else { return nil }
-        return macOSQuestion(windows, askers: askers)
+        else { return [] }
+        return macOSQuestions(windows, askers: askers)
     }
 
     /// The game's windows as the curtain sees them, for wine.log: "380×332 L3, 1512×982 L0, 2 hidden".
