@@ -92,13 +92,46 @@ enum WineSandbox {
     }
 
     /// Turns a start of `executable` with `arguments` into one inside the sandbox, when it's switched
-    /// on and the helper is there; leaves it alone otherwise. Call it last, right before `run()`.
-    /// Should the profile be missing, the helper starts nothing: switched on, Wine never runs outside.
+    /// on and the helper is there; leaves it alone otherwise. Should the profile be missing, the
+    /// helper starts nothing: switched on, Wine never runs outside.
     static func wrap(_ executable: inout URL?, _ arguments: inout [String]?, enabled: Bool = enabled,
                      helper: URL? = helper, places: Places = Places()) {
         guard enabled, let helper, let program = executable else { return }
         let file = writeProfile(places)
         executable = helper
         arguments = [file.path, program.path] + (arguments ?? [])
+    }
+
+    /// A process for a Wine program – `wine`, its loader, winetricks – inside the sandbox when it's
+    /// switched on. Every start of Wine goes through here (WineSandboxTest reads the sources for
+    /// others): the first program of a session starts the wineserver, and the wineserver opens files
+    /// for every program in it. A session begun outside the sandbox (a regedit before Steam, say)
+    /// would open for all of them what the sandbox keeps away. `sandboxed` false: a CrossOver bottle,
+    /// not Nightforge's Wine. Throws when the sandbox is switched on and can't be applied.
+    static func process(_ executable: URL, _ arguments: [String], sandboxed: Bool = true) throws -> DetachedProcess {
+        var program: URL? = executable
+        var programArguments: [String]? = arguments
+        if sandboxed {
+            settleSession(executable)
+            wrap(&program, &programArguments)
+        }
+        let process = DetachedProcess()
+        process.executableURL = program
+        process.arguments = programArguments
+        return process
+    }
+
+    /// The switch as the programs of the running Wine session were started with it.
+    static let sessionKey = "wineSandboxSession"
+
+    /// A Wine session begun with the switch the other way ends before anything else starts in it –
+    /// whoever started its wineserver – unless a game runs in it; the switch as it is now is noted
+    /// then. Without a note the session began before there was a switch: outside. `end`: Engine.stopAll.
+    static func settleSession(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
+                              gameRunning: () -> Bool = { Engine.windowsGameRunning },
+                              end: (URL) -> Void = { Engine.stopAll($0) }) {
+        guard (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled, !gameRunning() else { return }
+        end(wine)
+        defaults.set(enabled, forKey: sessionKey)
     }
 }

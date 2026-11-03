@@ -531,17 +531,16 @@ enum Launcher {
         }
         arguments += splitArguments(options.extraArgs)
 
-        let process = DetachedProcess()
-        process.executableURL = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner
-        if process.executableURL != runner { environment["WINELOADER"] = process.executableURL?.path }
-        process.arguments = arguments
+        let program = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner
+        if program != runner { environment["WINELOADER"] = program.path }
+        // A CrossOver bottle is CrossOver's Wine, not Nightforge's: no sandbox there.
+        let process = try WineSandbox.process(program, arguments, sandboxed: game.bottle.isBuiltIn)
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         // When Steam isn't running yet, this becomes the Steam its games inherit output from.
         let log = game.bottle.isBuiltIn ? GameLog.handleForSteam() : nil
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        if game.bottle.isBuiltIn { WineSandbox.wrap(&process.executableURL, &process.arguments) }
         try process.run()
         return process
     }
@@ -581,19 +580,16 @@ enum Launcher {
         if otherProgram {
             GameLog.note("\(game.name) starts \(program.lastPathComponent) on \(layer.rawValue) instead of \(command.executable.lastPathComponent)")
         }
-        let process = DetachedProcess()
         let loader = Engine.loader(for: runner)
-        process.executableURL = loader
         if loader != runner { environment["WINELOADER"] = loader.path }
-        process.arguments = [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments ?? [])
-            + extraArguments + splitArguments(options.extraArgs)
+        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments ?? [])
+            + extraArguments + splitArguments(options.extraArgs))
         process.currentDirectoryURL = otherProgram ? program.deletingLastPathComponent() : command.workingDirectory
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         let log = GameLog.handleForSteam()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        WineSandbox.wrap(&process.executableURL, &process.arguments)
         try process.run()
         return process
     }
