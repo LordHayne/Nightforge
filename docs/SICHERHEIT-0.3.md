@@ -173,6 +173,13 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
   liegt in `Application Support/Nightforge` (644) und wird bei jedem Start von Nightforge mit der gebündelten verglichen
   und überschrieben (`DockHider.swift:36-58`). Ein Nutzer mit Schreibrecht auf den Ordner hätte ohnehin alles.
   Kein Handlungsbedarf.
+- **K6a – Erst prüfen, dann auspacken: zwei Lesevorgänge (Review H).** Updater (`Updater.swift`, Signatur, dann
+  `ditto`), Komponenten (`Components.swift`, SHA-256, dann `tar`) und `install.sh` (Ed25519, dann `ditto`) lesen das
+  Archiv zweimal. Wer als derselbe Nutzer zwischen den beiden Lesevorgängen die Datei tauscht, bekäme ein ungeprüftes
+  Archiv ausgepackt. Die Marke `.sha256` einer installierten Komponente nennt außerdem die erwartete Prüfsumme, nicht
+  eine später nachgerechnete. Beides setzt einen Prozess voraus, der als derselbe Nutzer schon schreiben kann, und
+  der hätte ohnehin alles (wie bei K6). Restrisiko, bewusst so gelassen. Abhilfe wäre, aus einem Ordner mit Rechten
+  700 auszupacken, in den nur Nightforge schreibt.
 - **K7 – `install.sh` prüft die Adresse nicht auf `https://github.com/LordHayne/Nightforge/`.** `scripts/install.sh:47-50` nimmt
   die erste `browser_download_url` mit `Nightforge-…zip` aus der API-Antwort. Gehört zu H2/M5.
 
