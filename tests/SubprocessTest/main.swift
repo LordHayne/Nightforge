@@ -65,8 +65,9 @@ struct SubprocessTest {
             check(false, "the stubborn program told its pid: \(stubborn.text.debugDescription)")
         }
 
-        // What a program wrote before the limit is kept.
-        let partial = Subprocess.run("/bin/sh", ["-c", "echo first; exec /bin/sleep 30"], capture: true, timeout: 1)
+        // What a program wrote before the limit is kept. (3 s: on a Mac busy with other series the shell
+        // may need more than one to get to its echo.)
+        let partial = Subprocess.run("/bin/sh", ["-c", "echo first; exec /bin/sleep 30"], capture: true, timeout: 3)
         check(partial.timedOut && partial.text == "first\n", "output before the limit is kept: \(partial.text.debugDescription)")
 
         // Something the program started holds its pipe open: not waited for beyond a moment.
@@ -127,7 +128,10 @@ struct SubprocessTest {
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: standIn.path)
         func calls() -> Int { ((try? String(contentsOf: counter, encoding: .utf8)) ?? "").split(separator: "\n").count }
         ProcessList.program = standIn.path
-        ProcessList.timeout = 0.5
+        // Long enough for the stand-in to answer on a Mac busy with other series (-P 2: at 0.5 s it sometimes
+        // didn't even start, and every check after it failed), far below the 30 s of one that hangs. The
+        // waits below are measured against it.
+        ProcessList.timeout = 3
         ProcessList.pause = 60
         ProcessList.reset()
         let good = ProcessList.ps("pid=,command=")
@@ -137,12 +141,13 @@ struct SubprocessTest {
         var answer: String? = "?"
         seconds = timed { answer = ProcessList.ps("pid=,command=") }
         check(answer == nil, "ps that misses its limit: no list")
-        check(seconds < 4, "… after \(seconds) s")
+        check(seconds >= ProcessList.timeout - 0.1 && seconds < ProcessList.timeout + 3,
+              "… after \(seconds) s, at its limit of \(ProcessList.timeout) s, not the stand-in's 30")
         let asked = calls()
         var again: String? = "?"
         seconds = timed { again = ProcessList.ps("pid=,command=") }
         check(again == nil && calls() == asked, "… and for the next minute ps isn't asked at all (\(calls() - asked) more calls)")
-        check(seconds < 0.2, "… so nobody waits (\(seconds) s)")
+        check(seconds < ProcessList.timeout / 3, "… so nobody waits (\(seconds) s, the limit is \(ProcessList.timeout) s)")
         check(ProcessList.ps("pid=,command=", stale: true) == good, "whoever may take an old list gets the last good one")
         if case .old(let text) = ProcessList.listing("pid=,command=", allowOld: true) {
             check(text == good, "… marked as old")
