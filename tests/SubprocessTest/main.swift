@@ -187,7 +187,7 @@ struct SubprocessTest {
               "… what mustn't happen to a Steam or under a game waits; plain isSteamRunning stays false")
         ProcessList.source = { _ in "" }
         check(GameProcesses.runningNow(folders) == [:], "an empty list is 'no game'")
-        check(GameProcesses.curtainLook(marker: marker, folder: nil, front: nil) == GameProcesses.CurtainLook(pids: [], companion: false),
+        check(GameProcesses.curtainLook(marker: marker, folder: nil, front: nil) == GameProcesses.CurtainLook(pids: [], companion: false, askers: []),
               "the curtain's look sees no process")
         check(Engine.ownProcessesKnown()?.isEmpty == true && Engine.steamRunningKnown == false && Engine.windowsGameRunningKnown == false,
               "Engine: known to be none")
