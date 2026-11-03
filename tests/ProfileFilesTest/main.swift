@@ -57,6 +57,14 @@ struct ProfileFilesTest {
               "a key is replaced, a new one goes at the section's end, other sections and line ends stay: \(merged.debugDescription)")
         let appended = Engine.mergingIni("[Other]\nA=1\n", section: "SystemSettings", values: ["r.Nanite": "0"])
         check(appended == "[Other]\nA=1\n\n[SystemSettings]\nr.Nanite=0\n", "a missing section is added at the end: \(appended.debugDescription)")
+        // Names and values from a list go in plain: a line break, a bracket or "=" starts no line or section of its own.
+        let injected = Engine.mergingIni("", section: "S]\n[Evil", values: ["a\n[Run]\nb": "1\n[Other]\nx=2", "c=d": "3\r\n", "e": "4\u{2028}5"])
+        check(injected == "[SEvil]\naRunb=1[Other]x=2\ncd=3\ne=45\n", "section, keys and values made plain: \(injected.debugDescription)")
+        check(Engine.mergingIni("[SEvil]\nk=1\n", section: "S\n[Evil]", values: ["k": "2"]) == "[SEvil]\nk=2\n",
+              "and found again the next time")
+        check(Engine.mergingIni("[A]\nx=1\n", section: "[]", values: ["k": "v"]) == "[A]\nx=1\n"
+              && Engine.mergingIni("[A]\nx=1\n", section: "A", values: ["\n=": "v"]) == "[A]\nx=1\n",
+              "a section or key that's nothing but those sets nothing")
 
         // MARK: Writing into the Windows user folder
         let places = SaveTransfer.Places(prefix: temp.appendingPathComponent("prefix", isDirectory: true), windowsUser: "tester")
@@ -104,6 +112,14 @@ struct ProfileFilesTest {
         check(Engine.isInside(local.appendingPathComponent("Voyage/new/x.ini"), local) && !Engine.isInside(local, local)
               && !Engine.isInside(local.appendingPathComponent("Linked/x.ini"), local), "inside, with what isn't there yet")
         for name in ["Linked", "Gone", "Alias"] { try? fm.removeItem(at: local.appendingPathComponent(name)) }
+        // A user folder linked to a folder beside the prefix whose name starts the same isn't inside it.
+        let beside = temp.appendingPathComponent("prefix-evil/Local", isDirectory: true)
+        try? fm.createDirectory(at: beside, withIntermediateDirectories: true)
+        let roaming = places.prefix.appendingPathComponent("drive_c/users/tester/AppData/Roaming")
+        try? fm.createSymbolicLink(at: roaming, withDestinationURL: beside)
+        check(SaveTransfer.windowsRoot("WinAppDataRoaming", places) == nil && SaveTransfer.windowsRoot("WinAppDataLocal", places)?.path == local.path,
+              "\"prefix-evil\" beside the prefix isn't inside \"prefix\"; the real user folder is")
+        try? fm.removeItem(at: roaming)
 
         // MARK: Edits in the user folder, once and every time
         let defaults = TestDefaults.suite("file-edits")
@@ -137,6 +153,19 @@ struct ProfileFilesTest {
         try? "B=1\n".write(to: gameFile, atomically: true, encoding: .utf8)
         check(Engine.applyFileEdits([GameProfile.FileEdit(path: "b1/Settings.ini", find: "B=1", replace: "B=0")], installDir: installDir)
               && (try? String(contentsOf: gameFile, encoding: .utf8)) == "B=0\n", "edits in the game folder work as before")
+        // One whose `replace` holds its `find` (a line added after it) is made once, not again at every start.
+        try? "[Video]\nWidth=1\n".write(to: gameFile, atomically: true, encoding: .utf8)
+        let adding = [GameProfile.FileEdit(path: "b1/Settings.ini", find: "[Video]\n", replace: "[Video]\nVSync=0\n")]
+        check(Engine.applyFileEdits(adding, installDir: installDir)
+              && (try? String(contentsOf: gameFile, encoding: .utf8)) == "[Video]\nVSync=0\nWidth=1\n", "the line goes in once")
+        check(!Engine.applyFileEdits(adding, installDir: installDir) && !Engine.applyFileEdits(adding, installDir: installDir)
+              && (try? String(contentsOf: gameFile, encoding: .utf8)) == "[Video]\nVSync=0\nWidth=1\n",
+              "the next starts find it done: the file doesn't grow")
+        check(Engine.editing("[Video]\nVSync=0\nA=1\n[Video]\nB=1\n", find: "[Video]\n", replace: "[Video]\nVSync=0\n")
+              == "[Video]\nVSync=0\nA=1\n[Video]\nVSync=0\nB=1\n", "a place the game wrote since still gets it")
+        check(Engine.editing("A=1\n", find: "A=1", replace: "A=1") == "A=1\n"
+              && !Engine.applyFileEdits([GameProfile.FileEdit(path: "b1/Settings.ini", find: "Width=1", replace: "Width=1")], installDir: installDir),
+              "an edit that changes nothing writes nothing")
 
         // MARK: Save folders a rule may name (SaveTransfer: rules from Steam's catalog and the profiles)
         saveFolders(temp)
@@ -191,6 +220,31 @@ struct ProfileFilesTest {
                         SaveRule(root: "WinMyDocuments", path: "My Games", pattern: "*.sav", recursive: false, macRoot: "MacDocuments", macAddPath: "Game")],
               "save folders: every file, all the way down, unless the list says otherwise")
         check(profile(#"{"saves": [{"root": "WinAppDataLocal"}]}"#)?.saves == nil, "a save folder without its path is none")
+
+        // DLL overrides and arguments only as scripts/build-profiles.py lets them through: a list signed
+        // without its CI meets the same rules (the expectations are what its functions say).
+        func listed(_ object: [String: Any]) -> GameProfile? {
+            profile(String(data: (try? JSONSerialization.data(withJSONObject: object)) ?? Data(), encoding: .utf8) ?? "")
+        }
+        let overrides = listed(["dllOverrides": ["d3d9": "native", "*xinput1_3": "native,builtin", "nvapi64": "", "ntdll": "native",
+                                                 "kernel32.dll": "builtin", "*user32": "native", "../x": "native", "D3D11": "native",
+                                                 "dxgi": "n", "a b": "native", "x..y": "native", "winemac.drv": "native"]])?.dllOverrides
+        check(overrides == ["d3d9": "native", "*xinput1_3": "native,builtin", "nvapi64": ""],
+              "overrides: bare lowercase names with Wine's orders pass; Wine's core, paths, odd orders don't: \(overrides ?? [:])")
+        check(listed(["dllOverrides": Dictionary(uniqueKeysWithValues: (0...32).map { ("dll\($0)", "native") })])?.dllOverrides == nil,
+              "more overrides than the build ever makes: none")
+        let plainArguments = ["-dx11", "--bundle-dir", "../bundle", "+r_renderAPI", "1", "/dx11", "-vomstyle=layer", "glide_fix.conf"]
+        check(listed(["arguments": plainArguments])?.arguments == plainArguments, "plain arguments pass")
+        for bad in ["/etc/passwd", "-log=/tmp/x/y", "C:\\x", "a b", "--data=../../x", "~/x", "//server/x", "-x=\"y\"", "a/../b", "",
+                    String(repeating: "x", count: 65), "-\n"] {
+            check(listed(["arguments": ["-windowed", bad]])?.arguments == nil, "arguments with \(bad.debugDescription): none of them")
+        }
+        check(listed(["arguments": Array(repeating: "-x", count: 17)])?.arguments == nil, "more arguments than the build ever makes: none")
+        // A frame limit and a sampler count within what a game can use.
+        check([30, 0, -5, 1000].map { listed(["frameLimit": $0])?.frameLimit } == [30, 0, nil, 240],
+              "frame limit: 30 stays, 0 is none, below that no preference, above 240 it's 240")
+        check([32, 0, -1, 4096].map { listed(["vulkanSamplers": $0])?.vulkanSamplers } == [32, nil, nil, 128],
+              "samplers: 32 stays, below 1 no preference, above 128 it's 128")
         let stream = AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: "e1b2c3")
         check(stream.geforceNowURL?.absoluteString == "https://play.geforcenow.com/games?game-id=e1b2c3&utm_source=nightforge&utm_campaign=library",
               "GeForce Now's link to the game: \(stream.geforceNowURL?.absoluteString ?? "nil")")

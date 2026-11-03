@@ -1649,8 +1649,20 @@ enum Engine {
     }
 
     /// winetricks verbs that would change every game in the shared prefix, not just the one that
-    /// asks (Proton gives each game its own prefix; Nightforge has one for all).
-    private static let sharedPrefixUnsafeVerbs: Set<String> = ["dsound"]
+    /// asks (Proton gives each game its own prefix; Nightforge has one for all): dsound, and every
+    /// one of winetricks' settings that is a plain word (winetricks 20260125, `w_metadata … settings`;
+    /// those with "=" aren't verbs here anyway). The Windows versions above all, which would switch
+    /// Steam and every game: one game's version is `windowsVersion`, per program (AppDefaults).
+    static let sharedPrefixUnsafeVerbs: Set<String> = windowsVersionVerbs.union([
+        "dsound", "bad", "good", "fontfix", "forcemono", "heapcheck", "hosts", "isolate_home", "native_mdac",
+        "native_oleaut32", "nocrashdialog", "remove_mono", "sandbox", "set_mididevice", "set_userpath",
+    ])
+
+    /// winetricks' verbs that set the Windows version of the whole prefix.
+    static let windowsVersionVerbs: Set<String> = [
+        "nt351", "nt40", "vista", "win20", "win2k", "win2k3", "win2k8", "win2k8r2", "win30", "win31",
+        "win7", "win8", "win81", "win10", "win11", "win95", "win98", "winme", "winxp",
+    ]
 
     /// .NET programs run on Wine Mono, which the engine brings along (share/wine/mono) and Wine finds
     /// by itself. Its Windows side – the .NET registry keys and libraries games and launchers check
@@ -1684,7 +1696,7 @@ enum Engine {
     static func missingWinetricks(_ verbs: [String]) -> [String] {
         let log = (try? String(contentsOf: prefix.appendingPathComponent("winetricks.log"), encoding: .utf8)) ?? ""
         let installed = Set(log.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) })
-        return verbs.filter { !installed.contains($0) && !sharedPrefixUnsafeVerbs.contains($0) }
+        return verbs.filter { !installed.contains($0) && isSafeWinetricksVerb($0) }
     }
 
     /// winetricks commands that look like verbs but aren't installs (scripts/build-profiles.py keeps the same list).
@@ -1692,8 +1704,9 @@ enum Engine {
         "annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version",
     ]
 
+    /// A plain install verb that changes only what the game asks for: installWinetricks runs nothing else.
     static func isSafeWinetricksVerb(_ verb: String) -> Bool {
-        !verb.isEmpty && verb.count <= 64 && !winetricksCommands.contains(verb)
+        !verb.isEmpty && verb.count <= 64 && !winetricksCommands.contains(verb) && !sharedPrefixUnsafeVerbs.contains(verb)
             && verb.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
     }
 
@@ -2351,12 +2364,27 @@ enum Engine {
                   let text = try? String(contentsOf: file, encoding: .utf8)
             else { continue }
             if edit.once == true { defaults.set(true, forKey: done) }
-            guard text.contains(edit.find) else { continue }
-            if (try? text.replacingOccurrences(of: edit.find, with: edit.replace).write(to: file, atomically: true, encoding: .utf8)) != nil {
+            let edited = editing(text, find: edit.find, replace: edit.replace)
+            guard edited != text else { continue }
+            if (try? edited.write(to: file, atomically: true, encoding: .utf8)) != nil {
                 changed = true
             }
         }
         return changed
+    }
+
+    /// `text` with `find` made `replace`. Where `replace` holds `find` (a line added after it, say),
+    /// the places replaced at an earlier start stay as they are: else `find` would be there again
+    /// after every start and the file would grow by one `replace` each time.
+    static func editing(_ text: String, find: String, replace: String) -> String {
+        guard !find.isEmpty, text.contains(find) else { return text }
+        guard replace.contains(find) else { return text.replacingOccurrences(of: find, with: replace) }
+        // The earlier ones out of the way under a mark that can't be part of `find`, then back.
+        let mark = "\u{1}\u{2}"
+        guard !text.contains(mark), !find.unicodeScalars.contains(where: { $0.value == 1 || $0.value == 2 }) else { return text }
+        return text.replacingOccurrences(of: replace, with: mark)
+            .replacingOccurrences(of: find, with: replace)
+            .replacingOccurrences(of: mark, with: replace)
     }
 
     /// Whether `file` lies in `base` with the links on the way resolved: a link in the prefix or the
@@ -2396,14 +2424,32 @@ enum Engine {
         }
     }
 
+    /// A value for an .ini line: control characters and line breaks dropped, which would end the line
+    /// and start lines (and sections) of the list's own, as in regString.
+    static func iniValue(_ text: String) -> String {
+        String(text.unicodeScalars.filter { $0.properties.generalCategory != .control && !CharacterSet.newlines.contains($0) })
+    }
+
+    /// A section's or key's name for an .ini line: as a value, and without "[", "]" and "=", which
+    /// would close the section, open another or end the key early.
+    static func iniName(_ text: String) -> String {
+        String(iniValue(text).unicodeScalars.filter { !"[]=".unicodeScalars.contains($0) }).trimmingCharacters(in: .whitespaces)
+    }
+
     /// `text` with `values` set in `[section]`: keys already there get the new value, the others
     /// go at the end of the section (sorted, so the file stays the same from start to start), and
-    /// a missing section is added at the end. Everything else stays as the game wrote it.
-    static func mergingIni(_ text: String, section: String, values: [String: String]) -> String {
+    /// a missing section is added at the end. Everything else stays as the game wrote it. Names and
+    /// values are made plain first (iniName, iniValue; the file's names the same way to find them);
+    /// a section or key left empty sets nothing.
+    static func mergingIni(_ text: String, section rawSection: String, values: [String: String]) -> String {
+        let section = iniName(rawSection)
+        var pending: [String: String] = [:]
+        // In order: two keys that come out the same give the same file at every start.
+        for key in values.keys.sorted() where !iniName(key).isEmpty { pending[iniName(key)] = iniValue(values[key]!) }
+        guard !section.isEmpty, values.isEmpty || !pending.isEmpty else { return text }
         var lines = text.isEmpty ? [] : text.components(separatedBy: "\n")
         if lines.last == "" { lines.removeLast() }
         let crlf = lines.first?.hasSuffix("\r") == true
-        var pending = values
         var out: [String] = []
         var inSection = false
         var found = false
@@ -2419,14 +2465,14 @@ enum Engine {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
                 if inSection { flush() }
-                inSection = trimmed.dropFirst().dropLast().caseInsensitiveCompare(section) == .orderedSame
+                inSection = iniName(String(trimmed.dropFirst().dropLast())).caseInsensitiveCompare(section) == .orderedSame
                 found = found || inSection
                 out.append(line)
                 continue
             }
             if inSection, let equals = trimmed.firstIndex(of: "=") {
                 let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
-                if let value = pending.removeValue(forKey: key) {
+                if let value = pending.removeValue(forKey: iniName(key)) {
                     out.append("\(key)=\(value)" + (crlf ? "\r" : ""))
                     continue
                 }

@@ -115,7 +115,7 @@ struct CompatibilityTest {
               "what stops the game beats the player's word")
 
         // What counts as a fix: anything that changes how the game starts.
-        let fixes = [#""graphics": "dxvk""#, #""arguments": ["-dx11"]"#, #""dllOverrides": {"xinput1_3": "n"}"#,
+        let fixes = [#""graphics": "dxvk""#, #""arguments": ["-dx11"]"#, #""dllOverrides": {"xinput1_3": "native"}"#,
                      #""registry": [{"key": "HKCU\\Software\\Game"}]"#, #""windowsVersion": "win7""#, #""winetricks": ["vcrun2019"]"#,
                      #""metalFX": false"#, #""frameLimit": 30"#, #""vulkanSamplers": 1024"#, #""avx": false"#,
                      #""fileEdits": [{"path": "a.ini", "find": "x", "replace": "y"}]"#,

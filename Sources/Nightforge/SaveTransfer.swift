@@ -191,8 +191,9 @@ enum SaveTransfer {
         case "winsavedgames": folder = user.appendingPathComponent("Saved Games", isDirectory: true)
         default: return nil
         }
-        let inside = places.prefix.resolvingSymlinksInPath().path
-        return folder.resolvingSymlinksInPath().path.hasPrefix(inside) ? folder : nil
+        // Inside means in the prefix's folder: "Prefix-old" beside it starts with the same letters.
+        let inside = places.prefix.resolvingSymlinksInPath().path, path = folder.resolvingSymlinksInPath().path
+        return path == inside || path.hasPrefix(inside + "/") ? folder : nil
     }
 
     /// A macOS root. Documents, Desktop and Downloads are out: reading them makes macOS ask.

@@ -662,6 +662,14 @@ struct LaunchHealthTest {
         for verb in ["annihilate", "list", "--self-update", "-q", "../x.verb", "a b", "VCRUN", ""] {
             check(!Engine.isSafeWinetricksVerb(verb), "winetricks verb \(verb) refused")
         }
+        // Nor verbs that change the whole shared prefix, Steam and every game with it: the Windows
+        // versions (one game's is windowsVersion, per program) and winetricks' other settings.
+        for verb in ["win7", "win10", "win11", "winxp", "win95", "win98", "winme", "nt40", "vista", "win2k8r2",
+                     "dsound", "remove_mono", "sandbox", "isolate_home", "forcemono", "native_oleaut32"] {
+            check(!Engine.isSafeWinetricksVerb(verb), "winetricks verb \(verb) refused: it would change the whole prefix")
+        }
+        check(Engine.windowsVersionVerbs.count == 19 && Engine.windowsVersionVerbs.isSubset(of: Engine.sharedPrefixUnsafeVerbs),
+              "all of winetricks' Windows versions are on the list")
 
         // Covers are kept at the size they're drawn, other art as it is.
         let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1200, pixelsHigh: 1800, bitsPerSample: 8,
@@ -769,6 +777,12 @@ struct LaunchHealthTest {
         check(started(.dxmt, chosen: "Tools\\Editor.exe") == "Editor.exe", "a Windows path inside the game folder")
         check(started(.dxmt, chosen: "../../etc/passwd") == "Control.exe" && started(.dxmt, chosen: "Gone.exe") == "Control.exe"
               && started(.dxmt, chosen: "Tools") == "Control.exe", "nothing outside the game folder, gone or a folder: the store's")
+        let elsewhere = controlDir.deletingLastPathComponent().appendingPathComponent("lh-elsewhere-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: elsewhere) }
+        try? FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: elsewhere.appendingPathComponent("Other.exe").path, contents: Data("MZ".utf8))
+        try? FileManager.default.createSymbolicLink(at: controlDir.appendingPathComponent("Linked"), withDestinationURL: elsewhere)
+        check(started(.dxmt, profile: "Linked\\Other.exe") == "Control.exe", "nor one behind a folder the game linked in from elsewhere")
         check(GameAnalysis.programs(near: launcher, in: controlDir) == ["Control.exe", "Control_DX11.exe", "Control_DX12.exe"],
               "the programs to pick from: beside the store's, no installers")
         var picked = GameOptions()

@@ -20,13 +20,14 @@ enum GameProgram {
         return store
     }
 
-    /// `relative` ("Control_DX12.exe", "bin\x64\Game.exe") inside the game folder, if it's a file there.
+    /// `relative` ("Control_DX12.exe", "bin\x64\Game.exe") inside the game folder, if it's a file there,
+    /// links on the way resolved (Engine.isInside): not one the game linked in from elsewhere.
     private static func inGame(_ relative: String, _ installDir: URL) -> URL? {
         guard !relative.isEmpty else { return nil }
         let base = installDir.standardizedFileURL
         let file = base.appendingPathComponent(relative.replacingOccurrences(of: "\\", with: "/")).standardizedFileURL
         var isDirectory: ObjCBool = false
-        guard file.path.hasPrefix(base.path + "/"), FileManager.default.fileExists(atPath: file.path, isDirectory: &isDirectory),
+        guard Engine.isInside(file, base), FileManager.default.fileExists(atPath: file.path, isDirectory: &isDirectory),
               !isDirectory.boolValue else { return nil }
         return file
     }
