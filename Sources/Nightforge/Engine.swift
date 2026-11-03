@@ -144,21 +144,33 @@ enum Engine {
 
     /// Changes whenever the background Steam has to restart to hand games different settings.
     static var steamConfigSignature: String {
-        "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
-            + launchEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-            + (launchRetina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
+        let launch = launchSettings.withLock { $0 }
+        return "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
+            + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
     }
 
     /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
     /// resolution rather than half of it. Wine takes it for a whole session, like the environment.
-    static var launchRetina = false
+    static var launchRetina: Bool {
+        get { launchSettings.withLock { $0.retina } }
+        set { launchSettings.withLock { $0.retina = newValue } }
+    }
 
     /// What the game about to start needs on top of `gameEnvironment` ("" takes a variable away).
     /// A game gets the Unix environment of the Steam that starts it, as it was when that Steam
     /// started (Wine's spawn_process forks) – the registry's never reaches it (formerRegistryEnvironment).
     /// So these go into Steam's own.
-    static var launchEnvironment: [String: String] = [:]
+    static var launchEnvironment: [String: String] {
+        get { launchSettings.withLock { $0.environment } }
+        set { launchSettings.withLock { $0.environment = newValue } }
+    }
+
+    /// Both, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
+    /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
+    /// Dictionary read while it's being replaced can crash.
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool)>(([:], false))
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -175,11 +187,14 @@ enum Engine {
     /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the driver its
     /// Vulkan goes to (`vulkanDriver`), nil leaves the one Steam has. `vulkanLoader`: the engine
     /// test's loader (vulkanLoaderEnvironment), over those – never with KosmicKrisp, which gives way
-    /// to it (`kosmicKrispReady`). True when the running Steam has to restart.
+    /// to it (`kosmicKrispReady`). Once its switch is off, what it left in the session goes too, unless
+    /// the game's own switches set it. True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
-                                         vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:]) -> Bool {
-        var wanted = launchEnvironment
+                                         vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
+                                         defaults: UserDefaults = .standard) -> Bool {
+        let launch = launchSettings.withLock { $0 }
+        var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
         for name in GameEnvironment.allowed.keys { wanted[name] = environment[name] ?? "" }
         if d3dMetal {
@@ -197,20 +212,21 @@ enum Engine {
         case nil:
             // Steam keeps the driver it has. Its library (CX_LIBVULKAN) counts only with "wined3d", so a
             // game without a backend switch of its own leaves that as it is too.
-            if environment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil, launchEnvironment["CX_LIBVULKAN"]?.isEmpty == false {
-                wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = launchEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"]
+            if environment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil, launch.environment["CX_LIBVULKAN"]?.isEmpty == false {
+                wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = launch.environment["CX_ACTIVE_GRAPHICS_BACKEND"]
             }
         }
         if !vulkanLoader.isEmpty {
             for name in vulkanLoaderNames { wanted[name] = vulkanLoader[name] }
             wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = vulkanLoader["CX_ACTIVE_GRAPHICS_BACKEND"]
+        } else if wanted["VK_ADD_IMPLICIT_LAYER_PATH"]?.isEmpty == false, !vulkanLoaderSwitchedOn(defaults: defaults) {
+            // The loader is still in the session (nothing else sets the layer path; KosmicKrisp and MoltenVK
+            // take it away) and its switch is off. While it's on, a game without Vulkan leaves it, no restart.
+            for name in vulkanLoaderNames + ["CX_ACTIVE_GRAPHICS_BACKEND"] where environment[name] == nil { wanted[name] = nil }
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
-        defer {
-            launchEnvironment = wanted
-            launchRetina = retina
-        }
-        return wanted != launchEnvironment || retina != launchRetina
+        launchSettings.withLock { [wanted] in $0 = (wanted, retina) }
+        return wanted != launch.environment || retina != launch.retina
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
@@ -653,6 +669,13 @@ enum Engine {
     /// The variables that send a start's Vulkan through `vulkanLoader`, beside CX_ACTIVE_GRAPHICS_BACKEND.
     static let vulkanLoaderNames = ["CX_LIBVULKAN", "VK_DRIVER_FILES", "VK_ADD_IMPLICIT_LAYER_PATH"]
 
+    /// Whether the engine test's switch for `vulkanLoader` is on, whatever the game: a loader's path that
+    /// is there, or `true` (the Gcenx engine's).
+    static func vulkanLoaderSwitchedOn(defaults: UserDefaults = .standard) -> Bool {
+        if let path = defaults.string(forKey: "vulkanLoader"), path.hasPrefix("/") { return FileManager.default.fileExists(atPath: path) }
+        return defaults.bool(forKey: "vulkanLoader")
+    }
+
     /// What a start on `layer` gets for the loader: a Direct3D 9 game on DXVK, with the switch on.
     /// CW Hack 25909 (dlls/win32u/vulkan.c) takes CX_LIBVULKAN only with
     /// CX_ACTIVE_GRAPHICS_BACKEND=wined3d; MoltenVK and the layer come from the game bundle's files
@@ -989,9 +1012,21 @@ enum Engine {
         PIDFILE="${0%/*}/steam-shutdown.pid"
         echo $$ > "$PIDFILE" 2>/dev/null
         trap '[ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"' EXIT
+        # A ps that doesn't answer, or answers nothing (it always lists this script), is "unknown", not
+        # "no process": a game may be running. Unknown counts as one; unknown for half an hour on end
+        # (NIGHTFORGE_PS_LIMIT, seconds), the script leaves everything as it is and ends.
+        PS_LIMIT="${NIGHTFORGE_PS_LIMIT:-1800}"
+        UNKNOWN_SINCE=""
+        PS_OUT=""
+        read_processes() {
+          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$PS_OUT" ]; then UNKNOWN_SINCE=""; return 0; fi
+          [ -n "$UNKNOWN_SINCE" ] || UNKNOWN_SINCE="$(date +%s)"
+          return 1
+        }
+        unknown_too_long() { [ -n "$UNKNOWN_SINCE" ] && [ $(( $(date +%s) - UNKNOWN_SINCE )) -ge "$PS_LIMIT" ]; }
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
-        has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }
+        has_process() { read_processes -axo command || return 0; printf '%s\n' "$PS_OUT" | grep -qiF -- "$1"; }
         # Nightforge runs again: a process whose command line BEGINS with this app's program – not one
         # that merely names it (a build in another folder, lldb, codesign, a tail in a terminal), and
         # not the Nightforge that is quitting. The needle goes in by environment, so that no command
@@ -1052,6 +1087,7 @@ enum Engine {
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
             late && exit 0
+            unknown_too_long && exit 0
             sleep 2
             if game_running; then gone=0; else gone=$((gone + 1)); fi
           done
@@ -1065,7 +1101,7 @@ enum Engine {
         # game with it.
         while true; do
           while true; do
-            while busy; do reopened && exit 0; late && exit 0; sleep 10; done
+            while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0
             busy || break
@@ -2561,9 +2597,12 @@ enum Engine {
     /// stopSteam for a caller that can't await (WineSandbox.settleSession), on a thread that may wait:
     /// a client update going in finishes first, Steam is asked to quit – a download stops cleanly and
     /// goes on at the next start – and whatever's left of the session ends. Starting Steam's -shutdown
-    /// passes through settleSession, which lets it join the session it ends.
-    static func stopSessionNow(_ wine: URL) {
-        if isSteamRunning {
+    /// passes through settleSession, which lets it join the session it ends. Without a process list it
+    /// can't be told whether Steam runs (an update may be going in), so nothing is ended: false then.
+    @discardableResult
+    static func stopSessionNow(_ wine: URL) -> Bool {
+        guard let running = steamRunningKnown else { return false }
+        if running {
             var waited = 0
             while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
                 Thread.sleep(forTimeInterval: 1)
@@ -2571,12 +2610,13 @@ enum Engine {
             }
             try? startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
             var left = 20
-            while left > 0, isSteamRunning {
+            while left > 0, steamMayBeRunning {
                 Thread.sleep(forTimeInterval: 1)
                 left -= 1
             }
         }
         stopAll(wine)
+        return true
     }
 
     static func stopSteam(_ wine: URL) async throws {
@@ -2624,14 +2664,16 @@ enum Engine {
     /// A game's manifest, files, download leftovers and shader cache in one Steam library folder. Each
     /// is tried, whatever happened to the others; the manifest goes last and only once the game's folder
     /// is gone, so Steam never forgets a game whose files are still there (it's still installed then and
-    /// can be removed again). Whatever stays is in the error.
+    /// can be removed again). A folder name that can't be one (empty, "..", with a "/") removes no
+    /// folder, so the manifest stays too. Whatever stays is in the error.
     static func removeGameFiles(appID: Int, installDirName: String, steamapps: URL) throws {
         let fm = FileManager.default
         var targets: [URL] = []
         // Never let an empty or odd folder name turn into deleting all of steamapps/common.
         let name = installDirName.trimmingCharacters(in: .whitespaces)
         let folder = steamapps.appendingPathComponent("common/\(name)", isDirectory: true)
-        if !name.isEmpty, !name.contains("/"), name != ".", name != ".." { targets.append(folder) }
+        let plain = !name.isEmpty && !name.contains("/") && name != "." && name != ".."
+        if plain { targets.append(folder) }
         targets += [steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true),
                     steamapps.appendingPathComponent("shadercache/\(appID)", isDirectory: true)]
         var left: [URL] = []
@@ -2639,7 +2681,7 @@ enum Engine {
             if (try? fm.removeItem(at: target)) == nil { left.append(target) }
         }
         let manifest = steamapps.appendingPathComponent("appmanifest_\(appID).acf")
-        if fm.fileExists(atPath: manifest.path), left.contains(folder) || (try? fm.removeItem(at: manifest)) == nil {
+        if fm.fileExists(atPath: manifest.path), !plain || left.contains(folder) || (try? fm.removeItem(at: manifest)) == nil {
             left.append(manifest)
         }
         guard left.isEmpty else { throw FilesLeft(folder: steamapps, files: left) }

@@ -408,8 +408,14 @@ struct MacVersionTest {
         check(!fm.fileExists(atPath: folder.path) && !fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_1001.acf").path),
               "files and manifest removed")
         check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path), "other games stay")
-        try? Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps)
+        var oddLeft: [URL] = []
+        do { try Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps) } catch let error as Engine.FilesLeft {
+            oddLeft = error.files
+        } catch {}
         check(fm.fileExists(atPath: steamapps.path), "an odd folder name never removes the library")
+        check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path)
+              && oddLeft.map(\.lastPathComponent) == ["appmanifest_2000.acf"],
+              "nor its manifest, while its folder can't be removed: still there, and said so (\(oddLeft))")
         // One that can't all go (a read-only folder inside it): the rest is tried, the manifest stays while
         // the game's folder is there, and the error names what's left.
         let locked = steamapps.appendingPathComponent("common/Locked/Data", isDirectory: true)
@@ -511,7 +517,8 @@ struct MacVersionTest {
 
         // MARK: Quit script: back to Nightforge when the game ends
         // A stand-in game (a process whose path lies in the Mac library) and `open` replaced, so nothing real is
-        // opened; `ps` lists only the stand-ins the test has noted in a file (and only while they run), so
+        // opened; `ps` lists only the stand-ins the test has noted in a file (and only while they run), and
+        // launchd, as a real one always lists something (the script takes an empty list for "unknown"), so
         // a real game running on this Mac doesn't count, no Nightforge counts as "opened again" – the one
         // still quitting when the script starts is left out and named by its pid – and no listing of every
         // process on the Mac is asked for (`ps -ax` has been seen hanging for good, 3.11.2026).
@@ -524,7 +531,7 @@ struct MacVersionTest {
         let psList = sandbox.appendingPathComponent("ps-list.tsv")
         try? "".write(to: psList, atomically: true, encoding: .utf8)
         try? Engine.steamShutdownScript.write(to: script, atomically: true, encoding: .utf8)
-        let live = "while IFS=$'\\t' read -r pid cmd; do kill -0 \"$pid\" 2>/dev/null && printf '%s\\t%s\\n' \"$pid\" \"$cmd\"; done < '\(psList.path)'"
+        let live = "printf '1\\t/sbin/launchd\\n'; while IFS=$'\\t' read -r pid cmd; do kill -0 \"$pid\" 2>/dev/null && printf '%s\\t%s\\n' \"$pid\" \"$cmd\"; done < '\(psList.path)'"
         for (name, body) in [("open", "echo \"$@\" > '\(opened.path)'"),
                              ("ps", "case \"$*\" in *pid=*) { \(live); } | /usr/bin/tr '\\t' ' ' ;; *) { \(live); } | /usr/bin/cut -f2- ;; esac")] {
             let shim = shims.appendingPathComponent(name)
