@@ -2955,7 +2955,7 @@ final class LibraryModel: ObservableObject {
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, arguments: arguments,
-                                        frameLimit: frameLimit, layer: layer)
+                                        frameLimit: frameLimit, layer: layer, usesD3D9: analysis?.usesD3D9 == true)
                 guard started else { return }
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false
@@ -3276,9 +3276,9 @@ final class LibraryModel: ObservableObject {
     /// A game from another store starts straight with Nightforge's engine, no Steam in between: the
     /// store hands over how (Epic: legendary's parameters with a fresh sign-in; GOG: the game's own
     /// info file), and Nightforge waits until its process is there. Whether it keeps running,
-    /// `survivesFirstSeconds` sees.
+    /// `survivesFirstSeconds` sees. `usesD3D9`: from the start's analysis (`insight`).
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
-                             arguments: [String], frameLimit: Int, layer: GraphicsLayer) async -> Bool {
+                             arguments: [String], frameLimit: Int, layer: GraphicsLayer, usesD3D9: Bool) async -> Bool {
         guard let runner else {
             errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
             return false
@@ -3302,7 +3302,8 @@ final class LibraryModel: ObservableObject {
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
-                                          frameLimit: frameLimit, extraArguments: arguments, environment: environment)
+                                          frameLimit: frameLimit, extraArguments: arguments, environment: environment,
+                                          usesD3D9: usesD3D9)
             }.value
         } catch {
             errorMessage = error.localizedDescription
