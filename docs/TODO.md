@@ -1583,7 +1583,19 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 - **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`,
   `profiles.json` und `agw.json`, Schlüssel nur beim Nutzer (`docs/SICHERHEIT-0.3.md` › „Signierte Releases“).
   Offen: Schlüssel erzeugen (der Nutzer selbst), Listen auf `main` signieren, Test-Release mit rc.1–rc.4, dann
-  `v0.3.1`. `scripts/install.sh` prüft weiter nichts (läuft von `main`, ein Schlüssel von dort brächte keine Herkunft).
+  `v0.3.1`. `scripts/install.sh` prüft dieselbe Signatur vor dem Auspacken (Ed25519 in `/usr/bin/perl`, Schlüssel
+  aus `SigningKeys.swift` auf `main`), unsigniert nur das ZIP von 0.3.0 über seine SHA-256 (Audit H1).
+  - **Für den Nutzer, auf GitHub (Einstellungen macht er selbst):**
+    - **Tags schützen:** Repository › Settings › Rules › Rulesets, neues *Tag ruleset* für `v*`: Creation,
+      Update und Deletion nur für dich (Bypass: Repository admin). Dann kann ein gestohlenes Token mit Schreibrecht
+      keinen Release-Tag anlegen, und `release.yml` startet nicht.
+    - **`main` schützen:** ein *Branch ruleset* für `main` mit „Require a pull request before merging“ und ohne
+      Force-Push. `install.sh` und die Schlüssel kommen von `main`. Mit Schreibrecht allein wären sie sonst
+      änderbar. Achtung: `scripts/sign-lists.sh main` pusht direkt auf `main`. Mit der Regel braucht es dich als
+      Bypass oder den Umweg über einen Zweig mit Pull Request.
+    - **Release-Environment mit Freigabe:** Settings › Environments › `release` mit „Required reviewers“ (du),
+      dann in `release.yml` beim Job `environment: release` eintragen. Jeder Release-Lauf wartet so auf deinen Klick.
+      Die Zeile in `release.yml` erst einfügen, wenn das Environment existiert, sonst legt GitHub es ohne Regel an.
   `enginefix` fällt unter die Prüfung der Komponentenliste: `Engine` holt es über `ComponentStore.manifest()` (nur
   signiert) und `install` prüft das Paket gegen dessen SHA-256 vor dem Auspacken. Eine eigene `.sig` braucht es nicht.
   Was nicht abgedeckt ist: Den Inhalt baut `enginefix.yml` auf GitHub. Die Signatur bestätigt nur, dass du die

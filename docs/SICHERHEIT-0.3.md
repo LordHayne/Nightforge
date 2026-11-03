@@ -19,7 +19,7 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
 | Nr. | Schwere | Fund | Stand |
 |---|---|---|---|
 | H1 | hoch | Schwärzung im Problembericht lückenhaft | behoben (`45e6b63`) |
-| H2 | hoch | Update-ZIP, `manifest.json`, `profiles.json`, `install.sh` ohne Signatur | 0.3.1 gebaut (ohne `install.sh`), siehe „Signierte Releases“ |
+| H2 | hoch | Update-ZIP, `manifest.json`, `profiles.json`, `install.sh` ohne Signatur | 0.3.1 gebaut, siehe „Signierte Releases“ |
 | M1 | mittel | Epic-/GOG-Token-Dateien für alle lesbar (644 in 755) | behoben (`c9ceb49`) |
 | M2 | mittel | Anmeldecodes in Kommandozeilen (für andere Nutzer des Macs per `ps` sichtbar) | Hinweis, nicht abstellbar |
 | M3 | mittel | winetricks und DXMT folgen ungeprüft dem neuesten Upstream, Bot pusht direkt auf `main` | erledigt (`2f53abc`) |
@@ -282,8 +282,14 @@ App prüft jedes Paket dagegen, bevor sie es auspackt.
 ### Übergang von 0.3.0
 
 0.3.0 kennt keine Schlüssel und prüft nicht. Sein Updater nimmt die erste Datei auf `.zip`, also das ZIP und nie die
-`.sig`, in jeder Reihenfolge. `install.sh` ebenso (beides getestet). 0.3.0 kommt also ganz normal auf 0.3.1, erst
-danach gilt die Pflicht. Das Risiko liegt deshalb nur in 0.3.1 selbst: Ist dort die Prüfung kaputt, kommen seine
+`.sig`, in jeder Reihenfolge (getestet). 0.3.0 kommt also ganz normal auf 0.3.1, erst danach gilt die Pflicht.
+
+`install.sh` prüft ab dem Merge auf `main` selbst. Es lädt die `.sig` zum ZIP und die öffentlichen Schlüssel aus
+`SigningKeys.swift` auf `main` und prüft vor dem Auspacken mit Ed25519. Das läuft in Perl, weil jeder Mac Perl hat:
+LibreSSL kann kein Ed25519, Python und Swift brauchen die Entwicklerwerkzeuge. Ohne gültige Signatur installiert
+es nichts und bittet um ein Issue. Bis `v0.3.1` erscheint, ist `releases/latest` noch 0.3.0, und das hat keine
+Signatur. Darum nimmt `install.sh` genau das ZIP von 0.3.0 über seine SHA-256 an (die GitHub für das unveränderliche
+Release angibt), sonst nichts Unsigniertes. Ein mit `NIGHTFORGE_ZIP` übergebenes lokales ZIP prüft es nicht. Das Risiko liegt deshalb nur in 0.3.1 selbst: Ist dort die Prüfung kaputt, kommen seine
 Spieler nur noch per Einzeiler weiter. Darum gilt diese Reihenfolge vor dem Tag `v0.3.1`:
 
 1. Schlüssel erzeugen, `SigningKeys.swift` committen.
@@ -299,20 +305,22 @@ bieten ihn an, kein Spieler sieht ihn. Nur ein Mac, auf dem `UpdateTestRelease` 
 
 1. `v0.3.1-rc.1` und `v0.3.1-rc.2` auf `main` taggen (gleicher Commit geht), beide mit
    `scripts/sign-release.sh <tag> --publish` signieren.
-2. rc.1 installieren: `gh release download v0.3.1-rc.1 -p '*.zip'`, dann `NIGHTFORGE_ZIP=./Nightforge-0.3.1-rc.1.zip bash scripts/install.sh`.
+2. rc.1 mit dem Installationsskript installieren, das dabei die Signatur prüft:
+   `NIGHTFORGE_RELEASE=https://api.github.com/repos/LordHayne/Nightforge/releases/tags/v0.3.1-rc.1 bash scripts/install.sh`.
 3. `defaults write io.github.lordhayne.nightforge UpdateTestRelease v0.3.1-rc.2`, Nightforge neu starten.
    Erwartet: „Auf 0.3.1-rc.2 aktualisieren“ → laden, prüfen, ersetzen, Neustart; Einstellungen › Über zeigt rc.2. In
    Einstellungen › Über steht keine Zeile „nicht signiert“.
 4. Gegenproben, beide auf rc.2:
    - `v0.3.1-rc.3` taggen und **ohne** Signatur veröffentlichen (`gh release edit v0.3.1-rc.3 --draft=false
      --prerelease`), `UpdateTestRelease` auf `v0.3.1-rc.3`. Erwartet: kein Update-Angebot, in `wine.log` die Zeile
-     „has no signature“.
+     „has no signature“. Dasselbe `install.sh` wie in Schritt 2 mit `…/tags/v0.3.1-rc.3` bricht mit „isn't signed
+     by its maintainer“ ab und lässt rc.2 stehen.
    - `v0.3.1-rc.4` taggen und vor dem Veröffentlichen die `.sig` von rc.2 als `Nightforge-0.3.1-rc.4.zip.sig`
      hochladen (`gh release upload`), `UpdateTestRelease` auf `v0.3.1-rc.4`. Erwartet: das Update wird angeboten, beim
      Installieren kommt „nicht korrekt signiert“, Nightforge bleibt auf rc.2.
 5. `defaults delete io.github.lordhayne.nightforge UpdateTestRelease`. Die Prereleases kann man danach löschen.
-6. Nach dem echten `v0.3.1`: rc.2 bietet 0.3.1 von selbst an (ein Release ist neuer als seine Tests). Der Mac mini
-   mit 0.3.0 zeigt, dass 0.3.0 auf 0.3.1 kommt.
+6. Nach dem echten `v0.3.1`: rc.2 bietet 0.3.1 von selbst an (ein Release ist neuer als seine Tests). Dass 0.3.0
+   auf 0.3.1 kommt, zeigt eine 0.3.0 auf dem MacBook (nicht auf dem Mac mini, der ist kein Testgerät).
 
 ### Wenn ein Schlüssel verloren geht
 
@@ -327,8 +335,11 @@ bieten ihn an, kein Spieler sieht ihn. Nur ein Mac, auf dem `UpdateTestRelease` 
 
 ### Was bleibt
 
-- `install.sh` läuft per `curl | bash` direkt von `main`: Eine Neuinstallation vertraut weiter GitHub. Das
-  Installationsskript könnte das ZIP zwar prüfen, aber nur mit Schlüsseln, die es selbst von `main` lädt.
+- `install.sh` läuft per `curl | bash` direkt von `main` und lädt die Schlüssel von dort. Ein fremdes Release
+  installiert es nicht mehr. Wer aber auf `main` schreiben kann, ändert das Skript gleich mit. Dagegen helfen nur
+  Regeln auf GitHub (siehe `docs/TODO.md`).
+- `codesign --verify` im Updater prüft ohne Anforderung (`-R`): Die Releases sind ad hoc signiert, eine Anforderung
+  gäbe es erst mit einer Developer-ID. Woher die App stammt, belegt die Ed25519-Signatur davor.
 - Das DMG ist nicht signiert (Ad-hoc wie bisher, es dient nur der Hand-Installation).
 - Ein signiertes, älteres Listen-Exemplar könnte jemand erneut ausliefern. Für Profile gilt dabei weiter, dass die
   mitgelieferte, neuere Liste gewinnt. Bei Komponenten und `agw.json` fiele es auf eine früher freigegebene Liste

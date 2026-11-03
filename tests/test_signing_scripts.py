@@ -2,6 +2,8 @@
 check-signatures.sh) against stand-ins for the Keychain (`security`), the clipboard and GitHub (`gh`),
 in a copy of the repository: no real Keychain, no network. Above all: a private key never shows up
 in the output, on a command line or in the repository."""
+import base64
+import hashlib
 import json
 import os
 import pathlib
@@ -519,6 +521,108 @@ class SigningScripts(unittest.TestCase):
         result = self.sign_lists("bot/profiles", key=self.stranger)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
+
+    # MARK: scripts/install.sh
+
+    def release(self, name, signer=None):
+        """A release on disk as GitHub's API lists it, its zip signed by `signer` (a private key)."""
+        folder = self.work / name
+        contents = folder / "Nightforge.app/Contents"
+        contents.mkdir(parents=True)
+        (contents / "Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString": "9.9"}))
+        zip_file = folder / "Nightforge-9.9.zip"
+        subprocess.run(["ditto", "-c", "-k", "--keepParent", str(folder / "Nightforge.app"), str(zip_file)], check=True)
+        if signer:
+            self.tool(self.keyed_tool, "sign", str(zip_file), stdin=signer)
+        api = folder / "latest.json"
+        api.write_text(json.dumps({"assets": [{"browser_download_url": zip_file.as_uri() + suffix}
+                                              for suffix in (".sig", "")]}, indent=2))
+        return zip_file, api
+
+    def install(self, api, keys=None, script=ROOT / "scripts/install.sh"):
+        """install.sh with that release and those public keys. As far as it can tell no Nightforge runs,
+        and nothing is quit or opened."""
+        shims = self.work / "shims"
+        shims.mkdir(exist_ok=True)
+        for name, body in (("pgrep", "exit 1"), ("osascript", "exit 0"), ("open", "exit 0")):
+            write_executable(shims / name, f"#!/bin/bash\n{body}\n")
+        target = self.work / f"Applications-{api.parent.name}"
+        env = dict(self.env, PATH=f"{shims}:/usr/bin:/bin:/usr/sbin:/sbin", NIGHTFORGE_INSTALL_DIR=str(target),
+                   NIGHTFORGE_NO_OPEN="1", NIGHTFORGE_NO_QUIT="1", NIGHTFORGE_RELEASE=api.as_uri(),
+                   NIGHTFORGE_SIGNING_KEYS=(keys or self.keys_file).as_uri())
+        result = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True, timeout=120)
+        return result, target / "Nightforge.app"
+
+    def test_the_installer_takes_a_release_signed_with_either_key(self):
+        for signer in (self.main, self.spare):
+            with self.subTest(main=signer == self.main):
+                zip_file, api = self.release(f"release-{signer == self.main}", signer)
+                signature = pathlib.Path(f"{zip_file}.sig")
+                signature.write_text("not a signature\n" + signature.read_text())
+                result, app = self.install(api)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("Nightforge 9.9 installed", result.stdout)
+                self.assertTrue((app / "Contents/Info.plist").exists())
+
+    def test_the_installer_refuses_what_the_maintainer_didnt_sign(self):
+        only_main = self.work / "only-main.swift"
+        only_main.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), self.main_public, ""))
+        for case in ("unsigned", "changed after signing", "a key main doesn't list", "no keys on main yet"):
+            with self.subTest(case):
+                zip_file, api = self.release(case.replace(" ", "-"), None if case == "unsigned" else
+                                             self.spare if case == "a key main doesn't list" else self.main)
+                keys = {"a key main doesn't list": only_main,
+                        "no keys on main yet": ROOT / "Sources/Nightforge/SigningKeys.swift"}.get(case)
+                if case == "changed after signing":
+                    with zip_file.open("ab") as file:
+                        file.write(b"\0")
+                result, app = self.install(api, keys)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("isn't signed by its maintainer", result.stderr)
+                self.assertFalse(app.exists(), "nothing installed")
+
+    def test_the_0_3_0_zip_counts_by_its_checksum(self):
+        """0.3.0 came out before the signatures: its zip by its SHA-256, here a stand-in's."""
+        zip_file, api = self.release("old")
+        text = (ROOT / "scripts/install.sh").read_text()
+        self.assertRegex(text, r'UNSIGNED_030="[0-9a-f]{64}"')
+        script = self.work / "install.sh"
+        script.write_text(re.sub(r'UNSIGNED_030="[0-9a-f]{64}"',
+                                 f'UNSIGNED_030="{hashlib.sha256(zip_file.read_bytes()).hexdigest()}"', text))
+        result, app = self.install(api, script=script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(app.exists())
+
+    def test_the_installers_ed25519_against_rfc_8032(self):
+        """install.sh's own Ed25519 check (Perl, no developer tools) with RFC 8032's test vectors."""
+        text = (ROOT / "scripts/install.sh").read_text()
+        function = re.search(r"^ed25519_verify\(\) \{\n.*?^PERL\n\}\n", text, re.M | re.S).group(0)
+        vectors = [
+            ("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a", "",
+             "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"),
+            ("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c", "72",
+             "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"),
+            ("fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025", "af82",
+             "6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a"),
+        ]
+        order = 2 ** 252 + 27742317777372353535851937790883648493
+
+        def holds(key, message, signature):
+            (self.work / "message").write_bytes(message)
+            (self.work / "message.sig").write_text(base64.b64encode(signature).decode() + "\n")
+            return subprocess.run(["bash", "-c", function + 'ed25519_verify "$@"', "-", str(self.work / "message"),
+                                   str(self.work / "message.sig"), base64.b64encode(key).decode()]).returncode == 0
+
+        for key, message, signature in vectors:
+            key, message, signature = bytes.fromhex(key), bytes.fromhex(message), bytes.fromhex(signature)
+            with self.subTest(message=message.hex()):
+                self.assertTrue(holds(key, message, signature))
+                self.assertFalse(holds(key, message + b"!", signature), "another message")
+                self.assertFalse(holds(key, message, signature[:5] + bytes([signature[5] ^ 1]) + signature[6:]), "R changed")
+                # S + L signs the same, but RFC 8032 (and CryptoKit) take only S below L.
+                s = int.from_bytes(signature[32:], "little") + order
+                self.assertFalse(holds(key, message, signature[:32] + s.to_bytes(32, "little")), "S + L")
+        self.assertFalse(holds(bytes.fromhex(vectors[0][0]), b"", bytes.fromhex(vectors[1][2])), "another key's signature")
 
 
 class InstallScript(unittest.TestCase):

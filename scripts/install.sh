@@ -12,6 +12,116 @@ APP="Nightforge.app"
 
 fail() { echo "✗ $*" >&2; exit 1; }
 
+# Only a release the maintainer signed is installed (docs/SICHERHEIT-0.3.md › Signierte Releases), so one
+# made with a stolen GitHub token doesn't reach new players. The public keys come from main, like this
+# script. For testing: NIGHTFORGE_RELEASE (in place of GitHub's newest release; file:// works) and
+# NIGHTFORGE_SIGNING_KEYS (in place of main's SigningKeys.swift). A NIGHTFORGE_ZIP is taken as it is.
+RELEASE="${NIGHTFORGE_RELEASE:-https://api.github.com/repos/$REPO/releases/latest}"
+SIGNING_KEYS="${NIGHTFORGE_SIGNING_KEYS:-https://raw.githubusercontent.com/$REPO/main/Sources/Nightforge/SigningKeys.swift}"
+# Nightforge 0.3.0 came before the signatures: its zip counts by its SHA-256 (GitHub's, of the immutable release).
+UNSIGNED_030="fdab8aec7d2bcb55d2d1adb6053a4ed452b30bdce45f2fa5d18ed812cc46aa4a"
+
+# Whether the zip $1 is Nightforge's: 0.3.0's, or one with a line in $1.sig that holds for one of the keys.
+is_nightforge() {
+  [ "$(shasum -a 256 "$1" | cut -d' ' -f1)" = "$UNSIGNED_030" ] && return 0
+  local keys
+  keys="$(curl -fsSL "$SIGNING_KEYS" | sed -n 's|^    static let [a-z]* = "\([A-Za-z0-9+/]\{43\}=\)"$|\1|p' || true)"
+  [ -n "$keys" ] && [ -s "$1.sig" ] || return 1
+  # shellcheck disable=SC2086
+  ed25519_verify "$1" "$1.sig" $keys
+}
+
+# Ed25519 (RFC 8032) in the Perl every Mac has: its LibreSSL has none, Python and Swift need the developer
+# tools. The app's check (Sources/Nightforge/Signature.swift): one of the first eight lines of the .sig
+# that holds with one of the keys is enough. A signature holds when [S]B - [h]A encodes to its R.
+ed25519_verify() {
+  /usr/bin/perl - "$@" <<'PERL'
+use strict;
+use warnings;
+use Digest::SHA;
+use MIME::Base64 qw(decode_base64);
+use Math::BigInt;
+
+my ($file, $sigfile, @keys) = @ARGV;
+my $p = Math::BigInt->new(2)->bpow(255)->bsub(19);
+my $L = Math::BigInt->new(2)->bpow(252)->badd("27742317777372353535851937790883648493");
+sub md { my $x = shift; $x->bmod($p); $x }
+sub inv { $_[0]->copy->bmodpow($p - 2, $p) }
+my $d = md(Math::BigInt->new(-121665) * inv(Math::BigInt->new(121666)));
+my $I = Math::BigInt->new(2)->bmodpow(($p - 1) / 4, $p);
+# Numbers are 32 bytes, little-endian.
+sub num { Math::BigInt->from_hex(unpack("H*", scalar reverse $_[0])) }
+sub octets { my $h = substr($_[0]->as_hex, 2); reverse pack("H*", ("0" x (64 - length $h)) . $h) }
+sub x_of {
+  my ($y, $sign) = @_;
+  my $x2 = md(($y * $y - 1) * inv(md($d * $y * $y + 1)));
+  return $sign ? undef : Math::BigInt->new(0) if $x2->is_zero;
+  my $x = $x2->copy->bmodpow(($p + 3) / 8, $p);
+  $x = md($x * $I) unless md($x * $x - $x2)->is_zero;
+  return undef unless md($x * $x - $x2)->is_zero;
+  $x = $p - $x if $x->is_odd != $sign;
+  $x
+}
+# Points in extended coordinates (X, Y, Z, T).
+sub point {
+  my $n = num($_[0]);
+  my $sign = $n->copy->brsft(255)->is_one ? 1 : 0;
+  my $y = $n->band(Math::BigInt->new(2)->bpow(255)->bsub(1));
+  return undef if $y >= $p;
+  my $x = x_of($y, $sign);
+  defined $x ? [$x, $y, Math::BigInt->new(1), md($x * $y)] : undef
+}
+sub add {
+  my ($P, $Q) = @_;
+  my $A = md(($P->[1] - $P->[0]) * ($Q->[1] - $Q->[0]));
+  my $B = md(($P->[1] + $P->[0]) * ($Q->[1] + $Q->[0]));
+  my $C = md($P->[3] * 2 * $d * $Q->[3]);
+  my $D = md($P->[2] * 2 * $Q->[2]);
+  my ($E, $F, $G, $H) = ($B - $A, $D - $C, $D + $C, $B + $A);
+  [md($E * $F), md($G * $H), md($F * $G), md($E * $H)]
+}
+sub mul {
+  my ($s, $P) = @_;
+  my $Q = [map { Math::BigInt->new($_) } 0, 1, 1, 0];
+  for my $bit (reverse split //, substr($s->as_bin, 2)) {
+    $Q = add($Q, $P) if $bit;
+    $P = add($P, $P);
+  }
+  $Q
+}
+sub encode {
+  my $P = shift;
+  my $z = inv($P->[2]);
+  my ($x, $y) = (md($P->[0] * $z), md($P->[1] * $z));
+  octets($y->badd($x->is_odd ? Math::BigInt->new(2)->bpow(255) : 0))
+}
+my $By = md(Math::BigInt->new(4) * inv(Math::BigInt->new(5)));
+my $Bx = x_of($By, 0);
+my $base = [$Bx, $By, Math::BigInt->new(1), md($Bx * $By)];
+
+sub holds {
+  my ($key, $sig) = @_;
+  my $A = point($key) or return 0;
+  my ($R, $S) = (substr($sig, 0, 32), num(substr($sig, 32)));
+  return 0 if $S >= $L;
+  my $h = num(Digest::SHA->new(512)->add($R, $key)->addfile($file, "b")->digest)->bmod($L);
+  my $hA = mul($h, $A);
+  encode(add(mul($S, $base), [md(-$hA->[0]), $hA->[1], $hA->[2], md(-$hA->[3])])) eq $R
+}
+
+open my $in, "<", $sigfile or exit 1;
+my @lines = grep { /\S/ } map { s/\s+//gr } <$in>;
+$#lines = 7 if $#lines > 7;
+for my $sig (map { decode_base64($_) } @lines) {
+  next unless length $sig == 64;
+  for my $key (map { decode_base64($_) } @keys) {
+    exit 0 if length $key == 32 && holds($key, $sig);
+  }
+}
+exit 1;
+PERL
+}
+
 # Quits an app only when it runs: AppleScript would start one it is told to quit.
 quit_running() {
   pgrep -qf "$2.app/Contents/MacOS/$2" || return 0
@@ -43,11 +153,15 @@ main() {
   else
     echo "▸ Looking for the newest version …"
     # `|| true`: with pipefail, no match (offline, rate limit) would end the script without a word.
-    url="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+    url="$(curl -fsSL "$RELEASE" \
       | grep -o '"browser_download_url": *"[^"]*Nightforge-[^"]*\.zip"' | head -1 | cut -d'"' -f4 || true)"
     [ -n "$url" ] || fail "No release found. Check your internet connection and try again."
     echo "▸ Downloading ${url##*/} …"
     curl -fL --progress-bar -o "$work/Nightforge.zip" "$url"
+    curl -fsSL -o "$work/Nightforge.zip.sig" "$url.sig" 2>/dev/null || true
+    # Nothing of the download is unpacked before it holds.
+    is_nightforge "$work/Nightforge.zip" \
+      || fail "This Nightforge isn't signed by its maintainer, so it wasn't installed. Please tell us: https://github.com/$REPO/issues"
   fi
 
   ditto -x -k "$work/Nightforge.zip" "$work/unpacked"

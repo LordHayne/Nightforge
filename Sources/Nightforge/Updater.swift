@@ -161,6 +161,8 @@ enum Updater {
         // Older releases are signed too: one passed off as new would take back its fixes.
         let freshVersion = Bundle(url: fresh)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         guard isNewer(freshVersion, than: currentVersion) else { throw Failure.notNewer }
+        // Ad hoc signed (build.sh): this shows the bundle arrived whole. Who built it, the Ed25519
+        // signature above says; a requirement (-R) needs a Developer ID.
         guard run("/usr/bin/codesign", ["--verify", "--deep", fresh.path]) else { throw Failure.signature }
         // A release that raises the macOS it needs would not open after the swap: this copy stays.
         let minimum = Bundle(url: fresh)?.object(forInfoDictionaryKey: "LSMinimumSystemVersion") as? String
