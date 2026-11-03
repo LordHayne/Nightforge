@@ -59,7 +59,7 @@ enum GameTest {
     /// Why a game isn't started, or why its start was called off: each would need the player, or a download.
     enum Skip: String, Codable, CaseIterable {
         case antiCheat, vrOnly, otherBottle, signIn, update, runtimes, d3dMetal, macSteamSetup, versionSwitch,
-             steamAsks, stopped, gone
+             steamAsks, macOSAsks, stopped, gone
 
         var german: String {
             switch self {
@@ -73,6 +73,7 @@ enum GameTest {
             case .macSteamSetup: return "Steam für Mac ist nicht eingerichtet"
             case .versionSwitch: return "erster Start der anderen Fassung (Spielstände würden übertragen)"
             case .steamAsks: return "Steam fragte etwas in seinem Fenster"
+            case .macOSAsks: return "macOS fragt um Erlaubnis"
             case .stopped: return "Test vorher angehalten"
             case .gone: return "nicht mehr installiert"
             }
@@ -251,6 +252,26 @@ enum GameTest {
 
     static func callsOff(_ need: Skip, after waiting: TimeInterval) -> Bool {
         need == .steamAsks ? waiting >= steamAskPatience : true
+    }
+
+    /// The program of macOS's that asks for permission over the start right now, from the curtain's
+    /// lines (LibraryModel.watchCurtain): "Curtain under a question of macOS's for <game>: <app> in
+    /// front", not answered since. Only the player can answer it – access to a removable volume
+    /// (Tomb Raider's Mac version on the stick, 3.11.: UserNotificationCenter), Accessibility, a
+    /// password. The curtain stopping to wait for it doesn't answer it.
+    static func macOSAsking(_ game: String, in log: String) -> String? {
+        let asks = "Curtain under a question of macOS's for \(game): "
+        let answered = "Curtain up again for \(game): macOS's question is answered"
+        var asker: String?
+        for line in log.split(separator: "\n") {
+            if let range = line.range(of: asks) {
+                let rest = line[range.upperBound...]
+                asker = String(rest.hasSuffix(" in front") ? rest.dropLast(" in front".count) : rest)
+            } else if line.contains(answered) {
+                asker = nil
+            }
+        }
+        return asker
     }
 
     /// An app in front that has nothing to do with the start – not Nightforge, the game, Wine or

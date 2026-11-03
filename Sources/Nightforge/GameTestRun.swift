@@ -221,6 +221,12 @@ final class GameTestRun {
             if let app = foreignApp(for: game) {
                 foreignSince = foreignSince ?? now
                 if now.timeIntervalSince(foreignSince ?? now) >= 2 {
+                    // macOS asking for permission, which the curtain makes way for: the player's to answer.
+                    if let asker = await macOSAsking(game, since: mark) {
+                        seen.needs = .macOSAsks
+                        notes.append("macOS fragte um Erlaubnis (\(asker)) – niemand hat geantwortet, das Spiel wurde beendet; die Frage kann noch offen sein")
+                        break
+                    }
                     let name = app.localizedName ?? "?"
                     if !frontTakers.contains(name) { frontTakers.append(name) }
                     GameLog.note("Game test: \(name) had the front before the picture – Nightforge takes it back")
@@ -258,6 +264,11 @@ final class GameTestRun {
                 seen.picture = true
                 pictureAt = now
             case .hang:
+                if let asker = await macOSAsking(game, since: mark) {
+                    seen.needs = .macOSAsks
+                    notes.append("macOS fragte um Erlaubnis (\(asker)) – niemand hat geantwortet, das Spiel wurde beendet; die Frage kann noch offen sein")
+                    break
+                }
                 seen.stillRunning = true
                 // A window of its own smaller than a picture standing all the while: a start window or a question.
                 let running = Set(pids)
@@ -279,7 +290,8 @@ final class GameTestRun {
         }
         if let needs = seen.needs {
             callOff(needs)
-            if await endLateStart(game) { notes.append("Steam startete es nach dem Abbruch doch noch – wieder beendet") }
+            // macOS asks while the game runs: it's simply ended below; any other call-off may still be carried out by Steam.
+            if needs != .macOSAsks, await endLateStart(game) { notes.append("Steam startete es nach dem Abbruch doch noch – wieder beendet") }
         }
 
         // A picture: it runs on a while, for its frame rates.
@@ -417,6 +429,12 @@ final class GameTestRun {
             }
         }
         return came
+    }
+
+    /// Whether the curtain is under a question of macOS's for the game now (GameTest.macOSAsking).
+    private func macOSAsking(_ game: Game, since mark: UInt64) async -> String? {
+        let name = game.name
+        return await Engine.offMain { GameTest.macOSAsking(name, in: GameLog.text(since: mark)) }
     }
 
     /// What only the player could do came up: the start can't go on unattended.

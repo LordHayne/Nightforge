@@ -168,7 +168,7 @@ struct GameTestTest {
     static func questionsAndFront() {
         check(!GameTest.callsOff(.steamAsks, after: 5), "Steam's question that goes on by itself after 5 s (Left 4 Dead 2): no call-off")
         check(GameTest.callsOff(.steamAsks, after: 30), "one that stands 30 s needs the player")
-        for need in [GameTest.Skip.signIn, .update, .d3dMetal, .macSteamSetup, .runtimes] {
+        for need in [GameTest.Skip.signIn, .update, .d3dMetal, .macSteamSetup, .runtimes, .macOSAsks] {
             check(GameTest.callsOff(need, after: 0), "\(need) calls the start off at once")
         }
 
@@ -186,6 +186,22 @@ struct GameTestTest {
         check(GameTest.foreignFront(path: "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder", bundleID: "com.apple.finder",
                                     gameFolder: folder), "the Finder")
         check(!GameTest.foreignFront(path: nil, bundleID: nil, gameFolder: nil), "nothing known about it: left alone")
+
+        // macOS asking for permission over the start, as the curtain logs it (Tomb Raider on the stick, 3.11.).
+        let tomb = """
+        info:  [nightforge] Curtain look at Tomb Raider: 1 processes, in front Tomb Raider (89315, the game's), windows 4 hidden
+        info:  [nightforge] In front under the curtain: UserNotificationCenter (78961)
+        info:  [nightforge] Curtain under a question of macOS's for Tomb Raider: UserNotificationCenter in front
+        info:  [nightforge] Curtain under a question of macOS's for Tomb Raider II: SecurityAgent in front
+        """
+        check(GameTest.macOSAsking("Tomb Raider", in: tomb) == "UserNotificationCenter", "macOS asks, nobody answered: \(String(describing: GameTest.macOSAsking("Tomb Raider", in: tomb)))")
+        check(GameTest.macOSAsking("Tomb Raider", in: tomb + "\ninfo:  [nightforge] Curtain up again for Tomb Raider: macOS's question is answered") == nil,
+              "answered: nothing stands")
+        check(GameTest.macOSAsking("Tomb Raider", in: tomb + "\ninfo:  [nightforge] Curtain stops waiting for macOS's question for Tomb Raider after 180 s: the start goes on")
+              == "UserNotificationCenter", "the curtain giving up doesn't answer it")
+        check(GameTest.macOSAsking("Mafia II", in: tomb) == nil, "another game's question isn't this one's")
+        check(GameTest.outcome(.init(process: true, stillRunning: false, needs: .macOSAsks)) == .needsPlayer
+              && GameTest.result(.needsPlayer, issues: []) == nil, "called off for the player, says nothing about the game")
     }
 
     static func outcomes() {
@@ -325,7 +341,9 @@ struct GameTestTest {
         var dialog = GameTest.Entry(candidate("steam.3132990", "Black Myth: Wukong Benchmark Tool", .steam), outcome: .dialog)
         dialog.way = "d3dmetal"
         dialog.notes = ["Fenster des Spiels: 286×251 L21, 1 hidden"]
-        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, .skipped(skipped, .runtimes),
+        var asked = GameTest.Entry(candidate("steam.203160", "Tomb Raider", .steam, .mac), outcome: .needsPlayer, skip: .macOSAsks)
+        asked.way = "mac"
+        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, asked, .skipped(skipped, .runtimes),
                         GameTest.Entry(candidate("steam.1", "Store", .steam), outcome: .needsPlayer, skip: .signIn)]
 
         let json = GameTest.json(report)
@@ -349,7 +367,8 @@ struct GameTestTest {
         check(summary.hasPrefix("# Spieletest vom 3.11.2026\n"), "German title with the run's date")
         check(summary.contains("Nightforge 0.3.1 · winecx@4.7.3 · dxmt@0.80 · Apple M5 · macOS 26.1"), "what it ran on")
         check(summary.contains("Start 00:12, Ende 01:12."), "start and end")
-        check(summary.contains("**5 gestartet: 3 mit Bild, 2 ohne (1 hängt, 1 wartet auf einen Klick). 1 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("**5 gestartet: 3 mit Bild, 2 ohne (1 hängt, 1 wartet auf einen Klick). 2 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("| Tomb Raider | Steam | Mac | mac | abgebrochen: macOS fragt um Erlaubnis | – | – |"), "macOS's question: called off, not a hang")
         check(summary.contains("| Black Myth: Wukong Benchmark Tool | Steam | Windows | d3dmetal | wartet auf einen Klick in seinem eigenen Fenster (Starter oder Dialog) | – | – |")
               && summary.contains("- Fenster des Spiels: 286×251 L21, 1 hidden"), "a start window or dialog named as such, not as a hang")
         check(summary.contains("Systemlast zu Beginn: 2,0 bei 10 Kernen – niedrig."), "the load at the start")
