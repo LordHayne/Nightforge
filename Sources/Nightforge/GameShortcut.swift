@@ -46,11 +46,14 @@ enum GameShortcut {
         let key = bytes.map { String(format: "%02x", $0) }.joined()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: file.path) {
-            try? Data(key.utf8).write(to: file, options: .atomic)  // there, but no key (cut short): replaced
-        } else if (try? Data(key.utf8).write(to: file, options: .withoutOverwriting)) == nil {
-            return kept() ?? key  // written meanwhile (the start's addKey and a link at once): that one counts
+            try? FileManager.default.removeItem(at: file)  // there, but no key (cut short)
         }
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        // Readable by the player alone from the moment it's there, and never over one written
+        // meanwhile (the start's addKey and a link at once): that one counts.
+        let descriptor = open(file.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard descriptor >= 0 else { return kept() ?? key }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        guard (try? handle.write(contentsOf: Data(key.utf8))) != nil else { return kept() ?? key }
         return key
     }
 
@@ -61,7 +64,8 @@ enum GameShortcut {
 
     /// Apps an older Nightforge wrote open their link without the key (or with another one): their
     /// script gets this one, so they go on starting their game directly. Only scripts exactly as
-    /// Nightforge writes them are touched. Run at start, before a link from one of them can come.
+    /// Nightforge writes them are touched. Run at start: a click on such an app that starts Nightforge
+    /// itself still sends its link without the key and shows the game's page, once.
     static func addKey(_ key: String, in folder: URL = folder) {
         let fm = FileManager.default
         let head = "#!/bin/sh\nexec /usr/bin/open \"nightforge://play/"

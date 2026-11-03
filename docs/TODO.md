@@ -1394,6 +1394,11 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Start von Nightforge von selbst. Wer solche Links in der Kurzbefehle-App, in Skripten oder im Browser nutzt und direkt
   starten will: „Zu den Programmen hinzufügen“ auf der Spielseite und diese App öffnen, oder `?key=<Schlüssel>` anhängen
   (siehe oben). Show-Links (`nightforge://show/…`) sind unverändert.
+  - Der erste Klick auf eine Spiel-App von vor dem Update, der Nightforge selbst startet, zeigt einmal nur die Seite:
+    Das alte Skript schickt den Link ohne Schlüssel, bevor `addKey` es umschreibt (Review M10). Meist fällt das weg,
+    weil Nightforge nach einem Update von selbst neu startet. Bewusst nicht gebaut ist „ein Link ohne Schlüssel kurz
+    nach dem Start gilt als eigener“: Eine Webseite, die den Link öffnet, startet Nightforge ebenso und träfe genau
+    dieses Fenster.
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
