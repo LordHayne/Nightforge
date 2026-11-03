@@ -93,6 +93,11 @@ struct GameShortcutTest {
 
     /// Links and IDs that aren't what they look like (outside review, items 2 and 3).
     static func strangeLinks(_ folder: URL) {
+        // Exactly one segment after the host.
+        check(action("nightforge://play/anything/else/570?key=\(key)") == nil, "a path of several segments isn't a game's link")
+        check(action("nightforge://show/x/570") == nil, "…nor is a show link")
+        check(action("nightforge://play/570/?key=\(key)") == .play(.steam(570)), "a slash at the end is no second segment")
+        check(action("nightforge://play?key=\(key)") == nil && action("nightforge://play/") == nil, "no game in it")
         // IDs that GameID(provider:id:) takes but a link can't carry: no crash, and no app.
         for id in ["a b", "a%b", "a?b", "a#b", "é", "a/b", ""] {
             let game = GameID.gog(id)

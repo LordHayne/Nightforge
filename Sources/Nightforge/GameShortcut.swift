@@ -35,7 +35,9 @@ enum GameShortcut {
     /// open such a link, so one that plays only does so with `key`, which only the game apps Nightforge
     /// wrote carry; without it Nightforge shows the game's page, and Play is the player's click.
     static func action(from url: URL, key: String) -> Action? {
-        guard url.scheme == "nightforge", let game = GameID(key: url.lastPathComponent) else { return nil }
+        // Exactly one segment after the host: .../anything/else/570 isn't the link of 570.
+        let segments = url.pathComponents.filter { $0 != "/" }
+        guard url.scheme == "nightforge", segments.count == 1, let game = GameID(key: segments[0]) else { return nil }
         switch url.host {
         case "play":
             let given = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "key" }?.value
