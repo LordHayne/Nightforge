@@ -134,7 +134,10 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
     nicht aussagekräftig, solange die Hilfs-App nicht über Launch Services startet (siehe unten).
   - `CompleteRemoval.Places()` zeigt außerhalb der App (ohne Bundle-ID `io.github.lordhayne.nightforge`, also in jeder Testbinary)
     ins Leere und nimmt die Domäne `nightforge.not-the-app`: ein Test, der einen Ort zu überschreiben vergisst, löscht nichts
-    Echtes, und `CompleteRemoval.run()` verweigert sich dort (`requireApp`, bevor etwas beendet wird).
+    Echtes, und `CompleteRemoval.run()` verweigert sich dort (`requireApp`, bevor etwas beendet wird). Zeigt ein Test einen Ort selbst auf
+    das Echte (die Domäne der App, Nightforges Datenordner, die Caches, die Spiel-Apps, oder die Bundle-ID mit dem Library-Ordner des Spielers),
+    verweigert auch `remove` (`namesTheRealApp`, `notTheApp`), bevor es etwas anfasst. (Der Punkt unter „Wartbarkeit“, `settingsDomain` falle auf
+    die echte Domäne zurück, war damit schon erledigt und ist gestrichen.)
   - **Steam geht nach dem Beenden schneller aus** (war: immer 30 s Cloud-Wartezeit, dann `-shutdown`, dann `wineserver -k`): Das Beenden-Skript
     bekommt als 8. Argument, wann zuletzt ein Spiel lief oder zu starten gebeten wurde (`Engine.lastGameActivity`, gesetzt bei „Spielen“
     und solange die Spielerkennung ein Spiel sieht), und wartet die 30 s nur, wenn das weniger als 5 Minuten her ist (oder es selbst ein Spiel
@@ -2474,10 +2477,6 @@ wird angepasst.
 
 - `LibraryModel`, `Engine` und `LibraryView` haben je über 1000 Zeilen. Den SDK-Fallback gibt es 7-mal
   (`build.sh`, `tests/*/run.sh`), dazu etwa 10 eigene Process-Helfer und mehrfach definierte Pfadkonstanten.
-- **`CompleteRemoval.Places.settingsDomain`** fällt ohne Bundle-ID auf `io.github.lordhayne.nightforge` zurück, und
-  ohne Bundle-ID läuft jede Testbinary. Ein Test, der `CompleteRemoval.remove` ohne eigene Domäne aufruft, leert die
-  Einstellungen der echten App. `CompleteRemovalTest` setzt seine eigene; sicherer wäre kein Rückfall auf die echte
-  Domäne außerhalb der App.
 - **`engine/patches`:** Die Patches werden in Glob-Reihenfolge angewendet (`frame-log` baut auf `metalfx-fit-window`
   auf, sortiert aber davor). Nummerieren und eine README mit Upstream-Stand anlegen; ein Umbenennen löst auf `main`
   einen neuen Grafik-Build aus.

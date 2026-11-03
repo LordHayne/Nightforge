@@ -187,6 +187,27 @@ struct CompleteRemovalTest {
                     check(false, "… with notTheApp, not \(error)")
                 }
             }
+            // Pointed at the real thing on purpose: refused. Only the predicate is run here – were it missing, `remove`
+            // itself would delete the player's settings, which no test may risk; the guard's place is read from the source.
+            var real = inert
+            real.settingsDomain = CompleteRemoval.appBundleID
+            check(CompleteRemoval.namesTheRealApp(real), "the app's settings domain is named: refused outside the app")
+            real = inert
+            real.support = Engine.supportDir
+            check(CompleteRemoval.namesTheRealApp(real), "Nightforge's data folder is named: refused")
+            real = inert
+            real.shortcuts = GameShortcut.folder
+            check(CompleteRemoval.namesTheRealApp(real), "the game apps' folder is named: refused")
+            real = inert
+            real.bundleID = CompleteRemoval.appBundleID
+            check(!CompleteRemoval.namesTheRealApp(real), "the app's bundle ID alone isn't (a test's own Library has its folders)")
+            real.library = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
+            check(CompleteRemoval.namesTheRealApp(real), "… with the player's Library it is: refused")
+            check(!CompleteRemoval.namesTheRealApp(inert), "the inert places name nothing real")
+            let source = (try? String(contentsOfFile: "Sources/Nightforge/CompleteRemoval.swift", encoding: .utf8)) ?? ""
+            let head = source.components(separatedBy: "static func remove(").dropFirst().first?.components(separatedBy: "phase?(.copyingSaves)").first ?? ""
+            check(head.contains("namesTheRealApp(places)") && head.contains("throw RemovalError.notTheApp"),
+                  "remove() asks before its first phase")
             let probe = UserDefaults(suiteName: TestDefaults.domain("probe"))!
             probe.set(true, forKey: "kept")
             check(works { try CompleteRemoval.remove(defaults: probe) } && probe.bool(forKey: "kept"),

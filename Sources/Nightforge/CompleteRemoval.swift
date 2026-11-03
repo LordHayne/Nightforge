@@ -44,6 +44,19 @@ enum CompleteRemoval {
         var steam: URL { prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true) }
     }
 
+    /// Whether `places` name the app's own things: its settings domain, its data folder, its caches, its
+    /// game apps, or its folders in the player's Library (the bundle ID matters only there). `Places()` leads
+    /// nowhere outside the app, but a test could still point one of them at the real thing – so outside the
+    /// app `remove` refuses such places before it touches anything.
+    static func namesTheRealApp(_ places: Places) -> Bool {
+        func same(_ a: URL, _ b: URL) -> Bool { a.resolvingSymlinksInPath().standardizedFileURL == b.resolvingSymlinksInPath().standardizedFileURL }
+        let realCaches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge", isDirectory: true)
+        let realLibrary = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
+        return places.settingsDomain == appBundleID || (places.bundleID == appBundleID && same(places.library, realLibrary))
+            || same(places.support, Engine.supportDir) || same(places.caches, realCaches) || same(places.shortcuts, GameShortcut.folder)
+    }
+
     /// What goes, the biggest first. Only what's there.
     static func targets(_ places: Places = Places()) -> [URL] {
         var targets = [places.support, places.caches, places.shortcuts,
@@ -161,6 +174,7 @@ enum CompleteRemoval {
     @discardableResult
     static func remove(_ places: Places = Places(), defaults: UserDefaults = .standard,
                        phase: (@Sendable (Phase) -> Void)? = nil) throws -> URL? {
+        if !isTheApp, namesTheRealApp(places) { throw RemovalError.notTheApp }  // before anything is touched
         phase?(.copyingSaves)
         let saves: URL?
         do {
