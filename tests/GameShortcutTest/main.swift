@@ -68,6 +68,7 @@ struct GameShortcutTest {
         }
 
         keys(folder)
+        strangeLinks(folder)
         olderApps(folder)
 
         print(failures == 0 ? "✓ GameShortcut" : "\(failures) failed")
@@ -88,6 +89,29 @@ struct GameShortcutTest {
         check(replaced != first && replaced.count == 32 && GameShortcut.key(in: home) == replaced, "a file that holds no key gets a new one")
         let other = GameShortcut.key(in: folder.appendingPathComponent("other", isDirectory: true))
         check(other != replaced, "each Mac its own")
+    }
+
+    /// Links and IDs that aren't what they look like (outside review, items 2 and 3).
+    static func strangeLinks(_ folder: URL) {
+        // IDs that GameID(provider:id:) takes but a link can't carry: no crash, and no app.
+        for id in ["a b", "a%b", "a?b", "a#b", "é", "a/b", ""] {
+            let game = GameID.gog(id)
+            let link = GameShortcut.url(play: game, key: key)
+            check(link.scheme == "nightforge" && !GameShortcut.isUsable(game) && GameShortcut.action(from: link, key: key) == nil,
+                  "ID \(id.debugDescription): a link that is nobody's game, not a crash (\(link.absoluteString))")
+        }
+        check(GameShortcut.isUsable(.steam(570)) && GameShortcut.isUsable(.epic("Fortnite")) && GameShortcut.isUsable(.gog("1207664663")),
+              "plain IDs are usable")
+        var strange = Game(gameID: .gog("a b"), name: "Strange", bottle: Engine.bottle, steamRoot: Engine.bottle.url,
+                           steamExeWindowsPath: "", installDir: Engine.bottle.url, sizeOnDisk: 0)
+        strange.install = .installed
+        do {
+            _ = try GameShortcut.create(for: strange, icon: nil, in: folder.appendingPathComponent("strange", isDirectory: true), key: key)
+            check(false, "an app for an ID that can't be in a link")
+        } catch {
+            check(error is GameShortcut.UnusableID && !error.localizedDescription.isEmpty, "no app for it: \(error)")
+        }
+        check(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("strange").path), "…and nothing written")
     }
 
     /// Apps an older Nightforge wrote open their link without the key: at the start their script gets it.

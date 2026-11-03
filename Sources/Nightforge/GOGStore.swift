@@ -114,6 +114,16 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         macUnfit = load(Set<String>.self, Self.macFile) ?? []
         playTimes = load([String: EpicPlayTime].self, Self.playTimeFile) ?? [:]
         saveTimes = load([String: Double].self, Self.savesFile) ?? [:]
+        // These files are Nightforge's own, but the ID becomes a file name, a link and a bundle name: only a product
+        // ID passes (digits), as it does where the IDs come from GOG (GOGRelease.isProductID) – and as Epic's do.
+        catalog.games = catalog.games.filter { GOGRelease.isProductID($0.id) }.map { game in
+            var game = game
+            game.dlcs = game.dlcs.filter { GOGRelease.isProductID($0.id) }
+            return game
+        }
+        releases.items = releases.items.filter { GOGRelease.isProductID($0.key) }
+        installs = installs.filter { GOGRelease.isProductID($0.key) }
+        wanted = wanted.filter { GOGRelease.isProductID($0.id) }
     }
 
     private func save<T: Encodable>(_ value: T, to file: URL) {
