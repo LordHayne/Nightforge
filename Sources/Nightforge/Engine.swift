@@ -722,6 +722,12 @@ enum Engine {
             }
     }
 
+    /// When a game last ran, or was last asked to start (Play pressed): the quit script waits for its cloud
+    /// saves only within five minutes of that, and only then. Set by `noteGameActivity`.
+    nonisolated(unsafe) static var lastGameActivity: Date?
+
+    static func noteGameActivity(_ date: Date = Date()) { lastGameActivity = date }
+
     /// When Nightforge quits, Steam should go too – but not while a game runs (it uploads cloud
     /// saves after the game ends) or a download is going. Nightforge itself quits right after a
     /// launch, so a small detached script waits for that and then stops Steam and the Wine session.
@@ -739,7 +745,7 @@ enum Engine {
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid()), msync ? "1" : "0"]
+                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -748,7 +754,9 @@ enum Engine {
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
-    /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`).
+    /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`), $8 when a
+    /// game last ran or was asked to start (`lastGameActivity`, epoch seconds): only within five minutes of
+    /// that does it wait 30 s for the cloud saves before it ends Steam.
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
     /// counts a download only if it isn't paused. Its process is in `steam-shutdown.pid` beside it while it waits.
     static let steamShutdownScript = #"""
@@ -757,6 +765,10 @@ enum Engine {
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
         WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"; MSYNC="${7:-1}"
+        # When a game last ran or was asked to start (epoch seconds, 0: not for long), told by Nightforge and
+        # kept up to date here whenever one is seen running.
+        LAST_GAME="${8:-0}"
+        recent_game() { [ $(( $(date +%s) - LAST_GAME )) -lt 300 ]; }
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
         # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
@@ -813,7 +825,7 @@ enum Engine {
           return 1
         }
         busy() {
-          game_running && return 0
+          if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
           [ -n "$WINE" ] && downloading_in "$STEAMAPPS" && return 0
           [ -n "$MAC_STEAMAPPS" ] && downloading_in "$MAC_STEAMAPPS" && return 0
           return 1
@@ -837,7 +849,7 @@ enum Engine {
         fi
         while true; do
           while busy; do reopened && exit 0; late && exit 0; sleep 10; done
-          sleep 30                       # cloud saves of a game that just ended
+          recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
           reopened && exit 0
           busy || break
         done
@@ -2188,19 +2200,33 @@ enum Engine {
     /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
     /// it runs on, which may be one held back for a game.
     static func stopSteam(_ wine: URL) async throws {
-        guard isSteamRunning else { return }
+        try await stopSteam(wine, running: { isSteamRunning },
+                            installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
+                            shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
+                            hardStop: { stopAll($0) })
+    }
+
+    /// The steps of `stopSteam`, with what they ask and do handed in (a test hands in a Steam of its own):
+    /// "-shutdown" only to a Steam that is running – asked of none, it starts one – and the hard way
+    /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't.
+    static func stopSteam(_ wine: URL, running: () -> Bool, installing: () -> Bool, shutdown: (URL) throws -> Void,
+                          hardStop: (URL) -> Void, pause: Duration = .seconds(1), installWait: Int = 120,
+                          endWait: Int = 20) async throws {
+        guard running() else { return }
         // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
         var waited = 0
-        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
-            try await Task.sleep(for: .seconds(1))
+        while waited < installWait, installing() {
+            try await Task.sleep(for: pause)
             waited += 1
         }
-        try startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
-        for _ in 0..<20 {
-            guard isSteamRunning else { return }
-            try await Task.sleep(for: .seconds(1))
+        // It may have ended meanwhile (the update's restart, the player): a "-shutdown" would start a new one.
+        guard running() else { return }
+        try shutdown(wine)
+        for _ in 0..<endWait {
+            guard running() else { return }
+            try await Task.sleep(for: pause)
         }
-        stopAll(wine)
+        hardStop(wine)
     }
 
     /// Removes a game (or a download in progress) without any Steam window: with Steam stopped,
