@@ -144,21 +144,33 @@ enum Engine {
 
     /// Changes whenever the background Steam has to restart to hand games different settings.
     static var steamConfigSignature: String {
-        "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
-            + launchEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-            + (launchRetina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
+        let launch = launchSettings.withLock { $0 }
+        return "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
+            + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
     }
 
     /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
     /// resolution rather than half of it. Wine takes it for a whole session, like the environment.
-    static var launchRetina = false
+    static var launchRetina: Bool {
+        get { launchSettings.withLock { $0.retina } }
+        set { launchSettings.withLock { $0.retina = newValue } }
+    }
 
     /// What the game about to start needs on top of `gameEnvironment` ("" takes a variable away).
     /// A game gets the Unix environment of the Steam that starts it, as it was when that Steam
     /// started (Wine's spawn_process forks) – the registry's never reaches it (formerRegistryEnvironment).
     /// So these go into Steam's own.
-    static var launchEnvironment: [String: String] = [:]
+    static var launchEnvironment: [String: String] {
+        get { launchSettings.withLock { $0.environment } }
+        set { launchSettings.withLock { $0.environment = newValue } }
+    }
+
+    /// Both, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
+    /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
+    /// Dictionary read while it's being replaced can crash.
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool)>(([:], false))
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -179,7 +191,8 @@ enum Engine {
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
                                          vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:]) -> Bool {
-        var wanted = launchEnvironment
+        let launch = launchSettings.withLock { $0 }
+        var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
         for name in GameEnvironment.allowed.keys { wanted[name] = environment[name] ?? "" }
         if d3dMetal {
@@ -197,8 +210,8 @@ enum Engine {
         case nil:
             // Steam keeps the driver it has. Its library (CX_LIBVULKAN) counts only with "wined3d", so a
             // game without a backend switch of its own leaves that as it is too.
-            if environment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil, launchEnvironment["CX_LIBVULKAN"]?.isEmpty == false {
-                wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = launchEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"]
+            if environment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil, launch.environment["CX_LIBVULKAN"]?.isEmpty == false {
+                wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = launch.environment["CX_ACTIVE_GRAPHICS_BACKEND"]
             }
         }
         if !vulkanLoader.isEmpty {
@@ -206,11 +219,8 @@ enum Engine {
             wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = vulkanLoader["CX_ACTIVE_GRAPHICS_BACKEND"]
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
-        defer {
-            launchEnvironment = wanted
-            launchRetina = retina
-        }
-        return wanted != launchEnvironment || retina != launchRetina
+        launchSettings.withLock { [wanted] in $0 = (wanted, retina) }
+        return wanted != launch.environment || retina != launch.retina
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session

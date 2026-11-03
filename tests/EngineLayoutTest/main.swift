@@ -394,6 +394,26 @@ struct EngineLayoutTest {
             Engine.launchEnvironment = before
         }
         // Through Steam they go into its environment; the next game without them takes them away again.
+        // Read in a task of its own (a Steam start) while the main thread replaces it: under one lock, so no
+        // half-replaced Dictionary is ever read.
+        do {
+            let before = Engine.launchEnvironment
+            let stop = LockedValue(false)
+            let readers = DispatchGroup()
+            for _ in 0..<4 {
+                DispatchQueue.global().async(group: readers) {
+                    while !stop.withLock({ $0 }) { _ = Engine.steamEnvironment.count + Engine.steamConfigSignature.count }
+                }
+            }
+            for round in 0..<2000 {
+                _ = Engine.prepareLaunchEnvironment(avx: round % 2 == 0, d3dMetal: true, frameLimit: round % 120,
+                                                    upscaling: round % 3 == 0, retina: round % 5 == 0)
+            }
+            stop.withLock { $0 = true }
+            check(readers.wait(timeout: .now() + 10) == .success, "read off the main thread while it's set 2000 times: no crash, readers done")
+            Engine.launchEnvironment = before
+            Engine.launchRetina = false
+        }
         let launchBefore = Engine.launchEnvironment
         Engine.launchEnvironment = [:]
         _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
