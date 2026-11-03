@@ -22,6 +22,9 @@ enum GameTest {
         static let stop = "gameTest.stop"
         /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
         static let basket = "gameTest.basket"
+        /// The helper that presses "Play!" in Unity's start window is on (kosmickrisp-dx9's switch):
+        /// the run gives it time before it calls the window one that needs a click.
+        static let unityPlay = "unityPlay"
     }
 
     /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
@@ -214,6 +217,9 @@ enum GameTest {
         case crash
         /// Still running without a picture after `pictureWait`: sampled, then ended.
         case hang
+        /// Unity's start window ("<Game> Configuration" with "Play!"; The Forest's 464×438, 3.11.)
+        /// stood before any picture: it waits for a click there. Ended without a sample.
+        case startWindow
         /// Still running without a picture, but with a window of its own smaller than a picture
         /// standing all along – a start window or a question (GameProcesses.question): it waits for a
         /// click, it doesn't hang (Black Myth: Wukong's driver warning, 2.11.).
@@ -285,6 +291,18 @@ enum GameTest {
         return true
     }
 
+    /// Whether a Unity game's start window has stood long enough to be one: a window of its own
+    /// smaller than a picture (GameProcesses.question) for `startWindowGrace` seconds before any
+    /// picture. Unity draws its splash in the game's own window, so a small one is its "<Game>
+    /// Configuration" with "Play!". Only for Unity: elsewhere a small window may be a splash that
+    /// goes by itself (Unreal's), and waits the whole `pictureWait` (then `dialog`).
+    static func startWindowStands(unity: Bool, picture: Bool, standing: TimeInterval?, helper: Bool) -> Bool {
+        unity && !picture && (standing ?? 0) >= startWindowGrace(helper: helper)
+    }
+
+    /// With the helper on, long enough for it to press "Play!" first.
+    static func startWindowGrace(helper: Bool) -> TimeInterval { helper ? 30 : 10 }
+
     /// What the run saw of a start.
     struct Seen: Equatable {
         var process = false
@@ -294,11 +312,14 @@ enum GameTest {
         var needs: Skip?
         /// A window of its own smaller than a picture stood when the wait ran out.
         var smallWindow = false
+        /// Unity's start window stood (`startWindowStands`).
+        var startWindow = false
     }
 
     static func outcome(_ seen: Seen) -> Outcome {
         if seen.picture { return .picture }
         if seen.needs != nil { return .needsPlayer }
+        if seen.startWindow { return .startWindow }
         if seen.stillRunning { return seen.smallWindow ? .dialog : .hang }
         if seen.crashSigns { return .crash }
         return seen.process ? .noWindow : .noStart
@@ -322,7 +343,7 @@ enum GameTest {
         case .picture: return issues.isEmpty ? "good" : "problems"
         case .noWindow, .crash, .hang, .noStart: return "no-start"
         // Waiting for a click says nothing yet about how it runs.
-        case .dialog, .needsPlayer, .skipped: return nil
+        case .startWindow, .dialog, .needsPlayer, .skipped: return nil
         }
     }
 

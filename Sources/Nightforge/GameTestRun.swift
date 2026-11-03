@@ -199,6 +199,10 @@ final class GameTestRun {
         var asking: (need: GameTest.Skip, since: Date)?
         var foreignSince: Date?
         var frontTakers: [String] = []
+        // Unity's start window, from when it stood (GameTest.startWindowStands).
+        let unity = game.platform == .windows ? await model.insight(of: game)?.analysis.engine == .unity : false
+        let helper = UserDefaults.standard.bool(forKey: GameTest.Keys.unityPlay)
+        var startWindowSince: Date?
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
         let load = GameTest.Load.now
         model.launch(game)
@@ -253,6 +257,21 @@ final class GameTestRun {
             if let message = model.errorMessage {
                 notes.append("Meldung: " + message)
                 model.errorMessage = nil
+            }
+            if unity, !pids.isEmpty {
+                let running = Set(pids)
+                let asks = await Task.detached(priority: .utility) { GameProcesses.question(running) != nil }.value
+                startWindowSince = asks ? startWindowSince ?? now : nil
+                if GameTest.startWindowStands(unity: unity, picture: LaunchHealth.showedPicture(game.gameID, since: started),
+                                              standing: startWindowSince.map { now.timeIntervalSince($0) }, helper: helper) {
+                    seen.startWindow = true
+                    let windows = await Task.detached(priority: .utility) { GameProcesses.windowList(running) }.value
+                    notes.append("Startfenster des Spiels stand \(Int(GameTest.startWindowGrace(helper: helper))) s" + (helper ? " (mit Play-Helfer)" : "")
+                                 + ": \(windows)")
+                    break
+                }
+            } else {
+                startWindowSince = nil
             }
             let gaveUp = model.failedLaunch?.game.id == game.id
             switch GameTest.look(picture: LaunchHealth.showedPicture(game.gameID, since: started), running: !pids.isEmpty,
