@@ -119,6 +119,9 @@ für Komponenten. Sie pushen nie auf `main`.
    ```
 
    bzw. `bot/components`. Das Skript signiert auf dem Zweig des Pull Requests, deine Arbeitskopie bleibt unberührt.
+   Ändert der Zweig mehr als die Listen (etwa ein Skript), bricht es ab. So einen Pull Request liest du wie jeden
+   anderen und signierst erst danach, auf `main`. Halte deinen Checkout aktuell (`git pull`): Das Werkzeug kommt aus
+   ihm.
 3. Mergen, wenn „Signatures“ grün ist, mit dem `gh pr merge … --match-head-commit …`, das das Skript ausgibt.
 
 Dazu kommt `bot/wrapper`, wenn sich `wrapper/steamwebhelper-wrapper.c` auf `main` geändert hat: die neu gebaute

@@ -252,7 +252,9 @@ Beide Bots (`components.yml`, `profiles.yml`) schlagen Änderungen nur noch als 
 1. Den Pull Request lesen.
 2. `scripts/sign-lists.sh bot/profiles` (bzw. `bot/components`). Das Skript holt den Zweig in einen eigenen Ordner,
    signiert nur Listen, deren Signatur nicht mehr passt, und pusht die `.sig` auf den Zweig. Deine Arbeitskopie bleibt
-   unberührt.
+   unberührt. Vom Zweig läuft nichts: Das Werkzeug, das den privaten Schlüssel bekommt, baut das Skript aus deinem
+   Checkout. Einen Zweig, der mehr ändert als die Listen, ihre `.sig` und `components/sources.json`, signiert es
+   nicht, ebenso wenig einen, dessen Signier-Quellen von deinen abweichen. Git führt dort keine Hooks aus.
 3. Mergen, wenn der Check **Signatures** grün ist, mit dem Befehl, den das Skript ausgibt (`--match-head-commit`). Hat
    der Bot den Zweig inzwischen neu geschrieben, merged GitHub dann nicht, und du signierst den neuen Stand.
 

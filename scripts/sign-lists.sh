@@ -9,7 +9,10 @@
 # The app takes an online list only with its signature beside it (Sources/Nightforge/Signature.swift),
 # and the nightly runs can't sign: so a list change reaches players once you've read the pull
 # request, signed it here and merged it. A list whose signature still holds is left alone.
-# The branch is checked out into a folder of its own; your working copy isn't touched.
+# The branch is checked out into a folder of its own; your working copy isn't touched. Nothing of the
+# branch runs: the signing tool is built from this checkout (the private key goes into it), the
+# branch may change only the lists, their signatures and components/sources.json, and git runs no
+# hooks in its folder.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/signing-lib.sh
@@ -43,8 +46,22 @@ trap cleanup EXIT
 echo "▸ Fetching $branch …"
 git fetch --quiet origin "refs/heads/$branch:refs/remotes/origin/$branch" || fail "origin has no branch $branch."
 [ "$branch" = main ] || git fetch --quiet origin "refs/heads/main:refs/remotes/origin/main" || fail "origin has no main."
-git worktree add --quiet --detach "$tree" "origin/$branch"
-build_signing_tool "$tree" "$work"
+# A branch that changed the signing tool could have it write the key out: anything besides the lists
+# (and the source list the components bot writes beside its manifest) is refused before anything is built.
+allowed=(components/sources.json)
+for list in "${SIGNED_LISTS[@]}"; do allowed+=("$list" "$list.sig"); done
+while IFS= read -r changed; do
+  [ -n "$changed" ] || continue
+  case " ${allowed[*]} " in *" $changed "*) ;; *)
+    fail "$branch changes $changed, not only the lists: it isn't signed here. Look at it as a pull request of its own." ;;
+  esac
+done <<< "$(git diff --name-only "origin/main...origin/$branch")"
+git -c core.hooksPath=/dev/null worktree add --quiet --detach "$tree" "origin/$branch"
+for source in "${SIGNING_SOURCES[@]}"; do
+  cmp -s "$source" "$tree/$source" \
+    || fail "$source on $branch isn't the one in this checkout: update it (git pull) and look at what changed."
+done
+build_signing_tool . "$work"
 
 todo=()
 for list in "${SIGNED_LISTS[@]}"; do
@@ -89,10 +106,10 @@ forget_clipboard
 "$TOOL" verify "${paths[@]}" > /dev/null
 
 for list in "${todo[@]}"; do git -C "$tree" add "$list.sig"; done
-git -C "$tree" commit --quiet -m "Sign the online lists" -m "$(cd "$tree" && shasum -a 256 "${todo[@]}")"
+git -C "$tree" -c core.hooksPath=/dev/null commit --quiet -m "Sign the online lists" -m "$(cd "$tree" && shasum -a 256 "${todo[@]}")"
 # A plain push: when the branch moved on meanwhile (a nightly run), this signature is for an old
 # list and GitHub turns it away.
-git -C "$tree" push --quiet origin "HEAD:refs/heads/$branch" \
+git -C "$tree" -c core.hooksPath=/dev/null push --quiet origin "HEAD:refs/heads/$branch" \
   || fail "$branch changed meanwhile (the nightly run?). Read the new state and run this again."
 echo "✓ Signed and pushed to $branch: $(git -C "$tree" rev-parse --short HEAD)."
 if [ "$branch" != main ]; then

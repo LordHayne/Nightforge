@@ -570,6 +570,42 @@ class SigningScripts(unittest.TestCase):
         self.assertIn("isn't newer than main's", result.stderr)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
 
+    def test_a_branch_that_changes_the_signing_tool_isnt_signed(self):
+        """Review A: the tool the key goes into is never built from the branch being signed."""
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        tool = self.repo / "scripts/signing-tool.swift"
+        tool.write_text(tool.read_text() + "\n// writes the key into the .sig\n")
+        self.git("commit", "--quiet", "-am", "Update game profiles")
+        self.git("push", "--quiet", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("changes scripts/signing-tool.swift", result.stderr)
+        self.assertNotIn("macOS asks for your password", result.stdout, "the key isn't even read")
+        self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
+
+    def test_a_branch_that_changes_anything_else_isnt_signed(self):
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        (self.repo / "README.md").write_text("changed\n")
+        self.git("add", "README.md")
+        self.git("commit", "--quiet", "-m", "Update game profiles")
+        self.git("push", "--quiet", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("changes README.md", result.stderr)
+
+    def test_a_checkout_with_other_signing_sources_doesnt_sign(self):
+        """The tool comes from this checkout: if it isn't the one the branch has, nothing is signed."""
+        self.lists_repo()
+        lib = self.repo / "scripts/signing-lib.sh"
+        lib.write_text(lib.read_text() + "\n# a local change\n")
+        result = self.sign_lists("main")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("scripts/signing-lib.sh on main isn't the one in this checkout", result.stderr)
+
     def test_a_stamp_from_the_future_isnt_signed(self):
         """Review N5: one list from the future would turn away every right one after it."""
         origin = self.lists_repo()
