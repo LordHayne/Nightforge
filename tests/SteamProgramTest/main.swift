@@ -226,10 +226,6 @@ struct SteamProgramTest {
         check(SteamProgram.launchOptions(.standard, installDir: dir) == nil
               && SteamProgram.launchOptions(.option(type: "Option1", executable: "a.exe"), installDir: dir) == nil,
               "no LaunchOptions for Steam's own options")
-        check(SteamProgram.isOurs(value ?? ""), "recognised as Nightforge's")
-        for own in ["-novid", "", "\"C:\\Tools\\loader.exe\" %command% -novid", "%command% -dx11", "\"C:\\a.exe\" \"x\" %command%"] {
-            check(!SteamProgram.isOurs(own), "the player's own: \(own)")
-        }
     }
 
     // A localconfig.vdf as Steam writes it (cut down): JSON values with escaped quotes and
@@ -280,33 +276,44 @@ struct SteamProgramTest {
     static func editing() {
         check(launchOptions(localconfig, sevenDays) == "-novid", "the sample reads as Steam's")
         // A game Steam has an entry for: the line goes in first thing after its brace.
-        let set = SteamProgram.edited(localconfig, appID: control, value: value)
+        let set = SteamProgram.edited(localconfig, appID: control, value: value, ours: [])
         check(launchOptions(set, control) == value, "set, quotes and backslashes as written: \(launchOptions(set, control) ?? "nil")")
         let line = "\n\t\t\t\t\t\t\"LaunchOptions\"\t\t\"\\\"C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\Control\\\\Control_DX12.exe\\\" %command%\""
         check(set?.replacingOccurrences(of: line, with: "") == localconfig, "the rest exactly as Steam wrote it")
         check(set?.contains("\t\t\t\t\t{" + line + "\n\t\t\t\t\t\t\"LastPlayed\"") == true, "indented as Steam's own lines")
         check(launchOptions(set, sevenDays) == "-novid", "the other game's stay")
-        check(SteamProgram.edited(set ?? "", appID: control, value: value) == nil, "the same again: no change")
+        check(SteamProgram.edited(set ?? "", appID: control, value: value, ours: [value]) == nil, "the same again: no change")
         let other = value.replacingOccurrences(of: "DX12", with: "DX11")
-        let replaced = SteamProgram.edited(set ?? "", appID: control, value: other)
+        let replaced = SteamProgram.edited(set ?? "", appID: control, value: other, ours: [value])
         check(launchOptions(replaced, control) == other && replaced?.components(separatedBy: "LaunchOptions").count == 3,
               "Nightforge's own replaced in place")
-        check(SteamProgram.edited(replaced ?? "", appID: control, value: nil) == localconfig, "and taken away: Steam's file as it was")
-        check(SteamProgram.edited(localconfig, appID: control, value: nil) == nil, "nothing of Nightforge's: nothing to take away")
+        check(SteamProgram.edited(replaced ?? "", appID: control, value: nil, ours: [other]) == localconfig, "and taken away: Steam's file as it was")
+        check(SteamProgram.edited(localconfig, appID: control, value: nil, ours: [value]) == nil, "nothing of Nightforge's: nothing to take away")
 
         // The player's own stay, whatever Nightforge wants.
-        check(SteamProgram.edited(localconfig, appID: sevenDays, value: value) == nil, "the player's own LaunchOptions aren't replaced")
-        check(SteamProgram.edited(localconfig, appID: sevenDays, value: nil) == nil, "nor taken away")
+        check(SteamProgram.edited(localconfig, appID: sevenDays, value: value, ours: [value]) == nil, "the player's own LaunchOptions aren't replaced")
+        check(SteamProgram.edited(localconfig, appID: sevenDays, value: nil, ours: [value]) == nil, "nor taken away")
+        // A player's script extender loader has the very form Nightforge writes (review M4): it's theirs unless
+        // Nightforge wrote exactly that value itself.
+        let loader = #""C:\Games\Skyrim Special Edition\skse64_loader.exe" %command%"#
+        let withLoader = SteamProgram.edited(localconfig, appID: control, value: loader, ours: [])
+        check(launchOptions(withLoader, control) == loader, "(the player's loader, set as a player would)")
+        check(SteamProgram.edited(withLoader ?? "", appID: control, value: nil, ours: [value]) == nil,
+              "a player's loader isn't taken away for Nightforge's own")
+        check(SteamProgram.edited(withLoader ?? "", appID: control, value: value, ours: [value, other]) == nil,
+              "nor replaced by Nightforge's program")
+        check(SteamProgram.edited(withLoader ?? "", appID: control, value: nil, ours: [loader]) == localconfig,
+              "a value Nightforge wrote itself is its own, whatever it says")
         let empty = localconfig.replacingOccurrences(of: "\"-novid\"", with: "\"\"")
-        check(launchOptions(SteamProgram.edited(empty, appID: sevenDays, value: value), sevenDays) == value,
+        check(launchOptions(SteamProgram.edited(empty, appID: sevenDays, value: value, ours: []), sevenDays) == value,
               "empty LaunchOptions are no one's")
 
         // A game Steam has no entry for yet, and an account that has played nothing.
-        let added = SteamProgram.edited(localconfig, appID: rocketLeague, value: value)
+        let added = SteamProgram.edited(localconfig, appID: rocketLeague, value: value, ours: [])
         check(launchOptions(added, rocketLeague) == value, "a new entry under apps")
         check(launchOptions(added, sevenDays) == "-novid" && VDF.parse(added ?? "")?["UserLocalConfigStore"]?["Software"]?["Valve"]?["Steam"]?["apps"]?["870780"]?["Playtime"]?.string == "42",
               "the other entries intact")
-        let gone = SteamProgram.edited(added ?? "", appID: rocketLeague, value: nil)
+        let gone = SteamProgram.edited(added ?? "", appID: rocketLeague, value: nil, ours: [value])
         check(gone != nil && launchOptions(gone, rocketLeague) == nil
               && VDF.parse(gone ?? "")?["UserLocalConfigStore"]?["Software"]?["Valve"]?["Steam"]?["apps"]?[String(rocketLeague)] != nil,
               "taken away again, its entry stays (as Steam keeps them)")
@@ -326,24 +333,24 @@ struct SteamProgramTest {
             }
 
             """
-        check(launchOptions(SteamProgram.edited(noApps, appID: control, value: value), control) == value, "no apps yet: made")
+        check(launchOptions(SteamProgram.edited(noApps, appID: control, value: value, ours: []), control) == value, "no apps yet: made")
         let bare = "\"UserLocalConfigStore\"\n{\n\t\"Broadcast\"\t\t\"1\"\n}\n"
-        let fromBare = SteamProgram.edited(bare, appID: control, value: value)
+        let fromBare = SteamProgram.edited(bare, appID: control, value: value, ours: [])
         check(launchOptions(fromBare, control) == value, "only the root: every level made")
         check(VDF.parse(fromBare ?? "")?["UserLocalConfigStore"]?["Broadcast"]?.string == "1", "beside what was there")
 
         // Windows line ends, as Steam on Windows may write them.
         let crlf = localconfig.replacingOccurrences(of: "\n", with: "\r\n")
-        let crlfSet = SteamProgram.edited(crlf, appID: control, value: value)
+        let crlfSet = SteamProgram.edited(crlf, appID: control, value: value, ours: [])
         check(launchOptions(crlfSet, control) == value && crlfSet?.contains("{\r\n\t\t\t\t\t\t\"LaunchOptions\"") == true,
               "CRLF: its own line ends")
-        check(SteamProgram.edited(crlfSet ?? "", appID: control, value: nil) == crlf, "and away again, as it was")
+        check(SteamProgram.edited(crlfSet ?? "", appID: control, value: nil, ours: [value]) == crlf, "and away again, as it was")
 
         // Not a localconfig.vdf: left alone.
-        check(SteamProgram.edited(String(localconfig.prefix(200)), appID: control, value: value) == nil, "cut off: left alone")
-        check(SteamProgram.edited("not a config", appID: control, value: value) == nil, "not KeyValues: left alone")
-        check(SteamProgram.edited("\"InstallConfigStore\"\n{\n}\n", appID: control, value: value) == nil, "another file: left alone")
-        check(SteamProgram.edited("", appID: control, value: value) == nil, "empty: left alone")
+        check(SteamProgram.edited(String(localconfig.prefix(200)), appID: control, value: value, ours: []) == nil, "cut off: left alone")
+        check(SteamProgram.edited("not a config", appID: control, value: value, ours: []) == nil, "not KeyValues: left alone")
+        check(SteamProgram.edited("\"InstallConfigStore\"\n{\n}\n", appID: control, value: value, ours: []) == nil, "another file: left alone")
+        check(SteamProgram.edited("", appID: control, value: value, ours: []) == nil, "empty: left alone")
     }
 
     static func accounts() {
@@ -357,22 +364,52 @@ struct SteamProgramTest {
         }
         try? fm.createDirectory(at: steam.appendingPathComponent("userdata/333"), withIntermediateDirectories: true)  // no config yet
         func read(_ file: URL) -> String { (try? String(contentsOf: file, encoding: .utf8)) ?? "" }
+        // What Nightforge wrote, in the test's own folder; Steam counts as down unless a check says otherwise.
+        let record = temp.appendingPathComponent("support/launchoptions-written.json")
+        var notes: [String] = []
+        func apply(down: Bool = true) {
+            SteamProgram.apply(steamRoot: steam, record: record, isDown: { down }, log: { notes.append($0) })
+        }
+        let backup = first.appendingPathExtension("nightforge-backup")
 
-        check(SteamProgram.prepare(appID: control, value: value, steamRoot: steam), "a new program: Steam has to restart")
+        check(SteamProgram.prepare(appID: control, value: value, steamRoot: steam, record: record), "a new program: Steam has to restart")
         check(read(first) == localconfig, "prepare writes nothing (Steam may be running)")
-        SteamProgram.apply(steamRoot: steam)
+        apply(down: false)
+        check(read(first) == localconfig && !fm.fileExists(atPath: record.path) && !fm.fileExists(atPath: backup.path)
+              && notes.count == 1, "not certain that Steam is down: nothing written, and the log says why: \(notes)")
+        apply()
         check(launchOptions(read(first), control) == value, "written with Steam down")
+        check(read(backup) == localconfig, "the account's file as it was, beside it before the first change")
+        check(!fm.fileExists(atPath: second.appendingPathExtension("nightforge-backup").path), "an account left alone gets no copy")
+        check(SteamProgram.written(record) == [control: [value]], "and noted as Nightforge's: \(SteamProgram.written(record))")
         check(read(second) == own, "the account with its own LaunchOptions: untouched")
         check(!fm.fileExists(atPath: steam.appendingPathComponent("userdata/333/config/localconfig.vdf").path),
               "an account without a config gets none")
-        check(!SteamProgram.prepare(appID: control, value: value, steamRoot: steam), "the same again: no restart")
-        SteamProgram.apply(steamRoot: steam)
+        check(!SteamProgram.prepare(appID: control, value: value, steamRoot: steam, record: record), "the same again: no restart")
+        apply()
         check(launchOptions(read(first), control) == value && read(second) == own, "applying again changes nothing")
 
-        check(SteamProgram.prepare(appID: control, value: nil, steamRoot: steam), "back to Steam's program: a restart")
-        SteamProgram.apply(steamRoot: steam)
+        let other = value.replacingOccurrences(of: "DX12", with: "DX11")
+        check(SteamProgram.prepare(appID: control, value: other, steamRoot: steam, record: record), "another program: a restart")
+        apply()
+        check(launchOptions(read(first), control) == other && SteamProgram.written(record) == [control: [other]],
+              "Nightforge's own replaced, and only the new value kept as its own")
+        check(read(backup) == localconfig, "the copy stays the one from before the first change")
+
+        check(SteamProgram.prepare(appID: control, value: nil, steamRoot: steam, record: record), "back to Steam's program: a restart")
+        apply()
         check(read(first) == localconfig && read(second) == own, "Nightforge's LaunchOptions gone, the player's kept")
-        check(!SteamProgram.prepare(appID: control, value: nil, steamRoot: steam), "and then nothing more to do")
+        check(SteamProgram.written(record).isEmpty, "nothing of Nightforge's left to know")
+        check(!SteamProgram.prepare(appID: control, value: nil, steamRoot: steam, record: record), "and then nothing more to do")
+
+        // A player's loader in the first account later on: Nightforge neither replaces nor removes it.
+        let loader = #""C:\Games\SkyrimSE\skse64_loader.exe" %command%"#
+        try? (SteamProgram.edited(localconfig, appID: control, value: loader, ours: []) ?? "").write(to: first, atomically: true, encoding: .utf8)
+        check(!SteamProgram.prepare(appID: control, value: value, steamRoot: steam, record: record)
+              && !SteamProgram.prepare(appID: control, value: nil, steamRoot: steam, record: record),
+              "a player's loader of the same form: no restart for it")
+        apply()
+        check(launchOptions(read(first), control) == loader, "and it stays")
     }
 
     static func steamCommands() {
