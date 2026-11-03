@@ -399,25 +399,45 @@ enum GameProcesses {
     }
 
     /// Every process with its parent and command line, as ps shows them – a Windows program with
-    /// its working folder too (`runsFrom`). [] when ps doesn't answer (`ProcessList`): what acts on
-    /// pids (ending a game) takes this one.
-    nonisolated static func table() -> [Entry] {
-        entries(from: ProcessList.ps("pid=,ppid=,command="))
+    /// its working folder too (`runsFrom`) – or why there is no list (`ProcessList`: `ps` has been seen not
+    /// answering for good). `.fresh` and empty means "no process"; `.unavailable` means "not known", and
+    /// whoever would conclude from an empty list that a game is gone must not. `allowOld`: the last good
+    /// list in its place while `ps` is down.
+    nonisolated static func lookup(allowOld: Bool = false) -> ProcessListing<[Entry]> {
+        ProcessList.listing("pid=,ppid=,command=", allowOld: allowOld).map(entries(from:))
     }
 
-    /// The same for looking only: when ps has stopped answering, the last list (up to ten minutes old) –
-    /// a game running when ps hung is still running then, as far as anyone can tell.
-    nonisolated static func tableForWatching() -> [Entry] {
-        entries(from: ProcessList.ps("pid=,ppid=,command=", stale: true))
-    }
+    /// The list asked for just now, [] without one: for what acts on pids (pausing a game, ending it), which
+    /// has nothing to act on then.
+    nonisolated static func table() -> [Entry] { lookup().value ?? [] }
 
-    nonisolated private static func entries(from output: String?) -> [Entry] {
-        guard let output else { return [] }
-        return parse(output).map { entry in
+    nonisolated private static func entries(from output: String) -> [Entry] {
+        parse(output).map { entry in
             var entry = entry
             if entry.command.lowercased().contains(".exe") { entry.cwd = cwd(of: entry.pid) }
             return entry
         }
+    }
+
+    /// The games of `folders` (`running`) that run now, nil when no list is to be had at all: the last good
+    /// one stands in while `ps` is down, and a game running when it went down is still running then, as far
+    /// as anyone can tell. Nil means "not known" – not "no game".
+    nonisolated static func runningNow(_ folders: [String: String]) -> [String: pid_t]? {
+        guard !folders.isEmpty else { return [:] }
+        return lookup(allowOld: true).value.map { running(folders, in: $0) }
+    }
+
+    /// What the curtain's look at the start needs from the list: the game's processes, and whether the app in
+    /// front is a Windows program of the game's. Nil when there is no list: nothing is decided at that look.
+    struct CurtainLook: Equatable {
+        var pids: Set<pid_t>
+        var companion: Bool
+    }
+
+    nonisolated static func curtainLook(marker: String?, folder: String?, front: pid_t?) -> CurtainLook? {
+        guard let table = lookup(allowOld: true).value else { return nil }
+        return CurtainLook(pids: Set(targets(windows: marker, mac: folder, in: table)),
+                           companion: marker != nil && front.map { windowsCompanion($0, in: table) } == true)
     }
 
     /// A process's working folder (another user's, or one gone meanwhile: nil).

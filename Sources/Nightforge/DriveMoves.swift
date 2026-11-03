@@ -233,7 +233,7 @@ extension LibraryModel {
             let wasRunning = Engine.isSteamRunning
             try await Engine.stopSteam(wine)
             do {
-                guard !Engine.isSteamRunning else { throw DriveError.steamStarted }
+                guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }
                 var destination = Engine.steamRoot.appendingPathComponent("steamapps", isDirectory: true)
                 if let drive {
                     let library = DriveLibrary.windowsSteam(on: drive)
@@ -247,7 +247,7 @@ extension LibraryModel {
                 let left = try await GameMover.moveSteamGame(appID: game.appID, installDirName: game.installDirName,
                                                              from: game.installDir.deletingLastPathComponent().deletingLastPathComponent(),
                                                              to: destination, steamRoot: Engine.steamRoot, bottle: Engine.bottle,
-                                                             progress: progress) { Engine.isSteamRunning }
+                                                             progress: progress) { Engine.steamMayBeRunning }
                 if wasRunning { try? await Engine.restartSteamInBackground(wine) }
                 return left
             } catch {
@@ -325,7 +325,7 @@ extension SteamStore {
                 throw DriveError.busy(L10n.t("Steam restarts to set up %@ – quit the game first, then download again.", drive.lastPathComponent))
             }
             try await Engine.stopSteam(wine)
-            guard !Engine.isSteamRunning else { throw DriveError.steamStarted }
+            guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }
             try await Engine.offMain {
                 try SteamLibraries.ensure(library: library, path: DriveLibrary.windowsPath(of: library), steamRoot: Engine.steamRoot,
                                           rootPath: Engine.windowsPath(of: Engine.steamRoot), bottle: Engine.bottle)

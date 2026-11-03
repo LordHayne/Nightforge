@@ -106,6 +106,14 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
     `ps -ax` auf dem MacBook für alle Aufrufer (angehaltene Wine-Prozesse nach einem abgebrochenen winedbg), Nightforge (e8f11cc) stand
     auf dem Hauptthread in `watchDrives` → `Engine.isSteamRunning` → `ps`. Offen: die übrigen `waitUntilExit`/`readDataToEndOfFile`-Stellen
     (Liste in `docs/CODE-PRUEFUNG.md`), und dass der Hauptthread bei einem ersten verfehlten `ps` einmal bis ~6 s steht.
+  - **„Ausfall“ ist nicht „leer“** (`ProcessListing`: `.fresh` / `.old` / `.unavailable`): Wer aus einer leeren Prozessliste schloss („Spiel beendet“,
+    „Steam läuft nicht“, „kein Download“), tut das bei hängendem `ps` nicht mehr. Der Vorhang (`GameProcesses.curtainLook`) und die Spielerkennung
+    (`GameProcesses.runningNow`) nehmen die letzte gute Liste und entscheiden ohne Liste nichts (der Vorhang gibt nach 3 Minuten auf, der Spieletest
+    nach 2); `Engine.steamRunningKnown`/`windowsGameRunningKnown`/`ownProcessesKnown` sind `nil` ohne Liste. Dort, wo „nicht laufend“ etwas
+    Zerstörerisches erlaubt, gilt jetzt „nicht bekannt“ als „läuft vielleicht“: `applyRetinaMode` (und damit auch Epic/GOG-Spiele, H4 der Prüfung),
+    `removeUnusedComponents`, die Haltezeit der Engine-Kopien, Verschieben von Spielen, `startSteam`s Guide-Knopf, `ensureSteamRunning`,
+    `GameResolution.fit`, die Download-Erkennung von Epic/GOG (die letzte bekannte Menge) und im Launcher der Block „Steam läuft nicht“ (dort schreibt
+    später `SteamProgram.apply` – kleinkram baut es auf `Engine.steamRunningKnown == false`).
   - **Tests brauchen kein systemweites `ps` mehr.** `ProcessList.source` nimmt eine Liste von außen an (dann wird nichts gestartet);
     `tests/Shared/FakeProcesses.swift` baut sie aus Zeilen oder aus den eigenen PIDs der Testprozesse (libproc und deren Argumente, nie eine Liste
     aller). Umgestellt: CompleteRemoval, DetachedProcess, Epic, GOG, GameOverlay, MacVersion (der `ps`-Ersatz liest eine Datei mit den

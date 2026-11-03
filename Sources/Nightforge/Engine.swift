@@ -165,9 +165,8 @@ enum Engine {
     static func applyRetinaMode(_ wine: URL, defaults: UserDefaults = .standard) {
         let key = "retinaMode"
         // Never under a running game: ending the session would end it too.
-        guard defaults.bool(forKey: key) != launchRetina,
-              !ownProcesses().contains(where: { $0.command.lowercased().contains(#"\steamapps\common\"#) })
-        else { return }
+        // Any Windows game (Steam's, Epic's, GOG's), and not when that can't be told.
+        guard defaults.bool(forKey: key) != launchRetina, windowsGameRunningKnown == false else { return }
         importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
                        wine: wine)
         stopAll(wine)
@@ -257,21 +256,39 @@ enum Engine {
     /// Whether Steam's main process is running (any prefix; good enough to notice a crash or restart).
     /// Only Nightforge's own Steam counts – not one from a CrossOver bottle, and not a Steam left
     /// behind without its wineserver (it can't do anything any more and would block a fresh start).
-    static var isSteamRunning: Bool {
-        let ours = ownProcesses()
-        return ours.contains { $0.command.lowercased().contains(#"\steam\steam.exe"#) }
-            && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+    /// False also when `ps` doesn't answer: where "not running" lets Nightforge start, write or move
+    /// something, ask `steamRunningKnown` (nil: not known) or `steamMayBeRunning`.
+    static var isSteamRunning: Bool { steamRunningKnown ?? false }
+
+    /// Whether Steam runs, nil when no process list is to be had (`ProcessList`: `ps` has been seen not answering
+    /// for good). An empty list that was asked for says "no".
+    static var steamRunningKnown: Bool? {
+        ownProcessesKnown().map { ours in
+            ours.contains { $0.command.lowercased().contains(#"\steam\steam.exe"#) }
+                && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+        }
     }
+
+    /// For what mustn't happen to a Steam that runs (its files written, its game moved): true while it can't be
+    /// told it doesn't.
+    static var steamMayBeRunning: Bool { steamRunningKnown != false }
 
     /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
     /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games – or,
     /// started by a launcher with its bare name, runs from there: GameProcesses.runsFrom).
-    static var windowsGameRunning: Bool {
-        ownProcesses().contains { process in
-            let command = process.command.lowercased()
-            return GameProcesses.gameFolders.contains { command.contains($0.lowercased()) }
-                || command.contains(".exe") && GameProcesses.runsFrom(GameProcesses.gameFolders, command: command,
-                                                                      cwd: GameProcesses.cwd(of: process.pid))
+    /// True also when no process list is to be had: it is asked before things that mustn't happen under a game
+    /// (an engine switch, a graphics install, D3DMetal's removal, a Steam restart), which wait then.
+    static var windowsGameRunning: Bool { windowsGameRunningKnown ?? true }
+
+    /// Whether a Windows game runs, nil when that isn't known (`ProcessList`).
+    static var windowsGameRunningKnown: Bool? {
+        ownProcessesKnown().map { ours in
+            ours.contains { process in
+                let command = process.command.lowercased()
+                return GameProcesses.gameFolders.contains { command.contains($0.lowercased()) }
+                    || command.contains(".exe") && GameProcesses.runsFrom(GameProcesses.gameFolders, command: command,
+                                                                          cwd: GameProcesses.cwd(of: process.pid))
+            }
         }
     }
 
@@ -279,9 +296,16 @@ enum Engine {
     /// line ps shows – Wine rewrites that to the Windows program. Not Nightforge Helper, which only
     /// waits for the program it started (and ending it would look as if that program had failed).
     static func ownProcesses(under folder: URL = supportDir) -> [(pid: pid_t, command: String)] {
+        ownProcessesKnown(under: folder) ?? []
+    }
+
+    /// The same, nil when no process list is to be had (`ProcessList`): "none" and "not known" are two answers.
+    /// An old list counts (its pids are checked again by their programs below); whoever needs to know that
+    /// something is gone looks at `processLookup(allowOld: false)`.
+    static func ownProcessesKnown(under folder: URL = supportDir) -> [(pid: pid_t, command: String)]? {
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
-        return processTable().filter { process in
+        return processLookup().value?.filter { process in
             // Inside the folder, not merely a sibling with the same start (engine 4.7.3 vs 4.7.3-3).
             guard let path = executablePath(process.pid) else { return false }
             return (path == root || path.hasPrefix(root + "/")) && !path.hasPrefix(helper)
@@ -289,13 +313,19 @@ enum Engine {
     }
 
     /// Every process with the command line `ps` shows (`ProcessList`: limited, and the last list when `ps`
-    /// has stopped answering – the callers check each pid they act on).
+    /// has stopped answering – the callers check each pid they act on). [] when there is none at all: callers
+    /// that conclude from an empty list use `processLookup`.
     static func processTable() -> [(pid: pid_t, command: String)] {
-        guard let text = ProcessList.ps("pid=,command=", stale: true) else { return [] }
-        return text.split(separator: "\n").compactMap { line in
-            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
-            guard parts.count == 2, let pid = pid_t(parts[0]) else { return nil }
-            return (pid, String(parts[1]))
+        processLookup().value ?? []
+    }
+
+    static func processLookup(allowOld: Bool = true) -> ProcessListing<[(pid: pid_t, command: String)]> {
+        ProcessList.listing("pid=,command=", allowOld: allowOld).map { text in
+            text.split(separator: "\n").compactMap { line in
+                let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+                guard parts.count == 2, let pid = pid_t(parts[0]) else { return nil }
+                return (pid, String(parts[1]))
+            }
         }
     }
 
@@ -617,7 +647,7 @@ enum Engine {
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
             if await store.manifestIsSigned { removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal) }
-            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
+            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { ownProcessesKnown(under: $0)?.isEmpty != true }
         }
         return wine
     }
@@ -668,7 +698,8 @@ enum Engine {
             && (try? id.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
             let versions = (try? fm.contentsOfDirectory(at: id, includingPropertiesForKeys: nil)) ?? []
             for version in versions where version.lastPathComponent != wanted[id.lastPathComponent] {
-                guard ownProcesses(under: version).isEmpty else { continue }
+                // Not one something runs from – nor one whose users can't be told.
+                guard ownProcessesKnown(under: version)?.isEmpty == true else { continue }
                 try? fm.removeItem(at: version)
             }
             if (try? fm.contentsOfDirectory(atPath: id.path))?.isEmpty == true { try? fm.removeItem(at: id) }
@@ -2046,6 +2077,8 @@ enum Engine {
     static func ensureSteamRunning(_ wine: URL, busy: Bool = false) async throws {
         let key = "steamConfigSignature"
         let current = UserDefaults.standard.string(forKey: key) == steamConfigSignature
+        // No process list to be had: neither a second Steam is started nor this one ended.
+        guard steamRunningKnown != nil else { return }
         // A Steam whose wineserver is gone: clear it away before starting afresh. A running game's
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
@@ -2391,7 +2424,8 @@ enum Engine {
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
         var wine = wine
-        if !isSteamRunning {
+        // Only for a Steam that is known not to run: its files are written here (LaunchOptions too).
+        if steamRunningKnown == false {
             SteamGuideButton.turnOff(steamRoot: steamRoot)
             SteamProgram.apply(steamRoot: steamRoot)
             wine = steamEngine(wine)
