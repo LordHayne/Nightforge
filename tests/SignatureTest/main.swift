@@ -210,10 +210,40 @@ struct SignatureTest {
         publish("2026-11-04T04:17:00Z", signedBy: mainKey)
         check((try? await store().manifest())?.generated == "2026-11-04T04:17:00Z" && !SignedLists.older.contains(SignedLists.components),
               "the same list signed again counts, and the note goes")
+        // The app's own list newer than the kept one (an app update): its own counts (review N6).
+        let ownData = try? Data(contentsOf: bundled)
+        let behindText = (String(data: ownData ?? Data(), encoding: .utf8) ?? "")
+            .replacingOccurrences(of: #""generated": "[^"]*""#, with: #""generated": "2026-01-01T00:00:00Z""#, options: .regularExpression)
+        let keptURL = root.appendingPathComponent("manifest.json")
+        try? Data(behindText.utf8).write(to: keptURL)
+        try? sign(Data(behindText.utf8), mainKey).write(to: Signature.file(for: keptURL))
+        let offline = ComponentStore(root: root, remoteManifestURL: nil, bundledManifestURL: bundled, keys: keys)
+        check((try? await offline.manifest())?.generated == own?.generated, "a kept list older than the app's own: the app's own counts")
+        check(await !offline.manifestIsSigned, "and with it nothing installed is taken away")
+        check(ComponentStore.newerFirst(kept: Data(behindText.utf8), own: ownData).first?.1 == false
+              && ComponentStore.newerFirst(kept: ownData, own: Data(behindText.utf8)).first?.1 == true,
+              "Settings › About takes the newer of the two as well")
+        publish("2026-02-01T00:00:00Z", signedBy: mainKey)
+        let behindOnline = store()
+        check((try? await behindOnline.manifest())?.generated == own?.generated && !SignedLists.older.contains(SignedLists.components),
+              "an online list newer than the kept one but older than the app's own: the app's own, and nothing to tell")
+        check(Signature.signedContents(of: keptURL, keys: keys).map { String(decoding: $0, as: UTF8.self).contains("2026-01-01") } == true,
+              "the kept copy isn't overwritten with it")
+
         check(SignedLists.isOlder(Data(#"{"generated": "2026-11-04"}"#.utf8), than: Data(#"{"generated": "2026-11-04T04:17:00Z"}"#.utf8))
               && SignedLists.isOlder(Data("{}".utf8), than: Data(#"{"generated": "2026-11-04"}"#.utf8))
               && !SignedLists.isOlder(Data("{}".utf8), than: Data("{}".utf8)),
               "a date alone is older than a time that day; no stamp is older than one; without a kept stamp nothing is")
+
+        // A kept stamp from the future (a wrong clock, a typo) mustn't lock the channel (review N5).
+        let now = Date(), iso = ISO8601DateFormatter()
+        func stamped(_ stamp: String) -> Data { Data(#"{"generated": "\#(stamp)"}"#.utf8) }
+        let today = stamped(iso.string(from: now))
+        check(!SignedLists.isOlder(today, than: stamped(iso.string(from: now.addingTimeInterval(10 * 86_400))), now: now),
+              "a kept stamp ten days ahead counts as none")
+        check(SignedLists.isOlder(today, than: stamped(iso.string(from: now.addingTimeInterval(86_400))), now: now),
+              "one a day ahead still counts")
+        check(!SignedLists.isOlder(stamped("2026-11-03"), than: stamped("2999-01-01"), now: now), "a date alone far ahead too")
     }
 
     static func profiles() async {
@@ -246,5 +276,10 @@ struct SignatureTest {
         check(SignedLists.older.contains(SignedLists.profiles), "noted for Settings › About")
         publish("newer", signedBy: mainKey, generated: "2026-11-03T04:37:00Z")
         check(await name() == "newer" && !SignedLists.older.contains(SignedLists.profiles), "a newer one is taken, and the note goes")
+        publish("ahead", signedBy: mainKey, generated: "2999-01-01T00:00:00Z")
+        check(await name() == "ahead", "a list from the future is taken once")
+        publish("right", signedBy: mainKey, generated: "2026-11-04T04:37:00Z")
+        check(await name() == "right" && !SignedLists.older.contains(SignedLists.profiles),
+              "but doesn't lock the channel: the next right list counts again (review N5)")
     }
 }

@@ -135,7 +135,10 @@ actor ComponentStore {
                 // Older than the list kept: an earlier one put back. The kept one stays (below).
                 let older = SignedLists.isOlder(data, than: Signature.signedContents(of: cachedManifestURL, keys: keys))
                 SignedLists.note(SignedLists.components, older: older)
-                if !older, let manifest = try? decode(data) {
+                // Older than the app's own list just means an app newer than main's list: its own counts
+                // (below), as with the profiles (review N6).
+                let olderThanOwn = SignedLists.isOlder(data, than: bundledManifestURL.flatMap { try? Data(contentsOf: $0) })
+                if !older, !olderThanOwn, let manifest = try? decode(data) {
                     try? data.write(to: cachedManifestURL, options: .atomic)
                     try? signature.write(to: Signature.file(for: cachedManifestURL), options: .atomic)
                     fetched = manifest
@@ -148,10 +151,11 @@ actor ComponentStore {
                 break
             }
         }
-        // A damaged or too-new cached copy mustn't hide the one bundled with the app.
+        // The newer of the kept copy and the app's own first, by their stamps; a damaged or too-new one
+        // mustn't hide the other.
         var failure: Error = ComponentError.noManifest
-        for (data, signed) in [(Signature.signedContents(of: cachedManifestURL, keys: keys), true),
-                               (bundledManifestURL.flatMap { try? Data(contentsOf: $0) }, false)] {
+        for (data, signed) in Self.newerFirst(kept: Signature.signedContents(of: cachedManifestURL, keys: keys),
+                                              own: bundledManifestURL.flatMap { try? Data(contentsOf: $0) }) {
             guard let data else { continue }
             do {
                 let manifest = try decode(data)
@@ -169,13 +173,19 @@ actor ComponentStore {
     static func localManifest(keys: [String] = SigningKeys.trusted) -> ComponentManifest? {
         let cached = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge/Components/manifest.json")
-        for data in [Signature.signedContents(of: cached, keys: keys),
-                     Bundle.main.url(forResource: "manifest", withExtension: "json").flatMap { try? Data(contentsOf: $0) }].compactMap({ $0 }) {
-            if let manifest = try? JSONDecoder().decode(ComponentManifest.self, from: data) {
+        for (data, _) in newerFirst(kept: Signature.signedContents(of: cached, keys: keys),
+                                    own: Bundle.main.url(forResource: "manifest", withExtension: "json").flatMap { try? Data(contentsOf: $0) }) {
+            if let data, let manifest = try? JSONDecoder().decode(ComponentManifest.self, from: data) {
                 return manifest
             }
         }
         return nil
+    }
+
+    /// The kept, signed list and the app's own, the newer first (the kept one when they're alike);
+    /// with it whether it's the signed one.
+    static func newerFirst(kept: Data?, own: Data?) -> [(Data?, Bool)] {
+        kept.map { SignedLists.isOlder($0, than: own) } == true ? [(own, false), (kept, true)] : [(kept, true), (own, false)]
     }
 
     /// The list that came with the app. A component it names that the online list doesn't yet (an

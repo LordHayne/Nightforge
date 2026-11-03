@@ -57,8 +57,14 @@ done
 [ ${#todo[@]} -gt 0 ] || { echo "Nothing to sign."; exit 0; }
 
 # The app takes no list older than the one it has, by its "generated" stamp: a list that changed
-# needs a newer one than main's, or every Nightforge would turn it away.
+# needs a newer one than main's, or every Nightforge would turn it away. And none from the future: once
+# taken, it would turn away the right lists after it (review N5).
 stamp() { plutil -extract generated raw -o - "$1" 2>/dev/null || true; }
+limit="$(date -u -v+1d +%Y-%m-%dT%H:%M:%SZ)"
+for list in "${todo[@]}"; do
+  ours="$(stamp "$tree/$list")"
+  [[ ! "$ours" > "$limit" ]] || fail "$list has \"generated\" $ours, more than a day ahead: fix the clock or the stamp first."
+done
 if [ "$branch" != main ]; then
   for list in "${todo[@]}"; do
     git -C "$tree" cat-file -e "origin/main:$list" 2>/dev/null || continue
