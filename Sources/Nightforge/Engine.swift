@@ -501,24 +501,25 @@ enum Engine {
     static func killLeftovers() {
         // As the kernel reports them: /private/var/… stays (resolvingSymlinksInPath drops /private).
         let root = realPath(prefix)
-        let engines = engineFolders.map(realPath)
+        let engines = engineFolders.map(realPath), components = realPath(ComponentStore.shared.root)
         var pids = [pid_t](repeating: 0, count: 4096)
         let bytes = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
         guard bytes > 0 else { return }
         for pid in pids.prefix(Int(bytes)) where pid > 0 {
-            guard let path = executablePath(pid), isWineProgram(path, engines: engines) else { continue }
+            guard let path = executablePath(pid), isWineProgram(path, engines: engines, components: components) else { continue }
             var info = proc_vnodepathinfo()
             let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
             guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { continue }
             let cwd = withUnsafeBytes(of: info.pvi_cdir.vip_path) { raw in
                 String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
             }
-            if cwd.hasPrefix(root) { kill(pid, SIGKILL) }
+            // The prefix itself or below it: "Prefix-backup" beside it starts with the same letters.
+            if cwd == root || cwd.hasPrefix(root + "/") { kill(pid, SIGKILL) }
         }
         // Wine processes working somewhere else (Steam's own folder resolved differently, …)
         // still run Nightforge's engine.
         for process in ownProcesses() where process.pid != getpid() {
-            guard let path = executablePath(process.pid), isWineProgram(path, engines: engines) else { continue }
+            guard let path = executablePath(process.pid), isWineProgram(path, engines: engines, components: components) else { continue }
             kill(process.pid, SIGKILL)
         }
     }
@@ -534,11 +535,13 @@ enum Engine {
         [engineID, winecxEngineID, "wine-staging"].map { ComponentStore.shared.root.appendingPathComponent($0, isDirectory: true) }
     }
 
-    /// A Wine program: run from one of the engines, or a Wine binary by name. Nightforge's other
-    /// components (gogdl, legendary) aren't.
-    static func isWineProgram(_ path: String, engines: [String]) -> Bool {
+    /// A Wine program: run from one of the engines, or a Wine binary by name elsewhere in Nightforge's
+    /// components (`components`: ComponentStore's folder, resolved like the paths). Nightforge's other
+    /// components (gogdl, legendary) aren't, nor another app's Wine (CrossOver, Homebrew) by its name.
+    static func isWineProgram(_ path: String, engines: [String], components: String) -> Bool {
         engines.contains { path.hasPrefix($0 + "/") }
-            || ["wine", "wine64", "wineserver", "wine-preloader", "wine64-preloader"].contains((path as NSString).lastPathComponent)
+            || path.hasPrefix(components + "/")
+                && ["wine", "wine64", "wineserver", "wine-preloader", "wine64-preloader"].contains((path as NSString).lastPathComponent)
     }
 
     /// Puts the bundled steamwebhelper wrapper in place of Steam's own (which becomes

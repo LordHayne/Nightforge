@@ -366,26 +366,30 @@ struct GOGTest {
     /// (code 137) by a GOG game's fresh Wine session on 1.11.2026.
     static func leftovers() {
         let fm = FileManager.default
-        let engines = Engine.engineFolders.map { $0.path }
-        check(Engine.isWineProgram(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine64-preloader").path, engines: engines)
-              && Engine.isWineProgram(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine").path, engines: engines),
+        let engines = Engine.engineFolders.map { $0.path }, components = ComponentStore.shared.root.path
+        func wine(_ path: String) -> Bool { Engine.isWineProgram(path, engines: engines, components: components) }
+        check(wine(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine64-preloader").path)
+              && wine(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine").path),
               "the engine's programs and its game-mode loader are Wine's")
-        check(!Engine.isWineProgram(ComponentStore.shared.root.appendingPathComponent("gogdl/1.4.0/gogdl_macos_arm64").path, engines: engines)
-              && !Engine.isWineProgram(ComponentStore.shared.root.appendingPathComponent("legendary/0.21.1/legendary_macOS_arm64").path, engines: engines),
+        check(!wine(ComponentStore.shared.root.appendingPathComponent("gogdl/1.4.0/gogdl_macos_arm64").path)
+              && !wine(ComponentStore.shared.root.appendingPathComponent("legendary/0.21.1/legendary_macOS_arm64").path),
               "gogdl and legendary aren't")
+        check(wine(ComponentStore.shared.root.appendingPathComponent("wine-devel/9.0/bin/wineserver").path)
+              && !wine("/opt/homebrew/bin/wineserver") && !wine("/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine"),
+              "a Wine binary by its name only in Nightforge's components, not another app's")
 
         // Two stand-ins (copies of this test, which wait – macOS won't run a moved /bin/sleep)
         // working in the game's folder in the prefix.
         let folder = GOGDL.windowsGamesDir.appendingPathComponent("The Evil Within 2", isDirectory: true)
         try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        func start(_ program: URL) -> Process {
+        func start(_ program: URL, in cwd: URL? = nil) -> Process {
             try? fm.createDirectory(at: program.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? fm.removeItem(at: program)
             if let me = Bundle.main.executableURL { try? fm.copyItem(at: me, to: program) }
             let process = Process()
             process.executableURL = program
             process.arguments = ["--stand-in"]
-            process.currentDirectoryURL = folder
+            process.currentDirectoryURL = cwd ?? folder
             try? process.run()
             return process
         }
@@ -393,8 +397,12 @@ struct GOGTest {
         // have copied in for `realProgram` (overwriting that made it run this test instead, c1eeaac).
         let download = start(ComponentStore.shared.root.appendingPathComponent("gogdl/0.0.0-stand-in/gogdl_macos_arm64"))
         let leftover = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine"))
+        // A Wine program in a folder beside the prefix whose name starts the same ("Prefix-backup").
+        let backup = Engine.prefix.deletingLastPathComponent().appendingPathComponent(Engine.prefix.lastPathComponent + "-backup", isDirectory: true)
+        try? fm.createDirectory(at: backup, withIntermediateDirectories: true)
+        let beside = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wineserver"), in: backup)
         Thread.sleep(forTimeInterval: 0.5)
-        check(download.isRunning && leftover.isRunning, "both run before the sweep")
+        check(download.isRunning && leftover.isRunning && beside.isRunning, "all three run before the sweep")
         // The sweep's second look is at the programs started from the engine: the two stand-ins, by their own pids.
         FakeProcesses.install { FakeProcesses.rows(of: [download.processIdentifier, leftover.processIdentifier]) }
         Engine.killLeftovers()
@@ -402,8 +410,11 @@ struct GOGTest {
         Thread.sleep(forTimeInterval: 0.5)
         check(download.isRunning, "a download working in the prefix outlives the sweep")
         check(!leftover.isRunning, "a Wine program left there doesn't")
+        check(beside.isRunning, "nor is one in \"\(backup.lastPathComponent)\" beside the prefix ended")
         download.terminate()
+        beside.terminate()
         if leftover.isRunning { leftover.terminate() }
+        try? fm.removeItem(at: backup)
     }
 
     /// The real gogdl, when run.sh found it installed on this Mac: started the way Nightforge starts
