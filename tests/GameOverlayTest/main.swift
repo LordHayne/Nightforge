@@ -177,6 +177,10 @@ struct GameOverlayTest {
               "winecx's level for a topmost window, just above the Dock (Wukong's driver warning in the game tests, 2.11.)")
         check(GameProcesses.question([window(7000, 286, 251, layer: 20)], pids: game) == nil
               && GameProcesses.question([window(7000, 286, 251, layer: 19)], pids: game) == nil, "the Dock's and utility levels aren't Wine's")
+        check(GameProcesses.question([window(7000, 1512, 982, layer: 21)], pids: game) == nil
+              && GameProcesses.question([window(7000, 3024, 1964, layer: 26)], pids: game) == nil
+              && GameProcesses.question([window(7000, 800, 400, layer: 27)], pids: game) == nil,
+              "a full-screen window high up – topmost, or winecx's level for full screen – is a picture, not a question")
         check(GameProcesses.question([window(7000, 380, 330, layer: 101)], pids: game) == nil, "a menu doesn't")
         check(GameProcesses.question([window(7000, 380, 330, layer: -20)], pids: game) == nil, "nor one below the windows")
         check(GameProcesses.question([window(7000, 380, 330, alpha: 0)], pids: game) == nil, "an invisible one doesn't")
@@ -321,9 +325,11 @@ struct GameOverlayTest {
             check(false, "the stand-in started")
             return
         }
+        // Never left behind, whatever the checks find: it shrugs off SIGTERM and may be paused, so SIGKILL
+        // by its own number (3.11.: with ps hanging, the list was empty, nothing ended it, the test waited for good).
         defer {
-            game.terminate()
-            session.terminate()
+            kill(game.processIdentifier, SIGKILL)
+            kill(session.processIdentifier, SIGKILL)
         }
         Thread.sleep(forTimeInterval: 0.6)
 
@@ -348,8 +354,11 @@ struct GameOverlayTest {
         check(!GameProcesses.alive(game.processIdentifier), "ended, though it ignored SIGTERM and was paused")
         check(took >= 1 && took < 4, "after the patience, not before or long after (\(String(format: "%.1f", took)) s)")
         check(GameProcesses.alive(session.processIdentifier), "the Wine session lives on")
-        game.waitUntilExit()
-        check(game.terminationReason == .uncaughtSignal && game.terminationStatus == SIGKILL, "it took SIGKILL (\(game.terminationStatus))")
+        if GameProcesses.alive(game.processIdentifier) { kill(game.processIdentifier, SIGKILL) }
+        let until = Date().addingTimeInterval(5)
+        while game.isRunning, Date() < until { Thread.sleep(forTimeInterval: 0.05) }
+        check(!game.isRunning && game.terminationReason == .uncaughtSignal && game.terminationStatus == SIGKILL,
+              "it took SIGKILL (\(game.isRunning ? "still running" : String(game.terminationStatus)))")
         bareName()
     }
 
