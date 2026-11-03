@@ -47,6 +47,10 @@ enum WineSandbox {
         ("Library/Application Support/Google/Chrome", true), ("Library/Application Support/Firefox", true),
         ("Library/Application Support/BraveSoftware", true), ("Library/Application Support/Microsoft Edge", true),
         ("Library/Application Support/Arc", true), ("Library/Application Support/Claude", true),
+        // The small apps "Add to Applications" makes (GameShortcut): their scripts carry the key that
+        // shortcut-key keeps, in plain text (review of the links, 3.11.2026). They open Nightforge
+        // from the Finder; Wine never needs them.
+        ("Applications/Nightforge Games", true),
     ]
 
     /// Back in, inside a denied folder: Epic games read their ownership token (`-epicovt=`) from
@@ -60,15 +64,16 @@ enum WineSandbox {
     /// every Wine process, the scripts Nightforge runs, Apple's D3DMetal and GOG's Mac games. And what
     /// tells Nightforge what to do: the LaunchOptions it wrote into Steam's settings (SteamProgram) – a
     /// line entered there as Nightforge's would be replaced or removed at the next change (review of
-    /// 3.11.2026). Wine writes to the prefix and to the games' folders, never here.
+    /// 3.11.2026). And the signed lists it keeps (the profiles, AppleGamingWiki's, each with its .sig;
+    /// the component list is in Components): nothing forged would be accepted, but deleted or
+    /// replaced they'd cost the online copy until the next download. Wine writes to the prefix and
+    /// to the games' folders, never here.
     static let readOnlyInSupport: [(path: String, folder: Bool)] = [
         ("Components", true), (DetachedProcess.helperName, true), (DockHider.name, false), ("steam-shutdown.sh", false),
         ("steam-priority.sh", false), ("steam-priority.pid", false), ("D3DMetal", true), ("GOG/Games", true),
-        ("launchoptions-written.json", false),
+        ("launchoptions-written.json", false), ("profiles.json", false), ("profiles.json.sig", false),
+        ("agw.json", false), ("agw.json.sig", false),
     ]
-
-    /// In the home folder: the small apps "Add to Applications" makes, which open Nightforge (GameShortcut).
-    static let readOnlyInHome: [(path: String, folder: Bool)] = [("Applications/Nightforge Games", true)]
 
     /// The profile: everything allowed, then the denied places, then the exceptions, then what keeps
     /// the places where they are.
@@ -82,7 +87,7 @@ enum WineSandbox {
         let denied = deniedInSupport.map { place(support, $0) } + deniedInHome.map { place(home, $0) }
         let allowed = allowedInSupport.map { place(support, ($0, true)) }
         // The app and the helper's requests: subpaths of folders that exist (the runs folder may not yet).
-        let readOnly = readOnlyInSupport.map { place(support, $0) } + readOnlyInHome.map { place(home, $0) }
+        let readOnly = readOnlyInSupport.map { place(support, $0) }
             + [(canonical(places.app), true), (canonical(places.temporary) + "/Nightforge-runs", true),
                (home + "/Library/Preferences/" + places.preferences + ".plist", false)]
         // Seatbelt checks a rename at the old and the new path, not at what's inside: renaming a folder
