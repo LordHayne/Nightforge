@@ -1449,9 +1449,8 @@ enum Engine {
         else { return }
         let package = mono.appendingPathComponent("\(version)/support/winemono-support.msi")
         await Task.detached(priority: .userInitiated) {
-            let process = DetachedProcess()
-            process.executableURL = wine
-            process.arguments = ["msiexec", "/i", "Z:" + package.path.replacingOccurrences(of: "/", with: "\\"), "/qn"]
+            guard let process = try? WineSandbox.process(wine, ["msiexec", "/i", "Z:" + package.path.replacingOccurrences(of: "/", with: "\\"), "/qn"])
+            else { return }
             var env = environment(wine: wine)
             env["WINEDLLOVERRIDES"] = nil  // setup's switch that keeps Mono out
             process.environment = env
@@ -1525,14 +1524,14 @@ enum Engine {
         env["XDG_CACHE_HOME"] = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge", isDirectory: true).path
 
-        let process = DetachedProcess()
-        process.executableURL = script
-        process.arguments = ["--unattended"] + verbs
+        guard let process = try? WineSandbox.process(script, ["--unattended"] + verbs) else {
+            try? log?.close()
+            return false
+        }
         process.environment = env
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        WineSandbox.wrap(&process.executableURL, &process.arguments)
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { finished in
                 try? log?.close()
@@ -1734,9 +1733,10 @@ enum Engine {
         guard (try? ("REGEDIT4\n\n" + body + "\n").write(to: file, atomically: true, encoding: .utf8)) != nil else { return false }
         defer { try? FileManager.default.removeItem(at: file) }
 
-        let regedit = DetachedProcess()
-        regedit.executableURL = wine
-        regedit.arguments = ["regedit", "/S", #"C:\windows\temp\"# + file.lastPathComponent]
+        // In the sandbox like every Wine start: the first of a session starts its wineserver.
+        guard let regedit = try? WineSandbox.process(wine, ["regedit", "/S", #"C:\windows\temp\"# + file.lastPathComponent]) else {
+            return false
+        }
         regedit.environment = environment(wine: wine)
         regedit.standardOutput = FileHandle.nullDevice
         regedit.standardError = FileHandle.nullDevice
@@ -1979,14 +1979,11 @@ enum Engine {
     /// Runs a Wine command and waits for it (and the wineserver it started) to finish.
     static func run(_ wine: URL, _ arguments: [String]) async throws -> Int32 {
         try await Task.detached(priority: .userInitiated) {
-            let process = DetachedProcess()
-            process.executableURL = wine
-            process.arguments = arguments
+            let process = try WineSandbox.process(wine, arguments)
             process.environment = environment(wine: wine)
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
-            WineSandbox.wrap(&process.executableURL, &process.arguments)
             try process.run()
             process.waitUntilExit()
 
@@ -2400,10 +2397,9 @@ enum Engine {
             wine = steamEngine(wine)
             lastSteamStart = (wine, Date())
         }
-        let process = DetachedProcess()
         let loader = loader(for: wine)
-        process.executableURL = loader
-        process.arguments = [steamExeWindowsPath] + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments
+        let process = try WineSandbox.process(loader, [steamExeWindowsPath]
+            + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments)
         var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
         env["WINEDLLOVERRIDES"] = steamDLLOverrides
         if loader != wine { env["WINELOADER"] = loader.path }
@@ -2414,7 +2410,6 @@ enum Engine {
         let log = GameLog.handleForSteam()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        WineSandbox.wrap(&process.executableURL, &process.arguments)
         try process.run()
     }
 }

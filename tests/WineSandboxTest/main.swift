@@ -69,15 +69,29 @@ struct WineSandboxTest {
         let helper = URL(fileURLWithPath: "/app/nightforge-sandbox")
         var executable: URL? = wine
         var programArguments: [String]? = ["steam.exe", "-silent"]
-        WineSandbox.wrap(&executable, &programArguments, enabled: false, helper: helper, places: places)
+        try? WineSandbox.wrap(&executable, &programArguments, enabled: false, helper: nil, places: places)
         check(executable == wine && programArguments == ["steam.exe", "-silent"], "switched off, the start is exactly as before")
-        WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: nil, places: places)
-        check(executable == wine, "without the helper (a build without it, tests) the start stays as it is")
-        WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: helper, places: places)
+        // Switched on without the helper (a build without an x86_64 clang, a damaged bundle): no start
+        // at all, never one without the sandbox (review H3, 3.11.2026).
+        do {
+            try WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: nil, places: places)
+            check(false, "switched on without the helper: no start")
+        } catch let error as WineSandbox.HelperMissing {
+            check(error.localizedDescription.lowercased().contains("sandbox") && executable == wine, "it says why, and nothing was changed")
+        } catch {
+            check(false, "the error says the helper is missing: \(error)")
+        }
+        try? WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: helper, places: places)
         let file = WineSandbox.profileFile(places)
         check(executable == helper && programArguments == [file.path, wine.path, "steam.exe", "-silent"],
               "switched on: the helper, the profile, then the program: \(programArguments ?? [])")
         check((try? String(contentsOf: file, encoding: .utf8)) == profile, "the profile is written where the helper reads it")
+
+        // MARK: Every Wine start goes through WineSandbox.process
+        everyWineStartWrapped()
+        let plain = try? WineSandbox.process(wine, ["regedit", "/S", "x.reg"], sandboxed: false)
+        check(plain?.executableURL == wine && plain?.arguments == ["regedit", "/S", "x.reg"], "a CrossOver bottle's Wine starts as it is")
+        sessionSwitch(wine)
 
         // MARK: The helper with the real profile
         guard arguments.count >= 3 else {
@@ -111,6 +125,63 @@ struct WineSandboxTest {
         check(run(realHelper, [root.appendingPathComponent("missing.sb").path, cat.path, open[0].path]).status == 71,
               "without its profile the helper starts nothing")
         finish()
+    }
+
+    /// Reads the sources: a program is started only through WineSandbox.process, or is one of these,
+    /// none of them Wine. A Wine start of its own – regedit and msiexec were, 3.11.2026 – would begin
+    /// a session whose wineserver opens files outside the sandbox for every program in it.
+    static func everyWineStartWrapped() {
+        let notWine: [(file: String?, start: String)] = [
+            (nil, #"URL(fileURLWithPath: "/"#),                 // system tools: /bin/ps, /usr/bin/open, …
+            (nil, "URL(fileURLWithPath: tool)"),                // hdiutil, ditto and the like, by path
+            // wineserver -k and -w end or wait for a session; they never begin one.
+            (nil, #"wine.deletingLastPathComponent().appendingPathComponent("wineserver")"#),
+            ("Detached.swift", "executableURL"),                // its own fallback, run as it was given
+            ("WineSandbox.swift", "program"),                   // the start it built, wrapped
+            ("Engine.swift", "lsregister"), ("Legendary.swift", "binary"), ("GOGStore.swift", "program"),  // Mac programs
+            ("MacSteamTestHome.swift", "executable"),
+        ]
+        let folder = URL(fileURLWithPath: "Sources/Nightforge", isDirectory: true)
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        check(files.count > 50, "the sources are read from the repository: \(files.count) files")
+        var starts = 0
+        for file in files where file.pathExtension == "swift" {
+            let lines = ((try? String(contentsOf: file, encoding: .utf8)) ?? "").components(separatedBy: "\n")
+            for (number, line) in lines.enumerated() {
+                guard let range = line.range(of: "executableURL = ") else { continue }
+                starts += 1
+                let start = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                let known = notWine.contains { ($0.file == nil || $0.file == file.lastPathComponent) && start.hasPrefix($0.start) }
+                check(known, "\(file.lastPathComponent):\(number + 1) starts a program past WineSandbox.process: \(start)")
+            }
+        }
+        check(starts > 10, "the starts were found: \(starts)")
+        let engine = (try? String(contentsOf: folder.appendingPathComponent("Engine.swift"), encoding: .utf8)) ?? ""
+        for start in [#"WineSandbox.process(wine, ["regedit""#, #"WineSandbox.process(wine, ["msiexec""#] {
+            check(engine.contains(start), "\(start) – in the sandbox like the rest")
+        }
+    }
+
+    /// A Wine session begun with the switch the other way ends before anything else starts in it,
+    /// but never under a running game.
+    static func sessionSwitch(_ wine: URL) {
+        let suite = "nightforge.wine-sandbox-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var ended: [URL] = []
+        func settle(_ enabled: Bool, game: Bool = false) {
+            WineSandbox.settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: { game }, end: { ended.append($0) })
+        }
+        settle(false)
+        check(ended.isEmpty, "off, and never switched on: the session goes on")
+        settle(true)
+        check(ended == [wine] && defaults.bool(forKey: WineSandbox.sessionKey), "switched on: the session from before ends, once")
+        settle(true)
+        check(ended.count == 1, "and then goes on")
+        settle(false, game: true)
+        check(ended.count == 1 && defaults.bool(forKey: WineSandbox.sessionKey), "switched off under a running game: it goes on for now")
+        settle(false)
+        check(ended.count == 2 && !defaults.bool(forKey: WineSandbox.sessionKey), "once the game has ended, it ends")
     }
 
     static func finish() -> Never {

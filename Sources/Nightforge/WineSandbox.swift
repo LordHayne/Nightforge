@@ -91,14 +91,56 @@ enum WineSandbox {
         return file
     }
 
-    /// Turns a start of `executable` with `arguments` into one inside the sandbox, when it's switched
-    /// on and the helper is there; leaves it alone otherwise. Call it last, right before `run()`.
-    /// Should the profile be missing, the helper starts nothing: switched on, Wine never runs outside.
+    /// Switched on, but the helper isn't in the app (a build without an x86_64 clang, a damaged
+    /// bundle): Wine doesn't start at all, as when the helper can't apply the profile (exit 71).
+    struct HelperMissing: LocalizedError {
+        var errorDescription: String? {
+            L10n.t("The Wine sandbox is switched on, but its helper is missing from Nightforge, so Windows programs don't start. Reinstall Nightforge or switch the sandbox off.")
+        }
+    }
+
+    /// Turns a start of `executable` with `arguments` into one inside the sandbox when it's switched
+    /// on; leaves it alone when it's off. Switched on, Wine never runs outside: without the helper
+    /// this throws, and without its profile the helper starts nothing.
     static func wrap(_ executable: inout URL?, _ arguments: inout [String]?, enabled: Bool = enabled,
-                     helper: URL? = helper, places: Places = Places()) {
-        guard enabled, let helper, let program = executable else { return }
+                     helper: URL? = helper, places: Places = Places()) throws {
+        guard enabled, let program = executable else { return }
+        guard let helper else { throw HelperMissing() }
         let file = writeProfile(places)
         executable = helper
         arguments = [file.path, program.path] + (arguments ?? [])
+    }
+
+    /// A process for a Wine program – `wine`, its loader, winetricks – inside the sandbox when it's
+    /// switched on. Every start of Wine goes through here (WineSandboxTest reads the sources for
+    /// others): the first program of a session starts the wineserver, and the wineserver opens files
+    /// for every program in it. A session begun outside the sandbox (a regedit before Steam, say)
+    /// would open for all of them what the sandbox keeps away. `sandboxed` false: a CrossOver bottle,
+    /// not Nightforge's Wine. Throws when the sandbox is switched on and can't be applied.
+    static func process(_ executable: URL, _ arguments: [String], sandboxed: Bool = true) throws -> DetachedProcess {
+        var program: URL? = executable
+        var programArguments: [String]? = arguments
+        if sandboxed {
+            settleSession(executable)
+            try wrap(&program, &programArguments)
+        }
+        let process = DetachedProcess()
+        process.executableURL = program
+        process.arguments = programArguments
+        return process
+    }
+
+    /// The switch as the programs of the running Wine session were started with it.
+    static let sessionKey = "wineSandboxSession"
+
+    /// A Wine session begun with the switch the other way ends before anything else starts in it –
+    /// whoever started its wineserver – unless a game runs in it; the switch as it is now is noted
+    /// then. Without a note the session began before there was a switch: outside. `end`: Engine.stopAll.
+    static func settleSession(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
+                              gameRunning: () -> Bool = { Engine.windowsGameRunning },
+                              end: (URL) -> Void = { Engine.stopAll($0) }) {
+        guard (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled, !gameRunning() else { return }
+        end(wine)
+        defaults.set(enabled, forKey: sessionKey)
     }
 }

@@ -1959,6 +1959,16 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   - Wine mit `readprobe` im eigenen Prefix: Token über `Z:` und `\\?\unix\` gesperrt, `~/.ssh` gesperrt,
     `legendary/tmp` lesbar.
 - Ausgeschaltet startet Nightforge Wine genau wie vorher.
+- Nach dem Review der Probe-Zusammenführung (`docs/REVIEW-STAGING-031.md`, Abschnitt 1, 3.11.):
+  - H1: Jeder Wine-Start geht über `WineSandbox.process`, auch `regedit` (`importRegistry`) und `msiexec` (Wine Mono).
+    Der erste Start einer Sitzung beginnt den wineserver, und der öffnet Dateien für alle Programme darin. Eine
+    Sitzung ohne Sandbox hätte die Sperre also für alle aufgehoben. `WineSandboxTest` liest die Quellen und meldet
+    jeden anderen Programmstart, der nicht auf der Liste der Mac-Programme steht. Wird der Schalter umgelegt, endet
+    die laufende Sitzung vor dem nächsten Wine-Start (`settleSession`), egal wer ihren wineserver gestartet hat.
+    Unter einem laufenden Spiel wartet das bis zum nächsten Start ohne Spiel.
+  - H3: Ist der Schalter an und fehlt der Helfer im Bündel, startet Wine gar nicht (`WineSandbox.HelperMissing`).
+    Der Spieler sieht beim Start „Die Wine-Sandbox ist eingeschaltet, aber ihr Helfer fehlt …“. Vorher lief Wine dann
+    still ohne Sandbox.
 
 **Einschalten** (Nightforge beendet, kein Spiel läuft): `defaults write io.github.lordhayne.nightforge wineSandbox
 -bool true`, dann Nightforge öffnen. Steam startet beim ersten Spiel neu. Das Profil steht danach in
