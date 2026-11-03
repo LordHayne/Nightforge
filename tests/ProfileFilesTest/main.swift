@@ -112,6 +112,14 @@ struct ProfileFilesTest {
         check(Engine.isInside(local.appendingPathComponent("Voyage/new/x.ini"), local) && !Engine.isInside(local, local)
               && !Engine.isInside(local.appendingPathComponent("Linked/x.ini"), local), "inside, with what isn't there yet")
         for name in ["Linked", "Gone", "Alias"] { try? fm.removeItem(at: local.appendingPathComponent(name)) }
+        // A user folder linked to a folder beside the prefix whose name starts the same isn't inside it.
+        let beside = temp.appendingPathComponent("prefix-evil/Local", isDirectory: true)
+        try? fm.createDirectory(at: beside, withIntermediateDirectories: true)
+        let roaming = places.prefix.appendingPathComponent("drive_c/users/tester/AppData/Roaming")
+        try? fm.createSymbolicLink(at: roaming, withDestinationURL: beside)
+        check(SaveTransfer.windowsRoot("WinAppDataRoaming", places) == nil && SaveTransfer.windowsRoot("WinAppDataLocal", places)?.path == local.path,
+              "\"prefix-evil\" beside the prefix isn't inside \"prefix\"; the real user folder is")
+        try? fm.removeItem(at: roaming)
 
         // MARK: Edits in the user folder, once and every time
         let defaults = TestDefaults.suite("file-edits")
