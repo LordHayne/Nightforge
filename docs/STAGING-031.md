@@ -406,17 +406,98 @@ Konflikte und Anpassungen:
 - `claude/profile-guide-1a4e06` bf214f5: notiert, siehe 33.
 - `claude/quirky-clarke-81fd65` (KosmicKrisp DirectX 9): stand nicht auf der Liste.
 
+## Achte Runde (3.11., auf 4497792)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 37 | `claude/unity-play` („Play!“ in Unitys Fenster, Schalter aus) | 5b03c67 | 60e24d5 | `Profiles.swift`, `docs/TODO.md` | 0 |
+| 38 | `claude/game-test-fixes` bis 9e32feb | 9e32feb | 57730a2, dazu 78205cf | keine | 0 |
+| 39 | `claude/padfocus-test-1a4e06` | 88f0cb8 | 529ca66 | keine | 0 |
+| 40 | `claude/live-findings-0748` (ABZU, The Forest) | 65e2983 | 4cc8d42 | `docs/TODO.md` | 0 |
+| 41 | `claude/stable-codesign` | b32a8ac | f068346 | `release.yml`, `docs/TODO.md` | 0 |
+| 42 | `claude/engine-env-0f3a` bis 946c202 (nur TODO) | 946c202 | cd122f8 | keine | – |
+| 43 | `claude/release-notes-031` (Entwurf) | b03f715 | d3269e3, dazu 5dd6d71 | keine | 0 |
+
+Nicht gemergt: profile-guides bf214f5 (nicht gewählt). Der KosmicKrisp-Zweig ist noch offen, siehe unten.
+
+Konflikte und Anpassungen:
+- **37, `Profiles.swift`:** engine-envs `environment` und unity-plays `skipUnityDialog` stehen beide in den Feldern,
+  den Schlüsseln und beim Lesen. **`docs/TODO.md`:** Der Schalter `unityDialogPlay` steht in der Liste der
+  Testschalter nach dem von wine-sandbox, danach folgt engine-envs Abschnitt. So steht es auch in
+  `unity-play-staging-merge.diff` im Notizordner.
+- **37 und 38, der Name des Schalters:** Beide nennen ihn gleich, `unityDialogPlay`. game-test-fixes hatte dafür eine
+  eigene Konstante (`GameTest.Keys.unityDialogPlay`), weil `UnityDialog` auf seinem Zweig fehlte. Der Staging-Commit
+  78205cf macht daraus `UnityDialog.switchKey`, und `GameTestTest` prüft beides. `GameTestTest` ist grün.
+- **40, `docs/TODO.md`:** report-url-m3s Abschnitt zum Problembericht und live-findings' Abschnitt zum Spieletest
+  stehen hintereinander. Dessen Vorschlag für einen Play!-Helfer ist mit 37 und 38 gebaut.
+- **41, `release.yml`:** signed-updates' Entwurf eines Releases und stable-codesigns Signaturidentität laufen jetzt
+  nacheinander: zuerst die Identität, dann der Build, dann der Entwurf, danach wird der Schlüsselbund entfernt.
+  **`docs/TODO.md`:** Der Punkt zur Codesignatur steht vor signed-updates' Abschnitt. Dieser hatte den alten Punkt
+  „Updates sind nicht echt signiert“ ersetzt, der deshalb wegfällt.
+- **41, ad hoc ohne Zertifikat:** Ohne die Identität „Nightforge Code Signing“ im Schlüsselbund (`security
+  find-identity` findet keine) signiert `build.sh` wie bisher ad hoc. `codesign -dv` zeigt `Signature=adhoc`,
+  `codesign --verify --deep --strict` geht durch.
+- **43:** Der Entwurf liegt in `docs/RELEASE-NOTES-0.3.1.md`. `release.yml` nimmt für den Tag aber
+  `docs/release-notes/v0.3.1.md`, das mit 41 kam und bisher nur den Absatz zur Codesignatur enthält. Das sagt der
+  Entwurf selbst im Kopfkommentar. Vor dem Tag gehört sein Text dorthin.
+- **5dd6d71 (Staging-Commit), ein Fund des vollen Laufs:** `WineSandboxTest` meldete `UnityDialog.swift:112`.
+  unity-play startete Wine für seinen Helfer mit `DetachedProcess`, also an `WineSandbox.process` vorbei. Mit
+  eingeschalteter Sandbox wäre der Helfer in der Sitzung des Spiels außerhalb gelaufen (Review H1). Jetzt geht er über
+  `WineSandbox.process` wie die Spielstarts im Launcher. Fehlt bei eingeschalteter Sandbox ihr Helfer, startet er
+  nicht. Danach sind `WineSandboxTest` und `UnityDialogTest` grün. Der Commit gehört in `claude/unity-play`.
+- `tests/UnityDialogTest/dialog.sh` startet den Helfer unter winecx in einem eigenen Prefix. `run-tests.sh` ruft es
+  nicht auf, und ich habe es nicht laufen lassen (keine Wine-Prozesse).
+
+## Tests der achten Runde (auf d3269e3, danach 5dd6d71)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **pytest:** 123 von 123. Dazu kommen `test_codesign_app.py` (41) und die Prüfsumme von `unity-play.exe` (37).
+- **Voller Lauf `scripts/run-tests.sh -P 2` auf d3269e3:** 59 von 60 grün, neu ist `UnityDialogTest`.
+  `WineSandboxTest` schlug mit dem Fund oben fehl.
+  - Auf 5dd6d71 sind `WineSandboxTest` und `UnityDialogTest` grün, der Build geht durch.
+  - 5dd6d71 ändert nur `UnityDialog.start`, die übrigen Reihen sind dafür nicht noch einmal gelaufen.
+- **`PadFocusTest` ist mit 88f0cb8 grün, bei schlafendem Bildschirm und gesperrter Sitzung.** Der Bildschirm ist
+  seit 08:08:55 aus. Die Reihe lief allein zweimal grün und im vollen Lauf einmal. Mit „Reduce motion“ im
+  Argument-Bereich, also nur im Speicher, landet `PageScroll.show` sofort. Nichts davon wird geschrieben.
+- Die Test-Plists, die sich in dieser Zeit änderten (`removal-test` und `nightforge.wine-sandbox-test-<UUID>` um 09:21,
+  `engine-layout-test` um 09:22), entstanden, bevor Stagings Reihen dieser Namen liefen. Deren Ende: 09:23,
+  09:44 und 09:25. Sie stammen also aus dem Lauf einer anderen Sitzung.
+
+## Offen in der achten Runde: KosmicKrisp DirectX 9 (`claude/quirky-clarke-81fd65` bis 763efd2)
+
+- Die Lösung in `kosmickrisp-staging-merge.diff` stammt von 02:36, aus der Zeit vor engine-envs 4aaf428. Heute gibt
+  es fünf Konfliktstellen statt drei.
+- Drei sind klar und in einem eigenen Worktree schon gelöst:
+  - Mesas Shader-Ordner neben engine-envs Registry-Aufräumen. KosmicKrisp hat `applyGameEnvironment` selbst nicht
+    geändert, 5c8edd0 hat es entfernt.
+  - `preparePrefix` ohne `applyGameEnvironment`, mit `d3d9From`.
+  - `ensureEngine` und `useHeld` wie in der Notiz.
+- **Unklar ist der Parameter `vulkan:` von `prepareLaunchEnvironment`.**
+  - engine-env (4aaf428) hat einen eigenen Weg für Direct3D 9 auf DXVK unter winecx: Gcenx' Khronos-Loader, MoltenVK
+    und Nightforges Layer, hinter dem Schalter `vulkanLoader` (aus), mit `vulkan: [String: String]`.
+  - KosmicKrisp hat `vulkan: VulkanDriver?`. Beide setzen `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, `CX_LIBVULKAN` und
+    `VK_DRIVER_FILES`.
+  - engine-env schreibt die Loader-Variablen bei jedem Start, ohne Loader leer, also weg. KosmicKrisps `nil` lässt
+    dagegen Steams Treiber stehen, damit ein Wechsel zwischen Mafia II und einem DXMT-Spiel keinen Neustart von Steam
+    kostet.
+  - Welcher Weg bei beiden Schaltern gilt, ist eine Entscheidung. Gefragt ist die KosmicKrisp-Sitzung (09:21), mit
+    einem Vorschlag: KosmicKrisp nur bei `kosmicKrispReady`, sonst der Loader. Eine Antwort steht noch aus.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
   von 5720a1d.
 - `SubprocessTest` ist auf h1-h3 behoben (a097ccb, Merge 36).
-- `PadFocusTest` braucht einen eingeschalteten Bildschirm, siehe die Tests der siebten Runde.
+- `PadFocusTest` braucht seit 88f0cb8 (Merge 39) keinen eingeschalteten Bildschirm mehr.
+- Vor dem Tag v0.3.1: den Entwurf aus `docs/RELEASE-NOTES-0.3.1.md` nach `docs/release-notes/v0.3.1.md` (43).
 - Nur auf Staging stehen:
   - 8b5314d. engine-env hat dasselbe jetzt als 4e02fbf.
   - 49e249d, M4s „Steam ist aus“ über M3. Gehört in den M4-Zweig, sobald der M3 hat.
   - 897b94a, `WineSandboxTest` kennt `Subprocess.run`. Sollten die Sandbox- und die h1-h3-Seite übernehmen.
   - 7374066, `WineSandboxTest` legt seine Suite im Arbeitsordner an. Für `claude/wine-sandbox`.
+  - 78205cf, der Schalter des Play!-Helfers im Spieletest heißt `UnityDialog.switchKey`. Erst sinnvoll, wenn
+    unity-play und game-test-fixes zusammenkommen.
+  - 5dd6d71, Unitys Play!-Helfer startet über `WineSandbox.process`. Für `claude/unity-play`.
 - Der Stand je Befund steht jetzt in `docs/AUDIT-SICHERHEIT.md` (Merge 16).
 - Mit N1 (audit-low) startet ein `nightforge://play`-Link nur noch mit dem Schlüssel der eigenen Spiel-Apps. Eigene
   Kurzbefehle des Nutzers mit solchen Links zeigen danach die Spielseite (für den Nutzer in `docs/TODO.md`).
