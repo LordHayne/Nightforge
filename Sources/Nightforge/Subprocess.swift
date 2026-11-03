@@ -174,7 +174,11 @@ func withDeadline<T: Sendable>(_ seconds: TimeInterval, _ work: @escaping @Senda
 /// more that never ends, and one more wait for whoever asks – often the main thread). In that minute
 /// whoever may do with an old list gets the last good one (up to ten minutes old), the others nil.
 enum ProcessList {
-    /// Tests point it at a stand-in.
+    /// What `ps -axo <columns>` would say, handed in: a test with its own processes (tests/Shared/FakeProcesses.swift)
+    /// or none at all. While it is set no process is started – a `ps` that hangs on the Mac doesn't stop a series.
+    nonisolated(unsafe) static var source: ((String) -> String?)?
+
+    /// Tests of ProcessList itself point it at a stand-in program.
     nonisolated(unsafe) static var program = "/bin/ps"
     nonisolated(unsafe) static var timeout: TimeInterval = 4
     nonisolated(unsafe) static var pause: TimeInterval = 60
@@ -185,6 +189,7 @@ enum ProcessList {
 
     /// `ps -axo <columns>`. nil when it didn't answer (`stale`: the last answer, if it is not ten minutes old).
     static func ps(_ columns: String, stale: Bool = false) -> String? {
+        if let source { return source(columns) }
         let down = lock.withLock { Date() < downUntil }
         if !down {
             let result = Subprocess.run(program, ["-axo", columns], capture: true, timeout: timeout, grace: 0.5)

@@ -487,23 +487,33 @@ struct MacVersionTest {
         check(Engine.startupFinished(steamRoot: steam), "then Steam has finished starting")
 
         // MARK: Quit script: back to Nightforge when the game ends
-        // A stand-in game (a process whose path lies in the Mac library), `open` and `pgrep` replaced
-        // so nothing real is opened and no running Nightforge counts as "opened again" – only a
-        // stand-in for the Nightforge that is still quitting when the script starts – and `ps` only
-        // lists the sandbox's processes, so a real game running on this Mac doesn't count either.
+        // A stand-in game (a process whose path lies in the Mac library) and `open` replaced, so nothing real is
+        // opened; `ps` lists only the stand-ins the test has noted in a file (and only while they run), so
+        // a real game running on this Mac doesn't count, no Nightforge counts as "opened again" – the one
+        // still quitting when the script starts is left out and named by its pid – and no listing of every
+        // process on the Mac is asked for (`ps -ax` has been seen hanging for good, 3.11.2026).
         let sandbox = steam.appendingPathComponent("quit-script", isDirectory: true)
         let shims = sandbox.appendingPathComponent("bin", isDirectory: true)
         let library = sandbox.appendingPathComponent("Steam/steamapps", isDirectory: true)
         try? fm.createDirectory(at: shims, withIntermediateDirectories: true)
         let opened = sandbox.appendingPathComponent("opened.txt")
         let script = sandbox.appendingPathComponent("steam-shutdown.sh")
+        let psList = sandbox.appendingPathComponent("ps-list.tsv")
+        try? "".write(to: psList, atomically: true, encoding: .utf8)
         try? Engine.steamShutdownScript.write(to: script, atomically: true, encoding: .utf8)
+        let live = "while IFS=$'\\t' read -r pid cmd; do kill -0 \"$pid\" 2>/dev/null && printf '%s\\t%s\\n' \"$pid\" \"$cmd\"; done < '\(psList.path)'"
         for (name, body) in [("open", "echo \"$@\" > '\(opened.path)'"),
-                             ("pgrep", "case \"$*\" in *Nightforge.app*) exec /usr/bin/pgrep -qf /Fake/Nightforge.app/Contents/MacOS/Nightforge;; esac; exec /usr/bin/pgrep \"$@\""),
-                             ("ps", "/bin/ps \"$@\" | /usr/bin/grep -F -- '\(sandbox.path)'")] {
+                             ("ps", "case \"$*\" in *pid=*) { \(live); } | /usr/bin/tr '\\t' ' ' ;; *) { \(live); } | /usr/bin/cut -f2- ;; esac")] {
             let shim = shims.appendingPathComponent(name)
             try? "#!/bin/bash\n\(body)\n".write(to: shim, atomically: true, encoding: .utf8)
             try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shim.path)
+        }
+        /// A stand-in the `ps` shim lists for as long as it runs.
+        func listed(_ process: Process, as command: String) {
+            guard let handle = try? FileHandle(forWritingTo: psList) else { return }
+            _ = try? handle.seekToEnd()
+            handle.write(Data("\(process.processIdentifier)\t\(command)\n".utf8))
+            try? handle.close()
         }
         func runScript(quitting: pid_t? = nil) -> Process {
             let process = Process()
@@ -520,6 +530,7 @@ struct MacVersionTest {
         fakeGame.executableURL = URL(fileURLWithPath: "/bin/bash")
         fakeGame.arguments = ["-c", "exec -a '\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake' /bin/sleep 3"]
         try? fakeGame.run()
+        listed(fakeGame, as: "\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake")
         let quittingNightforge = Process()
         quittingNightforge.executableURL = URL(fileURLWithPath: "/bin/bash")
         quittingNightforge.arguments = ["-c", "exec -a /Fake/Nightforge.app/Contents/MacOS/Nightforge /bin/sleep 1.5"]
@@ -544,6 +555,7 @@ struct MacVersionTest {
         // The sandbox in its arguments only so that the ps stand-in lists it.
         bareGame.arguments = ["-c", "exec -a 'BareGame_DX11.exe --log=\(sandbox.path)/bare.log' /bin/sleep 3"]
         try? bareGame.run()
+        listed(bareGame, as: "BareGame_DX11.exe --log=\(sandbox.path)/bare.log")
         Thread.sleep(forTimeInterval: 0.5)
         let bareWait = runScript()
         let bareStarted = Date()
