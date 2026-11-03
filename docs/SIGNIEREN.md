@@ -77,6 +77,10 @@ Spieler sieht sie.
 
 ## 5. Das erste signierte Release
 
+Erst müssen die Schlüssel auf `main` sein, dann kommt der Tag. `release.yml` bricht ohne Schlüssel ab. Solange
+`SigningKeys.swift` auf `main` leer ist, installiert `install.sh` nur 0.3.0 (über dessen Prüfsumme), jedes andere
+Release scheitert mit „isn't signed by its maintainer“.
+
 1. Auf dem aktuellen `main` den Tag setzen und pushen (die Version kommt aus dem Tag, `release.yml` baut nur Commits
    von `main`):
 

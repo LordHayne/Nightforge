@@ -323,9 +323,10 @@ Update die installierten Apps mehr, dann hilft nur die Neuinstallation per Einze
 
 ### Was bleibt
 
-- `install.sh` läuft per `curl | bash` direkt von `main` und lädt die Schlüssel von dort. Ein fremdes Release
-  installiert es nicht mehr. Wer aber auf `main` schreiben kann, ändert das Skript gleich mit. Dagegen helfen nur
-  Regeln auf GitHub (siehe `docs/TODO.md`).
+- `install.sh` läuft per `curl | bash` direkt von `main` und lädt die Schlüssel von dort. Es schützt vor fremden
+  oder ausgetauschten Release-Dateien, nicht vor jemandem, der auf `main` schreiben kann: Der ändert Skript und
+  Schlüssel zusammen. Die App ist stärker, ihre Schlüssel sind eingebaut. Dagegen helfen Regeln auf GitHub und ein
+  Anker außerhalb von GitHub (beides in `docs/TODO.md`).
 - `codesign --verify` im Updater prüft ohne Anforderung (`-R`): Die Releases sind ad hoc signiert, eine Anforderung
   gäbe es erst mit einer Developer-ID. Woher die App stammt, belegt die Ed25519-Signatur davor.
 - Das DMG ist nicht signiert (Ad-hoc wie bisher, es dient nur der Hand-Installation).

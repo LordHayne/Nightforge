@@ -1606,6 +1606,9 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
       „aus“. Dann pusht `profiles.yml` den Zweig `bot/profiles` trotzdem, endet rot und nennt den Link zum Öffnen
       von Hand (`components.yml` endet nur rot). Freigeben (approve) kann der Bot nur, wenn ein Ruleset Reviews
       verlangt, und das ist hier nicht so.
+  - **Vorschlag (Review M2): ein Anker für `install.sh` außerhalb von GitHub.** Heute kommen Skript und Schlüssel
+    beide von `main`. Stärker wäre der Fingerabdruck der Schlüssel auf einer eigenen Domain oder, mit Datum, in der
+    README einer zweiten Stelle, die `install.sh` vergleicht.
   - **Offen aus dem Audit M1:** dieselbe Prüfung von `dllOverrides` und `arguments` auch in der App beim Lesen
     (`Profiles.swift`, wie `isSafeWinetricksVerb`). Mit den Signaturen und dem Prüfschritt im Workflow ist das nur
     noch eine zweite Linie.

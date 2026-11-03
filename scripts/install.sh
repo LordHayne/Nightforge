@@ -12,9 +12,10 @@ APP="Nightforge.app"
 
 fail() { echo "✗ $*" >&2; exit 1; }
 
-# Only a release the maintainer signed is installed (docs/SICHERHEIT-0.3.md › Signierte Releases), so one
-# made with a stolen GitHub token doesn't reach new players. The public keys come from main, like this
-# script. For testing: NIGHTFORGE_RELEASE (in place of GitHub's newest release; file:// works) and
+# Only a release the maintainer signed is installed (docs/SICHERHEIT-0.3.md › Signierte Releases), so a
+# release file added or swapped on GitHub doesn't reach new players. The public keys come from main, like
+# this script: whoever can change main can change both. While SigningKeys.swift on main has no keys, only
+# 0.3.0 installs. For testing: NIGHTFORGE_RELEASE (in place of GitHub's newest release; file:// works) and
 # NIGHTFORGE_SIGNING_KEYS (in place of main's SigningKeys.swift). A NIGHTFORGE_ZIP is taken as it is.
 RELEASE="${NIGHTFORGE_RELEASE:-https://api.github.com/repos/$REPO/releases/latest}"
 SIGNING_KEYS="${NIGHTFORGE_SIGNING_KEYS:-https://raw.githubusercontent.com/$REPO/main/Sources/Nightforge/SigningKeys.swift}"
