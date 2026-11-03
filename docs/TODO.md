@@ -1596,6 +1596,14 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     - **Release-Environment mit Freigabe:** Settings › Environments › `release` mit „Required reviewers“ (du),
       dann in `release.yml` beim Job `environment: release` eintragen. Jeder Release-Lauf wartet so auf deinen Klick.
       Die Zeile in `release.yml` erst einfügen, wenn das Environment existiert, sonst legt GitHub es ohne Regel an.
+    - **„Allow GitHub Actions to create and approve pull requests“** (Settings › Actions › General) muss **an**
+      bleiben, solange `components.yml` und `profiles.yml` ihre Pull Requests selbst öffnen. Der Audit rät zu
+      „aus“. Dann pusht `profiles.yml` den Zweig `bot/profiles` trotzdem, endet rot und nennt den Link zum Öffnen
+      von Hand (`components.yml` endet nur rot). Freigeben (approve) kann der Bot nur, wenn ein Ruleset Reviews
+      verlangt, und das ist hier nicht so.
+  - **Offen aus dem Audit M1:** dieselbe Prüfung von `dllOverrides` und `arguments` auch in der App beim Lesen
+    (`Profiles.swift`, wie `isSafeWinetricksVerb`). Mit den Signaturen und dem Prüfschritt im Workflow ist das nur
+    noch eine zweite Linie.
   `enginefix` fällt unter die Prüfung der Komponentenliste: `Engine` holt es über `ComponentStore.manifest()` (nur
   signiert) und `install` prüft das Paket gegen dessen SHA-256 vor dem Auspacken. Eine eigene `.sig` braucht es nicht.
   Was nicht abgedeckt ist: Den Inhalt baut `enginefix.yml` auf GitHub. Die Signatur bestätigt nur, dass du die

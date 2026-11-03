@@ -137,6 +137,47 @@ def safe_verb(verb) -> bool:
     return isinstance(verb, str) and SAFE_VERB.fullmatch(verb) is not None and verb not in WINETRICKS_COMMANDS
 
 
+# DLL overrides and arguments go from a stranger's repository to every player's game start, so only
+# plain ones pass (Audit M1): a DLL by its bare name ("*" in front: wherever it loads from, as Wine
+# writes it) with one of the orders above, never Wine's own core; arguments without paths that leave
+# the game, spaces, quotes or control characters. The workflow checks the finished list the same way.
+SAFE_DLL = re.compile(r"\*?[a-z0-9_][a-z0-9_.-]{0,63}")
+CORE_DLLS = {"ntdll", "kernel32", "kernelbase", "user32", "gdi32", "win32u", "advapi32", "sechost", "ucrtbase",
+             "msvcrt", "ole32", "combase", "rpcrt4", "winemac.drv", "wow64", "wow64win", "wow64cpu"}
+MAX_DLL_OVERRIDES = 32
+SAFE_ARGUMENT = re.compile(r"[A-Za-z0-9_.=+/-]{1,64}")
+MAX_ARGUMENTS = 16
+
+
+def dll_override_allowed(name, order) -> bool:
+    if not (isinstance(name, str) and SAFE_DLL.fullmatch(name) and isinstance(order, str)):
+        return False
+    return ".." not in name and name.lstrip("*").removesuffix(".dll") not in CORE_DLLS \
+        and order in OVERRIDE_ORDERS.values()
+
+
+def argument_allowed(argument) -> bool:
+    """An option ("-dx11", "+r_renderAPI", "/dx11", "-vomstyle=layer") or its value ("1", "glide_fix.conf").
+    No drive (no ":"), no home, no path from the root, also behind an "=". A relative path may go one
+    folder up, where a game in a bin folder keeps its data (Darktide's "--bundle-dir ../bundle")."""
+    if not (isinstance(argument, str) and SAFE_ARGUMENT.fullmatch(argument)):
+        return False
+    for value in argument.split("="):
+        parts = value.split("/")
+        if value.startswith("//") or value.startswith("/") and len(parts) > 2 or ".." in parts[1:]:
+            return False
+    return True
+
+
+def overrides_allowed(overrides) -> bool:
+    return isinstance(overrides, dict) and len(overrides) <= MAX_DLL_OVERRIDES \
+        and all(dll_override_allowed(name, order) for name, order in overrides.items())
+
+
+def arguments_allowed(arguments) -> bool:
+    return isinstance(arguments, list) and len(arguments) <= MAX_ARGUMENTS and all(map(argument_allowed, arguments))
+
+
 def literal(node):
     """The Python value of a literal argument, or raises ValueError."""
     if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Attribute) \
@@ -188,15 +229,21 @@ def translate(path: pathlib.Path):
                     profile["winetricks"].append(verb)
         elif function == "winedll_override" and len(args) == 2 and isinstance(args[1], tuple):
             order = OVERRIDE_ORDERS.get(args[1][1])
-            if order is None:
+            dll = str(args[0]).lower()
+            overrides = profile.get("dllOverrides", {})
+            if order is None or not overrides_allowed(overrides | {dll: order}):
                 partial = True
                 continue
-            profile.setdefault("dllOverrides", {})[args[0].lower()] = order
+            profile.setdefault("dllOverrides", {})[dll] = order
         elif function == "disable_nvapi":
             for dll in ("nvapi", "nvapi64", "nvcuda", "nvcuvid"):
                 profile.setdefault("dllOverrides", {})[dll] = ""
         elif function == "append_argument" and args:
             kept = [a for a in str(args[0]).split() if a.lower() not in IGNORED_ARGUMENTS]
+            # All of a call or none: an option without its value would start the game wrongly.
+            if not arguments_allowed(profile.get("arguments", []) + kept):
+                partial = True
+                continue
             if kept:
                 profile.setdefault("arguments", []).extend(kept)
         elif function == "regedit_add":

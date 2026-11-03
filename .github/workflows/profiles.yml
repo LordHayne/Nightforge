@@ -89,6 +89,9 @@ jobs:
                   assert all("\n" not in str(v) and "\r" not in str(v) for v in entry.values()), (app_id, entry)
               for verb in game.get("winetricks") or []:
                   assert re.fullmatch(r"[a-z0-9_]{1,64}", verb) and verb not in commands, (app_id, verb)
+              # The same rules as the builder's (Audit M1): bare DLL names, Wine's orders, plain arguments.
+              assert build_profiles.overrides_allowed(game.get("dllOverrides") or {}), (app_id, game.get("dllOverrides"))
+              assert build_profiles.arguments_allowed(game.get("arguments") or []), (app_id, game.get("arguments"))
           blocked = sum(1 for game in doc["games"].values() if game.get("antiCheat"))
           assert blocked > 50, "suspiciously few anti-cheat games"
           cloud = sum(1 for game in doc["games"].values() if game.get("geforceNow"))
@@ -137,7 +140,7 @@ jobs:
           {
             echo "The nightly run rebuilt the game profiles (and AppleGamingWiki's list). Nothing reaches the app until this is signed and merged."
             echo
-            echo "1. Read the diff: profiles set Wine registry keys, winetricks verbs and game files."
+            echo "1. Read the diff: profiles set Wine registry keys, DLL overrides, start arguments, winetricks verbs and game files."
             echo "2. On the maintainer's Mac: \`scripts/sign-lists.sh $branch\` (asks for the Keychain password)."
             echo "3. Merge once the **Signatures** check is green, with the command the script prints."
             echo
@@ -146,7 +149,10 @@ jobs:
             echo '```'
           } > "$RUNNER_TEMP/body.md"
           if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
-            gh pr create --base main --head "$branch" --title "Update game profiles" --body-file "$RUNNER_TEMP/body.md"
+            gh pr create --base main --head "$branch" --title "Update game profiles" --body-file "$RUNNER_TEMP/body.md" || {
+              echo "::error::The branch is pushed, the pull request isn't (may Actions open pull requests here?). Open it: https://github.com/$GITHUB_REPOSITORY/compare/main...$branch"
+              exit 1
+            }
           else
             gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
           fi
