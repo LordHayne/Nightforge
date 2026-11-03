@@ -288,6 +288,49 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   Profilliste, wirkt aber erst mit diesem Release.
 - `LibraryModel`: eine Zeile, das Argument `environment:` beim bestehenden Aufruf von `prepareLaunchEnvironment`.
 
+### Spielumgebung: `HKCU\Environment` hat nie ein Spiel erreicht (3.11.)
+
+- **Befund im Code von winecx.** Wine nimmt die Registry-Variablen (`HKCU\Environment` u. a.) nur in die
+  **Windows-Seite** eines Programms auf, das vom Mac aus startet, also Steam oder ein Direktstart
+  (`dlls/ntdll/unix/env.c`, `build_initial_params` → `add_registry_environment`). Ein Programm, das ein anderes startet,
+  also jedes Spiel, das Steam startet, behält die **Unix-Umgebung** seines Elternprozesses:
+  `dlls/ntdll/unix/process.c`, `spawn_process` forkt. Von der Windows-Seite gehen nur zwei Dinge hinüber: `WINEDEBUG`
+  und Variablen mit dem Vorsatz `__CX_UNIX_` (CW Hack 24717).
+- **Probe** im eigenen Prefix (Runtime 4.7.3, nicht der echte Prefix). Ein 64-Bit-Elternprozess startet sich selbst als
+  32-Bit-Kind, so wie Steam ein Spiel startet. `WINE_LARGE_ADDRESS_AWARE` liest ntdll auf der Unix-Seite, man sieht es
+  am Adressraum des Kinds:
+
+  | Wo der Wert steht | Kind sieht ihn (Windows-Seite) | Adressraum des Kinds |
+  |---|---|---|
+  | nur `HKCU\Environment` | ja | 2 GB, **wirkt nicht** |
+  | Unix-Umgebung des Elternprozesses | ja | 4 GB, wirkt |
+  | `HKCU\Environment` als `__CX_UNIX_WINE_LARGE_ADDRESS_AWARE` | nein | 4 GB, wirkt |
+
+- **Folge.** `applyGameEnvironment` schrieb `DXVK_ASYNC`, `MTL_HUD_ENABLED`, `WINEDEBUG`, `MVK_CONFIG_LOG_LEVEL`,
+  `DXVK_LOG_LEVEL`, `DXVK_LOG_PATH`, `ROSETTA_ADVERTISE_AVX` und `DXMT_SHADER_CACHE_PATH` in die Registry. Die Leser auf
+  der Unix-Seite haben das nie bekommen: Metal-HUD, MoltenVK, Rosetta. Die Leser auf der Windows-Seite (DXVK, DXMT) und
+  alle anderen bekamen dieselben Werte ohnehin über Steams eigene Umgebung (`steamEnvironment`) bzw. den Direktstart.
+  Bewirkt hat der Registry-Teil also nichts. Die D3DMetal-Werte (`D3DM_*`) und `GameEnvironment` liefen nie über die
+  Registry. Einen Haken gab es doch: Wine legt die Registry-Werte über die Unix-Werte, und ein Kind nimmt `WINEDEBUG` von
+  der Windows-Seite. Ein dort stehengebliebenes `WINEDEBUG` gewann also für jedes Spiel gegen Steams eigenes.
+- **Umgebaut** (Zweig `claude/engine-env-0f3a`): `applyGameEnvironment` ist weg. `applyPrefixRegistry` löscht einmal
+  pro Prefix die alten Werte (eigener Stempel `.nightforge-registry`, also auch in bestehenden Prefixen) und schreibt
+  die Controller-Einstellung für winebus wie bisher. Nach einer geänderten Einstellung läuft kein `regedit` mehr, Steam
+  startet über `steamConfigSignature` neu wie bisher. `LibraryModel`: eine Zeile weniger in `applySteamSettings`.
+- **Neu prüfen** (alle hingen schon bisher an Steams Umgebung, sollten also unverändert gehen; geprüft wird nur, dass
+  nichts an der Registry hing):
+  - Leistungsanzeige (Metal-HUD) ein und aus, in einem DXMT-Spiel (OxyRail).
+  - D3DMetals Bildratengrenze und MetalFX (`D3DM_MAX_FPS`, `D3DM_ENABLE_METALFX`) im Wukong-Benchmark, „Automatik
+    nach Hardware“ (60 auf 120 Hz).
+  - `avx: false` (Wukong startet ohne Rosettas AVX-Hinweis).
+  - DXVK async und seine Logzeilen (OxyRail auf DXVK), DXMTs Shader-Cache unter `~/Library/Caches/Nightforge/dxmt`.
+  - Der Testschalter `wineDebug`: Die zusätzlichen Kanäle stehen jetzt im Log der Spiele, ein alter Registry-Wert
+    überdeckt sie nicht mehr.
+  - In `regedit` unter `HKCU\Environment` stehen danach keine Nightforge-Werte mehr. Die drei Testwerte aus Variante E
+    entfernt die Hauptsitzung ohnehin.
+- Am Rand: Mit `__CX_UNIX_<NAME>` ließen sich Unix-Variablen über die Registry an die Spiele bringen. Das wird erst beim
+  nächsten Start von Steam gelesen und bietet deshalb nichts über Steams Umgebung hinaus, ungenutzt.
+
 ### Später (nicht angefangen)
 
 - Den Pin auf winecx 4.7.4 oder 4.8.1 heben, wenn dappermint/winecx-gptk#24 geklärt ist. Dabei in `enginefix.yml`

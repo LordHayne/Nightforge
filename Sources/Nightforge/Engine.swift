@@ -88,19 +88,36 @@ enum Engine {
             .appendingPathComponent("Nightforge/dxmt", isDirectory: true)
     }
 
-    /// Steam starts its games with a fresh environment built from the Windows registry, not with
-    /// its own – so the game settings go into the user environment (HKCU\Environment) as well,
-    /// where every Windows program, games included, picks them up at start.
-    static func applyGameEnvironment(wine: URL) {
-        let managed = ["DXVK_ASYNC", "MTL_HUD_ENABLED", "WINEDEBUG", "MVK_CONFIG_LOG_LEVEL", "DXVK_LOG_LEVEL", "DXVK_LOG_PATH",
-                       "ROSETTA_ADVERTISE_AVX", "DXMT_SHADER_CACHE_PATH"]
+    /// What versions up to 0.3.x also put into the user environment (HKCU\Environment), on the
+    /// belief that Steam builds its games' environment from the registry. It doesn't: Wine takes the
+    /// registry's variables only into the Windows side of a program started from the Mac (Steam,
+    /// dlls/ntdll/unix/env.c build_initial_params), and a program another one starts – every game –
+    /// keeps its parent's Unix environment (process.c spawn_process forks). So MTL_HUD_ENABLED,
+    /// ROSETTA_ADVERTISE_AVX, MVK_CONFIG_LOG_LEVEL and Wine's own switches never came from there
+    /// (probe 3.11.2026: WINE_LARGE_ADDRESS_AWARE in HKCU\Environment left a 32-bit child at 2 GB,
+    /// in its parent's Unix environment it gave 4 GB); everything a game needs comes with Steam's
+    /// own environment (steamEnvironment) or the direct start's. Worse, Wine adds the registry's
+    /// after the Unix ones, and a child takes WINEDEBUG from the Windows side: a WINEDEBUG left there
+    /// beat Steam's for every game. So these go, once per prefix (`applyPrefixRegistry`).
+    static let formerRegistryEnvironment = ["DXVK_ASYNC", "MTL_HUD_ENABLED", "WINEDEBUG", "MVK_CONFIG_LOG_LEVEL",
+                                            "DXVK_LOG_LEVEL", "DXVK_LOG_PATH", "ROSETTA_ADVERTISE_AVX", "DXMT_SHADER_CACHE_PATH"]
+
+    /// What the prefix's registry gets from Nightforge: the controller setting, and the user
+    /// environment cleared of `formerRegistryEnvironment`.
+    static var prefixRegistry: String {
+        "[HKEY_CURRENT_USER\\Environment]\n" + formerRegistryEnvironment.map { "\"\($0)\"=-" }.joined(separator: "\n")
+            + "\n\n" + controllerRegistry
+    }
+
+    /// Bumped when `prefixRegistry` changes, so every prefix gets it once more.
+    static let prefixRegistryVersion = "1"
+
+    /// Writes `prefixRegistry` into the prefix once (its stamp there says so); a fresh prefix gets it again.
+    static func applyPrefixRegistry(wine: URL) {
         try? FileManager.default.createDirectory(at: shaderCache, withIntermediateDirectories: true)
-        let current = gameEnvironment
-        let values = managed.map { name in
-            current[name].map { "\"\(name)\"=\"\($0)\"" } ?? "\"\(name)\"=-"
-        }
-        importRegistry("[HKEY_CURRENT_USER\\Environment]\n" + values.joined(separator: "\n") + "\n\n" + controllerRegistry,
-                       wine: wine)
+        let marker = stamp(in: prefix, name: "registry")
+        guard readStamp(marker) != prefixRegistryVersion else { return }
+        if importRegistry(prefixRegistry, wine: wine) { writeStamp(marker, prefixRegistryVersion) }
     }
 
     /// Controllers for Windows games come through SDL, which reads every common pad and hands it
@@ -125,8 +142,9 @@ enum Engine {
     static var launchRetina = false
 
     /// What the game about to start needs on top of `gameEnvironment` ("" takes a variable away).
-    /// A game gets the environment of the Steam that starts it, as it was when that Steam started –
-    /// whatever the registry says by then doesn't reach it. So these go into Steam's own.
+    /// A game gets the Unix environment of the Steam that starts it, as it was when that Steam
+    /// started (Wine's spawn_process forks) – the registry's never reaches it (formerRegistryEnvironment).
+    /// So these go into Steam's own.
     static var launchEnvironment: [String: String] = [:]
 
     /// The environment the background Steam starts with, and its games with it.
@@ -664,8 +682,8 @@ enum Engine {
         let gptk = isGPTKCapable(wine: wine)
         let prefixStamp = stamp(in: prefix, name: "setup")
         let prefixWanted = prefixStampText(build, gptk: gptk)
+        applyPrefixRegistry(wine: wine)  // stamped on its own: older prefixes get it once as well
         guard readStamp(prefixStamp) != prefixWanted else { return }
-        applyGameEnvironment(wine: wine)
         if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk) }
         let written = loadOrdersWritten
         if gptk {

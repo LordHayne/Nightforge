@@ -1387,7 +1387,6 @@ final class LibraryModel: ObservableObject {
         steamStartup = Task {
             await previous?.value
             guard let wine = await Engine.installedWine(), !macSteamBusy else { return }
-            await Engine.offMain { Engine.applyGameEnvironment(wine: wine) }
             try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
         }
     }

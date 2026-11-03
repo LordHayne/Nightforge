@@ -277,6 +277,17 @@ struct EngineLayoutTest {
                   "the test switch wins over the profile, numbers as `defaults` writes them count, the rest stays out")
             check(GameEnvironment.wanted(for: .steam(550), profile: nil, defaults: test).isEmpty, "another game gets none of it")
         }
+        // MARK: The prefix's registry: nothing in HKCU\Environment any more (Wine never hands it to games)
+        let registry = Engine.prefixRegistry
+        check(Engine.formerRegistryEnvironment.allSatisfy { registry.contains("\"\($0)\"=-") },
+              "the values earlier versions wrote there are taken away")
+        check(!registry.contains("=\"") && registry.contains("[HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\winebus]"),
+              "nothing is set in the user environment; the controller setting stays")
+        check(Set(Engine.gameEnvironment.keys).isSubset(of: Set(Engine.formerRegistryEnvironment)),
+              "every game setting earlier versions could have left there is on the list")
+        check(Set(Engine.gameEnvironment.keys).isSubset(of: Set(Engine.steamEnvironment.keys)),
+              "and each of them comes with Steam's own environment")
+
         // MARK: Direct3D 9 on DXVK through the Vulkan loader (engine test switch vulkanLoader, off)
         do {
             let switches = TestDefaults.suite("vulkan-loader")
