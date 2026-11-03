@@ -195,17 +195,18 @@ enum WineSandbox {
     /// whoever started its wineserver – unless a game runs in it; the switch as it is now is noted
     /// then. Without a note the session began before there was a switch: outside. Checking, ending
     /// and noting happen under one lock. `end`: Engine.stopSessionNow – Steam is asked to quit first,
-    /// so a download in it stops cleanly instead of being cut off with the session.
+    /// so a download in it stops cleanly instead of being cut off with the session. When it ended
+    /// nothing (no process list: Steam may be running), nothing is noted, and the next start tries again.
     static func settleSession(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
                               gameRunning: () -> Bool = { Engine.windowsGameRunning },
-                              end: (URL) -> Void = { Engine.stopSessionNow($0) }) {
+                              end: (URL) -> Bool = { Engine.stopSessionNow($0) }) {
         sessionLock.lock()
         defer { sessionLock.unlock() }
         // A start the ending makes itself joins the session it ends.
         guard !settling, (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled, !gameRunning() else { return }
         settling = true
         defer { settling = false }
-        end(wine)
+        guard end(wine) else { return }
         defaults.set(enabled, forKey: sessionKey)
     }
 
@@ -214,7 +215,7 @@ enum WineSandbox {
     /// after it finds the session settled and only compares the switch with the note.
     static func settleInBackground(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
                                    gameRunning: @escaping () -> Bool = { Engine.windowsGameRunning },
-                                   end: @escaping (URL) -> Void = { Engine.stopSessionNow($0) }) async {
+                                   end: @escaping (URL) -> Bool = { Engine.stopSessionNow($0) }) async {
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: gameRunning, end: end)

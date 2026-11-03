@@ -348,7 +348,7 @@ struct WineSandboxTest {
         let defaults = UserDefaults(suiteName: folder.appendingPathComponent("session-defaults").path)!
         var ended: [URL] = []
         func settle(_ enabled: Bool, game: Bool = false) {
-            WineSandbox.settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: { game }, end: { ended.append($0) })
+            WineSandbox.settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: { game }, end: { ended.append($0); return true })
         }
         settle(false)
         check(ended.isEmpty, "off, and never switched on: the session goes on")
@@ -371,6 +371,7 @@ struct WineSandboxTest {
                 WineSandbox.settleSession(wine, enabled: true, defaults: defaults, gameRunning: { false }, end: { _ in
                     Thread.sleep(forTimeInterval: 0.3)
                     lock.lock(); ends += 1; lock.unlock()
+                    return true
                 })
                 group.leave()
             }
@@ -381,7 +382,8 @@ struct WineSandboxTest {
         var nested = 0
         WineSandbox.settleSession(wine, enabled: false, defaults: defaults, gameRunning: { false }, end: { inner in
             nested += 1
-            WineSandbox.settleSession(inner, enabled: false, defaults: defaults, gameRunning: { false }, end: { _ in nested += 10 })
+            WineSandbox.settleSession(inner, enabled: false, defaults: defaults, gameRunning: { false }, end: { _ in nested += 10; return true })
+            return true
         })
         check(nested == 1 && !defaults.bool(forKey: WineSandbox.sessionKey), "the start the ending makes passes, no second end, no deadlock")
         // At Nightforge's start it happens off the main thread: the process list and the ending take seconds.
@@ -390,12 +392,23 @@ struct WineSandboxTest {
         Task.detached {
             await WineSandbox.settleInBackground(wine, enabled: true, defaults: defaults,
                                                  gameRunning: { checkedOnMain = Thread.isMainThread; return false },
-                                                 end: { _ in endedOnMain = Thread.isMainThread })
+                                                 end: { _ in endedOnMain = Thread.isMainThread; return true })
             background.signal()
         }
         background.wait()
         check(checkedOnMain == false && endedOnMain == false && defaults.bool(forKey: WineSandbox.sessionKey),
               "settled in the background: checked and ended off the main thread")
+        // Without a process list Steam may be running (an update going in): nothing is ended and nothing
+        // noted, so the next start tries again.
+        let unsure = UserDefaults(suiteName: folder.appendingPathComponent("session-unknown").path)!
+        var tries = 0
+        WineSandbox.settleSession(wine, enabled: true, defaults: unsure, gameRunning: { false }, end: { _ in tries += 1; return false })
+        check(tries == 1 && unsure.object(forKey: WineSandbox.sessionKey) == nil, "nothing ended: nothing noted")
+        WineSandbox.settleSession(wine, enabled: true, defaults: unsure, gameRunning: { false }, end: { _ in tries += 1; return true })
+        check(tries == 2 && unsure.bool(forKey: WineSandbox.sessionKey), "the next start tries again, and then notes it")
+        FakeProcesses.installDown()
+        check(!Engine.stopSessionNow(wine), "Engine.stopSessionNow without a process list: ends nothing, says so")
+        FakeProcesses.uninstall()
     }
 
     /// Test domains gone for good: cfprefsd leaves an empty plist behind when a domain is deleted, a

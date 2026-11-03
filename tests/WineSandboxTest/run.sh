@@ -17,5 +17,5 @@ printf '#include <stdio.h>\n#include <stdlib.h>\nint main(void) { const char *v 
 clang -arch x86_64 -O2 -o "$WORK/showenv" "$WORK/showenv.c"
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/WineSandboxTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/Shared/FakeProcesses.swift tests/WineSandboxTest/main.swift
 "$OUT" "$WORK/nightforge-sandbox" "$WORK/showenv"

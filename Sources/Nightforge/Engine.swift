@@ -2570,9 +2570,12 @@ enum Engine {
     /// stopSteam for a caller that can't await (WineSandbox.settleSession), on a thread that may wait:
     /// a client update going in finishes first, Steam is asked to quit – a download stops cleanly and
     /// goes on at the next start – and whatever's left of the session ends. Starting Steam's -shutdown
-    /// passes through settleSession, which lets it join the session it ends.
-    static func stopSessionNow(_ wine: URL) {
-        if isSteamRunning {
+    /// passes through settleSession, which lets it join the session it ends. Without a process list it
+    /// can't be told whether Steam runs (an update may be going in), so nothing is ended: false then.
+    @discardableResult
+    static func stopSessionNow(_ wine: URL) -> Bool {
+        guard let running = steamRunningKnown else { return false }
+        if running {
             var waited = 0
             while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
                 Thread.sleep(forTimeInterval: 1)
@@ -2580,12 +2583,13 @@ enum Engine {
             }
             try? startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
             var left = 20
-            while left > 0, isSteamRunning {
+            while left > 0, steamMayBeRunning {
                 Thread.sleep(forTimeInterval: 1)
                 left -= 1
             }
         }
         stopAll(wine)
+        return true
     }
 
     static func stopSteam(_ wine: URL) async throws {
