@@ -1615,10 +1615,18 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   - H3: Ist der Schalter an und fehlt der Helfer im Bündel, startet Wine gar nicht (`WineSandbox.HelperMissing`).
     Der Spieler sieht beim Start „Die Wine-Sandbox ist eingeschaltet, aber ihr Helfer fehlt …“. Vorher lief Wine dann
     still ohne Sandbox.
+  - H2: Was Nightforge selbst außerhalb der Sandbox ausführt, ist darin nur noch lesbar (`deny file-write*`):
+    - `Components/` (wine, wineserver, legendary, gogdl), `Nightforge Helper.app`, `hide-steam-dock.dylib`,
+      `steam-shutdown.sh`, `steam-priority.sh` samt pid-Datei, `D3DMetal/` und GOGs Mac-Spiele;
+    - das App-Bündel und `~/Applications/Nightforge Games`;
+    - `$TMPDIR/Nightforge-runs`: Dort legt `DetachedProcess` die Befehle für seine Helfer-App ab, die sie außerhalb
+      der Sandbox startet. Das stand nicht im Review.
+    - Das Profil geht als Text im ersten Argument an `nightforge-sandbox`. Die Datei `wine-sandbox.sb` gibt es nicht
+      mehr, also auch kein Zeitfenster zwischen Schreiben und Lesen.
 
 **Einschalten** (Nightforge beendet, kein Spiel läuft): `defaults write io.github.lordhayne.nightforge wineSandbox
--bool true`, dann Nightforge öffnen. Steam startet beim ersten Spiel neu. Das Profil steht danach in
-`~/Library/Application Support/Nightforge/wine-sandbox.sb`.
+-bool true`, dann Nightforge öffnen. Die laufende Wine-Sitzung endet vor dem nächsten Wine-Start, Steam startet neu. Das
+Profil steht in keiner Datei; `WineSandbox.profile()` erzeugt es bei jedem Start.
 
 **Live-Test mit dem Nutzer.** Jeweils, ob es startet, normal läuft und wieder endet:
 1. Ein Steam-Spiel aus dem Prefix (z. B. OxyRail): Start, Steam-Fenster, Overlay, Speichern, Beenden, Cloud-Sync.
@@ -1629,6 +1637,13 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 6. Game Mode: Meldet macOS beim Spiel „Game Mode an“? Bleibt Steam aus dem Dock?
 7. Steams Browser: Laden Bibliothek und Shop, klappt die Anmeldung nach einem Neustart?
 8. MetalFX/D3DMetal in einem Spiel, das es nutzt (z. B. Wukong).
+9. Die Sperre selbst (Review H1): Sandbox an, Nightforge neu öffnen, ein Spiel starten. Dann aus einer Wine-Konsole
+   im Nightforge-Prefix (`wine cmd` über `Engine.run`, oder ein Spiel mit Konsole) `type
+   "Z:\Users\<Name>\Library\Application Support\Nightforge\Epic\legendary\user.json"`. Erwartet ist „Zugriff
+   verweigert“. Gelingt es, läuft der wineserver außerhalb der Sandbox, und `ps` zeigt seinen Start (Elternprozess,
+   Argumente mit `nightforge-sandbox`).
+10. H2: aus derselben Konsole `echo x > "Z:\Users\<Name>\Library\Application Support\Nightforge\steam-shutdown.sh"`.
+    Erwartet: verweigert. In den Prefix schreiben (`echo x > C:\test.txt`) geht.
 
 Dabei jeweils `~/Library/Application Support/Nightforge/Logs/wine.log` auf „nightforge-sandbox:“ und
 „Operation not permitted“ prüfen.
@@ -1644,6 +1659,14 @@ wird angepasst.
 - Steams eigene Anmeldedaten im Prefix bleiben für Spiele lesbar, wie unter Windows.
 - Der Khronos-Loader (mit KosmicKrisp) sucht auch in `~/.config/vulkan`. Das ist gesperrt; bei Vulkan-Problemen mit
   KosmicKrisp zuerst dort nachsehen.
+- Schreibt Wine doch einmal nach `Components/` oder `D3DMetal/` (ein Cache?), steht „Operation not permitted“ mit dem
+  Pfad im Log. Dann die Ausnahme eng fassen, nicht die Sperre aufheben.
+- Was der Benutzer außerhalb von Nightforge ausführt, schützt das Profil nicht: `~/Library/LaunchAgents`,
+  `~/.zshrc` und ähnliche. Ein Windows-Programm kann dort weiter etwas ablegen. Offen, ob die Sperrliste das
+  aufnehmen soll.
+- Das Abschluss-Skript ruft `steam.exe -shutdown` nur, wenn Steam läuft, also in dessen Sitzung. Endet Steam genau
+  zwischen Prüfung und Aufruf, beginnt das eine Sitzung ohne Sandbox. Das Fenster ist klein, und die Sitzung endet
+  gleich danach mit `wineserver -k`.
 
 ### Vulkan-Layer und winecx
 
