@@ -274,7 +274,9 @@ Konflikte und Anpassungen:
   `…gametest-<UUID>`, `engine-layout-test` und andere), passen wieder nicht zu Stagings Reihen. Sie passen zur Reihe
   in `angry-heisenberg-1f2283`, die noch lief, als Stagings Lauf schon zu Ende war.
 
-## Nicht in dieser Runde
+## Nicht in der fünften Runde (in der sechsten nachgezogen oder entschieden)
+
+game-test-fixes bis ee28d32, compat-db M3/N7 und die Wahl der Anleitung kamen in der sechsten Runde (31–33).
 
 - **`claude/game-test-fixes`, jetzt 1ec9167 (07:30, davor a34e251 und ee28d32):** nicht fertig gemeldet, die
   Sitzung arbeitet noch. Ein Probe-Merge (`git merge-tree`) zeigt zwei Konflikte, die von Hand zusammengeführt werden
@@ -292,10 +294,66 @@ Konflikte und Anpassungen:
   - Beide ändern dieselbe Zeile im README.
   - Nicht gemergt. Es sollte nur eine der beiden gelten.
 
+## Sechste Runde (3.11., auf 056184e)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 31 | `claude/game-test-fixes` bis ee28d32 | ee28d32 | 25da571 | `GameTestRun.swift`, `tests/GameOverlayTest/main.swift` | 0 |
+| 32 | `claude/report-url-m3` (compat-db, Audit M3 und N7) | b87dee7 | 9ea5350 | keine | 0 |
+| 33 | `claude/tested-on-mac` (Anleitung für Profile), davor 30 zurückgenommen | 1a35913 | 5720a1d, 7c13864 | keine | 0 |
+
+Schon da und nicht noch einmal gemergt: engine-env bis 5c8edd0 (29) und wine-sandboxs d493cd4 (H3, mit 27).
+
+Konflikte und Anpassungen:
+- **31, `GameTestRun.swift`:** Beide Absichten gelten. game-test-fixes rechnet mit der Liste, wenn es eine gibt, und
+  ohne Liste wird nichts entschieden wie bei h1-h3.
+  - game-test-fixes bringt `pids`, die Verfolgung von Steams Fragen (`asking`) und wer den Vordergrund nimmt
+    (`foreignSince`, `frontTakers`). M3 bringt `blind`, die Zahl der Blicke ohne Prozessliste.
+  - Ein Blick ohne Liste wird wie bisher nicht bewertet. Nach zwei Minuten davon endet der Test des Spiels mit einer
+    Notiz. Mit Liste ist sie das `pids` von game-test-fixes.
+  - Die neuen Aufrufer von `processes(of:)` aus game-test-fixes, `clearStage` und `endLateStart`, beenden ohne Liste
+    nichts (`?.isEmpty == false`), wie `quit(_:)`.
+  - `GameProcesses.biggest`, `question` und `windowList` arbeiten über die PID (libproc, CGWindowList), ohne
+    Prozessliste.
+- **31, `tests/GameOverlayTest/main.swift`:** M8s Prüfungen der Fragesteller von macOS und game-test-fixes'
+  `biggest(_:)` bleiben beide.
+- **33:** Die Hauptsitzung nimmt vorerst die Anleitung von tested-on-mac. Weil vor dem Kopf nichts umgeschrieben wird,
+  nimmt 5720a1d Merge 30 zurück (`git revert -m 1 d8b4d9c`). Danach kommt tested-on-mac (7c13864). Wer
+  profile-guides Fassung (bf214f5) später doch nimmt, muss zuerst 5720a1d zurücknehmen.
+
+## Tests der sechsten Runde (auf 7c13864)
+
+- **`tests/ProcessListLive/run.sh`:** grün, das echte `ps`.
+- **pytest:** 113 von 113.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** 58 von 59 grün. `SubprocessTest` schlug mit drei Prüfungen fehl, und
+  zwar wegen der Last, nicht wegen der Merges:
+  - Es geht um die Prüfungen der Prozessliste mit einem Stand-in für `ps`: „the list is what ps printed: nil“, „asked
+    again … (0 calls)“, „an old list is marked as old“.
+  - Das Stand-in kam in der Grenze von 0,5 s (`ProcessList.timeout` im Test) nicht einmal bis zu seiner ersten Zeile.
+  - 31 bis 33 ändern weder `Subprocess.swift` noch die Reihe, und in der fünften Runde war sie grün.
+  - Allein noch dreimal gelaufen: einmal derselbe Fehler, zweimal grün. Die Last lag dabei bei 6 bis 7, weil
+    gleichzeitig die Reihen in `angry-heisenberg-1f2283` und der Spieletest liefen.
+  - Für die h1-h3-Seite: Die 0,5 s sind auf einem belasteten Mac zu knapp, in der CI womöglich auch.
+- Test-Plists in `~/Library/Preferences` (`removal-test`, `duplicate-games-test`, `nightforge.test.oldgame` und
+  andere) änderten sich um 08:12 bis 08:14. Stagings `CompleteRemovalTest` und `DuplicateGamesTest` waren da schon seit
+  07:54 und 07:56 fertig. Sie stammen also wieder aus der Reihe in `angry-heisenberg-1f2283`.
+
+## Nicht in der sechsten Runde
+
+- **`claude/game-test-fixes` a34e251 (07:05) und 1ec9167 (07:30):** nach ee28d32 dazugekommen, nicht aufgeführt, die
+  Sitzung arbeitet noch.
+  - Ein Probe-Merge auf 7c13864 geht ohne Konflikt.
+  - 1ec9167 liest das Spiel-Log, nicht die Prozessliste.
+- **`claude/engine-env-0f3a` 03e7843 (07:15):** nur `docs/TODO.md` (Overwatch-Test E), nach 5c8edd0.
+- **`claude/profile-guide-1a4e06` bf214f5:** notiert, siehe 33.
+- **`claude/quirky-clarke-81fd65` (KosmicKrisp DirectX 9):** stand nicht auf der Liste.
+
 ## Für die echten Merges
 
-- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes` und compat-db M3/N7 (`claude/report-url-m3`).
-- Die zwei Anleitungen für Profile: nur eine sollte gelten (siehe oben).
+- Später nachzuziehen: `claude/game-test-fixes` ab a34e251.
+- Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
+  von 5720a1d.
+- `SubprocessTest`: die Grenze von 0,5 s für das Stand-in-`ps` (h1-h3), siehe die Tests der sechsten Runde.
 - Nur auf Staging stehen:
   - 8b5314d. engine-env hat dasselbe jetzt als 4e02fbf.
   - 49e249d, M4s „Steam ist aus“ über M3. Gehört in den M4-Zweig, sobald der M3 hat.
