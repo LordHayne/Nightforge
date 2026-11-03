@@ -1,8 +1,9 @@
-<!-- Entwurf für die Release Notes von 0.3.1, Stand claude/staging-031 bis Runde 8 (d3269e3), 3.11.2026.
+<!-- Entwurf für die Release Notes von 0.3.1, Stand claude/staging-031 bis Runde 12 (4f0d00a), 3.11.2026.
      Für das Release kommt der Text nach docs/release-notes/v0.3.1.md, dort setzt release.yml ihn vor den
      Installationstext. Diese Datei kam mit claude/stable-codesign (Staging f068346) und hat nur den Absatz zur Frage
      nach dem Laufwerk; der steht hier unter „Bekannt“. Erscheint 0.3.1 ohne die feste Signatur, diesen Punkt streichen.
-     Nicht erwähnt, weil hinter einem Schalter, der aus ist: Wine-Sandbox, DXVK für DirectX 9, Unitys „Play!“-Helfer. -->
+     Nicht erwähnt, weil hinter einem Schalter, der aus ist: Wine-Sandbox, DXVK für DirectX 9 (KosmicKrisp),
+     Unitys „Play!“-Helfer, die Schwärzung im Spieletest. -->
 
 ## Deutsch
 
@@ -23,7 +24,8 @@ Nightforge 0.3.1 macht 0.3.0 runder: Mehr Windows-Spiele starten gleich auf dem 
 
 ### Starten und Beenden
 - **Beenden geht immer:** ⌘Q, das Dock und das Menü beenden Nightforge jetzt auch, wenn gerade ein Dialog offen ist oder ein Fenster auf eine Datei wartet.
-- **Weniger Hänger:** Nightforge wartet auf kein Hilfsprogramm mehr unbegrenzt. Antwortet die Prozessliste von macOS nicht, stockt Nightforge höchstens kurz, statt hängen zu bleiben, und hält ein Spiel auch nicht für beendet, nur weil die Liste fehlt. „Komplett entfernen“ bleibt nicht mehr stehen.
+- **Weniger Hänger:** Nightforge wartet auf kein Hilfsprogramm mehr unbegrenzt. Antwortet die Prozessliste von macOS nicht, stockt Nightforge höchstens kurz, statt hängen zu bleiben, und hält ein Spiel auch nicht für beendet, nur weil die Liste fehlt. „Komplett entfernen“ bleibt nicht mehr stehen, und während Steam startet, bleibt Nightforges Fenster bedienbar.
+- **Weniger Abstürze:** Eine beschädigte Steam-Datei (`appinfo.vdf`) oder eine ungewöhnliche Kennung eines Spiels bringt Nightforge nicht mehr zum Absturz.
 - **Steam geht schneller aus:** Nach dem Beenden von Nightforge schließt Steam sofort. Die 30 Sekunden für Cloud-Speicherstände wartet es nur noch, wenn in den letzten fünf Minuten ein Spiel lief oder gestartet wurde.
 - **Spiele, die ein Starter nur mit ihrem Namen aufruft**, etwa Control über Epic, erkennt Nightforge jetzt als laufend. Ladebildschirm, Controller-Menü (L3 + R3) und Beenden arbeiten dann wie bei anderen Spielen.
 - **Rückfall auf die vorige Engine** auch dann, wenn Steam auf einer neuen Engine nicht hochkommt, nicht nur bei Spielen, die sofort enden. „Läuft mit der vorigen Engine vom …“ nennt jetzt den richtigen Tag.
@@ -47,11 +49,11 @@ Nightforge 0.3.1 macht 0.3.0 runder: Mehr Windows-Spiele starten gleich auf dem 
 - Mit Fernseher oder zweitem Bildschirm steht unter „Spielen“, wo das Spiel aufgeht: „Spielt auf: …“.
 
 ### Sicherheit
-- **Signierte Updates:** Ab 0.3.1 installiert Nightforge nur Updates, die mit dem Schlüssel des Entwicklers signiert sind (Ed25519). Dasselbe gilt für die Listen, die Nightforge online lädt (Spielprofile, Komponenten, AppleGamingWiki), und für den Installationsbefehl im Terminal. Fehlt die Signatur, bleibt die zuletzt geprüfte Liste.
+- **Signierte Updates:** Ab 0.3.1 installiert Nightforge nur Updates, die mit dem Schlüssel des Entwicklers signiert sind (Ed25519). Dasselbe gilt für die Listen, die Nightforge online lädt (Spielprofile, Komponenten, AppleGamingWiki), und für den Installationsbefehl im Terminal. Fehlt die Signatur, bleibt die zuletzt geprüfte Liste. Ein Update muss außerdem genau die Version enthalten, die sein Release nennt, und eine ältere signierte Liste ersetzt nie eine neuere. Die Werkzeuge, mit denen GitHub Nightforge baut und signiert, sind über Prüfsummen festgelegt.
 - **D3DMetal-Import:** Nightforge übernimmt Apples Windows-Dateien nur, wenn ihre Prüfsummen zu Apples Toolkit passen, und importiert nichts mehr ungefragt aus „Downloads“.
 - **Problembericht:** Der Link zu GitHub enthält nur noch feste Angaben (Spiel, Versionen, Mac, was Nightforge erkannt und versucht hat). Fehlerzeilen kommen in die Zwischenablage, du entscheidest, ob du sie einfügst. Geschwärzt werden jetzt auch Laufwerks- und Rechnernamen und GOG-Kennungen.
-- **Links:** Ein `nightforge://play`-Link von einer Webseite startet kein Spiel mehr, er zeigt die Spielseite. Direkt starten nur Nightforges eigene Spiel-Apps.
-- **Spielprofile dürfen weniger:** Sie schreiben nicht über Verknüpfungen aus ihrem Ordner hinaus, Spielstand-Regeln nie in einen ganzen Ordner wie „Dokumente“, und aus umu-protonfixes kommen nur einfache DLL-Einstellungen und Startargumente. In Steams Startoptionen ändert Nightforge nur seine eigene Zeile und legt vorher eine Kopie an.
+- **Links:** Ein `nightforge://play`-Link von einer Webseite startet kein Spiel mehr, er zeigt die Spielseite. Direkt starten nur Nightforges eigene Spiel-Apps. Ihren Schlüssel legt Nightforge in einem Schritt an, nur für dich lesbar.
+- **Spielprofile dürfen weniger:** Sie schreiben nicht über Verknüpfungen aus ihrem Ordner hinaus, Spielstand-Regeln nie in einen ganzen Ordner wie „Dokumente“, und DLL-Einstellungen und Startargumente müssen einfach bleiben. Kein Profil stellt mehr die Windows-Version für alle Spiele um, ein gewähltes Programm muss wirklich im Spielordner liegen, und Werte wie die Bildratengrenze bleiben in sinnvollen Grenzen. Bevor eine neue Profilliste signiert wird, prüft GitHub auch ihre Dateiänderungen und Spielstand-Regeln. In Steams Startoptionen ändert Nightforge nur seine eigene Zeile und legt vorher eine Kopie an.
 - Nicht mehr benutzte Komponenten löscht Nightforge nur nach einer signierten Liste.
 
 ### Bekannt
@@ -82,7 +84,8 @@ Nightforge 0.3.1 rounds off 0.3.0: more Windows games start the right way straig
 
 ### Starting and quitting
 - **Quitting always works:** ⌘Q, the Dock and the menu now quit Nightforge even while a dialog is open or a window waits for a file.
-- **Fewer hangs:** Nightforge no longer waits on a helper program without a limit. When macOS's process list doesn't answer, Nightforge stalls for a moment at most instead of hanging, and doesn't take a game for ended just because the list is missing. "Remove completely" no longer gets stuck.
+- **Fewer hangs:** Nightforge no longer waits on a helper program without a limit. When macOS's process list doesn't answer, Nightforge stalls for a moment at most instead of hanging, and doesn't take a game for ended just because the list is missing. "Remove completely" no longer gets stuck, and Nightforge's window stays usable while Steam starts.
+- **Fewer crashes:** a damaged Steam file (`appinfo.vdf`) or an unusual game ID no longer makes Nightforge crash.
 - **Steam closes sooner:** after you quit Nightforge, Steam closes at once. It only waits the 30 seconds for cloud saves when a game ran or was started in the last five minutes.
 - **Games a launcher starts by their bare name**, like Control through Epic, now count as running. The loading screen, the controller menu (L3 + R3) and quitting then work as with other games.
 - **Back to the previous engine** also when Steam doesn't come up on a new engine, not only when games end right away. "Runs with the previous engine from …" now names the right day.
@@ -106,11 +109,11 @@ Nightforge 0.3.1 rounds off 0.3.0: more Windows games start the right way straig
 - With a TV or a second screen, the line under Play says where the game opens: "Plays on: …".
 
 ### Security
-- **Signed updates:** from 0.3.1 on, Nightforge only installs updates signed with the maintainer's key (Ed25519). The same goes for the lists Nightforge loads online (game profiles, components, AppleGamingWiki) and for the install command in Terminal. Without a signature, the last checked list stays.
+- **Signed updates:** from 0.3.1 on, Nightforge only installs updates signed with the maintainer's key (Ed25519). The same goes for the lists Nightforge loads online (game profiles, components, AppleGamingWiki) and for the install command in Terminal. Without a signature, the last checked list stays. An update must also hold exactly the version its release names, and an older signed list never replaces a newer one. The tools GitHub uses to build and sign Nightforge are pinned by checksum.
 - **D3DMetal import:** Nightforge takes Apple's Windows files only when their checksums match Apple's toolkit, and no longer imports anything from "Downloads" without asking.
 - **Problem reports:** the link to GitHub now holds only fixed facts (game, versions, Mac, what Nightforge detected and tried). Error lines go to the clipboard, and you decide whether to paste them. Drive and computer names and GOG ids are now hidden too.
-- **Links:** a `nightforge://play` link from a web page no longer starts a game; it shows the game's page. Only Nightforge's own game apps start a game directly.
-- **Game profiles may do less:** they don't write through links out of their folder, save rules never name a whole folder like "Documents", and from umu-protonfixes only plain DLL settings and launch arguments come through. In Steam's launch options Nightforge only changes its own line, and keeps a copy first.
+- **Links:** a `nightforge://play` link from a web page no longer starts a game; it shows the game's page. Only Nightforge's own game apps start a game directly. Nightforge creates their key in one step, readable by you alone.
+- **Game profiles may do less:** they don't write through links out of their folder, save rules never name a whole folder like "Documents", and DLL settings and launch arguments have to stay plain. No profile changes the Windows version for every game any more, a chosen program has to really lie in the game folder, and values like the frame limit stay within sensible bounds. Before a new profile list is signed, GitHub also checks its file edits and save rules. In Steam's launch options Nightforge only changes its own line, and keeps a copy first.
 - Nightforge removes unused components only after a signed list says so.
 
 ### Known
