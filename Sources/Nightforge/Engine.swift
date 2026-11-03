@@ -116,7 +116,7 @@ enum Engine {
     static var steamConfigSignature: String {
         "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
             + launchEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-            + (launchRetina ? "-retina" : "")
+            + (launchRetina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
     }
 
@@ -1448,6 +1448,7 @@ enum Engine {
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
+        WineSandbox.wrap(&process.executableURL, &process.arguments)
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { finished in
                 try? log?.close()
@@ -1885,6 +1886,7 @@ enum Engine {
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
+            WineSandbox.wrap(&process.executableURL, &process.arguments)
             try process.run()
             process.waitUntilExit()
 
@@ -2270,6 +2272,7 @@ enum Engine {
         let log = GameLog.handleForSteam()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
+        WineSandbox.wrap(&process.executableURL, &process.arguments)
         try process.run()
     }
 }

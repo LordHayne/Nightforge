@@ -56,6 +56,11 @@ fi
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
 
+# Starts Wine inside a macOS sandbox when that's switched on (wrapper/nightforge-sandbox.c; x86_64
+# like Wine, for hide-steam-dock.dylib, which reaches it through DYLD_INSERT_LIBRARIES).
+clang -arch x86_64 -mmacosx-version-min=11.0 -O2 -Wall \
+  -o "$OUT/Contents/Resources/nightforge-sandbox" wrapper/nightforge-sandbox.c
+
 # Starts Steam, Wine, games and downloads apart from Nightforge, so a quit Nightforge leaves the Dock
 # (wrapper/nightforge-helper.c; Nightforge makes an app of it at runtime, see Detached.swift).
 clang -arch arm64 -mmacosx-version-min=14.0 -O2 -Wall \

@@ -254,6 +254,9 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
   `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
   danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+- `defaults write io.github.lordhayne.nightforge wineSandbox -bool true`: Wine startet in einer macOS-Sandbox, die
+  Anmeldedaten sperrt (unten bei „Aus dem Code-Audit“ › Wine-Sandbox). Steam startet dafür neu. Zurück mit
+  `defaults delete io.github.lordhayne.nightforge wineSandbox`.
 
 ### Später (nicht angefangen)
 
@@ -1581,6 +1584,56 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 - **Updates sind nicht echt signiert.** `Updater.install` prüft nur `codesign --verify` auf eine Ad-hoc-Signatur,
   `scripts/install.sh` lädt ohne Prüfsumme. Bewusst offen gelassen. Wege: ein Ed25519-Schlüssel als Repo-Secret
   (Release-Zip signieren, im Updater und in install.sh prüfen) oder ein Apple-Developer-Account (Developer ID, Notarisierung).
+
+### Wine-Sandbox (Audit M2, Zweig `claude/wine-sandbox`): Live-Test offen
+
+**Worum es geht**
+- Wine ist keine Sandbox. Über `Z:` und `\\?\unix\` lesen Windows-Programme jede Datei des Benutzers, auch Epics
+  und GOGs Token in `~/Library/Application Support/Nightforge` (`docs/AUDIT-SICHERHEIT.md` M2,
+  `docs/ENTWURF-LAUFWERKE.md`).
+- Mit dem Schalter `wineSandbox` startet Nightforge Wine über `nightforge-sandbox` (`wrapper/nightforge-sandbox.c`,
+  `WineSandbox.swift`). Das Profil erlaubt alles außer:
+  - `Epic/legendary` (außer `legendary/tmp`, wo Epic-Spiele ihre Besitz-Datei lesen);
+  - `GOG/gogdl` und die beiden `account.json`;
+  - `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.config`, `~/.kube`, `~/.docker`, `.netrc`, `.git-credentials`, `.npmrc`,
+    `.pypirc`;
+  - die Browserprofile von Chrome, Firefox, Brave, Edge und Arc, dazu Claude.
+- Was ein Programm in der Sandbox startet, bleibt darin. Steams Spiele erben sie.
+- Gebaut und getestet ohne den Nutzer:
+  - `tests/WineSandboxTest`: Profil, Escaping, Schalter, der Helfer mit dem erzeugten Profil. Es bleiben `DYLD_*`
+    erhalten, die `sandbox-exec` verwirft.
+  - Wine mit `readprobe` im eigenen Prefix: Token über `Z:` und `\\?\unix\` gesperrt, `~/.ssh` gesperrt,
+    `legendary/tmp` lesbar.
+- Ausgeschaltet startet Nightforge Wine genau wie vorher.
+
+**Einschalten** (Nightforge beendet, kein Spiel läuft): `defaults write io.github.lordhayne.nightforge wineSandbox
+-bool true`, dann Nightforge öffnen. Steam startet beim ersten Spiel neu. Das Profil steht danach in
+`~/Library/Application Support/Nightforge/wine-sandbox.sb`.
+
+**Live-Test mit dem Nutzer.** Jeweils, ob es startet, normal läuft und wieder endet:
+1. Ein Steam-Spiel aus dem Prefix (z. B. OxyRail): Start, Steam-Fenster, Overlay, Speichern, Beenden, Cloud-Sync.
+2. Ein Steam-Spiel von einem externen Laufwerk („Spiele“ oder „Spiele test“): Start aus `Z:\Volumes\…`.
+3. Ein Epic-Spiel mit Besitz-Datei (`requires_ot`): Es muss die Datei aus `legendary/tmp` lesen.
+4. Ein GOG-Spiel mit Installer-Skript oder Redistributables: frisch installieren lassen.
+5. Controller (DualSense) in einem Windows-Spiel.
+6. Game Mode: Meldet macOS beim Spiel „Game Mode an“? Bleibt Steam aus dem Dock?
+7. Steams Browser: Laden Bibliothek und Shop, klappt die Anmeldung nach einem Neustart?
+8. MetalFX/D3DMetal in einem Spiel, das es nutzt (z. B. Wukong).
+
+Dabei jeweils `~/Library/Application Support/Nightforge/Logs/wine.log` auf „nightforge-sandbox:“ und
+„Operation not permitted“ prüfen.
+
+**Ausschalten:** `defaults delete io.github.lordhayne.nightforge wineSandbox`, dann Nightforge neu starten.
+
+**Danach:** Läuft alles, den Schalter standardmäßig einschalten. Bricht etwas, steht der Pfad im Log, und die Sperrliste
+wird angepasst.
+
+**Bekannte Grenzen**
+- `sandbox_init` gilt bei Apple als veraltet. Fällt es weg, beendet sich der Helfer mit 71 und startet nichts. Mit
+  Schalter läuft Wine also nie still ohne Sandbox.
+- Steams eigene Anmeldedaten im Prefix bleiben für Spiele lesbar, wie unter Windows.
+- Der Khronos-Loader (mit KosmicKrisp) sucht auch in `~/.config/vulkan`. Das ist gesperrt; bei Vulkan-Problemen mit
+  KosmicKrisp zuerst dort nachsehen.
 
 ### Vulkan-Layer und winecx
 

@@ -541,6 +541,7 @@ enum Launcher {
         let log = game.bottle.isBuiltIn ? GameLog.handleForSteam() : nil
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
+        if game.bottle.isBuiltIn { WineSandbox.wrap(&process.executableURL, &process.arguments) }
         try process.run()
         return process
     }
@@ -592,6 +593,7 @@ enum Launcher {
         let log = GameLog.handleForSteam()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
+        WineSandbox.wrap(&process.executableURL, &process.arguments)
         try process.run()
         return process
     }

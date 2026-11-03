@@ -333,6 +333,7 @@ enum GOGRedist {
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = output
         process.standardError = output
+        WineSandbox.wrap(&process.executableURL, &process.arguments)
         guard (try? process.run()) != nil else { return nil }
         let start = Date()
         while process.isRunning {
