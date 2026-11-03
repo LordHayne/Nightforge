@@ -5,8 +5,8 @@
 # Downloaded this way the app carries no quarantine flag, so macOS opens it without the
 # "can't be verified" detour (Nightforge is free and not registered with Apple).
 # For testing: NIGHTFORGE_ZIP (a local zip), NIGHTFORGE_INSTALL_DIR, NIGHTFORGE_APPLICATIONS (in place of
-# /Applications; HOME stands in for the home folder), NIGHTFORGE_NO_QUIT (leaves a running Nightforge alone)
-# and NIGHTFORGE_NO_OPEN.
+# /Applications; HOME stands in for the home folder), NIGHTFORGE_NO_QUIT (leaves a running Nightforge alone),
+# NIGHTFORGE_QUIT_WAIT (seconds to wait for it to quit, 15) and NIGHTFORGE_NO_OPEN.
 set -euo pipefail
 
 REPO="LordHayne/Nightforge"
@@ -15,10 +15,23 @@ APPLICATIONS="${NIGHTFORGE_APPLICATIONS:-/Applications}"
 
 fail() { echo "✗ $*" >&2; exit 1; }
 
-# Quits an app only when it runs: AppleScript would start one it is told to quit.
+# Whether the app with bundle ID $1 runs. Asked by its ID, not by its path in some command line: a tail, grep
+# or debugger with that path in its arguments isn't the app. Asking doesn't start it; an ID nothing has is "no".
+app_running() {
+  [ "$(osascript -e "application id \"$1\" is running" 2>/dev/null)" = "true" ]
+}
+
+# Quits an app only when it runs (AppleScript would start one it is told to quit), and waits until it has ended:
+# its bundle is replaced right after. One that stays stops the install, with nothing replaced.
 quit_running() {
-  pgrep -qf "$2.app/Contents/MacOS/$2" || return 0
+  app_running "$1" || return 0
   osascript -e "tell application id \"$1\" to quit" >/dev/null 2>&1 || true
+  local waited=0
+  while app_running "$1"; do
+    [ "$waited" -lt "${NIGHTFORGE_QUIT_WAIT:-15}" ] || fail "$2 didn't quit. Quit it yourself, then run this again."
+    sleep 1
+    waited=$((waited + 1))
+  done
 }
 
 # An update replaces the copy that is there, in its folder: a second one elsewhere would leave the old
@@ -82,7 +95,6 @@ main() {
     quit_running io.github.lordhayne.nightforge Nightforge
     # Nightforge's earlier name: replaced by this install (its data moves over on first start).
     quit_running local.thomas.nachtschicht Nachtschicht
-    sleep 1
   fi
 
   rm -rf -- "${target:?}/$APP" "${target:?}/Nachtschicht.app"
