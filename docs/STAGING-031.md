@@ -659,12 +659,58 @@ Nachtrag dazu.
   **pytest:** 137 von 137.
 - **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
 
+## Zwölfte Runde (3.11., auf 1291796)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 55 | `claude/profile-limits` (Profilregeln in der App, acht Commits) | 6e8dc40 | dc13f83 | keine | 0 |
+| 56 | `claude/game-test-fixes` bis 44f09e8 (Schwärzung in den Berichten) | 44f09e8 | cabff73 | keine | 0 |
+| 57 | `claude/review-n-031` bis b0d6863 (BinaryKV, GameShortcut) | b0d6863 | baf57f6 | keine | 0 |
+
+**Regeln der App (55) gegen die der Profil-CI (53), aus dem Quelltext verglichen:**
+- **Gleich:**
+  - Die winetricks-Verben, die die Windows-Version setzen: 19 auf beiden Seiten, `Engine.windowsVersionVerbs` gegen
+    `WINDOWS_VERSION_VERBS`.
+  - Die Wurzeln: sechs für Windows (`gameinstall`, `winappdataroaming`, `winappdatalocal`, `winappdatalocallow`,
+    `winmydocuments`, `winsavedgames`) und drei für den Mac (`gameinstall`, `macappsupport`, `maccaches`),
+    `SaveTransfer.windowsRoot`/`macRoot` gegen `WINDOWS_ROOTS`/`MAC_ROOTS`.
+  - Wines Kern-DLLs: 17 auf beiden Seiten.
+  - Die Reihenfolgen der Overrides und die Regel für den DLL-Namen (Muster, kein `..`, Kern ohne `.dll`).
+  - Die Regel für Argumente: Muster, höchstens 16, keine Laufwerke, kein Pfad ab der Wurzel, höchstens ein `..`.
+- **Nur die App ist strenger.** Die CI lässt durch, was die App dann auslässt oder begrenzt:
+  - 15 weitere winetricks-Verben, die den ganzen Prefix verstellen (`sharedPrefixUnsafeVerbs`: `dsound`, `sandbox`,
+    `isolate_home` und andere). In den heutigen `profiles.json` und `mac.json` steht keins davon.
+  - `frameLimit` bis 240 und `vulkanSamplers` bis 128. Die CI prüft keine Grenze.
+  - Höchstens 32 DLL-Overrides. In der CI fand ich keine Grenze.
+  - Die CI könnte diese Punkte übernehmen, damit nichts still entfällt. Ein Widerspruch ist es nicht.
+
+Weitere Punkte:
+- **56:** report-url-m3 ist darin gemergt und steht auf Staging seit 32 schon. Der Merge ging ohne Konflikt.
+- **57, der Schlüssel der Spiel-Apps:** `GameShortcut.key` schreibt jetzt zuerst eine eigene Datei,
+  `shortcut-key.<UUID>.tmp` im Datenordner. Die wird dann in einem Schritt verlinkt und entfernt.
+  - Die Regel der Sandbox (77e0bba) sperrt nur den genauen Namen `shortcut-key`. Die temporäre Datei besteht nur einen
+    Augenblick und ist nur für den Spieler lesbar. Wine läuft aber unter demselben Benutzer.
+  - Für die Sandbox-Seite: eine Regel für das Präfix `shortcut-key.`, oder die Datei an einen Ort, der schon gesperrt
+    ist.
+  - Stagings Prüfung 2a7b285 hält weiter, weil danach nur `shortcut-key` übrig bleibt.
+- **57:** code-review ließ nur die neun betroffenen Reihen laufen. Den vollen Lauf gibt es unten.
+
+## Tests der zwölften Runde (auf baf57f6)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Vorab allein:** `GameShortcutTest` und `WineSandboxTest` grün.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 60 Reihen grün (1209 s), `MacVersionTest` auch (61 s).
+  **pytest:** 138 von 138.
+- **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
   von 5720a1d.
 - `SubprocessTest` ist auf h1-h3 behoben (a097ccb, Merge 36).
 - `PadFocusTest` braucht seit 88f0cb8 (Merge 39) keinen eingeschalteten Bildschirm mehr.
+- Profil-CI: die strengeren Regeln der App übernehmen (15 Verben, Grenzen für `frameLimit`, `vulkanSamplers`, Overrides), siehe die zwölfte Runde.
+- Sandbox: die temporäre Datei des Schlüssels (`shortcut-key.<UUID>.tmp`) mit sperren, siehe die zwölfte Runde.
 - Vor dem Tag v0.3.1: den Entwurf aus `docs/RELEASE-NOTES-0.3.1.md` nach `docs/release-notes/v0.3.1.md` (43).
 - `MacVersionTest`: die 20 s für das Zurückholen nach dem Beenden sind unter Last knapp (Nachtrag zur neunten Runde).
 - Nur auf Staging stehen:
