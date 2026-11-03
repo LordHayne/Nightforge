@@ -554,8 +554,14 @@ private indirect enum BinaryKV {
 
     subscript(key: String) -> BinaryKV? { object?[key] }
 
-    /// Parses one object body (until its 0x08 terminator). Keys are lowercased.
-    static func parse(_ reader: inout ByteReader, strings: [String]?) -> BinaryKV? {
+    /// How deep objects may nest: Steam's files go to about eight levels. The file lies in the prefix, which
+    /// Windows programs can write to – thousands of nested objects (two bytes each) would overflow the stack
+    /// here and crash Nightforge at every scan.
+    static let maxDepth = 64
+
+    /// Parses one object body (until its 0x08 terminator). Keys are lowercased. nil past `maxDepth`.
+    static func parse(_ reader: inout ByteReader, strings: [String]?, depth: Int = 0) -> BinaryKV? {
+        guard depth <= maxDepth else { return nil }
         var dict: [String: BinaryKV] = [:]
         while let type = reader.u8() {
             if type == 0x08 { return .object(dict) }
@@ -568,7 +574,7 @@ private indirect enum BinaryKV {
             guard let name = key?.lowercased() else { return nil }
 
             switch type {
-            case 0x00: guard let child = parse(&reader, strings: strings) else { return nil }; dict[name] = child
+            case 0x00: guard let child = parse(&reader, strings: strings, depth: depth + 1) else { return nil }; dict[name] = child
             case 0x01: guard let s = reader.cString() else { return nil }; dict[name] = .string(s)
             case 0x02: guard let v = reader.u32() else { return nil }; dict[name] = .number(Int64(Int32(bitPattern: v)))
             case 0x03: reader.skip(4)  // float, not needed
