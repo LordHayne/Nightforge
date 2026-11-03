@@ -410,6 +410,29 @@ struct MacVersionTest {
         check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path), "other games stay")
         try? Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps)
         check(fm.fileExists(atPath: steamapps.path), "an odd folder name never removes the library")
+        // One that can't all go (a read-only folder inside it): the rest is tried, the manifest stays while
+        // the game's folder is there, and the error names what's left.
+        let locked = steamapps.appendingPathComponent("common/Locked/Data", isDirectory: true)
+        try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        fm.createFile(atPath: locked.appendingPathComponent("pak0").path, contents: Data("x".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        let cache = steamapps.appendingPathComponent("shadercache/3000", isDirectory: true)
+        try? fm.createDirectory(at: cache, withIntermediateDirectories: true)
+        let lockedManifest = steamapps.appendingPathComponent("appmanifest_3000.acf")
+        fm.createFile(atPath: lockedManifest.path, contents: Data("\"AppState\"\n{\n}\n".utf8))
+        var left: [URL] = []
+        do { try Engine.removeGameFiles(appID: 3000, installDirName: "Locked", steamapps: steamapps) } catch let error as Engine.FilesLeft {
+            left = error.files
+        } catch {}
+        check(left.map(\.lastPathComponent) == ["Locked", "appmanifest_3000.acf"] && !fm.fileExists(atPath: cache.path)
+              && fm.fileExists(atPath: lockedManifest.path),
+              "a folder that won't all go: the shader cache goes anyway, the manifest stays, the error has both: \(left)")
+        let message = Engine.FilesLeft(folder: steamapps, files: left).errorDescription ?? ""
+        check(message.contains("common/Locked") && message.contains("appmanifest_3000.acf"), "and names them: \(message)")
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        try? Engine.removeGameFiles(appID: 3000, installDirName: "Locked", steamapps: steamapps)
+        check(!fm.fileExists(atPath: steamapps.appendingPathComponent("common/Locked").path) && !fm.fileExists(atPath: lockedManifest.path),
+              "tried again once it can go: all of it goes")
 
         // MARK: Download progress from Steam's content log
         let contentLog = """

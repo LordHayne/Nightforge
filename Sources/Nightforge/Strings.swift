@@ -470,6 +470,7 @@ enum L10n {
         "The part downloaded so far is deleted. You can start the download again any time.":
             "Der bisher geladene Teil wird gelöscht. Du kannst den Download jederzeit neu starten.",
         "%@ could not be uninstalled: %@": "%@ konnte nicht deinstalliert werden: %@",
+        "still there in %@: %@": "noch da in %@: %@",
 
         "Running": "Läuft",
         "Running – switch to game": "Läuft – zum Spiel wechseln",

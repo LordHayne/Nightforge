@@ -2620,21 +2620,36 @@ enum Engine {
         try? SteamLibraries.forget(appID: appID, steamRoot: steamRoot, bottle: bottle)  // while Steam is stopped
     }
 
-    /// A game's manifest, files, download leftovers and shader cache in one Steam library folder.
+    /// A game's manifest, files, download leftovers and shader cache in one Steam library folder. Each
+    /// is tried, whatever happened to the others; the manifest goes last and only once the game's folder
+    /// is gone, so Steam never forgets a game whose files are still there (it's still installed then and
+    /// can be removed again). Whatever stays is in the error.
     static func removeGameFiles(appID: Int, installDirName: String, steamapps: URL) throws {
         let fm = FileManager.default
-        var targets = [
-            steamapps.appendingPathComponent("appmanifest_\(appID).acf"),
-            steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true),
-            steamapps.appendingPathComponent("shadercache/\(appID)", isDirectory: true),
-        ]
+        var targets: [URL] = []
         // Never let an empty or odd folder name turn into deleting all of steamapps/common.
         let name = installDirName.trimmingCharacters(in: .whitespaces)
-        if !name.isEmpty, !name.contains("/"), name != ".", name != ".." {
-            targets.append(steamapps.appendingPathComponent("common/\(name)", isDirectory: true))
-        }
+        let folder = steamapps.appendingPathComponent("common/\(name)", isDirectory: true)
+        if !name.isEmpty, !name.contains("/"), name != ".", name != ".." { targets.append(folder) }
+        targets += [steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true),
+                    steamapps.appendingPathComponent("shadercache/\(appID)", isDirectory: true)]
+        var left: [URL] = []
         for target in targets where fm.fileExists(atPath: target.path) {
-            try fm.removeItem(at: target)
+            if (try? fm.removeItem(at: target)) == nil { left.append(target) }
+        }
+        let manifest = steamapps.appendingPathComponent("appmanifest_\(appID).acf")
+        if fm.fileExists(atPath: manifest.path), left.contains(folder) || (try? fm.removeItem(at: manifest)) == nil {
+            left.append(manifest)
+        }
+        guard left.isEmpty else { throw FilesLeft(folder: steamapps, files: left) }
+    }
+
+    /// What removeGameFiles couldn't take away, named for the player ("… could not be uninstalled: …").
+    struct FilesLeft: LocalizedError {
+        let folder: URL
+        let files: [URL]
+        var errorDescription: String? {
+            L10n.t("still there in %@: %@", folder.path, files.map { String($0.path.dropFirst(folder.path.count + 1)) }.joined(separator: ", "))
         }
     }
 
