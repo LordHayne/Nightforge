@@ -478,7 +478,16 @@ DLL-Overrides). Ein Widerspruch ist es nicht: Die App lässt aus oder begrenzt, 
 | Audit N6: der Bericht im öffentlichen Repo nennt die installierten Spiele | offen, entscheidet der Nutzer |
 | Die Schwärzung ist eine Liste bekannter Muster | bleibt; ein unbekanntes Format kann durchrutschen. Nichts geht ab, bevor der Spieler absendet |
 
-### 8. Was offen ist und warum
+### 8. „Komplett entfernen“, externes Review des Löschens und Beendens
+
+| Nr. | Fund | Stand |
+|---|---|---|
+| 1 (mittel) | Die Sicherung der Spielstände ließ Spiele aus, die neben ihrem Programm im eigenen Ordner speichern (`steamapps/common` im Prefix); der Prefix ging danach mit ihnen weg, obwohl das Blatt „Spielstände werden kopiert“ sagt | behoben 7bd0488: `gameFolderSaves` nimmt Steam Clouds Regeln mit der Wurzel `gameinstall` und die Profile der Spiele im Prefix und kopiert die genannten Dateien einzeln, nicht das Spiel. Bleibt: Epic- und GOG-Spiele im Prefix (`Program Files\Epic Games`, `GOG Games`) – Nightforge kennt für sie keine Regeln, ihr Ordner geht mit; Spiele auf einem externen Laufwerk werden nicht gelöscht |
+| 2 (niedrig) | Der Sicherungsordner hieß nach dem Datum allein und wurde vor dem Kopieren gelöscht: eine zweite Entfernung am selben Tag löschte die erste Sicherung, ein Fehler danach ließ nichts übrig | behoben e71ebde: `Nightforge Saves/<Datum-Uhrzeit>`, bei Gleichheit `-2`, nichts wird vorher entfernt, ein fehlgeschlagenes Kopieren nimmt den begonnenen Ordner weg und bricht ab |
+| 3 (niedrig) | Ohne Pid-Datei beendete `endScripts` jeden bash, in dessen Befehlszeile der Pfad des Skripts stand (auch `bash -c … <Pfad>`) | behoben 72bd3c0: das Skript muss das erste Argument von bash sein |
+| – | Orte außerhalb der App (Test, der den echten Ort selbst nennt) | behoben 10b9f12 (`namesTheRealApp`) |
+
+### 9. Was offen ist und warum
 
 - **Live-Tests, die noch fehlen:** der Schalter der Sandbox mit allem zusammen; M7/N9 (Apple Event beim Beenden und Abmelden); `Epic/destinations.json` und `GOG/installed.json` aus der Sandbox (Abend des 3.11.).
 - **Auf GitHub noch nicht gelaufen:** die geänderten Workflows (Abschnitt 4); die Einstellungen von GitHub selbst (Schutz für `main` und Tags, „Allow GitHub Actions to create and approve pull requests“) sieht man im Code nicht (`docs/AUDIT-SICHERHEIT.md` › „Zu prüfen“).
