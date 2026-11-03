@@ -551,29 +551,33 @@ struct LaunchHealthTest {
         check(GameOptions().effectiveFrameLimit(displayRefreshRate: 120) == (Prefs.sharpAndSmooth ? 40 : 0),
               "Low Power Mode starts one share lower")
 
-        // Wine's Retina mode for a start: a game with DLSS on D3DMetal gets it with MetalFX (Control).
+        // Wine's Retina mode for a start: a game whose DLSS works on D3DMetal (its profile says so) gets it
+        // with MetalFX. Control's DLSS library alone isn't enough: greyed out there, under 20 FPS at full Retina.
         Hardware.set(.init(retina: true, lowPower: false))
         var dlss = GameAnalysis()
         dlss.usesDLSS = true
         func profiled(_ json: String) -> GameProfile? { try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let works = profiled(#"{"dlss": true}"#)
         let automatic = GameOptions()
-        check(automatic.retina(profile: nil, layer: .d3dmetal, analysis: dlss) == Prefs.sharpAndSmooth,
-              "DLSS on D3DMetal, Sharp & smooth, a Retina screen: Retina mode")
-        check(!automatic.retina(profile: nil, layer: .d3dmetal, analysis: GameAnalysis())
-              && !automatic.retina(profile: nil, layer: .dxmt, analysis: dlss) && !automatic.retina(profile: nil, layer: .d3dmetal, analysis: nil),
-              "without DLSS, on another layer or unknown: none (the game would draw every pixel)")
+        check(automatic.retina(profile: works, layer: .d3dmetal, analysis: dlss) == Prefs.sharpAndSmooth,
+              "DLSS known to work on D3DMetal, Sharp & smooth, a Retina screen: Retina mode")
+        check(!automatic.retina(profile: nil, layer: .d3dmetal, analysis: dlss),
+              "DLSS beside the game but not known to work (Control): none")
+        check(!automatic.retina(profile: works, layer: .d3dmetal, analysis: GameAnalysis())
+              && !automatic.retina(profile: works, layer: .dxmt, analysis: dlss) && !automatic.retina(profile: works, layer: .d3dmetal, analysis: nil),
+              "without DLSS beside the game, on another layer or unknown: none (the game would draw every pixel)")
         var noUpscaling = GameOptions()
         noUpscaling.upscaling = .off
-        check(!noUpscaling.retina(profile: nil, layer: .d3dmetal, analysis: dlss)
-              && !automatic.retina(profile: profiled(#"{"metalFX": false}"#), layer: .d3dmetal, analysis: dlss),
+        check(!noUpscaling.retina(profile: works, layer: .d3dmetal, analysis: dlss)
+              && !automatic.retina(profile: profiled(#"{"dlss": true, "metalFX": false}"#), layer: .d3dmetal, analysis: dlss),
               "MetalFX off, by hand or by the profile: none")
         check(automatic.retina(profile: profiled(#"{"retina": true}"#), layer: .dxmt, analysis: nil)
-              && !automatic.retina(profile: profiled(#"{"retina": false}"#), layer: .d3dmetal, analysis: dlss),
-              "a profile's word counts either way")
+              && !automatic.retina(profile: profiled(#"{"retina": false, "dlss": true}"#), layer: .d3dmetal, analysis: dlss),
+              "a profile's word on Retina counts either way")
         Hardware.set(.init(retina: false, lowPower: false))
         var upscaled = GameOptions()
         upscaled.upscaling = .on
-        check(!automatic.retina(profile: nil, layer: .d3dmetal, analysis: dlss) && !upscaled.retina(profile: nil, layer: .d3dmetal, analysis: dlss),
+        check(!automatic.retina(profile: works, layer: .d3dmetal, analysis: dlss) && !upscaled.retina(profile: works, layer: .d3dmetal, analysis: dlss),
               "a screen without Retina: none, even with MetalFX switched on")
         Hardware.set(.init(retina: true, lowPower: false))
         check(FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt, lowPower: true)

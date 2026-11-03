@@ -299,14 +299,16 @@ struct GameOptions: Codable, Equatable {
         return refreshRate / ((refreshRate >= 100 ? 2 : 1) + (lowPower ? 1 : 0))
     }
 
-    /// Wine's Retina mode for a start: what the game's profile says, and otherwise on for a game with DLSS
-    /// on D3DMetal whose MetalFX is on, on a Retina screen ("Sharp & smooth" switched on and enjoyed): the
-    /// game then offers the screen's full resolution, and its DLSS, which D3DMetal hands to MetalFX, draws
-    /// below that and scales up. Without DLSS it would draw every pixel of the Retina screen, at a
-    /// fraction of its frame rate: only with a profile.
+    /// Wine's Retina mode for a start: what the game's profile says, and otherwise on for a game whose DLSS
+    /// works on D3DMetal (its profile's `dlss`, and DLSS beside the game) when its MetalFX is on, on a
+    /// Retina screen ("Sharp & smooth" switched on and enjoyed): the game then offers the screen's full
+    /// resolution, and its DLSS, which D3DMetal hands to MetalFX, draws below that and scales up. A game
+    /// whose DLSS doesn't come up there would draw every pixel of the Retina screen, at a fraction of
+    /// its frame rate (Control: under 20 FPS, 3.11.2026), so a DLSS library alone isn't enough.
     func retina(profile: GameProfile?, layer: GraphicsLayer, analysis: GameAnalysis?) -> Bool {
         if let retina = profile?.retina { return retina }
-        return layer == .d3dmetal && analysis?.usesDLSS == true && effectiveUpscaling(profile: profile) && Hardware.current.retina
+        return layer == .d3dmetal && profile?.dlss == true && analysis?.usesDLSS == true
+            && effectiveUpscaling(profile: profile) && Hardware.current.retina
     }
 
     /// A game profile can rule MetalFX out for games it doesn't suit. Automatic upscales only on a
