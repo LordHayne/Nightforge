@@ -703,6 +703,42 @@ Weitere Punkte:
   **pytest:** 138 von 138.
 - **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
 
+## Dreizehnte Runde (3.11., auf 4f0d00a)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 58 | `claude/security-status` (code-review) | 0912515 | 9737280 | keine | 0 |
+| 59 | `claude/quit-safety` (engine-04) | c5688a4 | 26fb883 | `CompleteRemoval.swift`, `tests/CompleteRemovalTest/main.swift` | 0 |
+| 60 | `claude/uninstall-safety` (kosmickrisp-dx9) | 4048a57 | 2f2d622 | keine | 0 |
+| 61 | `claude/perf-031` (display-polish) | 1b282d7 | 327d457 | keine | 0 |
+| 62 | `claude/wine-sandbox` bis 5cc5402 | 5cc5402 | 37f4f03 | keine | 0 |
+| 63 | `claude/signed-updates-dda700` bis b6f340a | b6f340a | 54de5dc | keine | 0 |
+| 64 | `claude/release-notes-031` bis ce56a0c | ce56a0c | 764686c | keine | 0 |
+| 65 | `claude/kleinkram-031-766fe2` (f50c368, `install.sh`) | f50c368 | 2019741 | `scripts/install.sh` | 0 |
+
+- **59, `CompleteRemoval.endScripts`:** Beide Zweige haben dasselbe behoben. Das Beenden-Skript gilt nur, wenn es das
+  erste Argument von bash ist, nicht wo sein Pfad irgendwo im Befehl steht.
+  - Es bleibt security-status' `runsScript` (58). Es deckt quit-safetys Prüfung ab und dazu `bash <Skript>`.
+  - `CompleteRemovalTest` behält beide Attrappen, eine bash mit dem Pfad als späterem Argument (security-status) und
+    eine, deren `-c`-Text ihn nennt (quit-safety). Die Reihe ist grün.
+- **59 und 60, das Entfernen eines Spiels:** Kein Textkonflikt. quit-safety ändert `Engine.removeGameFiles` für Steam.
+  uninstall-safety ändert die Wege für Epic und GOG und verweist in seinen Kommentaren auf die Steam-Fassung. Die beiden
+  ergänzen sich.
+- **65, `scripts/install.sh`:** signed-updates' Block bleibt, wo er ist. Der alte Kommentar über `quit_running` weicht
+  `app_running` und seinem Kommentar. Das ist dieselbe Lösung, die vorab auf 4f0d00a getestet war: Install- und
+  Signier-Tests 47 von 47.
+- **62:** `claude/wine-sandbox` 5cc5402 ist jetzt drin. Die Prüfungen von compat-db im Live-Test (L.6) gelten damit für
+  den Build von heute Abend.
+
+## Tests der dreizehnten Runde (auf 2019741)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Vorab allein:** `CompleteRemovalTest` grün auf dem gelösten Stand von 59. Dazu Install- und Signier-Tests 47 von 47
+  nach 65.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 60 Reihen grün (1239 s), `MacVersionTest` auch (63 s).
+  **pytest:** 144 von 144.
+- **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
