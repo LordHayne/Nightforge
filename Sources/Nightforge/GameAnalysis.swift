@@ -36,6 +36,10 @@ struct GameAnalysis: Codable, Equatable {
     var launcher: String?
     /// Microsoft WebView2 draws some of its windows (login, news); under Wine they often stay empty.
     var usesWebView2 = false
+    /// NVIDIA's DLSS library beside the game (nvngx_dlss.dll: Control, Overwatch). D3DMetal hands DLSS
+    /// to MetalFX (D3DM_ENABLE_METALFX); four folders deep at most, like everything here, so Unreal's
+    /// DLSS plugin further down isn't seen.
+    var usesDLSS = false
     /// The game's own DirectX 12 program beside the one the store starts, relative to the game
     /// folder (Control: Control.exe hands over to Control_DX11.exe, Control_DX12.exe lies beside
     /// it). D3DMetal starts it (GameProgram); the other layers have no DirectX 12 and keep the store's.
@@ -154,6 +158,7 @@ extension GameAnalysis {
             .filter { contents.hasItem(named: $0.1) }.map(\.0)
         analysis.launcher = launchers.first { $0.paths.contains(where: contents.has) }?.name
         analysis.usesWebView2 = contents.hasItem(named: "webview2loader.dll")
+        analysis.usesDLSS = contents.hasItem(named: "nvngx_dlss.dll")
         return analysis
     }
 

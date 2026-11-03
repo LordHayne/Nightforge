@@ -3187,7 +3187,7 @@ final class LibraryModel: ObservableObject {
                 if viaSteam, game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
-                                                   retina: profile?.retina == true,
+                                                   retina: options.retina(profile: profile, layer: layer, analysis: analysis),
                                                    environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
@@ -3199,6 +3199,17 @@ final class LibraryModel: ObservableObject {
                 }
                 if viaSteam, game.bottle.isBuiltIn, layer == .d3dmetal {
                     GameLog.note(GameLog.d3dMetalStart(game.name, environment: Engine.steamEnvironment, retina: Engine.launchRetina))
+                }
+                // A store's game (Epic, GOG) starts a session of its own: Wine's Retina mode goes into the
+                // prefix before it, Steam ended first as for a fresh session, not with a Steam start.
+                let retina = options.retina(profile: profile, layer: layer, analysis: analysis)
+                if !viaSteam, game.bottle.isBuiltIn, Engine.retinaModeApplied != retina, !anyRunning(.windows), let runner {
+                    launchPhase = .startingSteam
+                    let wine = URL(fileURLWithPath: runner)
+                    try? await Engine.stopSteam(wine)
+                    Engine.launchRetina = retina
+                    await Engine.offMain { Engine.applyRetinaMode(wine) }
+                    launchPhase = nil
                 }
                 let shaders = LaunchPhase.graphicsSignature(runner: runner, layer: layer,
                                                             components: ComponentStore.localManifest()?.components ?? [])
