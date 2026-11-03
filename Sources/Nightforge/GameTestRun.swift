@@ -37,6 +37,8 @@ final class GameTestRun {
     private var report: GameTest.Report
     private let folder: URL
     private var stopAsked = false
+    /// The wait for a process list ran out once and ps hasn't answered since (`knownProcesses`).
+    private var processListGone = false
     /// The games the run started so far: none of them may still run when the next one starts.
     private var startedGames: [Game] = []
 
@@ -257,15 +259,22 @@ final class GameTestRun {
                 notes.append("Spielstand-Frage beantwortet: die eigenen behalten")
             }
             // No process list (ps doesn't answer): the game's presence isn't known, so no look is judged – not
-            // "never appeared", not "ended". Two minutes of that end the test of this game with a note.
+            // "never appeared", not "ended" – but a picture the curtain saw is one. Two minutes of that end the
+            // test of this game with a note.
             guard let listed = await processes(of: game) else {
                 blind += 1
-                if blind >= GameTest.blindLooks {
+                switch GameTest.blindLook(picture: LaunchHealth.showedPicture(game.gameID, since: started), looks: blind) {
+                case .wait:
+                    continue
+                case .picture:
+                    seen.process = true
+                    seen.picture = true
+                    pictureAt = now
+                case .unknown:
                     seen.unknown = true
                     notes.append("keine Prozessliste (ps antwortet nicht): nach 2 min abgebrochen")
-                    break watching
                 }
-                continue
+                break watching
             }
             blind = 0
             pids = listed
@@ -376,7 +385,10 @@ final class GameTestRun {
                 notes.append("sample konnte den Prozess nicht lesen")
             }
         }
-        await quit(game)
+        if await !quit(game) {
+            seen.unknown = true
+            notes.append("keine Prozessliste (ps antwortet nicht): das Spiel wurde nicht beendet, sein Ende ist unbekannt")
+        }
 
         let installDir = game.installDir
         let (log, programs, unrealCrash) = await Engine.offMain {
@@ -449,8 +461,12 @@ final class GameTestRun {
     private func clearStage() async -> [String] {
         var notes: [String] = []
         for earlier in startedGames {
-            // Without a list it may still run: wait for one rather than start the next game beside it.
-            guard let pids = await knownProcesses(of: earlier) else { break }
+            // Without a list it may still run: wait for one rather than start the next game beside it –
+            // as long as `knownProcesses` waits; after that the run goes on, and says so.
+            guard let pids = await knownProcesses(of: earlier) else {
+                notes.append("keine Prozessliste (ps antwortet nicht): ob \(earlier.name) noch lief, ist unbekannt")
+                break
+            }
             guard !pids.isEmpty else { continue }
             await quit(earlier)
             notes.append("vorher lief noch \(earlier.name) – beendet")
@@ -527,15 +543,27 @@ final class GameTestRun {
 
     /// The game's processes from a list asked for just now, waiting for one while ps doesn't answer:
     /// a game is never taken for gone – and the next one started beside it, which skews both – only
-    /// because nothing could be listed. Nil when the run was stopped meanwhile. The wait goes into the report.
+    /// because nothing could be listed. Nil when there is none after `GameTest.processListPatience`
+    /// (at once while ps has stayed down since) or the run was stopped meanwhile: the run goes on
+    /// without, so that a ps down for good doesn't hold it for the night. The wait goes into the report.
     private func knownProcesses(of game: Game) async -> [pid_t]? {
         var since: Date?
         defer {
             if let since { report.waitedProcessList = (report.waitedProcessList ?? 0) + Int((Date().timeIntervalSince(since) / 60).rounded(.up)) }
         }
         while true {
-            if let pids = await processes(of: game) { return pids }
+            if let pids = await processes(of: game) {
+                processListGone = false
+                return pids
+            }
             if UserDefaults.standard.bool(forKey: GameTest.Keys.stop) { return nil }
+            guard GameTest.waitsForProcessList(waited: since.map { Date().timeIntervalSince($0) } ?? 0, gaveUpBefore: processListGone) else {
+                if !processListGone {
+                    processListGone = true
+                    GameLog.note("Game test: still no process list after \(Int(GameTest.processListPatience / 60)) min – the run goes on without")
+                }
+                return nil
+            }
             if since == nil {
                 since = Date()
                 GameLog.note("Game test: no process list (ps doesn't answer) – the run waits before going on")
@@ -545,17 +573,21 @@ final class GameTestRun {
     }
 
     /// Quit Game, as the overlay does it: the player's end – nothing learned from it – and its
-    /// processes ended, also when it hangs.
-    private func quit(_ game: Game) async {
+    /// processes ended, also when it hangs. False when no process list came (`knownProcesses`): the
+    /// game may still run, and isn't ended.
+    @discardableResult
+    private func quit(_ game: Game) async -> Bool {
         if GameOverlay.isOpen { GameOverlay.close() }
         // No list just now isn't "not running": wait for one, or a game would be left behind.
-        guard let pids = await knownProcesses(of: game), !pids.isEmpty else { return }
+        guard let pids = await knownProcesses(of: game) else { return false }
+        guard !pids.isEmpty else { return true }
         LaunchHealth.playerQuit(game.gameID)
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
         await Task.detached(priority: .userInitiated) {
             GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
         }.value
+        return true
     }
 
     /// Back in Nightforge as after any game, and what it shows for the player put away.

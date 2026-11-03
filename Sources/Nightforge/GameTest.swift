@@ -380,6 +380,24 @@ enum GameTest {
     /// Looks in a row without a process list (one a second) before the run gives up on a start.
     static let blindLooks = 120
 
+    enum BlindLook: Equatable { case picture, wait, unknown }
+
+    /// A look without a process list: the curtain's picture is known all the same (it sank for the
+    /// game), so it counts as one; else the run waits, `blindLooks` at most, then nothing is known.
+    static func blindLook(picture: Bool, looks: Int) -> BlindLook {
+        if picture { return .picture }
+        return looks >= blindLooks ? .unknown : .wait
+    }
+
+    /// How long the run waits for a process list before it ends a game or starts the next one. Past
+    /// that it goes on without (the game not ended, its end unknown), and while ps stays down
+    /// (`gaveUpBefore`) it doesn't wait again: a ps down for good still lets the run finish.
+    static let processListPatience: TimeInterval = 15 * 60
+
+    static func waitsForProcessList(waited: TimeInterval, gaveUpBefore: Bool) -> Bool {
+        !gaveUpBefore && waited < processListPatience
+    }
+
     static func outcome(_ seen: Seen) -> Outcome {
         if seen.picture { return .picture }
         if seen.needs != nil { return .needsPlayer }
