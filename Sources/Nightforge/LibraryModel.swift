@@ -1618,7 +1618,7 @@ final class LibraryModel: ObservableObject {
     private func steamStartFailed(since began: Date) async -> Bool {
         guard let start = Engine.lastSteamStart, start.at >= began.addingTimeInterval(-60) else { return false }
         let (outcome, build) = await Engine.offMain {
-            (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.isSteamRunning)),
+            (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.steamRunningKnown)),
              EngineRollback.shared.build(running: start.wine))
         }
         guard outcome == .failed, let build else { return false }
