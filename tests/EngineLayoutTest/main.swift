@@ -347,6 +347,24 @@ struct EngineLayoutTest {
             check(Engine.vulkanLoaderEnvironment(layer: .dxvk, d3d9: false, wine: wine, defaults: switches).isEmpty
                   && Engine.vulkanLoaderEnvironment(layer: .dxmt, d3d9: true, wine: wine, defaults: switches).isEmpty,
                   "Direct3D 11 on DXVK (OxyRail draws without) and other layers: nothing")
+            // A direct start (Epic, GOG) goes by the start's analysis: the game's files are read once, by insight.
+            let source = work.appendingPathComponent("direct/Source Game", isDirectory: true)
+            writeExe(source.appendingPathComponent("game.exe"), bits64: false)
+            write(Data(), source.appendingPathComponent("bin/shaderapidx9.dll"))
+            check(GameAnalysis.analyze(installDir: source, launchExecutable: "game.exe").usesD3D9,
+                  "the test game's files say Direct3D 9 (a Source game's renderer in bin/)")
+            func direct(_ folder: URL, usesD3D9: Bool) -> [String: String] {
+                let game = Game(gameID: .gog("1"), name: "Source Game", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                                steamExeWindowsPath: "", installDir: folder, sizeOnDisk: 0)
+                return Launcher.directEnvironment(game, layer: .dxvk, usesD3D9: usesD3D9, runner: wine, options: GameOptions(),
+                                                  profile: nil, environment: [:])
+            }
+            UserDefaults.standard.set(loader.path, forKey: "vulkanLoader")
+            check(direct(source, usesD3D9: false)["CX_LIBVULKAN"] == nil,
+                  "the start's analysis says no: no loader, though a second look at the files would say Direct3D 9")
+            check(direct(work.appendingPathComponent("direct/not there"), usesD3D9: true)["CX_LIBVULKAN"] == loader.path,
+                  "the start's analysis says yes: the loader, with no game folder there to read")
+            UserDefaults.standard.removeObject(forKey: "vulkanLoader")
             switches.set("/nowhere/libvulkan.1.dylib", forKey: "vulkanLoader")
             check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "a path that isn't there: off")
             let before = Engine.launchEnvironment

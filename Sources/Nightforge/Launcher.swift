@@ -578,10 +578,10 @@ enum Launcher {
 
     /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
     /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
-    /// the game log. `environment`: `Engine.directLaunchEnvironment`.
+    /// the game log. `environment`: `Engine.directLaunchEnvironment`; `usesD3D9`: see `directEnvironment`.
     static func launchDirect(_ game: Game, command: StoreLaunchCommand, runnerPath: String, options: GameOptions,
                              profile: GameProfile?, frameLimit: Int, extraArguments: [String],
-                             environment gameEnvironment: [String: String]) throws -> DetachedProcess {
+                             environment gameEnvironment: [String: String], usesD3D9: Bool) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -596,28 +596,8 @@ enum Launcher {
         GameResolution.fit(game, profile: profile, retina: Engine.retinaModeApplied, wine: runner)
 
         let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
-        var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
-        // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
-        // choice is in the registry (AppDefaults), which an override here would beat.
-        environment["WINEDLLOVERRIDES"] = nil
-        let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
-        if !switches.isEmpty {
-            environment.merge(switches) { _, game in game }
-            GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches))")
-        }
-        // Engine test: Direct3D 9 on DXVK through the Vulkan loader (Engine.vulkanLoader). Looked at
-        // only then: a start doesn't read the game's files otherwise.
-        let storeProgram = command.executable.standardizedFileURL.path, folder = game.installDir.standardizedFileURL.path + "/"
-        let d3d9 = layer == .dxvk && Engine.vulkanLoader(for: runner) != nil
-            && GameAnalysis.analyze(installDir: game.installDir,
-                                    launchExecutable: storeProgram.hasPrefix(folder) ? String(storeProgram.dropFirst(folder.count)) : nil).usesD3D9
-        let vulkan = Engine.vulkanLoaderEnvironment(layer: layer, d3d9: d3d9, wine: runner)
-        if !vulkan.isEmpty {
-            environment.merge(vulkan) { _, loader in loader }
-            GameLog.note("\(game.name) draws Direct3D 9 on DXVK through the Vulkan loader (engine test)")
-        }
-        environment["WINEDEBUG"] = GameLog.wineDebug
-        if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
+        var environment = directEnvironment(game, layer: layer, usesD3D9: usesD3D9, runner: runner, options: options,
+                                            profile: profile, environment: gameEnvironment)
         environment.merge(command.environment) { _, store in store }
         // The store's program, or the one picked for the game (GameProgram). The store's parameters
         // (Epic's sign-in) go to whichever starts; another program runs in its own folder.
@@ -640,6 +620,31 @@ enum Launcher {
         try process.run()
         UnityDialog.start(for: game, profile: profile, wine: runner)
         return process
+    }
+
+    /// A direct start's environment before the store's own variables: Nightforge's engine, the game's
+    /// switches and, with the engine test on, the Vulkan loader for a Direct3D 9 game on DXVK
+    /// (Engine.vulkanLoader). `usesD3D9` is from the start's own look at the game's files
+    /// (LibraryModel.insight), so a start doesn't read them a second time.
+    static func directEnvironment(_ game: Game, layer: GraphicsLayer, usesD3D9: Bool, runner: URL, options: GameOptions,
+                                  profile: GameProfile?, environment gameEnvironment: [String: String]) -> [String: String] {
+        var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
+        // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
+        // choice is in the registry (AppDefaults), which an override here would beat.
+        environment["WINEDLLOVERRIDES"] = nil
+        let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
+        if !switches.isEmpty {
+            environment.merge(switches) { _, game in game }
+            GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches))")
+        }
+        let vulkan = Engine.vulkanLoaderEnvironment(layer: layer, d3d9: usesD3D9, wine: runner)
+        if !vulkan.isEmpty {
+            environment.merge(vulkan) { _, loader in loader }
+            GameLog.note("\(game.name) draws Direct3D 9 on DXVK through the Vulkan loader (engine test)")
+        }
+        environment["WINEDEBUG"] = GameLog.wineDebug
+        if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
+        return environment
     }
 
     /// Splits `-foo "bar baz" -x` into ["-foo", "bar baz", "-x"].
