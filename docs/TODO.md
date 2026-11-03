@@ -288,6 +288,11 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Unreals Warnung „Known issues with graphics driver“: D3DMetal 3.0 meldet AMD 30.0.15.1233, das Unreal auf seiner
     Sperrliste hat, und das „Yes“ beendet das Spiel. `Engine.clearUnrealDriverDenyList` leert die AMD-Liste in
     `Saved/Config/Windows/Hardware.ini` vor jedem Start eines Unreal-Spiels auf D3DMetal. Noch nicht live bestätigt.
+    Spieletest 2.11./3.11.: Die Warnung kam trotz geleerter Listen (AMD, NVIDIA, Intel) wieder, als Topmost-Fenster auf
+    winecx' Ebene 21 (286×251), das der Vorhang nicht als Frage kannte – Wukong „hing“. Jetzt (`claude/game-test-fixes`)
+    zusätzlich `r.WarnOfBadDrivers=0` in `[SystemSettings]` der `Saved/Config/Windows/Engine.ini` (Unreals eigener
+    Schalter, steht im Programm), und `GameProcesses.question` nimmt Ebene 21 als Frage: Kommt die Warnung doch, geht der
+    Vorhang darunter. Live prüfen: Wukong-Benchmark startet ohne Warnung mit Bild.
 - **MTL_HUD** erscheint unter D3DMetal 4.0 nicht (Metal-4-Backend?).
 - **Lizenz:** GPTK 4.0b3 erlaubt die Weitergabe nur nicht-kommerziell und unverändert. Nightforge muss
   kostenlos bleiben, D3DMetal.framework wird nur ganz und unverändert weitergegeben. Kein Streaming-Dienst

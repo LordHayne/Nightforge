@@ -538,6 +538,17 @@ enum GameProcesses {
         return info.pbi_status != UInt32(SZOMB)
     }
 
+    /// The one of `pids` with the most memory: a game's own program, not the launcher that waits for
+    /// it (for `sample` in the game test).
+    nonisolated static func biggest(_ pids: [pid_t]) -> pid_t? {
+        func resident(_ pid: pid_t) -> UInt64 {
+            var info = proc_taskinfo()
+            let size = Int32(MemoryLayout<proc_taskinfo>.size)
+            return proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &info, size) == size ? info.pti_resident_size : 0
+        }
+        return pids.max { resident($0) < resident($1) }
+    }
+
     /// Stopped by SIGSTOP.
     nonisolated static func stopped(_ pid: pid_t) -> Bool {
         var info = proc_bsdinfo()
@@ -569,7 +580,7 @@ enum GameProcesses {
     nonisolated static func question(_ windows: [[String: Any]], pids: Set<pid_t>) -> Int? {
         let asking = windows.first { window in
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
-                  (0...Int(CGWindowLevelForKey(.modalPanelWindow))).contains((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
+                  questionLevel((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: Any],
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
@@ -577,6 +588,14 @@ enum GameProcesses {
             return width >= 200 && height >= 100 && !(width >= 640 && height >= 360)
         }
         return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    /// The levels a question can be at: normal up to a modal panel, and winecx's own for a topmost
+    /// window – just above the Dock (cocoa_app.m, adjustWindowLevels: kCGDockWindowLevel + 1). There
+    /// Black Myth: Wukong's driver warning stood in both game tests on 2.11. (286×251 L21), under the
+    /// curtain, which never made way: the game never got the front and counted as hanging.
+    nonisolated static func questionLevel(_ level: Int) -> Bool {
+        (0...Int(CGWindowLevelForKey(.modalPanelWindow))).contains(level) || level == Int(CGWindowLevelForKey(.dockWindow)) + 1
     }
 
     nonisolated static func question(_ pids: Set<pid_t>) -> Int? {

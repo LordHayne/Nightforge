@@ -552,9 +552,23 @@ struct D3DMetalTest {
         check(!fm.fileExists(atPath: game.appendingPathComponent("Engine/Saved").path)
               && !fm.fileExists(atPath: game.appendingPathComponent("Saved").path), "nothing written for Unreal's helpers or beside the program")
 
+        // The check itself off too (r.WarnOfBadDrivers): with all three lists cleared the warning came again (2.11.).
+        let engine = game.appendingPathComponent("b1/Saved/Config/Windows/Engine.ini")
+        check(text(engine) == "[SystemSettings]\nr.WarnOfBadDrivers=0\n", "Engine.ini turns Unreal's driver check off: \(text(engine).debugDescription)")
+
         let before = cleared
+        let engineBefore = text(engine)
         Engine.clearUnrealDriverDenyList(installDir: game)
-        check(text(hardware) == before, "doing it again changes nothing")
+        check(text(hardware) == before && text(engine) == engineBefore, "doing it again changes nothing")
+
+        // The game's own Engine.ini (Wukong's, CRLF) keeps what it has; [SystemSettings] goes at its end.
+        write("[Core.System]\r\nPaths=../../../Engine/Content\r\n\r\n[WindowsApplication.Accessibility]\r\nStickyKeysHotkey=False\r\n", to: engine)
+        Engine.clearUnrealDriverDenyList(installDir: game)
+        check(text(engine) == "[Core.System]\r\nPaths=../../../Engine/Content\r\n\r\n[WindowsApplication.Accessibility]\r\nStickyKeysHotkey=False\r\n\r\n[SystemSettings]\r\nr.WarnOfBadDrivers=0\r\n",
+              "the game's Engine.ini kept, CRLF and all: \(text(engine).debugDescription)")
+        write("[SystemSettings]\nr.WarnOfBadDrivers=1\nr.Other=2\n", to: engine)
+        Engine.clearUnrealDriverDenyList(installDir: game)
+        check(text(engine) == "[SystemSettings]\nr.WarnOfBadDrivers=0\nr.Other=2\n", "a check switched on is switched off, the rest stays: \(text(engine).debugDescription)")
 
         // A game that has not run yet has no Saved/ folder: it's made, so the very first start is spared too.
         let fresh1 = fresh(work, "unreal-first-start")
@@ -590,6 +604,8 @@ struct D3DMetalTest {
         write("MZ", to: old.appendingPathComponent("Game/Binaries/Win64/Game-Win64-Shipping.exe"))
         write("", to: old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Engine.ini"))
         Engine.clearUnrealDriverDenyList(installDir: old)
+        check(text(old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Engine.ini"))?.contains("r.WarnOfBadDrivers=0") == true,
+              "Unreal 4: the check off in its Engine.ini too")
         check(text(old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Hardware.ini"))?.contains("!Blacklist=ClearArray") == true
               && fm.fileExists(atPath: old.appendingPathComponent("Game/Saved/Config/Windows/Hardware.ini").path), "Unreal 4: its folder as well")
 
@@ -600,7 +616,8 @@ struct D3DMetalTest {
         write("MZ", to: other.appendingPathComponent("Unity/Game_Data/x.exe"))
         Engine.clearUnrealDriverDenyList(installDir: other)
         let leftovers = (fm.enumerator(atPath: other.path)?.allObjects as? [String] ?? []).filter { $0.contains("Hardware.ini") }
-        check(Engine.unrealProjects(in: other).isEmpty && leftovers.isEmpty, "no Unreal, no file: \(leftovers)")
+        let engines = (fm.enumerator(atPath: other.path)?.allObjects as? [String] ?? []).filter { $0.contains("Engine.ini") }
+        check(Engine.unrealProjects(in: other).isEmpty && leftovers.isEmpty && engines.isEmpty, "no Unreal, no file: \(leftovers + engines)")
 
         // Two projects in one folder (a game and its benchmark), both done.
         let two = fresh(work, "two-projects")

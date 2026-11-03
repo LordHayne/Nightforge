@@ -213,6 +213,10 @@ enum GameTest {
         case crash
         /// Still running without a picture after `pictureWait`: sampled, then ended.
         case hang
+        /// Still running without a picture, but with a window of its own smaller than a picture
+        /// standing all along – a start window or a question (GameProcesses.question): it waits for a
+        /// click, it doesn't hang (Black Myth: Wukong's driver warning, 2.11.).
+        case dialog
         /// No process of it showed up.
         case noStart
         /// Called off: it came to something only the player can do (a sign-in, Steam's question).
@@ -267,12 +271,14 @@ enum GameTest {
         var stillRunning = false
         var crashSigns = false
         var needs: Skip?
+        /// A window of its own smaller than a picture stood when the wait ran out.
+        var smallWindow = false
     }
 
     static func outcome(_ seen: Seen) -> Outcome {
         if seen.picture { return .picture }
         if seen.needs != nil { return .needsPlayer }
-        if seen.stillRunning { return .hang }
+        if seen.stillRunning { return seen.smallWindow ? .dialog : .hang }
         if seen.crashSigns { return .crash }
         return seen.process ? .noWindow : .noStart
     }
@@ -294,7 +300,8 @@ enum GameTest {
         switch outcome {
         case .picture: return issues.isEmpty ? "good" : "problems"
         case .noWindow, .crash, .hang, .noStart: return "no-start"
-        case .needsPlayer, .skipped: return nil
+        // Waiting for a click says nothing yet about how it runs.
+        case .dialog, .needsPlayer, .skipped: return nil
         }
     }
 

@@ -194,7 +194,7 @@ final class GameTestRun {
         var pictureAt: Date?
         var appeared: Date?
         var idleSince: Date?
-        var pid: pid_t?
+        var pids: [pid_t] = []
         /// What only the player could do, since when: Steam's question gets `steamAskPatience` to answer itself.
         var asking: (need: GameTest.Skip, since: Date)?
         var foreignSince: Date?
@@ -234,7 +234,7 @@ final class GameTestRun {
                 model.answerSaveChoice(takeNewer: false)  // its own saves, nothing overwritten
                 notes.append("Spielstand-Frage beantwortet: die eigenen behalten")
             }
-            let pids = await processes(of: game)
+            pids = await processes(of: game)
             if pids.isEmpty {
                 appeared = nil
                 idleSince = model.launchingID == game.id ? nil : idleSince ?? now
@@ -243,7 +243,6 @@ final class GameTestRun {
                 processAt = processAt ?? now
                 appeared = appeared ?? now
                 idleSince = nil
-                pid = model.running[game.id] ?? pids.first
             }
             if let message = model.errorMessage {
                 notes.append("Meldung: " + message)
@@ -260,6 +259,13 @@ final class GameTestRun {
                 pictureAt = now
             case .hang:
                 seen.stillRunning = true
+                // A window of its own smaller than a picture standing all the while: a start window or a question.
+                let running = Set(pids)
+                let (asks, windows) = await Task.detached(priority: .utility) {
+                    (GameProcesses.question(running) != nil, GameProcesses.windowList(running))
+                }.value
+                seen.smallWindow = asks
+                if asks { notes.append("Fenster des Spiels: \(windows)") }
             case .ended:
                 break
             case .tooLong:
@@ -302,7 +308,10 @@ final class GameTestRun {
         }
         var files: [String] = []
         var stack: [String]?
-        if seen.stillRunning, let pid {
+        // The game's own process, not a launcher waiting for it (2.11.: Wukong's b1_benchmark.exe, 4 threads).
+        if seen.stillRunning, !seen.smallWindow, let pid = await Task.detached(priority: .utility, operation: { [pids] in
+            GameProcesses.biggest(pids)
+        }).value {
             let name = GameTest.fileName(game.gameID.key, "sample.txt")
             if let sample = await Self.sample(pid, to: folder.appendingPathComponent(name)) {
                 stack = GameTest.topOfStack(in: sample)
