@@ -581,12 +581,18 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         }
         var left: Error?
         do {
-            if let install = installs.removeValue(forKey: id) {
+            if let install = installs[id] {
+                // Forgotten only once its folder is gone: a folder that stays (in use, no permission) keeps
+                // the game installed, gogdl's files with it, so it can be removed again.
+                try removeFolder(install.path)
+                installs[id] = nil
                 save(installs, to: Self.installedFile)
-                try removeFiles(of: id, folder: install.path, platform: install.platform)
+                try removeGOGDLFiles(of: id)
             } else {
-                // A cancelled download: what it had fetched so far.
-                try removeFiles(of: id, folder: game.installDir, platform: game.platform)
+                // A cancelled download: what it had fetched so far, and gogdl's files for it either way.
+                let folder = Result { try removeFolder(game.installDir) }
+                try removeGOGDLFiles(of: id)
+                try folder.get()
             }
         } catch {
             left = error
@@ -597,17 +603,26 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         if let left { throw left }
     }
 
-    /// The game's folder (only inside GOG's games folders), gogdl's manifest and its support files. Each is
-    /// tried; the first that stays (in use, no permission) is thrown, as for a Steam game (Engine.removeGameFiles).
+    /// The game's folder (only inside GOG's games folders), then gogdl's manifest and its support files. What
+    /// stays (in use, no permission) is thrown, as for a Steam game (Engine.removeGameFiles).
     private func removeFiles(of id: String, folder: URL, platform: Platform) throws {
-        let fm = FileManager.default
-        var targets = [GOGDL.manifest(for: id), GOGDL.supportDir(for: id)]
+        try removeFolder(folder)
+        try removeGOGDLFiles(of: id)
+    }
+
+    /// The game's folder, only inside GOG's games folders.
+    private func removeFolder(_ folder: URL) throws {
         let parent = folder.standardizedFileURL.deletingLastPathComponent().path
-        if Self.gamesFolders(of: folder).contains(where: { $0.standardizedFileURL.path == parent }) {
-            targets.insert(folder, at: 0)
-        }
+        guard Self.gamesFolders(of: folder).contains(where: { $0.standardizedFileURL.path == parent }),
+              FileManager.default.fileExists(atPath: folder.path) else { return }
+        try FileManager.default.removeItem(at: folder)
+    }
+
+    /// gogdl's manifest and support files for the game: each is tried, the first that stays is thrown.
+    private func removeGOGDLFiles(of id: String) throws {
+        let fm = FileManager.default
         var left: Error?
-        for target in targets where fm.fileExists(atPath: target.path) {
+        for target in [GOGDL.manifest(for: id), GOGDL.supportDir(for: id)] where fm.fileExists(atPath: target.path) {
             do { try fm.removeItem(at: target) } catch { left = left ?? error }
         }
         if let left { throw left }
