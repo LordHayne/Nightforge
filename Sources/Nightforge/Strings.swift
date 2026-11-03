@@ -111,6 +111,8 @@ enum L10n {
             "Das Update enthält ein älteres Nightforge als deines und wurde deshalb nicht installiert.",
         "An online list (game fixes, components or AppleGamingWiki's reports) wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has.":
             "Eine Online-Liste (Spielkorrekturen, Komponenten oder die Berichte aus dem AppleGamingWiki) war nicht von Nightforge signiert und wurde ausgelassen. Nightforge nutzt weiter die Listen, die es hat.",
+        "An online list was older than the one Nightforge already has, so it was left out. Nightforge keeps the newer one.":
+            "Eine Online-Liste war älter als die, die Nightforge schon hat, und wurde ausgelassen. Nightforge behält die neuere.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
         "Games fit": "Spiele passen",

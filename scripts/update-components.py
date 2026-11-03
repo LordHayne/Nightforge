@@ -22,7 +22,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -167,7 +167,10 @@ def main(argv: list[str] | None = None) -> None:
         print("manifest unchanged")
         return
 
-    manifest = {"schemaVersion": SCHEMA_VERSION, "generated": date.today().isoformat(), "components": components}
+    # To the second, in UTC: the app takes no list older than the one it has (by this stamp), and two
+    # lists of one day must be told apart.
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    manifest = {"schemaVersion": SCHEMA_VERSION, "generated": generated, "components": components}
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
     for line in describe_changes(previous.get("components", []), components):
         print(line)

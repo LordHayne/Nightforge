@@ -101,6 +101,11 @@ else:
 """
 
 
+def stamped(text, generated):
+    """A list's text with another "generated" stamp."""
+    return re.sub(r'"generated": "[^"]*"', f'"generated": "{generated}"', text, count=1)
+
+
 def write_executable(path, text):
     path.write_text(text)
     path.chmod(0o755)
@@ -448,7 +453,8 @@ class SigningScripts(unittest.TestCase):
         self.git("push", "--quiet", "origin", "main")
         self.git("checkout", "--quiet", "-b", "bot/profiles")
         profiles = self.repo / "profiles/profiles.json"
-        profiles.write_text(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "tonight"', 1))
+        profiles.write_text(stamped(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "tonight"', 1),
+                                    "2099-01-01T00:00:00Z"))
         self.git("commit", "--quiet", "-am", "Update game profiles")
         self.git("push", "--quiet", "origin", "bot/profiles")
         self.git("checkout", "--quiet", "main")
@@ -493,7 +499,7 @@ class SigningScripts(unittest.TestCase):
         self.git("fetch", "--quiet", "origin")
         self.git("checkout", "--quiet", "-B", "bot/profiles", "origin/bot/profiles")
         profiles = self.repo / "profiles/profiles.json"
-        profiles.write_text(profiles.read_text().replace('"note": "tonight"', '"note": "tomorrow"'))
+        profiles.write_text(stamped(profiles.read_text().replace('"note": "tonight"', '"note": "tomorrow"'), "2099-01-02T00:00:00Z"))
         self.git("commit", "--quiet", "-am", "Update game profiles")
         self.git("push", "--quiet", "origin", "bot/profiles")
         self.git("checkout", "--quiet", "main")
@@ -503,6 +509,21 @@ class SigningScripts(unittest.TestCase):
         self.assertIn("components/manifest.json is signed already", result.stdout)
         self.assertIn("profiles/agw.json is signed already", result.stdout)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 0)
+
+    def test_a_changed_list_needs_a_newer_stamp_than_mains(self):
+        """The app takes no list older than the one it has (review M1): signing one that would be, fails."""
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        profiles = self.repo / "profiles/profiles.json"
+        main_stamp = json.loads(self.git("show", "main:profiles/profiles.json"))["generated"]
+        profiles.write_text(stamped(profiles.read_text().replace('"note": "tonight"', '"note": "again"'), main_stamp))
+        self.git("commit", "--quiet", "-am", "Update game profiles")
+        self.git("push", "--quiet", "--force", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("isn't newer than main's", result.stderr)
+        self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
 
     def test_a_changed_list_fails_the_check(self):
         origin = self.lists_repo()

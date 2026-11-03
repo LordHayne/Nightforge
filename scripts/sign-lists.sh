@@ -42,6 +42,7 @@ trap cleanup EXIT
 
 echo "▸ Fetching $branch …"
 git fetch --quiet origin "refs/heads/$branch:refs/remotes/origin/$branch" || fail "origin has no branch $branch."
+[ "$branch" = main ] || git fetch --quiet origin "refs/heads/main:refs/remotes/origin/main" || fail "origin has no main."
 git worktree add --quiet --detach "$tree" "origin/$branch"
 build_signing_tool "$tree" "$work"
 
@@ -54,6 +55,20 @@ for list in "${SIGNED_LISTS[@]}"; do
   fi
 done
 [ ${#todo[@]} -gt 0 ] || { echo "Nothing to sign."; exit 0; }
+
+# The app takes no list older than the one it has, by its "generated" stamp: a list that changed
+# needs a newer one than main's, or every Nightforge would turn it away.
+stamp() { plutil -extract generated raw -o - "$1" 2>/dev/null || true; }
+if [ "$branch" != main ]; then
+  for list in "${todo[@]}"; do
+    git -C "$tree" cat-file -e "origin/main:$list" 2>/dev/null || continue
+    git -C "$tree" diff --quiet origin/main HEAD -- "$list" && continue
+    ours="$(stamp "$tree/$list")"
+    theirs="$(git -C "$tree" show "origin/main:$list" > "$work/main-list" && stamp "$work/main-list")"
+    [[ "$ours" > "$theirs" ]] \
+      || fail "$list changed, but its \"generated\" (${ours:-none}) isn't newer than main's (${theirs:-none}): Nightforge would turn it away."
+  done
+fi
 
 echo "▸ Signing what $branch holds now:"
 git -C "$tree" log -1 --format='  %h %s (%an, %ar)'

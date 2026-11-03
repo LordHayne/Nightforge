@@ -335,8 +335,10 @@ Update die installierten Apps mehr, dann hilft nur die Neuinstallation per Einze
 - `codesign --verify` im Updater prüft ohne Anforderung (`-R`): Die Releases sind ad hoc signiert, eine Anforderung
   gäbe es erst mit einer Developer-ID. Woher die App stammt, belegt die Ed25519-Signatur davor.
 - Das DMG ist nicht signiert (Ad-hoc wie bisher, es dient nur der Hand-Installation).
-- Ein signiertes, älteres Listen-Exemplar könnte jemand erneut ausliefern. Für Profile gilt dabei weiter, dass die
-  mitgelieferte, neuere Liste gewinnt. Bei Komponenten und `agw.json` fiele es auf eine früher freigegebene Liste
-  zurück.
+- Ein signiertes, älteres Listen-Exemplar (aus der Git-Geschichte zurückgelegt) nimmt die App nicht mehr. Jede Liste
+  trägt in den signierten Bytes ihren Stempel `generated`. Ist die Online-Liste älter als die zuletzt angenommene,
+  bleibt diese, und Einstellungen › Über sagt es. `scripts/sign-lists.sh` signiert keine geänderte Liste, deren
+  Stempel nicht neuer ist als der auf `main`. Offen bleibt der erste Abruf: Ein Mac ohne gespeicherte Liste nimmt
+  auch eine alte, signierte (für Profile gilt dann noch die neuere mitgelieferte).
 - Was Nightforges eigene Builds enthalten (Grafik, Gamepad, `enginefix`), baut GitHub Actions. Deine Signatur über
   `manifest.json` bestätigt die Prüfsumme dieses Builds, nicht seinen Inhalt.
