@@ -1649,8 +1649,20 @@ enum Engine {
     }
 
     /// winetricks verbs that would change every game in the shared prefix, not just the one that
-    /// asks (Proton gives each game its own prefix; Nightforge has one for all).
-    private static let sharedPrefixUnsafeVerbs: Set<String> = ["dsound"]
+    /// asks (Proton gives each game its own prefix; Nightforge has one for all): dsound, and every
+    /// one of winetricks' settings that is a plain word (winetricks 20260125, `w_metadata … settings`;
+    /// those with "=" aren't verbs here anyway). The Windows versions above all, which would switch
+    /// Steam and every game: one game's version is `windowsVersion`, per program (AppDefaults).
+    static let sharedPrefixUnsafeVerbs: Set<String> = windowsVersionVerbs.union([
+        "dsound", "bad", "good", "fontfix", "forcemono", "heapcheck", "hosts", "isolate_home", "native_mdac",
+        "native_oleaut32", "nocrashdialog", "remove_mono", "sandbox", "set_mididevice", "set_userpath",
+    ])
+
+    /// winetricks' verbs that set the Windows version of the whole prefix.
+    static let windowsVersionVerbs: Set<String> = [
+        "nt351", "nt40", "vista", "win20", "win2k", "win2k3", "win2k8", "win2k8r2", "win30", "win31",
+        "win7", "win8", "win81", "win10", "win11", "win95", "win98", "winme", "winxp",
+    ]
 
     /// .NET programs run on Wine Mono, which the engine brings along (share/wine/mono) and Wine finds
     /// by itself. Its Windows side – the .NET registry keys and libraries games and launchers check
@@ -1684,7 +1696,7 @@ enum Engine {
     static func missingWinetricks(_ verbs: [String]) -> [String] {
         let log = (try? String(contentsOf: prefix.appendingPathComponent("winetricks.log"), encoding: .utf8)) ?? ""
         let installed = Set(log.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) })
-        return verbs.filter { !installed.contains($0) && !sharedPrefixUnsafeVerbs.contains($0) }
+        return verbs.filter { !installed.contains($0) && isSafeWinetricksVerb($0) }
     }
 
     /// winetricks commands that look like verbs but aren't installs (scripts/build-profiles.py keeps the same list).
@@ -1692,8 +1704,9 @@ enum Engine {
         "annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version",
     ]
 
+    /// A plain install verb that changes only what the game asks for: installWinetricks runs nothing else.
     static func isSafeWinetricksVerb(_ verb: String) -> Bool {
-        !verb.isEmpty && verb.count <= 64 && !winetricksCommands.contains(verb)
+        !verb.isEmpty && verb.count <= 64 && !winetricksCommands.contains(verb) && !sharedPrefixUnsafeVerbs.contains(verb)
             && verb.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
     }
 
