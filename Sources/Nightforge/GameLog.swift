@@ -1,4 +1,5 @@
 import Foundation
+import SystemConfiguration
 
 /// What Wine, DXVK and MoltenVK print while Steam and its games run. Steam's output lands here
 /// (Engine.startSteam) and its games inherit it. Nightforge reads it after a start that went
@@ -169,12 +170,22 @@ enum GameLog {
 
     /// A log line without what identifies the player or lets anyone in as them: the Mac's home
     /// folder, the account name in Windows and prefix paths (C:\users\<name>, which Wine's own
-    /// messages print as C:\\users\\<name>; drive_c/users/<name>), Steam account ids, the sign-in
-    /// arguments a store hands a game (Epic's -AUTH_PASSWORD exchange code, -epicusername), tokens
-    /// and e-mail addresses. The report goes into a GitHub link, which the browser fetches as soon
-    /// as it opens, and the issue is public.
-    static func redacted(_ line: String, home: String = NSHomeDirectory(), user: String = NSUserName()) -> String {
+    /// messages print as C:\\users\\<name>; drive_c/users/<name>) and anywhere else as a word, the
+    /// names of external drives (often their owner's: /Volumes/<name>, Z:\Volumes\<name>), the Mac's
+    /// computer and host names (Steam's LOCAL_HOSTNAME=…), macOS's per-account temp folder, Steam
+    /// account ids, GOG user ids, the sign-in arguments a store hands a game (Epic's -AUTH_PASSWORD
+    /// exchange code, -epicusername), tokens and e-mail addresses. A heuristic: what it misses is in
+    /// whatever the line goes into, which is why log lines stay out of report links (ProblemReportText).
+    static func redacted(_ line: String, home: String = NSHomeDirectory(), user: String = NSUserName(),
+                         machine: [String] = machineNames) -> String {
         var text = home.isEmpty ? line : line.replacingOccurrences(of: home, with: "~")
+        for (pattern, template) in drivePatterns {
+            text = text.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
+        }
+        for name in machine {
+            text = text.replacingOccurrences(of: #"(?i)(?<![\p{L}\p{N}_])"# + NSRegularExpression.escapedPattern(for: name) + #"(?![\p{L}\p{N}_])"#,
+                                             with: "<computer>", options: .regularExpression)
+        }
         if !user.isEmpty {
             // One, two or no backslashes between the parts, or a slash; not "users\thomasine".
             text = text.replacingOccurrences(of: #"(?i)\b(users)(\\{1,2}|/)"# + NSRegularExpression.escapedPattern(for: user) + #"(?![\p{L}\p{N}_])"#,
@@ -183,7 +194,44 @@ enum GameLog {
         for (pattern, template) in secretPatterns {
             text = text.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
         }
+        if user.count >= 3 {
+            // The account name in other programs' lines ("uid 501 (jane)", "owner jane"), as a word only –
+            // last, so an e-mail address or a sign-in argument is recognised whole first.
+            text = text.replacingOccurrences(of: #"(?i)(?<![\p{L}\p{N}_<])"# + NSRegularExpression.escapedPattern(for: user) + #"(?![\p{L}\p{N}_>])"#,
+                                             with: "<user>", options: .regularExpression)
+        }
         return text
+    }
+
+    /// Paths that name the Mac's drives and its account's temp folder: an external drive's name up to
+    /// the next separator (Steam writes Z:\Volumes\<name>\…, Wine's messages Z:\\Volumes\\<name>), and
+    /// macOS's /var/folders/<xx>/<id>, which is one account's.
+    private static let drivePatterns: [(String, String)] = [
+        (#"(/Volumes/)[^/\\\n"'<>]+"#, "$1<drive>"),
+        (#"(?i)(\\{1,2}Volumes\\{1,2})[^\\/\n"'<>]+"#, "$1<drive>"),
+        (#"(/(?:private/)?var/folders/)[^/\s"']+/[^/\s"']+"#, "$1<id>"),
+    ]
+
+    /// The Mac's names as other programs print them: its computer name ("Jane’s MacBook Pro"), its
+    /// host name with and without ".local", and the NetBIOS name Wine makes of it (upper case, at
+    /// most 15 characters) – each at least 4 characters long, so a short one doesn't eat words.
+    static let machineNames: [String] = {
+        var names: [String] = []
+        if let computer = SCDynamicStoreCopyComputerName(nil, nil) as String? { names.append(computer) }
+        var buffer = [CChar](repeating: 0, count: 256)
+        if gethostname(&buffer, buffer.count) == 0 {
+            let host = String(cString: buffer)
+            let short = host.split(separator: ".").first.map(String.init) ?? host
+            names += [host, short, String(short.prefix(15))]
+        }
+        return machineNameList(names)
+    }()
+
+    /// `names` without repeats (ignoring case) and short ones, the longest first so a longer name
+    /// is replaced whole before a shorter one that's part of it.
+    static func machineNameList(_ names: [String]) -> [String] {
+        var seen = Set<String>()
+        return names.filter { $0.count >= 4 && seen.insert($0.lowercased()).inserted }.sorted { $0.count > $1.count }
     }
 
     /// Patterns for `redacted`, in order. The sign-in arguments Epic's launcher parameters bring
@@ -204,6 +252,9 @@ enum GameLog {
             (#"\[U:1:\d+\]"#, "<steam id>"),
             (#"\b7656119\d{10}\b"#, "<steam id>"),
             (#"(?i)(\buserdata(?:\\{1,2}|/))\d{3,}"#, "$1<steam id>"),
+            // GOG: the user id in galaxy-library.gog.com/users/<id>/… and in gogdl's JSON.
+            (#"(?i)(\busers/)\d{6,}"#, "$1<gog user>"),
+            (#"(?i)(?<![A-Za-z0-9])((?:galaxy_?)?user_?id)(["']?\s*[:=]\s*["']?)\d{6,}"#, "$1$2<gog user>"),
         ]
     }()
 

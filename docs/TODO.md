@@ -900,6 +900,11 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   öffentlich wird es erst beim Absenden.
 - **Live prüfen:** „Problem melden“ (Spieloptionen und „Startet nicht?“): Öffnet GitHub ein Formular ohne Logzeilen?
   Liegen die Fehlerzeilen in der Zwischenablage, und passt das Einfügen ins Feld? Kommt der Toast?
+- **Schwärzung (Audit N7):** `GameLog.redacted` ersetzt jetzt auch Laufwerksnamen (`/Volumes/<drive>`,
+  `Z:\Volumes\<drive>`), Rechner- und Hostnamen samt Wines NetBIOS-Namen (`<computer>`), `/var/folders/<id>`,
+  GOG-Benutzerkennungen und den Kontonamen als Wort in fremden Zeilen. Spielnamen behalten ein Wort wie den
+  Kontonamen („Thomas Was Alone“). Der Spieletest-Import (`scripts/import-game-test.py`, `GameTest.leaks`) weist
+  Berichte mit Laufwerks- oder Rechnernamen ab.
 
 ## Mac-Wissen aus Quellen (AGW, Berichte) – Zweig `claude/compat-db-bce7dc`
 

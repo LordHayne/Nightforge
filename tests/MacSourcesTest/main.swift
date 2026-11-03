@@ -214,6 +214,15 @@ struct MacSourcesTest {
         check(!clip.contains("/Users/jane") && !clip.contains("jane@example.com") && !clip.contains("abc123secret") && clip.contains("<email>"),
               "…through GameLog.redacted: \(clip)")
         check(link.count < 2000, "the link stays short (\(link.count) characters)")
+        let alone = ProblemReportText(gameName: "Jane Was Alone", facts: [("Game", "Jane Was Alone (Steam 1)")], errors: ["owner jane"],
+                                      downloadFailure: [], launchOptions: "", home: "/Users/jane", user: "jane")
+        check(alone.title == "Jane Was Alone: doesn't run properly" && alone.body.contains("| Game | Jane Was Alone (Steam 1) |")
+              && alone.clipboard?.contains("owner <user>") == true, "a game named like the account keeps its name; the log line doesn't")
+        let aloneGame = Game(appID: 1, name: "Jane Was Alone", bottle: bottle, steamRoot: bottle.url, steamExeWindowsPath: "",
+                             installDir: bottle.url, sizeOnDisk: 0)
+        check(CompatReport.fields(game: aloneGame, rating: well, preset: nil, engine: nil, chip: "M", macOS: "27", nightforge: "1",
+                                  home: "/Users/jane", user: "jane").first { $0.id == "game" }?.value == "Jane Was Alone",
+              "…in the shared report too")
         let plain = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game")], errors: [], downloadFailure: [], launchOptions: "")
         check(plain.clipboard == nil && !plain.body.contains("From the last start"), "nothing for the clipboard: no line about it")
         let many = (1...2_000).map { "err:module:line \($0) " + String(repeating: "x", count: 40) }

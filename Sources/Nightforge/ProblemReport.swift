@@ -110,8 +110,10 @@ struct ProblemReportText: Equatable {
     /// GameLog.redacted; nil when there are none.
     let clipboard: String?
 
-    /// `facts`: label and value, all of them fixed things Nightforge knows (no log line, path or
-    /// option the player typed). `home` and `user`: for the redaction, a test hands in its own.
+    /// `facts`: label and value, all of them fixed things Nightforge knows (the store's game name,
+    /// versions, labels – no log line, path or option the player typed); they're redacted all the
+    /// same, but keep a word like the account's name ("Thomas Was Alone"). `home` and `user`: for
+    /// the redaction, a test hands in its own.
     init(gameName: String, facts: [(String, String)], errors: [String], downloadFailure: [String], launchOptions: String,
          home: String = NSHomeDirectory(), user: String = NSUserName()) {
         func clean(_ text: String) -> String { GameLog.redacted(text, home: home, user: user) }
@@ -130,14 +132,15 @@ struct ProblemReportText: Equatable {
             extra += (extra.isEmpty ? [] : [""]) + ["Launch options: `\(clean(launchOptions))`"]
         }
         clipboard = extra.isEmpty ? nil : extra.joined(separator: "\n")
-        title = clean("\(gameName): doesn't run properly")
+        func fact(_ text: String) -> String { GameLog.redacted(text, home: home, user: "") }
+        title = fact("\(gameName): doesn't run properly")
         var lines = [
             "**What happens:** <!-- e.g. black window, crash after the logo, low FPS, no sound -->",
             "",
             "",
             "| | |",
             "|---|---|",
-        ] + facts.map { "| \($0.0) | \(clean($0.1).replacingOccurrences(of: "|", with: "\\|")) |" }
+        ] + facts.map { "| \($0.0) | \(fact($0.1).replacingOccurrences(of: "|", with: "\\|")) |" }
         if clipboard != nil {
             lines += ["", "**From the last start:** <!-- Nightforge put the error lines and launch options on your clipboard: "
                       + "paste them here (⌘V) if you want to share them, or leave this out. -->", ""]
