@@ -229,12 +229,17 @@ Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen ge
   - Für `CX_HACK_FILESYSTEM_TYPE` (Windows-Seite) fehlt noch der Nachweis. `ps eww` taugt dafür nicht: macOS 27 gibt
     die Umgebung fremder Prozesse nicht heraus. Den Nachweis bringt `envpeek` aus dem Notizordner
     (`env-probe/envpeek/`, liest nur).
-- **Nächste Schritte** (Bewertung in `overwatch-engine-04.md`, Abschnitt 8):
+- **Nächste Schritte** (Bewertung in `overwatch-engine-04.md`, Abschnitte 8 und 9):
   - Im nächsten Live-Test envpeek und eine Spur mit dem Schalter `wineDebug`
-    (`+loaddll,+process,+seh,+threadname,+volume,…`).
+    (`+loaddll,+process,+seh,+threadname,+volume,…,err+sync`). `err+sync` bringt Wines Meldung zurück, wer eine
+    Critical Section seit 5 s hält; Nightforges `-all` schaltet sie sonst ab.
   - `winedbg` lieber nicht. Sein `attach` startet im Spiel einen Thread, der die Loader-Sperre braucht, und wartet ohne
     Zeitlimit. Hält Overwatch die Sperre, kommt es nie zurück. Beim Beenden nimmt es die angehängten Programme mit
-    (`DEBUG_KILL_ON_CLOSE`). Stattdessen ein Stapel-Leser ohne Debugger.
+    (`DEBUG_KILL_ON_CLOSE`).
+  - Stattdessen `stackpeek` aus dem Notizordner (`stackpeek/`, seit 3.11.). Es hält je Thread unter 0,3 ms an, setzt
+    garantiert fort und nennt den Halter der Loader-Sperre und den Besitzer jeder Critical Section, auf die ein Thread
+    wartet. Im Scratch-Prefix gegen einen Zeugen mit Loader-Sperre und eigener Section getestet, 64 und 32 Bit.
+    Einsatz nur mit dem Nutzer, Anti-Cheat-Abwägung in Abschnitt 9.4.
   - Danach die günstigen Unterschiede zu Recall: D3D12 aus, das Spiel auf `C:` statt auf dem USB-Laufwerk.
   - Battle.net zuletzt.
 
