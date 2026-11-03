@@ -442,6 +442,49 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   Profilliste, wirkt aber erst mit diesem Release.
 - `LibraryModel`: eine Zeile, das Argument `environment:` beim bestehenden Aufruf von `prepareLaunchEnvironment`.
 
+### Spielumgebung: `HKCU\Environment` hat nie ein Spiel erreicht (3.11.)
+
+- **Befund im Code von winecx.** Wine nimmt die Registry-Variablen (`HKCU\Environment` u. a.) nur in die
+  **Windows-Seite** eines Programms auf, das vom Mac aus startet, also Steam oder ein Direktstart
+  (`dlls/ntdll/unix/env.c`, `build_initial_params` → `add_registry_environment`). Ein Programm, das ein anderes startet,
+  also jedes Spiel, das Steam startet, behält die **Unix-Umgebung** seines Elternprozesses:
+  `dlls/ntdll/unix/process.c`, `spawn_process` forkt. Von der Windows-Seite gehen nur zwei Dinge hinüber: `WINEDEBUG`
+  und Variablen mit dem Vorsatz `__CX_UNIX_` (CW Hack 24717).
+- **Probe** im eigenen Prefix (Runtime 4.7.3, nicht der echte Prefix). Ein 64-Bit-Elternprozess startet sich selbst als
+  32-Bit-Kind, so wie Steam ein Spiel startet. `WINE_LARGE_ADDRESS_AWARE` liest ntdll auf der Unix-Seite, man sieht es
+  am Adressraum des Kinds:
+
+  | Wo der Wert steht | Kind sieht ihn (Windows-Seite) | Adressraum des Kinds |
+  |---|---|---|
+  | nur `HKCU\Environment` | ja | 2 GB, **wirkt nicht** |
+  | Unix-Umgebung des Elternprozesses | ja | 4 GB, wirkt |
+  | `HKCU\Environment` als `__CX_UNIX_WINE_LARGE_ADDRESS_AWARE` | nein | 4 GB, wirkt |
+
+- **Folge.** `applyGameEnvironment` schrieb `DXVK_ASYNC`, `MTL_HUD_ENABLED`, `WINEDEBUG`, `MVK_CONFIG_LOG_LEVEL`,
+  `DXVK_LOG_LEVEL`, `DXVK_LOG_PATH`, `ROSETTA_ADVERTISE_AVX` und `DXMT_SHADER_CACHE_PATH` in die Registry. Die Leser auf
+  der Unix-Seite haben das nie bekommen: Metal-HUD, MoltenVK, Rosetta. Die Leser auf der Windows-Seite (DXVK, DXMT) und
+  alle anderen bekamen dieselben Werte ohnehin über Steams eigene Umgebung (`steamEnvironment`) bzw. den Direktstart.
+  Bewirkt hat der Registry-Teil also nichts. Die D3DMetal-Werte (`D3DM_*`) und `GameEnvironment` liefen nie über die
+  Registry. Einen Haken gab es doch: Wine legt die Registry-Werte über die Unix-Werte, und ein Kind nimmt `WINEDEBUG` von
+  der Windows-Seite. Ein dort stehengebliebenes `WINEDEBUG` gewann also für jedes Spiel gegen Steams eigenes.
+- **Umgebaut** (Zweig `claude/engine-env-0f3a`): `applyGameEnvironment` ist weg. `applyPrefixRegistry` löscht einmal
+  pro Prefix die alten Werte (eigener Stempel `.nightforge-registry`, also auch in bestehenden Prefixen) und schreibt
+  die Controller-Einstellung für winebus wie bisher. Nach einer geänderten Einstellung läuft kein `regedit` mehr, Steam
+  startet über `steamConfigSignature` neu wie bisher. `LibraryModel`: eine Zeile weniger in `applySteamSettings`.
+- **Neu prüfen** (alle hingen schon bisher an Steams Umgebung, sollten also unverändert gehen; geprüft wird nur, dass
+  nichts an der Registry hing):
+  - Leistungsanzeige (Metal-HUD) ein und aus, in einem DXMT-Spiel (OxyRail).
+  - D3DMetals Bildratengrenze und MetalFX (`D3DM_MAX_FPS`, `D3DM_ENABLE_METALFX`) im Wukong-Benchmark, „Automatik
+    nach Hardware“ (60 auf 120 Hz).
+  - `avx: false` (Wukong startet ohne Rosettas AVX-Hinweis).
+  - DXVK async und seine Logzeilen (OxyRail auf DXVK), DXMTs Shader-Cache unter `~/Library/Caches/Nightforge/dxmt`.
+  - Der Testschalter `wineDebug`: Die zusätzlichen Kanäle stehen jetzt im Log der Spiele, ein alter Registry-Wert
+    überdeckt sie nicht mehr.
+  - In `regedit` unter `HKCU\Environment` stehen danach keine Nightforge-Werte mehr. Die drei Testwerte aus Variante E
+    entfernt die Hauptsitzung ohnehin.
+- Am Rand: Mit `__CX_UNIX_<NAME>` ließen sich Unix-Variablen über die Registry an die Spiele bringen. Das wird erst beim
+  nächsten Start von Steam gelesen und bietet deshalb nichts über Steams Umgebung hinaus, ungenutzt.
+
 ### Später (nicht angefangen)
 
 - Den Pin auf winecx 4.7.4 oder 4.8.1 heben, wenn dappermint/winecx-gptk#24 geklärt ist. Dabei in `enginefix.yml`
@@ -2051,6 +2094,27 @@ wird angepasst.
   `VK_EXT_external_memory_host` und nimmt die `HOST_ALLOCATION`-Puffer an, die Wines WoW64 anlegt (ebenfalls Probe).
   Offen: den x86_64-Loader liefern (Apache-2.0, am besten in CI gebaut) und die Umgebung in `Engine.gameEnvironment`.
   Erst dann L4D2, Mafia II und No Man's Sky auf DXVK bzw. Vulkan prüfen.
+- **Warum OxyRail auf DXVK läuft und L4D2/Mafia II nicht** (DXVK-macOS v1.10.3-20230507 gelesen): Das Direct3D 11 von
+  DXVK verlangt `geometryShader` und `shaderCullDistance` nur, wenn die GPU sie meldet (`d3d11_device.cpp`:
+  `= supported…`). Das Direct3D 9 setzt beide fest auf `VK_TRUE` (`d3d9_device.cpp`), und genau das lehnt MoltenVK ab.
+  Der Hebel gehört also zu **Direct3D 9 auf DXVK**. OxyRail (D3D11) braucht ihn nicht, und es bleibt ohne ihn.
+- **Gebaut als Testschalter, aus** (Zweig `claude/engine-env-0f3a`): `defaults write io.github.lordhayne.nightforge
+  vulkanLoader -bool true`. Er nimmt den Khronos-Loader der Gcenx-Engine (`Components/wine/11.18/…/lib/libvulkan.1.dylib`).
+  Statt `true` geht auch der Pfad zu einem anderen x86_64-Loader. Dann bekommt ein D3D9-Spiel auf DXVK unter winecx
+  `CX_LIBVULKAN`, `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, `VK_DRIVER_FILES` und `VK_ADD_IMPLICIT_LAYER_PATH`, über Steam
+  in Steams Umgebung (Steam startet neu) und bei Epic/GOG direkt. Die D3D9-Leiter bekommt dann wieder DXVK vorn
+  (`vulkanLayerLoads`). Weil sie sich dabei ändert, lernt ein D3D9-Spiel seinen Weg einmal neu. `wine.log` meldet
+  „<Spiel> draws Direct3D 9 on DXVK through the Vulkan loader (engine test …)“. Zurück mit
+  `defaults delete io.github.lordhayne.nightforge vulkanLoader`. Braucht ein App-Release, wenn es dabei bleibt. Dann
+  sollte auch der Loader als eigene Komponente kommen, nicht aus der Gcenx-Engine.
+- **Live-Test** (nach dem Neustart, Build von `claude/engine-env-0f3a`, Schalter an):
+  1. Left 4 Dead 2: Optionen › Grafik › DXVK (oder Automatisch, dann steht DXVK vorn). Im Log die Zeile oben, dazu
+     keine „DxvkAdapter: Failed to create device“ mehr und nach 10 s eine `[nightforge-vulkan] … FPS`-Zeile des Layers.
+     Bild? Ton? Absturz nach einer Minute wie bei WineD3D?
+  2. Mafia II (GOG): genauso, im Vergleich zu WineD3D (Bild nach 21 s im Spieletest). FPS, Bildfehler.
+  3. Gegenprobe OxyRail (D3D11 auf DXVK): Er bleibt ohne Loader, die Zeile darf nicht erscheinen, Bild wie heute
+     Nacht (nach 6 s).
+  4. Hängt oder scheitert etwas, das Log ab Start sichern: `vkCreateDevice`, `vkCreateBuffer`, `VK_ERROR`, `[mvk-error]`.
 - **winecx hat keinen Vulkan-Loader, der Layer wird nie geladen.** Seine `winevulkan.so` lädt `libMoltenVK.dylib`
   direkt (Gcenx' 11.18 ging über `libvulkan.1.dylib`), also findet sich kein Layer aus
   `Nightforge Game.app/…/implicit_layer.d`. Seit PR #7 fehlen damit für Vulkan- und DXVK-Spiele: das Aussortieren

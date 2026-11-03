@@ -88,19 +88,36 @@ enum Engine {
             .appendingPathComponent("Nightforge/dxmt", isDirectory: true)
     }
 
-    /// Steam starts its games with a fresh environment built from the Windows registry, not with
-    /// its own – so the game settings go into the user environment (HKCU\Environment) as well,
-    /// where every Windows program, games included, picks them up at start.
-    static func applyGameEnvironment(wine: URL) {
-        let managed = ["DXVK_ASYNC", "MTL_HUD_ENABLED", "WINEDEBUG", "MVK_CONFIG_LOG_LEVEL", "DXVK_LOG_LEVEL", "DXVK_LOG_PATH",
-                       "ROSETTA_ADVERTISE_AVX", "DXMT_SHADER_CACHE_PATH"]
+    /// What versions up to 0.3.x also put into the user environment (HKCU\Environment), on the
+    /// belief that Steam builds its games' environment from the registry. It doesn't: Wine takes the
+    /// registry's variables only into the Windows side of a program started from the Mac (Steam,
+    /// dlls/ntdll/unix/env.c build_initial_params), and a program another one starts – every game –
+    /// keeps its parent's Unix environment (process.c spawn_process forks). So MTL_HUD_ENABLED,
+    /// ROSETTA_ADVERTISE_AVX, MVK_CONFIG_LOG_LEVEL and Wine's own switches never came from there
+    /// (probe 3.11.2026: WINE_LARGE_ADDRESS_AWARE in HKCU\Environment left a 32-bit child at 2 GB,
+    /// in its parent's Unix environment it gave 4 GB); everything a game needs comes with Steam's
+    /// own environment (steamEnvironment) or the direct start's. Worse, Wine adds the registry's
+    /// after the Unix ones, and a child takes WINEDEBUG from the Windows side: a WINEDEBUG left there
+    /// beat Steam's for every game. So these go, once per prefix (`applyPrefixRegistry`).
+    static let formerRegistryEnvironment = ["DXVK_ASYNC", "MTL_HUD_ENABLED", "WINEDEBUG", "MVK_CONFIG_LOG_LEVEL",
+                                            "DXVK_LOG_LEVEL", "DXVK_LOG_PATH", "ROSETTA_ADVERTISE_AVX", "DXMT_SHADER_CACHE_PATH"]
+
+    /// What the prefix's registry gets from Nightforge: the controller setting, and the user
+    /// environment cleared of `formerRegistryEnvironment`.
+    static var prefixRegistry: String {
+        "[HKEY_CURRENT_USER\\Environment]\n" + formerRegistryEnvironment.map { "\"\($0)\"=-" }.joined(separator: "\n")
+            + "\n\n" + controllerRegistry
+    }
+
+    /// Bumped when `prefixRegistry` changes, so every prefix gets it once more.
+    static let prefixRegistryVersion = "1"
+
+    /// Writes `prefixRegistry` into the prefix once (its stamp there says so); a fresh prefix gets it again.
+    static func applyPrefixRegistry(wine: URL) {
         try? FileManager.default.createDirectory(at: shaderCache, withIntermediateDirectories: true)
-        let current = gameEnvironment
-        let values = managed.map { name in
-            current[name].map { "\"\(name)\"=\"\($0)\"" } ?? "\"\(name)\"=-"
-        }
-        importRegistry("[HKEY_CURRENT_USER\\Environment]\n" + values.joined(separator: "\n") + "\n\n" + controllerRegistry,
-                       wine: wine)
+        let marker = stamp(in: prefix, name: "registry")
+        guard readStamp(marker) != prefixRegistryVersion else { return }
+        if importRegistry(prefixRegistry, wine: wine) { writeStamp(marker, prefixRegistryVersion) }
     }
 
     /// Controllers for Windows games come through SDL, which reads every common pad and hands it
@@ -125,8 +142,9 @@ enum Engine {
     static var launchRetina = false
 
     /// What the game about to start needs on top of `gameEnvironment` ("" takes a variable away).
-    /// A game gets the environment of the Steam that starts it, as it was when that Steam started –
-    /// whatever the registry says by then doesn't reach it. So these go into Steam's own.
+    /// A game gets the Unix environment of the Steam that starts it, as it was when that Steam
+    /// started (Wine's spawn_process forks) – the registry's never reaches it (formerRegistryEnvironment).
+    /// So these go into Steam's own.
     static var launchEnvironment: [String: String] = [:]
 
     /// The environment the background Steam starts with, and its games with it.
@@ -141,13 +159,16 @@ enum Engine {
     /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
     /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
     /// session has to start with as well. `environment`: the game's own Wine switches
-    /// (GameEnvironment), which the game before it may have had others of. True when the running
-    /// Steam has to restart.
+    /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the Vulkan
+    /// loader's (vulkanLoaderEnvironment), over those. True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
-                                         retina: Bool = false, environment: [String: String] = [:]) -> Bool {
+                                         retina: Bool = false, environment: [String: String] = [:],
+                                         vulkan: [String: String] = [:]) -> Bool {
         var wanted = launchEnvironment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
         for name in GameEnvironment.allowed.keys { wanted[name] = environment[name] ?? "" }
+        for name in vulkanLoaderNames { wanted[name] = vulkan[name] ?? "" }
+        if let backend = vulkan["CX_ACTIVE_GRAPHICS_BACKEND"] { wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = backend }
         if d3dMetal {
             wanted["D3DM_MAX_FPS"] = frameLimit > 0 ? String(frameLimit) : ""
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""
@@ -536,7 +557,43 @@ enum Engine {
     /// MoltenVK straight, without a Vulkan loader (docs/TODO.md › Vulkan-Layer und winecx). Without
     /// the layer DXVK asks MoltenVK for what it lacks (geometryShader, shaderCullDistance) and gets
     /// no device – Left 4 Dead 2 and Mafia II on DirectX 9.
-    static var vulkanLayerLoads: Bool { installedWineNow().map { !isGPTKCapable(wine: $0) } ?? true }
+    static var vulkanLayerLoads: Bool { installedWineNow().map { !isGPTKCapable(wine: $0) || vulkanLoader(for: $0) != nil } ?? true }
+
+    /// Engine test, off unless `defaults write io.github.lordhayne.nightforge vulkanLoader -bool true`
+    /// (or the path of an x86_64 libvulkan.1.dylib instead of true): on winecx, which loads MoltenVK
+    /// itself, DXVK's Direct3D 9 draws through the Khronos loader, so Nightforge's Vulkan layer is
+    /// there to drop what MoltenVK lacks. DXVK-macOS 1.10.3's Direct3D 9 asks for geometryShader and
+    /// shaderCullDistance whatever the GPU says (d3d9_device.cpp), and MoltenVK refuses the device
+    /// (L4D2, Mafia II); its Direct3D 11 asks only for what's there (d3d11_device.cpp), which is why
+    /// OxyRail draws on DXVK without (probe, 3.11.2026, docs/TODO.md › Vulkan-Layer und winecx).
+    /// With `true` the loader is the Gcenx engine's (Khronos 1.4.350), what Wine 11.18 drew through.
+    static func vulkanLoader(for wine: URL, defaults: UserDefaults = .standard) -> URL? {
+        guard isGPTKCapable(wine: wine) else { return nil }
+        let fm = FileManager.default
+        if let path = defaults.string(forKey: "vulkanLoader"), path.hasPrefix("/") {
+            return fm.fileExists(atPath: path) ? URL(fileURLWithPath: path) : nil
+        }
+        guard defaults.bool(forKey: "vulkanLoader"), let gcenx = installedComponentNow(engineID).flatMap(wineBinary(in:)) else { return nil }
+        let loader = gcenx.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/libvulkan.1.dylib")
+        return fm.fileExists(atPath: loader.path) ? loader : nil
+    }
+
+    /// The variables that send a start's Vulkan through `vulkanLoader`, beside CX_ACTIVE_GRAPHICS_BACKEND.
+    static let vulkanLoaderNames = ["CX_LIBVULKAN", "VK_DRIVER_FILES", "VK_ADD_IMPLICIT_LAYER_PATH"]
+
+    /// What a start on `layer` gets for the loader: a Direct3D 9 game on DXVK, with the switch on.
+    /// CW Hack 25909 (dlls/win32u/vulkan.c) takes CX_LIBVULKAN only with
+    /// CX_ACTIVE_GRAPHICS_BACKEND=wined3d; MoltenVK and the layer come from the game bundle's files
+    /// (installGameBundle), the same the loader finds inside the bundle by itself.
+    static func vulkanLoaderEnvironment(layer: GraphicsLayer, d3d9: Bool, wine: URL?,
+                                        defaults: UserDefaults = .standard) -> [String: String] {
+        guard layer == .dxvk, d3d9, let wine, let loader = vulkanLoader(for: wine, defaults: defaults) else { return [:] }
+        let vulkan = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("\(gameBundleName)/Contents/Resources/vulkan", isDirectory: true)
+        return ["CX_LIBVULKAN": loader.path, "CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                "VK_DRIVER_FILES": vulkan.appendingPathComponent("icd.d/MoltenVK_icd.json").path,
+                "VK_ADD_IMPLICIT_LAYER_PATH": vulkan.appendingPathComponent("implicit_layer.d").path]
+    }
 
     static func isD3DMetalDeployed(wine: URL) -> Bool {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
@@ -659,8 +716,8 @@ enum Engine {
         let gptk = isGPTKCapable(wine: wine)
         let prefixStamp = stamp(in: prefix, name: "setup")
         let prefixWanted = prefixStampText(build, gptk: gptk)
+        applyPrefixRegistry(wine: wine)  // stamped on its own: older prefixes get it once as well
         guard readStamp(prefixStamp) != prefixWanted else { return }
-        applyGameEnvironment(wine: wine)
         if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk) }
         let written = loadOrdersWritten
         if gptk {
