@@ -49,6 +49,11 @@ final class InputRouter {
                     self?.model?.focusSearch()
                     return true
                 }
+                // Before the menu's: with a sheet open, macOS may take no menu command at all (Quit).
+                if command, chars.lowercased() == "q" {
+                    Quit.now(by: "⌘Q")
+                    return true
+                }
                 // ⌘⌫ like "Move to Trash" in Finder – asks before removing anything.
                 if command, code == 51, NSApp.keyWindow?.firstResponder is NSText == false {
                     self?.model?.requestUninstall()

@@ -335,7 +335,36 @@ struct CompleteRemovalTest {
             check(Date().timeIntervalSince(start) < 5, "a polite shutdown that takes forever is not waited for")
         }
 
+        quit()
         print(failures == 0 ? "✓ CompleteRemoval" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// Quitting always works: with a sheet open ⌘Q did nothing and `osascript … quit` got -128
+    /// (27./28.10.); only a removal under way makes it wait, as that quits by itself.
+    static func quit() {
+        check(Quit.answer(removing: false) == .quit, "a sheet or not: it quits")
+        check(Quit.answer(removing: true) == .wait, "removing itself: it waits, the removal quits by itself")
+        MainActor.assumeIsolated {
+            check(!CompleteRemoval.isRunning, "no removal under way to begin with")
+        }
+
+        // The sheets to end first, a sheet's own before it: Settings over the window, the removal's
+        // question over Settings; a game's options over another window.
+        struct Window: Equatable { let name: String }
+        let main = Window(name: "Nightforge"), settings = Window(name: "Settings"), removal = Window(name: "Remove?")
+        let other = Window(name: "Other"), options = Window(name: "Options"), plain = Window(name: "Plain")
+        let sheets = ["Nightforge": settings, "Settings": removal, "Other": options]
+        func order(_ windows: [Window]) -> [String] {
+            Quit.closingOrder(windows, sheet: { sheets[$0.name] }).map { "\($0.0.name)>\($0.1.name)" }
+        }
+        // AppKit lists sheets among the windows too, in any order.
+        check(order([removal, main, settings, plain, other, options]) == ["Settings>Remove?", "Nightforge>Settings", "Other>Options"],
+              "innermost first, each once, a window without a sheet left alone: \(order([removal, main, settings, plain, other, options]))")
+        check(order([plain]).isEmpty, "no sheet open: nothing to end")
+        check(order([]).isEmpty, "no windows: nothing")
+        let loop = ["A": Window(name: "B"), "B": Window(name: "A")]
+        check(Quit.closingOrder([Window(name: "A"), Window(name: "B")], sheet: { loop[$0.name] }).count <= 2,
+              "a sheet listed as its own window's parent can't make it go round forever")
     }
 }

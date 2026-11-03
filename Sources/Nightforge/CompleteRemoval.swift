@@ -282,10 +282,16 @@ enum CompleteRemoval {
 
     // MARK: - The whole job
 
+    /// From the start of `run` until it quits: no quit from elsewhere meanwhile (Quit), one halfway
+    /// would leave half of it behind.
+    @MainActor private(set) static var isRunning = false
+
     /// The whole job from the app: stop Wine and Steam, remove, put Nightforge itself in the Bin
     /// and quit. Throws a `RemovalError`; after `savesNotCopied` nothing is deleted.
     @MainActor
     static func run(phase: @escaping @MainActor (Phase) -> Void = { _ in }) async throws {
+        isRunning = true
+        defer { isRunning = false }
         try requireApp()  // before anything is stopped
         phase(.stopping)
         await stop(polite: {
@@ -300,7 +306,8 @@ enum CompleteRemoval {
         // from outside (Mac mini and MacBook, 2.11.2026). Nothing of it is left to save, so if
         // AppKit doesn't get round to quitting, it ends anyway.
         try? FileManager.default.trashItem(at: Bundle.main.bundleURL, resultingItemURL: nil)
-        NSApp.terminate(nil)
+        isRunning = false  // its own quit, past the Settings sheet it was started from
+        Quit.now(by: "the removal")
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { exit(0) }
     }
 }

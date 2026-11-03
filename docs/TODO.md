@@ -1209,9 +1209,24 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   - **Toast „Steam lädt … nicht herunter“** ist in der App nicht gesehen. Der Eintrag selbst wechselte richtig; der Toast
     verschwindet nach 5 s und fiel in die Wartezeit.
 - **Beenden mit offenem Dialog geht nicht** (⌘Q und `osascript … quit` tun nichts, solange ein Sheet offen ist). Seit
-  die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen.
+  die Einstellungen ein Sheet sind, fällt das eher auf; vor dem Beenden Sheets schließen. Gebaut am 3.11. auf
+  `claude/quit-always-1a4e06` (von 29e458a), nur mit Tests geprüft: AppKit nimmt kein Beenden an, solange ein Fenster
+  ein Sheet zeigt oder ein Panel auf eine Datei wartet; ein eigenes `applicationShouldTerminate` gab es nicht. Jetzt
+  laufen alle Wege über `Quit.now`: ⌘Q (vor dem Menü, im Tastenmonitor), „Nightforge beenden“ im Menü, Beenden aus
+  dem Dock, `osascript … quit` und Abmelden (eigener Handler für das Quit-AppleEvent statt AppKits), „Nach dem
+  Start beenden“, der Neustart nach einem Update (startet aus dem Einstellungen-Sheet) und das Ende von „Komplett
+  entfernen“. `Quit.now` bricht ein wartendes Panel ab (wie Abbrechen), schließt alle Sheets, innerste zuerst, und
+  beendet dann. Verloren geht dabei nichts: Einstellungen speichern sofort, offene Fragen kommen beim nächsten
+  Mal wieder; nur die Spieloptionen haben „Sichern“, sie schließen wie mit „Abbrechen“. Einzige Ausnahme: Während
+  „Komplett entfernen“ läuft, wartet das Beenden (Zeile in `wine.log`, das AppleEvent bekommt -128) – die
+  Entfernung beendet Nightforge selbst. Live: (1) Einstellungen öffnen, ⌘Q → Nightforge geht zu. (2) Spieloptionen
+  offen, im Terminal `osascript -e 'quit app "Nightforge"'` → kein Fehler, Nightforge geht zu. (3) D3DMetal-Frage
+  offen (oder deren Dateiauswahl), Rechtsklick aufs Dock-Symbol › Beenden → geht zu. (4) „Willkommen zurück“
+  offen, ⌘Q → geht zu. (5) Danach nur eine Nightforge im Aktivitätsmonitor.
 - **`osascript … quit` meldet „abgebrochen“ (-128)** (28.10., beim Test von 7.4): Einmal mit offenen Einstellungen –
-  die App lief weiter (siehe oben); einmal endete sie trotz der Meldung wenige Sekunden später. Wer Nightforge per
+  die App lief weiter (siehe oben); einmal endete sie trotz der Meldung wenige Sekunden später. Mit
+  `claude/quit-always-1a4e06` beantwortet Nightforge das Quit-AppleEvent selbst, -128 nur noch während „Komplett
+  entfernen“. Wer Nightforge per
   Skript beendet, darf sich nicht auf den Rückgabewert verlassen, sondern muss mit
   `pgrep -f "Nightforge.app/Contents/MacOS/Nightforge"` warten, bis sie wirklich weg ist – sonst laufen zwei Nightforge
   (ist dabei für ein paar Sekunden passiert, der Testbuild wurde sofort wieder beendet).
