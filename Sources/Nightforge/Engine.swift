@@ -187,10 +187,12 @@ enum Engine {
     /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the driver its
     /// Vulkan goes to (`vulkanDriver`), nil leaves the one Steam has. `vulkanLoader`: the engine
     /// test's loader (vulkanLoaderEnvironment), over those – never with KosmicKrisp, which gives way
-    /// to it (`kosmicKrispReady`). True when the running Steam has to restart.
+    /// to it (`kosmicKrispReady`). Once its switch is off, what it left in the session goes too, unless
+    /// the game's own switches set it. True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
-                                         vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:]) -> Bool {
+                                         vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
+                                         defaults: UserDefaults = .standard) -> Bool {
         let launch = launchSettings.withLock { $0 }
         var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
@@ -217,6 +219,10 @@ enum Engine {
         if !vulkanLoader.isEmpty {
             for name in vulkanLoaderNames { wanted[name] = vulkanLoader[name] }
             wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = vulkanLoader["CX_ACTIVE_GRAPHICS_BACKEND"]
+        } else if wanted["VK_ADD_IMPLICIT_LAYER_PATH"]?.isEmpty == false, !vulkanLoaderSwitchedOn(defaults: defaults) {
+            // The loader is still in the session (nothing else sets the layer path; KosmicKrisp and MoltenVK
+            // take it away) and its switch is off. While it's on, a game without Vulkan leaves it, no restart.
+            for name in vulkanLoaderNames + ["CX_ACTIVE_GRAPHICS_BACKEND"] where environment[name] == nil { wanted[name] = nil }
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
         launchSettings.withLock { [wanted] in $0 = (wanted, retina) }
@@ -661,6 +667,13 @@ enum Engine {
 
     /// The variables that send a start's Vulkan through `vulkanLoader`, beside CX_ACTIVE_GRAPHICS_BACKEND.
     static let vulkanLoaderNames = ["CX_LIBVULKAN", "VK_DRIVER_FILES", "VK_ADD_IMPLICIT_LAYER_PATH"]
+
+    /// Whether the engine test's switch for `vulkanLoader` is on, whatever the game: a loader's path that
+    /// is there, or `true` (the Gcenx engine's).
+    static func vulkanLoaderSwitchedOn(defaults: UserDefaults = .standard) -> Bool {
+        if let path = defaults.string(forKey: "vulkanLoader"), path.hasPrefix("/") { return FileManager.default.fileExists(atPath: path) }
+        return defaults.bool(forKey: "vulkanLoader")
+    }
 
     /// What a start on `layer` gets for the loader: a Direct3D 9 game on DXVK, with the switch on.
     /// CW Hack 25909 (dlls/win32u/vulkan.c) takes CX_LIBVULKAN only with

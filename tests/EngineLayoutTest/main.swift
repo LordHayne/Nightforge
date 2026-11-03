@@ -374,9 +374,18 @@ struct EngineLayoutTest {
                   && Engine.steamEnvironment["CX_LIBVULKAN"] == loader.path && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d",
                   "through Steam: the loader's variables, and wined3d over a profile's backend")
             // With KosmicKrisp (vulkanDriver): a start that draws without Vulkan leaves Steam's driver as it is.
-            check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+            let switchedOn = TestDefaults.suite("vulkan-loader-on"), switchedOff = TestDefaults.suite("vulkan-loader-off")
+            switchedOn.set(loader.path, forKey: "vulkanLoader")
+            check(Engine.vulkanLoaderSwitchedOn(defaults: switchedOn) && !Engine.vulkanLoaderSwitchedOn(defaults: switchedOff)
+                  && !Engine.vulkanLoaderSwitchedOn(defaults: switches), "the switch: on with a loader that's there, off without one")
+            check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, defaults: switchedOn)
                   && Engine.steamEnvironment["CX_LIBVULKAN"] == loader.path && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d",
-                  "a game without Vulkan after it (DXMT): no restart, the loader stays")
+                  "a game without Vulkan after it (DXMT), the switch on: no restart, the loader stays")
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                                  environment: ["CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], defaults: switchedOff)
+                  && Engine.vulkanLoaderNames.allSatisfy { Engine.steamEnvironment[$0] == nil }
+                  && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "dxmt",
+                  "the switch off: Steam restarts without the loader's variables; a game's own backend switch stays")
             let kosmicKrisp = URL(fileURLWithPath: "/kk")
             check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, vulkan: .kosmicKrisp(kosmicKrisp))
                   && Engine.steamEnvironment["CX_LIBVULKAN"] == "/kk/libvulkan.1.dylib"
