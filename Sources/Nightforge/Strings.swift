@@ -811,6 +811,8 @@ enum L10n {
         "Update & Play": "Aktualisieren & spielen",
         "Updating … %ld %%": "Aktualisiert … %ld %%",
         "Steam updates the game first – it starts by itself when the update is done.": "Steam aktualisiert das Spiel zuerst – es startet von selbst, sobald das Update fertig ist.",
+        "%@ – Steam updates the game first, it starts by itself when the update is done.":
+            "%@ – Steam aktualisiert das Spiel zuerst, es startet von selbst, sobald das Update fertig ist.",
         "An update is waiting – Steam downloads it before the game starts": "Ein Update wartet – Steam lädt es, bevor das Spiel startet",
         "Installed, update waiting": "Installiert, Update wartet",
 

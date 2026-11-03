@@ -87,6 +87,10 @@ enum LaunchPhase: Equatable {
     static func storeUpdateHint(_ provider: Provider) -> String {
         L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label)
     }
+    /// `updating` through Steam once its speed is known (`UpdateProgress`).
+    static func steamUpdateHint(speed: String) -> String {
+        L10n.t("%@ – Steam updates the game first, it starts by itself when the update is done.", speed)
+    }
     /// `syncingSaves` for a GOG game.
     static var gogSavesHint: String { L10n.t("Your newest save comes from GOG's cloud first, so you go on where you stopped.") }
     static var confirmHint: String { L10n.t("Steam asks something before the game starts – answer it in its window.") }

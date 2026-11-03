@@ -31,6 +31,17 @@ struct UpdateStateTest {
         check(UpdateState(flags: 4 | 1_048_576, toDownload: 0, downloaded: 0).isRunning && UpdateState(flags: 4 | 1_048_576, toDownload: 0, downloaded: 0).fraction == nil,
               "downloading without sizes: running, no percentage")
         check(UpdateState(flags: 1024, toDownload: 100, downloaded: 100).fraction == 0.99, "never shows 100 % before it's done")
+        // OxyRail's update on 31.10. (content_log: "download 0/5809679168, … stage 0/7151561606"): Steam
+        // writes BytesDownloaded only at the end, and "Update & Play" stood at 0 % for 4.5 minutes.
+        let oxy = UpdateState(flags: 1030, toDownload: 5_809_679_168, downloaded: 0, toStage: 7_151_561_606, staged: 0)
+        check(oxy.isRunning && oxy.fraction == 0, "the update starts: 0 %")
+        check(UpdateState(flags: 1030, toDownload: 5_809_679_168, downloaded: 0, toStage: 7_151_561_606, staged: 3_575_780_803).fraction == 0.5,
+              "half of it unpacked: 50 %, whatever BytesDownloaded says")
+        check(UpdateState(flags: 1030, toDownload: 1000, downloaded: 600, toStage: 2000, staged: 400).fraction == 0.6,
+              "whichever is further along")
+        check(UpdateState(flags: 1030, toDownload: 0, downloaded: 0, toStage: 2000, staged: 2000).fraction == 0.99,
+              "all unpacked, not moved into the game yet: still not 100 %")
+        progress()
 
         // The app's own update: an app opened from its download runs translocated and can't be replaced.
         check(Updater.isTranslocated("/private/var/folders/ab/c_d1/T/AppTranslocation/6F1D2A3B-0000-4000-8000-0123456789AB/d/Nightforge.app"),
@@ -58,6 +69,33 @@ struct UpdateStateTest {
 
         print(failures == 0 ? "✓ UpdateState" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// "Update & Play" as the Play button follows it, a look a second: never back, and its speed.
+    static func progress() {
+        let start = Date(timeIntervalSince1970: 1_793_473_618)  // 31.10. 19:06:58
+        func look(_ staged: Double) -> UpdateState {
+            UpdateState(flags: 1030, toDownload: 1_000_000_000, downloaded: 0, toStage: 2_000_000_000, staged: staged)
+        }
+        var shown = UpdateProgress()
+        check(shown.fraction == nil && shown.speed == nil, "nothing seen yet: \"Updating …\"")
+        shown.add(UpdateState(flags: 1030, toDownload: 0, downloaded: 0), at: start)
+        check(shown.fraction == nil, "sizes not known yet: still no percentage")
+        shown.add(look(200_000_000), at: start)
+        check(shown.fraction == 0.1 && shown.speed == nil, "the first look: 10 %, no speed yet")
+        shown.add(look(400_000_000), at: start.addingTimeInterval(10))
+        check(shown.fraction == 0.2, "10 s later: 20 %")
+        // A tenth of the 1 GB download in 10 s: 10 MB/s, 80 s for the rest – as a download's line says it.
+        var rate = DownloadRate()
+        rate.add(bytes: 100_000_000, at: start)
+        rate.add(bytes: 200_000_000, at: start.addingTimeInterval(10))
+        check(shown.speed != nil && shown.speed == rate.label(total: 1_000_000_000),
+              "the speed and the time left: \(shown.speed ?? "none")")
+        // At the end Steam moves the unpacked files into the game: their folder empties.
+        shown.add(look(100_000_000), at: start.addingTimeInterval(11))
+        check(shown.fraction == 0.2, "the folder emptying doesn't take it back: \(shown.fraction ?? -1)")
+        check(shown.speed != nil, "nor its speed")
+        check(LaunchPhase.steamUpdateHint(speed: "10 MB/s").hasPrefix("10 MB/s"), "the speed under the Play button")
     }
 
     // MARK: A made-up bottle, as LibraryScanner reads it
@@ -195,6 +233,33 @@ struct UpdateStateTest {
         let gone = Game(appID: 9, name: "Gone", bottle: bottle, steamRoot: steam, steamExeWindowsPath: "",
                         installDir: steamapps.appendingPathComponent("common/Gone"), sizeOnDisk: 0)
         check(LibraryScanner.updateState(of: gone) == nil, "no manifest, nothing known")
+
+        // OxyRail's update (31.10.), in a Steam of its own: Steam stages it in downloading/<appid>,
+        // its files set to full size up front ("preallocated 476 files"), which Wine leaves sparse.
+        let oxySteam = root.appendingPathComponent("OxySteam/steamapps", isDirectory: true)
+        let oxyRail = Game(appID: 3907790, name: "OxyRail", bottle: bottle, steamRoot: oxySteam.deletingLastPathComponent(),
+                           steamExeWindowsPath: "", installDir: oxySteam.appendingPathComponent("common/Oxygen Train"), sizeOnDisk: 0)
+        try write(manifest(3907790, "OxyRail", ["installdir": "Oxygen Train", "StateFlags": "1030", "BytesToDownload": "80000000",
+                                                "BytesDownloaded": "0", "BytesToStage": "100000000", "BytesStaged": "0"]),
+                  "appmanifest_3907790.acf", in: oxySteam)
+        check(LibraryScanner.updateState(of: oxyRail)?.fraction == 0, "the update starts, nothing unpacked: 0 %")
+        let pak = oxySteam.appendingPathComponent("downloading/3907790/Oxygen Train_Data/data.unity3d")
+        try fm.createDirectory(at: pak.deletingLastPathComponent(), withIntermediateDirectories: true)
+        check(fm.createFile(atPath: pak.path, contents: nil), "the staged file")
+        let handle = try FileHandle(forWritingTo: pak)
+        try handle.truncate(atOffset: 100_000_000)  // as Wine sets a file's end: no space taken
+        try handle.seek(toOffset: 0)
+        try handle.write(contentsOf: Data(repeating: 0x4E, count: 25_000_000))
+        try handle.close()
+        let quarter = LibraryScanner.updateState(of: oxyRail)?.fraction ?? -1
+        check(quarter > 0.2 && quarter < 0.3, "a quarter written of a file set to its full size: about 25 %, not 99 % (\(quarter))")
+        var oxyOnMac = oxyRail
+        oxyOnMac.platform = .mac
+        check(LibraryScanner.updateState(of: oxyOnMac)?.fraction == 0, "Steam for Mac reserves it all: not measured")
+        try write(manifest(3907790, "OxyRail", ["installdir": "Oxygen Train", "StateFlags": "6", "BytesToDownload": "80000000",
+                                                "BytesToStage": "100000000"]),
+                  "appmanifest_3907790.acf", in: oxySteam)
+        check(LibraryScanner.updateState(of: oxyRail)?.staged == 0, "an update waiting, not running: nothing measured")
 
         // Several bottles; a folder that is a bottle itself; one without Steam; a file among them.
         try fm.createDirectory(at: root.appendingPathComponent("Bottles/No Steam/drive_c"), withIntermediateDirectories: true)

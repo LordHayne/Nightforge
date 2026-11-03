@@ -516,14 +516,11 @@ enum LibraryScanner {
         if flags & 4 != 0 {
             install = .installed
         } else if toDownload > 0 || toStage > 0 {
-            // Steam only writes BytesDownloaded when a download pauses or ends; meanwhile the
-            // unpacked files pile up in steamapps/downloading/<appid>, so measure that too and
-            // take whichever is further along.
-            let reported = toDownload > 0 ? downloaded / toDownload : 0
-            let staged = toStage > 0 && measureStaging
-                ? Double(folderSize(steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true))) / toStage
-                : 0
-            install = .downloading(min(max(reported, staged), 0.99))
+            // Steam writes BytesDownloaded only when a download pauses or ends: what it has unpacked says more.
+            let staged = max(state["bytesstaged"]?.string.flatMap { Double($0) } ?? 0,
+                             toStage > 0 && measureStaging ? Double(stagedSoFar(appID, in: steamapps)) : 0)
+            install = .downloading(UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
+                                               toStage: toStage, staged: staged).fraction ?? 0)
         } else {
             install = .downloading(nil)
         }
@@ -560,15 +557,32 @@ enum LibraryScanner {
     }
 
     /// Whether a game's update is running now, from its manifest (while Nightforge waits for Steam
-    /// to start a game, which updates it first).
+    /// to start a game, which updates it first) – how far too, by what it has unpacked so far, as
+    /// for a first download: Steam writes BytesDownloaded only at the end, and "Update & Play" stood
+    /// at 0 % for all of OxyRail's 5.8 GB (31.10.). Not for Steam for Mac, which reserves it all.
     static func updateState(of game: Game) -> UpdateState? {
-        let manifest = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("appmanifest_\(game.appID).acf")
+        let steamapps = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
+        let manifest = steamapps.appendingPathComponent("appmanifest_\(game.appID).acf")
         guard let state = VDF.parse(contentsOf: manifest)?["appstate"] else { return nil }
-        return UpdateState(flags: state["stateflags"]?.string.flatMap { Int($0) } ?? 4,
-                           toDownload: state["bytestodownload"]?.string.flatMap { Double($0) } ?? 0,
-                           downloaded: state["bytesdownloaded"]?.string.flatMap { Double($0) } ?? 0,
-                           targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string)
+        var update = UpdateState(flags: state["stateflags"]?.string.flatMap { Int($0) } ?? 4,
+                                 toDownload: state["bytestodownload"]?.string.flatMap { Double($0) } ?? 0,
+                                 downloaded: state["bytesdownloaded"]?.string.flatMap { Double($0) } ?? 0,
+                                 targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string,
+                                 toStage: state["bytestostage"]?.string.flatMap { Double($0) } ?? 0,
+                                 staged: state["bytesstaged"]?.string.flatMap { Double($0) } ?? 0)
+        if update.isRunning, update.toStage > 0, game.platform != .mac {
+            update.staged = max(update.staged, Double(stagedSoFar(game.appID, in: steamapps)))
+        }
+        return update
+    }
+
+    /// What a download or an update has unpacked so far: Steam stages it in
+    /// steamapps/downloading/<appid> and moves it into the game's folder at the end ("starting
+    /// commit from …\downloading\3907790" in content_log). It sets the files to their full size up
+    /// front ("preallocated 476 files (6799 MB)"), which Wine on the Mac leaves sparse – macOS has
+    /// no posix_fallocate – so the space they take is what's written.
+    static func stagedSoFar(_ appID: Int, in steamapps: URL) -> Int64 {
+        folderSize(steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true))
     }
 
     static func folderSize(_ url: URL) -> Int64 {
@@ -711,6 +725,10 @@ struct UpdateState: Equatable {
     let downloaded: Double
     var targetBuild: String?
     var build: String?
+    /// What it unpacks into the game in all – more than it downloads, with what it reuses of the
+    /// game and patches – and how much of that is there (`LibraryScanner.stagedSoFar`).
+    var toStage: Double = 0
+    var staged: Double = 0
 
     /// An update waits: Steam flags it, or the build it's heading for isn't the one installed.
     var isPending: Bool {
@@ -727,5 +745,30 @@ struct UpdateState: Equatable {
     /// Steam is downloading or applying it right now.
     var isRunning: Bool { flags & (256 | 1024 | 1_048_576 | 2_097_152 | 4_194_304) != 0 }
 
-    var fraction: Double? { toDownload > 0 ? min(downloaded / toDownload, 0.99) : nil }
+    /// How far it is, by the download's bytes or the unpacked ones, whichever is further along.
+    var fraction: Double? {
+        let shares = [toDownload > 0 ? downloaded / toDownload : nil, toStage > 0 ? staged / toStage : nil].compactMap { $0 }
+        return shares.max().map { min($0, 0.99) }
+    }
+
+}
+
+/// "Update & Play" as the Play button follows it, a look a second: how far it is – never back,
+/// though the unpacked files leave their folder as Steam moves them into the game at the end – and
+/// how fast, as a download's: in the bytes it downloads, as Steam counts its speed.
+struct UpdateProgress {
+    private(set) var fraction: Double?
+    private var rate = DownloadRate()
+    private var total: Double = 0
+
+    mutating func add(_ update: UpdateState, at date: Date = Date()) {
+        guard let now = update.fraction else { return }
+        let fraction = max(self.fraction ?? 0, now)
+        self.fraction = fraction
+        total = update.toDownload > 0 ? update.toDownload : update.toStage
+        rate.add(bytes: fraction * total, at: date)
+    }
+
+    /// "12.4 MB/s · 4 min left", once a few looks show it.
+    var speed: String? { total > 0 ? rate.label(total: total) : nil }
 }
