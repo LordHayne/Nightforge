@@ -124,6 +124,16 @@ struct WineSandboxTest {
         let plain = try? WineSandbox.process(wine, ["regedit", "/S", "x.reg"], sandboxed: false)
         check(plain?.executableURL == wine && plain?.arguments == ["regedit", "/S", "x.reg"], "a CrossOver bottle's Wine starts as it is")
         sessionSwitch(wine, folder: root)
+        // The files the rules name are the ones staging's code keeps: SteamProgram's record and GameShortcut's key.
+        let shortcuts = root.appendingPathComponent("shortcut-folder", isDirectory: true)
+        try? FileManager.default.createDirectory(at: shortcuts, withIntermediateDirectories: true)
+        _ = GameShortcut.key(in: shortcuts)
+        let keyFiles = (try? FileManager.default.contentsOfDirectory(atPath: shortcuts.path)) ?? []
+        check(SteamProgram.record.deletingLastPathComponent().standardizedFileURL == Engine.supportDir.standardizedFileURL
+              && WineSandbox.readOnlyInSupport.contains { $0.path == SteamProgram.record.lastPathComponent && !$0.folder },
+              "SteamProgram's record (\(SteamProgram.record.lastPathComponent)) is among what can't be changed inside")
+        check(keyFiles.count == 1 && WineSandbox.deniedInSupport.contains { $0.path == keyFiles[0] && !$0.folder },
+              "GameShortcut's key (\(keyFiles)) is among what can't even be read inside")
 
         // MARK: The helper with the real profile
         guard arguments.count >= 3 else {
