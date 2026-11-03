@@ -108,6 +108,8 @@ enum L10n {
         "The update download is damaged. Please try again.": "Der Update-Download ist beschädigt. Bitte versuch es noch einmal.",
         "The update isn't signed correctly, so it wasn't installed.":
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
+        "The update says it's Nightforge %@ but holds %@, so it wasn't installed.":
+            "Das Update gibt sich als Nightforge %@ aus, enthält aber %@, und wurde deshalb nicht installiert.",
         "The update holds an older Nightforge than the one you have, so it wasn't installed.":
             "Das Update enthält ein älteres Nightforge als deines und wurde deshalb nicht installiert.",
         "An online list (game fixes, components or AppleGamingWiki's reports) wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has.":

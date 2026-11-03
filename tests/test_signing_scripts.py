@@ -570,6 +570,61 @@ class SigningScripts(unittest.TestCase):
         self.assertIn("isn't newer than main's", result.stderr)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
 
+    def test_a_branch_that_changes_the_signing_tool_isnt_signed(self):
+        """Review A: the tool the key goes into is never built from the branch being signed."""
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        tool = self.repo / "scripts/signing-tool.swift"
+        tool.write_text(tool.read_text() + "\n// writes the key into the .sig\n")
+        self.git("commit", "--quiet", "-am", "Update game profiles")
+        self.git("push", "--quiet", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("changes scripts/signing-tool.swift", result.stderr)
+        self.assertNotIn("macOS asks for your password", result.stdout, "the key isn't even read")
+        self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
+
+    def test_a_branch_that_changes_anything_else_isnt_signed(self):
+        origin = self.lists_repo()
+        self.git("checkout", "--quiet", "bot/profiles")
+        (self.repo / "README.md").write_text("changed\n")
+        self.git("add", "README.md")
+        self.git("commit", "--quiet", "-m", "Update game profiles")
+        self.git("push", "--quiet", "origin", "bot/profiles")
+        self.git("checkout", "--quiet", "main")
+        result = self.sign_lists("bot/profiles")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("changes README.md", result.stderr)
+
+    def test_a_checkout_with_other_signing_sources_doesnt_sign(self):
+        """The tool comes from this checkout: if it isn't the one the branch has, nothing is signed."""
+        self.lists_repo()
+        lib = self.repo / "scripts/signing-lib.sh"
+        lib.write_text(lib.read_text() + "\n# a local change\n")
+        result = self.sign_lists("main")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("scripts/signing-lib.sh on main isn't the one in this checkout", result.stderr)
+
+    def test_on_main_a_changed_list_needs_a_newer_stamp_than_when_it_was_signed(self):
+        """Review E: on main itself the comparison is with the list as it was last signed."""
+        self.lists_repo()
+        self.assertEqual(self.sign_lists("main").returncode, 0)
+        self.git("pull", "--quiet", "--ff-only", "origin", "main")
+        profiles = self.repo / "profiles/profiles.json"
+        signed_stamp = json.loads(profiles.read_text())["generated"]
+        profiles.write_text(stamped(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "by hand"', 1),
+                                    signed_stamp))
+        self.git("commit", "--quiet", "-am", "A hand edit without a new stamp")
+        self.git("push", "--quiet", "origin", "main")
+        result = self.sign_lists("main")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("isn't newer than the last signed one", result.stderr)
+        profiles.write_text(stamped(profiles.read_text(), utc_stamp()))
+        self.git("commit", "--quiet", "-am", "Now with a new stamp")
+        self.git("push", "--quiet", "origin", "main")
+        self.assertEqual(self.sign_lists("main").returncode, 0, "with a newer stamp it's signed")
+
     def test_a_stamp_from_the_future_isnt_signed(self):
         """Review N5: one list from the future would turn away every right one after it."""
         origin = self.lists_repo()
@@ -583,6 +638,24 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("more than a day ahead", result.stderr)
         self.assertEqual(self.check_signatures(self.checkout(origin, "bot/profiles")).returncode, 1, "nothing was pushed")
+
+    def test_a_pull_request_is_checked_with_the_bases_tool_and_keys(self):
+        """Review D: the check reads the pull request's lists, but takes its checker and keys from the base."""
+        origin = self.lists_repo()
+        self.assertEqual(self.sign_lists("bot/profiles").returncode, 0)
+        pull_request = self.checkout(origin, "bot/profiles")
+        check = lambda tree: subprocess.run(["bash", "scripts/check-signatures.sh", str(tree)], cwd=self.repo, env=self.env,
+                                            capture_output=True, text=True)
+        self.assertEqual(check(pull_request).returncode, 0, "signed lists, the same checker: green")
+        keys = pull_request / "Sources/Nightforge/SigningKeys.swift"
+        stranger = self.tool(self.plain_tool, "public", stdin=self.stranger).strip()
+        keys.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), stranger, ""))
+        result = check(pull_request)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("changes Sources/Nightforge/SigningKeys.swift", result.stdout)
+        tool = pull_request / "scripts/signing-tool.swift"
+        tool.write_text(tool.read_text() + "\n// always green\n")
+        self.assertIn("changes scripts/signing-tool.swift", check(pull_request).stdout)
 
     def test_a_changed_list_fails_the_check(self):
         origin = self.lists_repo()

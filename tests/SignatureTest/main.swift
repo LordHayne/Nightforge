@@ -155,6 +155,19 @@ struct SignatureTest {
         check(!Updater.isSigned(zip, signature: sign(bytes), keys: keys), "not when one bit changed on the way")
         check(!Updater.isSigned(work.appendingPathComponent("missing.zip"), signature: sign(bytes), keys: keys), "not without a download")
         check(Updater.Failure.notNewer.errorDescription?.isEmpty == false, "an older release passed off as new has its message")
+        // The app in the zip has to be exactly its release's version (review C).
+        func outcome(_ found: String, named: String) -> String {
+            do { try Updater.check(found, named: named, current: "0.3.1"); return "installs" }
+            catch Updater.Failure.otherVersion { return "other version" }
+            catch Updater.Failure.notNewer { return "not newer" }
+            catch { return "\(error)" }
+        }
+        check(outcome("0.3.2", named: "0.3.2") == "installs", "the version its release names, newer: installs")
+        check(outcome("0.3.1", named: "9.9.9") == "other version", "an old signed zip under a new tag doesn't")
+        check(outcome("0.3.2", named: "9.9.9") == "other version", "nor a newer one under another tag")
+        check(outcome("0.3.1", named: "0.3.1") == "not newer", "the same version again doesn't either")
+        check(Updater.Failure.otherVersion(found: "0.3.1", named: "9.9.9").errorDescription?.contains("9.9.9") == true,
+              "its message names both")
     }
 
     static func components() async {
@@ -244,6 +257,17 @@ struct SignatureTest {
         check(SignedLists.isOlder(today, than: stamped(iso.string(from: now.addingTimeInterval(86_400))), now: now),
               "one a day ahead still counts")
         check(!SignedLists.isOlder(stamped("2026-11-03"), than: stamped("2999-01-01"), now: now), "a date alone far ahead too")
+
+        // Compared as dates, not as text (review F).
+        let then = iso.date(from: "2026-11-04T12:00:00Z")!
+        check(SignedLists.isOlder(stamped("2026-11-04T06:00:00+02:00"), than: stamped("2026-11-04T05:00:00Z"), now: then),
+              "06:00 at +02:00 is 04:00 UTC: older than 05:00 UTC")
+        check(!SignedLists.isOlder(stamped("2026-11-04T05:00:00.5Z"), than: stamped("2026-11-04T05:00:00Z"), now: then),
+              "half a second later isn't older")
+        check(!SignedLists.isOlder(stamped("2026-11-04"), than: stamped("2026-11-04T00:00:00Z"), now: then),
+              "a day alone is its midnight in UTC")
+        check(SignedLists.isOlder(stamped("2026-11-03T23:59:59Z"), than: stamped("2026-11-04"), now: then),
+              "and a second before it is older")
     }
 
     static func profiles() async {
@@ -281,5 +305,12 @@ struct SignatureTest {
         publish("right", signedBy: mainKey, generated: "2026-11-04T04:37:00Z")
         check(await name() == "right" && !SignedLists.older.contains(SignedLists.profiles),
               "but doesn't lock the channel: the next right list counts again (review N5)")
+
+        // The app's own list from the future mustn't turn away every right online list either (review B).
+        let ownAhead = online.appendingPathComponent("own-ahead.json")
+        try? Data(#"{"formatVersion": 1, "generated": "2999-01-01T00:00:00Z", "games": {"50130": {"name": "own"}}}"#.utf8).write(to: ownAhead)
+        publish("online", signedBy: mainKey, generated: "2026-11-05T04:37:00Z")
+        check(await ProfileStore(bundledURL: ownAhead, remoteURL: remote, keys: keys).profile(for: 50130)?.name == "online",
+              "an own list from the future doesn't win over a right online one")
     }
 }

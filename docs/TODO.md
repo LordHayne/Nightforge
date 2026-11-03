@@ -1407,8 +1407,7 @@ Person hängen (Whisky ist 2025 daran gescheitert).
   - Die Tests (`ci.yml`) laufen beim Bot-PR erst, wenn dein Signatur-Push ihn anstößt. Vom Bot geöffnete PRs starten
     keine Workflows, also vor dem Merge auf das grüne CI warten. Davor ein kurzer Spieltest.
   - Ein Rückweg: Die vorherige Version bleibt im Manifest, und Nightforge kann auf sie zurückfallen (`ComponentStore`).
-  - Rechte pro Job wie in `profiles.yml` (Audit N9): `components.yml` läuft auch bei Pull Requests mit
-    `contents: write` und `pull-requests: write`.
+  - Rechte pro Job wie in `profiles.yml`: seit dem Review G erledigt (Job `update` liest nur, `propose` schreibt).
 - **Tests in der CI** laufen seit PR #5 (`ci.yml`: Build, alle `tests/*Test` parallel über `scripts/run-tests.sh`,
   `tests/ProcessListLive` mit dem echten `ps`, die Python-Tests der Profile, der Signier-Skripte und von AGW, die
   Manifest-Prüfung).

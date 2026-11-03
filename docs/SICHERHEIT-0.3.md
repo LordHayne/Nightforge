@@ -173,6 +173,13 @@ kein Spiel, keine Store-Anmeldung, keine Einstellung von macOS geändert.
   liegt in `Application Support/Nightforge` (644) und wird bei jedem Start von Nightforge mit der gebündelten verglichen
   und überschrieben (`DockHider.swift:36-58`). Ein Nutzer mit Schreibrecht auf den Ordner hätte ohnehin alles.
   Kein Handlungsbedarf.
+- **K6a – Erst prüfen, dann auspacken: zwei Lesevorgänge (Review H).** Updater (`Updater.swift`, Signatur, dann
+  `ditto`), Komponenten (`Components.swift`, SHA-256, dann `tar`) und `install.sh` (Ed25519, dann `ditto`) lesen das
+  Archiv zweimal. Wer als derselbe Nutzer zwischen den beiden Lesevorgängen die Datei tauscht, bekäme ein ungeprüftes
+  Archiv ausgepackt. Die Marke `.sha256` einer installierten Komponente nennt außerdem die erwartete Prüfsumme, nicht
+  eine später nachgerechnete. Beides setzt einen Prozess voraus, der als derselbe Nutzer schon schreiben kann, und
+  der hätte ohnehin alles (wie bei K6). Restrisiko, bewusst so gelassen. Abhilfe wäre, aus einem Ordner mit Rechten
+  700 auszupacken, in den nur Nightforge schreibt.
 - **K7 – `install.sh` prüft die Adresse nicht auf `https://github.com/LordHayne/Nightforge/`.** `scripts/install.sh:47-50` nimmt
   die erste `browser_download_url` mit `Nightforge-…zip` aus der API-Antwort. Gehört zu H2/M5.
 
@@ -252,7 +259,9 @@ Beide Bots (`components.yml`, `profiles.yml`) schlagen Änderungen nur noch als 
 1. Den Pull Request lesen.
 2. `scripts/sign-lists.sh bot/profiles` (bzw. `bot/components`). Das Skript holt den Zweig in einen eigenen Ordner,
    signiert nur Listen, deren Signatur nicht mehr passt, und pusht die `.sig` auf den Zweig. Deine Arbeitskopie bleibt
-   unberührt.
+   unberührt. Vom Zweig läuft nichts: Das Werkzeug, das den privaten Schlüssel bekommt, baut das Skript aus deinem
+   Checkout. Einen Zweig, der mehr ändert als die Listen, ihre `.sig` und `components/sources.json`, signiert es
+   nicht, ebenso wenig einen, dessen Signier-Quellen von deinen abweichen. Git führt dort keine Hooks aus.
 3. Mergen, wenn der Check **Signatures** grün ist, mit dem Befehl, den das Skript ausgibt (`--match-head-commit`). Hat
    der Bot den Zweig inzwischen neu geschrieben, merged GitHub dann nicht, und du signierst den neuen Stand.
 

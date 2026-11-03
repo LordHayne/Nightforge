@@ -308,7 +308,7 @@ actor ProfileStore {
         let cached = Signature.signedContents(of: cachedURL, keys: keys)
         let bundled = bundledURL.flatMap { try? Data(contentsOf: $0) }
         // The newer one first; the other still serves when it can't be read.
-        let lists = cached.map { Self.isOlder($0, than: bundled) } == true ? [bundled, cached] : [cached, bundled]
+        let lists = cached.map { SignedLists.isOlder($0, than: bundled) } == true ? [bundled, cached] : [cached, bundled]
         for data in lists.compactMap({ $0 }) where use(data) { return }
     }
 
@@ -319,19 +319,6 @@ actor ProfileStore {
         epicProfiles = Self.decodeEpic(data)
         gogProfiles = Self.decodeGOG(data)
         return true
-    }
-
-    /// Whether `list` was built before `other` (their "generated"); a list without that date counts
-    /// as older than one with it.
-    static func isOlder(_ list: Data, than other: Data?) -> Bool {
-        guard let theirs = other.flatMap(generated) else { return false }
-        guard let ours = generated(list) else { return true }
-        return ours < theirs
-    }
-
-    private static func generated(_ data: Data) -> Date? {
-        struct Stamp: Decodable { let generated: String? }
-        return (try? JSONDecoder().decode(Stamp.self, from: data))?.generated.flatMap { ISO8601DateFormatter().date(from: $0) }
     }
 
     /// Fetches the online list; keeps what's there when offline, when the list isn't signed, when
@@ -346,7 +333,8 @@ actor ProfileStore {
             // app's own is just an app newer than main's list.
             let older = SignedLists.isOlder(data, than: Signature.signedContents(of: cachedURL, keys: keys))
             SignedLists.note(SignedLists.profiles, older: older)
-            guard !older, !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }), use(data) else { return }
+            // By the same rule as the kept one (SignedLists.isOlder): an own list from the future doesn't count (review B).
+            guard !older, !SignedLists.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }), use(data) else { return }
             try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
             try? data.write(to: cachedURL, options: .atomic)
             try? signature.write(to: Signature.file(for: cachedURL), options: .atomic)
