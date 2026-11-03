@@ -654,32 +654,41 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
             // Gone before its files go (see Legendary.run); one that hangs doesn't hold the removal up.
             await Legendary.end(started + earlier, under: root)
         }
+        // Nightforge removes a folder inside a games folder (the Mac's or a drive's) itself, with whatever is in
+        // it – the settings files it writes beside the game (dxmt.conf …), a cancelled download. A game elsewhere
+        // legendary removes, its own files only.
+        let folder = game.installDir.standardizedFileURL
+        let gamesFolders = [Legendary.gamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.epic(on: $0)] } ?? [])
+        let ownFolder = gamesFolders.contains { folder.deletingLastPathComponent().path == $0.standardizedFileURL.path }
         let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
         let installed = EpicInstall.all(fromJSON: (try? Data(contentsOf: installedFile)) ?? Data())
         if installed[appName] != nil {
-            let result = try await Legendary.run(["uninstall", appName, "-y", "--skip-uninstaller"], timeout: 600)
+            // The folder first, and legendary forgets the game only once it's gone: a folder that stays (in
+            // use, no permission) keeps the game installed, so it can be removed again. That's said, as for a
+            // Steam game (Engine.removeGameFiles).
+            if ownFolder, FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }
+            let result = try await Legendary.run(Self.uninstallArguments(appName, filesGone: ownFolder), timeout: 600)
             guard result.status == 0 else { throw EpicError.failed(result.error ?? L10n.t("legendary stopped (code %d)", result.status)) }
         } else {
             for part in parts {
                 try? FileManager.default.removeItem(at: Legendary.configDir.appendingPathComponent("tmp/\(part).resume"))
             }
         }
-        // legendary removes the game's own files; what's left is a cancelled download, or the settings
-        // files Nightforge writes beside the game (dxmt.conf …). Only inside a games folder, the Mac's
-        // or a drive's.
-        let folder = game.installDir.standardizedFileURL
-        let gamesFolders = [Legendary.gamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.epic(on: $0)] } ?? [])
-        // A folder that stays (in use, no permission) is said, as for a Steam game (Engine.removeGameFiles),
-        // once the rest is done.
+        // A cancelled download's folder: one that stays is said once the rest is done.
         var left: Error?
-        if gamesFolders.contains(where: { folder.deletingLastPathComponent().path == $0.standardizedFileURL.path }),
-           FileManager.default.fileExists(atPath: folder.path) {
+        if ownFolder, FileManager.default.fileExists(atPath: folder.path) {
             do { try FileManager.default.removeItem(at: folder) } catch { left = error }
         }
         for part in parts { try? FileManager.default.removeItem(at: Legendary.log(for: part)) }
         if destinations.removeValue(forKey: appName) != nil { save(destinations, to: Self.destinationsFile) }
         Task { await startNext() }
         if let left { throw left }
+    }
+
+    /// legendary's uninstall without the game's uninstaller; `filesGone`: Nightforge removed the folder
+    /// itself, legendary only forgets the game.
+    nonisolated static func uninstallArguments(_ appName: String, filesGone: Bool) -> [String] {
+        ["uninstall", appName, "-y", "--skip-uninstaller"] + (filesGone ? ["--keep-files"] : [])
     }
 
     // MARK: - A drive that's gone

@@ -783,6 +783,37 @@ struct GOGTest {
             try await later.uninstall(stuckGame)
             check(!fm.fileExists(atPath: stuck.path), "once it can go, it goes")
         } catch { check(false, "and without a word: \(error)") }
+        // An installed game whose folder stays isn't forgotten: it stays installed, so it can be removed again (outside
+        // review of 9c45b18). Once the folder can go, the game goes with it.
+        let keptFolder = GOGDL.windowsGamesDir.appendingPathComponent("Kept", isDirectory: true)
+        let keptLocked = keptFolder.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: keptLocked, withIntermediateDirectories: true)
+        fm.createFile(atPath: keptLocked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: keptLocked.path)
+        let installsFile = gogFolder.appendingPathComponent("installed.json")
+        func installed() -> [String: GOGInstall] {
+            (try? JSONDecoder().decode([String: GOGInstall].self, from: Data(contentsOf: installsFile))) ?? [:]
+        }
+        var withKept = installed()
+        withKept["626262"] = GOGInstall(id: "626262", path: keptFolder, platform: .windows, build: "1", language: "en-US", size: 1)
+        try? JSONEncoder().encode(withKept).write(to: installsFile)
+        try? Data("{}".utf8).write(to: GOGDL.manifest(for: "626262"))
+        let keptGame = Game(gameID: .gog("626262"), name: "Kept", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                            steamExeWindowsPath: "", installDir: keptFolder, sizeOnDisk: 0)
+        let afresh = GOGStore()
+        do {
+            try await afresh.uninstall(keptGame)
+            check(false, "an installed game whose folder stays isn't taken for removed")
+        } catch {
+            check(installed()["626262"] != nil, "it stays installed, so it can be removed again: \(error.localizedDescription)")
+            check(fm.fileExists(atPath: GOGDL.manifest(for: "626262").path), "with gogdl's manifest for the game that's still there")
+        }
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: keptLocked.path)
+        do {
+            try await afresh.uninstall(keptGame)
+            check(!fm.fileExists(atPath: keptFolder.path) && installed()["626262"] == nil && !fm.fileExists(atPath: GOGDL.manifest(for: "626262").path),
+                  "once it can go, the game goes with it")
+        } catch { check(false, "and without a word: \(error)") }
 
         // GOG can't be asked: no tokens (signed out) – the games stay.
         await later.refresh()

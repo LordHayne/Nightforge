@@ -237,6 +237,39 @@ struct EpicTest {
             try await EpicStore().uninstall(game)
             check(!fm.fileExists(atPath: folder.path), "once it can go, it goes")
         } catch { check(false, "and without a word: \(error)") }
+
+        // An installed game: its folder goes first, and legendary forgets the game only after that. A folder that
+        // stays keeps the game installed, so it can be removed again (outside review of 9c45b18).
+        let installedFolder = Legendary.gamesDir.appendingPathComponent("Kept", isDirectory: true)
+        let keptLocked = installedFolder.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: keptLocked, withIntermediateDirectories: true)
+        fm.createFile(atPath: keptLocked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: keptLocked.path)
+        let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
+        let before = try? Data(contentsOf: installedFile)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: keptLocked.path)
+            try? fm.removeItem(at: installedFolder)
+            if let before { try? before.write(to: installedFile) } else { try? fm.removeItem(at: installedFile) }
+        }
+        try? fm.createDirectory(at: Legendary.configDir, withIntermediateDirectories: true)
+        try? JSONSerialization.data(withJSONObject: ["Kept": ["app_name": "Kept", "install_path": installedFolder.path, "executable": "Kept.exe"]])
+            .write(to: installedFile)
+        let kept = Game(gameID: .epic("Kept"), name: "Kept", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                        steamExeWindowsPath: "", installDir: installedFolder, sizeOnDisk: 0)
+        do {
+            try await EpicStore().uninstall(kept)
+            check(false, "an installed game whose folder stays isn't taken for removed")
+        } catch {
+            let still = EpicInstall.all(fromJSON: (try? Data(contentsOf: installedFile)) ?? Data())["Kept"]
+            check(still != nil, "legendary wasn't asked, so the game stays installed and can be removed again: \(error.localizedDescription)")
+            // The folder's own error, before legendary: there's no legendary in this home, so asking it first would fail otherwise.
+            check((error as NSError).domain == NSCocoaErrorDomain && !(error is EpicError), "the folder went first: \(error)")
+        }
+        check(EpicStore.uninstallArguments("Kept", filesGone: true) == ["uninstall", "Kept", "-y", "--skip-uninstaller", "--keep-files"],
+              "with its folder gone, legendary only forgets the game")
+        check(EpicStore.uninstallArguments("Kept", filesGone: false) == ["uninstall", "Kept", "-y", "--skip-uninstaller"],
+              "a game outside the games folders: legendary removes its own files, as before")
     }
 
     /// "Update & Play": what legendary's update log means for the start.
