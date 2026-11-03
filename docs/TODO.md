@@ -254,6 +254,9 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
   `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
   danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+- `defaults write io.github.lordhayne.nightforge unityDialogPlay -bool true`: Nightforge drückt „Play!“ in Unitys
+  Auswahlfenster (siehe Steam und Start › Unitys Auswahlfenster). Gilt ab dem nächsten Spielstart, ohne Neustart der
+  App. Zurück mit `defaults delete io.github.lordhayne.nightforge unityDialogPlay`.
 
 ### Später (nicht angefangen)
 
@@ -295,6 +298,40 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   Standard-Startoption automatisch zu wählen. Kandidat: `steam://launch/<id>/<Typ>` (Steam kennt die Typnamen
   Default, Option1…). Ein Versuch blieb ohne Wirkung, lief aber, während schon ein Dialog offen war.
   Also ungeklärt.
+- **Unitys Auswahlfenster** (3.11., Branch `claude/unity-play`, hinter dem Schalter `unityDialogPlay`, aus): Unity-Spiele
+  bis 2019.2 können vor dem Start „<Produkt> Configuration“ zeigen (Auflösung, Qualität, „Play!“). The Forest (Steam
+  242760, Unity 5.6.5p4) tut das. Mit dem Pad ist es nicht bedienbar, und keine Startoption überspringt es.
+  - Gebaut: `wrapper/unity-play.c` (mingw, `unity-play.exe` mit `.sha256` daneben wie bei N8, Workflow
+    `unity-play.yml`) läuft neben dem Spiel in derselben Wine-Sitzung. Es sucht bis zu 180 s ein Fenster der Klasse
+    `#32770`, das einem der Spielprogramme gehört (Name des Prozessbilds), dessen Titel das Produkt aus
+    `<Programm>_Data/app.info` plus „ Configuration“ ist (Leerzeichen und Groß/klein egal) und das einen Knopf
+    „Play!“ hat. Darauf `BM_CLICK`; schließt sich das Fenster nicht, den Befehl des Knopfs. Danach endet es, mit einer
+    Zeile im `wine.log`. Kein Bedienungshilfen-Recht nötig.
+  - Welche Spiele: `<Name>.exe` neben `<Name>_Data` mit `ScreenSelector.bmp` und `app.info`, Unity vor 2019.3 (Version
+    aus den ersten Bytes von `globalgamemanagers`, `mainData` oder `data.unity3d`; unlesbar zählt das Bild allein).
+    Nur Nightforges eigene Sitzung, nicht CrossOver. Profilfeld `skipUnityDialog: false` lässt das Fenster stehen,
+    für ein Spiel, das dort etwas Wichtiges fragt.
+  - Titel: The Forests `app.info` und `globalgamemanagers` nennen das Produkt `TheForest` (Firma SKS). Der Fund
+    vom 3.11. schrieb „The Forest Configuration“. Darum zählen Leerzeichen nicht.
+  - Getestet: `tests/UnityDialogTest/run.sh` (Erkennen über Dateien) und `tests/UnityDialogTest/dialog.sh`
+    (das Programm unter winecx gegen eine Attrappe des Fensters, eigener Prefix, Wines Null-Treiber, 64 und 32 Bit,
+    spätes Fenster, fremdes Programm, fremder Titel, falsches Produkt; mit zwei Gegenproben).
+  - **Live-Test** auf dem MacBook (The Forest ist installiert):
+    1. Ohne Schalter The Forest starten. Erwartet: das Fenster erscheint wie bisher. Den Titel genau notieren.
+    2. `defaults write io.github.lordhayne.nightforge unityDialogPlay -bool true`, The Forest bei laufendem Steam
+       starten. Erwartet: das Fenster ist höchstens kurz zu sehen, das Spiel startet ohne Klick im Vollbild in der
+       Auflösung, die `GameResolution` geschrieben hat. Im `wine.log` „Unity's window: pressing Play! when
+       TheForest.exe, TheForest32.exe, TheForestVR.exe shows it“ und danach „Unity's window "… Configuration":
+       pressed Play!“.
+    3. Dasselbe nur mit dem Pad, bis ins Hauptmenü.
+    4. Dasselbe mit beendetem Steam (kalter Start, Steam braucht bis zur Anmeldung oft über eine Minute; das
+       Programm wartet 180 s).
+    5. Ein Unity-Spiel ohne das Fenster (Overcooked 2, 20 Minutes Till Dawn, Oxygen Train): keine Unity-Zeile im
+       `wine.log`.
+    6. Gegenprobe: lokal `"skipUnityDialog": false` für The Forest in `profiles/mac.json`, App bauen. Das Fenster bleibt.
+    7. Danach entscheiden, ob der Schalter wegfällt. Der automatische Spieletest zählte The Forest als Hänger.
+  - Beim Zusammenführen mit `claude/wine-sandbox`: `UnityDialog.start` setzt `executableURL = wine`. Dort auf
+    `WineSandbox.process(wine, …)` umstellen, sonst schlägt WineSandboxTest (`everyWineStartWrapped`) an.
 - **„Aktualisieren & spielen“ zeigt die ganze Zeit 0 %.** OxyRail am 31.10.: 5,8 GB in 4,5 Minuten, der Knopf
   stand bis zum Schluss auf „Aktualisiert … 0 %“. Steam schreibt `BytesDownloaded` im appmanifest erst am Ende
   (während des Updates `StateFlags 1030`, `BytesDownloaded 0`). `LibraryScanner.updateState` liest nur das

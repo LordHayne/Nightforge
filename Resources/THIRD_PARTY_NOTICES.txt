@@ -9,7 +9,8 @@ Vulkan-Headers (The Khronos Group Inc.), compiled into nightforge-vulkan-layer.d
   Apache-2.0 or MIT: licenses/Vulkan-Headers-LICENSE.md, licenses/Apache-2.0.txt, licenses/MIT.txt.
   https://github.com/KhronosGroup/Vulkan-Headers
 
-mingw-w64 runtime, statically linked into steamwebhelper.exe (built with x86_64-w64-mingw32-gcc).
+mingw-w64 runtime, statically linked into steamwebhelper.exe and unity-play.exe (built with
+  x86_64-w64-mingw32-gcc).
   Its runtime and headers are under permissive licences (public domain, ZPL 2.1, MIT-style); see
   COPYING.MinGW-w64-runtime.txt in the mingw-w64 sources. https://www.mingw-w64.org
 

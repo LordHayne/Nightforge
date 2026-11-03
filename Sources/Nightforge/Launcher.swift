@@ -542,6 +542,8 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        // Unity's configuration window, should the game show it (only for Nightforge's own Steam).
+        UnityDialog.start(for: game, profile: profile, wine: runner)
         return process
     }
 
@@ -593,6 +595,7 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        UnityDialog.start(for: game, profile: profile, wine: runner)
         return process
     }
 

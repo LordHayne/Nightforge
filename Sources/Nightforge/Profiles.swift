@@ -61,6 +61,9 @@ struct GameProfile: Decodable, Equatable {
     /// The program to start instead of the store's, relative to the game folder (GameProgram):
     /// Epic's and GOG's games, which Nightforge starts itself. Steam picks its own.
     var executable: String?
+    /// false: Unity's configuration window before the game asks something that matters here, so
+    /// Nightforge leaves "Play!" to the player (UnityDialog).
+    var skipUnityDialog: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -119,7 +122,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, resolution, executable
+        case iniSettings, retina, resolution, executable, skipUnityDialog
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -163,6 +166,7 @@ struct GameProfile: Decodable, Equatable {
         retina = try? container.decodeIfPresent(Bool.self, forKey: .retina)
         resolution = try? container.decodeIfPresent(SavedResolution.self, forKey: .resolution)
         executable = (try? container.decodeIfPresent(String.self, forKey: .executable)).flatMap { $0.isEmpty ? nil : $0 }
+        skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
     }
 }
 
