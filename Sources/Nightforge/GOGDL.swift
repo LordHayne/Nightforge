@@ -140,13 +140,19 @@ enum GOGDL {
     /// gogdl downloads running, also from an earlier Nightforge, by product ID.
     static func runningDownloads() -> Set<String> {
         let root = ComponentStore.shared.root.appendingPathComponent(componentID, isDirectory: true)
-        return Set(Engine.ownProcesses(under: root).compactMap { process in
+        // Without a process list the last look stands: "none" would start a second download of the same game.
+        guard let processes = Engine.ownProcessesKnown(under: root) else { return lastRunning.withLock { $0 } }
+        let running = Set(processes.compactMap { process -> String? in
             let words = process.command.split(separator: " ")
             guard let index = words.firstIndex(where: { ["download", "update", "repair"].contains($0) }), index + 1 < words.count
             else { return nil }
             return String(words[index + 1])
         })
+        lastRunning.withLock { $0 = running }
+        return running
     }
+
+    private static let lastRunning = LockedValue<Set<String>>([])
 
     // MARK: - What gogdl says
 

@@ -144,6 +144,15 @@ struct SubprocessTest {
         check(again == nil && calls() == asked, "… and for the next minute ps isn't asked at all (\(calls() - asked) more calls)")
         check(seconds < 0.2, "… so nobody waits (\(seconds) s)")
         check(ProcessList.ps("pid=,command=", stale: true) == good, "whoever may take an old list gets the last good one")
+        if case .old(let text) = ProcessList.listing("pid=,command=", allowOld: true) {
+            check(text == good, "… marked as old")
+        } else {
+            check(false, "an old list is marked as old")
+        }
+        if case .unavailable = ProcessList.listing("pid=,command="), ProcessList.listing("pid=,command=").value == nil {
+        } else {
+            check(false, "without allowOld there is no list in the pause")
+        }
         check(ProcessList.ps("pid=,ppid=", stale: true) == nil, "… but only of the same kind (other columns: none yet)")
         try? FileManager.default.removeItem(at: hangs)
         check(ProcessList.ps("pid=,command=") == nil, "ps answers again, but the pause isn't over yet")
@@ -156,6 +165,32 @@ struct SubprocessTest {
         check(ProcessList.ps("pid=,ppid=") == "from the source: pid=,ppid=" && ProcessList.ps("pid=", stale: true) == "from the source: pid=",
               "a source handed in is what ps says")
         check(calls() == before, "… and ps isn't run (\(calls() - before) more calls)")
+        ProcessList.source = nil
+
+        // Down is not empty: no list at all ("not known") against a list without a process ("none").
+        let marker = #"\steamapps\common\Some Game\"#
+        let folders = [marker.lowercased(): "steam:1"]
+        ProcessList.source = { _ in nil }
+        check(ProcessList.listing("pid=").value == nil, "a source without an answer: no list")
+        check(GameProcesses.lookup(allowOld: true).value == nil && GameProcesses.table().isEmpty, "GameProcesses: no list, table() is [] for what acts")
+        check(GameProcesses.runningNow(folders) == nil, "the watcher is told 'not known', not 'no game'")
+        check(GameProcesses.runningNow([:]) == [:], "no games to look for: nothing to ask")
+        check(GameProcesses.curtainLook(marker: marker, folder: nil, front: nil) == nil, "the curtain's look decides nothing")
+        check(Engine.ownProcessesKnown() == nil && Engine.steamRunningKnown == nil && Engine.windowsGameRunningKnown == nil,
+              "Engine: not known")
+        check(Engine.steamMayBeRunning && Engine.windowsGameRunning && !Engine.isSteamRunning,
+              "… what mustn't happen to a Steam or under a game waits; plain isSteamRunning stays false")
+        ProcessList.source = { _ in "" }
+        check(GameProcesses.runningNow(folders) == [:], "an empty list is 'no game'")
+        check(GameProcesses.curtainLook(marker: marker, folder: nil, front: nil) == GameProcesses.CurtainLook(pids: [], companion: false),
+              "the curtain's look sees no process")
+        check(Engine.ownProcessesKnown()?.isEmpty == true && Engine.steamRunningKnown == false && Engine.windowsGameRunningKnown == false,
+              "Engine: known to be none")
+        check(!Engine.steamMayBeRunning && !Engine.windowsGameRunning, "… so nothing waits")
+        ProcessList.source = { columns in columns == "pid=,ppid=,command="
+            ? "500 1 C:\\Program Files (x86)\\Steam\\steamapps\\common\\Some Game\\game.exe -x\n" : "" }
+        check(GameProcesses.runningNow(folders) == ["steam:1": 500], "a running game is found: \(String(describing: GameProcesses.runningNow(folders)))")
+        check(GameProcesses.curtainLook(marker: marker, folder: nil, front: 500)?.pids == [500], "and the curtain sees it")
         ProcessList.source = nil
 
         print(failures == 0 ? "✓ Subprocess" : "\(failures) failed")

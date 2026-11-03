@@ -45,7 +45,8 @@ enum GameResolution {
         guard let size = mainScreen(retina: retina) else { return }
         let marker = game.windowsFolderMarker
         // Its program by its Windows path, or one a launcher started by its bare name (GameProcesses.runsFrom).
-        guard !Engine.ownProcesses().contains(where: { process in
+        // Not while it runs – nor while that can't be told (no process list): Wine holds the registry then.
+        guard let running = Engine.ownProcessesKnown(), !running.contains(where: { process in
             let command = process.command.lowercased()
             return command.contains(marker.lowercased())
                 || command.contains(".exe") && GameProcesses.runsFrom([marker], command: command, cwd: GameProcesses.cwd(of: process.pid))

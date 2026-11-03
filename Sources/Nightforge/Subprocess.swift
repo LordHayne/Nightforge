@@ -187,20 +187,30 @@ enum ProcessList {
     nonisolated(unsafe) private static var downUntil = Date.distantPast
     nonisolated(unsafe) private static var lastGood: [String: (text: String, date: Date)] = [:]
 
-    /// `ps -axo <columns>`. nil when it didn't answer (`stale`: the last answer, if it is not ten minutes old).
-    static func ps(_ columns: String, stale: Bool = false) -> String? {
-        if let source { return source(columns) }
+    /// `ps -axo <columns>`: the answer, or why there is none. `allowOld`: during a pause the last good answer
+    /// (not ten minutes old) in its place, marked as old. The answer "nothing" is `.fresh("")`, never
+    /// `.unavailable`: whoever concludes from an empty list ("the game has ended", "Steam isn't running") has
+    /// to ask which of the two it is.
+    static func listing(_ columns: String, allowOld: Bool = false) -> ProcessListing<String> {
+        if let source { return source(columns).map { .fresh($0) } ?? .unavailable }
         let down = lock.withLock { Date() < downUntil }
         if !down {
             let result = Subprocess.run(program, ["-axo", columns], capture: true, timeout: timeout, grace: 0.5)
             if result.launched, !result.timedOut {
                 lock.withLock { lastGood[columns] = (result.text, Date()) }
-                return result.text
+                return .fresh(result.text)
             }
             if result.timedOut { lock.withLock { downUntil = Date().addingTimeInterval(pause) } }
         }
-        guard stale, let old = lock.withLock({ lastGood[columns] }), Date().timeIntervalSince(old.date) < 600 else { return nil }
-        return old.text
+        guard allowOld, let old = lock.withLock({ lastGood[columns] }), Date().timeIntervalSince(old.date) < 600 else {
+            return .unavailable
+        }
+        return .old(old.text)
+    }
+
+    /// `listing` as text, nil when there is none (`stale`: an old one will do).
+    static func ps(_ columns: String, stale: Bool = false) -> String? {
+        listing(columns, allowOld: stale).value
     }
 
     /// For the test: a new start.
@@ -209,5 +219,49 @@ enum ProcessList {
             downUntil = .distantPast
             lastGood = [:]
         }
+    }
+}
+
+/// What a process list says and how far it can be trusted: asked just now, the last good one while `ps` doesn't
+/// answer, or nothing. A list that is `.fresh` and empty means "no process"; `.unavailable` means "not known".
+enum ProcessListing<Value> {
+    case fresh(Value)
+    case old(Value)
+    case unavailable
+
+    /// The list, fresh or old.
+    var value: Value? {
+        switch self {
+        case .fresh(let value), .old(let value): return value
+        case .unavailable: return nil
+        }
+    }
+
+    /// Only a list asked for just now says a process is gone.
+    var freshValue: Value? {
+        if case .fresh(let value) = self { return value }
+        return nil
+    }
+
+    func map<T>(_ transform: (Value) -> T) -> ProcessListing<T> {
+        switch self {
+        case .fresh(let value): return .fresh(transform(value))
+        case .old(let value): return .old(transform(value))
+        case .unavailable: return .unavailable
+        }
+    }
+}
+
+/// A value several threads read and write, under a lock.
+final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) { self.value = value }
+
+    func withLock<T>(_ body: (inout Value) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&value)
     }
 }

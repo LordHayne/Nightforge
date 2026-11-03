@@ -189,6 +189,7 @@ final class GameTestRun {
         var appeared: Date?
         var idleSince: Date?
         var pid: pid_t?
+        var blind = 0  // looks in a row without a process list
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
         let load = GameTest.Load.now
         model.launch(game)
@@ -203,7 +204,17 @@ final class GameTestRun {
                 model.answerSaveChoice(takeNewer: false)  // its own saves, nothing overwritten
                 notes.append("Spielstand-Frage beantwortet: die eigenen behalten")
             }
-            let pids = await processes(of: game)
+            // No process list (ps doesn't answer): the game's presence isn't known, so no look is judged – not
+            // "never appeared", not "ended". Two minutes of that end the test of this game with a note.
+            guard let pids = await processes(of: game) else {
+                blind += 1
+                if blind >= 120 {
+                    notes.append("keine Prozessliste (ps antwortet nicht): nach 2 min abgebrochen")
+                    break watching
+                }
+                continue
+            }
+            blind = 0
             if pids.isEmpty {
                 appeared = nil
                 idleSince = model.launchingID == game.id ? nil : idleSince ?? now
@@ -246,7 +257,8 @@ final class GameTestRun {
             var gone = 0
             while Date() < until {
                 try? await Task.sleep(for: .seconds(2))
-                gone = await processes(of: game).isEmpty ? gone + 1 : 0
+                // Without a process list nothing counts: a game isn't gone because ps doesn't say.
+                if let pids = await processes(of: game) { gone = pids.isEmpty ? gone + 1 : 0 }
                 if gone >= 3 {
                     endedWhilePlaying = true
                     break
@@ -328,11 +340,12 @@ final class GameTestRun {
     }
 
     /// The game's processes: a Windows game's by its folder in Wine's command lines, a Mac game's by its folder.
-    private func processes(of game: Game) async -> [pid_t] {
+    /// Nil when there is no process list just now (`GameProcesses.lookup`): "none" and "not known" differ.
+    private func processes(of game: Game) async -> [pid_t]? {
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
         return await Task.detached(priority: .utility) {
-            GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table())
+            GameProcesses.lookup().freshValue.map { GameProcesses.targets(windows: marker, mac: folder, in: $0) }
         }.value
     }
 
@@ -340,7 +353,7 @@ final class GameTestRun {
     /// processes ended, also when it hangs.
     private func quit(_ game: Game) async {
         if GameOverlay.isOpen { GameOverlay.close() }
-        guard await !processes(of: game).isEmpty else { return }
+        guard await processes(of: game)?.isEmpty == false else { return }
         LaunchHealth.playerQuit(game.gameID)
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
@@ -370,15 +383,16 @@ final class GameTestRun {
         var looks: [Double] = []
         let until = Date().addingTimeInterval(120)
         while Date() < until {
-            looks.append(await Engine.offMain { GameTest.sessionCPU(Self.ps()) })
+            // No process list: no look counts as calm.
+            if let cpu = await Engine.offMain({ Self.ps().map(GameTest.sessionCPU) }) { looks.append(cpu) }
             if GameTest.calm(looks), !model.storeSaves.values.contains(.syncing) { return }
             try? await Task.sleep(for: .seconds(2))
         }
         GameLog.note("Game test: Steam and Wine still busy after two minutes – on to the next game")
     }
 
-    nonisolated private static func ps() -> String {
-        ProcessList.ps("pcpu=,command=") ?? ""
+    nonisolated private static func ps() -> String? {
+        ProcessList.ps("pcpu=,command=")
     }
 
     /// Five seconds of `sample` on the game's process, written to `file` without paths or the

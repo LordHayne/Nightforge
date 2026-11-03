@@ -510,7 +510,8 @@ enum Launcher {
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
             // This call starts Steam when it isn't running: in the Retina mode the game wants, and
             // with the Guide button left to Nightforge (SteamGuideButton).
-            if !Engine.isSteamRunning {
+            // Only for a Steam that is known not to run: its files are written here, and Wine's session may end.
+            if Engine.steamRunningKnown == false {
                 Engine.applyRetinaMode(runner)
                 SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
             }

@@ -16,6 +16,9 @@ enum FakeProcesses {
     /// No process at all.
     static func installEmpty() { ProcessList.source = { _ in "" } }
 
+    /// No list at all, as when `ps` doesn't answer: "not known", which is not "no process".
+    static func installDown() { ProcessList.source = { _ in nil } }
+
     /// Exactly these rows, asked for each time (a game that has ended is left out by the caller).
     static func install(_ rows: @escaping () -> [Row]) {
         ProcessList.source = { columns in render(rows(), columns: columns) }
