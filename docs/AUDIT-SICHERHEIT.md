@@ -1,6 +1,6 @@
 # Sicherheits- und Datenschutz-Audit
 
-Stand: `claude/ux-roadmap-next` 29e458a, 3.11.2026.
+Stand: `claude/ux-roadmap-next` 29e458a, 3.11.2026. Was seitdem behoben oder beauftragt ist, steht in der Übersicht und unter jedem Befund.
 
 Wie geprüft: Code, Skripte und Workflows gelesen. Ausgeführt wurde nichts. Einzige Ausnahme sind `ls -ld` und `ls -l`
 auf die Orte der Anmeldedaten, um die Dateirechte zu sehen; Inhalte wurden nicht gelesen. Der Zweig `signed-updates`
@@ -13,26 +13,28 @@ Schwere:
 
 ## Übersicht
 
-| Nr. | Schwere | Thema | Ort |
-|---|---|---|---|
-| H1 | hoch | App-Update und `install.sh` prüfen nicht, von wem die App stammt | `Updater.swift:115`, `scripts/install.sh:46` |
-| M1 | mittel | Nächtliche Profile aus fremdem `HEAD` gehen ungeprüft nach `main` und zu allen Nutzern | `.github/workflows/profiles.yml:45` |
-| M2 | mittel | Windows-Programme sehen über `Z:` den ganzen Mac, auch Nightforges Anmeldedaten | Prefix `dosdevices/z:` |
-| M3 | mittel | Der Problembericht geht schon beim Öffnen des Links an GitHub | `ProblemReport.swift:88` |
-| M4 | mittel | D3DMetal-Import übernimmt ungeprüfte Windows-DLLs, auch ohne Rückfrage aus „Downloads“ | `D3DMetalFlow.swift:162`, `Engine.swift:1009` |
-| N1 | niedrig | `nightforge://play/…` startet installierte Spiele von jeder Webseite aus | `GameShortcut.swift:18` |
-| N2 | niedrig | Programmnamen gehen ungefiltert in `.reg`-Abschnitte | `Engine.swift:1503` |
-| N3 | niedrig | Spielstand-Regeln dürfen leere Pfade und `*` an der Wurzel haben; `takeNewer` löscht dort | `SaveTransfer.swift:52`, `:122` |
-| N4 | niedrig | `fileEdits` und `iniSettings` prüfen den Ordner ohne Symlinks aufzulösen | `Engine.swift:2014`, `:2032` |
-| N5 | niedrig | Dock-Bibliothek aus dem beschreibbaren Datenordner in jedem Wine-Prozess | `Engine.swift:1865` |
-| N6 | niedrig | Spieletest-Bericht im öffentlichen Repo nennt die installierten Spiele | `scripts/import-game-test.py` |
-| N7 | niedrig | Lücken in der Schwärzung (Laufwerksnamen, Rechnername, GOG-Kennungen) | `GameLog.swift:176` |
-| N8 | niedrig | Eingecheckte `steamwebhelper.exe` ohne Prüfsumme in `build.sh` | `wrapper.yml:31`, `build.sh:52` |
-| N9 | niedrig | `profiles.yml` hat `actions: write` für alle Läufe | `profiles.yml:28` |
+| Nr. | Schwere | Thema | Ort | Stand (3.11.) |
+|---|---|---|---|---|
+| H1 | hoch | App-Update und `install.sh` prüfen nicht, von wem die App stammt | `Updater.swift:115`, `scripts/install.sh:46` | behoben auf `claude/signed-updates-dda700` (29b9f7f) |
+| M1 | mittel | Nächtliche Profile aus fremdem `HEAD` gehen ungeprüft nach `main` und zu allen Nutzern | `.github/workflows/profiles.yml:45` | in Arbeit auf `claude/signed-updates-dda700` (b1c26c9, 700fd70) |
+| M2 | mittel | Windows-Programme sehen über `Z:` den ganzen Mac, auch Nightforges Anmeldedaten | Prefix `dosdevices/z:` | Entwurf `claude/laufwerke-z`, Sandbox `claude/wine-sandbox` (Schalter aus) |
+| M3 | mittel | Der Problembericht geht schon beim Öffnen des Links an GitHub | `ProblemReport.swift:88` | compat-db (in Arbeit) |
+| M4 | mittel | D3DMetal-Import übernimmt ungeprüfte Windows-DLLs, auch ohne Rückfrage aus „Downloads“ | `D3DMetalFlow.swift:162`, `Engine.swift:1009` | behoben auf `claude/d3dmetal-import-m4` (7829e1b) |
+| N1 | niedrig | `nightforge://play/…` startet installierte Spiele von jeder Webseite aus | `GameShortcut.swift:18` | behoben auf `claude/audit-low` (b0cbf66) |
+| N2 | niedrig | Programmnamen gehen ungefiltert in `.reg`-Abschnitte | `Engine.swift:1503` | behoben auf `claude/audit-low` (1b5330f) |
+| N3 | niedrig | Spielstand-Regeln dürfen leere Pfade und `*` an der Wurzel haben; `takeNewer` löscht dort | `SaveTransfer.swift:52`, `:122` | behoben auf `claude/audit-low` (271d2a9) |
+| N4 | niedrig | `fileEdits` und `iniSettings` prüfen den Ordner ohne Symlinks aufzulösen | `Engine.swift:2014`, `:2032` | behoben auf `claude/audit-low` (3a39b81) |
+| N5 | niedrig | Dock-Bibliothek aus dem beschreibbaren Datenordner in jedem Wine-Prozess | `Engine.swift:1865` | offen |
+| N6 | niedrig | Spieletest-Bericht im öffentlichen Repo nennt die installierten Spiele | `scripts/import-game-test.py` | offen, entscheidet der Nutzer |
+| N7 | niedrig | Lücken in der Schwärzung (Laufwerksnamen, Rechnername, GOG-Kennungen) | `GameLog.swift:176` | compat-db (in Arbeit) |
+| N8 | niedrig | Eingecheckte `steamwebhelper.exe` ohne Prüfsumme in `build.sh` | `wrapper.yml:31`, `build.sh:52` | behoben auf `claude/audit-low` (a652cee) |
+| N9 | niedrig | `profiles.yml` hat `actions: write` für alle Läufe | `profiles.yml:28` | auf `claude/signed-updates-dda700` (700fd70) |
 
 ## Hoch
 
 ### H1 App-Update und `install.sh` prüfen nicht, von wem die App stammt
+
+**Stand 3.11.:** Behoben auf `claude/signed-updates-dda700` (29b9f7f), noch nicht gemergt.
 
 **Wo**
 - `Sources/Nightforge/Updater.swift:21–37`: Nimmt das erste Asset aus `releases/latest`, dessen URL `Nightforge-` enthält
@@ -66,6 +68,8 @@ Dateien, Anmeldedaten der Stores, alles, was der Nutzer selbst darf. Neue Nutzer
 
 ### M1 Nächtliche Profile aus fremdem `HEAD` gehen ungeprüft nach `main` und zu allen Nutzern
 
+**Stand 3.11.:** In Arbeit auf `claude/signed-updates-dda700`: b1c26c9 nimmt DLL-Overrides und Startargumente aus umu-protonfixes nur noch als einfache Werte, 700fd70 vergibt die Rechte in `profiles.yml` pro Job (die Signatur bleibt beim Maintainer). Noch nicht geprüft.
+
 **Wo**
 - `.github/workflows/profiles.yml:45`: klont `umu-protonfixes` per `--depth 1` ab `HEAD`, also ungepinnt.
 - `profiles.yml:49`: lädt `AreWeAntiCheatYet/HEAD/games.json`.
@@ -90,6 +94,8 @@ Das begrenzt den Schaden auf Spielstarts.
 - Dieselbe Prüfung in der App beim Lesen (`Profiles.swift`), so wie es `isSafeWinetricksVerb` schon für Verben tut.
 
 ### M2 Windows-Programme sehen über `Z:` den ganzen Mac, auch Nightforges Anmeldedaten
+
+**Stand 3.11.:** Entwurf auf `claude/laufwerke-z` (98b98e7): `Z:` bleibt, geschützt werden die Anmeldedaten. Die Sandbox steht auf `claude/wine-sandbox` (ce39bf7), hinter einem Schalter, der aus ist.
 
 **Wo**
 - Im Prefix zeigt `dosdevices/z:` auf `/`. Das ist Wines Standard aus `wineboot`. Nightforge verlässt sich darauf:
@@ -124,6 +130,8 @@ verhalten sich genauso.
 
 ### M3 Der Problembericht geht schon beim Öffnen des Links an GitHub
 
+**Stand 3.11.:** In Arbeit bei compat-db.
+
 **Wo**
 - `Sources/Nightforge/ProblemReport.swift:20–21`: Der Kommentar sagt „Nothing leaves the Mac unless the player submits
   it there“.
@@ -148,6 +156,8 @@ Beim Bewertungsbericht (`CompatReport.swift`) sind es nur feste Werte, dort ist 
   Absenden.“ Das gilt im Kommentar und im Template.
 
 ### M4 D3DMetal-Import übernimmt ungeprüfte Windows-DLLs, auch ohne Rückfrage aus „Downloads“
+
+**Stand 3.11.:** Behoben auf `claude/d3dmetal-import-m4` (7829e1b): die Windows-DLLs nach SHA-256 je Version (3.0, 4.0b3), ein Download wird angeboten statt importiert.
 
 **Wo**
 - `Sources/Nightforge/D3DMetalSupply.swift:247–268`: Nur `libd3dshared.dylib` und `D3DMetal.framework` werden mit
@@ -174,6 +184,8 @@ aber nicht die Windows-Seite.
 
 ### N1 `nightforge://play/…` startet installierte Spiele von jeder Webseite aus
 
+**Stand 3.11.:** Behoben auf `claude/audit-low` (b0cbf66): Ein Play-Link startet nur mit dem Schlüssel der eigenen Spiel-Apps, sonst zeigt er die Spielseite. Nebenwirkung: Eigene Kurzbefehle mit `nightforge://play` zeigen nur noch die Seite.
+
 **Wo:** `GameShortcut.swift:18–25`, `MacIntegration.swift:39–46`, `App.swift:64`.
 
 **Szenario:** Eine Webseite öffnet `nightforge://play/<id>`. Nach der Nachfrage des Browsers („Nightforge öffnen?“)
@@ -186,6 +198,8 @@ Direktstart erlaubt.
 
 ### N2 Programmnamen gehen ungefiltert in `.reg`-Abschnitte
 
+**Stand 3.11.:** Behoben auf `claude/audit-low` (1b5330f).
+
 **Wo:** `Engine.swift:1503`: `[HKEY_CURRENT_USER\Software\Wine\AppDefaults\<exe>]` mit dem Dateinamen aus dem
 Spielordner. Werte laufen durch `regString`, der Schlüssel aber nicht durch `isAllowedRegistryKey`.
 
@@ -196,6 +210,8 @@ den Prefix. Gering, weil ein Spiel ohnehin Code ausführt.
 **Vorschlag:** Namen mit Steuerzeichen, `[` oder `]` überspringen, wie `isAllowedRegistryKey` es für Profile tut.
 
 ### N3 Spielstand-Regeln dürfen leere Pfade und `*` an der Wurzel haben; `takeNewer` löscht dort
+
+**Stand 3.11.:** Behoben auf `claude/audit-low` (271d2a9).
 
 **Wo**
 - `SaveTransfer.swift:52–58`: Geprüft wird nur auf `..`.
@@ -212,6 +228,8 @@ andere Apps verlieren ihre Daten mitten im Betrieb.
 
 ### N4 `fileEdits` und `iniSettings` prüfen den Ordner ohne Symlinks aufzulösen
 
+**Stand 3.11.:** Behoben auf `claude/audit-low` (3a39b81).
+
 **Wo:** `Engine.swift:2014–2016` und `:2032–2033`. Die Prüfung `standardizedFileURL` mit `hasPrefix` behandelt `..`
 richtig, folgt aber keinen Links. Für die Wurzel selbst prüft `SaveTransfer.windowsRoot` (`:182`) mit aufgelösten
 Links, für den Pfad darunter nicht.
@@ -224,6 +242,8 @@ früher bei Wine auf den Mac-Ordner), schreibt eine `iniSettings`-Regel durch ih
 
 ### N5 Dock-Bibliothek aus dem beschreibbaren Datenordner in jedem Wine-Prozess
 
+**Stand 3.11.:** Offen.
+
 **Wo:** `Engine.swift:1862–1866` setzt `DYLD_INSERT_LIBRARIES` auf die Bibliothek in
 `~/Library/Application Support/Nightforge` (`DockHider.swift:3–43`). Steam reicht sie an alles weiter, was es startet,
 also auch an Spiele.
@@ -234,6 +254,8 @@ Das bringt ihm wenig, weil er als derselbe Benutzer ohnehin alles darf. Gewollt 
 **Vorschlag:** Vor dem Setzen die Signatur der Datei prüfen (`codesign -R 'identifier "…"'`).
 
 ### N6 Spieletest-Bericht im öffentlichen Repo nennt die installierten Spiele
+
+**Stand 3.11.:** Offen. Die Entscheidung liegt beim Nutzer.
 
 **Wo:** `GameTestRun.swift`, `GameTestReport.swift:65–73`, `scripts/import-game-test.py`. Die Berichte landen in
 `docs/spieletest/`.
@@ -246,6 +268,8 @@ Das ist ein kleines Nutzungsprofil des Maintainers.
 Datum zu kürzen.
 
 ### N7 Lücken in der Schwärzung
+
+**Stand 3.11.:** In Arbeit bei compat-db.
 
 **Wo:** `GameLog.swift:176–207`.
 
@@ -271,6 +295,8 @@ Hostnamen. Tests mit echten Logzeilen.
 
 ### N8 Eingecheckte `steamwebhelper.exe` ohne Prüfsumme in `build.sh`
 
+**Stand 3.11.:** Behoben auf `claude/audit-low` (a652cee): `build.sh` prüft die eingecheckte Datei gegen eine SHA-256, die der Workflow daneben schreibt.
+
 **Wo:** `.github/workflows/wrapper.yml:31–40` baut die Datei bei jedem Push und committet sie in den jeweiligen Zweig.
 `build.sh:52` nimmt die eingecheckte Datei, wenn mingw fehlt. Sie ersetzt in Steam bei allen Nutzern den echten Helper.
 
@@ -281,6 +307,8 @@ Ein Release-Build auf einem Mac ohne mingw liefert sie aus.
 (Textdatei, im Review lesbar). Alternativ baut der Release sie immer selbst.
 
 ### N9 `profiles.yml` hat `actions: write` für alle Läufe
+
+**Stand 3.11.:** Auf `claude/signed-updates-dda700` (700fd70): Rechte pro Job, der Bau liest nur. Noch nicht geprüft.
 
 **Wo:** `.github/workflows/profiles.yml:28–30`: `contents: write` und `actions: write` gelten für den ganzen
 Workflow, auch für `pull_request` aus dem eigenen Repo. `actions: write` braucht nur der Zeitplan-Schritt, der die
