@@ -750,6 +750,28 @@ struct GOGTest {
                      installDir: outside, sizeOnDisk: 0)
         try? await later.uninstall(stray)
         check(fm.fileExists(atPath: outside.path), "a folder outside GOG's games folders is never removed")
+        // A folder that won't go (in use, no permission) is said, as for a Steam game; gogdl's files for it still go.
+        let stuck = GOGDL.windowsGamesDir.appendingPathComponent("Stuck", isDirectory: true)
+        let locked = stuck.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        fm.createFile(atPath: locked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        try? fm.createDirectory(at: GOGDL.manifest(for: "515151").deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("{}".utf8).write(to: GOGDL.manifest(for: "515151"))
+        let stuckGame = Game(gameID: .gog("515151"), name: "Stuck", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                             steamExeWindowsPath: "", installDir: stuck, sizeOnDisk: 0)
+        do {
+            try await later.uninstall(stuckGame)
+            check(false, "a folder that stays isn't taken for a removed game")
+        } catch {
+            check(fm.fileExists(atPath: locked.appendingPathComponent("save.dat").path), "the folder stayed, and that's said: \(error.localizedDescription)")
+        }
+        check(!fm.fileExists(atPath: GOGDL.manifest(for: "515151").path), "gogdl's manifest for it still goes")
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        do {
+            try await later.uninstall(stuckGame)
+            check(!fm.fileExists(atPath: stuck.path), "once it can go, it goes")
+        } catch { check(false, "and without a word: \(error)") }
 
         // GOG can't be asked: no tokens (signed out) – the games stay.
         await later.refresh()

@@ -48,6 +48,8 @@ struct EpicTest {
         profiles()
         legendaryRuns()
         forgetDrive()
+        await endDownloads()
+        await uninstallLeftover()
         await store()
 
         print(failures == 0 ? "✓ Epic" : "\(failures) failed")
@@ -136,6 +138,105 @@ struct EpicTest {
         let table = "  1     0\n 500     1\n 501   500\n 502   500\n 510   501\n 600     1\n 601   600\nbad line\n"
         check(Set(Legendary.descendants(of: 500, in: table)) == [501, 502, 510], "legendary's helpers, and theirs")
         check(Legendary.descendants(of: 601, in: table).isEmpty, "none: nothing else is touched")
+    }
+
+    /// A removed download ends even when legendary hangs (extra review, 3.11.): SIGTERM, and after the patience SIGKILL
+    /// to it and its helpers – only while they still run a program from legendary's folder, since a number from an old
+    /// list may belong to another program by now. The stand-ins are the test's own; the list holds only them.
+    static func endDownloads() async {
+        guard let standIn = ProcessInfo.processInfo.environment["STAND_IN"] else {
+            check(false, "run.sh builds the stand-in")
+            return
+        }
+        let fm = FileManager.default
+        let legendary = ComponentStore.shared.root.appendingPathComponent(Legendary.componentID, isDirectory: true)
+        let component = legendary.appendingPathComponent("0.0.0-stand-in", isDirectory: true)
+        let elsewhere = fm.temporaryDirectory.appendingPathComponent("not-legendary-\(UUID().uuidString)", isDirectory: true)
+        for folder in [component, elsewhere] {
+            try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? fm.copyItem(atPath: standIn, toPath: folder.appendingPathComponent("legendary").path)
+        }
+        var started: [Process] = []
+        defer {
+            for process in started where process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            FakeProcesses.installEmpty()
+            try? fm.removeItem(at: legendary)
+            try? fm.removeItem(at: elsewhere)
+        }
+        func start(_ folder: URL, _ arguments: [String]) -> pid_t {
+            let process = Process()
+            process.executableURL = folder.appendingPathComponent("legendary")
+            process.arguments = arguments
+            guard (try? process.run()) != nil else { return 0 }
+            started.append(process)
+            return process.processIdentifier
+        }
+        func alive(_ pid: pid_t) -> Bool { FakeProcesses.row(of: pid) != nil }
+        func gone(_ pids: [pid_t]) async -> Bool {
+            for _ in 0..<20 where pids.contains(where: alive) { try? await Task.sleep(for: .milliseconds(50)) }
+            return !pids.contains(where: alive)
+        }
+        let hung = start(component, ["family"]), polite = start(component, ["polite"]), other = start(elsewhere, [])
+        guard hung > 0, polite > 0, other > 0 else {
+            check(false, "the stand-ins started")
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        let helper = FakeProcesses.children(of: hung).first ?? 0
+        check(helper > 0, "the hanging one has a helper of its own")
+        FakeProcesses.install { FakeProcesses.rows(of: [hung, polite, other], descendants: true) }
+
+        let clock = ContinuousClock()
+        var began = clock.now
+        await Legendary.end([hung, polite, other], under: legendary, patience: .milliseconds(600))
+        let took = clock.now - began
+        check(await gone([hung, helper, polite]), "a legendary that ignores SIGTERM is killed after the patience, its helper too")
+        check(took >= .milliseconds(600) && took < .seconds(4), "after the patience, not later and never forever: \(took)")
+        check(alive(other), "a number that belongs to a program elsewhere by now is left alone")
+
+        let listens = start(component, ["polite", "family"])
+        try? await Task.sleep(for: .milliseconds(300))
+        let itsHelper = FakeProcesses.children(of: listens).first ?? 0
+        FakeProcesses.install { FakeProcesses.rows(of: [listens, other], descendants: true) }
+        began = clock.now
+        await Legendary.end([listens], under: legendary, patience: .seconds(10))
+        let quick = clock.now - began
+        let ended = await gone([listens, itsHelper])
+        check(quick < .seconds(3) && itsHelper > 0 && ended, "one that ends on SIGTERM isn't waited for: \(quick)")
+        began = clock.now
+        await Legendary.end([0, 1, getpid()], under: legendary, patience: .seconds(10))
+        check(clock.now - began < .seconds(1), "no numbers of its own (0, launchd, Nightforge): nothing to wait for")
+    }
+
+    /// A game whose folder won't go (a folder in use, no permission) says so, as for a Steam game, and the rest still goes.
+    @MainActor
+    static func uninstallLeftover() async {
+        let fm = FileManager.default
+        let folder = Legendary.gamesDir.appendingPathComponent("Stuck", isDirectory: true)
+        let locked = folder.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        fm.createFile(atPath: locked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+            try? fm.removeItem(at: folder)
+        }
+        try? fm.createDirectory(at: Legendary.log(for: "Stuck").deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("log".utf8).write(to: Legendary.log(for: "Stuck"))
+        let game = Game(gameID: .epic("Stuck"), name: "Stuck", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                        steamExeWindowsPath: "", installDir: folder, sizeOnDisk: 0)
+        do {
+            try await EpicStore().uninstall(game)
+            check(false, "a folder that stays isn't taken for a removed game")
+        } catch {
+            check(fm.fileExists(atPath: locked.appendingPathComponent("save.dat").path), "the folder stayed: \(error.localizedDescription)")
+        }
+        check(!fm.fileExists(atPath: Legendary.log(for: "Stuck").path), "the rest still goes: its log")
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        do {
+            try await EpicStore().uninstall(game)
+            check(!fm.fileExists(atPath: folder.path), "once it can go, it goes")
+        } catch { check(false, "and without a word: \(error)") }
     }
 
     /// "Update & Play": what legendary's update log means for the start.

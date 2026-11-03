@@ -523,7 +523,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         let info = GOGGameInfo.read(id: job.id, in: folder)
         // A Mac version from the 32-bit days: macOS won't start it, so the Windows version comes instead.
         if job.platform == .mac, let info, MachO.runsHere(file: folder.pathExtension == "app" ? folder : folder.appendingPathComponent(info.path)) == false {
-            removeFiles(of: job.id, folder: folder, platform: .mac)
+            try? removeFiles(of: job.id, folder: folder, platform: .mac)  // the Windows version comes next anyway
             markMacUnfit(job.id)
             wanted.insert(GOGJob(id: job.id, platform: .windows, base: job.base), at: 0)
             save(wanted, to: Self.wantedFile)
@@ -573,35 +573,44 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         if wanted.contains(where: { $0.id == id }) || downloads[id] != nil {
             wanted.removeAll { $0.id == id }
             save(wanted, to: Self.wantedFile)
-            if let process = downloads.removeValue(forKey: id) {
-                Legendary.stop(process.processIdentifier)
-                while process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
-            }
             let root = ComponentStore.shared.root.appendingPathComponent(GOGDL.componentID, isDirectory: true)
-            for pid in Engine.ownProcesses(under: root).filter({ $0.command.contains(" \(id) ") }).map(\.pid) {
-                Legendary.stop(pid)
-            }
+            let started = downloads.removeValue(forKey: id).map { [$0.processIdentifier] } ?? []
+            let earlier = Engine.ownProcesses(under: root).filter({ $0.command.contains(" \(id) ") }).map(\.pid)
+            // Gone before its files go; one that hangs doesn't hold the removal up.
+            await Legendary.end(started + earlier, under: root)
         }
-        if let install = installs.removeValue(forKey: id) {
-            save(installs, to: Self.installedFile)
-            removeFiles(of: id, folder: install.path, platform: install.platform)
-        } else {
-            // A cancelled download: what it had fetched so far.
-            removeFiles(of: id, folder: game.installDir, platform: game.platform)
+        var left: Error?
+        do {
+            if let install = installs.removeValue(forKey: id) {
+                save(installs, to: Self.installedFile)
+                try removeFiles(of: id, folder: install.path, platform: install.platform)
+            } else {
+                // A cancelled download: what it had fetched so far.
+                try removeFiles(of: id, folder: game.installDir, platform: game.platform)
+            }
+        } catch {
+            left = error
         }
         try? FileManager.default.removeItem(at: GOGDL.log(for: id))
         objectWillChange.send()
         Task { await startNext() }
+        if let left { throw left }
     }
 
-    /// The game's folder (only inside GOG's games folders), gogdl's manifest and its support files.
-    private func removeFiles(of id: String, folder: URL, platform: Platform) {
+    /// The game's folder (only inside GOG's games folders), gogdl's manifest and its support files. Each is
+    /// tried; the first that stays (in use, no permission) is thrown, as for a Steam game (Engine.removeGameFiles).
+    private func removeFiles(of id: String, folder: URL, platform: Platform) throws {
+        let fm = FileManager.default
+        var targets = [GOGDL.manifest(for: id), GOGDL.supportDir(for: id)]
         let parent = folder.standardizedFileURL.deletingLastPathComponent().path
         if Self.gamesFolders(of: folder).contains(where: { $0.standardizedFileURL.path == parent }) {
-            try? FileManager.default.removeItem(at: folder)
+            targets.insert(folder, at: 0)
         }
-        try? FileManager.default.removeItem(at: GOGDL.manifest(for: id))
-        try? FileManager.default.removeItem(at: GOGDL.supportDir(for: id))
+        var left: Error?
+        for target in targets where fm.fileExists(atPath: target.path) {
+            do { try fm.removeItem(at: target) } catch { left = left ?? error }
+        }
+        if let left { throw left }
     }
 
     /// The folders GOG games may lie in: the Mac's two, and the one on the drive `folder` is on.

@@ -122,6 +122,27 @@ enum Legendary {
         for child in family { kill(child, SIGTERM) }
     }
 
+    /// For a download that's removed: ends `pids` and what they started like `stop`, and waits until they're
+    /// gone; whatever still runs after `patience` (a legendary or gogdl that hangs) gets SIGKILL, so the
+    /// removal always ends. Every signal goes only to a process that still runs a program from `folder`
+    /// (the component's): the numbers can come from a list of a while ago, and one freed meanwhile may
+    /// belong to another program by now.
+    static func end(_ pids: [pid_t], under folder: URL, patience: Duration = .seconds(10)) async {
+        let root = Engine.realPath(folder) + "/"
+        func ours(_ pid: pid_t) -> Bool { pid > 1 && pid != getpid() && Engine.executablePath(pid)?.hasPrefix(root) == true }
+        let table = processTable()
+        var family: [pid_t] = []
+        for pid in pids + pids.flatMap({ descendants(of: $0, in: table) }) where !family.contains(pid) { family.append(pid) }
+        for pid in family where ours(pid) { kill(pid, SIGTERM) }
+        let clock = ContinuousClock()
+        let deadline = clock.now + patience
+        while clock.now < deadline, family.contains(where: ours) { try? await Task.sleep(for: .milliseconds(100)) }
+        guard family.contains(where: ours) else { return }
+        for pid in family where ours(pid) { kill(pid, SIGKILL) }
+        // A killed process is gone at once; the kernel takes a moment to let go of it.
+        for _ in 0..<20 where family.contains(where: ours) { try? await Task.sleep(for: .milliseconds(100)) }
+    }
+
     /// `ps -axo pid=,ppid=`: each process and its parent ("" when ps doesn't answer, `ProcessList`).
     private static func processTable() -> String {
         ProcessList.ps("pid=,ppid=") ?? ""

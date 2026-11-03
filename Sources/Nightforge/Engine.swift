@@ -459,7 +459,8 @@ enum Engine {
         for pid in SteamBootstrap.webHelperProcesses(ownProcesses()) where pid != getpid() { kill(pid, SIGKILL) }
     }
 
-    private static func executablePath(_ pid: pid_t) -> String? {
+    /// The program a process runs, as the kernel has it (/private/var/…); nil for one that's gone.
+    static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
         return String(cString: buffer)
