@@ -211,7 +211,36 @@ struct SubprocessTest {
         check(GameProcesses.curtainLook(marker: marker, folder: nil, front: 500)?.pids == [500], "and the curtain sees it")
         ProcessList.source = nil
 
+        await processEnd()
         print(failures == 0 ? "✓ Subprocess" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// ProcessEnd: the end of a process from the kernel, the moment it comes – what Steam for Mac's
+    /// quit waits for now, instead of a look every second (MacSteam.quit, TestSteam.quit).
+    static func processEnd() async {
+        func started(_ seconds: String) -> Process? {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+            process.arguments = [seconds]
+            return (try? process.run()) == nil ? nil : process
+        }
+        guard let short = started("0.4"), let long = started("30") else { return check(false, "sleep started") }
+        var begin = Date()
+        let ended = await ProcessEnd.wait([short.processIdentifier], timeout: 10)
+        let took = Date().timeIntervalSince(begin)
+        check(ended && took >= 0.3 && took < 0.9, "its end noticed as it comes, not a second later: \(took) s")
+        check(await ProcessEnd.wait([short.processIdentifier], timeout: 10), "already gone: at once")
+        begin = Date()
+        let runsOn = await ProcessEnd.wait([long.processIdentifier], timeout: 0.5)
+        check(!runsOn && abs(Date().timeIntervalSince(begin) - 0.5) < 0.3, "one running on: false after the time given")
+        guard let second = started("0.3") else { return check(false, "sleep started") }
+        begin = Date()
+        let both = Task { await ProcessEnd.wait([second.processIdentifier, long.processIdentifier], timeout: 5) }
+        try? await Task.sleep(for: .milliseconds(600))
+        long.terminate()
+        check(await both.value && Date().timeIntervalSince(begin) >= 0.5, "two: only once both have ended")
+        let none = await ProcessEnd.wait([], timeout: 1), unknown = await ProcessEnd.wait([-1, 0], timeout: 1)
+        check(none && unknown, "none to wait for: done")
     }
 }

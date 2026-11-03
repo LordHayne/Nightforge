@@ -2474,7 +2474,12 @@ wird angepasst.
   min“ ruhig und plausibel, am Ende „bereit zum Spielen“ wie bisher.
 - **SwiftUI:** `LibraryModel` ist ein `ObservableObject` mit 26 `@Published`, jede Änderung zeichnet alles neu.
   `@Observable` (ab macOS 14) oder das Modell aufteilen.
-- **`MacSteam`** hat eine 1-Hz-Schleife; eine Exit-Quelle (`DispatchSource.makeProcessSource`) wäre ruhiger.
+- **`MacSteam`** (Teil erledigt auf `claude/perf-031`, 3.11.): `quit()` wartete jede Sekunde bis zu 20 s auf das Ende,
+  der Stand-in im Testzuhause alle 0,5 s. Jetzt sagt es der Kernel (`ProcessEnd.wait`, eine Exit-Quelle je Prozess).
+  Ohne brauchbare pid (NSRunningApplication meldet manchmal -1, dann `clientPID`) bleibt die alte Sekunden-Abfrage
+  als Rückfall. Offen: `guardWindows()` schaut weiter jede Sekunde, ob Steams Fenster aufgegangen ist; dafür
+  passen Workspace-Meldungen (Start, Einblenden, Aktivieren), keine Exit-Quelle. `prepare()` fragt während der
+  Einrichtung auch jede Sekunde (nur beim ersten Start).
 
 ### Wartbarkeit
 

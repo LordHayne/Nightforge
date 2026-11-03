@@ -261,6 +261,58 @@ enum ProcessListing<Value> {
     }
 }
 
+/// The end of processes as the kernel tells it – an exit source each – rather than a look every
+/// second whether they still run.
+enum ProcessEnd {
+    /// Waits until all of `pids` have ended, for `timeout` at most: false when one runs on.
+    static func wait(_ pids: [pid_t], timeout: TimeInterval) async -> Bool {
+        let pids = Set(pids.filter { $0 > 0 })
+        guard !pids.isEmpty else { return true }
+        return await withCheckedContinuation { continuation in
+            let waiting = Waiting(pids, continuation)
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) { waiting.finish(false) }
+            for pid in pids {
+                let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .global(qos: .utility))
+                source.setEventHandler { waiting.ended(pid) }
+                waiting.watch(source)
+                source.resume()
+                if kill(pid, 0) != 0 && errno == ESRCH { waiting.ended(pid) }  // gone before the watch began
+            }
+        }
+    }
+
+    private final class Waiting: @unchecked Sendable {
+        private let lock = NSLock()
+        private var left: Set<pid_t>
+        private var sources: [DispatchSourceProcess] = []
+        private var continuation: CheckedContinuation<Bool, Never>?
+
+        init(_ pids: Set<pid_t>, _ continuation: CheckedContinuation<Bool, Never>) {
+            left = pids
+            self.continuation = continuation
+        }
+
+        func watch(_ source: DispatchSourceProcess) {
+            lock.withLock { sources.append(source) }
+        }
+
+        func ended(_ pid: pid_t) {
+            let all = lock.withLock { left.remove(pid); return left.isEmpty }
+            if all { finish(true) }
+        }
+
+        func finish(_ ended: Bool) {
+            let (continuation, sources) = lock.withLock {
+                defer { self.continuation = nil; self.sources = [] }
+                return (self.continuation, self.sources)
+            }
+            guard let continuation else { return }
+            sources.forEach { $0.cancel() }
+            continuation.resume(returning: ended)
+        }
+    }
+}
+
 /// A value several threads read and write, under a lock.
 final class LockedValue<Value>: @unchecked Sendable {
     private let lock = NSLock()

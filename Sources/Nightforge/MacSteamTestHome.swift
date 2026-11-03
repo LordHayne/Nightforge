@@ -103,10 +103,7 @@ enum TestSteam {
     static func quit() async {
         guard let pid else { return }
         kill(pid, SIGTERM)
-        for _ in 0..<10 {
-            guard isRunning else { return }
-            try? await Task.sleep(for: .milliseconds(500))
-        }
+        if await ProcessEnd.wait([pid], timeout: 5) { return }
         kill(pid, SIGKILL)
         try? FileManager.default.removeItem(at: pidFile)
     }
