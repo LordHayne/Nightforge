@@ -198,6 +198,23 @@ struct GameTestTest {
         check(GameTest.macOSAsking("Tomb Raider", in: tomb + "\ninfo:  [nightforge] Curtain stops waiting for macOS's question for Tomb Raider after 180 s: the start goes on")
               == "UserNotificationCenter", "the curtain giving up doesn't answer it")
         check(GameTest.macOSAsking("Mafia II", in: tomb) == nil, "another game's question isn't this one's")
+        // Unity's start window ("The Forest Configuration" with "Play!", 464×438, 3.11.): judged after a short grace,
+        // longer with the helper that presses Play! (kosmickrisp-dx9) on – and only for Unity, where no splash is that small.
+        check(!GameTest.startWindowStands(unity: true, picture: false, standing: 9, helper: false), "9 s: not yet")
+        check(GameTest.startWindowStands(unity: true, picture: false, standing: 10, helper: false), "10 s standing: Unity's start window")
+        check(!GameTest.startWindowStands(unity: true, picture: false, standing: 29, helper: true), "the helper on: its time to press Play! first")
+        check(GameTest.startWindowStands(unity: true, picture: false, standing: 30, helper: true), "still there after 30 s: it needs a click")
+        check(!GameTest.startWindowStands(unity: false, picture: false, standing: 100, helper: false),
+              "not Unity: a small window may be a splash, judged only when the wait runs out")
+        check(!GameTest.startWindowStands(unity: true, picture: true, standing: 100, helper: false), "a picture came: no start window")
+        check(!GameTest.startWindowStands(unity: true, picture: false, standing: nil, helper: false), "no window: nothing")
+        check(GameTest.Keys.unityDialogPlay == "unityDialogPlay", "the helper's own switch (UnityDialog.switchKey)")
+        check(GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window \"The Forest Configuration\": pressed Play!\n"),
+              "the helper's line: it pressed Play!")
+        check(!GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window: didn't come up\n"), "no window, nothing pressed")
+        check(GameTest.outcome(.init(process: true, startWindow: true)) == .startWindow && GameTest.result(.startWindow, issues: []) == nil,
+              "a start window: needs a click, says nothing yet about how it runs")
+        check(GameTest.outcome(.init(process: true, picture: true, startWindow: true)) == .picture, "the picture after Play!: a picture")
         check(GameTest.outcome(.init(process: true, stillRunning: false, needs: .macOSAsks)) == .needsPlayer
               && GameTest.result(.needsPlayer, issues: []) == nil, "called off for the player, says nothing about the game")
     }
@@ -339,9 +356,12 @@ struct GameTestTest {
         var dialog = GameTest.Entry(candidate("steam.3132990", "Black Myth: Wukong Benchmark Tool", .steam), outcome: .dialog)
         dialog.way = "d3dmetal"
         dialog.notes = ["Fenster des Spiels: 286×251 L21, 1 hidden"]
+        var forest = GameTest.Entry(candidate("steam.242760", "The Forest", .steam), outcome: .startWindow)
+        forest.way = "dxmt"
+        forest.notes = ["Startfenster des Spiels stand 10 s: 464×438 L0"]
         var asked = GameTest.Entry(candidate("steam.203160", "Tomb Raider", .steam, .mac), outcome: .needsPlayer, skip: .macOSAsks)
         asked.way = "mac"
-        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, asked, .skipped(skipped, .runtimes),
+        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, forest, asked, .skipped(skipped, .runtimes),
                         GameTest.Entry(candidate("steam.1", "Store", .steam), outcome: .needsPlayer, skip: .signIn)]
 
         let json = GameTest.json(report)
@@ -365,7 +385,10 @@ struct GameTestTest {
         check(summary.hasPrefix("# Spieletest vom 3.11.2026\n"), "German title with the run's date")
         check(summary.contains("Nightforge 0.3.1 · winecx@4.7.3 · dxmt@0.80 · Apple M5 · macOS 26.1"), "what it ran on")
         check(summary.contains("Start 00:12, Ende 01:12."), "start and end")
-        check(summary.contains("**5 gestartet: 3 mit Bild, 2 ohne (1 hängt, 1 wartet auf einen Klick). 2 abgebrochen. 1 nicht gestartet.**"), "the counts:\n\(summary)")
+        check(summary.contains("**6 gestartet: 3 mit Bild, 3 ohne (1 hängt, 1 braucht einen Klick im Startfenster, 1 wartet auf einen Klick). 2 abgebrochen. 1 nicht gestartet.**"),
+              "the counts:\n\(summary)")
+        check(summary.contains("| The Forest | Steam | Windows | dxmt | braucht einen Klick: Startfenster des Spiels (Unity, „Play!“) | – | – |")
+              && summary.contains("- Startfenster des Spiels stand 10 s: 464×438 L0"), "Unity's start window named as such")
         check(summary.contains("| Tomb Raider | Steam | Mac | mac | abgebrochen: macOS fragt um Erlaubnis | – | – |"), "macOS's question: called off, not a hang")
         check(summary.contains("| Black Myth: Wukong Benchmark Tool | Steam | Windows | d3dmetal | wartet auf einen Klick in seinem eigenen Fenster (Starter oder Dialog) | – | – |")
               && summary.contains("- Fenster des Spiels: 286×251 L21, 1 hidden"), "a start window or dialog named as such, not as a hang")

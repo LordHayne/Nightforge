@@ -185,7 +185,8 @@ extension GameTest {
         lines.append("")
         var counts = "**\(tried.count) gestartet: \(pictures.count) mit Bild"
         if !without.isEmpty {
-            let kinds: [(Outcome, String)] = [(.crash, "abgestürzt"), (.hang, "hängt"), (.dialog, "wartet auf einen Klick"),
+            let kinds: [(Outcome, String)] = [(.crash, "abgestürzt"), (.hang, "hängt"), (.startWindow, "braucht einen Klick im Startfenster"),
+                                              (.dialog, "wartet auf einen Klick"),
                                               (.noWindow, "ohne Fenster"), (.noStart, "nicht gestartet")]
             let parts = kinds.compactMap { kind, word in
                 let count = without.filter { $0.outcome == kind }.count
@@ -262,6 +263,7 @@ extension GameTest {
         case .noWindow: text = "kein Fenster, beendet"
         case .crash: text = "abgestürzt ohne Bild"
         case .hang: text = "hängt ohne Bild"
+        case .startWindow: text = "braucht einen Klick: Startfenster des Spiels (Unity, „Play!“)"
         case .dialog: text = "wartet auf einen Klick in seinem eigenen Fenster (Starter oder Dialog)"
         case .noStart: text = "nicht gestartet"
         case .needsPlayer: text = "abgebrochen: " + (entry.skip?.german ?? "brauchte den Spieler")

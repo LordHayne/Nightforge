@@ -200,6 +200,10 @@ final class GameTestRun {
         var asking: (need: GameTest.Skip, since: Date)?
         var foreignSince: Date?
         var frontTakers: [String] = []
+        // Unity's start window, from when it stood (GameTest.startWindowStands).
+        let unity = game.platform == .windows ? await model.insight(of: game)?.analysis.engine == .unity : false
+        let helper = UserDefaults.standard.bool(forKey: GameTest.Keys.unityDialogPlay)
+        var startWindowSince: Date?
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
         let load = GameTest.Load.now
         model.launch(game)
@@ -265,6 +269,21 @@ final class GameTestRun {
             if let message = model.errorMessage {
                 notes.append("Meldung: " + message)
                 model.errorMessage = nil
+            }
+            if unity, !pids.isEmpty {
+                let running = Set(pids)
+                let asks = await Task.detached(priority: .utility) { GameProcesses.question(running) != nil }.value
+                startWindowSince = asks ? startWindowSince ?? now : nil
+                if GameTest.startWindowStands(unity: unity, picture: LaunchHealth.showedPicture(game.gameID, since: started),
+                                              standing: startWindowSince.map { now.timeIntervalSince($0) }, helper: helper) {
+                    seen.startWindow = true
+                    let windows = await Task.detached(priority: .utility) { GameProcesses.windowList(running) }.value
+                    notes.append("Startfenster des Spiels stand \(Int(GameTest.startWindowGrace(helper: helper))) s" + (helper ? " (mit Play-Helfer)" : "")
+                                 + ": \(windows)")
+                    break
+                }
+            } else {
+                startWindowSince = nil
             }
             let gaveUp = model.failedLaunch?.game.id == game.id
             switch GameTest.look(picture: LaunchHealth.showedPicture(game.gameID, since: started), running: !pids.isEmpty,
@@ -371,6 +390,7 @@ final class GameTestRun {
         if !learned.isEmpty { notes.append("laut Log fehlen Laufzeiten, im Test nicht installiert: " + learned.joined(separator: ", ")) }
         if log.contains("Curtain under a window of \(game.name)'s") { notes.append("das Spiel zeigte vor dem Bild ein Fenster mit einer Frage") }
         if outcome != .picture, let look = GameTest.lastLook(of: game.name, in: log) { notes.append("letzter Blick des Vorhangs: " + look) }
+        if GameTest.helperPressedPlay(in: log) { notes.append("der Play-Helfer drückte „Play!“ in Unitys Startfenster") }
         if outcome != .picture || endedWhilePlaying {
             let errors = GameLog.errors(in: log, limit: 20)
             entry.errors = errors.isEmpty ? nil : errors
