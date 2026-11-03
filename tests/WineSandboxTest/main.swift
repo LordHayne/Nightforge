@@ -253,6 +253,42 @@ struct WineSandboxTest {
         check(ended.count == 1 && defaults.bool(forKey: WineSandbox.sessionKey), "switched off under a running game: it goes on for now")
         settle(false)
         check(ended.count == 2 && !defaults.bool(forKey: WineSandbox.sessionKey), "once the game has ended, it ends")
+
+        // Review N8: two Wine starts right after switching end the session once, not each other's.
+        let lock = NSLock()
+        var ends = 0
+        let group = DispatchGroup()
+        for _ in 0..<2 {
+            group.enter()
+            DispatchQueue.global().async {
+                WineSandbox.settleSession(wine, enabled: true, defaults: defaults, gameRunning: { false }, end: { _ in
+                    Thread.sleep(forTimeInterval: 0.3)
+                    lock.lock(); ends += 1; lock.unlock()
+                })
+                group.leave()
+            }
+        }
+        group.wait()
+        check(ends == 1 && defaults.bool(forKey: WineSandbox.sessionKey), "two starts at once: one end (\(ends))")
+        // Ending starts Steam's -shutdown, which comes through here again: it joins the session it ends.
+        var nested = 0
+        WineSandbox.settleSession(wine, enabled: false, defaults: defaults, gameRunning: { false }, end: { inner in
+            nested += 1
+            WineSandbox.settleSession(inner, enabled: false, defaults: defaults, gameRunning: { false }, end: { _ in nested += 10 })
+        })
+        check(nested == 1 && !defaults.bool(forKey: WineSandbox.sessionKey), "the start the ending makes passes, no second end, no deadlock")
+        // At Nightforge's start it happens off the main thread: the process list and the ending take seconds.
+        var checkedOnMain: Bool?, endedOnMain: Bool?
+        let background = DispatchSemaphore(value: 0)
+        Task.detached {
+            await WineSandbox.settleInBackground(wine, enabled: true, defaults: defaults,
+                                                 gameRunning: { checkedOnMain = Thread.isMainThread; return false },
+                                                 end: { _ in endedOnMain = Thread.isMainThread })
+            background.signal()
+        }
+        background.wait()
+        check(checkedOnMain == false && endedOnMain == false && defaults.bool(forKey: WineSandbox.sessionKey),
+              "settled in the background: checked and ended off the main thread")
     }
 
     static func finish() -> Never {

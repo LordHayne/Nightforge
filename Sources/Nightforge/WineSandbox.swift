@@ -167,14 +167,41 @@ enum WineSandbox {
     /// The switch as the programs of the running Wine session were started with it.
     static let sessionKey = "wineSandboxSession"
 
+    /// One settling at a time (review N8): two Wine starts right after switching both saw "switch ≠
+    /// note", and the second ended the session the first had just begun. Recursive, because ending
+    /// starts a Wine program of its own (Steam's -shutdown), which passes through here (`settling`).
+    private static let sessionLock = NSRecursiveLock()
+    private static var settling = false
+
     /// A Wine session begun with the switch the other way ends before anything else starts in it –
     /// whoever started its wineserver – unless a game runs in it; the switch as it is now is noted
-    /// then. Without a note the session began before there was a switch: outside. `end`: Engine.stopAll.
+    /// then. Without a note the session began before there was a switch: outside. Checking, ending
+    /// and noting happen under one lock. `end`: Engine.stopSessionNow – Steam is asked to quit first,
+    /// so a download in it stops cleanly instead of being cut off with the session.
     static func settleSession(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
                               gameRunning: () -> Bool = { Engine.windowsGameRunning },
-                              end: (URL) -> Void = { Engine.stopAll($0) }) {
-        guard (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled, !gameRunning() else { return }
+                              end: (URL) -> Void = { Engine.stopSessionNow($0) }) {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+        // A start the ending makes itself joins the session it ends.
+        guard !settling, (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled, !gameRunning() else { return }
+        settling = true
+        defer { settling = false }
         end(wine)
         defaults.set(enabled, forKey: sessionKey)
+    }
+
+    /// `settleSession` on a thread of its own, for Nightforge's start: the process list and ending
+    /// a session take seconds, which the window shouldn't wait for (review N8). Any Wine start
+    /// after it finds the session settled and only compares the switch with the note.
+    static func settleInBackground(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
+                                   gameRunning: @escaping () -> Bool = { Engine.windowsGameRunning },
+                                   end: @escaping (URL) -> Void = { Engine.stopSessionNow($0) }) async {
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: gameRunning, end: end)
+                done.resume()
+            }
+        }
     }
 }
