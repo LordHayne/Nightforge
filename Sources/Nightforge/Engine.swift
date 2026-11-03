@@ -936,8 +936,10 @@ enum Engine {
 
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        // Steam's -shutdown is a Windows program like any other: in the sandbox when it's switched on.
+        let sandbox = WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))]
+                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))] + sandbox
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -948,7 +950,8 @@ enum Engine {
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
     /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`), $8 when a
     /// game last ran or was asked to start (`lastGameActivity`, epoch seconds): only within five minutes of
-    /// that does it wait 30 s for the cloud saves before it ends Steam.
+    /// that does it wait 30 s for the cloud saves before it ends Steam. $9 and $10 Wine's sandbox helper and
+    /// profile (WineSandbox; review of 3.11.2026: it ran steam.exe from the prefix outside the sandbox).
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
     /// counts a download only if it isn't paused. Its process is in `steam-shutdown.pid` beside it while it waits.
     static let steamShutdownScript = #"""
@@ -956,11 +959,21 @@ enum Engine {
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
+        # SANDBOX and PROFILE: Wine's sandbox helper and its profile when the switch is on (WineSandbox),
+        # SANDBOX "-" when it's on but the helper is missing; both empty when it's off.
         WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"; MSYNC="${7:-1}"
         # When a game last ran or was asked to start (epoch seconds, 0: not for long), told by Nightforge and
         # kept up to date here whenever one is seen running.
         LAST_GAME="${8:-0}"
         recent_game() { [ $(( $(date +%s) - LAST_GAME )) -lt 300 ]; }
+        SANDBOX="$9"; PROFILE="${10}"
+        # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
+        # change, so with the switch on it runs inside too, as every other Wine start does. Switched on
+        # without the helper, nothing of Windows starts; the session still ends below (wineserver -k).
+        wine_program() {
+          [ "$SANDBOX" = "-" ] && return 1
+          if [ -n "$SANDBOX" ]; then "$SANDBOX" "$PROFILE" "$WINE" "$@"; else "$WINE" "$@"; fi
+        }
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
         # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
@@ -1056,7 +1069,7 @@ enum Engine {
         reopened && exit 0
         if steam_running; then
           # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
-          "$WINE" 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
+          wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
           for i in $(seq 1 20); do steam_running || break; reopened && exit 0; sleep 1; done
         fi
         reopened && exit 0
