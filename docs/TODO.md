@@ -1704,8 +1704,8 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     - Komponenten: Das `optional` der Base (für D3DMetal und enginefix) trägt auch `kosmickrisp`. `dxvk` (Upstream)
       ist jetzt `propose`: Neuere Releases kommen als Pull Request.
     - Getestet nach dem Rebase: LaunchHealth, EngineLayout, ShaderCaches, ProfileFiles, Strings und pytest (63).
-      EngineRollbackTest lief wegen des ps-Hängers nicht: `prefixSwitch()` liest über `engineForStart` die
-      Prozessliste, und dort steckt auch der D3D9-Teil dieses Zweigs. Der volle Lauf kommt nach dem Neustart.
+      EngineRollbackTest mit echter Prozessliste (`prefixSwitch()` über `engineForStart`, dort steckt auch der
+      D3D9-Teil dieses Zweigs) lief am 3.11. nach dem ps-Hänger grün.
   - **Mit `claude/staging-031`** gibt es drei Konflikte, bei 285dd99 und schon bei b2ee5e5 (`git merge-tree`):
     - `Engine.prepareLaunchEnvironment` braucht `environment` und `vulkan`.
     - `engineForStart` und `useHeld` brauchen den D3D9-Ordner, auch für gehaltene Builds.
