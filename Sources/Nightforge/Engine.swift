@@ -2500,8 +2500,15 @@ enum Engine {
     /// Opens Steam's main window. Questions Steam asks before a launch (licence agreement, which
     /// version to start) appear in it, and with -silent it stays hidden. SteamWindow brings it to
     /// the front.
-    static func showSteamWindow(_ wine: URL) {
-        try? startSteam(wine)
+    static func showSteamWindow(_ wine: URL) async {
+        try? await startSteamOffMain(wine)
+    }
+
+    /// `startSteam` away from the main thread, for whoever is on it (the window, the controller): it looks at the
+    /// processes (`ps`, up to 4 s), may set up an engine held back for Steam (a regedit), ends a session on a switch
+    /// of the sandbox and waits for the helper app – seconds, in which everything would freeze.
+    static func startSteamOffMain(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) async throws {
+        try await offMain { try startSteam(wine, arguments: arguments, extraEnvironment: extraEnvironment) }
     }
 
     /// Starts Steam without waiting; used for signing in and for launching games.

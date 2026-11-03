@@ -404,7 +404,7 @@ final class SetupModel: ObservableObject {
     func reopenSteam() {
         Task {
             guard let wine = await Engine.installedWine() else { return }
-            try? Engine.startSteam(wine)
+            try? await Engine.startSteamOffMain(wine)
             await SteamWindow.bringForward()
         }
     }
@@ -452,7 +452,7 @@ final class SetupModel: ObservableObject {
         defer { steamStarting = false }
         if let prefetch { await placeSteamUpdate(prefetch) }
         browser.ignore(SteamBrowser(steamRoot: Engine.steamRoot).launch)
-        try Engine.startSteam(wine)
+        try await Engine.startSteamOffMain(wine)
         detail = L10n.t("Steam is starting …")
 
         // Two moments last about a second, and are watched every 50 ms while they're near (the log
@@ -588,7 +588,7 @@ final class SetupModel: ObservableObject {
         if waited < 40, !Engine.isSteamSignedIn {
             for cache in Engine.steamBrowserCaches() { try? FileManager.default.removeItem(at: cache) }
         }
-        try Engine.startSteam(wine)
+        try await Engine.startSteamOffMain(wine)
     }
 
     private func watchForSignIn() {

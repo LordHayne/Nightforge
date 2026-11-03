@@ -3842,7 +3842,7 @@ final class LibraryModel: ObservableObject {
         Task {
             guard let wine = await Engine.installedWine() else { return }
             await SteamWindow.reveal()  // hidden after its last question (hideSteamWindow)
-            Engine.showSteamWindow(wine)
+            await Engine.showSteamWindow(wine)
             await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
     }
@@ -3990,7 +3990,7 @@ final class LibraryModel: ObservableObject {
         Task {
             guard let wine = await Engine.installedWine() else { return }
             do {
-                try Engine.startSteam(wine)
+                try await Engine.startSteamOffMain(wine)
             } catch {
                 errorMessage = error.localizedDescription
             }
