@@ -632,6 +632,33 @@ Nachtrag dazu.
   Fehler vorgesehen waren, entfallen. Als Kandidat für die Stabilisierung bleibt er wegen des einen Fehlers.
 - **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
 
+## Elfte Runde (3.11., auf dfe9fa1)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 53 | `claude/profile-ci` (Profil-CI: fileEdits, iniSettings, resolution, saves, winetricks-Windows-Versionen) | 6ec6878 | b77bee0 | keine | 0 |
+| 54 | `claude/wine-sandbox` bis 76f1b50 (Caches der signierten Listen, Spiel-Apps) | 76f1b50 | e89120a | keine | 0 |
+
+- **54:**
+  - `profiles.json`, `agw.json` und ihre `.sig` im Datenordner sind innen nur lesbar.
+  - `~/Applications/Nightforge Games` ist innen ganz gesperrt, nicht mehr nur lesbar.
+  - `WineSandboxTest` ging neben Stagings 2a7b285 von selbst zusammen und ist grün.
+- **Angekündigt, aber bis zum Ende der Runde nicht fertig gemeldet.** Alle drei gehen auf e89120a ohne Konflikt
+  zusammen (Probe-Merge):
+  - `claude/profile-limits` 6e8dc40 (12:35): die Profilregeln in der App.
+  - `claude/game-test-fixes` 44f09e8 (12:31): die Schwärzung in den Berichten. Er enthält einen Merge von
+    report-url-m3.
+  - `claude/review-n-031` b0d6863 (12:31): `BinaryKV.parse` mit höchstens 64 Ebenen und die GameShortcut-Punkte des
+    externen Reviews.
+
+## Tests der elften Runde (auf e89120a)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Vorab allein:** `WineSandboxTest` grün, `tests/test_build_profiles.py` 32 von 32.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 60 Reihen grün (1327 s), `MacVersionTest` auch (66 s).
+  **pytest:** 137 von 137.
+- **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
