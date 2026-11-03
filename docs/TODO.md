@@ -2084,6 +2084,17 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Entscheidungen
 
+- **Feste Codesignatur** (Zweig `claude/stable-codesign`, `docs/CODESIGNATUR.md`): `scripts/codesign-app.sh` signiert
+  mit dem selbst erstellten Zertifikat „Nightforge Code Signing“ (Designated Requirement: Bundle-ID und SHA-1 des
+  Zertifikats), sonst ad hoc. `release.yml` nimmt es aus den Secrets `NIGHTFORGE_CODESIGN_P12` und
+  `NIGHTFORGE_CODESIGN_PASSWORD` und nur, wenn es zu `scripts/codesign-certificate.sha1` passt. Der Nutzer erzeugt
+  das Zertifikat selbst und legt die Secrets an. Offen:
+  - Live prüfen: Nach einem Update mit gleichem Zertifikat fragt macOS nicht mehr nach dem Stick.
+  - Live prüfen: Für welche App fragt macOS beim Stick, Nightforge oder „Nightforge Helper“?
+  - Der Helfer wird zur Laufzeit ad hoc signiert und fragt neu, sobald sich `wrapper/nightforge-helper.c` ändert.
+    Abhilfe: ihn im Build fertig signiert mitliefern und als Daten kopieren, damit kein Quarantäne-Flag mitkommt.
+  - Gilt 0.3.1 ohne Zertifikat, den Absatz in `docs/release-notes/v0.3.1.md` streichen.
+
 - **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`,
   `profiles.json` und `agw.json`, Schlüssel nur beim Nutzer. Anleitung Schritt für Schritt: `docs/SIGNIEREN.md`,
   Gründe: `docs/SICHERHEIT-0.3.md` › „Signierte Releases“.
