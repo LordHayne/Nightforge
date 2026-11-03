@@ -211,29 +211,38 @@ enum GameLog {
     private static let drivePatterns: [(String, String)] = [
         (#"(/Volumes/)[^/\\\n"'<>]+"#, "$1<drive>"),
         (#"(?i)(\\{1,2}Volumes\\{1,2})[^\\/\n"'<>]+"#, "$1<drive>"),
-        (#"(/(?:private/)?var/folders/)[^/\s"']+/[^/\s"']+"#, "$1<id>"),
+        // Not one done already ("/var/folders/<id>/T/…"): redacting twice must change nothing (GameTest.leaks).
+        (#"(/(?:private/)?var/folders/)(?!<id>)[^/\s"']+/[^/\s"']+"#, "$1<id>"),
     ]
 
     /// The Mac's names as other programs print them: its computer name ("Jane’s MacBook Pro"), its
     /// host name with and without ".local", and the NetBIOS name Wine makes of it (upper case, at
-    /// most 15 characters) – each at least 4 characters long, so a short one doesn't eat words.
-    static let machineNames: [String] = {
-        var names: [String] = []
-        if let computer = SCDynamicStoreCopyComputerName(nil, nil) as String? { names.append(computer) }
-        var buffer = [CChar](repeating: 0, count: 256)
-        if gethostname(&buffer, buffer.count) == 0 {
-            let host = String(cString: buffer)
-            let short = host.split(separator: ".").first.map(String.init) ?? host
-            names += [host, short, String(short.prefix(15))]
+    /// most 15 characters) – each at least 3 characters long, so a shorter one doesn't eat words.
+    /// Read again once they're 10 s old, so each report has the names of its moment: one a network
+    /// (DHCP) changed since Nightforge started is no longer readable in it.
+    static var machineNames: [String] {
+        machineNamesRead.withLock { read in
+            if let read, Date().timeIntervalSince(read.at) < 10 { return read.names }
+            var names: [String] = []
+            if let computer = SCDynamicStoreCopyComputerName(nil, nil) as String? { names.append(computer) }
+            var buffer = [CChar](repeating: 0, count: 256)
+            if gethostname(&buffer, buffer.count) == 0 {
+                let host = String(cString: buffer)
+                let short = host.split(separator: ".").first.map(String.init) ?? host
+                names += [host, short, String(short.prefix(15))]
+            }
+            read = (Date(), machineNameList(names))
+            return read!.names
         }
-        return machineNameList(names)
-    }()
+    }
+
+    private static let machineNamesRead = LockedValue<(at: Date, names: [String])?>(nil)
 
     /// `names` without repeats (ignoring case) and short ones, the longest first so a longer name
     /// is replaced whole before a shorter one that's part of it.
     static func machineNameList(_ names: [String]) -> [String] {
         var seen = Set<String>()
-        return names.filter { $0.count >= 4 && seen.insert($0.lowercased()).inserted }.sorted { $0.count > $1.count }
+        return names.filter { $0.count >= 3 && seen.insert($0.lowercased()).inserted }.sorted { $0.count > $1.count }
     }
 
     /// Patterns for `redacted`, in order. The sign-in arguments Epic's launcher parameters bring

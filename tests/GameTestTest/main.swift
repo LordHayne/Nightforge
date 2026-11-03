@@ -185,6 +185,28 @@ struct GameTestTest {
                                     gameFolder: folder), "the Finder")
         check(!GameTest.foreignFront(path: nil, bundleID: nil, gameFolder: nil), "nothing known about it: left alone")
 
+        // Who had the front, as the report names it: known focus-takers by name, any other app not (review 3.11.).
+        check(GameTest.frontName("1Password", path: "/Applications/1Password.app/Contents/MacOS/1Password", bundleID: "com.1password.1password")
+              == "eine andere App", "a password manager isn't named")
+        check(GameTest.frontName("Claude", path: "/Applications/Claude.app/Contents/MacOS/Claude", bundleID: nil) == "eine andere App", "nor a chat app")
+        check(GameTest.frontName("Nightforge", path: "/Applications/Nightforge.app/Contents/MacOS/Nightforge", bundleID: "io.github.lordhayne.nightforge")
+              == "Nightforge", "Nightforge")
+        check(GameTest.frontName("Steam", path: "/Applications/Steam.app/Contents/MacOS/steam_osx", bundleID: "com.valvesoftware.steam") == "Steam",
+              "Steam for Mac")
+        check(GameTest.frontName("steamwebhelper", path: wine, bundleID: nil) == "Steam", "Steam's window under Wine")
+        check(GameTest.frontName("Nightforge Game", path: wine, bundleID: nil) == "ein Windows-Programm", "a Windows program under Wine")
+        check(GameTest.frontName("UserNotificationCenter", path: "/System/Library/CoreServices/UserNotificationCenter.app/Contents/MacOS/UserNotificationCenter",
+                                 bundleID: "com.apple.UserNotificationCenter") == "UserNotificationCenter", "macOS's own asker by name")
+        check(GameTest.frontName(nil, path: nil, bundleID: nil) == "keine App", "nobody in front")
+        let look = "2 processes, in front Claude (1276, not the game's), windows none, picture none, asks no, curtain up"
+        check(GameTest.reportLook(look, game: "Wukong") == "2 processes, in front eine andere App (1276, not the game's), windows none, picture none, asks no, curtain up",
+              "the curtain's look names no other app: \(GameTest.reportLook(look, game: "Wukong"))")
+        for kept in ["1 processes, in front Tomb Raider (89315, the game's), windows 4 hidden",
+                     "2 processes, in front Nightforge (33668, not the game's), windows 286×251 L21",
+                     "1 processes, in front UserNotificationCenter (78961, not the game's), windows none"] {
+            check(GameTest.reportLook(kept, game: "Tomb Raider") == kept, "kept: \(kept)")
+        }
+
         // macOS asking for permission over the start, as the curtain logs it (Tomb Raider on the stick, 3.11.).
         let tomb = """
         info:  [nightforge] Curtain look at Tomb Raider: 1 processes, in front Tomb Raider (89315, the game's), windows 4 hidden
@@ -388,10 +410,22 @@ struct GameTestTest {
 
         let json = GameTest.json(report)
         let text = String(decoding: json, as: UTF8.self)
-        check(!GameTest.leaks(text, home: home, user: "jdoe"), "the report keeps no home folder or account name")
-        check(GameTest.leaks("C:\\\\users\\\\jdoe\\\\x", home: home, user: "jdoe") && GameTest.leaks("\(home)/x", home: home, user: "jdoe"),
+        check(!GameTest.leaks(text, home: home, user: "jdoe", machine: []), "the report keeps no home folder or account name")
+        check(GameTest.leaks("C:\\\\users\\\\jdoe\\\\x", home: home, user: "jdoe", machine: []) && GameTest.leaks("\(home)/x", home: home, user: "jdoe", machine: []),
               "a path with the account name is caught")
-        check(!GameTest.leaks("users/jdoey and Thomas Was Alone", home: home, user: "jdoe"), "another account, a game's name: no leak")
+        check(!GameTest.leaks("users/jdoey and Thomas Was Alone", home: home, user: "jdoe", machine: []), "another account, a game's name: no leak")
+        // The second check knows what redacted knows (review 3.11.), and the Mac's names only as words.
+        func leak(_ text: String) -> Bool { GameTest.leaks(text, home: home, user: "jdoe", machine: ["Mini", "Studio-7"]) }
+        for text in ["write to jane@example.com", "access_token=abc123", "\"refresh_token\": \"xyz\"", "-AUTH_PASSWORD=abc", "Bearer abcdefgh12",
+                     "owner jdoe", "[U:1:12345]", "userdata/123456", "users/48628349957132247/releases", "/var/folders/x7/abcd/T/x",
+                     "/Volumes/Jane SSD/x", "COMPUTERNAME=mini", "host studio-7.local"] {
+            check(leak(text), "a leak: \(text)")
+        }
+        for text in ["<email>", "access_token=<hidden>", "\"refresh_token\": \"<hidden>\"", "-AUTH_PASSWORD=<hidden>", "owner <user>", "<steam id>",
+                     "users/<gog user>/releases", "/var/folders/<id>/T/x", "/Volumes/<drive>/x", "/System/Volumes/Preboot/x", "LOCAL_HOSTNAME=<computer>",
+                     "Minigolf", "Studios", "Mini2", "jdoey"] {
+            check(!leak(text), "no leak: \(text)")
+        }
         check(GameTest.report(from: json) == report, "report.json reads back as written")
         let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any]
         let first = (object?["games"] as? [[String: Any]])?.first
@@ -408,6 +442,11 @@ struct GameTestTest {
         check(summary.contains("Nightforge 0.3.1 · winecx@4.7.3 · dxmt@0.80 · Apple M5 · macOS 26.1"), "what it ran on")
         check(summary.contains("Start 00:12, Ende 01:12."), "start and end")
         check(summary.contains("Ohne Prozessliste (ps antwortete nicht): 7 min gewartet."), "the run's wait for ps")
+        // The run's own notes go through redacted when written, as the entries' do.
+        var noted = report
+        noted.notes = ["Testkorb nicht lesbar (jdoe@example.com.json, Format 1 erwartet)", "\(home)/x"]
+        check(noted.redacted(home: home, user: "jdoe", machine: []).notes == ["Testkorb nicht lesbar (<email>, Format 1 erwartet)", "~/x"],
+              "the run's notes redacted: \(String(describing: noted.redacted(home: home, user: "jdoe", machine: []).notes))")
         check(summary.contains("| Blind Game | Steam | Windows | dxmt | unbekannt: keine Prozessliste (ps antwortete nicht) | – | – |"), "unknown, said as such")
         check(summary.contains("**7 gestartet: 3 mit Bild, 4 ohne (1 hängt, 1 braucht einen Klick im Startfenster, 1 wartet auf einen Klick, 1 unbekannt). 2 abgebrochen. 1 nicht gestartet.**"),
               "the counts:\n\(summary)")

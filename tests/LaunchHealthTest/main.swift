@@ -625,9 +625,10 @@ struct LaunchHealthTest {
 
         // Audit N7, with lines from a real wine.log and Steam log (2026-11-01), names changed: an external
         // drive named after its owner, the Mac's names, the account's temp folder, a GOG user id.
-        let machine = GameLog.machineNameList(["Jane’s MacBook Pro", "Janes-MacBook-Pro.local", "Janes-MacBook-Pro", "Janes-MacBook-P", "Mac"])
-        check(machine == ["Janes-MacBook-Pro.local", "Jane’s MacBook Pro", "Janes-MacBook-Pro", "Janes-MacBook-P"],
-              "the Mac's names, longest first, without a short one that would eat words: \(machine)")
+        let machine = GameLog.machineNameList(["Jane’s MacBook Pro", "Janes-MacBook-Pro.local", "Janes-MacBook-Pro", "Janes-MacBook-P", "Ma", "Box"])
+        check(machine == ["Janes-MacBook-Pro.local", "Jane’s MacBook Pro", "Janes-MacBook-Pro", "Janes-MacBook-P", "Box"],
+              "the Mac's names, longest first, from 3 characters on – a shorter one would eat words: \(machine)")
+        check(GameLog.machineNames.allSatisfy { $0.count >= 3 } && GameLog.machineNames == GameLog.machineNames, "this Mac's names read, and read again alike")
         func scrub(_ line: String) -> String { GameLog.redacted(line, home: "/Users/jane", user: "jane", machine: machine) }
         let tracked = scrub(#"[2026-11-01 15:39:01] Game process added : AppID 2357570 ""Z:\Volumes\Jane SSD\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"", ProcID 1876, IP 0.0.0.0:0"#)
         check(tracked.contains(#"Z:\Volumes\<drive>\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"#) && !tracked.contains("Jane"),
@@ -649,7 +650,7 @@ struct LaunchHealthTest {
               "the account name in other programs' lines, as a word only: \(others)")
         let gog = scrub(#"GET https://galaxy-library.gog.com/users/48628349957132247/releases {"user_id": "48628349957132247", "galaxy_user_id":48628349957132247}"#)
         check(!gog.contains("48628349957132247") && gog.contains("users/<gog user>/releases"), "GOG user ids: \(gog)")
-        check(scrub(tracked) == tracked && scrub(host) == host, "redacting twice changes nothing")
+        check(scrub(tracked) == tracked && scrub(host) == host && scrub(temp) == temp, "redacting twice changes nothing, the temp folder's <id> too")
         check(!GameTest.leaks(tracked + host + temp, home: "/Users/jane", user: "jane", machine: machine)
               && GameTest.leaks(#"Z:\Volumes\Jane SSD\x"#, home: "/Users/jane", user: "jane", machine: machine)
               && GameTest.leaks("LOCAL_HOSTNAME=janes-macbook-pro", home: "/Users/jane", user: "jane", machine: machine),

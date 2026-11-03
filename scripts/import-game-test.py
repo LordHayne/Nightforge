@@ -29,7 +29,7 @@ FORMAT_VERSION = 1
 
 def machine_names():
     """The Mac's computer name, host name (with and without ".local") and Wine's NetBIOS name for it
-    (upper case, 15 characters), each at least 4 characters – as GameLog.machineNames has them."""
+    (upper case, 15 characters), each at least 3 characters – as GameLog.machineNames has them, read now."""
     names = []
     try:
         names.append(subprocess.run(["scutil", "--get", "ComputerName"], capture_output=True, text=True, timeout=5).stdout.strip())
@@ -40,24 +40,51 @@ def machine_names():
     names += [host, short, short[:15]]
     seen, result = set(), []
     for name in names:
-        if len(name) >= 4 and name.lower() not in seen:
+        if len(name) >= 3 and name.lower() not in seen:
             seen.add(name.lower())
             result.append(name)
     return result
 
 
+# What GameLog.redacted takes out and leaves a placeholder for ("<hidden>", "<email>", …): any of these
+# that is still there in its plain form gives the player away. The same patterns as redacted's.
+_EPIC = r"(?:AUTH_PASSWORD|AUTH_LOGIN|epicusername|epicuserid)"
+_SECRET_WORDS = (r"access_token|refresh_token|id_token|session_id|sessionid|exchange_code|exchangecode|authorization_code|auth_code"
+                 r"|client_secret|api_key|apikey|password|passwd|secret|token")
+_SECRETS = [
+    re.compile(r"(?i)-{1,2}" + _EPIC + r'\s*=\s*"?(?!<hidden>)[^\s"]+'),
+    re.compile(r"(?i)(?<![A-Za-z0-9])(?:" + _SECRET_WORDS + r")[\"']?\s*[:=]\s*[\"']?(?!<hidden>)[^\"'\s,&}]+"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"),
+    re.compile(r"\[U:1:\d+\]"),
+    re.compile(r"\b7656119\d{10}\b"),
+    re.compile(r"(?i)\buserdata(?:\\{1,2}|/)\d{3,}"),
+    re.compile(r"(?i)\busers/\d{6,}"),
+    re.compile(r"(?i)(?<![A-Za-z0-9])(?:galaxy_?)?user_?id[\"']?\s*[:=]\s*[\"']?\d{6,}"),
+    re.compile(r"/(?:private/)?var/folders/(?!<id>)[^/\s\"']+/"),
+]
+
+
 def leaks(text, home, user, machine=None):
-    """The home folder, the account name in a path (/Users/<name>, C:\\users\\<name>), an external
-    drive's name (/Volumes/<name>, Z:\\Volumes\\<name>) or the Mac's own: Nightforge leaves "<drive>"
-    and "<computer>" in their place."""
+    """Whatever GameLog.redacted still takes out of `text`: the home folder, the account name in a path
+    (/Users/<name>, C:\\users\\<name>) or as a word, an external drive's name (/Volumes/<name>,
+    Z:\\Volumes\\<name>), the Mac's names as words (a Mac called "Mini" doesn't stop every import), the temp
+    folder, e-mail addresses, tokens and sign-in arguments, Steam and GOG ids. Nightforge leaves "<drive>",
+    "<computer>", "<user>", "<hidden>" … in their place."""
     if home and home in text:
         return True
     if re.search(r"(?<!System)(/|\\{1,2})Volumes(/|\\{1,2})(?!<drive>)", text):
         return True
-    lower = text.lower()
-    if any(name.lower() in lower for name in (machine_names() if machine is None else machine)):
+    for name in machine_names() if machine is None else machine:
+        if re.search(r"(?i)(?<![\w])" + re.escape(name) + r"(?![\w])", text):
+            return True
+    if any(pattern.search(text) for pattern in _SECRETS):
         return True
-    return bool(user) and re.search(r"(?i)users(\\{1,2}|/)" + re.escape(user) + r"(?![\w])", text) is not None
+    if not user:
+        return False
+    if re.search(r"(?i)users(\\{1,2}|/)" + re.escape(user) + r"(?![\w])", text):
+        return True
+    return len(user) >= 3 and re.search(r"(?i)(?<![\w<])" + re.escape(user) + r"(?![\w>])", text) is not None
 
 
 def newest(runs):
