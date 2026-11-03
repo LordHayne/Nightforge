@@ -348,6 +348,49 @@ struct CompleteRemovalTest {
             FakeProcesses.installEmpty()
         }
 
+        // Saves next to the program, in the game's own folder in the prefix (outside review of deleting, item 1):
+        // the files Steam Cloud's rules and the profile name are copied – not the game.
+        do {
+            let scenario = fixture(root.appendingPathComponent("gamesaves", isDirectory: true))
+            let places = scenario.places
+            let steamapps = places.steam.appendingPathComponent("steamapps", isDirectory: true)
+            write(steamapps.appendingPathComponent("appmanifest_4242.acf"),
+                  "\"AppState\"\n{\n\t\"appid\"\t\t\"4242\"\n\t\"installdir\"\t\t\"Quiet Game\"\n}\n")
+            write(steamapps.appendingPathComponent("appmanifest_999.acf"), "\"AppState\"\n{\n\t\"appid\"\t\t\"999\"\n\t\"installdir\"\t\t\"../Elsewhere\"\n}\n")
+            let game = steamapps.appendingPathComponent("common/Quiet Game", isDirectory: true)
+            write(game.appendingPathComponent("Saves/slot1.sav"), "slot one")
+            write(game.appendingPathComponent("Saves/slot1.png"), "picture")
+            write(game.appendingPathComponent("profile.dat"), "profile")
+            write(game.appendingPathComponent("Quiet Game.exe"), "program")
+            write(game.appendingPathComponent("config.ini"), "settings")
+            write(game.appendingPathComponent("Mods/big.pak"), "mod")
+            write(game.appendingPathComponent("Extra/more.sav"), "from the profile")
+            func rule(_ path: String, _ pattern: String, recursive: Bool = false) -> SaveRule {
+                SaveRule(root: "gameinstall", path: path, pattern: pattern, recursive: recursive, macRoot: nil, macAddPath: "")
+            }
+            // Steam Cloud's rules for it: a folder, files in the folder itself, the whole game (left out), one that climbs out (left out).
+            let catalog: (Int) -> [SaveRule] = { $0 == 4242 ? [rule("Saves", "*.sav"), rule("", "*.dat"), rule("", "*", recursive: true), rule("../x", "*")] : [] }
+            let profile: [Int: [SaveRule]] = [4242: [rule("Extra", "*.sav")]]
+            check(CompleteRemoval.installedGames(places).map(\.appID) == [4242], "the games in the prefix's library, from their manifests (one naming a folder above is none)")
+            let names = Set(CompleteRemoval.saveSources(places, profileRules: profile, catalog: catalog).map(\.name).filter { $0.hasPrefix("Steam games/") })
+            check(names == ["Steam games/Quiet Game/Saves/slot1.sav", "Steam games/Quiet Game/profile.dat", "Steam games/Quiet Game/Extra/more.sav"],
+                  "the saves in the game's folder, by the rules and the profile's: \(names.sorted())")
+            let fixed = Date(timeIntervalSince1970: 1_730_000_000)
+            let first = try? CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog)
+            if let first = first ?? nil {
+                func text(_ name: String) -> String? { try? String(contentsOf: first.appendingPathComponent(name), encoding: .utf8) }
+                check(text("Steam games/Quiet Game/Saves/slot1.sav") == "slot one" && text("Steam games/Quiet Game/profile.dat") == "profile"
+                      && text("Steam games/Quiet Game/Extra/more.sav") == "from the profile", "…and copied")
+                check(!exists(first.appendingPathComponent("Steam games/Quiet Game/Quiet Game.exe"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/config.ini"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/Mods"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/Saves/slot1.png")),
+                      "the game itself isn't")
+            } else {
+                check(false, "the saves of the game's folder were copied")
+            }
+        }
+
         // The polite way is given its time and no more.
         do {
             let scenario = fixture(root.appendingPathComponent("polite", isDirectory: true))

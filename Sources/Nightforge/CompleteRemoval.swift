@@ -79,9 +79,12 @@ enum CompleteRemoval {
                                                 "unrealengine"]
 
     /// Where games keep saves inside the Windows environment: the Windows users' folders (without
-    /// caches) and Steam's per-game folders (without Steam's own, "7"). Paired with where each goes
-    /// in the copy.
-    static func saveSources(_ places: Places = Places()) -> [(source: URL, name: String)] {
+    /// caches), Steam's per-game folders (without Steam's own, "7") and the saves some games keep next to
+    /// their program, in their own folder (`gameFolderSaves`). Paired with where each goes in the copy.
+    /// `profileRules`: the saves the online profiles name, by app ID (they need an async look, `run` brings
+    /// them); `catalog`: Steam Cloud's rules for a game, the prefix's appinfo.vdf unless a test hands in its own.
+    static func saveSources(_ places: Places = Places(), profileRules: [Int: [SaveRule]] = [:],
+                            catalog: ((Int) -> [SaveRule])? = nil) -> [(source: URL, name: String)] {
         let fm = FileManager.default
         func folders(in url: URL) -> [URL] {
             ((try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles)) ?? [])
@@ -109,18 +112,62 @@ enum CompleteRemoval {
             }
         }
         return sources.filter { LibraryScanner.folderSize($0.0) > 0 }
+            + gameFolderSaves(places, profileRules: profileRules, catalog: catalog)
+    }
+
+    /// A Steam game in the prefix's library, from its manifest: its app ID and the folder it lies in.
+    static func installedGames(_ places: Places = Places()) -> [(appID: Int, folder: URL)] {
+        let steamapps = places.steam.appendingPathComponent("steamapps", isDirectory: true)
+        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []
+        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }.compactMap { file in
+            guard let state = VDF.parse(contentsOf: file)?["appstate"], let appID = state["appid"]?.string.flatMap({ Int($0) }),
+                  let name = state["installdir"]?.string, !name.isEmpty, !name.contains("/"), name != ".", name != ".."
+            else { return nil }
+            let folder = steamapps.appendingPathComponent("common/\(name)", isDirectory: true)
+            return FileManager.default.fileExists(atPath: folder.path) ? (appID, folder) : nil
+        }
+        .sorted { $0.appID < $1.appID }
+    }
+
+    /// The saves a game keeps next to its program, in its folder in the prefix (Steam Cloud's rules with the
+    /// root "gameinstall", and the profiles' saves): the files the rules name, one by one – not the game,
+    /// which is gigabytes. A rule that would take the whole folder ('*' through all folders), one with `..`
+    /// and a folder that leads out of the game's through a link are left out, as in `SaveTransfer`.
+    static func gameFolderSaves(_ places: Places, profileRules: [Int: [SaveRule]] = [:],
+                                catalog: ((Int) -> [SaveRule])? = nil) -> [(source: URL, name: String)] {
+        var found: [(source: URL, name: String)] = []
+        var seen = Set<String>()
+        for (appID, folder) in installedGames(places) {
+            let rules = (catalog?(appID) ?? SteamCatalog.saveRules(appID: appID, steamRoot: places.steam)) + (profileRules[appID] ?? [])
+            for rule in rules where rule.root.lowercased() == "gameinstall" {
+                let path = rule.path.replacingOccurrences(of: "\\", with: "/")
+                guard !path.split(separator: "/").contains("..") else { continue }
+                for relative in SaveTransfer.resolve(path, under: folder) where SaveTransfer.isSaveFolder(relative, root: rule.root, rule) {
+                    let base = relative.isEmpty ? folder : folder.appendingPathComponent(relative, isDirectory: true)
+                    guard relative.isEmpty || Engine.isInside(base, folder) else { continue }
+                    for file in SaveTransfer.files(in: base, matching: rule.pattern, recursive: rule.recursive) {
+                        let source = base.appendingPathComponent(file)
+                        guard seen.insert(source.path).inserted else { continue }
+                        found.append((source, "Steam games/\(folder.lastPathComponent)" + (relative.isEmpty ? "" : "/" + relative) + "/" + file))
+                    }
+                }
+            }
+        }
+        return found
     }
 
     /// Copies the saves into Documents/Nightforge Saves/<date>; nil when there were none.
     /// Throws if anything couldn't be copied – then nothing gets deleted.
-    static func copySaves(_ places: Places = Places(), now: Date = Date()) throws -> URL? {
-        let sources = saveSources(places)
+    static func copySaves(_ places: Places = Places(), now: Date = Date(), profileRules: [Int: [SaveRule]] = [:],
+                          catalog: ((Int) -> [SaveRule])? = nil) throws -> URL? {
+        let sources = saveSources(places, profileRules: profileRules, catalog: catalog)
         guard !sources.isEmpty else { return nil }
         let stamp = ISO8601DateFormatter.string(from: now, timeZone: .current, formatOptions: [.withFullDate])
         let target = places.documents.appendingPathComponent("Nightforge Saves/\(stamp)", isDirectory: true)
         let fm = FileManager.default
         for (source, name) in sources {
-            let destination = target.appendingPathComponent(name, isDirectory: true)
+            let isFolder = (try? source.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            let destination = target.appendingPathComponent(name, isDirectory: isFolder)
             try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
             try fm.copyItem(at: source, to: destination)
@@ -173,12 +220,12 @@ enum CompleteRemoval {
     /// doesn't stop the others; the settings stay until all are gone, so a second try finds the rest.
     @discardableResult
     static func remove(_ places: Places = Places(), defaults: UserDefaults = .standard,
-                       phase: (@Sendable (Phase) -> Void)? = nil) throws -> URL? {
+                       profileRules: [Int: [SaveRule]] = [:], phase: (@Sendable (Phase) -> Void)? = nil) throws -> URL? {
         if !isTheApp, namesTheRealApp(places) { throw RemovalError.notTheApp }  // before anything is touched
         phase?(.copyingSaves)
         let saves: URL?
         do {
-            saves = try copySaves(places)
+            saves = try copySaves(places, profileRules: profileRules)
         } catch {
             throw RemovalError.savesNotCopied(error.localizedDescription)
         }
@@ -311,8 +358,13 @@ enum CompleteRemoval {
         await stop(polite: {
             if let wine = await Engine.installedWine() { try? await Engine.stopSteam(wine) }
         })
-        let saves = try await Task.detached(priority: .userInitiated) {
-            try remove(phase: { step in Task { @MainActor in phase(step) } })
+        // The saves the online profiles name for the games in the prefix (some keep theirs next to the program).
+        var profileRules: [Int: [SaveRule]] = [:]
+        for (appID, _) in await Task.detached(priority: .userInitiated, operation: { installedGames() }).value {
+            if let rules = await ProfileStore.shared.profile(for: appID)?.saves, !rules.isEmpty { profileRules[appID] = rules }
+        }
+        let saves = try await Task.detached(priority: .userInitiated) { [profileRules] in
+            try remove(profileRules: profileRules, phase: { step in Task { @MainActor in phase(step) } })
         }.value
         if let saves { NSWorkspace.shared.activateFileViewerSelecting([saves]) }
         // FileManager rather than NSWorkspace.recycle, which goes through the Finder. With its own
