@@ -61,6 +61,12 @@ struct WineSandboxTest {
               "legendary's and gogdl's folders are denied")
         check(profile.contains("(literal \(WineSandbox.quoted(realSupport + "/Epic/account.json")!))"), "the store accounts too")
         check(profile.contains("(subpath \(WineSandbox.quoted(WineSandbox.canonical(home) + "/.ssh")!))"), "and the home's keys")
+        let gameApps = WineSandbox.quoted(WineSandbox.canonical(home) + "/Applications/Nightforge Games")!
+        let deniedBlock = profile.range(of: "(deny file-read* file-write*").flatMap { start in
+            profile.range(of: "\n)", range: start.upperBound..<profile.endIndex).map { String(profile[start.lowerBound..<$0.lowerBound]) }
+        } ?? ""
+        check(deniedBlock.contains("(subpath \(gameApps))"),
+              "the game apps, whose scripts carry the shortcut key, can't be read either")
         if let deny = profile.range(of: "(deny"), let allow = profile.range(of: "(allow file-read*") {
             check(deny.lowerBound < allow.lowerBound && profile[allow.lowerBound...].contains(exception),
                   "legendary's tmp comes back after the denial (the later rule wins)")
@@ -71,7 +77,8 @@ struct WineSandboxTest {
         let readOnly = profile.range(of: "(deny file-write*").map { String(profile[$0.lowerBound...]) } ?? ""
         for path in [realSupport + "/Components", realSupport + "/Nightforge Helper.app", realSupport + "/hide-steam-dock.dylib",
                      realSupport + "/steam-shutdown.sh", realSupport + "/D3DMetal", WineSandbox.canonical(app),
-                     WineSandbox.canonical(temporary) + "/Nightforge-runs", WineSandbox.canonical(home) + "/Applications/Nightforge Games"] {
+                     WineSandbox.canonical(temporary) + "/Nightforge-runs", realSupport + "/profiles.json", realSupport + "/profiles.json.sig",
+                     realSupport + "/agw.json", realSupport + "/agw.json.sig"] {
             check(readOnly.contains(WineSandbox.quoted(path)!), "can't be changed inside: \(path)")
         }
         check(!readOnly.contains("/Prefix") && !profile.contains("(subpath \(WineSandbox.quoted(realSupport)!))"),
@@ -218,6 +225,18 @@ struct WineSandboxTest {
         check((try? String(contentsOf: record, encoding: .utf8)) == "{}" && run(realHelper, [profile, cat.path, record.path]).output == "{}",
               "launchoptions-written.json reads inside, but can't be changed there")
         check(run(realHelper, [profile, cat.path, key.path]).status != 0, "the game apps' key doesn't read inside")
+        let script = home.appendingPathComponent("Applications/Nightforge Games/Some Game.app/Contents/MacOS/Some Game")
+        write("open \"nightforge://play/steam.570?key=0123456789abcdef0123456789abcdef\"\n", script)
+        check(run(realHelper, [profile, cat.path, script.path]).status != 0, "nor in a game app's script")
+        // The signed lists Nightforge keeps: read, yes; deleted or replaced, no (review of the links, 3.11.2026).
+        for name in ["profiles.json", "profiles.json.sig", "agw.json", "agw.json.sig"] {
+            let list = support.appendingPathComponent(name)
+            write(name, list)
+            _ = run(realHelper, [profile, URL(fileURLWithPath: "/bin/rm").path, list.path])
+            _ = run(realHelper, [profile, sh.path, "-c", "printf forged > \"$1\"", "sh", list.path])
+            check((try? String(contentsOf: list, encoding: .utf8)) == name && run(realHelper, [profile, cat.path, list.path]).output == name,
+                  "\(name) reads inside, but can't be deleted or replaced there")
+        }
         preferences(realHelper: realHelper, places: places)
         // The quit script's Wine start (review of 3.11.2026): it ran steam.exe from the prefix – which programs
         // inside can change – outside the sandbox. Its wine_program, from the script itself, with the helper.
