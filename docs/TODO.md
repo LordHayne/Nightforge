@@ -1075,7 +1075,14 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   die den Pfad nur erwähnt – im Test hielt es eine Shell dafür und beendete sich, ohne Steam zu beenden. Robuster:
   `pgrep -x Nightforge` (Prozessname). `MacVersionTest` ersetzt `pgrep` und müsste mitziehen.
 - **`nightforge://`-Links** öffnen die Standard-Kopie (`~/Applications`), auch wenn gerade ein Worktree-Build läuft – nur
-  auf diesem Mac mit vielen registrierten Kopien. Zum Testen: `open -a <Build>.app "nightforge://play/<ID>"`.
+  auf diesem Mac mit vielen registrierten Kopien. Zum Testen: `open -a <Build>.app "nightforge://play/<ID>?key=<Schlüssel>"`
+  (der Inhalt von `~/Library/Application Support/Nightforge/shortcut-key`; ohne ihn zeigt der Link nur die Spielseite).
+- **Für den Nutzer: eigene Kurzbefehle mit `nightforge://play/…`** (Audit N1, `claude/audit-low`). Ein Play-Link startet
+  ein Spiel nur noch mit dem Schlüssel, den Nightforges eigene Spiel-Apps in `~/Applications/Nightforge Games` tragen;
+  ohne ihn zeigt er die Spielseite, und gestartet wird mit Play. Die Spiel-Apps bekommen den Schlüssel beim nächsten
+  Start von Nightforge von selbst. Wer solche Links in der Kurzbefehle-App, in Skripten oder im Browser nutzt und direkt
+  starten will: „Zu den Programmen hinzufügen“ auf der Spielseite und diese App öffnen, oder `?key=<Schlüssel>` anhängen
+  (siehe oben). Show-Links (`nightforge://show/…`) sind unverändert.
 - **DualSense** fehlte ab 20:08 in Nightforge: zum Laden getrennt, danach scheiterte macOS mit jedem Versuch, ihn
   wieder zu verbinden (bluetoothd „result 329“), obwohl er in der Liste stand. Seit 21:00 wieder verbunden – Nightforge
   zeigte ihn ohne Neustart (Hinweisleiste, Einstellungen › Controller, PlayStation-Symbole). Kein Fehler in Nightforge.
