@@ -1343,7 +1343,13 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   Entfernung beendet Nightforge selbst. Live: (1) Einstellungen öffnen, ⌘Q → Nightforge geht zu. (2) Spieloptionen
   offen, im Terminal `osascript -e 'quit app "Nightforge"'` → kein Fehler, Nightforge geht zu. (3) D3DMetal-Frage
   offen (oder deren Dateiauswahl), Rechtsklick aufs Dock-Symbol › Beenden → geht zu. (4) „Willkommen zurück“
-  offen, ⌘Q → geht zu. (5) Danach nur eine Nightforge im Aktivitätsmonitor.
+  offen, ⌘Q → geht zu. (5) Danach nur eine Nightforge im Aktivitätsmonitor. Nach dem Review (M7, 3.11.): Das
+  Quit-AppleEvent wird angehalten und erst beantwortet, wenn Nightforge wirklich geht; ohne wartendes Panel beendet
+  es sofort im Event, wie AppKit selbst. Probe mit einer eigenen App (Scratchpad): Mit offenem Sheet antwortet
+  AppKits Handler -128, ohne `applicationShouldTerminate` zu fragen (also hilft `.terminateLater` nicht); mit dem
+  angehaltenen Event und geschlossenem Sheet meldet `osascript` Erfolg und die App endet, auch mit einer wartenden
+  modalen Schleife. (6) Abmelden mit offenen Einstellungen: macOS meldet nicht, Nightforge habe das Abmelden
+  abgebrochen.
 - **`osascript … quit` meldet „abgebrochen“ (-128)** (28.10., beim Test von 7.4): Einmal mit offenen Einstellungen –
   die App lief weiter (siehe oben); einmal endete sie trotz der Meldung wenige Sekunden später. Mit
   `claude/quit-always-1a4e06` beantwortet Nightforge das Quit-AppleEvent selbst, -128 nur noch während „Komplett

@@ -33,10 +33,18 @@ enum Quit {
         return order
     }
 
-    /// Asked to quit (`by`, for wine.log): the sheets close and Nightforge quits – false while it
-    /// removes itself, which says so.
+    /// Whether the quit waits a moment once the sheets are told to close: a panel's loop ends only
+    /// after the event that called it off, and a sheet still attached closes a moment later.
+    /// Otherwise it quits at once, as AppKit does itself.
+    nonisolated static func waits(panelWaiting: Bool, sheetsLeft: Bool) -> Bool { panelWaiting || sheetsLeft }
+
+    /// Asked to quit (`by`, for wine.log): the sheets close and Nightforge quits – at once, or once a
+    /// panel's wait is over. `beforeQuitting` answers an Apple Event right before: whoever sent it –
+    /// logging out, restarting, `osascript` – hears yes only as Nightforge really goes (an answer
+    /// first and the quit a second later can count as a cancelled logout, review M7, 3.11.). False
+    /// while it removes itself, which says so.
     @discardableResult
-    static func now(by: String) -> Bool {
+    static func now(by: String, beforeQuitting: (() -> Void)? = nil) -> Bool {
         guard answer(removing: CompleteRemoval.isRunning) == .quit else {
             GameLog.note("Quit by \(by) waits: Nightforge is removing itself and quits when that's done")
             return false
@@ -47,12 +55,23 @@ enum Quit {
         for (window, sheet) in closingOrder(NSApp.windows, sheet: { $0.attachedSheet }) {
             window.endSheet(sheet)
         }
+        func quit() {
+            beforeQuitting?()
+            NSApp.terminate(nil)
+        }
+        func waiting() -> Bool {
+            waits(panelWaiting: NSApp.modalWindow != nil, sheetsLeft: NSApp.windows.contains { $0.attachedSheet != nil })
+        }
+        guard waiting() else {
+            quit()
+            return true
+        }
         Task {
             // Once the panel's wait is over and the sheets are gone, AppKit takes it – a second at most.
-            for _ in 0..<20 where NSApp.modalWindow != nil || NSApp.windows.contains(where: { $0.attachedSheet != nil }) {
+            for _ in 0..<20 where waiting() {
                 try? await Task.sleep(for: .milliseconds(50))
             }
-            NSApp.terminate(nil)
+            quit()
         }
         return true
     }

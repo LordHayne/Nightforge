@@ -67,10 +67,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                                                      andEventID: AEEventID(kAEQuitApplication))
     }
 
+    /// The answer waits until Nightforge really quits (Quit.now): logging out or restarting goes on
+    /// then, rather than hearing yes while Nightforge is still there.
     @MainActor @objc private func quitEvent(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
-        guard !Quit.now(by: "an Apple Event") else { return }
+        let manager = NSAppleEventManager.shared()
+        guard let held = manager.suspendCurrentAppleEvent() else {
+            if !Quit.now(by: "an Apple Event") {
+                reply.setParam(NSAppleEventDescriptor(int32: Int32(userCanceledErr)), forKeyword: keyErrorNumber)
+            }
+            return
+        }
+        guard !Quit.now(by: "an Apple Event", beforeQuitting: { manager.resume(withSuspensionID: held) }) else { return }
         // Removing itself: the sender hears that nothing happens now, as from AppKit.
-        reply.setParam(NSAppleEventDescriptor(int32: Int32(userCanceledErr)), forKeyword: keyErrorNumber)
+        manager.replyAppleEvent(forSuspensionID: held)
+            .setParam(NSAppleEventDescriptor(int32: Int32(userCanceledErr)), forKeyword: keyErrorNumber)
+        manager.resume(withSuspensionID: held)
     }
 
     /// Never a silent no: the one time it waits, Quit says why in wine.log.
