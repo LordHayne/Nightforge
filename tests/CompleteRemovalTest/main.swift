@@ -187,6 +187,27 @@ struct CompleteRemovalTest {
                     check(false, "… with notTheApp, not \(error)")
                 }
             }
+            // Pointed at the real thing on purpose: refused. Only the predicate is run here – were it missing, `remove`
+            // itself would delete the player's settings, which no test may risk; the guard's place is read from the source.
+            var real = inert
+            real.settingsDomain = CompleteRemoval.appBundleID
+            check(CompleteRemoval.namesTheRealApp(real), "the app's settings domain is named: refused outside the app")
+            real = inert
+            real.support = Engine.supportDir
+            check(CompleteRemoval.namesTheRealApp(real), "Nightforge's data folder is named: refused")
+            real = inert
+            real.shortcuts = GameShortcut.folder
+            check(CompleteRemoval.namesTheRealApp(real), "the game apps' folder is named: refused")
+            real = inert
+            real.bundleID = CompleteRemoval.appBundleID
+            check(!CompleteRemoval.namesTheRealApp(real), "the app's bundle ID alone isn't (a test's own Library has its folders)")
+            real.library = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
+            check(CompleteRemoval.namesTheRealApp(real), "… with the player's Library it is: refused")
+            check(!CompleteRemoval.namesTheRealApp(inert), "the inert places name nothing real")
+            let source = (try? String(contentsOfFile: "Sources/Nightforge/CompleteRemoval.swift", encoding: .utf8)) ?? ""
+            let head = source.components(separatedBy: "static func remove(").dropFirst().first?.components(separatedBy: "phase?(.copyingSaves)").first ?? ""
+            check(head.contains("namesTheRealApp(places)") && head.contains("throw RemovalError.notTheApp"),
+                  "remove() asks before its first phase")
             let probe = UserDefaults(suiteName: TestDefaults.domain("probe"))!
             probe.set(true, forKey: "kept")
             check(works { try CompleteRemoval.remove(defaults: probe) } && probe.bool(forKey: "kept"),
@@ -314,17 +335,96 @@ struct CompleteRemovalTest {
             bystander.executableURL = URL(fileURLWithPath: "/bin/sleep")
             bystander.arguments = ["60"]
             try? bystander.run()
+            // A bash that only has the script's path as an argument after something else (`bash -c … <path>`): not the script.
+            let named = Process()
+            named.executableURL = URL(fileURLWithPath: "/bin/bash")
+            named.arguments = ["-c", "sleep 60", script.path]
+            try? named.run()
             usleep(300_000)
-            // The list of a stand-in: the bash with the script's path in its command, and a bystander that only names the script.
+            // The list of a stand-in: the bash with the script's path in its command, a bystander that only names the script,
+            // and a bash that is given the path as an argument of its own.
             FakeProcesses.install {
-                [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path)"),
-                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)")]
+                [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path) /wine /prefix"),
+                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)"),
+                 FakeProcesses.Row(pid: named.processIdentifier, command: "/bin/bash -c sleep 60 \(script.path)")]
             }
             CompleteRemoval.endScripts(under: support)
             check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
             check(bystander.isRunning, "… a program that only names the script is not a bash, and stays")
+            check(named.isRunning, "… nor is a bash that only has the path as a later argument (less, tail, bash -c …)")
             bystander.terminate()
+            named.terminate()
             FakeProcesses.installEmpty()
+            let spaced = "/Users/x/Library/Application Support/Nightforge/steam-shutdown.sh"
+            check(CompleteRemoval.runsScript("/bin/bash \(spaced) /wine /prefix 1 0", spaced) && CompleteRemoval.runsScript("bash \(spaced)", spaced),
+                  "the script is bash's first argument, spaces in the path or not")
+            check(!CompleteRemoval.runsScript("less \(spaced)", spaced) && !CompleteRemoval.runsScript("tail -f \(spaced)", spaced)
+                  && !CompleteRemoval.runsScript("/bin/bash -c cat \(spaced)", spaced) && !CompleteRemoval.runsScript("/bin/bash \(spaced)2", spaced),
+                  "less, tail, bash -c and a longer name are not the script")
+        }
+
+        // Saves next to the program, in the game's own folder in the prefix (outside review of deleting, item 1):
+        // the files Steam Cloud's rules and the profile name are copied – not the game.
+        do {
+            let scenario = fixture(root.appendingPathComponent("gamesaves", isDirectory: true))
+            let places = scenario.places
+            let steamapps = places.steam.appendingPathComponent("steamapps", isDirectory: true)
+            write(steamapps.appendingPathComponent("appmanifest_4242.acf"),
+                  "\"AppState\"\n{\n\t\"appid\"\t\t\"4242\"\n\t\"installdir\"\t\t\"Quiet Game\"\n}\n")
+            write(steamapps.appendingPathComponent("appmanifest_999.acf"), "\"AppState\"\n{\n\t\"appid\"\t\t\"999\"\n\t\"installdir\"\t\t\"../Elsewhere\"\n}\n")
+            let game = steamapps.appendingPathComponent("common/Quiet Game", isDirectory: true)
+            write(game.appendingPathComponent("Saves/slot1.sav"), "slot one")
+            write(game.appendingPathComponent("Saves/slot1.png"), "picture")
+            write(game.appendingPathComponent("profile.dat"), "profile")
+            write(game.appendingPathComponent("Quiet Game.exe"), "program")
+            write(game.appendingPathComponent("config.ini"), "settings")
+            write(game.appendingPathComponent("Mods/big.pak"), "mod")
+            write(game.appendingPathComponent("Extra/more.sav"), "from the profile")
+            func rule(_ path: String, _ pattern: String, recursive: Bool = false) -> SaveRule {
+                SaveRule(root: "gameinstall", path: path, pattern: pattern, recursive: recursive, macRoot: nil, macAddPath: "")
+            }
+            // Steam Cloud's rules for it: a folder, files in the folder itself, the whole game (left out), one that climbs out (left out).
+            let catalog: (Int) -> [SaveRule] = { $0 == 4242 ? [rule("Saves", "*.sav"), rule("", "*.dat"), rule("", "*", recursive: true), rule("../x", "*")] : [] }
+            let profile: [Int: [SaveRule]] = [4242: [rule("Extra", "*.sav")]]
+            check(CompleteRemoval.installedGames(places).map(\.appID) == [4242], "the games in the prefix's library, from their manifests (one naming a folder above is none)")
+            let names = Set(CompleteRemoval.saveSources(places, profileRules: profile, catalog: catalog).map(\.name).filter { $0.hasPrefix("Steam games/") })
+            check(names == ["Steam games/Quiet Game/Saves/slot1.sav", "Steam games/Quiet Game/profile.dat", "Steam games/Quiet Game/Extra/more.sav"],
+                  "the saves in the game's folder, by the rules and the profile's: \(names.sorted())")
+            let fixed = Date(timeIntervalSince1970: 1_730_000_000)
+            let first = try? CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog)
+            if let first = first ?? nil {
+                func text(_ name: String) -> String? { try? String(contentsOf: first.appendingPathComponent(name), encoding: .utf8) }
+                check(text("Steam games/Quiet Game/Saves/slot1.sav") == "slot one" && text("Steam games/Quiet Game/profile.dat") == "profile"
+                      && text("Steam games/Quiet Game/Extra/more.sav") == "from the profile", "…and copied")
+                check(!exists(first.appendingPathComponent("Steam games/Quiet Game/Quiet Game.exe"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/config.ini"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/Mods"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/Saves/slot1.png")),
+                      "the game itself isn't")
+                check(first.lastPathComponent.range(of: #"^\d{4}-\d{2}-\d{2}-\d{6}$"#, options: .regularExpression) != nil,
+                      "the folder is named by date and time: \(first.lastPathComponent)")
+
+                // A second removal in the same second: a folder of its own, the first one untouched (item 2).
+                write(game.appendingPathComponent("profile.dat"), "profile 2")
+                let second = (try? CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog)) ?? nil
+                check(second != nil && second != first && second?.lastPathComponent == first.lastPathComponent + "-2",
+                      "the same time again: a second folder, \(second?.lastPathComponent ?? "–")")
+                check(text("Steam games/Quiet Game/profile.dat") == "profile"
+                      && (try? String(contentsOf: second!.appendingPathComponent("Steam games/Quiet Game/profile.dat"), encoding: .utf8)) == "profile 2",
+                      "the first backup is as it was, the second has the newer save")
+
+                // A copy that fails: the folder begun is taken away, the earlier backups stay (item 2).
+                let locked = game.appendingPathComponent("Saves/slot1.sav")
+                try? FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+                let before = ((try? FileManager.default.contentsOfDirectory(atPath: first.deletingLastPathComponent().path)) ?? []).sorted()
+                let failed = works { try CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog) }
+                try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path)
+                let after = ((try? FileManager.default.contentsOfDirectory(atPath: first.deletingLastPathComponent().path)) ?? []).sorted()
+                check(!failed && after == before && text("Steam games/Quiet Game/Saves/slot1.sav") == "slot one",
+                      "a copy that fails throws, leaves no half folder and the earlier backups alone: \(before) → \(after)")
+            } else {
+                check(false, "the saves of the game's folder were copied")
+            }
         }
 
         // The polite way is given its time and no more.
