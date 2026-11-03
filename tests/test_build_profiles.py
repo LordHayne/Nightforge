@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -228,6 +229,35 @@ class FileRuleTests(unittest.TestCase):
         })
         self.assertEqual(problems, ["1: winetricks 'win98' (say windowsVersion)", "2: saves", "3: fileEdits", "4: arguments",
                                     "5: registry", "6: windowsVersion"])
+
+    def test_winetricks_verbs_the_app_wont_run_dont_get_through(self):
+        self.assertFalse(build_profiles.safe_verb("dsound"))
+        self.assertFalse(build_profiles.safe_verb("isolate_home"))
+        self.assertTrue(build_profiles.safe_verb("vcrun2019"))
+        self.assertEqual(build_profiles.mac_problems({"1": {"winetricks": ["dsound", "sandbox", "d3dx9"]}}),
+                         ["1: winetricks 'dsound' (changes every game in the shared prefix)",
+                          "1: winetricks 'sandbox' (changes every game in the shared prefix)"])
+
+    def test_the_lists_are_the_apps(self):
+        """Engine.swift's winetricksCommands, windowsVersionVerbs and sharedPrefixUnsafeVerbs: nothing the app
+        refuses may pass the builder and the workflow (it would be signed and then quietly do nothing). Once the
+        app has the Windows versions too, the lists are the same."""
+        engine = (ROOT / "Sources/Nightforge/Engine.swift").read_text()
+
+        def swift_set(name):
+            found = re.search(r"static let " + name + r": Set<String> = (windowsVersionVerbs\.union\()?\[(.*?)\]", engine, re.S)
+            return (set(re.findall(r'"([a-z0-9_]+)"', found.group(2))), bool(found.group(1))) if found else (None, False)
+
+        commands, _ = swift_set("winetricksCommands")
+        versions, _ = swift_set("windowsVersionVerbs")
+        unsafe, includes_versions = swift_set("sharedPrefixUnsafeVerbs")
+        self.assertEqual(commands, build_profiles.WINETRICKS_COMMANDS)
+        self.assertIsNotNone(unsafe, "Engine.sharedPrefixUnsafeVerbs is where the app keeps them")
+        refused = unsafe | (versions if includes_versions and versions else set())
+        self.assertLessEqual(refused, build_profiles.SHARED_PREFIX_UNSAFE_VERBS, "the app refuses these, the builder must too")
+        if versions is not None:
+            self.assertEqual(versions, build_profiles.WINDOWS_VERSION_VERBS)
+            self.assertEqual(refused, build_profiles.SHARED_PREFIX_UNSAFE_VERBS)
 
     def test_the_builder_refuses_a_mac_json_that_breaks_them(self):
         with tempfile.TemporaryDirectory() as folder:

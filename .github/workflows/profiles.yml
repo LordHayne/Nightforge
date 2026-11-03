@@ -73,7 +73,6 @@ jobs:
           build_profiles = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(build_profiles)
           doc = json.load(open("profiles/profiles.json"))
-          commands = {"annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version"}
           assert doc["formatVersion"] == 1
           assert len(doc["games"]) > 50, "suspiciously few games"
           for app_id, game in doc["games"].items():
@@ -95,10 +94,10 @@ jobs:
               for entry in game.get("registry") or []:
                   assert build_profiles.registry_key_allowed(entry["key"]), (app_id, entry["key"])
                   assert all("\n" not in str(v) and "\r" not in str(v) for v in entry.values()), (app_id, entry)
+              # Plain install verbs the app runs: no winetricks command, no Windows version (a profile says
+              # windowsVersion), nothing else that changes the shared prefix (the builder's list, the app's).
               for verb in game.get("winetricks") or []:
-                  assert re.fullmatch(r"[a-z0-9_]{1,64}", verb) and verb not in commands, (app_id, verb)
-                  # The Windows version for the whole prefix: a profile says windowsVersion instead.
-                  assert verb not in build_profiles.WINDOWS_VERSION_VERBS, (app_id, verb)
+                  assert build_profiles.safe_verb(verb), (app_id, verb)
               # The game's own settings files and saves (review of 3.11.2026): roots from the app's list,
               # paths under them, .ini names that stay names, no edit that grows the file at each start,
               # no save rule that carries a whole AppData folder.

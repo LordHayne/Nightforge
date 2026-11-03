@@ -60,13 +60,6 @@
    ],
    "source": "umu"
   },
-  "6920": {
-   "name": "Deus Ex: Invisible War",
-   "winetricks": [
-    "dsound"
-   ],
-   "source": "umu"
-  },
   "7850": {
    "name": "Cryostasis",
    "winetricks": [
@@ -143,7 +136,6 @@
   "15130": {
    "name": "Beyond Good and Evil",
    "winetricks": [
-    "dsound",
     "d3dx9",
     "arial",
     "d3dcompiler_47"
@@ -478,7 +470,6 @@
     "dmloader",
     "dmsynth",
     "dmusic",
-    "dsound",
     "dswave"
    ],
    "dllOverrides": {
@@ -494,7 +485,6 @@
     "dmloader",
     "dmsynth",
     "dmusic",
-    "dsound",
     "dswave"
    ],
    "dllOverrides": {
@@ -588,7 +578,6 @@
     "dmsynth",
     "dmstyle",
     "dmusic",
-    "dsound",
     "dswave",
     "directplay"
    ],
@@ -939,8 +928,7 @@
   "252430": {
    "name": "Dusty Revenge: Co-Op Edition",
    "winetricks": [
-    "vcrun2010",
-    "dsound"
+    "vcrun2010"
    ],
    "source": "umu"
   },
@@ -1331,14 +1319,6 @@
     "nProtect GameGuard",
     "Easy Anti-Cheat"
    ]
-  },
-  "329380": {
-   "name": "Game fix Stealth Inc 2: A Game of Clones",
-   "winetricks": [
-    "dsound"
-   ],
-   "partial": true,
-   "source": "umu"
   },
   "331810": {
    "name": "Lost Region",
@@ -3568,13 +3548,6 @@
    "antiCheat": [
     "nProtect GameGuard"
    ]
-  },
-  "1346400": {
-   "name": "Battle Engine Aquila",
-   "winetricks": [
-    "dsound"
-   ],
-   "source": "umu"
   },
   "1354980": {
    "name": "Decimated",
@@ -5938,5 +5911,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-02T20:26:15Z"
+ "generated": "2026-11-03T15:39:46Z"
 }
