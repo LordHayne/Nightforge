@@ -727,7 +727,7 @@ final class LibraryModel: ObservableObject {
     /// that showed when the game ended, until Nightforge came back.
     private func stepBack(behind game: Game, _ behavior: AfterLaunch) {
         switch behavior {
-        case .quit: NSApp.terminate(nil)
+        case .quit: Quit.now(by: "the game starting")
         case .hide, .stay: GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
         }
     }

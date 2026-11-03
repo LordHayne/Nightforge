@@ -51,6 +51,7 @@ enum L10n {
         "1 game": "1 Spiel",
         "%ld games": "%ld Spiele",
         "Rescan Library": "Bibliothek neu einlesen",
+        "Quit Nightforge": "Nightforge beenden",
         "Rescan library (⌘R)": "Bibliothek neu einlesen (⌘R)",
         "Rescan library": "Bibliothek neu einlesen",
         "Settings (⌘,)": "Einstellungen (⌘,)",

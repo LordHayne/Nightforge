@@ -37,6 +37,11 @@ struct NightforgeApp: App {
                 Button(L10n.t("Settings …")) { model.openSettings() }
                     .keyboardShortcut(",")
             }
+            // Also with a sheet open, which AppKit's own Quit waits for (Quit).
+            CommandGroup(replacing: .appTermination) {
+                Button(L10n.t("Quit Nightforge")) { Quit.now(by: "the menu") }
+                    .keyboardShortcut("q")
+            }
             // Without a Space of its own: starting a game slides nothing (FullScreen).
             CommandGroup(after: .toolbar) {
                 Button(L10n.t("Full Screen")) { FullScreen.toggle() }
@@ -53,6 +58,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         GameDisplay.follow()
         GameOverlay.resumeLeftovers()
         MacIntegration.setUp(delegate: self)
+        // Quit from the Dock, `osascript … quit`, logging out: in place of AppKit's own handler,
+        // which answered "User canceled" (-128) while a sheet was open (Quit).
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(quitEvent(_:withReplyEvent:)),
+                                                     forEventClass: AEEventClass(kCoreEventClass),
+                                                     andEventID: AEEventID(kAEQuitApplication))
+    }
+
+    @MainActor @objc private func quitEvent(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        guard !Quit.now(by: "an Apple Event") else { return }
+        // Removing itself: the sender hears that nothing happens now, as from AppKit.
+        reply.setParam(NSAppleEventDescriptor(int32: Int32(userCanceledErr)), forKeyword: keyErrorNumber)
+    }
+
+    /// Never a silent no: the one time it waits, Quit says why in wine.log.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard Quit.answer(removing: CompleteRemoval.isRunning) == .wait else { return .terminateNow }
+        GameLog.note("Quit waits: Nightforge is removing itself and quits when that's done")
+        return .terminateCancel
     }
 
     /// Right-click on the Dock icon: the last games played, one click to play.

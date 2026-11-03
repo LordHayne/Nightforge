@@ -126,7 +126,7 @@ enum Updater {
         relaunch.arguments = ["-c", #"for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || break; sleep 0.2; done; /usr/bin/open "$0""#,
                               app.path, String(getpid())]
         try relaunch.run()
-        await MainActor.run { NSApp.terminate(nil) }
+        await MainActor.run { _ = Quit.now(by: "the update") }  // also from the Settings sheet
     }
 
     private static func run(_ tool: String, _ arguments: [String]) -> Bool {
