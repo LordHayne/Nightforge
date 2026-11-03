@@ -3,7 +3,7 @@
      Installationstext. Diese Datei kam mit claude/stable-codesign (Staging f068346) und hat nur den Absatz zur Frage
      nach dem Laufwerk; der steht hier unter „Bekannt“. Erscheint 0.3.1 ohne die feste Signatur, diesen Punkt streichen.
      Nicht erwähnt, weil hinter einem Schalter, der aus ist: Wine-Sandbox, DXVK für DirectX 9 (KosmicKrisp),
-     Unitys „Play!“-Helfer, die Schwärzung im Spieletest. -->
+     die Schwärzung im Spieletest. Unitys „Play!“-Helfer ist seit dem Live-Test vom 3.11. für alle an. -->
 
 ## Deutsch
 
@@ -15,6 +15,7 @@ Nightforge 0.3.1 macht 0.3.0 runder: Mehr Windows-Spiele starten gleich auf dem 
 - **Control** von Epic (und GOG) startet jetzt sein eigenes DirectX-12-Programm über D3DMetal. Bisher startete Epic die DirectX-11-Fassung, und die stürzte gleich ab.
 - **DirectX 11 zuerst:** Spiele, die neben DirectX 11 auch Microsofts DirectX-12-Dateien mitbringen, galten bisher als reine DirectX-12-Spiele und liefen nur über D3DMetal. Jetzt versucht Nightforge zuerst DXMT. Unreal-4-Spiele wie ABZU laufen über DXMT mit DirectX 11, ABZU im Test auf einem M5 mit rund 57 FPS. Ältere Unreal-Spiele wie ABZU gehen jetzt auch im Vollbild in der Auflösung des Bildschirms auf.
 - **D3DMetal für DirectX 11:** Jedes DirectX-11-Spiel probiert D3DMetal jetzt als letzten Weg, und in den Optionen kannst du es selbst wählen.
+- **Unity-Spiele mit eigenem Startfenster starten ohne Klick:** Zeigt ein Spiel vor dem Start Unitys Fenster für Auflösung und Grafik, drückt Nightforge dort selbst „Play!“. So startet The Forest auch nur mit dem Controller.
 - **Epic-Spiele starten mit ihrem Spielprofil**, Sonic Mania zum Beispiel gleich im Vollbild.
 - **Ton und Stabilität:** Ein Zusatz zur Engine mischt 5.1- und 7.1-Ton richtig herunter und behebt einen Fehler, bei dem das Ende eines Threads eine andere Datei des Spiels schließen konnte.
 - **Programm wählen:** Bringt ein Spiel mehrere Programme mit, wählst du in seinen Optionen unter „Programm“, welches startet. Das geht auch bei Steam-Spielen, über Steams eigene Startoptionen.
@@ -59,7 +60,6 @@ Nightforge 0.3.1 macht 0.3.0 runder: Mehr Windows-Spiele starten gleich auf dem 
 ### Bekannt
 - **Nach diesem Update fragt macOS ein letztes Mal nach dem Laufwerk.** Nightforge hat ab 0.3.1 eine feste eigene Signatur, an der macOS die App über Updates hinweg wiedererkennt. Deshalb fragt macOS nach diesem Update **noch einmal** nach dem Zugriff auf ein externes Laufwerk (und, falls du sie erlaubt hattest, nach Bedienungshilfen oder Automation). Bitte erlauben: Danach behält macOS deine Antwort bei jedem weiteren Update.
 - **Overwatch startet noch nicht.** Nightforge sagt das am Spiel mit „Startet noch nicht“.
-- **Unity-Spiele mit eigenem Startfenster:** Manche zeigen vor dem Spiel ein Fenster für Auflösung und Grafik. Dort einmal auf „Play!“ klicken, dann geht es weiter.
 - Spiel-Apps aus 0.3.0 (in „Nightforge Games“) zeigen einmal die Spielseite statt zu starten, wenn ihr erster Klick nach dem Update Nightforge erst öffnet. Eigene Kurzbefehle mit `nightforge://play`-Links zeigen immer die Spielseite.
 - Weiter wie bei 0.3.0: Online-Spiele mit Anti-Cheat laufen in ihrer Windows-Version nur über GeForce Now, DirectX 9 läuft über WineD3D oft langsamer und ohne MetalFX, Anmelden und Suchen brauchen noch eine Tastatur. Rund um den Ladebildschirm kann noch ein kleiner Anzeigefehler auftauchen.
 
@@ -75,6 +75,7 @@ Nightforge 0.3.1 rounds off 0.3.0: more Windows games start the right way straig
 - **Control** from Epic (and GOG) now starts its own DirectX 12 program through D3DMetal. Until now Epic started the DirectX 11 build, which crashed right away.
 - **DirectX 11 first:** games that bring Microsoft's DirectX 12 files along with DirectX 11 used to count as DirectX 12 only and ran through D3DMetal alone. Now Nightforge tries DXMT first. Unreal 4 games like ABZU run through DXMT with DirectX 11; ABZU at around 57 FPS in our test on an M5. Older Unreal games like ABZU now also open full screen at the screen's resolution.
 - **D3DMetal for DirectX 11:** every DirectX 11 game now tries D3DMetal as its last way, and you can pick it yourself in the options.
+- **Unity games with their own start window start without a click:** when a game shows Unity's window for resolution and graphics before it starts, Nightforge presses "Play!" there itself. The Forest now starts with just a controller.
 - **Epic games start with their game profile**, Sonic Mania for one straight in full screen.
 - **Sound and stability:** an addition to the engine mixes 5.1 and 7.1 sound down correctly and fixes a bug where a thread ending could close another file of the game.
 - **Pick the program:** when a game comes with more than one program, its options let you choose under "Program" which one starts. That works for Steam games too, through Steam's own launch options.
@@ -119,6 +120,5 @@ Nightforge 0.3.1 rounds off 0.3.0: more Windows games start the right way straig
 ### Known
 - **After this update macOS asks about your drive one last time.** From 0.3.1 on, Nightforge carries a fixed signature of its own, by which macOS recognises the app across updates. So after this update macOS asks **once more** for access to an external drive (and, if you had allowed them, for Accessibility or Automation). Please allow it: from then on macOS keeps your answer through every update.
 - **Overwatch doesn't start yet.** Nightforge says so on the game with "Doesn't start yet".
-- **Unity games with their own start window:** some show a window for resolution and graphics before the game. Click "Play!" there once and it goes on.
 - Game apps from 0.3.0 (in "Nightforge Games") show the game's page once instead of starting it, when their first click after the update has to open Nightforge first. Your own shortcuts with `nightforge://play` links always show the game's page.
 - Still as in 0.3.0: online games with anti-cheat only run through GeForce Now in their Windows version, DirectX 9 runs through WineD3D, often slower and without MetalFX, and signing in and searching still need a keyboard. A small display glitch can still show up around the loading screen.

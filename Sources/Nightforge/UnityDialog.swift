@@ -7,13 +7,18 @@ import Foundation
 /// game in its Wine session: it presses "Play!" in the game's own window and ends (The Forest,
 /// Unity 5.6, 3.11.2026). The screen it then starts on is the one GameResolution wrote beforehand.
 ///
-/// Behind a switch until the live test: `defaults write io.github.lordhayne.nightforge
-/// unityDialogPlay -bool true` (there's none in the app). A profile's `skipUnityDialog: false` leaves
-/// the window to the player, for a game that asks something there that matters.
+/// On for every player since the live test (3.11.2026: The Forest with the pad alone, "TheForest
+/// Configuration" pressed, the game in full screen). `defaults write io.github.lordhayne.nightforge
+/// unityDialogPlay -bool false` turns it off (there's no switch in the app). A profile's
+/// `skipUnityDialog: false` leaves the window to the player, for a game that asks something there
+/// that matters.
 enum UnityDialog {
     static let switchKey = "unityDialogPlay"
 
-    static var enabled: Bool { UserDefaults.standard.bool(forKey: switchKey) }
+    /// On unless switched off.
+    static var enabled: Bool { enabled(in: .standard) }
+
+    static func enabled(in defaults: UserDefaults) -> Bool { defaults.object(forKey: switchKey) as? Bool ?? true }
 
     /// How long the program looks for the window: Steam may have to start first (with an update, a
     /// minute or two) before the game does.

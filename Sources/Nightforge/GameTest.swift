@@ -22,9 +22,9 @@ enum GameTest {
         static let stop = "gameTest.stop"
         /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
         static let basket = "gameTest.basket"
-        /// The helper that presses "Play!" in Unity's start window is on (UnityDialog's own switch, read
-        /// at every start): the run gives it time before it calls the window one that needs a click.
-        /// Whether it runs for a game says UnityDialog.programs.
+        /// The helper that presses "Play!" in Unity's start window is on (UnityDialog's own switch, on
+        /// unless set to false, read at every start – `UnityDialog.enabled`): the run gives it time before
+        /// it calls the window one that needs a click. Whether it runs for a game says UnityDialog.programs.
         static let unityDialogPlay = UnityDialog.switchKey
     }
 
