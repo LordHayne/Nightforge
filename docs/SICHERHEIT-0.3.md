@@ -237,29 +237,12 @@ aber nicht signieren.
   bauen `scripts/signing-tool.swift` aus genau diesen Dateien und prüfen deshalb dasselbe wie die App. Tests:
   `tests/SignatureTest` und `tests/test_signing_scripts.py` (Schlüsselbund, Zwischenablage und GitHub sind dort Attrappen).
 
-### Einmal, von dir selbst
+**Schritt für Schritt** (Schlüssel, erstes Release, Nacht-Listen, Schlüsselverlust): `docs/SIGNIEREN.md`. Hier
+stehen die Gründe und die Einzelheiten.
 
-1. Im Terminal, im Nightforge-Ordner: `scripts/make-signing-keys.sh`
-   - Der Hauptschlüssel kommt in den Schlüsselbund. macOS fragt einmal nach deinem Passwort: **Erlauben** klicken,
-     nicht „Immer erlauben“. So fragt macOS bei jedem Signieren, und kein Programm liest den Schlüssel unbemerkt.
-   - Der Ersatzschlüssel kommt in die Zwischenablage. Du fügst ihn in deinen Passwort-Manager ein, als Eintrag
-     „Nightforge spare key“, und kopierst ihn zur Probe einmal zurück. Danach ist die Zwischenablage leer. Lieber auf
-     einen USB-Stick? Dann `scripts/make-signing-keys.sh --spare-file /Volumes/<Stick>/nightforge-spare.txt`.
-   - Keiner der Schlüssel erscheint auf dem Bildschirm, in einer Datei des Repos oder in einer Befehlszeile.
-2. Das Skript schreibt die öffentlichen Schlüssel in `SigningKeys.swift`. Diese Datei wird committet (das macht die
-   Session für dich), sie enthält nichts Geheimes.
-3. Sobald Schlüssel und Code auf `main` sind, die Listen dort einmal signieren: `scripts/sign-lists.sh main`.
-
-### Einen Release machen
-
-1. Wie bisher: Version und Notizen auf `main`, dann den Tag pushen (`v0.3.1`).
-2. `release.yml` baut die App und legt einen **Entwurf** mit ZIP und DMG an. Der Workflow bricht ab, wenn
-   `SigningKeys.swift` keine zwei Schlüssel hat.
-3. Auf deinem Mac: `scripts/sign-release.sh v0.3.1 --publish`. Das Skript lädt das ZIP aus dem Entwurf und prüft, dass
-   die App darin diese Version ist und beide Schlüssel kennt (sonst käme ihr nächstes Update nie an). Dann signiert es
-   (Passwortabfrage: Erlauben), lädt `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne `--publish` bleibt es beim
-   Entwurf, und das Skript zeigt den Befehl zum Veröffentlichen. Mit „Immutable Releases“ lässt sich danach nichts
-   mehr anhängen. Hat ein Release die Signatur vergessen, braucht es einen neuen Tag.
+Kurz: Der Hauptschlüssel liegt im Schlüsselbund und fragt bei jedem Signieren nach dem Passwort, der Ersatz liegt
+offline. `release.yml` legt nur einen Entwurf an, `scripts/sign-release.sh` signiert und veröffentlicht. Die
+öffentlichen Schlüssel stehen einzig in `SigningKeys.swift`.
 
 ### Die Nacht-Listen
 
@@ -333,14 +316,10 @@ bieten ihn an, kein Spieler sieht ihn. Nur ein Mac, auf dem `UpdateTestRelease` 
 
 ### Wenn ein Schlüssel verloren geht
 
-- **Hauptschlüssel weg** (Mac kaputt) **oder verdächtig:** `scripts/make-signing-keys.sh --replace main`. Den Ersatz
-  aus dem Passwort-Manager in die Zwischenablage kopieren. Die nächsten Releases und Listen zweimal signieren: erst
-  normal, dann `--spare --add` (die `.sig` hat dann zwei Zeilen). Ältere Apps kennen nur den alten Haupt- und den
-  Ersatzschlüssel und nehmen die Ersatz-Signatur, neue Apps die neue Haupt-Signatur.
-- **Ersatzschlüssel verdächtig:** `scripts/make-signing-keys.sh --replace spare`, mit dem nächsten Release ausliefern.
-  Den alten Eintrag im Passwort-Manager erst danach löschen.
-- **Beide weg:** Kein Update erreicht die installierten Apps mehr. Neue Schlüssel und ein Hinweis auf den Einzeiler,
-  der die App neu installiert.
+Die Schritte stehen in `docs/SIGNIEREN.md` › 8. Der Grund für das doppelte Signieren nach einem neuen
+Hauptschlüssel: Die installierten Apps kennen nur den alten Haupt- und den Ersatzschlüssel und nehmen die
+Ersatz-Signatur. Apps mit dem neuen Release nehmen die neue Haupt-Signatur. Sind beide Schlüssel weg, erreicht kein
+Update die installierten Apps mehr, dann hilft nur die Neuinstallation per Einzeiler.
 
 ### Was bleibt
 
