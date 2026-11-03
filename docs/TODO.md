@@ -317,8 +317,13 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   sobald Steam wieder so hängt. Ursache des Hängers selbst offen (letzte Zeile: `SlowJSMethodCall Messaging.PostMessage`).
 - **„Zuletzt gespielt: gerade eben“ direkt nach dem Hinzufügen** (1.11., Wukong-Benchmark über „Kostenlos
   hinzufügen“): Steam setzt `LastPlayed` in `localconfig.vdf` schon beim Installieren auf jetzt (21:34:25, noch
-  während des Downloads). Nightforge zeigt das an und reiht das Spiel bei „Weiterspielen“ ein. Kandidat: ein
-  `LastPlayed` aus der Zeit des Installierens ohne gestiegene Spielzeit nicht als gespielt zählen.
+  während des Downloads). Nightforge zeigt das an und reiht das Spiel bei „Weiterspielen“ ein. Gebaut am 3.11.
+  auf `claude/small-fixes-1a4e06` (von 29e458a), nur mit Tests geprüft: Ohne Spielzeit zählt ein `LastPlayed`
+  nicht als gespielt, wenn es von vor dem Ende des Downloads stammt (`LastUpdated` im appmanifest, beim
+  Benchmark 21:40:28) oder das Spiel noch gar nicht installiert ist (`LibraryScanner.played`). Ein kurzes
+  Spielen danach liegt später und zählt auch mit 0 Minuten; mit Spielzeit zählt es immer. Live: ein kostenloses
+  Spiel über „Kostenlos hinzufügen“ laden: während und nach dem Download „Noch nie gespielt“, nicht bei
+  „Weiterspielen“; einmal kurz starten und beenden: „Zuletzt gespielt: gerade eben“.
 - **steam-shutdown.sh** hält jeden Prozess unter `\steamapps\common\` für ein Spiel, auch in
   Test-Prefixen, und holt Nightforge dann nach vorne.
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
