@@ -1,8 +1,9 @@
 import Foundation
 
 /// The shaders translated for this Mac: Steam's caches in each Windows library (DXVK state, Vulkan
-/// pipelines), DXMT's own, and the Metal caches macOS keeps for games under Wine (D3DMetal,
-/// MoltenVK). All of it rebuilds itself – the next start of each game just takes longer.
+/// pipelines), DXMT's and KosmicKrisp's own, and the Metal caches macOS keeps for games under Wine
+/// (D3DMetal, MoltenVK, KosmicKrisp). All of it rebuilds itself – the next start of each game just
+/// takes longer.
 enum ShaderCaches {
     /// Processes whose Metal caches are the games': the Game Mode bundle and Wine's loaders.
     static let bundleIDs = ["io.github.lordhayne.nightforge.game", "org.winehq.wine", "com.codeweavers.CrossOver.wineloader"]
@@ -18,8 +19,9 @@ enum ShaderCaches {
     /// Folders whose contents can go; only the ones there.
     static func folders(steamapps: [URL],
                         dxmt: URL = Engine.shaderCache,
+                        mesa: URL = Engine.mesaShaderCache,
                         userCache: URL? = darwinUserCache) -> [URL] {
-        var folders = steamapps.map { $0.appendingPathComponent("shadercache", isDirectory: true) } + [dxmt]
+        var folders = steamapps.map { $0.appendingPathComponent("shadercache", isDirectory: true) } + [dxmt, mesa]
         if let userCache {
             for id in bundleIDs {
                 folders += metalFolders.map { userCache.appendingPathComponent("\(id)/\($0)", isDirectory: true) }

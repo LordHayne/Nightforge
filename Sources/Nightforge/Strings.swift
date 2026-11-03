@@ -619,6 +619,8 @@ enum L10n {
         "DirectX 10 and 11 on Metal": "DirectX 10 und 11 auf Metal",
         "DirectX 9 to 11 on Vulkan": "DirectX 9 bis 11 auf Vulkan",
         "Vulkan on Metal": "Vulkan auf Metal",
+        "DirectX 9 on Vulkan, with KosmicKrisp": "DirectX 9 auf Vulkan, mit KosmicKrisp",
+        "Vulkan on Metal, for DirectX 9 games": "Vulkan auf Metal, für DirectX-9-Spiele",
         "Installs what games need from Windows": "Installiert, was Spiele von Windows brauchen",
         "Unpacks Windows installers": "Entpackt Windows-Installer",
         "Tool": "Werkzeug",

@@ -34,6 +34,9 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - **Nach 0.3.0** (Nutzer, 31.10.): Mafia II flüssig und ohne Knacken. Ursache ist OpenGL im WoW64 für 32-Bit-Spiele
     (zwei bis drei volle CPU-Threads). APEX, DirectSound, Schatten, Geometrie und AO helfen nicht. Der Weg ist DXVK
     auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
+    Gebaut und mit einem Testprogramm belegt (Zweig `claude/quirky-clarke-81fd65`, siehe „Vulkan-Layer und winecx“ ›
+    KosmicKrisp). Offen: Live-Test mit Mafia II, L4D2 und einem dritten DX9-Spiel, danach die Profile; zum Ausliefern
+    `kosmickrisp.yml` auf `main` laufen lassen. Plan dort unter „Live-Test“ (Stand 3.11., nach dem Rebase auf 29e458a).
   - Landingpage und README.
   - **Kleine Anzeigefehler kommen in späteren Releases** (Nutzer, 1.11. abends: „diese kleinen anzeige bugs …
     können wir in weiteren releases dann auch beheben. der grundstein ist gelegt“). Damit gemeint sind:
@@ -203,7 +206,8 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   geht). Mit KosmicKrisp (Branch `claude/quirky-clarke-81fd65`) kommt DXVK für D3D9 zurück auf die Leiter. DXVKs Fehlerzeilen
   zählen nur noch für einen Start auf DXVK (`GameLog.graphicsFailed(…, layer:)`) – das Log ist geteilt.
   Der Ausweg ist KosmicKrisp (unten bei „Vulkan-Layer und winecx“): Er meldet `shaderCullDistance` schon lange und
-  `geometryShader` seit Mesa 14f59d06 (29.10.2026).
+  `geometryShader` seit Mesa 14f59d06 (29.10.2026). Seit dem Zweig `claude/quirky-clarke-81fd65` ist die Leiter mit den
+  Komponenten `kosmickrisp` und `dxvk` „DXVK, WineD3D“, und DXVKs Direct3D 9 läuft dann über KosmicKrisp.
   Die D3D9-Leiter in `LaunchHealth.attempts` fragt das Profil nicht. Ein Profil mit `graphics` ändert für D3D9-Spiele nur
   „Am verträglichsten“ (`ladder`). Für Mafia II reicht das, weil winecx ohnehin mit WineD3D beginnt.
 - **Andere Source-Spiele** (Team Fortress 2, Garry's Mod): Sie bekommen jetzt dieselbe DirectX-9-Leiter wie L4D2.
@@ -2268,20 +2272,139 @@ wird angepasst.
   und MetalFX. Ansatz: den Khronos-Loader (aus der Gcenx-Engine oder MoltenVK-Release) in die winecx-Engine legen und
   winevulkan auf ihn lenken (Name `libMoltenVK.dylib` → Loader, MoltenVK per ICD-JSON), dabei die „MoltenVK-ICD-Falle“
   aus den Game-Mode-Notizen beachten. Erst danach lässt sich PR #13 im Spiel prüfen.
-- **KosmicKrisp** (LunarGs Vulkan-Treiber auf Metal, 28.10. getestet): Als x86_64 gebaut nach dem Rezept aus
-  dappermint/winecx-gptk PR #12 (`shadexternals/mesa-kosmickrisp`, Mesa 063dfae + Patches für `fillModeNonSolid` und das
-  Speicherbudget, Khronos-Loader 32fcb94; Homebrew `llvm`, `spirv-llvm-translator`, `spirv-tools`). winecx lädt ihn ohne
-  Änderung: `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, `CX_LIBVULKAN=<libvulkan.1.dylib>`, `VK_DRIVER_FILES=<icd.json>`.
-  Mit Unreal 5.7 (The Last Caretaker Demo) aber noch nicht nutzbar: vkd3d-proton 3.1 bricht ab („Lacking support for
-  transform feedback“), DXVK 3.1.1 kann keine geteilten Ressourcen anlegen (`VK_KHR_external_memory_win32` fehlt) und das
-  Spiel stürzt ab. Nächster Versuch: DXVK mit einem Patch, der geteilte Ressourcen ungeteilt anlegt, und ein Spiel ohne
-  geteilte Texturen (DirectX 9–11). Nicht als Komponente ausgeliefert; Bau braucht Netz und LLVM (~2 GB).
-  Neu seit 29.10.2026 in Mesa main: Geometry-Shader über „poly“ (9a40f0c6, 5c145789, 531e208d, 14f59d06 „kk: Advertise
-  geometryShader“, MR 44786). `shaderCullDistance`, Tessellation und robustness2 waren schon da. Damit bekäme DXVKs
-  Direct3D 9 sein Gerät, also Mafia II, Left 4 Dead 2 und die Source-Spiele. Unser Bau vom 28.10. (063dfae) ist älter,
-  der nächste muss ≥ 14f59d06 sein. steamac (fxgl/steamac, `host/kosmickrisp/patches`) trägt dieselben vier als 0001–0004
-  und dazu Transform Feedback in der GS-Emulation (0010–0014), was vkd3d-proton fehlte. steamac nutzt KosmicKrisp aber
-  arm64 auf dem Host über Venus. Wir brauchen x86_64 unter winecx, gebaut in CI.
+- **KosmicKrisp für DXVKs Direct3D 9** (Session kosmickrisp-dx9, Zweig `claude/quirky-clarke-81fd65`, 31.10.):
+  - Bau: `scripts/build-kosmickrisp.sh <Arbeitsordner> [Ausgabe]` baut Mesa main 44989e5a (enthält 14f59d06) mit zwei
+    Patches aus dappermint/winecx-gptk (`fillModeNonSolid`, Speicherbudget unter Rosetta) und den Khronos-Loader v1.4.367
+    für x86_64. Pins und Patches in `scripts/kosmickrisp/`. Dauert ~2 Min., zieht Python-Pakete in ein eigenes venv.
+    Ergebnis: `nightforge-kosmickrisp-27.0.0-devel-44989e5a.tar.gz`, nur System-Bibliotheken, zlib vom System.
+    Den Bau von fremdem Code verweigert der Auto-Modus; der Nutzer hat ihn im Terminal gestartet.
+  - Beleg: `tests/kosmickrisp/probe-d3d9.sh` mit `d3d9probe.c` im eigenen Prefix unter winecx 4.7.3. DXVK 3.1.1 legt auf
+    KosmicKrisp ein Gerät an und zeichnet richtig, 32 und 64 Bit, auch durchs „Nightforge Game“-Bundle. Dort findet der
+    Khronos-Loader Nightforges Vulkan-Layer, der dann die Bildrate loggt (LaunchHealth bekommt echte Belege). DXVK-macOS
+    1.10.3 zeichnet dort auch. Gegenprobe auf MoltenVK: 1.10.3 lehnt das 5. und 39. Feature ab, 3.1.1 meldet
+    „required feature 'geometryShader'“.
+  - 32-Bit-Spiele (Mafia II, L4D2) laufen im neuen WoW64, und dort braucht winevulkan `VK_EXT_map_memory_placed`. Mit
+    `WINEDEBUG=+vulkan` ist das in der 32-Bit-Probe belegt: „Using placed map with alignment 4096“, dann „Using placed
+    mapping 0x1b80000“. Die Adresse liegt unter 4 GB, und das zurückgelesene Bild stimmt. Die Warnung „Extension
+    VK_EXT_map_memory_placed is not supported“ gilt nur für DXVKs eigene Anfrage, Wine behält die Erweiterung für sich.
+    Im 64-Bit-Lauf steht dieselbe Warnung.
+  - In winecx 4.7.3 liest nur `win32u.so` die CX-Variablen: `vulkan_init_once` lädt `CX_LIBVULKAN` statt MoltenVK, wenn
+    `CX_ACTIVE_GRAPHICS_BACKEND` „wined3d“ ist. Sonst ändert der Wert nur eine Adapter-Abfrage, die für „d3dmetal“
+    antwortet, und den setzt Nightforge nie.
+  - Eingebaut: Komponenten `kosmickrisp` (eigener Release, `.github/workflows/kosmickrisp.yml`, nur vorbereitet) und
+    `dxvk` (Upstream 3.1.1, dessen d3d9 unter winecx an die Stelle von DXVK-macOS' tritt). `Engine.vulkanDriver` wählt
+    pro Start: KosmicKrisp für DXVKs Direct3D 9, MoltenVK für DXVKs DirectX 10/11 und Vulkan-Spiele. Spiele ohne Vulkan
+    lassen Steams Umgebung, wie sie ist (kein Neustart beim Wechsel zu einem DXMT-Spiel). `d3d9.maxFrameRate` steht jetzt
+    neben `dxgi.maxFrameRate` in `dxvk.conf`. In `components.yml` bleibt `kosmickrisp` draußen, bis es einen Release
+    hat (`optional`).
+  - Mit DirectX 11 und Unreal 5.7 (Caretaker-Demo, 28.10. mit Mesa 063dfae) bleibt es unbrauchbar: vkd3d-proton 3.1
+    fehlt Transform Feedback, DXVK 3.1.1 fehlt `VK_KHR_external_memory_win32` für geteilte Ressourcen. Auch Mesa
+    44989e5a bietet `VK_EXT_transform_feedback` noch nicht an (nur die Eigenschaften stehen schon da). steamac
+    (fxgl/steamac, `host/kosmickrisp/patches` 0010–0014) trägt es in der GS-Emulation.
+  - Live-Test Mafia II (GOG) am 1.11., 00:17–00:24, am gespiegelten TV (DENON-AVR, 1920×1080):
+    - Automatisch startete auf DXVK, scheiterte aber am Vollbild („EnterFullscreenMode: Failed to change display mode“).
+      DXVK meldete dem Spiel die Retina-Größe des eingebauten Displays. LaunchHealth ging zu WineD3D. Das Thema hat
+      die TV-Session.
+    - Mit 1920×1080 in `videoconfig.cfg` und DXVK von Hand lief es auf KosmicKrisp (`lsof` sah es, der Layer loggte FPS).
+      Mal 54–60 FPS, mal 7–17 FPS, einzelne Stopps bis 8,3 s. CPU 130–370 % statt 230–440 %, ein Thread bei 92–100 %.
+      Der Nutzer: „Anfang lief echt gut, dann wieder Ruckler“. Echo und Knacken im Ton blieben. Die GPU-Last schwankt
+      und erreicht nie 100 %: Die CPU bremst.
+    - Das Echo kam mit DXVK und auch beim WineD3D-Rückfall, im Testbau `testcheck` (21:13, 23:00) war es weg. Mein
+      Zweig ändert für einen WineD3D-Start eines GOG-Spiels nichts: Seit 9becef2 berührt kein Commit den Ton, und
+      `vulkanDriver` gibt für WineD3D keine Variable mit. Anders war das Gerät: um 00:17 der DENON-AVR, vorher die
+      MacBook-Lautsprecher. Wine meldet den DENON laut Prefix-Registry (`MMDevices\Audio\Render\{E01B03C4-…}`,
+      DeviceFormat) mit 8 Kanälen, 48 kHz, Float und Kanalmaske 0xFF. Das ist Windows' altes „7.1 wide“ mit vorne
+      links und rechts von der Mitte statt seitlich, HDMI-7.1 wäre 0x63F. Die MacBook-Lautsprecher: 2 Kanäle, Maske 0x3.
+      FMOD übernimmt die Lautsprecher daraus (`getDriverCaps`, `setSpeakerMode`) und mischt dann für 7.1. Kanäle an der
+      falschen Stelle und der Abgleich im AVR können wie Hall klingen. Belegt ist das nicht. Test: dieselbe Stelle mit
+      der installierten Nightforge (WineD3D) einmal über den DENON und einmal über die MacBook-Lautsprecher. Hängt das
+      Echo am DENON, gibt es zwei Wege: in „Audio-MIDI-Setup“ für den DENON 2 Kanäle einstellen (Gegenprobe), oder
+      Nightforge meldet Spielen am Fernseher Stereo bzw. echtes 7.1.
+    - Nachgeprüft (1.11.):
+      - winecx 4.7.3 ist Wine 11.17 (`ntdll.so`). Drin sind der Center/LFE-Fix aus 11.0 (7d1fd7ba, „Couldn't set
+        channel layout“) und der Knackfix für die Puffergröße aus 11.16 (07c7fcc8, „Failed to set device buffer frame
+        size“). Es fehlen der SpatialMixer-Downmix aus 11.21 (0c61795b) und dessen mmdevapi-Nachtrag (8891603b).
+      - macOS hat für den DENON keine Lautsprecheranordnung gespeichert. In `/Library/Preferences/Audio/
+        com.apple.audio.DeviceSettings.plist` stehen nur Lautstärken (EDID-Kennung `11EE…` = „DON“). Wine kann das
+        Layout deshalb nicht lesen, schätzt es aus 8 Kanälen als „7.1 wide“ und meldet Maske 0xFF.
+      - Für den Vergleich in Audio-MIDI-Setup › DENON-AVR nacheinander testen:
+        a) wie jetzt;
+        b) „Format“ auf 2 Kanäle, 48 kHz;
+        c) „Lautsprecher konfigurieren“ › „7.1 Rear Surround“, wie Apple für Heimkino empfiehlt. Wines Label-Tabelle
+           kennt „Rear Surround“ allerdings nicht, das kann also wieder auf 0xFF fallen.
+
+        Jeweils Mafia neu starten. Was Wine gemeldet hat, steht danach in `system.reg` unter `"DENON-AVR"`, Eigenschaft
+        `{E4870E26-…},3`: Byte 3 = Kanäle, Bytes 21–24 = Maske.
+    - Welcher Thread voll läuft, sagt der nächste Lauf: `tests/kosmickrisp/thread-cpu.py <pid> 5 [sample.txt]` liest
+      die CPU-Zeit pro Thread mit Namen (DXVKs heißen `dxvk-cs`, `dxvk-submit` …, die des Spiels haben keinen), `sample`
+      dazu die Module. In Frage kommen Mafias Hauptthread (Spiel und DXVKs D3D9-Seite, 32-Bit-Code unter Rosetta) und
+      `dxvk-cs` (übersetzt Pipelines beim Zeichnen).
+  - Warum es ruckelt, aus Quelltext und Caches gelesen:
+    - KosmicKrisp bietet keine Graphics Pipeline Library an, nur die Eigenschaften stehen da. DXVK 3 übersetzt dann
+      jede Pipeline beim ersten Zeichnen. `dxvk.numCompilerThreads` hilft dabei nicht, `d3d9.maxFrameLatency` und
+      `dxvk.latencySleep` glätten nur das Takten.
+    - DXVK 3 hat keinen eigenen Pipeline-Cache mehr (seit 2.0). KosmicKrisp legt keinen Mesa-Cache an: Es gibt den
+      Shader samt MSL zwar serialisiert (`kk_shader_ops`), ruft aber nie `disk_cache_create` auf. Ein Patch dafür liegt
+      ungebaut in `scripts/kosmickrisp/proposed/` (`EXTRA_PATCHES=scripts/kosmickrisp/proposed` baut ihn mit).
+      Nightforge setzt `MESA_SHADER_CACHE_DIR` schon auf `~/Library/Caches/Nightforge/mesa`.
+    - Metal hebt fertig übersetzte Bibliotheken pro App auf: für das Game-Bundle 9,4 MB, geschrieben während des
+      Laufs. Ein zweiter Start spart Metals Übersetzung, nicht aber KosmicKrisps NIR→MSL und DXVKs SPIR-V.
+    - Nächster Versuch: DXVK-macOS 1.10.3-async auf KosmicKrisp (zeichnet dort, Probe). Es übersetzt Pipelines im
+      Hintergrund, statt zu warten, und legt einen State-Cache an, der beim nächsten Start vorübersetzt.
+      `DXVK_ASYNC=1` und `dxvk.enableAsync` setzt Nightforge schon. Später ginge dasselbe mit dxvk-gplasync auf neuem DXVK.
+    - Ein arm64-KosmicKrisp hinter dem x86_64-Loader geht nicht. Ein Prozess unter Rosetta ist ganz x86_64, er kann
+      keine arm64-Bibliothek laden. Es bliebe Vulkan über einen zweiten Prozess (wie Venus bei steamac): viel Arbeit
+      und Kosten pro Aufruf. Metals eigener Compiler läuft ohnehin nativ im MTLCompilerService.
+  - Folgepunkte:
+    - MetalFX fehlt auf KosmicKrisp: Der Layer skaliert nur mit `VK_EXT_metal_objects`, das KosmicKrisp nicht hat.
+      `GraphicsLayer.dxvk.upscales` sagt trotzdem ja.
+    - Direct3D 8 (`.legacy`) läuft auf derselben Leiter weiter über Wines d3d8. DXVK 3.1.1 bringt ein `d3d8.dll` mit.
+    - DXVK meldet den Apple-Chip als „AMD Radeon RX 6700 XT“. Mafia II stuft eine unbekannte AMD-Karte als Klasse 3 ein
+      (NVIDIA: 13), mögliche niedrigere Startwerte.
+    - Läuft schon ein anderes Windows-Spiel, startet Steam für KosmicKrisp nicht neu. DXVK findet dann kein Gerät, und
+      LaunchHealth geht zu WineD3D weiter, obwohl der Weg ginge.
+    - Ohne `VK_EXT_graphics_pipeline_library` kompiliert DXVK Pipelines beim Zeichnen. Das gibt Ruckler beim ersten
+      Mal (dappermint: Portal min. 27 bei Ø 72 FPS).
+    - Die beiden Patches gehören nach Mesa. Bei jedem neuen Pin prüfen, ob sie noch nötig sind.
+  - **Stand 3.11.: Rebase auf `claude/ux-roadmap-next` 29e458a** (mit display-polish, Engine-Stücken A/B/C, Spieletest,
+    compat-db). So sind die Konflikte gelöst:
+    - LaunchHealth:
+      - Ohne Vulkan-Layer und ohne KosmicKrisp ist die D3D9-Leiter nur „WineD3D“ (Stand 1.11.). Mit KosmicKrisp ist
+        sie „DXVK, WineD3D“.
+      - Die Leiter mit Quellen-Hinweis (AGW) gibt `kosmicKrisp` weiter. Für D3D9 gibt es keine Hinweise.
+      - `saved(_:for:)` behält nur Leitern, die hinten gewachsen sind. Ein D3D9-Spiel, das „WineD3D“ bestätigt hat,
+        fängt mit KosmicKrisp also neu an, mit DXVK.
+      - Das Mafia-II-Profil (`graphics: wined3d`) ändert bei Automatisch nichts, die D3D9-Leiter fragt das Profil nicht.
+    - GameLog: DXVKs Fehlerzeilen zählen nur für einen Start auf DXVK, so wie es die Base vorsieht. „No adapters found“
+      und „Failed to create Vulkan device“ kommen als Zeichen dazu.
+    - Engine: Der Build hat das Engine-Fix und D3DMetal als eigenen Parameter, dazu `kosmickrisp` und `dxvk`.
+    - Komponenten: Das `optional` der Base (für D3DMetal und enginefix) trägt auch `kosmickrisp`. `dxvk` (Upstream)
+      ist jetzt `propose`: Neuere Releases kommen als Pull Request.
+    - Getestet nach dem Rebase: LaunchHealth, EngineLayout, ShaderCaches, ProfileFiles, Strings und pytest (63).
+      EngineRollbackTest mit echter Prozessliste (`prefixSwitch()` über `engineForStart`, dort steckt auch der
+      D3D9-Teil dieses Zweigs) lief am 3.11. nach dem ps-Hänger grün.
+  - **Mit `claude/staging-031`** gibt es drei Konflikte, bei 285dd99 und schon bei b2ee5e5 (`git merge-tree`):
+    - `Engine.prepareLaunchEnvironment` braucht `environment` und `vulkan`.
+    - `engineForStart` und `useHeld` brauchen den D3D9-Ordner, auch für gehaltene Builds.
+    - In `LibraryModel` kommen `programChanged` und der Vulkan-Treiber zusammen.
+    - Die Lösung ist ausprobiert und typgeprüft: `kosmickrisp-staging-merge.diff` in den Session-Notizen.
+    - Dabei aufgefallen: `CX_ACTIVE_GRAPHICS_BACKEND` ist auf Staging ein Schalter, den ein Spiel setzen darf
+      (`GameEnvironment`). Auf MoltenVK bleibt der Wert des Spiels stehen. KosmicKrisp braucht „wined3d“ und setzt es.
+  - **Live-Test** (nach dem Neustart des Macs; Anleitung `kosmickrisp-dx9.md` in den Session-Notizen):
+    1. Komponenten bereitstellen: `tests/kosmickrisp/stage-live-test.sh` mit einem Testbau, der
+       `NightforgeManifestURL ""` hat. Am Ende `--undo`.
+    2. Mafia II (GOG), Grafik Automatisch, am MacBook-Display (das Vollbild am Fernseher ist eine eigene Baustelle).
+       Erwartet:
+       - DXVK auf KosmicKrisp: In `wine.log` steht das Gerät „KosmicKrisp“, und der Layer loggt FPS.
+       - Kein Rückfall auf WineD3D.
+       - Ruckler beim ersten Durchgang sind ohne Graphics Pipeline Library zu erwarten.
+       - `tests/kosmickrisp/thread-cpu.py <pid> 5` zeigt, welcher Thread voll läuft.
+    3. Left 4 Dead 2 (Steam): dasselbe. Auf WineD3D stürzte es nach etwa einer Minute ab.
+    4. Ein drittes DX9-Spiel, etwa Portal, Team Fortress 2 oder Garry's Mod.
+    5. Gegenprobe nach `--undo`: D3D9-Spiele starten nur mit WineD3D, ohne DXVK-Versuch.
+    6. Ruckelt Mafia II stark: A/B mit DXVK-macOS 1.10.3-async auf KosmicKrisp (zeichnet laut Probe).
+    7. Danach die Profile (50130, gog.1816059595, 550) auf `graphics: dxvk` stellen. Zum Ausliefern muss
+       `kosmickrisp.yml` auf `main` laufen; das braucht das OK des Nutzers.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit

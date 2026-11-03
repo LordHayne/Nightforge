@@ -1058,8 +1058,10 @@ private struct AboutSettings: View {
         case "winecx": return "Wine (CrossOver)"
         case "d3dmetal": return "D3DMetal"
         case "dxmt": return "DXMT"
-        case "dxvk-macos": return "DXVK"
+        case "dxvk-macos": return "DXVK-macOS"
+        case "dxvk": return "DXVK"
         case "moltenvk": return "MoltenVK"
+        case "kosmickrisp": return "KosmicKrisp (Mesa)"
         case "winetricks": return "winetricks"
         case "cabextract": return "cabextract"
         case "gamepad": return L10n.t("Wine with controller support")
@@ -1074,7 +1076,9 @@ private struct AboutSettings: View {
         case "d3dmetal": return L10n.t("DirectX 12 on Metal (Apple)")
         case "dxmt": return L10n.t("DirectX 10 and 11 on Metal")
         case "dxvk-macos": return L10n.t("DirectX 9 to 11 on Vulkan")
+        case "dxvk": return L10n.t("DirectX 9 on Vulkan, with KosmicKrisp")
         case "moltenvk": return L10n.t("Vulkan on Metal")
+        case "kosmickrisp": return L10n.t("Vulkan on Metal, for DirectX 9 games")
         case "winetricks": return L10n.t("Installs what games need from Windows")
         case "cabextract": return L10n.t("Unpacks Windows installers")
         default:

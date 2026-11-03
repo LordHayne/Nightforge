@@ -149,8 +149,9 @@ enum GameLog {
     }
 
     /// Whether the Direct3D layer gave up since `mark`: DXVK couldn't create its device or its
-    /// buffers on MoltenVK. The game then shows its own error box ("Failed to create D3D device")
-    /// and stays open, so running past its first seconds doesn't mean it started.
+    /// buffers on MoltenVK, or found no Vulkan device it can use (upstream DXVK, KosmicKrisp not
+    /// loaded). The game then shows its own error box ("Failed to create D3D device") and stays
+    /// open, so running past its first seconds doesn't mean it started.
     static func graphicsFailed(since mark: UInt64, layer: GraphicsLayer) -> Bool {
         graphicsFailed(in: text(since: mark), layer: layer)
     }
@@ -163,7 +164,8 @@ enum GameLog {
     }
 
     static func graphicsFailed(in text: String) -> Bool {
-        let signs = ["dxvkadapter: failed to create device", "dxvkbuffer: failed to create buffer"]
+        let signs = ["dxvkadapter: failed to create device", "dxvkbuffer: failed to create buffer",
+                     "dxvk: no adapters found", "failed to create vulkan device"]
         let lower = text.lowercased()
         return signs.contains { lower.contains($0) }
     }

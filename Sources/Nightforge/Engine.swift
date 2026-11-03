@@ -37,6 +37,13 @@ enum Engine {
     static let dxvkID = "dxvk-macos"
     /// Vulkan → Metal for DXVK and Vulkan games, newer than the copy the engine brings along.
     static let moltenVKID = "moltenvk"
+    /// KosmicKrisp, Mesa's Vulkan driver on Metal, with the Khronos loader (scripts/build-kosmickrisp.sh):
+    /// under winecx DXVK's Direct3D 9 draws through it instead of MoltenVK, which lacks the geometry
+    /// shaders and cull distances DXVK needs for it (Mafia II, Left 4 Dead 2: no device on MoltenVK).
+    static let kosmicKrispID = "kosmickrisp"
+    /// Upstream DXVK, whose Direct3D 9 goes with KosmicKrisp: it needs Vulkan 1.3 and geometry shaders,
+    /// so it never runs on MoltenVK. DXVK-macOS (`dxvkID`) stays for DirectX 10/11.
+    static let dxvkUpstreamID = "dxvk"
     static let steamSetupURL = URL(string: "https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe")!
     static let steamExeWindowsPath = #"C:\Program Files (x86)\Steam\steam.exe"#
     /// Steam's web UI (CEF) paints a black window under Wine on macOS unless it renders in software
@@ -86,6 +93,12 @@ enum Engine {
     static var shaderCache: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge/dxmt", isDirectory: true)
+    }
+
+    /// Where Mesa keeps KosmicKrisp's translated shaders (MSL), next to DXMT's instead of ~/.cache.
+    static var mesaShaderCache: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge/mesa", isDirectory: true)
     }
 
     /// What versions up to 0.3.x also put into the user environment (HKCU\Environment), on the
@@ -159,19 +172,38 @@ enum Engine {
     /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
     /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
     /// session has to start with as well. `environment`: the game's own Wine switches
-    /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the Vulkan
-    /// loader's (vulkanLoaderEnvironment), over those. True when the running Steam has to restart.
+    /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the driver its
+    /// Vulkan goes to (`vulkanDriver`), nil leaves the one Steam has. `vulkanLoader`: the engine
+    /// test's loader (vulkanLoaderEnvironment), over those – never with KosmicKrisp, which gives way
+    /// to it (`kosmicKrispReady`). True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
-                                         vulkan: [String: String] = [:]) -> Bool {
+                                         vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:]) -> Bool {
         var wanted = launchEnvironment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
         for name in GameEnvironment.allowed.keys { wanted[name] = environment[name] ?? "" }
-        for name in vulkanLoaderNames { wanted[name] = vulkan[name] ?? "" }
-        if let backend = vulkan["CX_ACTIVE_GRAPHICS_BACKEND"] { wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = backend }
         if d3dMetal {
             wanted["D3DM_MAX_FPS"] = frameLimit > 0 ? String(frameLimit) : ""
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""
+        }
+        switch vulkan {
+        case .kosmicKrisp(let folder):
+            wanted.merge(kosmicKrispEnvironment(folder)) { _, new in new }
+            wanted["VK_ADD_IMPLICIT_LAYER_PATH"] = nil
+        // A game's own switch of the same name (GameEnvironment: CX_ACTIVE_GRAPHICS_BACKEND) stays;
+        // KosmicKrisp's start needs "wined3d" there and takes it over.
+        case .moltenVK:
+            for name in kosmicKrispVariables + ["VK_ADD_IMPLICIT_LAYER_PATH"] where environment[name] == nil { wanted[name] = nil }
+        case nil:
+            // Steam keeps the driver it has. Its library (CX_LIBVULKAN) counts only with "wined3d", so a
+            // game without a backend switch of its own leaves that as it is too.
+            if environment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil, launchEnvironment["CX_LIBVULKAN"]?.isEmpty == false {
+                wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = launchEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"]
+            }
+        }
+        if !vulkanLoader.isEmpty {
+            for name in vulkanLoaderNames { wanted[name] = vulkanLoader[name] }
+            wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = vulkanLoader["CX_ACTIVE_GRAPHICS_BACKEND"]
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
         defer {
@@ -199,14 +231,50 @@ enum Engine {
 
     /// What a game started straight by Nightforge (not through Steam) gets on top of `gameEnvironment`:
     /// the same as `prepareLaunchEnvironment` hands Steam ("" takes a variable away).
-    static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool) -> [String: String] {
+    static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
+                                        vulkan: VulkanDriver? = nil) -> [String: String] {
         var environment = gameEnvironment
         if !avx { environment["ROSETTA_ADVERTISE_AVX"] = nil }
         if d3dMetal {
             if frameLimit > 0 { environment["D3DM_MAX_FPS"] = String(frameLimit) }
             if upscaling { environment["D3DM_ENABLE_METALFX"] = "1" }
         }
+        if case .kosmicKrisp(let folder) = vulkan { environment.merge(kosmicKrispEnvironment(folder)) { _, new in new } }
         return environment
+    }
+
+    /// Under winecx, where a start's Vulkan goes. CrossOver's win32u loads MoltenVK straight, or the
+    /// library CX_LIBVULKAN names while CX_ACTIVE_GRAPHICS_BACKEND is "wined3d" (vulkan_init_once in
+    /// winecx 4.7.3; the only other thing the value changes is an adapter query answered for
+    /// "d3dmetal", which Nightforge never sets). That library is KosmicKrisp's Khronos loader, which
+    /// takes the driver VK_DRIVER_FILES names.
+    enum VulkanDriver: Equatable {
+        case moltenVK
+        /// KosmicKrisp's folder (`kosmicKrispNow`).
+        case kosmicKrisp(URL)
+    }
+
+    static let kosmicKrispVariables = ["CX_ACTIVE_GRAPHICS_BACKEND", "CX_LIBVULKAN", "VK_DRIVER_FILES", "MESA_SHADER_CACHE_DIR"]
+
+    static func kosmicKrispEnvironment(_ folder: URL) -> [String: String] {
+        try? FileManager.default.createDirectory(at: mesaShaderCache, withIntermediateDirectories: true)
+        return ["CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                "CX_LIBVULKAN": folder.appendingPathComponent("libvulkan.1.dylib").path,
+                "VK_DRIVER_FILES": folder.appendingPathComponent("kosmickrisp_icd.json").path,
+                // Mesa 44989e5a doesn't keep one yet (scripts/kosmickrisp/proposed/0003).
+                "MESA_SHADER_CACHE_DIR": mesaShaderCache.path]
+    }
+
+    /// The Vulkan driver a start under winecx draws through: KosmicKrisp for DXVK's Direct3D 9 once
+    /// it's installed; MoltenVK for DXVK's DirectX 10/11, Vulkan games and games whose Direct3D isn't
+    /// known. nil: this start draws without Vulkan and Steam keeps the driver it has, so going back
+    /// and forth between Mafia II and a DXMT game costs no restart. Gcenx's engine: nil, its loader
+    /// finds MoltenVK and Nightforge's layer by itself (VK_DRIVER_FILES would take that away).
+    static func vulkanDriver(layer: GraphicsLayer, analysis: GameAnalysis?, winecx: Bool, kosmicKrisp: URL?) -> VulkanDriver? {
+        guard winecx else { return nil }
+        if layer == .dxvk, let analysis, analysis.usesD3D9, !analysis.usesD3D11, let kosmicKrisp { return .kosmicKrisp(kosmicKrisp) }
+        if layer == .dxvk || analysis.map({ $0.apis.isEmpty || $0.apis.contains(.vulkan) }) ?? true { return .moltenVK }
+        return nil
     }
 
     /// The Windows path of a file in the prefix ("C:\Program Files\…"), else as Wine sees the Mac (Z:).
@@ -595,6 +663,26 @@ enum Engine {
                 "VK_ADD_IMPLICIT_LAYER_PATH": vulkan.appendingPathComponent("implicit_layer.d").path]
     }
 
+    /// KosmicKrisp's folder, once it and upstream DXVK are installed (the components list names them
+    /// with winecx only): DXVK's Direct3D 9 gets its device there.
+    static var kosmicKrispNow: URL? {
+        guard installedComponentNow(dxvkUpstreamID) != nil, let dir = installedComponentNow(kosmicKrispID) else { return nil }
+        return kosmicKrispFolder(in: dir)
+    }
+
+    /// DXVK's Direct3D 9 draws on winecx: KosmicKrisp is there for it (`vulkanDriver`).
+    static var kosmicKrispReady: Bool { !vulkanLayerLoads && kosmicKrispNow != nil }
+
+    /// The folder in an unpacked KosmicKrisp archive that holds the loader, the driver and its manifest.
+    static func kosmicKrispFolder(in dir: URL) -> URL? {
+        let fm = FileManager.default
+        let candidates = [dir] + ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+        return candidates.first { folder in
+            ["libvulkan.1.dylib", "libvulkan_kosmickrisp.dylib", "kosmickrisp_icd.json"]
+                .allSatisfy { fm.fileExists(atPath: folder.appendingPathComponent($0).path) }
+        }
+    }
+
     static func isD3DMetalDeployed(wine: URL) -> Bool {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
         let fm = FileManager.default
@@ -649,6 +737,9 @@ enum Engine {
         let gamepad = gptk ? manifest.component(gamepadID) : nil
         // Built for one runtime: only with that engine version (installEngineFix checks its files as well).
         let engineFix = gptk ? manifest.component(engineFixID).flatMap { $0.version.hasPrefix(engine.version + "-") ? $0 : nil } : nil
+        // DXVK's Direct3D 9 on KosmicKrisp: winecx only, the one engine that loads it per start.
+        let kosmicKrisp = gptk ? manifest.component(kosmicKrispID) : nil
+        let dxvkUpstream = kosmicKrisp != nil ? manifest.component(dxvkUpstreamID) : nil
         // Copying the graphics files again would give them new inodes and so rebuild the game
         // bundle Steam runs from, and every regedit starts Wine: each part is only redone when what
         // it installs has changed. The stamps live in what they describe, so a fresh engine or
@@ -660,12 +751,13 @@ enum Engine {
             + " d3dmetal \(d3dMetal?.version ?? "-") gamepad \(gamepad?.version ?? "-")"
             + (engineFix.map { " enginefix \($0.version)" } ?? "")
         let dxvk = manifest.component(dxvkID)
-        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, engineFix, dxvk].compactMap { $0 },
+        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, engineFix, dxvk, kosmicKrisp, dxvkUpstream]
+                                    .compactMap { $0 },
                                 d3dMetal: d3dMetal?.version, stamp: graphicsWanted)
         // Before anything of the engine changes, the build games last ran well on stays as a copy:
         // a game the new one breaks starts with it instead (EngineRollback).
         if !gameRunning, !windowsGameRunning {
-            rollback.holdBack(before: build, copying: [graphicsID, upstreamGraphicsID, dxvkID]) { current, folder in
+            rollback.holdBack(before: build, copying: [graphicsID, upstreamGraphicsID, dxvkID, dxvkUpstreamID]) { current, folder in
                 wineBinary(in: folder).map { readStamp(graphicsStampFile(wine: $0)) == current.stamp } ?? false
             }
         }
@@ -698,8 +790,12 @@ enum Engine {
         excludeGamesFromBackup()
         var dxvkDir: URL?
         if let dxvk { dxvkDir = try await install(dxvk) }
+        // KosmicKrisp isn't copied anywhere: each start on it names its folder (`vulkanDriver`).
+        if let kosmicKrisp { _ = try await install(kosmicKrisp) }
+        var d3d9Dir: URL?
+        if let dxvkUpstream { d3d9Dir = try await install(dxvkUpstream) }
         report?(.gameEnvironment)
-        try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir)
+        try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir, d3d9Dir: d3d9Dir)
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
@@ -712,13 +808,14 @@ enum Engine {
     /// The prefix's share of an engine build: the game environment, DXVK's DLLs and load orders, and
     /// on winecx DXMT's DLLs and Wine's own Direct3D 12 as natives. Redone only when the build or the
     /// environment changed since (the stamp) – after an update, or switching to a held-back build and back.
-    static func preparePrefix(wine: URL, build: EngineBuild, graphicsDir: URL, dxvkDir: URL?) throws {
+    /// `d3d9Dir`: upstream DXVK, whose Direct3D 9 takes the place of DXVK-macOS's on winecx (KosmicKrisp).
+    static func preparePrefix(wine: URL, build: EngineBuild, graphicsDir: URL, dxvkDir: URL?, d3d9Dir: URL? = nil) throws {
         let gptk = isGPTKCapable(wine: wine)
         let prefixStamp = stamp(in: prefix, name: "setup")
         let prefixWanted = prefixStampText(build, gptk: gptk)
         applyPrefixRegistry(wine: wine)  // stamped on its own: older prefixes get it once as well
         guard readStamp(prefixStamp) != prefixWanted else { return }
-        if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk) }
+        if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk, d3d9From: gptk ? d3d9Dir : nil) }
         let written = loadOrdersWritten
         if gptk {
             try installDXMTNatives(graphicsDir)
@@ -730,6 +827,7 @@ enum Engine {
     static func prefixStampText(_ build: EngineBuild, gptk: Bool) -> String {
         let graphics = build.version(of: graphicsID) ?? build.version(of: upstreamGraphicsID) ?? "-"
         return "\(build.engineVersion) \(build.version(of: dxvkID) ?? "-") \(gptk ? graphics + " d3dmetal " + (build.version(of: d3dMetalID) ?? "-") : "-") "
+            + (gptk ? build.version(of: dxvkUpstreamID).map { "d3d9 \($0) " } ?? "" : "")
             + gameEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
     }
 
@@ -989,15 +1087,17 @@ enum Engine {
         let rollback = EngineRollback.shared
         let history = rollback.history()
         func root(_ wine: URL) -> String { wine.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL.path }
-        var target: (wine: URL, build: EngineBuild?, held: HeldBuild?, graphics: URL?, dxvk: URL?) = (newest, nil, nil, nil, nil)
+        var target: (wine: URL, build: EngineBuild?, held: HeldBuild?, graphics: URL?, dxvk: URL?, d3d9: URL?)
+            = (newest, nil, nil, nil, nil, nil)
         if let held = rollback.pinnedBuild(game), let wine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID)) {
             let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
-            target = (wine, held.build, held, rollback.folder(of: held, part: graphics), rollback.folder(of: held, part: dxvkID))
+            target = (wine, held.build, held, rollback.folder(of: held, part: graphics), rollback.folder(of: held, part: dxvkID),
+                      held.build.version(of: dxvkUpstreamID).map { _ in rollback.folder(of: held, part: dxvkUpstreamID) })
         } else if let current = history.current, let folder = rollback.installedFolder(of: current, part: current.engineID),
                   wineBinary(in: folder).map(root) == root(newest) {
             let graphics = current.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
             target = (newest, current, nil, rollback.installedFolder(of: current, part: graphics),
-                      rollback.installedFolder(of: current, part: dxvkID))
+                      rollback.installedFolder(of: current, part: dxvkID), rollback.installedFolder(of: current, part: dxvkUpstreamID))
         }
         guard let build = target.build else { return (newest, nil, nil) }
 
@@ -1014,13 +1114,13 @@ enum Engine {
             await offMain { stopAll(session) }
         }
         let (wine, held) = (target.wine, target.held)
-        let (graphics, dxvk) = (target.graphics, target.dxvk)
+        let (graphics, dxvk, d3d9) = (target.graphics, target.dxvk, target.d3d9)
         await offMain {
+            func existing(_ folder: URL?) -> URL? { folder.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil } }
             if let held {
                 useHeld(held, wine: wine)
             } else if let graphics {
-                try? preparePrefix(wine: wine, build: build, graphicsDir: graphics,
-                                   dxvkDir: dxvk.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil })
+                try? preparePrefix(wine: wine, build: build, graphicsDir: graphics, dxvkDir: existing(dxvk), d3d9Dir: existing(d3d9))
             }
         }
         return (wine, build, held)
@@ -1031,9 +1131,10 @@ enum Engine {
     static func useHeld(_ held: HeldBuild, wine: URL) {
         let rollback = EngineRollback.shared
         let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
-        let dxvk = rollback.folder(of: held, part: dxvkID)
+        func existing(_ folder: URL) -> URL? { FileManager.default.fileExists(atPath: folder.path) ? folder : nil }
+        let d3d9 = held.build.version(of: dxvkUpstreamID).flatMap { _ in existing(rollback.folder(of: held, part: dxvkUpstreamID)) }
         try? preparePrefix(wine: wine, build: held.build, graphicsDir: rollback.folder(of: held, part: graphics),
-                           dxvkDir: FileManager.default.fileExists(atPath: dxvk.path) ? dxvk : nil)
+                           dxvkDir: existing(rollback.folder(of: held, part: dxvkID)), d3d9Dir: d3d9)
         installGameBundle(wine: wine)
         if isGPTKCapable(wine: wine) { linkCrossOverProfile() }
     }
@@ -1433,15 +1534,17 @@ enum Engine {
     /// default for every program; games set to DXMT override that in `applyGameSettings`. Safe to repeat.
     /// `d3d9Only` (winecx): system32 holds DXMT's DirectX 10/11 natives, so only DXVK's d3d9 goes
     /// there; a game that takes DXVK for DirectX 11 gets its DLLs next to its program (`placeDXVK`).
+    /// `d3d9From`: another DXVK whose d3d9 goes there instead – upstream's, for KosmicKrisp.
     /// False when the load orders couldn't be written (a wineserver of another engine still
     /// running, say), so setup tries again next time instead of counting it done.
     @discardableResult
-    static func installDXVK(_ dxvkDir: URL, wine: URL, d3d9Only: Bool = false) throws -> Bool {
+    static func installDXVK(_ dxvkDir: URL, wine: URL, d3d9Only: Bool = false, d3d9From: URL? = nil) throws -> Bool {
         defer { loadOrdersWritten = importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides]\n"
             + direct3DLibraries.map { "\"\($0)\"=\"\(defaultLoadOrder($0, d3dMetalEngine: d3d9Only))\"" }.joined(separator: "\n"),
             wine: wine) }
         let fm = FileManager.default
         let top = dxvkTop(dxvkDir)
+        let d3d9Top = d3d9From.map(dxvkTop)
         let windows = prefix.appendingPathComponent("drive_c/windows", isDirectory: true)
         for (arch, folder) in [("x64", "system32"), ("x32", "syswow64")] {
             let source = top.appendingPathComponent(arch, isDirectory: true)
@@ -1450,8 +1553,10 @@ enum Engine {
                   let files = try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) else { continue }
             for file in files where file.pathExtension == "dll" && (!d3d9Only || file.lastPathComponent == "d3d9.dll") {
                 let destination = target.appendingPathComponent(file.lastPathComponent)
+                let other = d3d9Top?.appendingPathComponent("\(arch)/d3d9.dll")
+                let copy = file.lastPathComponent == "d3d9.dll" ? other.flatMap { fm.fileExists(atPath: $0.path) ? $0 : nil } ?? file : file
                 try? fm.removeItem(at: destination)
-                try fm.copyItem(at: file, to: destination)
+                try fm.copyItem(at: copy, to: destination)
             }
         }
         return true
@@ -2173,7 +2278,8 @@ enum Engine {
         if Prefs.performanceHUD { dxvk.append("dxvk.hud = fps,frametimes,gpuload") }
         var dxmt: [String] = []
         if frameLimit > 0 {
-            dxvk.append("dxgi.maxFrameRate = \(frameLimit)")
+            // DXVK keeps the two apart: DirectX 10/11 through dxgi, Direct3D 9 on its own.
+            dxvk += ["dxgi.maxFrameRate = \(frameLimit)", "d3d9.maxFrameRate = \(frameLimit)"]
             dxmt.append("d3d11.preferredMaxFrameRate = \(frameLimit)")  // paced by Metal
         }
         if upscaling {

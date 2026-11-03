@@ -100,7 +100,8 @@ enum GraphicsLayer: String, Codable, CaseIterable, Identifiable {
     case automatic
     /// DXMT: Direct3D straight to Metal.
     case dxmt
-    /// DXVK: Direct3D → Vulkan → MoltenVK → Metal.
+    /// DXVK: Direct3D → Vulkan → MoltenVK → Metal. Under winecx its Direct3D 9 goes to KosmicKrisp
+    /// instead, where it gets a device (Engine.vulkanDriver).
     case dxvk
     /// Wine's own Direct3D 9 on OpenGL, for older games DXVK can't run.
     case wined3d
