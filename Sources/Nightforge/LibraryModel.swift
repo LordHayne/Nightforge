@@ -864,8 +864,10 @@ final class LibraryModel: ObservableObject {
         var madeWay = false
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
-        /// The curtain under a question of macOS's (`GameProcesses.macOSQuestion`), until it's gone.
-        var macOSAsked = false
+        /// The curtain under a question of macOS's since then (`GameProcesses.macOSQuestion`), until it's
+        /// gone – or until it waited `macOSPatience` (`macOSGaveUp`), and the start goes on as without one.
+        var macOSAskedSince: Date?
+        var macOSGaveUp = false
         // The start builds its shaders: known before it's handed over, true until the first picture.
         var buildsShaders = false
         // In wine.log: what each look sees when it changes, and why the watch ends (Black Myth:
@@ -922,26 +924,43 @@ final class LibraryModel: ObservableObject {
             // for a question of the game's and says so, and no "Not starting?" comes over it. Down
             // already, it stays down: up again over it, the player could never answer. The pointer
             // isn't shown nor hidden – the panel that does it takes the keys, a password field's too.
-            if let macOSQuestion {
+            switch Self.macOSTurn(asking: macOSQuestion != nil, since: macOSAskedSince, gaveUp: macOSGaveUp, now: Date()) {
+            case .makeWay:
                 pointerFront = front
                 frontSince = nil  // the game's time in front starts again after it
-                guard loweredAt == nil else { continue }
+                if macOSAskedSince == nil {
+                    macOSAskedSince = Date()
+                    let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
+                    GameLog.note("Curtain under a question of macOS's for \(game.name): \(name) in front")
+                }
+                guard loweredAt == nil, let macOSQuestion else { continue }
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.makeWay(under: macOSQuestion)  // again at each look: nothing gets between
                 sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: false, shaders: buildsShaders, macOSAsks: true)
                 askAt = Date().addingTimeInterval(Self.curtainPatience)
-                if !macOSAsked {
-                    macOSAsked = true
-                    let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
-                    GameLog.note("Curtain under a question of macOS's for \(game.name): \(name) in front")
-                }
                 continue
-            }
-            if macOSAsked {
-                macOSAsked = false
+            case .giveUp:
+                // A question that hangs, or one under another window, never holds the start: it goes on
+                // as without one, "Not starting?" included (review M8, 3.11.).
+                macOSGaveUp = true
                 madeWay = false
-                GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                if loweredAt == nil {
+                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                }
+                GameLog.note("Curtain stops waiting for macOS's question for \(game.name) after \(Int(Self.macOSPatience)) s: the start goes on")
+            case .answered:
+                macOSAskedSince = nil
+                madeWay = false
+                // Down already, the game has the screen: no curtain over it.
+                if loweredAt == nil {
+                    GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+                }
                 GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
+            case .none:
+                if macOSQuestion == nil {
+                    macOSAskedSince = nil
+                    macOSGaveUp = false
+                }
             }
             if pids.isEmpty { sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders) }
             // Started and gone again, nothing starting any more: the start flow says what happened.
@@ -1038,6 +1057,24 @@ final class LibraryModel: ObservableObject {
             }
         }
         end("a new start or Go to Nightforge")
+    }
+
+    enum MacOSTurn: Equatable { case none, makeWay, giveUp, answered }
+
+    /// How long the curtain waits under a question of macOS's before the start goes on without it.
+    nonisolated static let macOSPatience: TimeInterval = 180
+
+    /// The curtain around a question of macOS's (`asking`; `since`: when it began, `gaveUp`: the
+    /// curtain stopped waiting for this one): under it while it stands, for `macOSPatience` at most –
+    /// one that hangs, or lies under another window, would hold the start forever (review M8) –
+    /// and over everything again once it's gone.
+    nonisolated static func macOSTurn(asking: Bool, since: Date?, gaveUp: Bool, now: Date) -> MacOSTurn {
+        if asking {
+            if gaveUp { return .none }
+            if let since, now.timeIntervalSince(since) >= macOSPatience { return .giveUp }
+            return .makeWay
+        }
+        return since != nil && !gaveUp ? .answered : .none
     }
 
     /// Steam waits for the player in its window during a start: a question before it (licence,

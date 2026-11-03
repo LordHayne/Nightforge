@@ -266,12 +266,32 @@ struct GameOverlayTest {
         check(turn(asked: true, goesOn: false) == .over, "answered with Cancel: no curtain again")
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
+        macOSWait()
 
         // A start judged by its first seconds that ends early (Control on 2.11., every way): the start
         // tells what's next under the same curtain – not when it's an end like any other.
         check(LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: false), "gone without a picture: the start decides, the curtain stays")
         check(!LibraryModel.startJudgesEnd(quitByPlayer: true, showedPicture: false), "Quit Game: back to Nightforge at once")
         check(!LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: true), "it showed a picture: an end like any other")
+    }
+
+    /// A question of macOS's: the curtain under it, for three minutes at most – one that hangs or lies
+    /// under another window held the start forever (review M8, 3.11.).
+    static func macOSWait() {
+        let start = Date(timeIntervalSince1970: 1_793_700_000)
+        func turn(asking: Bool, since: Date? = nil, gaveUp: Bool = false, after seconds: TimeInterval = 0) -> LibraryModel.MacOSTurn {
+            LibraryModel.macOSTurn(asking: asking, since: since, gaveUp: gaveUp, now: start.addingTimeInterval(seconds))
+        }
+        check(turn(asking: false) == .none, "nothing asks: the curtain as ever")
+        check(turn(asking: true) == .makeWay, "macOS asks: the curtain under its window")
+        check(turn(asking: true, since: start, after: 179) == .makeWay, "still asking within three minutes: still under it")
+        check(turn(asking: true, since: start, after: LibraryModel.macOSPatience) == .giveUp,
+              "three minutes: the curtain stops waiting, the start goes on")
+        check(turn(asking: true, since: start, gaveUp: true, after: 600) == .none,
+              "stopped waiting, the window still there: as without one, \"Not starting?\" may come")
+        check(turn(asking: false, since: start, after: 30) == .answered, "answered: over everything again")
+        check(turn(asking: false, since: start, gaveUp: true, after: 300) == .none, "gone after giving up: nothing more to do")
+        check(LibraryModel.macOSPatience == 180, "three minutes")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes

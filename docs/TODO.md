@@ -1098,7 +1098,12 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
         die Zeile darunter, kein „startet nicht?“ auch nach über einer Minute; nach der Antwort Vorhang wieder,
         dann das Spiel. In `wine.log` „Curtain under a question of macOS's for …: UserNotificationCenter in
         front“ und „Curtain up again for …: macOS's question is answered“. Nicht live geprüft: auf welcher Ebene
-        die Abfrage liegt (der Vorhang geht auf normale Ebene direkt unter sie, das reicht für jede).
+        die Abfrage liegt (der Vorhang geht auf normale Ebene direkt unter sie, das reicht für jede). Nach dem
+        Review (M8, 3.11.): höchstens 3 Minuten (`LibraryModel.macOSTurn`, `macOSPatience`). Danach geht der
+        Vorhang wieder über alles, `wine.log` meldet „Curtain stops waiting for macOS's question for … after 180 s:
+        the start goes on“, und der Start läuft weiter wie ohne Frage, „startet nicht?“ eingeschlossen. Eine
+        hängende oder von einem anderen Fenster verdeckte Abfrage hält den Start so nicht mehr fest. Ist der
+        Vorhang schon unten, kommt er nach der Antwort nicht über das Spiel.
     - Wunsch des Nutzers 1.11.: der Vorhang im Look des README-Banners. Die Zeichnung des N (gebürstetes Metall,
       Lichtnaht) und der Nacht liegt jetzt in `BrandArt.swift`; `scripts/render-brand.swift` kompiliert sie mit
       (Bilder dabei byteweise unverändert). Der Vorhang zeichnet das N einmal pro Größe und Backing-Scale, die
