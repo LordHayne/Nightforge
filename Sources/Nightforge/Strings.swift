@@ -637,6 +637,7 @@ enum L10n {
             "Platz schaffen – diese wurden länger nicht gespielt. Sie bleiben in deiner Steam-Bibliothek, Spielstände in der Steam Cloud bleiben erhalten.",
         "Last played %@": "Zuletzt gespielt %@",
         "Never played": "Noch nie gespielt",
+        "Plays on: %@": "Spielt auf: %@",
         "Frees %@ – enough": "Macht %@ frei – reicht",
         "Frees %@ of %@": "Macht %@ von %@ frei",
         "Uninstall %ld & Download": "%ld deinstallieren & laden",

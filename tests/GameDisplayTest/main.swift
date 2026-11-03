@@ -174,6 +174,18 @@ struct GameDisplayTest {
             check(!bar(700, 982, shown: false, on: tv), "the pointer on the MacBook: not the TV's bar")
             check(bar(2000, 880, shown: false, on: tv), "the TV's top edge: shown")
         }
+
+        // "Plays on: …" under Play: only where there's more than one place a game could open.
+        let lgTV = screen(2, "LG TV SSCR2", 3840, 2160)
+        check(GameDisplay.destination([macBook], on: 1) == nil, "the MacBook alone: nothing to say")
+        check(GameDisplay.destination([macBook, lgTV], on: 2) == "LG TV SSCR2", "the TV has Nightforge's window: the TV")
+        check(GameDisplay.destination([macBook, lgTV], on: 1) == "Built-in Retina Display",
+              "the window moved back to the MacBook, the TV still there: the MacBook, so the TV is no surprise")
+        var mirrorOfTV = macBook
+        mirrorOfTV.mirrors = true
+        check(GameDisplay.destination([mirrorOfTV, lgTV], on: 2) == nil, "the MacBook mirrors the TV: one place, nothing to say")
+        check(GameDisplay.destination([macBook, lgTV], on: nil) == nil, "no window on a screen yet: nothing")
+        check(L10n.t("Plays on: %@", "LG TV SSCR2").hasSuffix("LG TV SSCR2"), "the line names the screen")
         if failures == 0 { print("✓ GameDisplay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
     }

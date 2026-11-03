@@ -42,6 +42,7 @@ struct UpdateStateTest {
         check(UpdateState(flags: 1030, toDownload: 0, downloaded: 0, toStage: 2000, staged: 2000).fraction == 0.99,
               "all unpacked, not moved into the game yet: still not 100 %")
         progress()
+        lastPlayed()
 
         // The app's own update: an app opened from its download runs translocated and can't be replaced.
         check(Updater.isTranslocated("/private/var/folders/ab/c_d1/T/AppTranslocation/6F1D2A3B-0000-4000-8000-0123456789AB/d/Nightforge.app"),
@@ -96,6 +97,26 @@ struct UpdateStateTest {
         check(shown.fraction == 0.2, "the folder emptying doesn't take it back: \(shown.fraction ?? -1)")
         check(shown.speed != nil, "nor its speed")
         check(LaunchPhase.steamUpdateHint(speed: "10 MB/s").hasPrefix("10 MB/s"), "the speed under the Play button")
+    }
+
+    /// Steam sets LastPlayed as it installs a game: the Wukong benchmark, added for free on 1.11. at
+    /// 21:34:25 and downloaded until 21:40:28, showed "Last played just now" and went into Continue Playing.
+    static func lastPlayed() {
+        let added = Date(timeIntervalSince1970: 1_793_565_265)      // 1.11. 21:34:25
+        let installed = Date(timeIntervalSince1970: 1_793_565_628)  // 21:40:28, the manifest's LastUpdated
+        func played(_ at: Date?, _ minutes: Int?, installed done: Bool = true, at end: Date? = installed) -> Date? {
+            LibraryScanner.played(LibraryScanner.Usage(lastPlayed: at, playtimeMinutes: minutes), installed: done, installedAt: end)
+        }
+        check(played(added, nil, installed: false, at: nil) == nil, "added, still downloading: never played")
+        check(played(added, nil) == nil, "installed since, no playtime: still never played")
+        check(played(added, 0) == nil, "nor with a playtime of 0")
+        let shortly = installed.addingTimeInterval(300)
+        check(played(shortly, nil) == shortly, "started for half a minute after the download: played, without a playtime")
+        check(played(shortly, 0) == shortly, "also with Steam's 0 minutes")
+        check(played(added, 81) == added, "a playtime: played, whenever")
+        check(played(added, 5, installed: false, at: nil) == added, "uninstalled after playing: still played")
+        check(played(added, nil, at: nil) == added, "installed, no LastUpdated to tell: as Steam says")
+        check(played(nil, 81) == nil, "never started: never played")
     }
 
     // MARK: A made-up bottle, as LibraryScanner reads it
@@ -171,10 +192,13 @@ struct UpdateStateTest {
         try write(manifest(6100, "Hades"), "SteamLibrary/steamapps/appmanifest_6100.acf", in: driveD)
         try write(manifest(1623730, "Palworld (second copy)"), "SteamLibrary/steamapps/appmanifest_1623730.acf", in: driveD)
         try write(manifest(6200, "Old Game"), "Old/steamapps/appmanifest_6200.acf", in: driveE)
-        try write(manifest(6300, "Mac Library Game"), "steamapps/appmanifest_6300.acf", in: macLibrary)
+        try write(manifest(6300, "Mac Library Game", ["LastUpdated": "1700000900"]), "steamapps/appmanifest_6300.acf", in: macLibrary)
 
         // Two accounts' playtimes: the most recent start counts, 0 means never.
-        try write(usage([1623730: (1_700_000_000, 120), 6100: (1_600_000_000, nil), 2000: (0, 3)]),
+        // Steam sets LastPlayed as it installs (the Wukong benchmark, 1.11.): still downloading, and
+        // from before the download ended, without playtime.
+        try write(usage([1623730: (1_700_000_000, 120), 6100: (1_600_000_000, nil), 2000: (0, 3),
+                         4000: (1_700_000_500, nil), 6300: (1_700_000_800, nil)]),
                   "userdata/111/config/localconfig.vdf", in: steam)
         try write(usage([1623730: (1_500_000_000, 5), 6200: (1_650_000_000, 7)]), "userdata/222/config/localconfig.vdf", in: steam)
         try write("not a config", "userdata/333/config/localconfig.vdf", in: steam)
@@ -219,6 +243,8 @@ struct UpdateStateTest {
               "what a download takes on disk once unpacked, beside what comes down (the space check counts that)")
         check(byID[2000]?.installedSize == nil && byID[1623730]?.installedSize == nil, "none for a plain download or an installed game")
         check(byID[4000]?.install == .downloading(nil), "size not known yet")
+        check(byID[4000]?.lastPlayed == nil, "added, still downloading: Steam's LastPlayed isn't a game played")
+        check(byID[6300]?.lastPlayed == nil, "installed since, LastPlayed from before the download ended, no playtime: never played")
         check(byID[5000]?.downloadNeedsSpace == 3000 && byID[5000]?.install == .downloading(0), "Steam's full disk: the space it needs")
         check(byID[6100]?.installDir.path.hasSuffix("DriveD/SteamLibrary/steamapps/common/Hades") == true, "a game on drive D:")
         check(byID[8000]?.steamExeWindowsPath == #"C:\Program Files\Steam\steam.exe"#, "the second Steam's own game")

@@ -315,7 +315,7 @@ enum LibraryScanner {
                         steamExeWindowsPath: candidate.exe,
                         installDir: steamapps.appendingPathComponent("common/\(app.installDir)", isDirectory: true),
                         sizeOnDisk: app.size,
-                        lastPlayed: usage[app.appID]?.lastPlayed,
+                        lastPlayed: played(usage[app.appID], installed: false, installedAt: nil),
                         playtimeMinutes: usage[app.appID]?.playtimeMinutes
                     )
                     game.install = app.owned || app.demoOf != nil ? .notInstalled : .inStore
@@ -544,7 +544,9 @@ enum LibraryScanner {
             sizeOnDisk: install == .installed
                 ? state["sizeondisk"]?.string.flatMap { Int64($0) } ?? 0
                 : Int64(toDownload),
-            lastPlayed: usage[appID]?.lastPlayed,
+            lastPlayed: played(usage[appID], installed: install == .installed,
+                               installedAt: state["lastupdated"]?.string.flatMap { Double($0) }
+                                   .flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil }),
             playtimeMinutes: usage[appID]?.playtimeMinutes
         )
         game.install = install
@@ -697,6 +699,18 @@ enum LibraryScanner {
     struct Usage {
         var lastPlayed: Date?
         var playtimeMinutes: Int?
+    }
+
+    /// Steam's LastPlayed, unless it's only when Steam installed the game: adding one sets it to
+    /// that moment, while it still downloads (the Wukong benchmark through "Add for free" on 1.11.
+    /// showed "Last played just now" and went into Continue Playing). Without any playtime, one from
+    /// before the download ended (`installedAt`, the manifest's LastUpdated), or with nothing
+    /// installed, isn't a game played. A short game after it comes later and counts.
+    static func played(_ usage: Usage?, installed: Bool, installedAt: Date?) -> Date? {
+        guard let lastPlayed = usage?.lastPlayed else { return nil }
+        if (usage?.playtimeMinutes ?? 0) > 0 { return lastPlayed }
+        guard installed, let installedAt else { return installed ? lastPlayed : nil }
+        return lastPlayed > installedAt ? lastPlayed : nil
     }
 
     private static func readUsage(steamRoot: URL) -> [Int: Usage] {

@@ -395,8 +395,13 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   sobald Steam wieder so hängt. Ursache des Hängers selbst offen (letzte Zeile: `SlowJSMethodCall Messaging.PostMessage`).
 - **„Zuletzt gespielt: gerade eben“ direkt nach dem Hinzufügen** (1.11., Wukong-Benchmark über „Kostenlos
   hinzufügen“): Steam setzt `LastPlayed` in `localconfig.vdf` schon beim Installieren auf jetzt (21:34:25, noch
-  während des Downloads). Nightforge zeigt das an und reiht das Spiel bei „Weiterspielen“ ein. Kandidat: ein
-  `LastPlayed` aus der Zeit des Installierens ohne gestiegene Spielzeit nicht als gespielt zählen.
+  während des Downloads). Nightforge zeigt das an und reiht das Spiel bei „Weiterspielen“ ein. Gebaut am 3.11.
+  auf `claude/small-fixes-1a4e06` (von 29e458a), nur mit Tests geprüft: Ohne Spielzeit zählt ein `LastPlayed`
+  nicht als gespielt, wenn es von vor dem Ende des Downloads stammt (`LastUpdated` im appmanifest, beim
+  Benchmark 21:40:28) oder das Spiel noch gar nicht installiert ist (`LibraryScanner.played`). Ein kurzes
+  Spielen danach liegt später und zählt auch mit 0 Minuten; mit Spielzeit zählt es immer. Live: ein kostenloses
+  Spiel über „Kostenlos hinzufügen“ laden: während und nach dem Download „Noch nie gespielt“, nicht bei
+  „Weiterspielen“; einmal kurz starten und beenden: „Zuletzt gespielt: gerade eben“.
 - **steam-shutdown.sh** hält jeden Prozess unter `\steamapps\common\` für ein Spiel, auch in
   Test-Prefixen, und holt Nightforge dann nach vorne.
 - **Steam-Anmeldung zwischen den Steams.** Steam für Mac und die Windows-Steam melden sich gegenseitig ab
@@ -572,7 +577,14 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   wandert beim Anstecken, Windows-Spiel öffnet dort, Hauptbildschirm kommt danach zurück). Am TV noch offen: die
   Erkennung am Namen (`Candidate.isTV`, Liste der Marken) und das Vollbild des Launchers.
 - **Hinweis „Spielt auf: …“** neben Play, wenn ein externer Bildschirm das Spiel bekommt, damit man weiß, wo es
-  aufgeht. Ansatz: `GameDisplay.screen?.localizedName` in `LibraryView`, nur bei mehr als einem Bildschirm.
+  aufgeht. Gebaut am 3.11. auf `claude/small-fixes-1a4e06`, nur mit Tests geprüft: eine Zeile direkt unter Play
+  (Spielseite und Bühne auf Home, nur bei installierten Spielen) „Spielt auf: LG TV SSCR2“, sobald es mehr als
+  einen Ort gibt (ein gespiegelter Bildschirm zählt nicht extra). Genannt wird der Bildschirm mit Nightforges
+  Fenster, also auch das MacBook, wenn der TV dran ist und das Fenster zurückgeschoben wurde
+  (`GameDisplay.destination`). Aktualisiert beim An- und Abstecken und wenn das Fenster wandert, sonst nichts
+  gemessen. Eine Zeile wie die anderen unter Play, kein eigener Fokus: Das Pad steht auf der Seite ohnehin auf
+  Play, die Zeile direkt darunter. Live: MacBook mit TV/Monitor: Zeile mit dem Namen des TVs; Fenster aufs
+  MacBook ziehen: Name des MacBooks; Kabel ab: Zeile weg; gespiegelt: keine Zeile.
 - **Ziel fürs Sofa (28.10.):** MacBook anstecken, Controller einschalten, alles läuft, ohne Maus und Tastatur.
   - **Vollbild am Fernseher** (31.10., Branch `claude/tv-fullscreen-61ab1e`, `GameResolution.swift`): Overcooked 2
     (Epic, Unity) ging am gespiegelten TV als kleineres Fenster auf. Unity und Unreal merken sich die Auflösung des
