@@ -117,10 +117,51 @@ neuen Commits von signed-updates (b1c26c9, 700fd70), als „noch nicht geprüft�
   `EngineRollbackTest` hat keine solche Suite mehr. Die Dateien kamen paarweise etwa alle acht Minuten und meist nach
   dem Ende der beiden Staging-Reihen (02:13 und 02:17), also aus den alten Reihen einer anderen Sitzung.
 
+## Dritte Runde (3.11., auf b2ee5e5 aufgesetzt, nichts davor umgeschrieben)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 17 | `claude/h1-h3-031` bis 85ff930 | 85ff930 | 4e6d0e6 | keine | 0 |
+| 18 | `claude/steam-tray-1a4e06` | 9813c84 | 5151b23 | keine | 0 |
+| 19 | `claude/engine-rueckfall-33` | d52f08c | 285dd99 | `Engine.swift`, `Launcher.swift`, `docs/TODO.md`, siehe unten | 0 |
+
+`claude/signed-updates-dda700` war mit 13b (700fd70) schon ganz drin.
+
+- **17:** `ProcessList.source` und `tests/Shared/FakeProcesses.swift`. Die Reihen geben `ProcessList` ihre eigene
+  Liste, statt `ps -ax` zu fragen. `ci.yml` hat dafür einen Schritt `tests/ProcessListLive/run.sh`, die einzige
+  Prüfung mit dem echten `ps`. Sie liegt außerhalb von `tests/*Test` und lief hier nicht.
+- **18:** `SteamBackgroundTest` prüft auch das Tray-Symbol. Dazu startet die Reihe eine kleine Probe mit eigener
+  Defaults-Domäne `nightforge-tray-probe` und räumt sie im `trap` wieder weg, nicht die der App.
+- **19, `Engine.swift` (`startSteam`):** Im Zweig „Steam läuft noch nicht“ steht jetzt beides. Zuerst
+  `SteamProgram.apply` (steam-programm), danach `wine = steamEngine(wine)` und `lastSteamStart` (engine-rueckfall).
+  Dafür wird `wine` zu `var`. Der Loader der Sandbox nimmt danach die gewählte Engine.
+- **19, `Launcher.swift`:** Hier stehen `SteamProgram.apply` und `Engine.lastSteamStart = (runner, Date())`
+  hintereinander.
+- **19, `docs/TODO.md`:** Übernommen sind engine-rueckfalls neu geschriebene Punkte zum Rückfall („erledigt“, „gebaut“,
+  „behoben“). Der Punkt zur Speicher-Anzeige fehlt, weil storage-fixes ihn als behoben gestrichen hat.
+- `EngineRollbackTest` hat auch mit den Ergänzungen aus 19 keine Suite mit echtem Namen.
+
+## Tests der dritten Runde (auf 285dd99)
+
+- **pytest:** 108 von 108.
+- **Alle 59 Swift-Reihen grün, jede mit rc=0**, auch die neun bisher wegen ps offenen. Jede lief mit Zeitgrenze,
+  keine hing:
+  - `CompleteRemovalTest`, darin die Lösung aus Merge 14;
+  - `DetachedProcessTest`, `EpicTest`, `GOGTest`, `GameOverlayTest` und `SteamBackgroundTest` mit `FakeProcesses`;
+  - `SubprocessTest`, das `ProcessList.source` selbst setzt;
+  - `QuitScriptTest` mit den Stand-ins für `pgrep` und `lsof` im PATH des Skripts;
+  - `MacVersionTest`, das kein `ps` mehr aufruft.
+- Nicht gelaufen ist nur `tests/ProcessListLive/run.sh`, die Prüfung mit dem echten `ps`. Sie gehört nach den
+  Neustart.
+- In `~/Library/Preferences` entstanden in dieser Zeit Test-Plists mit den alten Namen (`mvt-<UUID>`,
+  `ProfileFilesTest-<UUID>`, `nightforge.game-audio-test.<PID>` und andere). Staging schreibt keine solchen Suites
+  mehr. Das neue `mvt-<UUID>` kam um 02:57, zehn Minuten nach dem Ende von Stagings `MacVersionTest` (02:47). Es stammt
+  also aus den alten Reihen einer anderen Sitzung.
+
 ## Für die echten Merges
 
-- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes`, compat-db M3/N7 und der zweite angekündigte
-  Commit von h1-h3.
+- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes` und compat-db M3/N7.
+- Nach dem Neustart: `tests/ProcessListLive/run.sh` (das echte `ps`).
 - Der Stand je Befund steht jetzt in `docs/AUDIT-SICHERHEIT.md` (Merge 16).
 - Mit N1 (audit-low) startet ein `nightforge://play`-Link nur noch mit dem Schlüssel der eigenen Spiel-Apps. Eigene
   Kurzbefehle des Nutzers mit solchen Links zeigen danach die Spielseite (für den Nutzer in `docs/TODO.md`).
