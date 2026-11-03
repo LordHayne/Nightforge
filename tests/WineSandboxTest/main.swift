@@ -74,7 +74,19 @@ struct WineSandboxTest {
                      WineSandbox.canonical(temporary) + "/Nightforge-runs", WineSandbox.canonical(home) + "/Applications/Nightforge Games"] {
             check(readOnly.contains(WineSandbox.quoted(path)!), "can't be changed inside: \(path)")
         }
-        check(!readOnly.contains("/Prefix") && !profile.contains(realSupport + "\")"), "the prefix and the data folder as a whole stay writable")
+        check(!readOnly.contains("/Prefix") && !profile.contains("(subpath \(WineSandbox.quoted(realSupport)!))"),
+              "the prefix and the data folder as a whole stay writable")
+        // Nor moved: no folder above a place may be renamed or removed, nor the place itself (review N2).
+        let anchored = profile.range(of: "(deny file-write-unlink\n").map { String(profile[$0.lowerBound...]) } ?? ""
+        for path in [realSupport, realSupport + "/Epic", realSupport + "/GOG", WineSandbox.canonical(home) + "/Library/Application Support",
+                     WineSandbox.canonical(home) + "/Library", WineSandbox.canonical(home), WineSandbox.canonical(temporary)] {
+            check(anchored.contains("(literal \(WineSandbox.quoted(path)!))"), "can't be renamed inside: \(path)")
+        }
+        check(profile.contains("(deny file-write-unlink file-write-create\n") && profile.contains("(literal \(denied))"),
+              "nor the places themselves")
+        check(!anchored.contains(WineSandbox.quoted(realSupport + "/Prefix")!), "the prefix can still be renamed inside it")
+        check(WineSandbox.ancestors(of: "/Users/jane/Library/x") == ["/Users/jane/Library", "/Users/jane", "/Users"]
+              && WineSandbox.ancestors(of: "/x").isEmpty, "the folders above a path, down to /")
 
         // MARK: Switch
         let wine = URL(fileURLWithPath: "/engine/bin/wine")
@@ -156,9 +168,33 @@ struct WineSandboxTest {
         check(!FileManager.default.fileExists(atPath: swapped.path), "nothing new can be put among them")
         _ = run(realHelper, [profile, URL(fileURLWithPath: "/bin/rm").path, ownCode[2].path])
         check(FileManager.default.fileExists(atPath: ownCode[2].path), "nor taken away")
+        // Moving a folder above the places, from inside (review N2, 3.11.2026): before the fix "Epic" became
+        // "Epic-alt" and legendary's token read there; "Nightforge" could be moved away and replaced.
+        let mv = URL(fileURLWithPath: "/bin/mv")
+        let moves: [(URL, String)] = [(support.appendingPathComponent("Epic"), "Epic-alt"), (support.appendingPathComponent("GOG"), "GOG-alt"),
+                                      (support, "Nightforge-alt"), (support.deletingLastPathComponent(), "Application Support-alt"),
+                                      (home.appendingPathComponent("Library"), "Library-alt"),
+                                      (home.appendingPathComponent("Library/Application Support/Firefox"), "Firefox-alt"),
+                                      (support.appendingPathComponent("Components"), "Components-alt"), (temporary, "T-alt")]
+        for (folder, name) in moves {
+            let moved = folder.deletingLastPathComponent().appendingPathComponent(name)
+            _ = run(realHelper, [profile, mv.path, folder.path, moved.path])
+            check(FileManager.default.fileExists(atPath: folder.path) && !FileManager.default.fileExists(atPath: moved.path),
+                  "can't be renamed inside: \(folder.lastPathComponent)")
+            if FileManager.default.fileExists(atPath: moved.path) { try? FileManager.default.moveItem(at: moved, to: folder) }
+        }
+        check(run(realHelper, [profile, cat.path, secrets[0].path]).status != 0, "legendary's token still can't be read inside")
+        let replaced = run(realHelper, [profile, sh.path, "-c", "mv \"$1\" \"$1-alt\" && mkdir -p \"$1/Components\"", "sh", support.path])
+        check(replaced.status != 0 && FileManager.default.fileExists(atPath: secrets[0].path), "the data folder can't be swapped for another")
         let save = support.appendingPathComponent("Prefix/drive_c/save.dat")
         _ = run(realHelper, [profile, sh.path, "-c", "printf y > \"$1\"", "sh", save.path])
         check((try? String(contentsOf: save, encoding: .utf8)) == "y", "the prefix stays writable inside")
+        let renamed = save.deletingLastPathComponent().appendingPathComponent("save-old.dat")
+        _ = run(realHelper, [profile, mv.path, save.path, renamed.path])
+        check(FileManager.default.fileExists(atPath: renamed.path), "and its files can be renamed, as games do when they save")
+        // Outside the sandbox nothing of this applies: Nightforge's complete removal deletes in its own process.
+        check((try? FileManager.default.removeItem(at: support)) != nil && !FileManager.default.fileExists(atPath: support.path),
+              "outside, the data folder can be removed as a whole (CompleteRemoval)")
         finish()
     }
 
@@ -217,6 +253,42 @@ struct WineSandboxTest {
         check(ended.count == 1 && defaults.bool(forKey: WineSandbox.sessionKey), "switched off under a running game: it goes on for now")
         settle(false)
         check(ended.count == 2 && !defaults.bool(forKey: WineSandbox.sessionKey), "once the game has ended, it ends")
+
+        // Review N8: two Wine starts right after switching end the session once, not each other's.
+        let lock = NSLock()
+        var ends = 0
+        let group = DispatchGroup()
+        for _ in 0..<2 {
+            group.enter()
+            DispatchQueue.global().async {
+                WineSandbox.settleSession(wine, enabled: true, defaults: defaults, gameRunning: { false }, end: { _ in
+                    Thread.sleep(forTimeInterval: 0.3)
+                    lock.lock(); ends += 1; lock.unlock()
+                })
+                group.leave()
+            }
+        }
+        group.wait()
+        check(ends == 1 && defaults.bool(forKey: WineSandbox.sessionKey), "two starts at once: one end (\(ends))")
+        // Ending starts Steam's -shutdown, which comes through here again: it joins the session it ends.
+        var nested = 0
+        WineSandbox.settleSession(wine, enabled: false, defaults: defaults, gameRunning: { false }, end: { inner in
+            nested += 1
+            WineSandbox.settleSession(inner, enabled: false, defaults: defaults, gameRunning: { false }, end: { _ in nested += 10 })
+        })
+        check(nested == 1 && !defaults.bool(forKey: WineSandbox.sessionKey), "the start the ending makes passes, no second end, no deadlock")
+        // At Nightforge's start it happens off the main thread: the process list and the ending take seconds.
+        var checkedOnMain: Bool?, endedOnMain: Bool?
+        let background = DispatchSemaphore(value: 0)
+        Task.detached {
+            await WineSandbox.settleInBackground(wine, enabled: true, defaults: defaults,
+                                                 gameRunning: { checkedOnMain = Thread.isMainThread; return false },
+                                                 end: { _ in endedOnMain = Thread.isMainThread })
+            background.signal()
+        }
+        background.wait()
+        check(checkedOnMain == false && endedOnMain == false && defaults.bool(forKey: WineSandbox.sessionKey),
+              "settled in the background: checked and ended off the main thread")
     }
 
     static func finish() -> Never {

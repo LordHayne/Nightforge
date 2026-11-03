@@ -2466,6 +2466,27 @@ enum Engine {
 
     /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
     /// it runs on, which may be one held back for a game.
+    /// stopSteam for a caller that can't await (WineSandbox.settleSession), on a thread that may wait:
+    /// a client update going in finishes first, Steam is asked to quit – a download stops cleanly and
+    /// goes on at the next start – and whatever's left of the session ends. Starting Steam's -shutdown
+    /// passes through settleSession, which lets it join the session it ends.
+    static func stopSessionNow(_ wine: URL) {
+        if isSteamRunning {
+            var waited = 0
+            while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
+                Thread.sleep(forTimeInterval: 1)
+                waited += 1
+            }
+            try? startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
+            var left = 20
+            while left > 0, isSteamRunning {
+                Thread.sleep(forTimeInterval: 1)
+                left -= 1
+            }
+        }
+        stopAll(wine)
+    }
+
     static func stopSteam(_ wine: URL) async throws {
         try await stopSteam(wine, running: { isSteamRunning },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },

@@ -1557,6 +1557,9 @@ final class LibraryModel: ObservableObject {
             var ensured = try? await Engine.ensureEngine(gameRunning: !running.isEmpty)
             if ensured == nil { ensured = await Engine.installedWine() }
             guard let wine = ensured else { return }
+            // A session begun with the sandbox switch the other way ends here, off the main thread,
+            // rather than at the first Wine start, which may come from it (WineSandbox, review N8).
+            await WineSandbox.settleInBackground(wine)
             // Signing in would sign out the Steam for Mac a running Mac game uses; Play starts it later.
             guard !macSteamBusy else { return }
             // A Steam for Mac Nightforge left running – it quit after starting a Mac version and came
