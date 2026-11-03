@@ -158,6 +158,55 @@ neuen Commits von signed-updates (b1c26c9, 700fd70), als „noch nicht geprüft�
   mehr. Das neue `mvt-<UUID>` kam um 02:57, zehn Minuten nach dem Ende von Stagings `MacVersionTest` (02:47). Es stammt
   also aus den alten Reihen einer anderen Sitzung.
 
+## Vierte Runde (3.11., auf 6d9ecb1 aufgesetzt)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 20 | `claude/audit-low` (Review M10) | 9ba69ab | c5a1d36 | keine | 0 |
+| 21 | `claude/steam-program-m4` (Review M4) | d92494f | 3e23000 | keine | 0 |
+| 22 | `claude/signed-updates-dda700` (Review M2, M9, `docs/SIGNIEREN.md`) | 593e80e | fb13369 | `docs/TODO.md` | 0 |
+| 23 | `claude/wine-sandbox` (Sandbox H1) | 01e234d | 7b6eeea | `Engine.swift` | 0 |
+| 24 | `claude/quit-always-1a4e06` (Review M7) | 38b4418 | 440499f | keine | 0 |
+| 25 | `claude/system-prompt-curtain-1a4e06` (Review M8) | a9a7b5e | a4c4713 | keine | 0 |
+| 26 | `claude/h1-h3-031` (Review M3) | 69ad783 | 56635ff, dazu 49e249d | `Engine.swift` (zweimal), `Launcher.swift`, `LibraryModel.swift` | 0 |
+| 27 | `claude/wine-sandbox` (Sandbox H2) | a4d0cdd | 8157ca4, dazu 897b94a | keine; eine Anpassung des Tests | 0 |
+
+Konflikte und Anpassungen:
+- **22, `docs/TODO.md`:** signed-updates hat den Punkt „Nur geprüfte Komponenten“ neu geschrieben, der gilt. Die Zeile zu
+  den Tests in der CI nennt jetzt, was `ci.yml` wirklich ausführt.
+- **23, `Engine.startSteam`:** Der Block für „Steam läuft nicht“ bleibt. `let process = DetachedProcess()` fällt weg,
+  weil die Sandbox den Prozess nach dem Loader mit `WineSandbox.process` baut. Zur Kontrolle: Programmstarts mit
+  `DetachedProcess()` gibt es auf Staging genauso viele wie auf dem Sandbox-Zweig.
+- **26, `Engine.ensureEngine`:** Beide Änderungen bleiben. Unbenutzte Komponenten gehen nur nach einer signierten Liste
+  (signed-updates M9), und eine gehaltene Engine gilt als benutzt, solange es keine Prozessliste gibt
+  (`ownProcessesKnown`, M3).
+- **26, `Engine.startSteam` und `Launcher`:** Guide-Knopf, LaunchOptions, Wahl der Engine und Startnotiz kommen nur
+  noch, wenn bekannt ist, dass Steam nicht läuft (`steamRunningKnown == false`, M3). Im Launcher stehen davor
+  engine-envs Notiz und `SteamProgram.prepare`.
+- **26, Vorhang in `LibraryModel.swift`:** M3s `GameProcesses.curtainLook` gilt (ohne Liste wird nichts entschieden).
+  Die Fragesteller von macOS (M8) kommen in derselben Aufgabe aus demselben, zwischengespeicherten
+  `GameProcesses.lookup`. Ohne Liste gibt es keine.
+- **49e249d (Staging-Commit):** `SteamProgram.steamIsDown` heißt jetzt `Engine.steamRunningKnown == false`. Der
+  M4-Zweig hatte noch keinen M3 und behalf sich mit „die Liste enthält Nightforge selbst“.
+- **897b94a (Staging-Commit):** `WineSandboxTest` prüft, dass jeder Programmstart über `WineSandbox.process` läuft
+  oder bekannt ist, dass er kein Wine startet. h1-h3s `Subprocess.run` (`Subprocess.swift:33`) kannte der Test noch
+  nicht. Seine Aufrufer starten Systemprogramme und `wineserver -k`, deshalb steht er jetzt auf der Liste. Was ein
+  `Subprocess.run`-Aufruf selbst startet, prüft der Test nicht. Das sollten die Sandbox- und die h1-h3-Seite klären.
+
+## Tests der vierten Runde (auf 8157ca4, WineSandboxTest auf 897b94a)
+
+- **pytest:** 108 von 108.
+- **Alle 59 Swift-Reihen grün:** 58 auf 8157ca4. `WineSandboxTest` schlug dort mit dem Fund oben fehl und ist nach
+  897b94a grün. `tests/ProcessListLive` (echtes `ps`) lief wieder nicht.
+
+## Nicht mehr in dieser Runde (bis zum Merge nicht fertig oder nicht aufgeführt)
+
+- `claude/signed-updates-dda700`: 435e399 ca3d748 d36f7b1, nach Merge 22 dazugekommen (die RFC-8032-Prüfung in `install.sh` und mehr).
+- `claude/engine-env-0f3a`: 5c8edd0 4aaf428 4e02fbf cb18659. Darunter die Übernahme von 8b5314d, die auf Staging schon steht, und eine neue
+  Engine-Prüfung hinter einem Schalter. Fertig gemeldet war es nicht.
+- code-review M3 ist gemergt (26). Noch nicht da sind: compat-db M3/N7, `claude/game-test-fixes` (unverändert seit
+  e76b825, 23:55), `claude/profile-guide-1a4e06` und der KosmicKrisp-Zweig `claude/quirky-clarke-81fd65`.
+
 ## Für die echten Merges
 
 - Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes` und compat-db M3/N7.
