@@ -145,8 +145,8 @@ struct GameProfile: Decodable, Equatable {
         note = try? container.decodeIfPresent(String.self, forKey: .note)
         // An unknown layer from a newer list just means "no preference" here.
         graphics = (try? container.decodeIfPresent(String.self, forKey: .graphics)).flatMap { $0.flatMap(GraphicsLayer.init(rawValue:)) }
-        arguments = try? container.decodeIfPresent([String].self, forKey: .arguments)
-        dllOverrides = try? container.decodeIfPresent([String: String].self, forKey: .dllOverrides)
+        arguments = (try? container.decodeIfPresent([String].self, forKey: .arguments)).flatMap(GameProfile.allowedArguments)
+        dllOverrides = (try? container.decodeIfPresent([String: String].self, forKey: .dllOverrides)).flatMap(GameProfile.allowedOverrides)
         registry = try? container.decodeIfPresent([RegistryEntry].self, forKey: .registry)
         windowsVersion = try? container.decodeIfPresent(String.self, forKey: .windowsVersion)
         winetricks = try? container.decodeIfPresent([String].self, forKey: .winetricks)
@@ -172,6 +172,57 @@ struct GameProfile: Decodable, Equatable {
         environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
             .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
         skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
+    }
+
+    // MARK: What a list may ask for at a start
+    // DLL overrides and arguments go from a stranger's repository to every player's game start, so
+    // only plain ones count, as scripts/build-profiles.py lets them through (Audit M1): a list signed
+    // without its CI meets the same rules here.
+
+    /// Load orders as Wine writes them (build-profiles.py, OVERRIDE_ORDERS).
+    static let overrideOrders: Set<String> = ["", "native", "builtin", "native,builtin", "builtin,native"]
+    /// Wine's own core, which no game's override may touch (CORE_DLLS).
+    static let coreDLLs: Set<String> = ["ntdll", "kernel32", "kernelbase", "user32", "gdi32", "win32u", "advapi32", "sechost",
+                                        "ucrtbase", "msvcrt", "ole32", "combase", "rpcrt4", "winemac.drv", "wow64", "wow64win", "wow64cpu"]
+    static let maxDLLOverrides = 32
+    static let maxArguments = 16
+
+    /// A DLL by its bare name, lowercase ("*" in front: wherever it loads from, as Wine writes it),
+    /// with one of the orders above, never Wine's core (dll_override_allowed).
+    static func isAllowedOverride(_ name: String, order: String) -> Bool {
+        let bare = name.hasPrefix("*") ? String(name.dropFirst()) : name
+        func plain(_ c: Unicode.Scalar) -> Bool { ("a"..."z").contains(c) || ("0"..."9").contains(c) || c == "_" }
+        guard let first = bare.unicodeScalars.first, plain(first), bare.unicodeScalars.count <= 64,
+              bare.unicodeScalars.allSatisfy({ plain($0) || $0 == "." || $0 == "-" }), !bare.contains(".."),
+              overrideOrders.contains(order)
+        else { return false }
+        return !coreDLLs.contains(bare.hasSuffix(".dll") ? String(bare.dropLast(4)) : bare)
+    }
+
+    /// An option ("-dx11", "+r_renderAPI", "/dx11", "-vomstyle=layer") or its value ("1", "glide_fix.conf"):
+    /// no space, quote or control character, no drive, no home, no path from the root, also behind an
+    /// "="; a relative path may go one folder up, where a game in a bin folder keeps its data
+    /// ("--bundle-dir ../bundle") (argument_allowed).
+    static func isAllowedArgument(_ argument: String) -> Bool {
+        guard (1...64).contains(argument.unicodeScalars.count), argument.unicodeScalars.allSatisfy({
+            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0) || "_.=+/-".unicodeScalars.contains($0)
+        }) else { return false }
+        for value in argument.split(separator: "=", omittingEmptySubsequences: false) {
+            let parts = value.split(separator: "/", omittingEmptySubsequences: false)
+            if value.hasPrefix("//") || value.hasPrefix("/") && parts.count > 2 || parts.dropFirst().contains("..") { return false }
+        }
+        return true
+    }
+
+    /// The overrides that pass; none at all from a list with more than the build ever makes.
+    static func allowedOverrides(_ overrides: [String: String]) -> [String: String]? {
+        let allowed = overrides.filter { isAllowedOverride($0.key, order: $0.value) }
+        return allowed.isEmpty || allowed.count > maxDLLOverrides ? nil : allowed
+    }
+
+    /// The arguments, all of them or none: an option without its value would start the game wrongly.
+    static func allowedArguments(_ arguments: [String]) -> [String]? {
+        arguments.count <= maxArguments && arguments.allSatisfy(isAllowedArgument) ? arguments : nil
     }
 }
 

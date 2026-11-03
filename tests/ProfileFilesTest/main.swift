@@ -220,6 +220,26 @@ struct ProfileFilesTest {
                         SaveRule(root: "WinMyDocuments", path: "My Games", pattern: "*.sav", recursive: false, macRoot: "MacDocuments", macAddPath: "Game")],
               "save folders: every file, all the way down, unless the list says otherwise")
         check(profile(#"{"saves": [{"root": "WinAppDataLocal"}]}"#)?.saves == nil, "a save folder without its path is none")
+
+        // DLL overrides and arguments only as scripts/build-profiles.py lets them through: a list signed
+        // without its CI meets the same rules (the expectations are what its functions say).
+        func listed(_ object: [String: Any]) -> GameProfile? {
+            profile(String(data: (try? JSONSerialization.data(withJSONObject: object)) ?? Data(), encoding: .utf8) ?? "")
+        }
+        let overrides = listed(["dllOverrides": ["d3d9": "native", "*xinput1_3": "native,builtin", "nvapi64": "", "ntdll": "native",
+                                                 "kernel32.dll": "builtin", "*user32": "native", "../x": "native", "D3D11": "native",
+                                                 "dxgi": "n", "a b": "native", "x..y": "native", "winemac.drv": "native"]])?.dllOverrides
+        check(overrides == ["d3d9": "native", "*xinput1_3": "native,builtin", "nvapi64": ""],
+              "overrides: bare lowercase names with Wine's orders pass; Wine's core, paths, odd orders don't: \(overrides ?? [:])")
+        check(listed(["dllOverrides": Dictionary(uniqueKeysWithValues: (0...32).map { ("dll\($0)", "native") })])?.dllOverrides == nil,
+              "more overrides than the build ever makes: none")
+        let plainArguments = ["-dx11", "--bundle-dir", "../bundle", "+r_renderAPI", "1", "/dx11", "-vomstyle=layer", "glide_fix.conf"]
+        check(listed(["arguments": plainArguments])?.arguments == plainArguments, "plain arguments pass")
+        for bad in ["/etc/passwd", "-log=/tmp/x/y", "C:\\x", "a b", "--data=../../x", "~/x", "//server/x", "-x=\"y\"", "a/../b", "",
+                    String(repeating: "x", count: 65), "-\n"] {
+            check(listed(["arguments": ["-windowed", bad]])?.arguments == nil, "arguments with \(bad.debugDescription): none of them")
+        }
+        check(listed(["arguments": Array(repeating: "-x", count: 17)])?.arguments == nil, "more arguments than the build ever makes: none")
         let stream = AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: "e1b2c3")
         check(stream.geforceNowURL?.absoluteString == "https://play.geforcenow.com/games?game-id=e1b2c3&utm_source=nightforge&utm_campaign=library",
               "GeForce Now's link to the game: \(stream.geforceNowURL?.absoluteString ?? "nil")")
