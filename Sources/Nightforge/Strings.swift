@@ -470,6 +470,7 @@ enum L10n {
         "The part downloaded so far is deleted. You can start the download again any time.":
             "Der bisher geladene Teil wird gelöscht. Du kannst den Download jederzeit neu starten.",
         "%@ could not be uninstalled: %@": "%@ konnte nicht deinstalliert werden: %@",
+        "still there in %@: %@": "noch da in %@: %@",
 
         "Running": "Läuft",
         "Running – switch to game": "Läuft – zum Spiel wechseln",
@@ -870,6 +871,9 @@ enum L10n {
             "Nimmst du den neueren, bleibt der Spielstand dieser Version als Sicherung in Nightforges Ordner „Backups“.",
         "The newer save couldn't be copied over (%@). %@ starts with its own.":
             "Der neuere Spielstand ließ sich nicht übernehmen (%@). %@ startet mit seinem eigenen.",
+        "The newer save was copied over only in part (%@). The saves from before are in %@.":
+            "Der neuere Spielstand wurde nur zum Teil übernommen (%@). Die Spielstände von vorher liegen in %@.",
+        "%@; the saves from before are in %@": "%@; die Spielstände von vorher liegen in %@",
         "Removing …": "Wird entfernt …",
         "Nightforge can only remove itself when it runs as the app.":
             "Nightforge kann sich nur entfernen, wenn es als App läuft.",

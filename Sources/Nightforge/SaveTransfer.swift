@@ -128,8 +128,11 @@ enum SaveTransfer {
     }
 
     /// Continues with the other version's newer saves: this version's go to `backup` first, then
-    /// each such folder gets exactly the other version's saves. Throws before changing a folder
-    /// whose backup failed. Returns how many files were copied.
+    /// each such folder gets exactly the other version's saves. Those are copied into a folder beside
+    /// it first and only then renamed into place, each over its old one at once, so a copy that fails
+    /// (a save that can't be read, a full disk) leaves this version's saves as they were. Throws
+    /// before changing a folder whose backup or copy failed; `PartlyTaken` if it stopped while
+    /// changing one. Returns how many files were copied.
     @discardableResult
     static func takeNewer(to platform: Platform, rules: [SaveRule], places: Places, backup: URL) throws -> Int {
         let fm = FileManager.default
@@ -142,18 +145,40 @@ enum SaveTransfer {
                 try fm.copyItem(at: pair.target.appendingPathComponent(relative), to: destination)
             }
             let theirs = pair.sourceSaves
-            for relative in Set(ours).subtracting(theirs) {
-                try fm.removeItem(at: pair.target.appendingPathComponent(relative))
-            }
+            // Beside the folder, on its volume: a rename there is one step.
+            let staging = pair.target.deletingLastPathComponent()
+                .appendingPathComponent(".\(pair.target.lastPathComponent).nightforge-\(UUID().uuidString)", isDirectory: true)
+            defer { try? fm.removeItem(at: staging) }
             for relative in theirs {
-                let destination = pair.target.appendingPathComponent(relative)
+                let destination = staging.appendingPathComponent(relative)
                 try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-                if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
                 try fm.copyItem(at: pair.source.appendingPathComponent(relative), to: destination)
-                copied += 1
+            }
+            do {
+                for relative in theirs {
+                    let destination = pair.target.appendingPathComponent(relative)
+                    try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    guard rename(staging.appendingPathComponent(relative).path, destination.path) == 0 else {
+                        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                    }
+                    copied += 1
+                }
+                for relative in Set(ours).subtracting(theirs) {
+                    try fm.removeItem(at: pair.target.appendingPathComponent(relative))
+                }
+            } catch {
+                throw PartlyTaken(backup: backup, reason: error.localizedDescription)
             }
         }
         return copied
+    }
+
+    /// takeNewer stopped while it changed a save folder (a rename, a removal): the saves from before
+    /// are in `backup`.
+    struct PartlyTaken: LocalizedError {
+        let backup: URL
+        let reason: String
+        var errorDescription: String? { L10n.t("%@; the saves from before are in %@", reason, backup.path) }
     }
 
     /// Where a switch's replaced saves are kept: Nightforge's Backups folder, by game and time.

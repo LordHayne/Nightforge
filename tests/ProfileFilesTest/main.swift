@@ -442,5 +442,31 @@ struct ProfileFilesTest {
         check(taken == 1 && fm.fileExists(atPath: support.appendingPathComponent("Game/Saves/slot1.sav").path) && !fm.fileExists(atPath: oldSave.path)
               && fm.fileExists(atPath: backup.appendingPathComponent("WinAppDataRoaming/Game/Saves/slot0.sav").path)
               && others.allSatisfy { fm.fileExists(atPath: $0.path) }, "a save folder below the root still works: \(taken)")
+
+        // A copy that stops halfway (a newer save that can't be read) changes nothing here: the other side's
+        // saves go beside the folder first and only then over this version's.
+        let ourSaves = support.appendingPathComponent("Game2/Saves", isDirectory: true)
+        write("old", ourSaves.appendingPathComponent("slot0.sav"), hoursAgo: 5)
+        write("old", ourSaves.appendingPathComponent("slot9.sav"), hoursAgo: 5)
+        write("new", roaming.appendingPathComponent("Game2/Saves/slot0.sav"), hoursAgo: 0)
+        let unreadable = roaming.appendingPathComponent("Game2/Saves/slot1.sav")
+        write("new", unreadable, hoursAgo: 0)
+        try? fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: unreadable.path)
+        let secondBackup = temp.appendingPathComponent("saves-backup-2", isDirectory: true)
+        check((try? SaveTransfer.takeNewer(to: .mac, rules: [rule("WinAppDataRoaming", "Game2/Saves")], places: places, backup: secondBackup)) == nil,
+              "a newer save that can't be read: the switch stops")
+        check((try? String(contentsOf: ourSaves.appendingPathComponent("slot0.sav"), encoding: .utf8)) == "old"
+              && fm.fileExists(atPath: ourSaves.appendingPathComponent("slot9.sav").path)
+              && (try? fm.contentsOfDirectory(atPath: ourSaves.deletingLastPathComponent().path)) == ["Saves"],
+              "… with this version's saves as they were, and nothing left beside them")
+        try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: unreadable.path)
+        let thirdBackup = temp.appendingPathComponent("saves-backup-3", isDirectory: true)
+        let again = (try? SaveTransfer.takeNewer(to: .mac, rules: [rule("WinAppDataRoaming", "Game2/Saves")], places: places, backup: thirdBackup)) ?? -1
+        check(again == 2 && (try? String(contentsOf: ourSaves.appendingPathComponent("slot0.sav"), encoding: .utf8)) == "new"
+              && !fm.fileExists(atPath: ourSaves.appendingPathComponent("slot9.sav").path)
+              && (try? fm.contentsOfDirectory(atPath: ourSaves.deletingLastPathComponent().path)) == ["Saves"],
+              "once it can be read: exactly the other version's saves, nothing beside them (\(again))")
+        check(SaveTransfer.PartlyTaken(backup: secondBackup, reason: "x").errorDescription?.contains(secondBackup.path) == true,
+              "a switch that stopped while changing a folder names the backup")
     }
 }

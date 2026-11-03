@@ -236,6 +236,24 @@ struct QuitScriptTest {
             check(sleeps(world).contains("30"), "… after the 30 s for the cloud saves (slept \(sleeps(world)))")
         }
 
+        // A game started from Steam's window just as Steam is asked to end: Steam refuses -shutdown then, and
+        // `wineserver -k` would end the game as it starts. The stand-in wine brings the game up at -shutdown.
+        let game = #"C:\Program Files (x86)\Steam\steamapps\common\Game\Game.exe"#
+        for (steamStays, case_) in [(true, "Steam stays for the game"), (false, "Steam ended, the game came up right before the session would")] {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            QuitScriptTest.write((steamStays ? "200\t\(steam)\n" : "") + "300\t\(game)\n", to: world.later)
+            QuitScriptTest.write("""
+                #!/bin/sh
+                echo "$(basename "$0") $*" >> "$FAKE_LOG"
+                case "$*" in *-shutdown*) cp "\(world.later.path)" "\(world.processList.path)" ;; esac
+                """, to: world.wine, executable: true)
+            let result = world.run(limit: 2, app: "")
+            check(!result.timedOut && result.calls.contains { $0.contains("-shutdown") } && !result.calls.contains("wineserver -k"),
+                  "\(case_): the session isn't ended under it, the script waits for the game: \(result.calls)")
+        }
+
         // No "-shutdown" for a Steam that isn't running (it would start one); the Wine session is ended all the same.
         do {
             let world = World()

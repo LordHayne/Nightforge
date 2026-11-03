@@ -340,13 +340,20 @@ struct CompleteRemovalTest {
             named.executableURL = URL(fileURLWithPath: "/bin/bash")
             named.arguments = ["-c", "sleep 60", script.path]
             try? named.run()
+            // A shell of the player's that has the script's path in its command line (a `tail -f` on it).
+            let shell = Process()
+            shell.executableURL = URL(fileURLWithPath: "/bin/bash")
+            shell.arguments = ["-c", "sleep 60; true"]
+            try? shell.run()
             usleep(300_000)
             // The list of a stand-in: the bash with the script's path in its command, a bystander that only names the script,
-            // and a bash that is given the path as an argument of its own.
+            // a bash that is given the path as an argument of its own, and one whose -c text names it (security-status
+            // and quit-safety each brought one of the two).
             FakeProcesses.install {
                 [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path) /wine /prefix"),
                  FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)"),
-                 FakeProcesses.Row(pid: named.processIdentifier, command: "/bin/bash -c sleep 60 \(script.path)")]
+                 FakeProcesses.Row(pid: named.processIdentifier, command: "/bin/bash -c sleep 60 \(script.path)"),
+                 FakeProcesses.Row(pid: shell.processIdentifier, command: "/bin/bash -c tail -f \(script.path)")]
             }
             CompleteRemoval.endScripts(under: support)
             check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
@@ -354,6 +361,8 @@ struct CompleteRemovalTest {
             check(named.isRunning, "… nor is a bash that only has the path as a later argument (less, tail, bash -c …)")
             bystander.terminate()
             named.terminate()
+            check(shell.isRunning, "… nor is a bash that only names it (as Migration's pkill -f once hit)")
+            shell.terminate()
             FakeProcesses.installEmpty()
             let spaced = "/Users/x/Library/Application Support/Nightforge/steam-shutdown.sh"
             check(CompleteRemoval.runsScript("/bin/bash \(spaced) /wine /prefix 1 0", spaced) && CompleteRemoval.runsScript("bash \(spaced)", spaced),
