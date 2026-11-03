@@ -9,7 +9,8 @@ import tempfile
 import textwrap
 import unittest
 
-SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "build-profiles.py"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / "scripts" / "build-profiles.py"
 spec = importlib.util.spec_from_file_location("build_profiles", SCRIPT)
 build_profiles = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build_profiles)
@@ -94,6 +95,66 @@ class TranslateTests(unittest.TestCase):
                 util.regedit_add('HKLM\\\\System\\\\CurrentControlSet\\\\Services\\\\winebus', 'DisableHidraw', 'REG_DWORD', '1')
         ''')
         self.assertNotIn("registry", profile)
+
+
+class SafetyTests(unittest.TestCase):
+    """DLL overrides and start arguments come from a stranger's repository (Audit M1)."""
+
+    def test_dll_overrides_by_bare_name_with_wines_orders(self):
+        for name, order in [("d3d9", "native,builtin"), ("*dsound", "builtin"), ("vulkan-1", ""), ("xactengine3_7", "native")]:
+            self.assertTrue(build_profiles.dll_override_allowed(name, order), (name, order))
+        for name, order in [("ntdll", "native"), ("kernel32.dll", ""), ("winemac.drv", ""), ("..", ""), ("*", ""),
+                            ("../d3d9", ""), ("D3D9", ""), ("d3d9", "native;builtin"), ("d3d9", None), (9, "")]:
+            self.assertFalse(build_profiles.dll_override_allowed(name, order), (name, order))
+
+    def test_arguments_without_paths_out_of_the_game(self):
+        for argument in ["-dx11", "/dx11", "+r_renderAPI", "1", "-vomstyle=layer", "Zonematch=true", "glide_fix.conf",
+                         "../bundle", "-c=../x"]:
+            self.assertTrue(build_profiles.argument_allowed(argument), argument)
+        for argument in ["/Users/x/game", "--ini=/etc/passwd", "C:x", "Z:\\Users", "~/x", "../../x", "x/../y", "-c=../../x",
+                         "//server/x", "file:///x", "-a b", '-a"', "-a;rm", "$HOME", "%TEMP%", "-x\n", "", "a" * 65]:
+            self.assertFalse(build_profiles.argument_allowed(argument), argument)
+
+    def test_how_many_is_limited(self):
+        self.assertTrue(build_profiles.arguments_allowed(["-a"] * 16))
+        self.assertFalse(build_profiles.arguments_allowed(["-a"] * 17))
+        self.assertFalse(build_profiles.arguments_allowed("-dx11"), "a list, not a string")
+        self.assertTrue(build_profiles.overrides_allowed({f"dll{i}": "" for i in range(32)}))
+        self.assertFalse(build_profiles.overrides_allowed({f"dll{i}": "" for i in range(33)}))
+
+    def test_translation_leaves_out_what_isnt_plain(self):
+        profile, partial = translate('''
+            from protonfixes import util
+
+            def main():
+                util.winedll_override('ntdll', util.OverrideOrder.NATIVE)
+                util.winedll_override('d3dx9_43', util.OverrideOrder.NATIVE)
+                util.append_argument('--ini=/etc/passwd -nosplash')
+                util.append_argument('-dx11')
+        ''')
+        self.assertTrue(partial)
+        self.assertEqual(profile["dllOverrides"], {"d3dx9_43": "native"})
+        self.assertEqual(profile["arguments"], ["-dx11"], "all of a call or none of it")
+
+    def test_the_workflow_check_takes_todays_list_and_nothing_unsafe(self):
+        workflow = (ROOT / ".github/workflows/profiles.yml").read_text()
+        check = textwrap.dedent(workflow.split("python3 -I - <<'PY'\n", 1)[1].split("\n          PY\n", 1)[0])
+        run = lambda folder: subprocess.run([sys.executable, "-I", "-c", check], cwd=folder, capture_output=True, text=True)
+        today = run(ROOT)
+        self.assertEqual(today.returncode, 0, today.stdout + today.stderr)
+        for field, value in [("dllOverrides", {"ntdll": "native"}), ("arguments", ["--ini=/etc/passwd"]),
+                             ("arguments", ["-x"] * 17)]:
+            with self.subTest(field=field, value=str(value)[:40]), tempfile.TemporaryDirectory() as folder:
+                folder = pathlib.Path(folder)
+                (folder / "scripts").mkdir()
+                (folder / "profiles").mkdir()
+                (folder / "scripts/build-profiles.py").write_text(SCRIPT.read_text())
+                doc = json.loads((ROOT / "profiles/profiles.json").read_text())
+                next(iter(doc["games"].values()))[field] = value
+                (folder / "profiles/profiles.json").write_text(json.dumps(doc))
+                result = run(folder)
+                self.assertNotEqual(result.returncode, 0, "the workflow stops before anything is proposed")
+                self.assertIn("AssertionError", result.stderr)
 
 
 class AntiCheatTests(unittest.TestCase):
