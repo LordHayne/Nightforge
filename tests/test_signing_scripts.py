@@ -606,6 +606,25 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("scripts/signing-lib.sh on main isn't the one in this checkout", result.stderr)
 
+    def test_on_main_a_changed_list_needs_a_newer_stamp_than_when_it_was_signed(self):
+        """Review E: on main itself the comparison is with the list as it was last signed."""
+        self.lists_repo()
+        self.assertEqual(self.sign_lists("main").returncode, 0)
+        self.git("pull", "--quiet", "--ff-only", "origin", "main")
+        profiles = self.repo / "profiles/profiles.json"
+        signed_stamp = json.loads(profiles.read_text())["generated"]
+        profiles.write_text(stamped(profiles.read_text().replace('"formatVersion": 1', '"formatVersion": 1, "note": "by hand"', 1),
+                                    signed_stamp))
+        self.git("commit", "--quiet", "-am", "A hand edit without a new stamp")
+        self.git("push", "--quiet", "origin", "main")
+        result = self.sign_lists("main")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("isn't newer than the last signed one", result.stderr)
+        profiles.write_text(stamped(profiles.read_text(), utc_stamp()))
+        self.git("commit", "--quiet", "-am", "Now with a new stamp")
+        self.git("push", "--quiet", "origin", "main")
+        self.assertEqual(self.sign_lists("main").returncode, 0, "with a newer stamp it's signed")
+
     def test_a_stamp_from_the_future_isnt_signed(self):
         """Review N5: one list from the future would turn away every right one after it."""
         origin = self.lists_repo()

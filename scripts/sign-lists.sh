@@ -82,16 +82,22 @@ for list in "${todo[@]}"; do
   ours="$(stamp "$tree/$list")"
   [[ ! "$ours" > "$limit" ]] || fail "$list has \"generated\" $ours, more than a day ahead: fix the clock or the stamp first."
 done
-if [ "$branch" != main ]; then
-  for list in "${todo[@]}"; do
-    git -C "$tree" cat-file -e "origin/main:$list" 2>/dev/null || continue
-    git -C "$tree" diff --quiet origin/main HEAD -- "$list" && continue
-    ours="$(stamp "$tree/$list")"
-    theirs="$(git -C "$tree" show "origin/main:$list" > "$work/main-list" && stamp "$work/main-list")"
-    [[ "$ours" > "$theirs" ]] \
-      || fail "$list changed, but its \"generated\" (${ours:-none}) isn't newer than main's (${theirs:-none}): Nightforge would turn it away."
-  done
-fi
+for list in "${todo[@]}"; do
+  if [ "$branch" = main ]; then
+    # On main itself: the list as it was when it was last signed, the commit that last changed its .sig
+    # (review E). Never signed yet: nothing to compare with.
+    ref="$(git -C "$tree" log -1 --format=%H -- "$list.sig")" before="the last signed one"
+    [ -n "$ref" ] || continue
+  else
+    ref=origin/main before="main's"
+  fi
+  git -C "$tree" cat-file -e "$ref:$list" 2>/dev/null || continue
+  git -C "$tree" diff --quiet "$ref" HEAD -- "$list" && continue
+  ours="$(stamp "$tree/$list")"
+  theirs="$(git -C "$tree" show "$ref:$list" > "$work/before-list" && stamp "$work/before-list")"
+  [[ "$ours" > "$theirs" ]] \
+    || fail "$list changed, but its \"generated\" (${ours:-none}) isn't newer than $before (${theirs:-none}): Nightforge would turn it away."
+done
 
 echo "▸ Signing what $branch holds now:"
 git -C "$tree" log -1 --format='  %h %s (%an, %ar)'
