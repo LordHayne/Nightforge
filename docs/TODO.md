@@ -891,6 +891,33 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   der Stand von 2020 ohne Online-Spiel.
 - Übersicht nach DX12- und winecx-Tests aktualisieren (Liste: `ISteamChartsService/GetMostPlayedGames`).
 
+## Befunde aus dem Spieletest vom 3.11. (GameTests/2026-11-03-0748) – Zweig `claude/live-findings-0748`
+
+- **ABZU (Epic `Curry`, Unreal 4.8) kam mit 1920×1200 auf dem 1512×982-MacBook.** `GameResolution.fit` lief, fand
+  die Datei (`AppData/Local/AbzuGame/Saved/Config/WindowsNoEditor/GameUserSettings.ini`), änderte aber nichts:
+  ABZU hat eine eigene Klasse ohne `FullscreenMode`/`ResolutionSizeX`, nur `Fullscreen=ON`,
+  `bUseDesktopResolutionForFullscreen=False` und `DesiredScreenWidth/Height=1280×720`. Behoben für alle Spiele
+  dieser älteren Art (`GameResolution.olderFitted`): bei `Fullscreen=ON` die Bildschirmgröße in
+  `DesiredScreenWidth/Height` und `bUseDesktopResolutionForFullscreen=True`, nur Werte, die das Spiel selbst
+  geschrieben hat. **Live prüfen:** ABZU über Epic starten; im wine.log „Full screen GameUserSettings.ini:
+  1512×982“, Vollbild ohne Rand.
+- **The Forest (Steam 242760, Unity 5.6.5p4) zeigt Unitys Auswahlfenster** („The Forest Configuration“, 464×438,
+  „Play!“). Der Spieletest hat es als Hänger gezählt, weil niemand klickte. Ein normaler Start zeigt es unter dem
+  Vorhang, mit dem Pad ist es aber nicht bedienbar (PCGamingWiki: „Launcher requires mouse input“).
+  - Eine Startoption zum Überspringen gibt es nicht: Unity kennt nur `-show-screen-selector` (erzwingt das Fenster);
+    ob es erscheint, steht in den PlayerSettings in `globalgamemanagers`, nicht in der Registry
+    (`HKCU\Software\SKS\TheForest` hält nur Auflösung und Qualität). umu-protonfixes und PCGamingWiki nennen auch
+    keinen Weg. Darum **kein Profil**.
+  - Erkennen: `globalgamemanagers` hat bei The Forest keinen Typbaum (Flag 0), das Feld ist ohne Unity-Version nicht
+    lesbar. Ein Hinweis ist `<Spiel>_Data/ScreenSelector.bmp` (das Bild im Fenster): The Forest hat es in allen drei
+    Datenordnern, Oxygen Train (neueres Unity, kein Fenster) nicht. Ab Unity 2019.3 gibt es das Fenster nicht mehr.
+    Mit mehr Unity-Spielen prüfen, bevor es zählt.
+  - **Vorschlag:** ein kleines Wine-Programm (wie `steamwebhelper.exe`, mingw), das bei Unity-Spielen mit
+    `ScreenSelector.bmp` bis zu einer Minute nach einem Dialog `#32770` „… Configuration“ des Spiels sucht und
+    „Play!“ drückt (IDOK). Ohne Bedienungshilfen-Recht im macOS, weil es innerhalb der Wine-Sitzung läuft. Die
+    Auflösung bleibt die, die `GameResolution` vorher in die Registry geschrieben hat. Bis dahin sollte der
+    Spieletest das Fenster als „braucht einen Klick“ zählen, nicht als Hänger.
+
 ## Mac-Wissen aus Quellen (AGW, Berichte) – Zweig `claude/compat-db-bce7dc`
 
 Entwurf und Regeln: `docs/ENTWURF-BERICHTE.md`. Abdeckung der Top 200: `docs/recherche/mac-abdeckung.md`.

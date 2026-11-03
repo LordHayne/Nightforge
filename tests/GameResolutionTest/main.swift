@@ -164,6 +164,23 @@ struct GameResolutionTest {
         } else {
             check(false, "a game's own settings section gets the TV's size")
         }
+        // ABZU (Epic, Unreal 4.8): its own class with "Fullscreen=ON" and DesiredScreenWidth/Height, no
+        // FullscreenMode – its file from the game test of 3.11.2026, when it came up 1920×1200 on the MacBook.
+        let abzu = fixture("GameUserSettings-abzu.ini")
+        if let fitted = GameResolution.unrealFitted(abzu, size: macBook) {
+            let lines = fitted.components(separatedBy: .newlines)
+            check(lines.contains("DesiredScreenWidth=1512") && lines.contains("DesiredScreenHeight=982")
+                  && lines.contains("bUseDesktopResolutionForFullscreen=True"), "ABZU: the screen's size, and the desktop's resolution in full screen")
+            check(lines.contains("Fullscreen=ON") && lines.contains("Shadows=HIGH") && lines.contains("sg.ShadowQuality=3")
+                  && !lines.contains("DesiredScreenWidth=1280"), "the rest stays, the old size goes")
+            check(GameResolution.unrealFitted(fitted, size: macBook) == nil, "fitted once, the next start changes nothing")
+        } else {
+            check(false, "ABZU's older settings get the MacBook's size")
+        }
+        check(GameResolution.unrealFitted(abzu.replacingOccurrences(of: "Fullscreen=ON", with: "Fullscreen=OFF"), size: macBook) == nil,
+              "ABZU in a window stays a window")
+        check(GameResolution.unrealFitted("[/Script/Game.Settings]\nFullscreen=ON\nShadows=HIGH\n", size: tv) == nil,
+              "the older kind without a stored size: nothing invented")
         check(GameResolution.unrealFitted(fixture("GameUserSettings-windowed.ini"), size: tv) == nil, "a windowed Unreal game stays a window")
         check(GameResolution.unrealFitted("[/Script/Engine.GameUserSettings]\nbUseVSync=False\n", size: tv) == nil,
               "no FullscreenMode yet (before the game's first start): nothing to go by")
