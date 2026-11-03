@@ -253,6 +253,44 @@ struct EngineLayoutTest {
               "extra Wine debug channels: channel lists only")
         check(GameLog.wineDebug == "-all,err+module,err+mscoree", "Wine stays quiet without an engine test")
 
+        // MARK: A game's Wine switches (GameEnvironment: profile "environment", test switch gameEnvironment.<key>)
+        check(GameEnvironment.sanitized(["WINE_SIMULATE_WRITECOPY": "1", "DYLD_INSERT_LIBRARIES": "/tmp/x.dylib",
+                                         "CX_ACTIVE_GRAPHICS_BACKEND": "../dxmt", "CX_HACK_FILESYSTEM_TYPE": "1 2",
+                                         "CX_GRAPHICS_BACKEND": ""]) == ["WINE_SIMULATE_WRITECOPY": "1"],
+              "only the allowed names, with plain short values")
+        let withSwitches = try? JSONDecoder().decode(GameProfile.self, from: Data(
+            #"{"environment": {"WINE_SIMULATE_WRITECOPY": "1", "DYLD_INSERT_LIBRARIES": "/x", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"}}"#.utf8))
+        check(withSwitches?.environment == ["WINE_SIMULATE_WRITECOPY": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"],
+              "a profile's environment, without what isn't allowed")
+        let onlyBad = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"environment": {"DYLD_INSERT_LIBRARIES": "/x"}}"#.utf8))
+        check(onlyBad != nil && onlyBad?.environment == nil, "nothing allowed: no environment, and the profile still reads")
+        let suite = "nightforge.game-environment-test.\(getpid())"
+        if let test = UserDefaults(suiteName: suite) {
+            let overwatch = GameID.steam(2357570)
+            check(GameEnvironment.wanted(for: overwatch, profile: withSwitches, defaults: test)
+                  == ["WINE_SIMULATE_WRITECOPY": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], "without a test switch: the profile's")
+            test.set(["WINE_SIMULATE_WRITECOPY": "0", "CX_HACK_FILESYSTEM_TYPE": NSNumber(value: 1), "DYLD_FRAMEWORK_PATH": "/x"],
+                     forKey: GameEnvironment.testKey(overwatch))
+            check(GameEnvironment.testKey(overwatch) == "gameEnvironment.steam.2357570", "the test switch is keyed by the game")
+            check(GameEnvironment.wanted(for: overwatch, profile: withSwitches, defaults: test)
+                  == ["WINE_SIMULATE_WRITECOPY": "0", "CX_HACK_FILESYSTEM_TYPE": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"],
+                  "the test switch wins over the profile, numbers as `defaults` writes them count, the rest stays out")
+            check(GameEnvironment.wanted(for: .steam(550), profile: nil, defaults: test).isEmpty, "another game gets none of it")
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+        }
+        // Through Steam they go into its environment; the next game without them takes them away again.
+        let launchBefore = Engine.launchEnvironment
+        Engine.launchEnvironment = [:]
+        _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                              environment: ["WINE_SIMULATE_WRITECOPY": "1"])
+              && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == "1", "a game with a switch: Steam restarts with it")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == nil, "the next game without it: Steam restarts without it")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false),
+              "and one more game without it: no restart")
+        Engine.launchEnvironment = launchBefore
+
         // MARK: CrossOver's user folder
         let users = work.appendingPathComponent("prefix/drive_c/users", isDirectory: true)
         try? fm.createDirectory(at: users.appendingPathComponent("thomas"), withIntermediateDirectories: true)

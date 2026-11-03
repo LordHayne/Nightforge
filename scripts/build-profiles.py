@@ -102,6 +102,20 @@ IGNORED_REGISTRY_PREFIXES = ("hklm\\system\\currentcontrolset\\services\\winebus
 
 # Where a profile may write at all: a game's own settings under Software, and drive letters. Never
 # autostart entries, file associations, policies or Wine's own settings (Engine.isAllowedRegistryKey).
+# Wine's and CrossOver's own switches a profile's "environment" may set, with plain short values: the
+# same list as GameEnvironment.allowed in the app (Sources/Nightforge/GameEnvironment.swift), which
+# drops anything else. Never DYLD_* or paths: an environment variable can load code into a program.
+ENVIRONMENT_NAMES = {"WINE_SIMULATE_WRITECOPY", "CX_HACK_FILESYSTEM_TYPE", "CX_ACTIVE_GRAPHICS_BACKEND",
+                     "CX_GRAPHICS_BACKEND", "WINE_LARGE_ADDRESS_AWARE"}
+ENVIRONMENT_VALUE = re.compile(r"[A-Za-z0-9._-]{1,32}")
+
+
+def environment_allowed(environment) -> bool:
+    return isinstance(environment, dict) and all(
+        name in ENVIRONMENT_NAMES and isinstance(value, str) and ENVIRONMENT_VALUE.fullmatch(value)
+        for name, value in environment.items())
+
+
 REGISTRY_ROOTS = {"hkcu": "hkey_current_user", "hklm": "hkey_local_machine"}
 REGISTRY_BLOCKED_VENDORS = {"microsoft", "classes", "policies", "wine", "wow6432node"}
 

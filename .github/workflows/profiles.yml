@@ -79,6 +79,8 @@ jobs:
               program = game.get("executable")
               assert program is None or (isinstance(program, str) and program and not program.startswith(("/", "\\"))
                                           and ".." not in re.split(r"[\\/]", program)), (app_id, program)
+              # Wine's and CrossOver's own switches only (GameEnvironment in the app), plain short values.
+              assert game.get("environment") is None or build_profiles.environment_allowed(game["environment"]), (app_id, game.get("environment"))
               for entry in game.get("registry") or []:
                   assert build_profiles.registry_key_allowed(entry["key"]), (app_id, entry["key"])
                   assert all("\n" not in str(v) and "\r" not in str(v) for v in entry.values()), (app_id, entry)

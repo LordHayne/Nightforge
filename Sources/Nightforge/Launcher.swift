@@ -508,6 +508,9 @@ enum Launcher {
             Engine.applyIniSettings(profile?.iniSettings ?? [])
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
+            // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
+            let switches = Engine.launchEnvironment.filter { GameEnvironment.allowed[$0.key] != nil && !$0.value.isEmpty }
+            if !switches.isEmpty { GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches)) through Steam") }
             // This call starts Steam when it isn't running: in the Retina mode the game wants, and
             // with the Guide button left to Nightforge (SteamGuideButton).
             if !Engine.isSteamRunning {
@@ -568,6 +571,11 @@ enum Launcher {
         // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
         // choice is in the registry (AppDefaults), which an override here would beat.
         environment["WINEDLLOVERRIDES"] = nil
+        let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
+        if !switches.isEmpty {
+            environment.merge(switches) { _, game in game }
+            GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches))")
+        }
         environment["WINEDEBUG"] = GameLog.wineDebug
         if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
         environment.merge(command.environment) { _, store in store }

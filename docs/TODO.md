@@ -160,7 +160,8 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   In der Cloud-Konfiguration stehen `volume "0.008"` und Quadro-Lautsprecher, also erst im Spiel unter
   Optionen → Audio hochdrehen, bevor man Wine verdächtigt. Stürzt am 28.10. weiterhin ab, noch nicht genauer
   untersucht.
-- **DXVK unter winecx gar nicht nutzbar?** Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
+- **DXVK unter winecx gar nicht nutzbar?** Ursache am 3.11. eingegrenzt: Es fehlt der Vulkan-Loader, also auch der
+  Layer. Die Probe dazu und der Weg über `CX_LIBVULKAN` stehen unten bei „Vulkan-Layer und winecx“. Mafia II (31.10., GOG) scheitert genau wie L4D2: `vkCreateDevice` lehnt das
   5. und 39. Feature ab (`geometryShader`, `shaderCullDistance`), „DxvkAdapter: Failed to create device“ – viermal in
   `Logs/wine.log`, dreimal davon gleich nach Steams `gldriverquery`. DXVK-macOS 1.10.3 verlangt beide; ohne den Vulkan-Layer
   (winecx hat keinen Loader) bleibt das so. Für D3D10/11 vermutlich genauso (Geometry-Shader ab Feature-Level 10) – mit
@@ -265,9 +266,21 @@ Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen ge
   Stück B (`enginefix`). Ob das Overwatch trifft, zeigt erst der Test.
 - **Kandidat D3DMetal unter Rosetta:** D4Mac fand den hängenden Thread der Blizzard-Spiele in `os_sync_wait_on_address` in
   Apples `libd3dshared.dylib`. Mit DXMT ist D3DMetal nicht im Spiel.
-- **Live-Test offen**, Plan im Notizordner der Sessions (`overwatch-engine-04.md`). Die Varianten: A DXMT mit msync,
-  B DXMT ohne msync, C D3DMetal ohne msync, D DXMT mit `enginefix`. Bei einem Hänger jeweils `sample` des Prozesses
-  und den Teil von `Logs/wine.log` ab Start. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
+- **Live-Tests vom 2.11. abends** (Plan und Auswertung im Notizordner, `overwatch-engine-04.md`): A (DXMT mit msync),
+  B (DXMT ohne msync) und der nächtliche Spieletest (23:46, DXMT mit msync) **hängen gleich**. Es kommt keine Grafikzeile
+  ins Log, der Grafikweg ist also nicht schuld. Der Windows-Hauptthread wartet in `NtWaitForAlertByThreadId` auf eine
+  Sperre. Ein Thread wartet auf ein Objekt, mit msync über `msync_wait_objs`, ohne msync über `server_select`, also nicht
+  msyncs Schuld. Vier Threads wurden angehalten erzeugt und nie fortgesetzt. D3DMetals Rosetta-Deadlock (D4Mac,
+  `libd3dshared`) ist es nicht: Die Wartestelle liegt in Wines `ntdll.so`, und D3DMetal ist nicht geladen.
+- **Abgleich mit Recall** (AsherJN/recall, CX-26.3-Wine mit DXMT, läuft mit Overwatch): Recall setzt bei jedem Start
+  `WINE_SIMULATE_WRITECOPY=1` (CW Hack 22996: `NtProtectVirtualMemory` meldet Write-Copy-Seiten wie Windows, das
+  prüfen Anti-Tamper) und `CX_HACK_FILESYSTEM_TYPE=1` (CrossOver-Hack 5870: kein NTFS). Dazu kommen
+  `CX_ACTIVE_GRAPHICS_BACKEND=dxmt` und `d3d12,nvapi64,nvngx` aus. Beide Hacks stecken in unserem winecx-Baum, nur
+  schaltet sie nichts ein. In CrossOver tut das vermutlich die nicht freie Kompatibilitätsdatenbank. Recall startet
+  außerdem über Battle.net statt Steam. Seine Wine-Patches betreffen Ruckler, Maus und msync, nicht den Start.
+- **Nächster Live-Test E** (mit dem Nutzer): die beiden Hacks über das Profilfeld `environment` bzw. den Testschalter
+  `gameEnvironment` (unten). Hängt es weiter, `winedbg --command "bt all"` im Hänger: Das zeigt die Windows-Stapel,
+  die `sample` unter Rosetta nicht auflöst. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
 
 ### Engine-Fixes (`enginefix`)
 
@@ -307,9 +320,29 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   beendet Nightforge die laufende Wine-Sitzung samt Steam, weil eine Sitzung nur mit oder nur ohne msync laufen kann.
   `wine.log` meldet dann „msync off from this Wine session on“. Zurück mit
   `defaults delete io.github.lordhayne.nightforge msync`.
+- `defaults write io.github.lordhayne.nightforge gameEnvironment.steam.2357570 -dict WINE_SIMULATE_WRITECOPY 1
+  CX_HACK_FILESYSTEM_TYPE 1 CX_ACTIVE_GRAPHICS_BACKEND dxmt` setzt Wines und CrossOvers eigene Schalter für **ein**
+  Spiel (`gameEnvironment.<Schlüssel des Spiels>`, hier Overwatch auf Steam). Gelesen wird das bei jedem Start, ein
+  Neustart von Nightforge ist nicht nötig. Es geht vor das Profilfeld `environment`, erlaubt sind dieselben Namen
+  (`GameEnvironment.allowed`). Über Steam startet Steam dafür neu. `wine.log` meldet „<Spiel> starts with … through
+  Steam“. Zurück mit `defaults delete io.github.lordhayne.nightforge gameEnvironment.steam.2357570`.
 - `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
   `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
   danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+
+### Profilfeld `environment` (Zweig `claude/engine-env-0f3a`, 3.11.)
+
+- `GameEnvironment`: Wines und CrossOvers eigene Schalter pro Spiel. Erlaubt sind nur `WINE_SIMULATE_WRITECOPY`,
+  `CX_HACK_FILESYSTEM_TYPE`, `CX_ACTIVE_GRAPHICS_BACKEND`, `CX_GRAPHICS_BACKEND` und `WINE_LARGE_ADDRESS_AWARE`, mit
+  kurzen, schlichten Werten. Nie `DYLD_*`, Pfade oder Leerzeichen, weil ein Profil aus der Online-Liste kommt.
+- Wege ins Spiel: Über Steam landen die Schalter in Steams Umgebung (`Engine.prepareLaunchEnvironment`), Steam
+  startet neu, wenn sie sich ändern. Das nächste Spiel ohne sie nimmt sie wieder weg. Epic- und GOG-Spiele bekommen
+  sie direkt (`Launcher.launchDirect`). Dazu kommt der Testschalter oben.
+- `profiles.yml` lehnt anderes ab (`build_profiles.environment_allowed`, dieselbe Liste wie die App, ein Test prüft
+  den Gleichlauf).
+- **Braucht ein App-Release.** Das Overwatch-Profil bekommt den Eintrag erst, wenn Test E läuft. Er kommt dann über die
+  Profilliste, wirkt aber erst mit diesem Release.
+- `LibraryModel`: eine Zeile, das Argument `environment:` beim bestehenden Aufruf von `prepareLaunchEnvironment`.
 
 ### Später (nicht angefangen)
 
@@ -1705,6 +1738,14 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 ### Vulkan-Layer und winecx
 
+- **Bestätigt per Probe (3.11., `dxvk-winecx.md` im Notizordner):** Mit MoltenVK direkt scheitert das Gerät, das DXVK
+  verlangt (`geometryShader` + `shaderCullDistance`), an `VK_ERROR_FEATURE_NOT_PRESENT`. Über den Khronos-Loader 1.4.350
+  mit Nightforges Layer kommt dasselbe Gerät hoch, ohne Layer nicht. Der Hebel steckt in winecx: CW Hack 25909,
+  `CX_LIBVULKAN=<Loader>` zusammen mit `CX_ACTIVE_GRAPHICS_BACKEND=wined3d`, dazu `VK_DRIVER_FILES` und
+  `VK_ADD_IMPLICIT_LAYER_PATH` auf die Dateien im Spiel-Bundle. Für 32-Bit-Spiele bietet MoltenVK 1.4.2
+  `VK_EXT_external_memory_host` und nimmt die `HOST_ALLOCATION`-Puffer an, die Wines WoW64 anlegt (ebenfalls Probe).
+  Offen: den x86_64-Loader liefern (Apache-2.0, am besten in CI gebaut) und die Umgebung in `Engine.gameEnvironment`.
+  Erst dann L4D2, Mafia II und No Man's Sky auf DXVK bzw. Vulkan prüfen.
 - **winecx hat keinen Vulkan-Loader, der Layer wird nie geladen.** Seine `winevulkan.so` lädt `libMoltenVK.dylib`
   direkt (Gcenx' 11.18 ging über `libvulkan.1.dylib`), also findet sich kein Layer aus
   `Nightforge Game.app/…/implicit_layer.d`. Seit PR #7 fehlen damit für Vulkan- und DXVK-Spiele: das Aussortieren

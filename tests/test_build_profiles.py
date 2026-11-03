@@ -281,5 +281,26 @@ class BuildTests(unittest.TestCase):
                                             "geforceNow": "gOw"})
 
 
+
+class EnvironmentTests(unittest.TestCase):
+    """A profile's "environment": Wine's and CrossOver's own switches only, with plain values."""
+
+    def test_the_switches_recall_sets_pass(self):
+        self.assertTrue(build_profiles.environment_allowed(
+            {"WINE_SIMULATE_WRITECOPY": "1", "CX_HACK_FILESYSTEM_TYPE": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"}))
+
+    def test_anything_that_can_load_code_or_name_a_path_is_refused(self):
+        for environment in ({"DYLD_INSERT_LIBRARIES": "/tmp/x.dylib"}, {"WINE_SIMULATE_WRITECOPY": "/tmp"},
+                            {"CX_ACTIVE_GRAPHICS_BACKEND": "dxmt; rm -rf ~"}, {"WINEDLLOVERRIDES": "d3d11=n"},
+                            {"WINE_SIMULATE_WRITECOPY": 1}, ["WINE_SIMULATE_WRITECOPY"], {"WINE_SIMULATE_WRITECOPY": ""}):
+            self.assertFalse(build_profiles.environment_allowed(environment), environment)
+
+    def test_the_app_allows_the_same_names(self):
+        swift = (SCRIPT.parent.parent / "Sources/Nightforge/GameEnvironment.swift").read_text(encoding="utf-8")
+        block = swift[swift.index("static let allowed"):swift.index("]\n", swift.index("static let allowed"))]
+        import re
+        self.assertEqual(set(re.findall(r'^\s*"([A-Z_]+)":', block, re.M)), build_profiles.ENVIRONMENT_NAMES)
+
+
 if __name__ == "__main__":
     unittest.main()
