@@ -739,6 +739,30 @@ Weitere Punkte:
   **pytest:** 144 von 144.
 - **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
 
+## Vierzehnte Runde (3.11., auf 9c45b18)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 66 | `claude/quit-safety` bis e577c5b | e577c5b | 396978c | keine | 0 |
+| 67 | `claude/uninstall-safety` bis 0d45261 | 0d45261 | 79ac2c6 | keine | 0 |
+| 68 | `claude/game-test-fixes` bis e962125 | e962125 | faa4291 | keine | 0 |
+| 69 | `claude/signed-updates-dda700` bis 7143a5c | 7143a5c | cb80381 | keine | 0 |
+| 70 | `claude/profile-ci` bis 2ba6006 (`profiles.json` neu, 744 Spiele) | 2ba6006 | 762de45 | keine | 0 |
+| 71 | `claude/security-status` bis 468ce3f | 468ce3f | 0b4d80a | keine | 0 |
+
+- **70:** Die neu gebaute `profiles.json` ist unsigniert. Ohne Schlüssel ist das so erwartet.
+- **71:** `GameShortcut.key` arbeitet jetzt unter einer Sperre.
+  - Offen bleibt die Lücke aus der zwölften Runde: Die temporäre Datei `shortcut-key.<UUID>.tmp` nennt die Regel der
+    Sandbox nicht.
+  - Seit 62 ist sie innen nur lesbar, nicht unlesbar.
+
+## Tests der vierzehnten Runde (auf 0b4d80a)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** alle 60 Reihen grün (1202 s), `MacVersionTest` auch (62 s).
+- **pytest:** 147 von 147. compat-db sah pytest einmal unter Last scheitern. Hier fiel kein Test aus.
+- **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
