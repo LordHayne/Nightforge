@@ -1555,6 +1555,18 @@ Nur mit Tests auf Test-Ordnern und Renderings geprüft:
   angehaltenen Event und geschlossenem Sheet meldet `osascript` Erfolg und die App endet, auch mit einer wartenden
   modalen Schleife. (6) Abmelden mit offenen Einstellungen: macOS meldet nicht, Nightforge habe das Abmelden
   abgebrochen.
+  Live-Befund 3.11. abends (Build 2bf81fd): Mit offenen Einstellungen beendete weder ⌘Q noch das Menü noch das Dock
+  Nightforge, das Sheet blieb stehen, `wine.log` ohne Zeile. Ursache (nachgestellt mit einer eigenen App im
+  Scratchpad, SwiftUI-Sheet in einem eigenen Fenster): `NSApp.terminate` tut mit angehängtem Sheet gar nichts, fragt
+  nicht einmal `applicationShouldTerminate`. `Quit.now` beendete das Sheet über AppKit (`endSheet`), aber SwiftUI hält
+  es über die Bindung (`showingSettings` blieb true), und sobald die Bibliothek neu zeichnet – bei Nightforge ständig –
+  war das Sheet wieder angehängt. Nach der Wartesekunde kam `terminate` also mit Sheet und verpuffte. Behoben auf
+  `claude/quit-sheets` (von 2bf81fd): `Quit.now` schließt zuerst alle Sheets über das Modell
+  (`LibraryModel.closeAllSheets`, über `Quit.closeModelSheets`; eine wartende Frage hört Nein), wartet, bis kein
+  Fenster mehr ein Sheet hat, beendet nach 1 s noch Verbliebenes über AppKit (AppKits eigene Sheets) und beendet nach
+  höchstens 2 s. Geht das Beenden nicht durch, steht in `wine.log` „Quit by … didn't go through: a sheet is still
+  open (…)“ (oder „a panel still waits for a file“ bzw. „AppKit didn't take it“). Live wie (1)–(6), dazu: nach ⌘Q mit
+  offenen Einstellungen keine „didn't go through“-Zeile in `wine.log`.
 - **`osascript … quit` meldet „abgebrochen“ (-128)** (28.10., beim Test von 7.4): Einmal mit offenen Einstellungen –
   die App lief weiter (siehe oben); einmal endete sie trotz der Meldung wenige Sekunden später. Mit
   `claude/quit-always-1a4e06` beantwortet Nightforge das Quit-AppleEvent selbst, -128 nur noch während „Komplett

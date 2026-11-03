@@ -275,6 +275,7 @@ final class LibraryModel: ObservableObject {
             Task { [weak self] in await TestSteam.guardRealSteam { line in self?.errorMessage = line } }
         }
         input.start(model: self)
+        Quit.closeModelSheets = { [weak self] in self?.closeAllSheets() }
         watchRunningGames()
         NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled }
@@ -2171,6 +2172,26 @@ final class LibraryModel: ObservableObject {
     func closeMacSetup() {
         macSetup?.cancel()
         macSetup = nil
+    }
+
+    /// Every sheet over the library closed through its state, as with Cancel or Close – before a quit
+    /// (Quit): SwiftUI holds a sheet by these, and one AppKit ended came back (3.11.). A question
+    /// waiting for its answer hears no; Settings' own sheets go with Settings.
+    func closeAllSheets() {
+        showingOptions = false
+        showingSettings = false
+        pendingSpace = nil
+        pendingMove = nil
+        if macSetup != nil { closeMacSetup() }
+        errorMessage = nil
+        sessionSummary = nil
+        failedLaunch = nil
+        if saveChoice != nil { answerSaveChoice(takeNewer: false) }
+        pendingDemoLicense = nil
+        d3dMetalDialog = nil  // its onDismiss calls the setup off
+        pendingCloudGame = nil
+        pendingUninstall = nil
+        pendingLeftoverRemoval = nil
     }
 
     /// From the setup sheet: this game keeps to its Windows version.
