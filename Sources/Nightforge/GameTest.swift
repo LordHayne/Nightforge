@@ -229,6 +229,9 @@ enum GameTest {
         case noStart
         /// Called off: it came to something only the player can do (a sign-in, Steam's question).
         case needsPlayer
+        /// No process list the whole while (ps didn't answer, 3.11.): nothing is known about the start –
+        /// neither that it ran nor that it didn't.
+        case unknown
         case skipped
     }
 
@@ -261,24 +264,40 @@ enum GameTest {
         need == .steamAsks ? waiting >= steamAskPatience : true
     }
 
-    /// The program of macOS's that asks for permission over the start right now, from the curtain's
-    /// lines (LibraryModel.watchCurtain): "Curtain under a question of macOS's for <game>: <app> in
-    /// front", not answered since. Only the player can answer it – access to a removable volume
-    /// (Tomb Raider's Mac version on the stick, 3.11.: UserNotificationCenter), Accessibility, a
-    /// password. The curtain stopping to wait for it doesn't answer it.
-    static func macOSAsking(_ game: String, in log: String) -> String? {
+    /// A question of macOS's over the start that nobody has answered, from the curtain's lines
+    /// (LibraryModel.watchCurtain): "Curtain under a question of macOS's for <game>: <app> in front",
+    /// not "… macOS's question is answered" since. Only the player can answer it – access to a
+    /// removable volume (Tomb Raider's Mac version on the stick, 3.11.: UserNotificationCenter),
+    /// Accessibility, a password. `gaveUp`: the curtain stopped waiting for it ("Curtain stops waiting
+    /// for macOS's question for <game>"), three minutes unanswered. After that the curtain says nothing
+    /// more about it, not even when it goes – so that line is the run's verdict (it calls the start off
+    /// then), and a later hang is never taken for the question.
+    struct MacOSQuestion: Equatable {
+        var asker: String
+        var gaveUp = false
+    }
+
+    static func macOSQuestion(_ game: String, in log: String) -> MacOSQuestion? {
         let asks = "Curtain under a question of macOS's for \(game): "
         let answered = "Curtain up again for \(game): macOS's question is answered"
-        var asker: String?
+        let gaveUp = "Curtain stops waiting for macOS's question for \(game) "
+        var question: MacOSQuestion?
         for line in log.split(separator: "\n") {
             if let range = line.range(of: asks) {
                 let rest = line[range.upperBound...]
-                asker = String(rest.hasSuffix(" in front") ? rest.dropLast(" in front".count) : rest)
+                question = MacOSQuestion(asker: String(rest.hasSuffix(" in front") ? rest.dropLast(" in front".count) : rest))
             } else if line.contains(answered) {
-                asker = nil
+                question = nil
+            } else if line.contains(gaveUp) {
+                question?.gaveUp = true
             }
         }
-        return asker
+        return question
+    }
+
+    /// The program asking, while a question stands (`macOSQuestion`).
+    static func macOSAsking(_ game: String, in log: String) -> String? {
+        macOSQuestion(game, in: log)?.asker
     }
 
     /// An app in front that has nothing to do with the start – not Nightforge, the game, Wine or
@@ -321,11 +340,17 @@ enum GameTest {
         var smallWindow = false
         /// Unity's start window stood (`startWindowStands`).
         var startWindow = false
+        /// `blindLooks` looks in a row without a process list.
+        var unknown = false
     }
+
+    /// Looks in a row without a process list (one a second) before the run gives up on a start.
+    static let blindLooks = 120
 
     static func outcome(_ seen: Seen) -> Outcome {
         if seen.picture { return .picture }
         if seen.needs != nil { return .needsPlayer }
+        if seen.unknown { return .unknown }
         if seen.startWindow { return .startWindow }
         if seen.stillRunning { return seen.smallWindow ? .dialog : .hang }
         if seen.crashSigns { return .crash }
@@ -350,7 +375,7 @@ enum GameTest {
         case .picture: return issues.isEmpty ? "good" : "problems"
         case .noWindow, .crash, .hang, .noStart: return "no-start"
         // Waiting for a click says nothing yet about how it runs.
-        case .startWindow, .dialog, .needsPlayer, .skipped: return nil
+        case .startWindow, .dialog, .needsPlayer, .unknown, .skipped: return nil
         }
     }
 

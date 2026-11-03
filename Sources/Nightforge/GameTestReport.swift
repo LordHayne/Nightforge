@@ -90,6 +90,8 @@ extension GameTest {
         var playSeconds: Double
         /// Minutes the run waited for a locked screen.
         var waitedLocked: Int?
+        /// Minutes the run waited for a process list (ps not answering) before it ended or started a game.
+        var waitedProcessList: Int?
         /// The Mac's load when the first game started, after waiting up to `loadPatience` for it to drop.
         var load: Load?
         /// The test basket it went by: when it was built, how many games it has, how many of them are installed here.
@@ -178,11 +180,14 @@ extension GameTest {
         if let locked = report.waitedLocked, locked > 0 {
             lines.append("Der Bildschirm war gesperrt: \(locked) min gewartet.")
         }
+        if let blind = report.waitedProcessList, blind > 0 {
+            lines.append("Ohne Prozessliste (ps antwortete nicht): \(blind) min gewartet.")
+        }
         lines.append("")
         var counts = "**\(tried.count) gestartet: \(pictures.count) mit Bild"
         if !without.isEmpty {
             let kinds: [(Outcome, String)] = [(.crash, "abgestürzt"), (.hang, "hängt"), (.startWindow, "braucht einen Klick im Startfenster"),
-                                              (.dialog, "wartet auf einen Klick"),
+                                              (.dialog, "wartet auf einen Klick"), (.unknown, "unbekannt"),
                                               (.noWindow, "ohne Fenster"), (.noStart, "nicht gestartet")]
             let parts = kinds.compactMap { kind, word in
                 let count = without.filter { $0.outcome == kind }.count
@@ -259,6 +264,7 @@ extension GameTest {
         case .noWindow: text = "kein Fenster, beendet"
         case .crash: text = "abgestürzt ohne Bild"
         case .hang: text = "hängt ohne Bild"
+        case .unknown: text = "unbekannt: keine Prozessliste (ps antwortete nicht)"
         case .startWindow: text = "braucht einen Klick: Startfenster des Spiels (Unity, „Play!“)"
         case .dialog: text = "wartet auf einen Klick in seinem eigenen Fenster (Starter oder Dialog)"
         case .noStart: text = "nicht gestartet"

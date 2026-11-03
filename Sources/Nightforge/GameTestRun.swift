@@ -204,6 +204,7 @@ final class GameTestRun {
         let unity = game.platform == .windows ? await model.insight(of: game)?.analysis.engine == .unity : false
         let helper = UserDefaults.standard.bool(forKey: GameTest.Keys.unityDialogPlay)
         var startWindowSince: Date?
+        var logLooked = Date()
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
         let load = GameTest.Load.now
         model.launch(game)
@@ -227,9 +228,9 @@ final class GameTestRun {
                 foreignSince = foreignSince ?? now
                 if now.timeIntervalSince(foreignSince ?? now) >= 2 {
                     // macOS asking for permission, which the curtain makes way for: the player's to answer.
-                    if let asker = await macOSAsking(game, since: mark) {
+                    if let question = await macOSQuestion(game, since: mark) {
                         seen.needs = .macOSAsks
-                        notes.append("macOS fragte um Erlaubnis (\(asker)) – niemand hat geantwortet, das Spiel wurde beendet; die Frage kann noch offen sein")
+                        notes.append(Self.macOSNote(question))
                         break
                     }
                     let name = app.localizedName ?? "?"
@@ -241,6 +242,16 @@ final class GameTestRun {
             } else {
                 foreignSince = nil
             }
+            // The curtain gave up on a question of macOS's (three minutes unanswered): that's the verdict, now –
+            // after it the curtain says nothing more about the question, not even when it goes.
+            if now.timeIntervalSince(logLooked) >= 15 {
+                logLooked = now
+                if let question = await macOSQuestion(game, since: mark), question.gaveUp {
+                    seen.needs = .macOSAsks
+                    notes.append(Self.macOSNote(question))
+                    break
+                }
+            }
             if model.saveChoice != nil {
                 model.answerSaveChoice(takeNewer: false)  // its own saves, nothing overwritten
                 notes.append("Spielstand-Frage beantwortet: die eigenen behalten")
@@ -249,7 +260,8 @@ final class GameTestRun {
             // "never appeared", not "ended". Two minutes of that end the test of this game with a note.
             guard let listed = await processes(of: game) else {
                 blind += 1
-                if blind >= 120 {
+                if blind >= GameTest.blindLooks {
+                    seen.unknown = true
                     notes.append("keine Prozessliste (ps antwortet nicht): nach 2 min abgebrochen")
                     break watching
                 }
@@ -295,9 +307,9 @@ final class GameTestRun {
                 seen.picture = true
                 pictureAt = now
             case .hang:
-                if let asker = await macOSAsking(game, since: mark) {
+                if let question = await macOSQuestion(game, since: mark) {
                     seen.needs = .macOSAsks
-                    notes.append("macOS fragte um Erlaubnis (\(asker)) – niemand hat geantwortet, das Spiel wurde beendet; die Frage kann noch offen sein")
+                    notes.append(Self.macOSNote(question))
                     break
                 }
                 seen.stillRunning = true
@@ -433,7 +445,10 @@ final class GameTestRun {
     /// start is waited for, up to ten minutes.
     private func clearStage() async -> [String] {
         var notes: [String] = []
-        for earlier in startedGames where await processes(of: earlier)?.isEmpty == false {
+        for earlier in startedGames {
+            // Without a list it may still run: wait for one rather than start the next game beside it.
+            guard let pids = await knownProcesses(of: earlier) else { break }
+            guard !pids.isEmpty else { continue }
             await quit(earlier)
             notes.append("vorher lief noch \(earlier.name) – beendet")
             GameLog.note("Game test: \(earlier.name) still ran – ended before the next game")
@@ -456,6 +471,7 @@ final class GameTestRun {
         let until = Date().addingTimeInterval(45)
         while Date() < until {
             try? await Task.sleep(for: .seconds(1))
+            // Without a list nothing is seen here; the next game's clearStage waits for one.
             if await processes(of: game)?.isEmpty == false {
                 came = true
                 await quit(game)
@@ -464,10 +480,15 @@ final class GameTestRun {
         return came
     }
 
-    /// Whether the curtain is under a question of macOS's for the game now (GameTest.macOSAsking).
-    private func macOSAsking(_ game: Game, since mark: UInt64) async -> String? {
+    /// A question of macOS's for the game that nobody answered (GameTest.macOSQuestion).
+    private func macOSQuestion(_ game: Game, since mark: UInt64) async -> GameTest.MacOSQuestion? {
         let name = game.name
-        return await Engine.offMain { GameTest.macOSAsking(name, in: GameLog.text(since: mark)) }
+        return await Engine.offMain { GameTest.macOSQuestion(name, in: GameLog.text(since: mark)) }
+    }
+
+    nonisolated private static func macOSNote(_ question: GameTest.MacOSQuestion) -> String {
+        "macOS fragte um Erlaubnis (\(question.asker))" + (question.gaveUp ? ", 3 min ohne Antwort" : "")
+            + " – niemand hat geantwortet, das Spiel wurde beendet; die Frage kann noch offen sein"
     }
 
     /// What only the player could do came up: the start can't go on unattended.
@@ -501,11 +522,31 @@ final class GameTestRun {
         }.value
     }
 
+    /// The game's processes from a list asked for just now, waiting for one while ps doesn't answer:
+    /// a game is never taken for gone – and the next one started beside it, which skews both – only
+    /// because nothing could be listed. Nil when the run was stopped meanwhile. The wait goes into the report.
+    private func knownProcesses(of game: Game) async -> [pid_t]? {
+        var since: Date?
+        defer {
+            if let since { report.waitedProcessList = (report.waitedProcessList ?? 0) + Int((Date().timeIntervalSince(since) / 60).rounded(.up)) }
+        }
+        while true {
+            if let pids = await processes(of: game) { return pids }
+            if UserDefaults.standard.bool(forKey: GameTest.Keys.stop) { return nil }
+            if since == nil {
+                since = Date()
+                GameLog.note("Game test: no process list (ps doesn't answer) – the run waits before going on")
+            }
+            try? await Task.sleep(for: .seconds(10))
+        }
+    }
+
     /// Quit Game, as the overlay does it: the player's end – nothing learned from it – and its
     /// processes ended, also when it hangs.
     private func quit(_ game: Game) async {
         if GameOverlay.isOpen { GameOverlay.close() }
-        guard await processes(of: game)?.isEmpty == false else { return }
+        // No list just now isn't "not running": wait for one, or a game would be left behind.
+        guard let pids = await knownProcesses(of: game), !pids.isEmpty else { return }
         LaunchHealth.playerQuit(game.gameID)
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil

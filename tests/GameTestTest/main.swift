@@ -198,6 +198,18 @@ struct GameTestTest {
         check(GameTest.macOSAsking("Tomb Raider", in: tomb + "\ninfo:  [nightforge] Curtain stops waiting for macOS's question for Tomb Raider after 180 s: the start goes on")
               == "UserNotificationCenter", "the curtain giving up doesn't answer it")
         check(GameTest.macOSAsking("Mafia II", in: tomb) == nil, "another game's question isn't this one's")
+        // The curtain giving up on it (after three minutes) says nothing more – not even when the question goes:
+        // that line is the run's verdict, so a later hang is never taken for the question (review 3.11.).
+        let gaveUp = tomb + "\ninfo:  [nightforge] Curtain stops waiting for macOS's question for Tomb Raider after 180 s: the start goes on"
+        check(GameTest.macOSQuestion("Tomb Raider", in: tomb) == GameTest.MacOSQuestion(asker: "UserNotificationCenter"),
+              "standing, the curtain still waiting")
+        check(GameTest.macOSQuestion("Tomb Raider", in: gaveUp) == GameTest.MacOSQuestion(asker: "UserNotificationCenter", gaveUp: true),
+              "three minutes unanswered: the verdict")
+        check(GameTest.macOSQuestion("Tomb Raider II", in: gaveUp)?.gaveUp == false, "another game's give-up isn't this one's")
+        check(GameTest.macOSQuestion("Tomb Raider", in: "info:  [nightforge] Curtain stops waiting for macOS's question for Tomb Raider after 180 s") == nil,
+              "a give-up line without its question: nothing")
+        check(GameTest.macOSQuestion("Tomb Raider", in: "info:  [nightforge] Curtain under a question of macOS's from before Tomb Raider's start: the start doesn't wait for it") == nil,
+              "a question from before the start isn't the start's")
         // Unity's start window ("The Forest Configuration" with "Play!", 464×438, 3.11.): judged after a short grace,
         // longer with the helper that presses Play! (kosmickrisp-dx9) on – and only for Unity, where no splash is that small.
         check(!GameTest.startWindowStands(unity: true, picture: false, standing: 9, helper: false), "9 s: not yet")
@@ -212,6 +224,12 @@ struct GameTestTest {
         check(GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window \"The Forest Configuration\": pressed Play!\n"),
               "the helper's line: it pressed Play!")
         check(!GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window: didn't come up\n"), "no window, nothing pressed")
+        // Two minutes without a process list (ps not answering): nothing is known – not "no-start" (review 3.11.).
+        check(GameTest.outcome(.init(process: true, unknown: true)) == .unknown && GameTest.result(.unknown, issues: []) == nil,
+              "no process list: unknown, no result for the compatibility list")
+        check(GameTest.outcome(.init(unknown: true)) == .unknown, "not noStart either, although no process was seen")
+        check(GameTest.outcome(.init(process: true, picture: true, unknown: true)) == .picture, "a picture before the list went: a picture")
+        check(GameTest.blindLooks == 120, "two minutes of looks, one a second")
         check(GameTest.outcome(.init(process: true, startWindow: true)) == .startWindow && GameTest.result(.startWindow, issues: []) == nil,
               "a start window: needs a click, says nothing yet about how it runs")
         check(GameTest.outcome(.init(process: true, picture: true, startWindow: true)) == .picture, "the picture after Play!: a picture")
@@ -359,9 +377,12 @@ struct GameTestTest {
         var forest = GameTest.Entry(candidate("steam.242760", "The Forest", .steam), outcome: .startWindow)
         forest.way = "dxmt"
         forest.notes = ["Startfenster des Spiels stand 10 s: 464×438 L0"]
+        var blind = GameTest.Entry(candidate("steam.1", "Blind Game", .steam), outcome: .unknown)
+        blind.way = "dxmt"
         var asked = GameTest.Entry(candidate("steam.203160", "Tomb Raider", .steam, .mac), outcome: .needsPlayer, skip: .macOSAsks)
         asked.way = "mac"
-        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, forest, asked, .skipped(skipped, .runtimes),
+        report.waitedProcessList = 7
+        report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, forest, blind, asked, .skipped(skipped, .runtimes),
                         GameTest.Entry(candidate("steam.1", "Store", .steam), outcome: .needsPlayer, skip: .signIn)]
 
         let json = GameTest.json(report)
@@ -385,7 +406,9 @@ struct GameTestTest {
         check(summary.hasPrefix("# Spieletest vom 3.11.2026\n"), "German title with the run's date")
         check(summary.contains("Nightforge 0.3.1 · winecx@4.7.3 · dxmt@0.80 · Apple M5 · macOS 26.1"), "what it ran on")
         check(summary.contains("Start 00:12, Ende 01:12."), "start and end")
-        check(summary.contains("**6 gestartet: 3 mit Bild, 3 ohne (1 hängt, 1 braucht einen Klick im Startfenster, 1 wartet auf einen Klick). 2 abgebrochen. 1 nicht gestartet.**"),
+        check(summary.contains("Ohne Prozessliste (ps antwortete nicht): 7 min gewartet."), "the run's wait for ps")
+        check(summary.contains("| Blind Game | Steam | Windows | dxmt | unbekannt: keine Prozessliste (ps antwortete nicht) | – | – |"), "unknown, said as such")
+        check(summary.contains("**7 gestartet: 3 mit Bild, 4 ohne (1 hängt, 1 braucht einen Klick im Startfenster, 1 wartet auf einen Klick, 1 unbekannt). 2 abgebrochen. 1 nicht gestartet.**"),
               "the counts:\n\(summary)")
         check(summary.contains("| The Forest | Steam | Windows | dxmt | braucht einen Klick: Startfenster des Spiels (Unity, „Play!“) | – | – |")
               && summary.contains("- Startfenster des Spiels stand 10 s: 464×438 L0"), "Unity's start window named as such")
