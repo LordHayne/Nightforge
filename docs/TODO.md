@@ -222,9 +222,23 @@ Wine 11.17, der Mac hat macOS 27.0.1). Am 2.11. aus Dateien und Einstellungen ge
   `CX_ACTIVE_GRAPHICS_BACKEND=dxmt` und `d3d12,nvapi64,nvngx` aus. Beide Hacks stecken in unserem winecx-Baum, nur
   schaltet sie nichts ein. In CrossOver tut das vermutlich die nicht freie Kompatibilitätsdatenbank. Recall startet
   außerdem über Battle.net statt Steam. Seine Wine-Patches betreffen Ruckler, Maus und msync, nicht den Start.
-- **Nächster Live-Test E** (mit dem Nutzer): die beiden Hacks über das Profilfeld `environment` bzw. den Testschalter
-  `gameEnvironment` (unten). Hängt es weiter, `winedbg --command "bt all"` im Hänger: Das zeigt die Windows-Stapel,
-  die `sample` unter Rosetta nicht auflöst. Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
+- **Test E am 3.11. (Testschalter `gameEnvironment`, Staging-Build 51662a5): hängt weiter.**
+  - Steam startete für die Werte neu (06:52:32) und startete Overwatch.exe selbst.
+  - Die beiden Schalter der Mac-Seite hatte Overwatch damit sicher (`WINE_SIMULATE_WRITECOPY`,
+    `CX_ACTIVE_GRAPHICS_BACKEND`): Wine gibt einem Kind die Unix-Umgebung des Elternteils.
+  - Für `CX_HACK_FILESYSTEM_TYPE` (Windows-Seite) fehlt noch der Nachweis. `ps eww` taugt dafür nicht: macOS 27 gibt
+    die Umgebung fremder Prozesse nicht heraus. Den Nachweis bringt `envpeek` aus dem Notizordner
+    (`env-probe/envpeek/`, liest nur).
+- **Nächste Schritte** (Bewertung in `overwatch-engine-04.md`, Abschnitt 8):
+  - Im nächsten Live-Test envpeek und eine Spur mit dem Schalter `wineDebug`
+    (`+loaddll,+process,+seh,+threadname,+volume,…`).
+  - `winedbg` lieber nicht. Sein `attach` startet im Spiel einen Thread, der die Loader-Sperre braucht, und wartet ohne
+    Zeitlimit. Hält Overwatch die Sperre, kommt es nie zurück. Beim Beenden nimmt es die angehängten Programme mit
+    (`DEBUG_KILL_ON_CLOSE`). Stattdessen ein Stapel-Leser ohne Debugger.
+  - Danach die günstigen Unterschiede zu Recall: D3D12 aus, das Spiel auf `C:` statt auf dem USB-Laufwerk.
+  - Battle.net zuletzt.
+
+  Bis dahin bleibt `notYet` im Profil (`profiles/mac.json`).
 
 ### Engine-Fixes (`enginefix`)
 
