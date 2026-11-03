@@ -174,7 +174,9 @@ struct SignatureTest {
         func store() -> ComponentStore { ComponentStore(root: root, remoteManifestURL: remote, bundledManifestURL: bundled, keys: keys) }
 
         publish("2026-11-02T04:17:00Z", signedBy: mainKey)
-        check((try? await store().manifest())?.generated == "2026-11-02T04:17:00Z", "a signed online list is taken")
+        let first = store()
+        check((try? await first.manifest())?.generated == "2026-11-02T04:17:00Z", "a signed online list is taken")
+        check(await first.manifestIsSigned, "a signed list: unused components may go")
         check(Signature.signedContents(of: root.appendingPathComponent("manifest.json"), keys: keys) != nil, "and kept with its signature")
         check(!SignedLists.refused.contains(SignedLists.components), "nothing to tell")
         check(ComponentStore.localManifest(keys: keys)?.generated == "2026-11-02T04:17:00Z", "Settings › About sees the kept one")
@@ -183,11 +185,15 @@ struct SignatureTest {
         check((try? await store().manifest())?.generated == "2026-11-02T04:17:00Z", "a wrongly signed one: the last signed list still counts")
         check(SignedLists.refused.contains(SignedLists.components), "and Settings › About says so, calmly")
         publish("2026-11-03T04:17:00Z", signedBy: nil)
-        check((try? await store().manifest())?.generated == "2026-11-02T04:17:00Z", "an unsigned one too")
+        let kept = store()
+        check((try? await kept.manifest())?.generated == "2026-11-02T04:17:00Z", "an unsigned one too")
+        check(await kept.manifestIsSigned, "the kept copy is signed as well")
 
         try? Data("x".utf8).write(to: Signature.file(for: root.appendingPathComponent("manifest.json")))
         let own = try? JSONDecoder().decode(ComponentManifest.self, from: Data(contentsOf: bundled))
-        check((try? await store().manifest())?.generated == own?.generated, "the kept list's signature broken: the app's own list")
+        let fallback = store()
+        check((try? await fallback.manifest())?.generated == own?.generated, "the kept list's signature broken: the app's own list")
+        check(await !fallback.manifestIsSigned, "only the app's own list: nothing installed is taken away (review M9)")
         check(ComponentStore.localManifest(keys: keys)?.generated != "2026-11-02T04:17:00Z", "Settings › About passes it over too")
 
         publish("2026-11-04T04:17:00Z", signedBy: spareKey)

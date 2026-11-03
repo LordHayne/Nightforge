@@ -281,7 +281,12 @@ App prüft jedes Paket dagegen, bevor sie es auspackt.
 LibreSSL kann kein Ed25519, Python und Swift brauchen die Entwicklerwerkzeuge. Ohne gültige Signatur installiert
 es nichts und bittet um ein Issue. Bis `v0.3.1` erscheint, ist `releases/latest` noch 0.3.0, und das hat keine
 Signatur. Darum nimmt `install.sh` genau das ZIP von 0.3.0 über seine SHA-256 an (die GitHub für das unveränderliche
-Release angibt), sonst nichts Unsigniertes. Ein mit `NIGHTFORGE_ZIP` übergebenes lokales ZIP prüft es nicht. Das Risiko liegt deshalb nur in 0.3.1 selbst: Ist dort die Prüfung kaputt, kommen seine
+Release angibt), sonst nichts Unsigniertes. Ein mit `NIGHTFORGE_ZIP` übergebenes lokales ZIP prüft es nicht.
+
+Eine Liste, die 0.3.0 ohne `.sig` gespeichert hat, zählt in 0.3.1 nicht. Bis die erste signierte Liste da ist,
+gilt die mitgelieferte, und die kann älter sein. Dann räumt Nightforge keine installierten Komponenten weg
+(`removeUnusedComponents` läuft nur nach einer signierten Liste), sonst ginge eine neuere Engine verloren. Den
+0.3.0-Cache einmal gelten zu lassen hieße, einer unsignierten Datei zu trauen. Das Risiko liegt deshalb nur in 0.3.1 selbst: Ist dort die Prüfung kaputt, kommen seine
 Spieler nur noch per Einzeiler weiter. Darum gilt diese Reihenfolge vor dem Tag `v0.3.1`:
 
 1. Schlüssel erzeugen, `SigningKeys.swift` committen.
