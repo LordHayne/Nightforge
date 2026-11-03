@@ -152,34 +152,62 @@ enum SteamCatalog {
 
     // MARK: - Launch options
 
+    /// One of a game's launch options in appinfo (config/launch): the program relative to the game
+    /// folder, what it adds, its type ("default", "option1", "none"), the name Steam's question shows,
+    /// and the beta branch it's only for.
+    struct LaunchEntry: Equatable {
+        var executable: String
+        var arguments = ""
+        var type = ""
+        var description = ""
+        var betaKey = ""
+
+        /// The same program as `other` ("Binaries/Win64/Game.exe" is "binaries\win64\game.exe").
+        func starts(_ other: String) -> Bool {
+            func plain(_ path: String) -> String { path.replacingOccurrences(of: "\\", with: "/").lowercased() }
+            return plain(executable) == plain(other)
+        }
+    }
+
+    /// The game's Windows launch options in Steam's order; the first is the one -applaunch starts.
+    static func launchEntries(appID: Int, steamRoot: URL) -> [LaunchEntry] {
+        windowsLaunchOptions(appID: appID, steamRoot: steamRoot).map { option in
+            LaunchEntry(executable: option["executable"]?.string ?? "", arguments: option["arguments"]?.string ?? "",
+                        type: option["type"]?.string ?? "", description: option["description"]?.string ?? "",
+                        betaKey: option["config"]?.object?["betakey"]?.string ?? "")
+        }
+    }
+
     /// Easy Anti-Cheat and BattlEye don't run under Wine on a Mac, so a game that offers a Windows
     /// launch option without them (7 Days to Die: "Launch game without EAC") should use it. Returns
     /// what that option adds to the default one; Steam appends extra -applaunch arguments to the
-    /// default option, which gives the same command line. Empty when there's no such option.
+    /// default option, which gives the same command line. Empty when there's no such option, or when
+    /// it starts another program (Rocket League's RocketLeague.exe: SteamProgram).
     static func antiCheatOffArguments(appID: Int, steamRoot: URL) -> [String] {
-        let windows = windowsLaunchOptions(appID: appID, steamRoot: steamRoot)
-        guard let standard = windows.first else { return [] }
+        antiCheatOffArguments(launchEntries(appID: appID, steamRoot: steamRoot))
+    }
 
-        func words(_ option: [String: BinaryKV]) -> [String] {
-            (option["arguments"]?.string ?? "").split(separator: " ").map(String.init)
-        }
-        let markers = ["-noeac", "-forceeac off", "-nobattleye", "-noanticheat", "-no-anticheat"]
-        let candidate = windows.dropFirst().first { option in
-            let arguments = (option["arguments"]?.string ?? "").lowercased()
-            let description = (option["description"]?.string ?? "").lowercased()
-            let mentionsAntiCheat = ["eac", "anti-cheat", "anticheat", "battleye"].contains { description.contains($0) }
-            let saysWithout = ["without", "no eac", "no anti", "no battleye", "disable", "ohne"].contains { description.contains($0) }
-            return markers.contains { arguments.contains($0) } || (mentionsAntiCheat && saysWithout)
-        }
-        guard let candidate,
-              candidate["executable"]?.string?.lowercased() == standard["executable"]?.string?.lowercased()
+    static func antiCheatOffArguments(_ entries: [LaunchEntry]) -> [String] {
+        guard let standard = entries.first, let candidate = antiCheatOff(entries), candidate.starts(standard.executable)
         else { return [] }
-        let base = words(standard)
-        let extra = words(candidate)
+        let base = standard.arguments.split(separator: " ").map(String.init)
+        let extra = candidate.arguments.split(separator: " ").map(String.init)
         guard extra.starts(with: base) else {
             return extra.filter { !base.contains($0) }
         }
         return Array(extra.dropFirst(base.count))
+    }
+
+    /// The game's launch option without anti-cheat, if it has one besides the default.
+    static func antiCheatOff(_ entries: [LaunchEntry]) -> LaunchEntry? {
+        let markers = ["-noeac", "-forceeac off", "-nobattleye", "-noanticheat", "-no-anticheat"]
+        return entries.dropFirst().first { option in
+            let arguments = option.arguments.lowercased()
+            let description = option.description.lowercased()
+            let mentionsAntiCheat = ["eac", "anti-cheat", "anticheat", "battleye"].contains { description.contains($0) }
+            let saysWithout = ["without", "no eac", "no anti", "no battleye", "disable", "ohne"].contains { description.contains($0) }
+            return markers.contains { arguments.contains($0) } || (mentionsAntiCheat && saysWithout)
+        }
     }
 
     /// The program Steam starts with the game's default Windows launch option, relative to the

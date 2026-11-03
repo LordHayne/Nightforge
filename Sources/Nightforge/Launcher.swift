@@ -455,9 +455,11 @@ enum SteamCommands {
         steamWasReady && !received && sentAgo >= answerWithin
     }
 
-    /// "ExecCommandLine: ""C:\…\steam.exe" … -silent -applaunch 3907790"" – Steam took a start of `appID`.
+    /// "ExecCommandLine: ""C:\…\steam.exe" … -silent -applaunch 3907790"" – Steam took a start of `appID`;
+    /// "… -silent steam://launch/252950/Option1"" for one of the game's own launch options (SteamProgram).
     static func isLaunch(_ line: Substring, appID: Int) -> Bool {
-        line.contains("ExecCommandLine") && (line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) "))
+        line.contains("ExecCommandLine") && (line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) ")
+                                             || line.contains("steam://launch/\(appID)/"))
     }
 }
 
@@ -499,6 +501,9 @@ enum Launcher {
             // Plain Wine / Whisky / GPTK: the bottle is the prefix
             environment["WINEPREFIX"] = game.bottle.url.path
         }
+        // The program GameProgram picks, as Steam reaches it: its own launch option or the LaunchOptions.
+        let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
+        let route = game.bottle.isBuiltIn ? SteamProgram.route(game, layer: layer, options: options, profile: profile) : .standard
         if game.bottle.isBuiltIn {
             Engine.writeGameConfigs(installDir: game.installDir,
                                     frameLimit: frameLimit,
@@ -511,11 +516,13 @@ enum Launcher {
             // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
             let switches = Engine.launchEnvironment.filter { GameEnvironment.allowed[$0.key] != nil && !$0.value.isEmpty }
             if !switches.isEmpty { GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches)) through Steam") }
-            // This call starts Steam when it isn't running: in the Retina mode the game wants, and
-            // with the Guide button left to Nightforge (SteamGuideButton).
+            SteamProgram.prepare(game, route: route)
+            // This call starts Steam when it isn't running: in the Retina mode the game wants, with
+            // the Guide button left to Nightforge (SteamGuideButton) and the game's LaunchOptions.
             if !Engine.isSteamRunning {
                 Engine.applyRetinaMode(runner)
                 SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
+                SteamProgram.apply(steamRoot: Engine.steamRoot)
             }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own
@@ -526,13 +533,26 @@ enum Launcher {
 
         arguments += [game.steamExeWindowsPath]
         if game.bottle.isBuiltIn { arguments += Engine.steamArguments }
-        arguments += ["-silent", "-applaunch", String(game.appID)]
+        var gameArguments: [String] = []
         if game.bottle.isBuiltIn {
-            arguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
-            arguments += profile?.arguments ?? []
-            arguments += extraArguments
+            gameArguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
+            gameArguments += profile?.arguments ?? []
+            gameArguments += extraArguments
         }
-        arguments += splitArguments(options.extraArgs)
+        gameArguments += splitArguments(options.extraArgs)
+        let name = { (path: String) in (path.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent }
+        let standard = { name(SteamCatalog.launchExecutable(appID: game.appID, steamRoot: game.steamRoot) ?? "") }
+        switch route {
+        case .standard:
+            arguments += ["-silent", "-applaunch", String(game.appID)] + gameArguments
+        case .option(let type, let executable):
+            arguments += ["-silent", SteamProgram.url(appID: game.appID, type: type)]
+            GameLog.note("\(game.name) starts Steam's launch option \(type) (\(name(executable))) instead of \(standard())"
+                         + (gameArguments.isEmpty ? "" : ", without \(gameArguments.joined(separator: " ")): Steam passes none to it"))
+        case .program(let program):
+            arguments += ["-silent", "-applaunch", String(game.appID)] + gameArguments
+            GameLog.note("\(game.name) starts \(name(program)) on \(layer.rawValue) instead of \(standard()) (LaunchOptions)")
+        }
 
         let process = DetachedProcess()
         process.executableURL = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner

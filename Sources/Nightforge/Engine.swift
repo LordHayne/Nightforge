@@ -2364,7 +2364,10 @@ enum Engine {
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
-        if !isSteamRunning { SteamGuideButton.turnOff(steamRoot: steamRoot) }
+        if !isSteamRunning {
+            SteamGuideButton.turnOff(steamRoot: steamRoot)
+            SteamProgram.apply(steamRoot: steamRoot)
+        }
         let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader

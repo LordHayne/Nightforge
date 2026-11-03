@@ -252,8 +252,77 @@ eingerichtet, kommt erst die Frage danach. Dann muss `Control_DX12.exe` auf D3DM
 `wine.log`. Danach die GOG-Fassung. In den Optionen prüfen: Grafik bietet D3DMetal, die Zeile „Programm“ zeigt
 Control, Control_DX11 und Control_DX12. Sonic Mania (Epic) startet jetzt im Vollbild.
 
-Offen: die Programmwahl für Steam (die Startoption mit `%command%` in `localconfig.vdf`). Control gibt es bei Steam
-ohnehin als Mac-Version.
+Die Programmwahl für Steam ist gebaut, siehe den nächsten Abschnitt. Control gibt es bei Steam ohnehin als Mac-Version.
+
+### Programmwahl für Steam-Spiele (Zweig `claude/steam-programm`, auf 29e458a): Live-Test offen
+
+Befund vom 3.11. aus `steamclient64.dll` und `SteamUI.dll` von Nightforges Steam, die appinfo-Daten von
+api.steamcmd.net:
+
+- Steam startet das Programm aus der appinfo-Startoption. Zu einem anderen Programm gibt es zwei Wege:
+  - **LaunchOptions mit `%command%`:**
+    - steamclient sucht `%command%` in den LaunchOptions des Spiels (`V_stristr`, Groß- und Kleinschreibung
+      egal) und setzt dort seine eigene Startzeile ein.
+    - Das Ergebnis zerlegt es wie eine Shell (`V_ParseShellCommandLine`). Das erste Wort ist das Programm,
+      Steams eigenes Programm folgt als Argument. Der Arbeitsordner bleibt der der Startoption.
+    - Steam liest die LaunchOptions beim Start aus `userdata/<id>/config/localconfig.vdf`
+      (`UserLocalConfigStore › Software › Valve › Steam › apps › <id> › LaunchOptions`). Beim Beenden schreibt es
+      seine Kopie zurück. Schreiben darf Nightforge sie also nur, solange Steam nicht läuft.
+  - **Steams eigene Startoptionen nach ihrem Typ:**
+    - `steam://launch/<id>/<Typ>` startet die Startoption dieses Typs direkt, ohne Steams Frage nach der Startoption.
+    - Typen sind SafeMode, Multiplayer, Config, Server, Editor, Manual, Benchmark und Option1 bis Option3. Die
+      Tabelle der ELaunchOptionType-Namen steht in SteamUI.dll.
+    - Argumente nimmt dieser Weg nicht mit.
+- Rocket League (252950) hat zwei Windows-Startoptionen:
+  - Eintrag 0 (Standard): `Binaries/Win64/RocketLeague_EAC.exe`
+  - Eintrag 4, Typ `option1`: `Binaries/Win64/RocketLeague.exe`, „Rocket League with Anti-Cheat Disabled (Mods and
+    Limited Online Play)“
+- Control (870780) hat bei Steam für Windows nur `Control.exe`. `Control_DX12.exe` geht dort nur über die LaunchOptions.
+
+Gebaut:
+
+- `SteamProgram.route` trifft dieselbe Wahl wie bei Epic und GOG (`GameProgram.resolve`): die Wahl in den Optionen,
+  dann das Profilfeld `executable`, auf D3DMetal das DX12-Programm.
+  - Als Programm des Stores gilt die Startoption ohne Anti-Cheat, wenn es eine gibt, sonst Steams Standard.
+- Daraus folgt der Startweg:
+  - **Steams Standardprogramm:** `-applaunch` wie bisher. 7 Days to Die behält sein `-forceeac off`.
+  - **Programm einer eigenen Startoption mit eindeutigem Typ** (nicht für einen Beta-Zweig):
+    `steam://launch/<id>/<Typ>`.
+    - Rocket League startet so `RocketLeague.exe` ohne EAC.
+    - Argumente von Nightforge (Profil, Leiter, eigene) kommen auf diesem Weg nicht mit; `wine.log` nennt sie.
+  - **Jedes andere Programm im Spielordner:** LaunchOptions `"<Windows-Pfad>" %command%`, dazu `-applaunch` mit den
+    Argumenten wie bisher.
+- `localconfig.vdf`:
+  - Nightforge ändert nur die eine Zeile. Der Rest bleibt, wie Steam ihn schrieb (wie beim Guide-Knopf).
+  - Eigene LaunchOptions des Spielers bleiben unangetastet: alles, was nicht genau `"…\X.exe" %command%` ist.
+  - Geht die Wahl zurück auf Steams Programm, verschwindet Nightforges Zeile wieder.
+- Ablauf beim Start:
+  - Der Start notiert, was in den LaunchOptions stehen soll (`SteamProgram.prepare`).
+  - Weicht eine Datei davon ab und läuft Steam, startet Steam neu wie bei geänderter Umgebung. Das passiert nicht,
+    solange ein Windows-Spiel läuft.
+  - Geschrieben wird beim Start von Steam (`Engine.startSteam`, `Launcher.launch` ohne laufendes Steam), für jedes
+    Konto in `userdata`.
+- Die Zeile „Programm“ in den Optionen (2 bis 4 Programme) gibt es jetzt auch für Steam-Spiele.
+- `SteamCommands.isLaunch` erkennt auch `steam://launch/<id>/`.
+- Test: `tests/SteamProgramTest` arbeitet mit nachgebauter appinfo und localconfig im Temp-Ordner.
+
+Live-Test (nach dem Neustart des Macs; noch nichts davon ist live geprüft):
+
+1. Ein Steam-Spiel mit 2 bis 4 Programmen nehmen, oder Control, falls die Windows-Fassung da ist. In den Optionen ein
+   anderes Programm wählen und starten. Erwartet:
+   - Steam startet einmal neu.
+   - `wine.log` hat „<Spiel> starts X.exe on <Weg> instead of Y.exe (LaunchOptions)“.
+   - Das gewählte Programm läuft.
+   - In `userdata/<id>/config/localconfig.vdf` steht `"LaunchOptions" "\"…\\X.exe\" %command%"`.
+2. Zurück auf „Automatisch“ und starten. Erwartet: wieder ein Steam-Neustart, die Zeile ist weg, Steams Programm läuft.
+3. Rocket League, falls es in der Bibliothek ist, starten. Erwartet:
+   - keine Steam-Frage nach der Startoption
+   - `RocketLeague.exe` läuft
+   - `wine.log` hat „starts Steam's launch option Option1 (RocketLeague.exe)“
+   - Das Offline-Spiel geht.
+4. Offen, das zeigt erst der Live-Test:
+   - Stört Steams Programmpfad als erstes Argument ein Spiel? Unreal-Shipping-Builds ignorieren ihn.
+   - Kommt `steam://launch` auch an, wenn Steam erst mit diesem Aufruf startet?
 
 ### Overwatch hängt beim Start
 
@@ -1034,9 +1103,9 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
       Battle.net unter Wine nötig ist, und wie Blizzards Anti-Cheat unter Wine reagiert.
     - Die Cloud-Recherche „Rockstar, EA, Battle.net, Ubisoft unter Wine“ (1.11.) liefert die Grundlage.
     - Anmelden tut sich der Nutzer selbst, keine Anmeldeversuche durch Sessions.
-- **Rocket League:** Die Startoption ohne Anti-Cheat nutzt ein anderes Programm (`RocketLeague.exe`).
-  `SteamCatalog.antiCheatOffArguments` übernimmt aber nur Optionen mit demselben Programm. Die Mac-Version ist
-  der Stand von 2020 ohne Online-Spiel.
+- **Rocket League:** Gebaut auf Zweig `claude/steam-programm`. Die Startoption ohne Anti-Cheat (`RocketLeague.exe`,
+  Typ `option1`) startet jetzt über `steam://launch/252950/Option1`. Der Live-Test ist offen, siehe „Programmwahl
+  für Steam-Spiele“. Die Mac-Version ist der Stand von 2020 ohne Online-Spiel.
 - Übersicht nach DX12- und winecx-Tests aktualisieren (Liste: `ISteamChartsService/GetMostPlayedGames`).
 
 ## Mac-Wissen aus Quellen (AGW, Berichte) – Zweig `claude/compat-db-bce7dc`
