@@ -34,8 +34,8 @@ nachgezogen. Ein weiterer Commit ist dort noch angekündigt.
 - **Merge 9, ohne Textkonflikt:** engine-env legt in `EngineLayoutTest` die Suite
   `nightforge.game-environment-test.<PID>` an. Sie landet im echten `~/Library/Preferences` und wird am Ende nur
   geleert, die Datei bleibt. Seit Merge 1 kompiliert die Reihe `tests/Shared/TestDefaults.swift`. Deshalb wechselt
-  8b5314d, ein eigener Commit auf Staging, zu `TestDefaults.suite("game-environment")`. Beim echten Merge gehört das
-  in den engine-env-Zweig oder als Commit direkt nach dessen Merge.
+  8b5314d, ein eigener Commit auf Staging, zu `TestDefaults.suite("game-environment")`. Entschieden (Hauptsitzung):
+  engine-04 übernimmt das in seinen Zweig, bis dahin bleibt 8b5314d auf Staging.
 - Von selbst zusammengegangen und von Hand geprüft:
   - `build.sh`: die Prüfsumme des Wrappers (audit-low) und der Bau von `nightforge-sandbox` (wine-sandbox).
   - `Library.swift`: `installedSize` (storage-fixes) und der Fortschritt über `UpdateState` mit `stagedSoFar`
@@ -43,7 +43,7 @@ nachgezogen. Ein weiterer Commit ist dort noch angekündigt.
   - `GameOverlay.swift`: Der Vorhang fragt macOS' eigene Dialoge über `GameProcesses` ab, also über h1-h3s
     `ProcessList`. `/bin/ps` steht danach nur noch in `Subprocess.swift`.
 
-## Tests (auf f1d52b8)
+## Tests der ersten Runde (auf f1d52b8)
 
 - **pytest:** 80 von 80.
 - **Swift-Reihen ohne echte Prozessliste:** 48 von 48 grün, jede mit rc=0. Je Reihe höchstens 7 Minuten; keine
@@ -68,14 +68,61 @@ nachgezogen. Ein weiterer Commit ist dort noch angekündigt.
   `ownProcesses`, `GameProcesses.table`, `runningDownloads`), und die Reihen, die sie direkt oder über die
   Store-Abfragen aufrufen. Der Rest lief mit Zeitgrenze.
 
+## Zweite Runde (3.11., nachgezogen)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 13 | `claude/signed-updates-dda700` | 29b9f7f | 109519f | `tests/ProfileFilesTest/main.swift`, siehe unten | 0 |
+| 13b | `claude/signed-updates-dda700`, neuer Kopf | 700fd70 | 9a3dc17 | keine | 0 |
+| 14 | `claude/quit-always-1a4e06` | 02dd718 | eb4ffbe | `App.swift`, `CompleteRemoval.swift`, `tests/CompleteRemovalTest/main.swift`, siehe unten | 0 |
+| 15 | `claude/steam-programm` | dbc0504 | d75fdb3 | `Launcher.swift`, `LibraryModel.swift`, siehe unten | 0 |
+| 16 | `claude/audit-low` und `claude/audit-sicherheit`, neue Köpfe | 6e309f7, 20f0acc | 8a44b6e, e6ec798 | keine | 0 |
+
+Konflikte:
+- **13, `tests/ProfileFilesTest/main.swift`:** Nur der Kopfkommentar. audit-low hat „die Speicherordner, die eine Regel
+  nennen darf“ ergänzt, signed-updates „signiert mit einem Schlüssel des Tests“. Beides übernommen.
+  - `scripts/install.sh` ging von selbst zusammen und ist von Hand geprüft. signed-updates prüft die Signatur nur auf
+    dem Download-Weg, ein `NIGHTFORGE_ZIP` gilt, wie es ist. Die Wahl des Zielordners und `NIGHTFORGE_NO_QUIT` aus
+    Merge 1 bleiben.
+  - `tests/test_signing_scripts.py` ersetzt `pgrep`, `osascript` und `open` und setzt `NIGHTFORGE_NO_QUIT`, beendet also
+    kein laufendes Nightforge.
+  - `ci.yml` hat jetzt den Schritt der Signier-Skripte neben `scripts/run-tests.sh`.
+- **14, `App.swift`:** Am Ende von `applicationDidFinishLaunching` hängen jetzt beide Ergänzungen: der Schlüssel für
+  ältere Spiel-Apps (audit-low) und der Handler für das Beenden per Apple Event (quit-always). Danach folgen die neuen
+  Methoden aus quit-always.
+- **14, `CompleteRemoval.swift`:** h1-h3 hat `run()` als `run(phase:)` neu geschrieben. quit-always ändert darin nur
+  zwei Dinge: Es setzt für die Dauer des Laufs `isRunning`, und es beendet mit `Quit.now(by: "the removal")` statt mit
+  `NSApp.terminate`. Beides ist auf h1-h3s Fassung übertragen. Damit gehen alle drei Beenden-Wege (Entfernen, Update,
+  Spielstart) über `Quit.now`.
+- **14, `tests/CompleteRemovalTest/main.swift`:** h1-h3s neuer Testblock bleibt, quit-alwayss `quit()` wird
+  zusätzlich aufgerufen. Die Reihe kann vor dem Neustart nicht laufen (ps). Gerade diese Lösung sollte sie danach
+  zuerst prüfen.
+- **15, `Launcher.swift`:** Vor dem Start von Steam steht beides. engine-env schreibt die Wine-Schalter des Spiels ins
+  Log, steam-programm ruft `SteamProgram.prepare` auf. Der Kommentar ist der von steam-programm, mit den
+  LaunchOptions.
+- **15, `LibraryModel.swift`:** Der Aufruf `prepareLaunchEnvironment` hat jetzt beides: engine-envs Argument
+  `environment:` und steam-programms `|| programChanged`.
+
+Den Audit-Commit 783921d habe ich vor dem Merge noch einmal geändert (jetzt 20f0acc). Er nennt bei M1 und N9 jetzt die
+neuen Commits von signed-updates (b1c26c9, 700fd70), als „noch nicht geprüft“.
+
+## Tests der zweiten Runde (auf e6ec798)
+
+- **pytest:** 108 von 108.
+- **Swift-Reihen ohne echte Prozessliste:** 50 von 50 grün, jede mit rc=0: die 48 aus der ersten Runde,
+  dazu die neuen `SignatureTest` und `SteamProgramTest`.
+- Offen wegen ps sind dieselben neun Reihen wie oben, jetzt mit den Lösungen aus Merge 14 in `CompleteRemovalTest`.
+- Während des Laufs entstanden in `~/Library/Preferences` zwar `nightforge.engine-rollback-test-<UUID>` (sieben),
+  `engine-rollback-test`, `launch-health-test` und `nightforge.launch-phase-test`, aber nicht durch Staging. Dessen
+  `EngineRollbackTest` hat keine solche Suite mehr. Die Dateien kamen paarweise etwa alle acht Minuten und meist nach
+  dem Ende der beiden Staging-Reihen (02:13 und 02:17), also aus den alten Reihen einer anderen Sitzung.
+
 ## Für die echten Merges
 
-- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes`, signed-updates (Rebase läuft), compat-db
-  M3/N7, kosmickrisp (Steam-Programmwahl), display-polish (Beenden mit Sheet) und der zweite angekündigte Commit von
-  h1-h3.
-- `docs/AUDIT-SICHERHEIT.md` (Merge 12) führt M4, N1–N4 und N8 noch als offen. Sie sind mit Merge 4 und 5 behoben,
-  der Stand dort sollte nachgetragen werden.
+- Noch in Arbeit und später nachzuziehen: `claude/game-test-fixes`, compat-db M3/N7 und der zweite angekündigte
+  Commit von h1-h3.
+- Der Stand je Befund steht jetzt in `docs/AUDIT-SICHERHEIT.md` (Merge 16).
 - Mit N1 (audit-low) startet ein `nightforge://play`-Link nur noch mit dem Schlüssel der eigenen Spiel-Apps. Eigene
-  Kurzbefehle des Nutzers mit solchen Links zeigen danach die Spielseite.
+  Kurzbefehle des Nutzers mit solchen Links zeigen danach die Spielseite (für den Nutzer in `docs/TODO.md`).
 - Die vor Merge 1 liegengebliebenen Test-Plists räumt der Nutzer auf (Liste in `docs/TODO.md`, Wartung und
   Community).
