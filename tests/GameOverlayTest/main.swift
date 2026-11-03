@@ -256,6 +256,39 @@ struct GameOverlayTest {
         check(!GameProcesses.showsWindow([], pids: game), "nothing on screen yet")
         check(!GameProcesses.showsWindow([window(7000, 1920, 1080)], pids: []), "no processes, no window")
 
+        // The overlay over ABZU (DXMT, macOS's Game Mode on, 3.11.): opened, never seen – behind the
+        // game's window – and the game frozen under it. The panel goes above whatever covers the
+        // screen, a game's window or a captured display's shield, not Nightforge's own curtain; the
+        // game pauses only once nothing lies in front of the panel and macOS counts it as visible.
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let abzu = window(7000, 1512, 982, layer: 27, number: 50)
+        let curtain = window(getpid(), 1512, 982, layer: 999, number: 40)
+        let menuBar = window(300, 1512, 33, layer: 24, number: 41)
+        check(GameProcesses.coverLevel([curtain, menuBar, abzu, window(7010, 300, 200, layer: 3, number: 51)], screen: screen, except: getpid()) == 27,
+              "what covers the screen: ABZU's L27 – not the curtain, the menu bar or a small window")
+        check(GameProcesses.coverLevel([menuBar], screen: screen, except: getpid()) == nil, "nothing covering it: none")
+        let shield = Int(CGShieldingWindowLevel())
+        check(GameProcesses.coverLevel([window(88, 1512, 982, layer: shield, number: 3), abzu], screen: screen, except: getpid()) == shield,
+              "a captured display's shield")
+        let screenSaver = Int(CGWindowLevelForKey(.screenSaverWindow))
+        check(GameOverlay.panelLevel(coverLevel: 27) == screenSaver && GameOverlay.panelLevel(coverLevel: nil) == screenSaver,
+              "a game below the screen saver's level: the panel at that level, over the curtain")
+        check(GameOverlay.panelLevel(coverLevel: 2000) == 2001 && GameOverlay.panelLevel(coverLevel: shield) == shield + 1,
+              "higher than that: the panel just above it, over a shield too")
+        let panel = window(401, 1512, 982, layer: screenSaver, number: 99)
+        check(GameProcesses.covering([panel, abzu], window: 99)?.isEmpty == true, "the panel first: nothing in front of it")
+        check(GameProcesses.covering([menuBar, panel, abzu], window: 99)?.isEmpty == true, "the menu bar over it doesn't count")
+        check(GameProcesses.covering([abzu, panel], window: 99).map { $0.count } == 1, "ABZU's window before it: in front of it")
+        check(GameProcesses.covering([abzu], window: 99) == nil, "not on the Space shown at all")
+        check(GameProcesses.describe([window(7000, 1512, 982, layer: 27)]).hasSuffix(" L27 1512×982"), "named in wine.log with level and size")
+        check(GameOverlay.raisedLevel(screenSaver, covering: [window(7000, 1512, 982, layer: 2500)]) == 2501,
+              "the second try: above what lay in front of it")
+        check(GameOverlay.raisedLevel(screenSaver, covering: [abzu]) == screenSaver && GameOverlay.raisedLevel(screenSaver, covering: []) == screenSaver,
+              "never lower than it was")
+        check(GameOverlay.shows(inFront: true, occlusionVisible: true), "in front and visible: the game pauses")
+        check(!GameOverlay.shows(inFront: true, occlusionVisible: false) && !GameOverlay.shows(inFront: false, occlusionVisible: true),
+              "either missing: raised once more, then the game runs on and the panel goes")
+
         // A window that asks something: Black Myth: Wukong's driver warning lay under the curtain (1.11.).
         check(GameProcesses.question([window(7000, 380, 330, number: 88)], pids: game) == 88, "the driver warning: its window")
         check(GameProcesses.question([window(7010, 800, 300, number: 89)], pids: game) == 89, "a wide, low launcher question")

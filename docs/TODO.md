@@ -805,6 +805,25 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     - Spiel beenden bei einem hängenden Spiel (Left 4 Dead 2 im Ladebildschirm): Nach höchstens ~3 s ist es weg,
       danach kommt Willkommen zurück. Bleibt Steam dabei heil?
     - Zu Nightforge: Bibliothek vorn, das Spiel läuft weiter, „Zum Spiel wechseln“ führt zurück.
+  - **Unsichtbar über ABZU** (live 3.11. abends, Build ad385b4): ABZU (Epic, DXMT `-dx11`, MetalFX, im Fenster in
+    Bildschirmgröße, Metal-HUD „Game Mode On“, „Composited“): L3 + R3 öffnete das Overlay laut `wine.log` („Overlay up
+    (menu) …“, „the pad reaches Nightforge“, „resume on menu“), zu sehen war es nicht, das Bild stand (pausiert), der
+    Ton knackte. In Control (D3DMetal, ohne Game Mode) kam es. Das Level erklärt es nicht: das Panel liegt auf
+    `.screenSaver` (1000), ABZUs Fenster auf L27; eine Probe im Scratchpad (Metal-Fenster auf L27, Panel wie
+    Nightforges) zeigt das Panel davor und sichtbar. Verdacht: Mit Game Mode zeigt macOS die Bilder des Spiels direkt
+    an und nimmt andere Fenster erst mit dem nächsten Bild hinzu; das Spiel wurde aber sofort angehalten. Auf
+    `claude/overlay-visible` (von 48e75ba). Nachtrag des Nutzers: Das Panel lag hinter dem Spielfenster, die
+    Eingaben kamen an. Jetzt geht das Panel über das höchste fremde Fenster, das den Bildschirm großteils
+    bedeckt (das Spiel, gleich auf welchem Level, oder der Schild eines belegten Bildschirms; nie unter
+    `.screenSaver`, Nightforges Vorhang zählt nicht). „Overlay up“ nennt die Fenster des Spiels mit Level, das Level
+    des Panels und ob es auf dem sichtbaren Space ist. Angehalten wird erst, wenn nach 300 ms nichts mehr vor dem
+    Panel liegt und macOS es als sichtbar zählt (`occlusionState`). Sonst hebt Nightforge es über das, was davor
+    liegt, holt es noch einmal nach vorne („Overlay not seen … after 300 ms (in front of it <Besitzer> L.. B×H …):
+    raised to L…“) und schaut nach weiteren 300 ms wieder. Klappt auch das nicht, geht das Panel, das Spiel läuft
+    vorne weiter, und `wine.log` sagt „Overlay still not seen … (in front of it …): it goes, the game runs on in
+    front“. Live: ABZU wie oben, L3 + R3 → Panel sichtbar, „Pausiert“, das Bild steht erst danach. Sonst die beiden
+    Zeilen schicken: sie nennen Besitzer, Level und Größe dessen, was vor dem Panel lag. Danach Control und ein
+    Spiel mit Game Mode über D3DMetal zum Vergleich.
 - **Hängendes Spiel von selbst erkennen** (später): Das Spiel lebt, zeichnet aber keine Bilder mehr (Bildzeilen von DXMT
   oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge das Overlay mit „Spiel
   beenden“ an, ohne zu raten, wenn ein Ladebildschirm nur lange dauert.
