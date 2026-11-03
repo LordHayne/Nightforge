@@ -98,9 +98,9 @@ enum SteamProgram {
     }
 
     /// Writes what `prepare` noted into every account's localconfig.vdf, with Steam down (it starts next).
-    /// Only when a process list says so: one that failed says nothing (Steam would write its copy back
-    /// over the file when it quits). Before an account's file first changes, a copy of it stays beside it
-    /// (localconfig.vdf.nightforge-backup).
+    /// Only when a process list says so: one that isn't there says nothing (Steam would write its copy
+    /// back over the file when it quits). Before an account's file first changes, a copy of it stays
+    /// beside it (localconfig.vdf.nightforge-backup).
     static func apply(steamRoot: URL, record: URL = SteamProgram.record, isDown: () -> Bool = { steamIsDown },
                       log: (String) -> Void = GameLog.note) {
         let changes = lock.withLock { wanted }.sorted { $0.key < $1.key }
@@ -133,12 +133,9 @@ enum SteamProgram {
         _ = save(known, to: record)
     }
 
-    /// Steam is down, by a process list that worked: it holds Nightforge itself. One that came back
-    /// empty (ps failed or hung) says nothing.
-    static var steamIsDown: Bool {
-        guard let me = Bundle.main.executableURL?.deletingLastPathComponent() else { return false }
-        return !Engine.ownProcesses(under: me).isEmpty && !Engine.isSteamRunning
-    }
+    /// Steam is known to be down: a process list that is there says so (ProcessListing). One that
+    /// isn't (ps failed or hung) says nothing.
+    static var steamIsDown: Bool { Engine.steamRunningKnown == false }
 
     /// The LaunchOptions Nightforge has written, by app ID (Application Support/Nightforge). Only a line
     /// that says exactly one of them is Nightforge's to change or take away.
