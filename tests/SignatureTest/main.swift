@@ -257,6 +257,17 @@ struct SignatureTest {
         check(SignedLists.isOlder(today, than: stamped(iso.string(from: now.addingTimeInterval(86_400))), now: now),
               "one a day ahead still counts")
         check(!SignedLists.isOlder(stamped("2026-11-03"), than: stamped("2999-01-01"), now: now), "a date alone far ahead too")
+
+        // Compared as dates, not as text (review F).
+        let then = iso.date(from: "2026-11-04T12:00:00Z")!
+        check(SignedLists.isOlder(stamped("2026-11-04T06:00:00+02:00"), than: stamped("2026-11-04T05:00:00Z"), now: then),
+              "06:00 at +02:00 is 04:00 UTC: older than 05:00 UTC")
+        check(!SignedLists.isOlder(stamped("2026-11-04T05:00:00.5Z"), than: stamped("2026-11-04T05:00:00Z"), now: then),
+              "half a second later isn't older")
+        check(!SignedLists.isOlder(stamped("2026-11-04"), than: stamped("2026-11-04T00:00:00Z"), now: then),
+              "a day alone is its midnight in UTC")
+        check(SignedLists.isOlder(stamped("2026-11-03T23:59:59Z"), than: stamped("2026-11-04"), now: then),
+              "and a second before it is older")
     }
 
     static func profiles() async {

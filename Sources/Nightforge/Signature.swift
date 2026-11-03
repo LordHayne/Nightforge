@@ -108,23 +108,30 @@ enum SignedLists {
     static var older: Set<String> { lock.withLock { outdated } }
 
     /// Whether `fresh` was built before `kept`, by the "generated" stamp each list carries in its
-    /// signed bytes (ISO 8601 in UTC, so the text orders them). One without a stamp is older than one
-    /// with it; with no kept stamp nothing is older. The same stamp counts: a list signed again.
+    /// signed bytes (ISO 8601), compared as dates: a day alone is its midnight in UTC, an offset or a
+    /// fraction of a second counts (review F); stamps that don't read as dates as text. One without a
+    /// stamp is older than one with it; with no kept stamp nothing is older. The same stamp counts: a
+    /// list signed again.
     /// A kept stamp more than two days ahead of `now` counts as none (review N5): one wrong clock or
     /// typo would otherwise turn away every right list after it until that day came.
     static func isOlder(_ fresh: Data, than kept: Data?, now: Date = Date()) -> Bool {
         guard let theirs = kept.flatMap(stamp), !theirs.isEmpty else { return false }
-        if let date = date(of: theirs), date > now.addingTimeInterval(2 * 86_400) { return false }
+        let theirDate = date(of: theirs)
+        if let theirDate, theirDate > now.addingTimeInterval(2 * 86_400) { return false }
         guard let ours = stamp(fresh) else { return true }
+        if let ourDate = date(of: ours), let theirDate { return ourDate < theirDate }
         return ours < theirs
     }
 
-    /// A stamp as a date: to the second ("2026-11-03T04:17:00Z") or the day ("2026-10-27").
+    /// A stamp as a date: to the second ("2026-11-03T04:17:00Z", an offset too), with a fraction of a
+    /// second, or the day ("2026-10-27").
     static func date(of stamp: String) -> Date? {
         let full = ISO8601DateFormatter()
+        let fraction = ISO8601DateFormatter()
+        fraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let day = ISO8601DateFormatter()
         day.formatOptions = [.withFullDate]
-        return full.date(from: stamp) ?? day.date(from: stamp)
+        return full.date(from: stamp) ?? fraction.date(from: stamp) ?? day.date(from: stamp)
     }
 
     private static func stamp(_ data: Data) -> String? {
