@@ -96,8 +96,10 @@ Release scheitert mit „isn't signed by its maintainer“.
    scripts/sign-release.sh v0.3.1 --publish
    ```
 
-   Das Skript prüft, ob die App im Entwurf v0.3.1 ist und beide Schlüssel kennt. Dann signiert es (Passwortabfrage:
-   Erlauben), lädt `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne `--publish` bleibt es beim Entwurf, und
+   Das Skript prüft, ob die App im Entwurf v0.3.1 ist und beide Schlüssel kennt. Vor dem Signieren zeigt es drei
+   Dinge: die SHA-256 des ZIPs, den Commit, auf den der Tag zeigt, und die Prüfsumme des Steam-Browser-Wrappers
+   neben der aus dem Repo. Stimmt der Commit, und steht beim Wrapper „the same as …“, tippst du `yes`. Dann signiert
+   es (Passwortabfrage: Erlauben), lädt `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne `--publish` bleibt es beim Entwurf, und
    das Skript zeigt den Befehl zum Veröffentlichen.
 4. Prüfen: Auf der Release-Seite liegen `Nightforge-0.3.1.zip`, `.zip.sig` und `.dmg`.
 
@@ -118,6 +120,10 @@ für Komponenten. Sie pushen nie auf `main`.
 
    bzw. `bot/components`. Das Skript signiert auf dem Zweig des Pull Requests, deine Arbeitskopie bleibt unberührt.
 3. Mergen, wenn „Signatures“ grün ist, mit dem `gh pr merge … --match-head-commit …`, das das Skript ausgibt.
+
+Dazu kommt `bot/wrapper`, wenn sich `wrapper/steamwebhelper-wrapper.c` auf `main` geändert hat: die neu gebaute
+`steamwebhelper.exe`. Die braucht keine eigene Signatur, sie steckt in der App und wird mit dem Release signiert.
+Merge sie nur zu einer Änderung am Quelltext, die du kennst.
 
 Der Merge bringt Liste und Signatur zusammen nach `main`. Wird einmal ohne Signatur gemergt, schadet das niemandem:
 Die Apps behalten ihre letzte signierte Liste, und „Signatures“ auf `main` wird rot. Dann `scripts/sign-lists.sh main`.

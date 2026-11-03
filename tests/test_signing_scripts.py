@@ -327,6 +327,8 @@ class SigningScripts(unittest.TestCase):
             plistlib.dump({"CFBundleShortVersionString": version, "CFBundleIdentifier": "io.github.lordhayne.nightforge"}, plist)
         known = keys if keys is not None else [self.main_public, self.spare_public]
         (app / "Contents/MacOS/Nightforge").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0".join(k.encode() for k in known) + b"\0rest")
+        (app / "Contents/Resources").mkdir()
+        (app / "Contents/Resources/steamwebhelper.exe").write_bytes(b"MZ wrapper")
         assets = self.fake / "assets"
         assets.mkdir()
         subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(assets / f"Nightforge-{tag[1:]}.zip")], check=True)
@@ -334,11 +336,49 @@ class SigningScripts(unittest.TestCase):
         (self.fake / "release.json").write_text(json.dumps({"tag": tag, "isDraft": draft, "isPrerelease": prerelease}))
         return assets / f"Nightforge-{tag[1:]}.zip"
 
-    def sign_release(self, *args, key=None, env=None):
+    def sign_release(self, *args, key=None, env=None, answer="yes"):
         env = dict(env or self.env)
         if key:
             env["NIGHTFORGE_SIGNING_KEY_FILE"] = self.key_file(key)
-        return subprocess.run(["bash", "scripts/sign-release.sh", *args], cwd=self.repo, env=env, capture_output=True, text=True)
+        return subprocess.run(["bash", "scripts/sign-release.sh", *args], cwd=self.repo, env=env, capture_output=True, text=True,
+                              input=answer + "\n")
+
+    def test_it_names_the_tags_commit_and_compares_the_wrapper(self):
+        self.draft()
+        (self.repo / "wrapper").mkdir()
+        (self.repo / "wrapper/steamwebhelper.exe").write_bytes(b"MZ wrapper")
+        origin = self.work / "origin.git"
+        subprocess.run(["git", "init", "--quiet", "--bare", "-b", "main", str(origin)], check=True)
+        self.git("init", "--quiet", "-b", "main")
+        self.git("remote", "add", "origin", str(origin))
+        self.git("add", ".")
+        self.git("commit", "--quiet", "-m", "Release 0.3.1")
+        self.git("tag", "v0.3.1")
+        self.git("push", "--quiet", "origin", "main", "v0.3.1")
+        result = self.sign_release("v0.3.1", answer="no")
+        self.assertIn("Release 0.3.1 (Test,", result.stdout)
+        self.assertIn("the same as wrapper/steamwebhelper.exe at v0.3.1", result.stdout)
+        (self.repo / "wrapper/steamwebhelper.exe").write_bytes(b"MZ other")
+        self.git("commit", "--quiet", "-am", "Another wrapper")
+        self.git("tag", "-f", "v0.3.1")
+        self.git("push", "--quiet", "--force", "origin", "v0.3.1")
+        self.assertIn("✗ not the one at v0.3.1", self.sign_release("v0.3.1", answer="no").stdout)
+
+    def test_it_shows_what_it_signs_and_asks(self):
+        """Review M5: the zip's SHA-256 and the wrapper's before the signature; only "yes" signs."""
+        zip_file = self.draft()
+        (self.fake / "keychain").write_text(self.main)
+        result = self.sign_release("v0.3.1", answer="no")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Nothing signed", result.stderr)
+        self.assertIn(hashlib.sha256(zip_file.read_bytes()).hexdigest(), result.stdout)
+        self.assertIn(hashlib.sha256(b"MZ wrapper").hexdigest(), result.stdout)
+        self.assertFalse((self.fake / "assets" / f"{zip_file.name}.sig").exists(), "nothing uploaded")
+        calls = self.fake / "security.argv"
+        self.assertNotIn("find-generic-password", calls.read_text() if calls.exists() else "", "the key wasn't even read")
+        result = self.sign_release("v0.3.1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.fake / "assets" / f"{zip_file.name}.sig").exists())
 
     def verify(self, file):
         return subprocess.run([str(self.keyed_tool), "verify", str(file)], capture_output=True, text=True)
