@@ -362,9 +362,22 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   Also ungeklärt.
 - **„Aktualisieren & spielen“ zeigt die ganze Zeit 0 %.** OxyRail am 31.10.: 5,8 GB in 4,5 Minuten, der Knopf
   stand bis zum Schluss auf „Aktualisiert … 0 %“. Steam schreibt `BytesDownloaded` im appmanifest erst am Ende
-  (während des Updates `StateFlags 1030`, `BytesDownloaded 0`). `LibraryScanner.updateState` liest nur das
-  Manifest. Kandidat: die Größe von `steamapps/downloading/<appid>` gegen `BytesToStage` rechnen, oder den
-  Fortschritt aus `content_log.txt` lesen. Danach ist das Spiel von selbst gestartet. Der Grund, warum das Update
+  (während des Updates `StateFlags 1030`, `BytesDownloaded 0`). `LibraryScanner.updateState` las nur das
+  Manifest. Gebaut am 3.11. auf `claude/update-progress-1a4e06` (von 29e458a), nur mit Tests geprüft:
+  `content_log.txt` nennt nur Anfang („update started : download 0/5809679168, … stage 0/7151561606“) und Ende,
+  dazwischen nur „Current download rate“. Steam entpackt das Update nach `steamapps/downloading/<appid>` (die
+  Bibliothek des Spiels, auch auf dem Stick) und verschiebt es am Ende ins Spiel („starting commit from
+  …\downloading\3907790“); `BytesToStage` im Manifest ist dieselbe Zahl wie „stage“. Jetzt misst
+  `updateState` wie bei Erstinstallationen den belegten Platz in diesem Ordner gegen `BytesToStage`
+  (`stagedSoFar`; nicht bei Steam für Mac, das alles vorab belegt). Steam setzt die Dateien vorab auf volle
+  Größe („preallocated 476 files (6799 MB)“), Wine lässt sie auf APFS dünn (macOS hat kein `posix_fallocate`),
+  also zählt nur Geschriebenes; geprüft mit einer 100-MB-Datei, ein Viertel beschrieben → 25 %. Der Knopf geht
+  nie zurück, wenn sich der Ordner beim Verschieben leert (`UpdateProgress`), und unter ihm steht nach ein paar
+  Sekunden die Geschwindigkeit wie bei Downloads (4.4): „19 MB/s · noch 4 Min. – Steam aktualisiert das Spiel
+  zuerst, …“. Offen: auf einem exFAT-Laufwerk wäre eine vorab volle Datei gleich belegt (dann sofort ~95 %).
+  Live: ein Steam-Spiel mit wartendem Update (Bibliothek zeigt „Update“) mit „Aktualisieren & spielen“ starten:
+  Prozent steigen gleichmäßig bis 99 %, nach einigen Sekunden die Geschwindigkeit darunter, dann startet das
+  Spiel von selbst (OxyRail tat das am 31.10. auch). Der Grund, warum das Update
   am Nachmittag dreimal scheiterte, war ein hängendes Steam (Log stand seit 16:46). Die Erkennung dafür liegt auf
   dem GOG-Zweig (557c2c2).
 - **Steam bleibt nach dem Beenden von Nightforge noch etwa eine Minute** (Nutzer, 31.10., „hat nur gedauert, bis es

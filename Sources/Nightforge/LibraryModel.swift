@@ -85,6 +85,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var launchNeedsConfirmation = false
     /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …").
     @Published private(set) var launchPhase: LaunchPhase?
+    /// How fast Steam's update before a start goes ("12.4 MB/s · 4 min left"), once it's known.
+    @Published private(set) var updateSpeed: String?
     /// The start in progress is the game's first with these graphics: its shaders get built.
     @Published private(set) var launchBuildsShaders = false
 
@@ -94,6 +96,7 @@ final class LibraryModel: ObservableObject {
         if launchNeedsConfirmation { return LaunchPhase.confirmHint }
         let provider = allGames.first { $0.id == launchingID }?.provider
         if case .updating? = launchPhase, let provider, provider != .steam { return LaunchPhase.storeUpdateHint(provider) }
+        if case .updating? = launchPhase, let updateSpeed { return LaunchPhase.steamUpdateHint(speed: updateSpeed) }
         if launchPhase == .syncingSaves, provider == .gog { return LaunchPhase.gogSavesHint }
         if let launchPhase { return launchPhase.hint }
         return launchBuildsShaders ? LaunchPhase.shaderHint : nil
@@ -3164,19 +3167,26 @@ final class LibraryModel: ObservableObject {
         var retriedAfterRestart = false
         var signedInSince: Int?
         var resent = false
+        var updated = UpdateProgress()
         awaitingSteam = true
-        defer { awaitingSteam = false }
+        defer {
+            awaitingSteam = false
+            updateSpeed = nil
+        }
         while quietSeconds < 120 && totalSeconds < 900 {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return false }
             // Steam updates the game first ("Update & Play"): that's no silence, however long it takes.
             if let update = await Task.detached(priority: .utility, operation: { LibraryScanner.updateState(of: game) }).value,
                update.isRunning {
-                launchPhase = .updating(update.fraction)
+                updated.add(update)
+                launchPhase = .updating(updated.fraction)
+                if updateSpeed != updated.speed { updateSpeed = updated.speed }
                 quietSeconds = 0
                 continue
             } else if case .updating? = launchPhase {
                 launchPhase = nil
+                updateSpeed = nil
             }
             totalSeconds += 1
             switch watcher.poll() {
