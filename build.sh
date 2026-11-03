@@ -59,6 +59,22 @@ else
   cp wrapper/steamwebhelper.exe "$OUT/Contents/Resources/steamwebhelper.exe"
 fi
 
+# Presses "Play!" in Unity's configuration window for the games that show one (wrapper/unity-play.c,
+# UnityDialog.swift). Built the same way; the checked-in build is the one unity-play.yml produces, and
+# it runs in every player's Wine session while a binary diff can't be read in a review: only the build
+# whose SHA-256 the workflow wrote beside it (a line that can) goes into the app.
+if [ -n "$MINGW" ]; then
+  "$MINGW" -O2 -Wall -Wextra -municode -mwindows -static \
+    -o "$OUT/Contents/Resources/unity-play.exe" wrapper/unity-play.c
+else
+  if ! (cd wrapper && shasum -a 256 -c -s unity-play.exe.sha256); then
+    echo "✗ wrapper/unity-play.exe doesn't match wrapper/unity-play.exe.sha256." >&2
+    echo "  Install mingw-w64 (brew install mingw-w64) to build it from wrapper/unity-play.c." >&2
+    exit 1
+  fi
+  cp wrapper/unity-play.exe "$OUT/Contents/Resources/unity-play.exe"
+fi
+
 # Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m

@@ -64,6 +64,9 @@ struct GameProfile: Decodable, Equatable {
     /// Wine's and CrossOver's own switches the game starts with ({"WINE_SIMULATE_WRITECOPY": "1"}),
     /// only those GameEnvironment allows; anything else in the list is dropped.
     var environment: [String: String]?
+    /// false: Unity's configuration window before the game asks something that matters here, so
+    /// Nightforge leaves "Play!" to the player (UnityDialog).
+    var skipUnityDialog: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -122,7 +125,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, resolution, executable, environment
+        case iniSettings, retina, resolution, executable, environment, skipUnityDialog
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -168,6 +171,7 @@ struct GameProfile: Decodable, Equatable {
         executable = (try? container.decodeIfPresent(String.self, forKey: .executable)).flatMap { $0.isEmpty ? nil : $0 }
         environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
             .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
+        skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
     }
 }
 

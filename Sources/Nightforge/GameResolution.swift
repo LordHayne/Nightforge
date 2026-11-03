@@ -91,17 +91,21 @@ enum GameResolution {
     /// The registry keys of the Unity programs in a game folder: Software\<company>\<product>, as
     /// <Program>_Data/app.info names them.
     static func unityKeys(installDir: URL) -> [String] {
+        let keys = unityDataFolders(installDir: installDir).compactMap { data in
+            (try? String(contentsOf: data.appendingPathComponent("app.info"), encoding: .utf8)).flatMap(unityKey(appInfo:))
+        }
+        return Array(Set(keys)).sorted()
+    }
+
+    /// A game folder's <Program>_Data folders: next to the program, which some games keep one folder down.
+    static func unityDataFolders(installDir: URL) -> [URL] {
         let fm = FileManager.default
         let top = (try? fm.contentsOfDirectory(at: installDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
-        // Next to the program, which some games keep one folder down.
         let folders = top + top.flatMap { folder in
             folder.lastPathComponent.hasSuffix("_Data") ? []
                 : (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
         }
-        let keys = folders.filter { $0.lastPathComponent.hasSuffix("_Data") }.compactMap { data in
-            (try? String(contentsOf: data.appendingPathComponent("app.info"), encoding: .utf8)).flatMap(unityKey(appInfo:))
-        }
-        return Array(Set(keys)).sorted()
+        return folders.filter { $0.lastPathComponent.hasSuffix("_Data") }
     }
 
     /// "Team17\nOvercooked2" → Software\Team17\Overcooked2. Nil for names a .reg file can't carry

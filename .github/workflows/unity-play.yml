@@ -1,0 +1,41 @@
+name: Build unity-play
+
+on:
+  push:
+    # Branches only: a tag push (a release) has no branch to commit the rebuilt binary to.
+    branches: ["**"]
+    paths:
+      - "wrapper/unity-play.c"
+  pull_request:
+    paths:
+      - "wrapper/unity-play.c"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - name: Build
+        run: |
+          x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -Werror -municode -mwindows -static \
+            -o wrapper/unity-play.exe wrapper/unity-play.c
+          # Beside it, its SHA-256 as a line a review can read: build.sh takes no other binary.
+          (cd wrapper && sha256sum unity-play.exe | tee unity-play.exe.sha256)
+
+      # build.sh falls back to the checked-in binary on Macs without mingw-w64, so keep it current.
+      - name: Commit rebuilt binary
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet wrapper/unity-play.exe wrapper/unity-play.exe.sha256; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add wrapper/unity-play.exe wrapper/unity-play.exe.sha256
+          git commit -m "Rebuild unity-play"
+          git push
