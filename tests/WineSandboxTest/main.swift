@@ -202,9 +202,7 @@ struct WineSandboxTest {
     /// A Wine session begun with the switch the other way ends before anything else starts in it,
     /// but never under a running game.
     static func sessionSwitch(_ wine: URL) {
-        let suite = "nightforge.wine-sandbox-test-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = TestDefaults.suite("wine-sandbox")
         var ended: [URL] = []
         func settle(_ enabled: Bool, game: Bool = false) {
             WineSandbox.settleSession(wine, enabled: enabled, defaults: defaults, gameRunning: { game }, end: { ended.append($0) })
