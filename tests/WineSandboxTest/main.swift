@@ -238,6 +238,36 @@ struct WineSandboxTest {
                   "\(name) reads inside, but can't be deleted or replaced there")
         }
         preferences(realHelper: realHelper, places: places)
+        // What only Nightforge and its own tools write (review of 3.11.2026, every file traced): read-only inside.
+        let nightforgeOnly = ["Epic/destinations.json", "Epic/library.json", "Epic/Logs/Calluna.log", "GOG/installed.json", "GOG/builds.json",
+                              "GOG/mac-unfit.json", "GOG/Logs/redist.log", "GameInfo/known.json", "GameTests/2026-11-03-0748/report.json",
+                              "Backups/Some Game/save.dat", "Logs/wine.log", "Steam packages/steam_cmd_win32.zip"]
+        for name in nightforgeOnly {
+            let file = support.appendingPathComponent(name)
+            write("orig", file)
+            _ = run(realHelper, [profile, sh.path, "-c", "printf changed > \"$1\"", "sh", file.path])
+            check((try? String(contentsOf: file, encoding: .utf8)) == "orig", "only Nightforge writes it, so not from inside: \(name)")
+        }
+        // Wine's output still reaches the log: through a handle opened outside, as the helper opens it.
+        let wineLog = support.appendingPathComponent("Logs/wine.log")
+        if let handle = try? FileHandle(forWritingTo: wineLog) {
+            handle.seekToEndOfFile()
+            let process = Process()
+            process.executableURL = realHelper
+            process.arguments = [profile, sh.path, "-c", "printf ' from Wine'"]
+            process.standardOutput = handle
+            try? process.run()
+            process.waitUntilExit()
+            try? handle.close()
+        }
+        check((try? String(contentsOf: wineLog, encoding: .utf8)) == "orig from Wine", "Wine's output reaches wine.log through its handle")
+        // What Wine writes stays writable: GOG's install scripts' support folder, the redistributables, legendary's tmp.
+        for name in ["GOG/Support/1207664643/installed.flag", "GOG/Redist/__redist/ISI/x.log", "Epic/legendary/tmp/game.ovt"] {
+            let file = support.appendingPathComponent(name)
+            write("orig", file)
+            _ = run(realHelper, [profile, sh.path, "-c", "printf changed > \"$1\"", "sh", file.path])
+            check((try? String(contentsOf: file, encoding: .utf8)) == "changed", "Wine may write it: \(name)")
+        }
         // The quit script's Wine start (review of 3.11.2026): it ran steam.exe from the prefix – which programs
         // inside can change – outside the sandbox. Its wine_program, from the script itself, with the helper.
         shutdownScript(realHelper: realHelper, profile: profile, token: secrets[0], prefix: support.appendingPathComponent("Prefix"))

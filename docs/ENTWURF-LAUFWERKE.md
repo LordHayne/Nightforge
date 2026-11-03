@@ -154,3 +154,38 @@ kann A auch kleiner ausfallen: `Z:` bliebe, nur die Sperrliste wüchse.
    aus steht. Danach ein Live-Test mit dem Nutzer: ein Steam-Spiel, ein Spiel von einem externen Laufwerk, ein
    Epic-Spiel mit DRM, ein GOG-Spiel mit Installer, Controller, Game Mode. Erst dann standardmäßig an.
 3. Den Satz „Windows-Spiele sehen den ganzen Mac“ bis dahin ehrlich in die Doku: Wine ist keine Sandbox.
+
+## Wer schreibt was im Datenordner (3.11., aus dem Code von Staging 4f0d00a)
+
+Alles unter `~/Library/Application Support/Nightforge` außer `Prefix/`. „Außen“ heißt: Nightforge selbst oder seine
+Mac-Werkzeuge legendary und gogdl, die nie in der Sandbox laufen. „Innen“ heißt: Wine oder ein Windows-Programm. Was nur
+außen geschrieben wird, ist in der Sandbox nur lesbar (`WineSandbox.readOnlyInSupport`) oder ganz gesperrt
+(`deniedInSupport`).
+
+| Datei oder Ordner | Wer schreibt | In der Sandbox |
+|---|---|---|
+| `Components/` (Engines, Grafik, legendary, gogdl, winetricks, Komponentenliste mit `.sig`) | Nightforge (ComponentStore) | nur lesbar |
+| `D3DMetal/`, `Nightforge Helper.app`, `hide-steam-dock.dylib` | Nightforge | nur lesbar |
+| `steam-shutdown.sh`, `steam-priority.sh`, `steam-priority.pid` | Nightforge, die PID das Skript (läuft außen) | nur lesbar |
+| `profiles.json(.sig)`, `agw.json(.sig)`, `launchoptions-written.json` | Nightforge | nur lesbar |
+| `shortcut-key` | Nightforge (GameShortcut) | gesperrt |
+| `Epic/legendary/` (Anmeldung, Metadaten, `assets.json`, `installed.json`) | legendary (außen) | gesperrt |
+| `Epic/legendary/tmp/` (Besitz-Token der Spiele, `.resume`) | legendary; Epic-Spiele lesen | les- und schreibbar (Ausnahme) |
+| `Epic/account.json` | Nightforge | gesperrt |
+| `Epic/library.json`, `sizes.json`, `downloads.json`, `destinations.json`, `playtime.json` | Nightforge (EpicStore) | nur lesbar |
+| `Epic/Logs/` | legendarys Ausgabe, von Nightforge geöffnet | nur lesbar |
+| `GOG/gogdl/`, `GOG/account.json` | gogdl, Nightforge | gesperrt |
+| `GOG/library.json`, `sizes.json`, `builds.json`, `downloads.json`, `installed.json`, `releases.json`, `playtime.json`, `saves.json`, `mac-unfit.json` | Nightforge (GOGStore) | nur lesbar |
+| `GOG/Logs/` (`<id>.log`, `redist.log`, `auth.log`) | gogdl und Nightforge; Wines Ausgabe über einen außen geöffneten Handle | nur lesbar |
+| `GOG/Games/` (Mac-Spiele) | gogdl | nur lesbar |
+| `GOG/Redist/` | gogdl lädt; Wine führt die Installer von dort aus | **schreibbar**, Live-Test J |
+| `GOG/Support/<id>/` | gogdl; GOGs Installationsskripte in Wine (`/supportDir=`) | **schreibbar**, Live-Test J |
+| `GameInfo/known.json` | Nightforge (GameInfoStore) | nur lesbar |
+| `GameTests/` | Nightforge (Spieletest, `sample` läuft außen) | nur lesbar |
+| `Backups/` | Nightforge (SaveTransfer) | nur lesbar |
+| `Logs/` (`wine.log`, `winetricks.log` und die `.previous`) | Nightforge; Wine und winetricks über Handles, die der Helfer außen öffnet | nur lesbar |
+| `Steam packages/` | Nightforge (SteamPrefetch), danach als Hardlinks in Steams Paketordner im Prefix | nur lesbar |
+| `Prefix/` (samt `gog-redist.json`) | Wine, Steam, Spiele, Installer | schreibbar |
+
+Außerhalb des Datenordners schreibt DXMT seinen Shader-Cache nach `~/Library/Caches/Nightforge/dxmt`. Das muss in
+der Sandbox schreibbar bleiben.
