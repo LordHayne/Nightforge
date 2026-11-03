@@ -108,9 +108,10 @@ enum UnityDialog {
         lock.lock()
         defer { lock.unlock() }
         if let running, running.game == game.gameID.key, running.process.isRunning { return }
-        let process = DetachedProcess()
-        process.executableURL = wine
-        process.arguments = [Engine.windowsPath(of: program)] + arguments(programs, seconds: seconds)
+        // Through the Wine sandbox like every Wine start (WineSandbox.process); without its helper while
+        // the sandbox is on, it doesn't start.
+        guard let process = try? WineSandbox.process(wine, [Engine.windowsPath(of: program)] + arguments(programs, seconds: seconds))
+        else { return }
         process.environment = Engine.environment(wine: wine)
         // Not in the game's folder, where it would count as the game's own (GameProcesses.runsFrom).
         process.currentDirectoryURL = Engine.prefix.appendingPathComponent("drive_c/windows", isDirectory: true)
