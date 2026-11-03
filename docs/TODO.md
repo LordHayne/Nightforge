@@ -501,7 +501,14 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   wandert beim Anstecken, Windows-Spiel öffnet dort, Hauptbildschirm kommt danach zurück). Am TV noch offen: die
   Erkennung am Namen (`Candidate.isTV`, Liste der Marken) und das Vollbild des Launchers.
 - **Hinweis „Spielt auf: …“** neben Play, wenn ein externer Bildschirm das Spiel bekommt, damit man weiß, wo es
-  aufgeht. Ansatz: `GameDisplay.screen?.localizedName` in `LibraryView`, nur bei mehr als einem Bildschirm.
+  aufgeht. Gebaut am 3.11. auf `claude/small-fixes-1a4e06`, nur mit Tests geprüft: eine Zeile direkt unter Play
+  (Spielseite und Bühne auf Home, nur bei installierten Spielen) „Spielt auf: LG TV SSCR2“, sobald es mehr als
+  einen Ort gibt (ein gespiegelter Bildschirm zählt nicht extra). Genannt wird der Bildschirm mit Nightforges
+  Fenster, also auch das MacBook, wenn der TV dran ist und das Fenster zurückgeschoben wurde
+  (`GameDisplay.destination`). Aktualisiert beim An- und Abstecken und wenn das Fenster wandert, sonst nichts
+  gemessen. Eine Zeile wie die anderen unter Play, kein eigener Fokus: Das Pad steht auf der Seite ohnehin auf
+  Play, die Zeile direkt darunter. Live: MacBook mit TV/Monitor: Zeile mit dem Namen des TVs; Fenster aufs
+  MacBook ziehen: Name des MacBooks; Kabel ab: Zeile weg; gespiegelt: keine Zeile.
 - **Ziel fürs Sofa (28.10.):** MacBook anstecken, Controller einschalten, alles läuft, ohne Maus und Tastatur.
   - **Vollbild am Fernseher** (31.10., Branch `claude/tv-fullscreen-61ab1e`, `GameResolution.swift`): Overcooked 2
     (Epic, Unity) ging am gespiegelten TV als kleineres Fenster auf. Unity und Unreal merken sich die Auflösung des

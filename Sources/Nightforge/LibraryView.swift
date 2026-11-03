@@ -1223,6 +1223,8 @@ private struct GameDetail: View {
     /// On Home's stage: what the game is there (StarterPicks, HomeRail.stage).
     var role: LibraryModel.HomeRole?
     @EnvironmentObject private var model: LibraryModel
+    /// The screen a game opens on, with more than one (GameDisplay).
+    @ObservedObject private var destination = GameDisplay.destination
     @State private var logo: NSImage?
     /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
     @State private var askedScore: Int?
@@ -1460,6 +1462,14 @@ private struct GameDetail: View {
                         model.togglePinned(game)
                     }
                 }
+            }
+            // More than one screen: where the game opens, so the TV or the MacBook is no surprise.
+            if game.isInstalled, let screen = destination.name {
+                Label(L10n.t("Plays on: %@", screen), systemImage: "display")
+                    .font(size: 13, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+                    .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             // A drive that may never come back: the way out is to forget this copy and download it again.
             if !compact, game.onUnpluggedDrive, let drive = game.missingDrive {
