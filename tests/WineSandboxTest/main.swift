@@ -192,10 +192,43 @@ struct WineSandboxTest {
         let renamed = save.deletingLastPathComponent().appendingPathComponent("save-old.dat")
         _ = run(realHelper, [profile, mv.path, save.path, renamed.path])
         check(FileManager.default.fileExists(atPath: renamed.path), "and its files can be renamed, as games do when they save")
+        // The quit script's Wine start (review of 3.11.2026): it ran steam.exe from the prefix – which programs
+        // inside can change – outside the sandbox. Its wine_program, from the script itself, with the helper.
+        shutdownScript(realHelper: realHelper, profile: profile, token: secrets[0], prefix: support.appendingPathComponent("Prefix"))
         // Outside the sandbox nothing of this applies: Nightforge's complete removal deletes in its own process.
         check((try? FileManager.default.removeItem(at: support)) != nil && !FileManager.default.fileExists(atPath: support.path),
               "outside, the data folder can be removed as a whole (CompleteRemoval)")
         finish()
+    }
+
+    /// steam-shutdown.sh starts Steam's -shutdown through `wine_program`: with the switch on through the
+    /// helper and the profile, without the helper not at all, switched off as before.
+    static func shutdownScript(realHelper: URL, profile: String, token: URL, prefix: URL) {
+        let script = Engine.steamShutdownScript
+        guard let start = script.range(of: "wine_program() {\n"), let end = script.range(of: "\n}\n", range: start.upperBound..<script.endIndex) else {
+            check(false, "the quit script has its wine_program")
+            return
+        }
+        let function = String(script[start.lowerBound..<end.upperBound])
+        check(script.contains(#"wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown"#)
+              && !script.contains(#""$WINE" 'C:"#), "Steam's -shutdown goes through wine_program, never \"$WINE\" directly")
+        let engine = (try? String(contentsOf: URL(fileURLWithPath: "Sources/Nightforge/Engine.swift"), encoding: .utf8)) ?? ""
+        check(engine.contains(#"WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]"#),
+              "scheduleSteamShutdown hands the script the helper and the profile when the switch is on")
+        // A steam.exe a program inside replaced: here a script that copies legendary's token out.
+        let steam = prefix.appendingPathComponent("drive_c/steam.exe"), stolen = prefix.appendingPathComponent("stolen")
+        write("cat \"$1\" > \"$2\"\n", steam)
+        func shutdown(sandbox: String) -> Int32 {
+            try? FileManager.default.removeItem(at: stolen)
+            let harness = "SANDBOX=\"$1\"; PROFILE=\"$2\"; WINE=/bin/sh\n" + function + "wine_program \"$3\" \"$4\" \"$5\"\n"
+            return run(URL(fileURLWithPath: "/bin/bash"), ["-c", harness, "bash", sandbox, profile, steam.path, token.path, stolen.path]).status
+        }
+        _ = shutdown(sandbox: "")
+        check((try? String(contentsOf: stolen, encoding: .utf8)) == "x", "switched off, it runs as before – outside, where the token reads")
+        _ = shutdown(sandbox: realHelper.path)
+        check((try? String(contentsOf: stolen, encoding: .utf8)) ?? "" != "x", "switched on, inside: the token doesn't read")
+        check(shutdown(sandbox: "-") != 0 && !FileManager.default.fileExists(atPath: stolen.path),
+              "switched on without the helper: nothing of Windows starts")
     }
 
     /// Reads the sources: a program is started only through WineSandbox.process, or is one of these,
