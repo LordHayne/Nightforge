@@ -239,6 +239,49 @@ struct MacSourcesTest {
                                   nightforge: "1").first { $0.id == "way" }?.value == "mac", "a Mac version's way")
         let form = try String(contentsOf: URL(fileURLWithPath: ".github/ISSUE_TEMPLATE/compat-report.yml"), encoding: .utf8)
         for (id, _) in fields { check(form.contains("id: \(id)\n"), "the form has the field \(id)") }
+        // The values are in the link: GitHub and the browser have them as the page opens (audit M3).
+        let shared = URLComponents(string: CompatReport.url(game: game, rating: problems, preset: .automatic, engine: build, chip: "Apple M5",
+                                                            macOS: "27.0", nightforge: "0.3.1")?.absoluteString ?? "")
+        let allowed: Set<String> = ["template", "title", "game", "store", "store-id", "result", "way", "issues", "setup", "mac"]
+        check(Set(shared?.queryItems?.map(\.name) ?? []).isSubset(of: allowed), "the shared report's link holds the form's fixed fields only")
+        check(form.contains("GitHub received these values when this page opened") && !form.contains("Nothing was sent"),
+              "the form says honestly when GitHub gets the values")
+
+        // MARK: The problem report: fixed facts in the link, the rest on the clipboard (audit M3)
+        let errorLines = ["err:module:import_dll Library d3d12.dll (needed by L\"Z:\\Users\\jane\\Games\\x.exe\") not found",
+                          "err:seh:NtRaiseException Unhandled exception code c0000005 in /Users/jane/Library/x for jane@example.com"]
+        let problem = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game (Steam 870)"), ("Graphics", "automatic · DXMT | odd")],
+                                        errors: errorLines, downloadFailure: ["ERROR: download stopped in /Users/jane/GOG"],
+                                        launchOptions: "-token=abc123secret -dir /Users/jane/mods", home: "/Users/jane", user: "jane")
+        let link = problem.url?.absoluteString.removingPercentEncoding ?? ""
+        check(!link.contains("err:") && !link.contains("Unhandled") && !link.contains("ERROR") && !link.contains("-dir"),
+              "no log line, download error or launch option in the link")
+        check(!link.contains("jane") && !link.contains("abc123"), "no home folder, account or token in the link: \(link)")
+        check(problem.body.contains("| Game | Some Game (Steam 870) |") && problem.body.contains("DXMT \\| odd"),
+              "the facts as a table, a | in a value escaped")
+        check(problem.body.contains("**From the last start:**") && problem.body.contains("clipboard"),
+              "the form says where the error lines are")
+        let clip = problem.clipboard ?? ""
+        check(clip.contains("Errors from the last start") && clip.contains("Unhandled exception") && clip.contains("Its last download stopped")
+              && clip.contains("Launch options:"), "the error lines, the stopped download and the launch options go on the clipboard")
+        check(!clip.contains("/Users/jane") && !clip.contains("jane@example.com") && !clip.contains("abc123secret") && clip.contains("<email>"),
+              "…through GameLog.redacted: \(clip)")
+        check(link.count < 2000, "the link stays short (\(link.count) characters)")
+        let alone = ProblemReportText(gameName: "Jane Was Alone", facts: [("Game", "Jane Was Alone (Steam 1)")], errors: ["owner jane"],
+                                      downloadFailure: [], launchOptions: "", home: "/Users/jane", user: "jane")
+        check(alone.title == "Jane Was Alone: doesn't run properly" && alone.body.contains("| Game | Jane Was Alone (Steam 1) |")
+              && alone.clipboard?.contains("owner <user>") == true, "a game named like the account keeps its name; the log line doesn't")
+        let aloneGame = Game(appID: 1, name: "Jane Was Alone", bottle: bottle, steamRoot: bottle.url, steamExeWindowsPath: "",
+                             installDir: bottle.url, sizeOnDisk: 0)
+        check(CompatReport.fields(game: aloneGame, rating: well, preset: nil, engine: nil, chip: "M", macOS: "27", nightforge: "1",
+                                  home: "/Users/jane", user: "jane").first { $0.id == "game" }?.value == "Jane Was Alone",
+              "…in the shared report too")
+        let plain = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game")], errors: [], downloadFailure: [], launchOptions: "")
+        check(plain.clipboard == nil && !plain.body.contains("From the last start"), "nothing for the clipboard: no line about it")
+        let many = (1...2_000).map { "err:module:line \($0) " + String(repeating: "x", count: 40) }
+        let trimmed = ProblemReportText(gameName: "G", facts: [], errors: many, downloadFailure: [], launchOptions: "").clipboard ?? ""
+        check(trimmed.count < 21_000 && trimmed.contains("line 2000 ") && !trimmed.contains("line 1 "),
+              "a long log keeps its newest errors within an issue's size")
 
         // MARK: The file in the repository
         if let data = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])), let real = AGWIndex.decode(data) {

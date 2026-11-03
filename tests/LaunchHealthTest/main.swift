@@ -610,6 +610,38 @@ struct LaunchHealthTest {
         check(GameLog.errors(in: "0124:err:module:foo L\"C:\\\\users\\\\thomas\\\\x.exe -AUTH_PASSWORD=zzzz1111\"", limit: 5).joined().contains("zzzz1111") == false,
               "error lines for a report are redacted")
 
+        // Audit N7, with lines from a real wine.log and Steam log (2026-11-01), names changed: an external
+        // drive named after its owner, the Mac's names, the account's temp folder, a GOG user id.
+        let machine = GameLog.machineNameList(["Jane’s MacBook Pro", "Janes-MacBook-Pro.local", "Janes-MacBook-Pro", "Janes-MacBook-P", "Mac"])
+        check(machine == ["Janes-MacBook-Pro.local", "Jane’s MacBook Pro", "Janes-MacBook-Pro", "Janes-MacBook-P"],
+              "the Mac's names, longest first, without a short one that would eat words: \(machine)")
+        func scrub(_ line: String) -> String { GameLog.redacted(line, home: "/Users/jane", user: "jane", machine: machine) }
+        let tracked = scrub(#"[2026-11-01 15:39:01] Game process added : AppID 2357570 ""Z:\Volumes\Jane SSD\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"", ProcID 1876, IP 0.0.0.0:0"#)
+        check(tracked.contains(#"Z:\Volumes\<drive>\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"#) && !tracked.contains("Jane"),
+              "Steam's Z:\\Volumes\\<name>: the drive's name goes, the rest of the path stays: \(tracked)")
+        let mesa = scrub(#"[2026-11-01 15:39:01] Setting MESA_GLSL_CACHE_DIR=Z:\Volumes\Jane SSD\Nightforge Games\steamapps\shadercache\2357570 MESA_DISK_CACHE_READ_ONLY_FOZ_DBS=steam_cache"#)
+        check(mesa.contains(#"Z:\Volumes\<drive>\Nightforge Games"#) && mesa.hasSuffix("steam_cache"), "a drive in an environment line: \(mesa)")
+        let doubled = scrub(#"0124:err:module:import_dll Library d3d12.dll (needed by L"Z:\\Volumes\\Jane SSD\\Games\\x.exe") not found"#)
+        check(doubled.contains(#"Z:\\Volumes\\<drive>\\Games\\x.exe"#) && !doubled.contains("Jane"), "Wine's doubled backslashes: \(doubled)")
+        let dyld = scrub(#"dyld[23696]: tried: '/Volumes/Jane SSD/Nightforge Games/hide-steam-dock.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/x'"#)
+        check(dyld.contains("'/Volumes/<drive>/Nightforge Games/hide-steam-dock.dylib'") && !dyld.contains("Jane"), "a Mac path: \(dyld)")
+        let host = scrub("[2026-10-23 19:56:50] SteamUI: INFO: Storing new config params ?LOCAL_HOSTNAME=Janes-MacBook-Pro&LANGUAGE=german&COUNTRY=")
+        check(host.contains("LOCAL_HOSTNAME=<computer>&LANGUAGE=german"), "Steam's LOCAL_HOSTNAME: \(host)")
+        let netbios = scrub("fixme:netapi32:NetWkstaGetInfo COMPUTERNAME=JANES-MACBOOK-P, host janes-macbook-pro.local, named Jane’s MacBook Pro")
+        check(!netbios.lowercased().contains("janes") && !netbios.contains("Jane’s"), "Wine's NetBIOS name, the host and computer names: \(netbios)")
+        let temp = scrub("err:winediag: /private/var/folders/x7/abcd1234efgh5678/T/com.apple.x and /var/folders/x7/abcd1234efgh5678/C/y")
+        check(temp.contains("/private/var/folders/<id>/T/com.apple.x") && temp.contains("/var/folders/<id>/C/y"), "the account's temp folder: \(temp)")
+        let others = scrub("launchd[1]: uid 501 (jane) is owner jane; a path /Users/jane/x and janet, jane_doe stay")
+        check(!others.contains("(jane)") && !others.contains("owner jane") && others.contains("~/x") && others.contains("janet") && others.contains("jane_doe"),
+              "the account name in other programs' lines, as a word only: \(others)")
+        let gog = scrub(#"GET https://galaxy-library.gog.com/users/48628349957132247/releases {"user_id": "48628349957132247", "galaxy_user_id":48628349957132247}"#)
+        check(!gog.contains("48628349957132247") && gog.contains("users/<gog user>/releases"), "GOG user ids: \(gog)")
+        check(scrub(tracked) == tracked && scrub(host) == host, "redacting twice changes nothing")
+        check(!GameTest.leaks(tracked + host + temp, home: "/Users/jane", user: "jane", machine: machine)
+              && GameTest.leaks(#"Z:\Volumes\Jane SSD\x"#, home: "/Users/jane", user: "jane", machine: machine)
+              && GameTest.leaks("LOCAL_HOSTNAME=janes-macbook-pro", home: "/Users/jane", user: "jane", machine: machine),
+              "the game test's second check knows drives and the Mac's names too")
+
         // Winetricks verbs from the online fixes: install verbs pass, commands and options don't.
         for verb in ["vcrun2019", "d3dcompiler_47", "xact_x64"] {
             check(Engine.isSafeWinetricksVerb(verb), "winetricks verb \(verb) allowed")

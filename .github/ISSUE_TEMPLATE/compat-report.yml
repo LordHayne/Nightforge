@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Nightforge filled in the fields below from your answer to "How did it run?". Nothing was sent before you press **Submit new issue**. Your GitHub name shows on the report; there are no paths, account names or logs in it.
+        Nightforge filled in the fields below from your answer to "How did it run?". GitHub received these values when this page opened; the report becomes public only when you press **Submit new issue**, with your GitHub name on it. There are no paths, account names or logs in it.
   - type: input
     id: game
     attributes:

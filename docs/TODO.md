@@ -1223,6 +1223,21 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   für Steam-Spiele“. Die Mac-Version ist der Stand von 2020 ohne Online-Spiel.
 - Übersicht nach DX12- und winecx-Tests aktualisieren (Liste: `ISteamChartsService/GetMostPlayedGames`).
 
+## Problembericht ohne Logzeilen im Link (Audit M3) – Zweig `claude/report-url-m3`
+
+- Der Link zum Problembericht trägt nur noch feste Fakten (Spiel, Versionen, Mac, Erkanntes, Grafikweg, Versuchtes).
+  Fehlerzeilen aus `wine.log`, die von gogdl und die Startoptionen legt Nightforge in die Zwischenablage (durch
+  `GameLog.redacted`), das Formular sagt im Feld „From the last start“, dass sie dort sind. Ein Toast sagt es auch.
+- Texte in App, README, Landingpage und `compat-report.yml` sagen jetzt: GitHub erhält die Werte schon beim Öffnen,
+  öffentlich wird es erst beim Absenden.
+- **Live prüfen:** „Problem melden“ (Spieloptionen und „Startet nicht?“): Öffnet GitHub ein Formular ohne Logzeilen?
+  Liegen die Fehlerzeilen in der Zwischenablage, und passt das Einfügen ins Feld? Kommt der Toast?
+- **Schwärzung (Audit N7):** `GameLog.redacted` ersetzt jetzt auch Laufwerksnamen (`/Volumes/<drive>`,
+  `Z:\Volumes\<drive>`), Rechner- und Hostnamen samt Wines NetBIOS-Namen (`<computer>`), `/var/folders/<id>`,
+  GOG-Benutzerkennungen und den Kontonamen als Wort in fremden Zeilen. Spielnamen behalten ein Wort wie den
+  Kontonamen („Thomas Was Alone“). Der Spieletest-Import (`scripts/import-game-test.py`, `GameTest.leaks`) weist
+  Berichte mit Laufwerks- oder Rechnernamen ab.
+
 ## Mac-Wissen aus Quellen (AGW, Berichte) – Zweig `claude/compat-db-bce7dc`
 
 Entwurf und Regeln: `docs/ENTWURF-BERICHTE.md`. Abdeckung der Top 200: `docs/recherche/mac-abdeckung.md`.
