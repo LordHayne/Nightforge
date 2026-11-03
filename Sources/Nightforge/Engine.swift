@@ -635,7 +635,10 @@ enum Engine {
                 at: store.root.appendingPathComponent(id), includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0 != engineDir }
         } + rollback.heldEngineFolders()
-        for dir in oldEngines where !ownProcesses(under: dir).isEmpty {
+        for dir in oldEngines {
+            // Something runs from it – or that can't be told (no process list): it counts as in use, and a
+            // session that may hold a game isn't ended (`windowsGameRunning` is true then too).
+            guard ownProcessesKnown(under: dir)?.isEmpty != true else { continue }
             guard let old = wineBinary(in: dir) else { continue }
             if gameRunning || windowsGameRunning { return old }
             stopAll(old)
@@ -1392,7 +1395,10 @@ enum Engine {
             fm.fileExists(atPath: source.path) && !fm.contentsEqual(atPath: source.path, andPath: pair.1.path)
         }
         guard changes else { return }
-        if !ownProcesses().isEmpty { stopAll(wine) }  // with the old wineserver, before it's replaced
+        // With the old wineserver, before it's replaced. A session that can't be told about (no process list)
+        // is not left with half the pair: nothing is swapped, the stamp isn't written, the next start does it.
+        guard let session = ownProcessesKnown() else { throw SetupError.sessionUnknown }
+        if !session.isEmpty { stopAll(wine) }
         for (source, pair) in zip(sources, pairs) {
             let original = pair.1.appendingPathExtension("engine")
             if available, !fm.fileExists(atPath: original.path) { try fm.copyItem(at: pair.1, to: original) }
@@ -2052,7 +2058,10 @@ enum Engine {
     static func applyMsyncMode(_ wine: URL, defaults: UserDefaults = .standard) {
         let key = "msyncSession"
         guard msyncSessionEnds(wanted: msync, session: defaults.object(forKey: key) as? Bool) else { return }
-        if !ownProcesses().isEmpty { stopAll(wine) }
+        // Not known whether a session runs (no process list): it isn't ended, and the switch isn't noted as
+        // if it had been – the next start looks again.
+        guard let session = ownProcessesKnown() else { return }
+        if !session.isEmpty { stopAll(wine) }
         defaults.set(msync, forKey: key)
         GameLog.note("msync \(msync ? "on" : "off") from this Wine session on (engine test switch)")
     }

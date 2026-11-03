@@ -652,7 +652,7 @@ final class SetupModel: ObservableObject {
 }
 
 enum SetupError: LocalizedError {
-    case engineBroken, environmentFailed, steamDownloadFailed, steamInstallFailed, steamWontStart
+    case engineBroken, environmentFailed, steamDownloadFailed, steamInstallFailed, steamWontStart, sessionUnknown
 
     var errorDescription: String? {
         switch self {
@@ -661,6 +661,7 @@ enum SetupError: LocalizedError {
         case .steamDownloadFailed: return L10n.t("Steam could not be downloaded. Check your internet connection.")
         case .steamInstallFailed: return L10n.t("Steam could not be installed.")
         case .steamWontStart: return L10n.t("Steam keeps stopping during its first start. Please try again.")
+        case .sessionUnknown: return L10n.t("Wine's session can't be looked at just now, so the engine isn't changed under it. It's tried again at the next start.")
         }
     }
 }

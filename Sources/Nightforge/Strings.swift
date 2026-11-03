@@ -378,6 +378,7 @@ enum L10n {
         "Steam could not be downloaded. Check your internet connection.": "Steam konnte nicht geladen werden. Prüfe deine Internetverbindung.",
         "Steam could not be installed.": "Steam konnte nicht installiert werden.",
         "Steam keeps stopping during its first start. Please try again.": "Steam bricht beim ersten Start immer wieder ab. Bitte versuch es noch einmal.",
+        "Wine's session can't be looked at just now, so the engine isn't changed under it. It's tried again at the next start.": "Wines Sitzung lässt sich gerade nicht ansehen, deshalb wird die Engine nicht unter ihr getauscht. Beim nächsten Start wird es noch einmal versucht.",
 
         // Downloads
         "Download": "Herunterladen",

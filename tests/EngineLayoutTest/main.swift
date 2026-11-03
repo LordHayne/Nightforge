@@ -246,6 +246,16 @@ struct EngineLayoutTest {
         check(Engine.msyncSessionEnds(wanted: false, session: nil) && Engine.msyncSessionEnds(wanted: true, session: false)
               && !Engine.msyncSessionEnds(wanted: true, session: nil) && !Engine.msyncSessionEnds(wanted: false, session: false),
               "a session started with msync the other way ends; one from before the switch had it")
+        // No process list (review N7): whether a session runs is not known – none is ended, and the switch isn't
+        // noted as if one had been; with a list that says "none", it is noted.
+        let msyncSession = TestDefaults.suite("msync-session")
+        msyncSession.set(false, forKey: "msyncSession")
+        FakeProcesses.installDown()
+        Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
+        check(msyncSession.object(forKey: "msyncSession") as? Bool == false, "msync switch without a process list: not noted, the next start looks again")
+        FakeProcesses.installEmpty()
+        Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
+        check(msyncSession.object(forKey: "msyncSession") as? Bool == true, "… with a list that shows no process: noted")
         check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),
               "the quit script's Wine agrees with the session (msync on when it isn't told)")
         check(GameLog.extraChannels("+loaddll,+timestamp,warn+msync") == "+loaddll,+timestamp,warn+msync"
