@@ -157,13 +157,18 @@ class SigningScripts(unittest.TestCase):
         tools.mkdir()
         # The tool as the repository has it (no keys yet), for making keys.
         cls.plain_tool = tools / "plain"
-        cls.compile(cls.plain_tool, ROOT / "Sources/Nightforge/SigningKeys.swift")
+        # The repository's SigningKeys.swift without its keys, as before make-signing-keys.sh ran: the tests
+        # bring keys of their own.
+        cls.keyless = tools / "keyless" / "SigningKeys.swift"
+        cls.keyless.parent.mkdir()
+        cls.keyless.write_text(cls.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), "", ""))
+        cls.compile(cls.plain_tool, cls.keyless)
         cls.main, cls.spare, cls.stranger = (cls.tool(cls.plain_tool, "generate").strip() for _ in range(3))
         cls.main_public = cls.tool(cls.plain_tool, "public", stdin=cls.main).strip()
         cls.spare_public = cls.tool(cls.plain_tool, "public", stdin=cls.spare).strip()
         # SigningKeys.swift with the test's keys, and the tool built from it.
         cls.keys_file = tools / "SigningKeys.swift"
-        cls.keys_file.write_text(cls.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(),
+        cls.keys_file.write_text(cls.with_keys(cls.keyless.read_text(),
                                                cls.main_public, cls.spare_public))
         cls.keyed_tool = tools / "keyed"
         cls.compile(cls.keyed_tool, cls.keys_file)
@@ -189,8 +194,9 @@ class SigningScripts(unittest.TestCase):
 
     @staticmethod
     def with_keys(text, main, spare):
-        return text.replace('static let main = ""', f'static let main = "{main}"').replace(
-            'static let spare = ""', f'static let spare = "{spare}"')
+        """SigningKeys.swift's text with these public keys, whatever keys it had."""
+        text = re.sub(r'(static let main = )"[^"]*"', lambda m: f'{m.group(1)}"{main}"', text)
+        return re.sub(r'(static let spare = )"[^"]*"', lambda m: f'{m.group(1)}"{spare}"', text)
 
     def setUp(self):
         self.work = pathlib.Path(tempfile.mkdtemp(dir=self.tmp))
@@ -213,7 +219,7 @@ class SigningScripts(unittest.TestCase):
         for name in SCRIPTS:
             shutil.copy2(ROOT / "scripts" / name, self.repo / "scripts" / name)
         shutil.copy(ROOT / "Sources/Nightforge/Signature.swift", self.repo / "Sources/Nightforge")
-        shutil.copy(ROOT / "Sources/Nightforge/SigningKeys.swift", self.repo / "Sources/Nightforge")
+        shutil.copy(self.keyless, self.repo / "Sources/Nightforge")
 
     def key_file(self, secret):
         path = self.work / f"key-{len(list(self.work.glob('key-*')))}"
@@ -677,7 +683,7 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(check(pull_request).returncode, 0, "signed lists, the same checker: green")
         keys = pull_request / "Sources/Nightforge/SigningKeys.swift"
         stranger = self.tool(self.plain_tool, "public", stdin=self.stranger).strip()
-        keys.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), stranger, ""))
+        keys.write_text(self.with_keys(self.keyless.read_text(), stranger, ""))
         result = check(pull_request)
         self.assertEqual(result.returncode, 1)
         self.assertIn("changes Sources/Nightforge/SigningKeys.swift", result.stdout)
@@ -747,13 +753,13 @@ class SigningScripts(unittest.TestCase):
 
     def test_the_installer_refuses_what_the_maintainer_didnt_sign(self):
         only_main = self.work / "only-main.swift"
-        only_main.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), self.main_public, ""))
+        only_main.write_text(self.with_keys(self.keyless.read_text(), self.main_public, ""))
         for case in ("unsigned", "changed after signing", "a key main doesn't list", "no keys on main yet"):
             with self.subTest(case):
                 zip_file, api = self.release(case.replace(" ", "-"), None if case == "unsigned" else
                                              self.spare if case == "a key main doesn't list" else self.main)
                 keys = {"a key main doesn't list": only_main,
-                        "no keys on main yet": ROOT / "Sources/Nightforge/SigningKeys.swift"}.get(case)
+                        "no keys on main yet": self.keyless}.get(case)
                 if case == "changed after signing":
                     with zip_file.open("ab") as file:
                         file.write(b"\0")
