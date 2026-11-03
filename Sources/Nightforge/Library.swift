@@ -568,7 +568,7 @@ enum LibraryScanner {
     /// for a first download: Steam writes BytesDownloaded only at the end, and "Update & Play" stood
     /// at 0 % for all of OxyRail's 5.8 GB (31.10.). Not for Steam for Mac, which reserves it all.
     static func updateState(of game: Game) -> UpdateState? {
-        let steamapps = game.installDir.deletingLastPathComponent().deletingLastPathComponent()
+        let steamapps = steamapps(of: game)
         let manifest = steamapps.appendingPathComponent("appmanifest_\(game.appID).acf")
         guard let state = VDF.parse(contentsOf: manifest)?["appstate"] else { return nil }
         var update = UpdateState(flags: state["stateflags"]?.string.flatMap { Int($0) } ?? 4,
@@ -589,7 +589,53 @@ enum LibraryScanner {
     /// front ("preallocated 476 files (6799 MB)"), which Wine on the Mac leaves sparse – macOS has
     /// no posix_fallocate – so the space they take is what's written.
     static func stagedSoFar(_ appID: Int, in steamapps: URL) -> Int64 {
-        folderSize(steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true))
+        StagingSizes.size(of: stagingFolder(appID, in: steamapps))
+    }
+
+    static func stagingFolder(_ appID: Int, in steamapps: URL) -> URL {
+        steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true)
+    }
+
+    /// The steamapps folder a Steam game's manifest is in: its own folder's, two up.
+    static func steamapps(of game: Game) -> URL {
+        game.installDir.deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    /// When the progress of a Steam download on the Windows side was measured (`StagingSizes`):
+    /// the time its speed goes by. Nil when it isn't measured that way, or not lately.
+    static func stagingMeasured(_ game: Game, now: Date = Date()) -> Date? {
+        guard game.provider == .steam, game.platform != .mac,
+              let at = StagingSizes.measuredAt(stagingFolder(game.appID, in: steamapps(of: game))),
+              now.timeIntervalSince(at) < 2 * StagingSizes.interval
+        else { return nil }
+        return at
+    }
+
+    /// A Steam download's progress from its own manifest: the downloads' look every few seconds
+    /// (LibraryModel.lookAtDownloads), instead of every library read again. Nil when it's gone.
+    static func downloadLook(_ game: Game) -> Game? {
+        let steamapps = steamapps(of: game)
+        let mac = game.platform == .mac
+        guard var fresh = readManifest(steamapps.appendingPathComponent("appmanifest_\(game.appID).acf"), steamapps: steamapps,
+                                       bottle: game.bottle, steamRoot: game.steamRoot, steamExe: game.steamExeWindowsPath,
+                                       usage: [:], measureStaging: !mac)
+        else { return nil }
+        if mac, case .downloading = fresh.install, let fraction = MacSteamProgress.fraction(appID: game.appID, steamRoot: game.steamRoot) {
+            fresh.install = .downloading(fraction)
+        }
+        return fresh
+    }
+
+    /// A downloads' look at `old` with what its manifest says now (`fresh`): the new progress while
+    /// it's still downloading the same; nil – a full scan – once anything else changed: done, gone,
+    /// its size worked out, out of room.
+    static func takeLook(_ old: Game, fresh: Game?) -> Game? {
+        guard let fresh, case .downloading = old.install, case .downloading = fresh.install,
+              fresh.sizeOnDisk == old.sizeOnDisk, fresh.downloadNeedsSpace == old.downloadNeedsSpace
+        else { return nil }
+        var game = old
+        game.install = fresh.install
+        return game
     }
 
     /// What a folder's files take on disk. An APFS clone (the held engine is one of the engine,
@@ -796,4 +842,32 @@ struct UpdateProgress {
 
     /// "12.4 MB/s · 4 min left", once a few looks show it.
     var speed: String? { total > 0 ? rate.label(total: total) : nil }
+}
+
+/// What downloads have unpacked so far (`LibraryScanner.stagedSoFar`), measured at most every
+/// `interval`: walking a download's thousands of files at each look – every 3 s in the downloads,
+/// every second during Update & Play – cost more than its progress is worth (the UI power budget).
+/// A measurement keeps its time, which the speed goes by (`LibraryScanner.stagingMeasured`): taken
+/// as the time of each look, a figure up to 15 s old made the speed jump up and down.
+enum StagingSizes {
+    static let interval: TimeInterval = 15
+    private static let measured = LockedValue<[String: (bytes: Int64, at: Date)]>([:])
+
+    static func size(of folder: URL, now: Date = Date(), measure: (URL) -> Int64 = LibraryScanner.folderSize) -> Int64 {
+        if let last = measured.withLock({ $0[folder.path] }), now >= last.at, now.timeIntervalSince(last.at) < interval {
+            return last.bytes
+        }
+        let bytes = measure(folder)
+        measured.withLock { $0[folder.path] = (bytes, now) }
+        return bytes
+    }
+
+    static func measuredAt(_ folder: URL) -> Date? {
+        measured.withLock { $0[folder.path]?.at }
+    }
+
+    /// The next look measures again (a test changing a folder's files right after a look).
+    static func forget() {
+        measured.withLock { $0.removeAll() }
+    }
 }

@@ -2467,11 +2467,22 @@ wird angepasst.
 
 ### Leistung
 
-- **Downloads:** Alle 3 s läuft ein kompletter Rescan mit `folderSize` über `downloading/<id>`. Nur die Manifeste der
-  ladenden Spiele neu lesen und die Ordnergröße cachen.
+- **Downloads** (erledigt auf `claude/perf-031`, 3.11.): Der Blick alle 3 s liest nur noch die Manifeste der ladenden
+  Steam-Spiele (`LibraryModel.lookAtDownloads`, `LibraryScanner.downloadLook`/`takeLook`). Alles außer Fortschritt
+  (fertig, weg, Größe ermittelt, Platte voll, Mac-Fassung unterwegs, Epic/GOG) und jeder zehnte Blick gehen an den
+  vollen Scan. `downloading/<id>` wird höchstens alle 15 s vermessen (`StagingSizes`), auch bei „Aktualisieren &
+  spielen“ (vorher jede Sekunde). Die Geschwindigkeit rechnet mit dem Zeitpunkt der Messung, nicht des Blicks
+  (`stagingMeasured`; `DownloadRate.add` nimmt keine Probe ohne neuere Messung), so bleiben Geschwindigkeit und
+  Restzeit richtig; der Balken springt dafür alle 15 s. Live: ein Download über ein paar Minuten, Zeile „x MB/s · y
+  min“ ruhig und plausibel, am Ende „bereit zum Spielen“ wie bisher.
 - **SwiftUI:** `LibraryModel` ist ein `ObservableObject` mit 26 `@Published`, jede Änderung zeichnet alles neu.
   `@Observable` (ab macOS 14) oder das Modell aufteilen.
-- **`MacSteam`** hat eine 1-Hz-Schleife; eine Exit-Quelle (`DispatchSource.makeProcessSource`) wäre ruhiger.
+- **`MacSteam`** (Teil erledigt auf `claude/perf-031`, 3.11.): `quit()` wartete jede Sekunde bis zu 20 s auf das Ende,
+  der Stand-in im Testzuhause alle 0,5 s. Jetzt sagt es der Kernel (`ProcessEnd.wait`, eine Exit-Quelle je Prozess).
+  Ohne brauchbare pid (NSRunningApplication meldet manchmal -1, dann `clientPID`) bleibt die alte Sekunden-Abfrage
+  als Rückfall. Offen: `guardWindows()` schaut weiter jede Sekunde, ob Steams Fenster aufgegangen ist; dafür
+  passen Workspace-Meldungen (Start, Einblenden, Aktivieren), keine Exit-Quelle. `prepare()` fragt während der
+  Einrichtung auch jede Sekunde (nur beim ersten Start).
 
 ### Wartbarkeit
 
