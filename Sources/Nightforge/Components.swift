@@ -117,6 +117,11 @@ actor ComponentStore {
     private var fetched: ComponentManifest?
     private var triedRemote = false
     private var installing: [String: Task<URL, Error>] = [:]
+    /// Whether the list `manifest()` gave last carries the maintainer's signature (online, or the copy
+    /// kept with its .sig) rather than being only the app's own. Only then may installed components it
+    /// doesn't name go (`Engine.removeUnusedComponents`): with the online list turned away and 0.3.0's
+    /// unsigned copy not counting, the app's list can be older and would take a newer engine away.
+    private(set) var manifestIsSigned = false
 
     func manifest() async throws -> ComponentManifest {
         if let fetched { return fetched }
@@ -131,6 +136,7 @@ actor ComponentStore {
                     try? data.write(to: cachedManifestURL, options: .atomic)
                     try? signature.write(to: Signature.file(for: cachedManifestURL), options: .atomic)
                     fetched = manifest
+                    manifestIsSigned = true
                     return manifest
                 }
             case .refused:
@@ -141,10 +147,13 @@ actor ComponentStore {
         }
         // A damaged or too-new cached copy mustn't hide the one bundled with the app.
         var failure: Error = ComponentError.noManifest
-        for data in [Signature.signedContents(of: cachedManifestURL, keys: keys),
-                     bundledManifestURL.flatMap { try? Data(contentsOf: $0) }].compactMap({ $0 }) {
+        for (data, signed) in [(Signature.signedContents(of: cachedManifestURL, keys: keys), true),
+                               (bundledManifestURL.flatMap { try? Data(contentsOf: $0) }, false)] {
+            guard let data else { continue }
             do {
-                return try decode(data)
+                let manifest = try decode(data)
+                manifestIsSigned = signed
+                return manifest
             } catch {
                 failure = error
             }

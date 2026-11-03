@@ -616,7 +616,7 @@ enum Engine {
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
-            removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal)
+            if await store.manifestIsSigned { removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal) }
             rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
         }
         return wine

@@ -1198,12 +1198,17 @@ Person hängen (Whisky ist 2025 daran gescheitert).
 - **Hinweis auf CrossOver.** In der README und in den Einstellungen (Über/Hilfe) erwähnen, dass CodeWeavers
   einen großen Teil der Wine-Entwicklung finanziert und CrossOver für Fortgeschrittene und Support die
   richtige Wahl ist. Freundlich, ohne Vergleichstabelle.
-- **Nur geprüfte Komponenten ausliefern.** `components.yml` committet neue Versionen heute direkt ins
-  `manifest.json` auf `main`. Besser: ein Bot-PR, den die Tests (`tests/*/run.sh` auf einem macOS-Runner)
-  durchlaufen müssen und der erst nach einem kurzen Spieltest gemergt wird. Dazu ein Rückweg: Die vorherige
-  Version bleibt im Manifest, und Nightforge kann auf sie zurückfallen (`ComponentStore`).
+- **Nur geprüfte Komponenten ausliefern.** `components.yml` committet nicht mehr direkt: Der nächtliche Lauf schlägt
+  neue Versionen als Pull Request auf `bot/components` vor. Ab 0.3.1 nimmt die App `manifest.json` nur mit deiner
+  Signatur (`scripts/sign-lists.sh bot/components` vor dem Merge, `docs/SIGNIEREN.md` › 6). Offen bleibt:
+  - Die Tests (`ci.yml`) laufen beim Bot-PR erst, wenn dein Signatur-Push ihn anstößt. Vom Bot geöffnete PRs starten
+    keine Workflows, also vor dem Merge auf das grüne CI warten. Davor ein kurzer Spieltest.
+  - Ein Rückweg: Die vorherige Version bleibt im Manifest, und Nightforge kann auf sie zurückfallen (`ComponentStore`).
+  - Rechte pro Job wie in `profiles.yml` (Audit N9): `components.yml` läuft auch bei Pull Requests mit
+    `contents: write` und `pull-requests: write`.
 - **Tests in der CI** laufen seit PR #5 (`ci.yml`: Build, alle `tests/*Test` parallel über `scripts/run-tests.sh`,
-  Profil- und Manifest-Prüfung). Von den Python-Tests läuft dort nur `test_build_profiles.py`.
+  `tests/ProcessListLive` mit dem echten `ps`, die Python-Tests der Profile, der Signier-Skripte und von AGW, die
+  Manifest-Prüfung).
   Offen: dieselben Tests als Pflicht für die Bot-PRs aus dem Punkt darüber. Echte Spiele bleiben Handarbeit.
 - **Liegengebliebene Test-Plists aufräumen (macht der Nutzer).** Die Swift-Testreihen schrieben UserDefaults-Domänen
   in das echte `~/Library/Preferences`; jetzt liegen sie im Arbeitsordner jeder Reihe (`tests/Shared/TestDefaults.swift`).
@@ -1902,7 +1907,8 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 ### Entscheidungen
 
 - **Signierte Updates (0.3.1)** gebaut auf `claude/signed-updates-dda700`: Ed25519 über Update-ZIP, `manifest.json`,
-  `profiles.json` und `agw.json`, Schlüssel nur beim Nutzer (`docs/SICHERHEIT-0.3.md` › „Signierte Releases“).
+  `profiles.json` und `agw.json`, Schlüssel nur beim Nutzer. Anleitung Schritt für Schritt: `docs/SIGNIEREN.md`,
+  Gründe: `docs/SICHERHEIT-0.3.md` › „Signierte Releases“.
   Offen: Schlüssel erzeugen (der Nutzer selbst), Listen auf `main` signieren, Test-Release mit rc.1–rc.4, dann
   `v0.3.1`. `scripts/install.sh` prüft dieselbe Signatur vor dem Auspacken (Ed25519 in `/usr/bin/perl`, Schlüssel
   aus `SigningKeys.swift` auf `main`), unsigniert nur das ZIP von 0.3.0 über seine SHA-256 (Audit H1).
@@ -1922,6 +1928,9 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
       „aus“. Dann pusht `profiles.yml` den Zweig `bot/profiles` trotzdem, endet rot und nennt den Link zum Öffnen
       von Hand (`components.yml` endet nur rot). Freigeben (approve) kann der Bot nur, wenn ein Ruleset Reviews
       verlangt, und das ist hier nicht so.
+  - **Vorschlag (Review M2): ein Anker für `install.sh` außerhalb von GitHub.** Heute kommen Skript und Schlüssel
+    beide von `main`. Stärker wäre der Fingerabdruck der Schlüssel auf einer eigenen Domain oder, mit Datum, in der
+    README einer zweiten Stelle, die `install.sh` vergleicht.
   - **Offen aus dem Audit M1:** dieselbe Prüfung von `dllOverrides` und `arguments` auch in der App beim Lesen
     (`Profiles.swift`, wie `isSafeWinetricksVerb`). Mit den Signaturen und dem Prüfschritt im Workflow ist das nur
     noch eine zweite Linie.
@@ -2020,8 +2029,10 @@ wird angepasst.
 
 ### Lieferkette
 
-- **Nächtliche Daten gehen ungeprüft an alle.** `components.yml` und `profiles.yml` committen direkt auf `main`,
-  umu-protonfixes und AreWeAntiCheatYet werden ab `HEAD` gelesen. Siehe „Nur geprüfte Komponenten ausliefern“ oben.
+- **Nächtliche Daten:** `components.yml` und `profiles.yml` schlagen nur noch Pull Requests vor (`bot/components`,
+  `bot/profiles`). Erst mit deiner Signatur erreicht etwas die App. umu-protonfixes und AreWeAntiCheatYet werden weiter
+  ab `HEAD` gelesen, darum prüft der Validate-Schritt `dllOverrides` und `arguments` (Audit M1). Siehe „Nur geprüfte
+  Komponenten ausliefern“ oben.
 - **Build-Eingaben ohne Prüfsumme.** In `graphics.yml` `WINE_TOOLCHAIN_URL`, das Gcenx-Archiv, der inotify-Header und
   Klone per Tag, in `tools.yml` das cabextract-Archiv; dazu `brew install … || true`. Die Actions selbst sind seit dem
   Audit auf Commit-SHAs festgelegt, Dependabot hält sie aktuell.
