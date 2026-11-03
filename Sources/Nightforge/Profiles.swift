@@ -151,8 +151,11 @@ struct GameProfile: Decodable, Equatable {
         windowsVersion = try? container.decodeIfPresent(String.self, forKey: .windowsVersion)
         winetricks = try? container.decodeIfPresent([String].self, forKey: .winetricks)
         metalFX = try? container.decodeIfPresent(Bool.self, forKey: .metalFX)
-        frameLimit = try? container.decodeIfPresent(Int.self, forKey: .frameLimit)
-        vulkanSamplers = try? container.decodeIfPresent(Int.self, forKey: .vulkanSamplers)
+        // Within what a game can use: a frame limit from 0 (none, as in GameOptions) to 240, samplers
+        // from 1 to 128 (the Vulkan layer reads the number unsigned: a negative one would be billions).
+        // Below that it's no preference.
+        frameLimit = (try? container.decodeIfPresent(Int.self, forKey: .frameLimit)).flatMap { $0 < 0 ? nil : min($0, 240) }
+        vulkanSamplers = (try? container.decodeIfPresent(Int.self, forKey: .vulkanSamplers)).flatMap { $0 < 1 ? nil : min($0, 128) }
         preferWindows = try? container.decodeIfPresent(Bool.self, forKey: .preferWindows)
         saves = (try? container.decodeIfPresent([SaveFolder].self, forKey: .saves))?.map {
             SaveRule(root: $0.root, path: $0.path, pattern: $0.pattern ?? "*", recursive: $0.recursive ?? true,

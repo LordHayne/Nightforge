@@ -240,6 +240,11 @@ struct ProfileFilesTest {
             check(listed(["arguments": ["-windowed", bad]])?.arguments == nil, "arguments with \(bad.debugDescription): none of them")
         }
         check(listed(["arguments": Array(repeating: "-x", count: 17)])?.arguments == nil, "more arguments than the build ever makes: none")
+        // A frame limit and a sampler count within what a game can use.
+        check([30, 0, -5, 1000].map { listed(["frameLimit": $0])?.frameLimit } == [30, 0, nil, 240],
+              "frame limit: 30 stays, 0 is none, below that no preference, above 240 it's 240")
+        check([32, 0, -1, 4096].map { listed(["vulkanSamplers": $0])?.vulkanSamplers } == [32, nil, nil, 128],
+              "samplers: 32 stays, below 1 no preference, above 128 it's 128")
         let stream = AntiCheatBlock(antiCheat: ["BattlEye"], geforceNow: "e1b2c3")
         check(stream.geforceNowURL?.absoluteString == "https://play.geforcenow.com/games?game-id=e1b2c3&utm_source=nightforge&utm_campaign=library",
               "GeForce Now's link to the game: \(stream.geforceNowURL?.absoluteString ?? "nil")")
