@@ -29,6 +29,10 @@ jobs:
       - name: Swift tests
         run: scripts/run-tests.sh
 
+      # The one check that asks the real `ps -ax`; the series above hand ProcessList a list of their own.
+      - name: Live process list
+        run: tests/ProcessListLive/run.sh
+
       - name: Profile builder tests
         run: python3 -m unittest tests/test_build_profiles.py
 

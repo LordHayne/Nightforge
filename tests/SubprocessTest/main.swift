@@ -30,6 +30,8 @@ struct SubprocessTest {
     }
 
     static func main() async {
+        // The real ps is never asked: anything that reaches ProcessList without its own stand-in gets nothing.
+        ProcessList.program = "/usr/bin/false"
         // The ordinary ways a program ends.
         let echo = Subprocess.run("/bin/echo", ["hello"], capture: true, timeout: 5)
         check(echo.launched && echo.succeeded && !echo.timedOut, "echo: ran and ended well")
@@ -147,6 +149,14 @@ struct SubprocessTest {
         check(ProcessList.ps("pid=,command=") == nil, "ps answers again, but the pause isn't over yet")
         ProcessList.reset()
         check(ProcessList.ps("pid=,command=") != nil, "after the pause (here: a reset), ps is asked again")
+
+        // A source handed in answers instead, and no program is started.
+        let before = calls()
+        ProcessList.source = { columns in "from the source: \(columns)" }
+        check(ProcessList.ps("pid=,ppid=") == "from the source: pid=,ppid=" && ProcessList.ps("pid=", stale: true) == "from the source: pid=",
+              "a source handed in is what ps says")
+        check(calls() == before, "… and ps isn't run (\(calls() - before) more calls)")
+        ProcessList.source = nil
 
         print(failures == 0 ? "✓ Subprocess" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

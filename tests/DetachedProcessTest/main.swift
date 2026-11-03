@@ -114,6 +114,9 @@ struct DetachedProcessTest {
         check(executable(of: helperPID).hasSuffix("Nightforge Helper.app/Contents/MacOS/nightforge-helper"),
               "helper runs from its app: \(executable(of: helperPID))")
         check(parent(of: helperPID) == 1, "helper started by launchd (Launch Services)")
+        // The list has the helper and the program in it (by their own pids); the helper still isn't one of the engine's.
+        FakeProcesses.install { FakeProcesses.rows(of: [helperPID, pid]) }
+        defer { FakeProcesses.installEmpty() }
         check(!Engine.ownProcesses(under: home).contains { $0.pid == helperPID },
               "the helper isn't one of Nightforge's engine processes (stopAll leaves it alone)")
         long.terminate()

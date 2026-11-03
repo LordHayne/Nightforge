@@ -74,6 +74,8 @@ struct CompleteRemovalTest {
     }
 
     static func main() async {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         if CommandLine.arguments.count > 1, CommandLine.arguments[1] == "--standin" {
             sleep(120)
             exit(0)
@@ -313,17 +315,16 @@ struct CompleteRemovalTest {
             bystander.arguments = ["60"]
             try? bystander.run()
             usleep(300_000)
-            let list = root.appendingPathComponent("oldscript/ps")
-            write(list, "#!/bin/sh\ncat <<'EOF'\n \(process.processIdentifier) /bin/bash \(script.path)\n \(bystander.processIdentifier) /bin/sleep 60 \(script.path)\nEOF\n")
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: list.path)
-            ProcessList.program = list.path
-            ProcessList.reset()
+            // The list of a stand-in: the bash with the script's path in its command, and a bystander that only names the script.
+            FakeProcesses.install {
+                [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path)"),
+                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)")]
+            }
             CompleteRemoval.endScripts(under: support)
             check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
             check(bystander.isRunning, "… a program that only names the script is not a bash, and stays")
             bystander.terminate()
-            ProcessList.program = "/bin/ps"
-            ProcessList.reset()
+            FakeProcesses.installEmpty()
         }
 
         // The polite way is given its time and no more.

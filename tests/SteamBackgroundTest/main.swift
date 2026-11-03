@@ -24,6 +24,8 @@ struct SteamBackgroundTest {
     static let temp = fm.temporaryDirectory.appendingPathComponent("SteamBackgroundTest-\(UUID().uuidString)", isDirectory: true)
 
     static func main() {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         // The child startEnvironment reads (not a system program: macOS hides their environment).
         if CommandLine.arguments.contains("--sleep") {
             Thread.sleep(forTimeInterval: 10)

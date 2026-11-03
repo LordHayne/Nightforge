@@ -16,6 +16,8 @@ struct GameOverlayTest {
     }
 
     static func main() {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         hold()
         steps()
         targets()
@@ -345,6 +347,9 @@ struct GameOverlayTest {
             session.terminate()
         }
         Thread.sleep(forTimeInterval: 0.6)
+        // The process list: the stand-ins and what they started, each asked for by its own pid.
+        FakeProcesses.install { FakeProcesses.rows(of: [game.processIdentifier, session.processIdentifier], descendants: true) }
+        defer { FakeProcesses.installEmpty() }
 
         let pids = GameProcesses.targets(windows: marker, mac: nil, in: GameProcesses.table())
         check(pids.contains(game.processIdentifier), "the stand-in is found by its folder")
@@ -385,6 +390,8 @@ struct GameOverlayTest {
         guard (try? game.run()) != nil else { return check(false, "the bare stand-in started") }
         defer { game.terminate() }
         Thread.sleep(forTimeInterval: 0.4)
+        FakeProcesses.install { FakeProcesses.rows(of: [game.processIdentifier]) }
+        defer { FakeProcesses.installEmpty() }
         let table = GameProcesses.table()
         let entry = table.first { $0.pid == game.processIdentifier }
         check(entry?.cwd?.lowercased().hasSuffix("/epic games/bare game/bin") == true, "its working folder is read (\(entry?.cwd ?? "none"))")

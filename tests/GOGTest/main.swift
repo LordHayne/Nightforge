@@ -16,6 +16,8 @@ struct GOGTest {
 
     @MainActor
     static func main() async {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         // A stand-in program for `leftovers` (a copy of this one): it only waits.
         if CommandLine.arguments.dropFirst().first == "--stand-in" {
             try? await Task.sleep(for: .seconds(30))
@@ -379,7 +381,10 @@ struct GOGTest {
         let leftover = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine"))
         Thread.sleep(forTimeInterval: 0.5)
         check(download.isRunning && leftover.isRunning, "both run before the sweep")
+        // The sweep's second look is at the programs started from the engine: the two stand-ins, by their own pids.
+        FakeProcesses.install { FakeProcesses.rows(of: [download.processIdentifier, leftover.processIdentifier]) }
         Engine.killLeftovers()
+        FakeProcesses.installEmpty()
         Thread.sleep(forTimeInterval: 0.5)
         check(download.isRunning, "a download working in the prefix outlives the sweep")
         check(!leftover.isRunning, "a Wine program left there doesn't")

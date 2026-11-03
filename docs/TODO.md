@@ -106,6 +106,13 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
     `ps -ax` auf dem MacBook für alle Aufrufer (angehaltene Wine-Prozesse nach einem abgebrochenen winedbg), Nightforge (e8f11cc) stand
     auf dem Hauptthread in `watchDrives` → `Engine.isSteamRunning` → `ps`. Offen: die übrigen `waitUntilExit`/`readDataToEndOfFile`-Stellen
     (Liste in `docs/CODE-PRUEFUNG.md`), und dass der Hauptthread bei einem ersten verfehlten `ps` einmal bis ~6 s steht.
+  - **Tests brauchen kein systemweites `ps` mehr.** `ProcessList.source` nimmt eine Liste von außen an (dann wird nichts gestartet);
+    `tests/Shared/FakeProcesses.swift` baut sie aus Zeilen oder aus den eigenen PIDs der Testprozesse (libproc und deren Argumente, nie eine Liste
+    aller). Umgestellt: CompleteRemoval, DetachedProcess, Epic, GOG, GameOverlay, MacVersion (der `ps`-Ersatz liest eine Datei mit den
+    Stand-ins, echtes `pgrep` ist weg), SteamBackground; QuitScript und Subprocess nutzten nur Ersatzprogramme. Die eine Reihe, die das echte
+    `ps -ax` fragt, ist `tests/ProcessListLive/run.sh` (kein `*Test`, `scripts/run-tests.sh` läuft sie nicht; die CI schon, lokal nur auf Wunsch).
+    Die neun Reihen liefen mit gesperrtem Start von `ps`, `pgrep`, `pkill` und `top` (`sandbox-exec`): acht grün; DetachedProcessTest
+    nicht aussagekräftig, solange die Hilfs-App nicht über Launch Services startet (siehe unten).
   - `CompleteRemoval.Places()` zeigt außerhalb der App (ohne Bundle-ID `io.github.lordhayne.nightforge`, also in jeder Testbinary)
     ins Leere und nimmt die Domäne `nightforge.not-the-app`: ein Test, der einen Ort zu überschreiben vergisst, löscht nichts
     Echtes, und `CompleteRemoval.run()` verweigert sich dort (`requireApp`, bevor etwas beendet wird).
