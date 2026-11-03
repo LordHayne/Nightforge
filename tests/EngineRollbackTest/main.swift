@@ -1,5 +1,6 @@
 // Checks the automatic engine rollback (roadmap 3.3) with fake engines and folders:
-// tests/EngineRollbackTest/run.sh (runs in an empty home of its own)
+// tests/EngineRollbackTest/run.sh (runs in an empty home of its own; --without-processes leaves out
+// the part that reads the process list)
 import Foundation
 
 @main
@@ -279,10 +280,31 @@ struct EngineRollbackTest {
         let keys = EngineRollback(root: older).history()
         check(keys.lastGood["steam.570"] == .init(build: "x", way: "dxmt") && keys.pinned["steam.570"] == "x" && keys.lastGood["570"] == nil,
               "a history written with app IDs reads with store keys")
+        // Both, after a build from before 0.2 ran again: the entry under the store key is the newer one,
+        // whatever order the file has them in; keys that aren't games stay as they were.
+        for json in [#"{"held":[],"lastGood":{"570":{"build":"old","way":"dxvk"},"steam.570":{"build":"new","way":"dxmt"},"0":{"build":"z","way":"w"}},"pinned":{"steam.570":"new","570":"old"}}"#,
+                     #"{"held":[],"lastGood":{"steam.570":{"build":"new","way":"dxmt"},"0":{"build":"z","way":"w"},"570":{"build":"old","way":"dxvk"}},"pinned":{"570":"old","steam.570":"new"}}"#] {
+            try? Data(json.utf8).write(to: older.appendingPathComponent("engine-history.json"))
+            let both = EngineRollback(root: older).history()
+            check(both.lastGood["steam.570"] == .init(build: "new", way: "dxmt") && both.pinned["steam.570"] == "new",
+                  "the store key's entry wins over the app ID's: \(both.lastGood)")
+            check(both.lastGood.count == 2 && both.lastGood["0"]?.build == "z", "nothing else goes")
+        }
+        // Rewritten with store keys at the next change, the learned ways kept.
+        EngineRollback(root: older).recordGood(.epic("Sugar"), build: build("4.7", "a"), way: "dxmt")
+        let rewritten = read(older.appendingPathComponent("engine-history.json")) ?? ""
+        check(rewritten.contains("\"steam.570\"") && !rewritten.contains("\"570\"") && rewritten.contains("\"epic.Sugar\""),
+              "written back under store keys")
         try? FileManager.default.removeItem(at: older)
 
         // MARK: The prefix follows the build a game starts with
-        await prefixSwitch()
+        // It reads the process list (Engine.sessionWine): left out with --without-processes, for a
+        // Mac whose process list hangs.
+        if CommandLine.arguments.contains("--without-processes") {
+            print("- prefix switch left out (--without-processes)")
+        } else {
+            await prefixSwitch()
+        }
         finish()
     }
 

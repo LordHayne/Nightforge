@@ -332,8 +332,14 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - **Speicher-Anzeige zählt die gehaltene Engine doppelt.** Sie ist ein APFS-Klon und teilt ihre Blöcke mit dem
   Original. `Library.folderSize` summiert aber `totalFileAllocatedSize`, also erscheint sie in Einstellungen ›
   Speicher mit voller Größe (bis 1,4 GB), solange das Original noch da ist.
-- **Nach dem Zusammenführen mit 0.2 (GameID):** `EngineRollback` merkt sich Spiele unter der Steam-App-ID, und
-  `LaunchHealth.confirmedWays` liest `launchHealth.<id>`. Beides auf die neue ID umstellen.
+- **Nach dem Zusammenführen mit 0.2 (GameID): erledigt.**
+  - `EngineRollback` führt Spiele unter `GameID.key` (`steam.570`, `epic.<…>`, `gog.<…>`).
+    `EngineHistory.useGameKeys` liest alte App-IDs als `steam.<id>`.
+  - `LaunchHealth.confirmedWays` liest nur `launchHealth.<GameID.key>`. `GameIDMigration` hat die alten Einträge
+    einmal dorthin kopiert.
+  - Neu (3.11., Zweig `claude/engine-rueckfall-33`): Steht ein Spiel unter beiden Schlüsseln, gilt der Eintrag unter
+    dem Store-Schlüssel. Bisher entschied die Reihenfolge in der Datei, und ein alter Pin konnte den neuen
+    verdrängen.
 - **Nur Abstürze eines Spiels zählen.** Startet Steam selbst mit der neuen Engine nicht, greift der Rückfall nicht.
 - **Datum der ersten gehaltenen Engine:** Es ist der Tag, an dem 3.3 zum ersten Mal lief, nicht der Tag, an dem
   diese Engine kam.

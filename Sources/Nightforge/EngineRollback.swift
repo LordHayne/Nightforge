@@ -64,10 +64,16 @@ struct EngineHistory: Codable, Equatable {
 }
 
 extension EngineHistory {
-    /// Written before games had store and ID (0.2), games were Steam app IDs ("570"): those read as "steam.570".
+    /// Written before games had store and ID (0.2), games were Steam app IDs ("570"): those read as
+    /// "steam.570". One already under its store key is newer and stays (a build before 0.2 run again).
     mutating func useGameKeys() {
         func rekeyed<V>(_ entries: [String: V]) -> [String: V] {
-            Dictionary(entries.map { (GameID(key: $0.key)?.key ?? $0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+            var keyed = entries.filter { Int($0.key) == nil }
+            for (key, value) in entries where Int(key) != nil {
+                let game = GameID(key: key)?.key ?? key
+                if keyed[game] == nil { keyed[game] = value }
+            }
+            return keyed
         }
         lastGood = rekeyed(lastGood)
         pinned = rekeyed(pinned)
@@ -186,7 +192,8 @@ struct EngineRollback {
 
     /// `build` is the one set up now. A new one ends every game's pin – the newest gets another try –
     /// and copies no game needs any more go. The first time, games whose way is already confirmed
-    /// (`seed`: app ID → way) count as running well on it. `inUse`: a folder something still runs from.
+    /// (`seed`: game → way, LaunchHealth.confirmedWays) count as running well on it. `inUse`: a
+    /// folder something still runs from.
     func settle(_ build: EngineBuild, seed: [GameID: String] = [:], inUse: (URL) -> Bool = { _ in false },
                 now: Date = Date()) {
         let removed: [HeldBuild] = change { history in
