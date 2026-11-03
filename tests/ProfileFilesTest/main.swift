@@ -71,6 +71,38 @@ struct ProfileFilesTest {
         Engine.applyIniSettings([GameProfile.IniSetting(root: "WinSomewhere", path: "x.ini", section: "S", values: ["a": "b"])], places: places)
         check((try? fm.contentsOfDirectory(atPath: local.path)) == ["Voyage"], "an unknown root writes nothing")
 
+        // A link on the way that leads out (users\<name>\Documents once led to the Mac's own) isn't written through.
+        let outside = temp.appendingPathComponent("outside", isDirectory: true)
+        try? fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        try? fm.createSymbolicLink(at: local.appendingPathComponent("Linked"), withDestinationURL: outside)
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Linked/Game/Engine.ini",
+                                                        section: "S", values: ["a": "b"])], places: places)
+        check((try? fm.contentsOfDirectory(atPath: outside.path)) == [], "no file and no folder behind a link out of the prefix")
+        try? "[S]\na=1\n".write(to: outside.appendingPathComponent("existing.ini"), atomically: true, encoding: .utf8)
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Linked/existing.ini",
+                                                        section: "S", values: ["a": "b"])], places: places)
+        check((try? String(contentsOf: outside.appendingPathComponent("existing.ini"), encoding: .utf8)) == "[S]\na=1\n",
+              "nor is a file there changed")
+        let linkedGame = temp.appendingPathComponent("linked-game", isDirectory: true)
+        try? fm.createDirectory(at: linkedGame, withIntermediateDirectories: true)
+        try? "B=1\n".write(to: outside.appendingPathComponent("Settings.ini"), atomically: true, encoding: .utf8)
+        try? fm.createSymbolicLink(at: linkedGame.appendingPathComponent("Settings.ini"),
+                                   withDestinationURL: outside.appendingPathComponent("Settings.ini"))
+        check(!Engine.applyFileEdits([GameProfile.FileEdit(path: "Settings.ini", find: "B=1", replace: "B=0")], installDir: linkedGame)
+              && (try? String(contentsOf: outside.appendingPathComponent("Settings.ini"), encoding: .utf8)) == "B=1\n",
+              "an edit in the game folder doesn't follow a linked file out of it")
+        try? fm.createSymbolicLink(at: local.appendingPathComponent("Gone"), withDestinationURL: temp.appendingPathComponent("gone"))
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Gone/x.ini", section: "S", values: ["a": "b"])],
+                                places: places)
+        check(!fm.fileExists(atPath: temp.appendingPathComponent("gone").path), "a link that leads nowhere counts as outside")
+        try? fm.createSymbolicLink(at: local.appendingPathComponent("Alias"), withDestinationURL: local.appendingPathComponent("Voyage"))
+        Engine.applyIniSettings([GameProfile.IniSetting(root: "WinAppDataLocal", path: "Alias/Saved/Config/Windows/Engine.ini",
+                                                        section: "SystemSettings", values: ["r.Other": "1"])], places: places)
+        check((try? String(contentsOf: engineIni, encoding: .utf8))?.contains("r.Other=1") == true, "a link that stays inside is fine")
+        check(Engine.isInside(local.appendingPathComponent("Voyage/new/x.ini"), local) && !Engine.isInside(local, local)
+              && !Engine.isInside(local.appendingPathComponent("Linked/x.ini"), local), "inside, with what isn't there yet")
+        for name in ["Linked", "Gone", "Alias"] { try? fm.removeItem(at: local.appendingPathComponent(name)) }
+
         // MARK: Edits in the user folder, once and every time
         let defaults = UserDefaults(suiteName: "ProfileFilesTest-\(UUID().uuidString)")!
         let installDir = temp.appendingPathComponent("game", isDirectory: true)

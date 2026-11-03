@@ -2019,7 +2019,7 @@ enum Engine {
                   let base = edit.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir
             else { continue }
             let file = base.appendingPathComponent(edit.path).standardizedFileURL
-            guard file.path.hasPrefix(base.standardizedFileURL.path + "/"), !edit.find.isEmpty,
+            guard isInside(file, base), !edit.find.isEmpty,
                   let text = try? String(contentsOf: file, encoding: .utf8)
             else { continue }
             if edit.once == true { defaults.set(true, forKey: done) }
@@ -2031,13 +2031,35 @@ enum Engine {
         return changed
     }
 
+    /// Whether `file` lies in `base` with the links on the way resolved: a link in the prefix or the
+    /// game folder that leads out (users\<name>\Documents once led to the Mac's own) isn't written
+    /// through. resolvingSymlinksInPath leaves a path alone whose end isn't there yet (an .ini the game
+    /// hasn't written), so the part that is there is resolved and the rest goes on it; a link that
+    /// leads nowhere counts as outside.
+    static func isInside(_ file: URL, _ base: URL) -> Bool {
+        let fm = FileManager.default
+        func resolved(_ url: URL) -> String? {
+            var existing = url.standardizedFileURL
+            var rest: [String] = []
+            while (try? fm.attributesOfItem(atPath: existing.path)) == nil, existing.pathComponents.count > 1 {
+                rest.insert(existing.lastPathComponent, at: 0)
+                existing.deleteLastPathComponent()
+            }
+            let real = existing.resolvingSymlinksInPath()
+            guard (try? fm.destinationOfSymbolicLink(atPath: real.path)) == nil else { return nil }
+            return rest.reduce(real) { $0.appendingPathComponent($1) }.path
+        }
+        guard let inner = resolved(file), let outer = resolved(base) else { return false }
+        return inner.hasPrefix(outer + "/")
+    }
+
     /// A profile's values for the game's own .ini files (GameProfile.iniSettings), set in their
     /// section before every start; the file and its folders are made when the game hasn't yet.
     static func applyIniSettings(_ settings: [GameProfile.IniSetting], places: SaveTransfer.Places = SaveTransfer.Places()) {
         for setting in settings where !setting.values.isEmpty {
             guard let base = SaveTransfer.windowsRoot(setting.root, places) else { continue }
             let file = base.appendingPathComponent(setting.path).standardizedFileURL
-            guard file.path.hasPrefix(base.standardizedFileURL.path + "/") else { continue }
+            guard isInside(file, base) else { continue }
             let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
             let merged = mergingIni(text, section: setting.section, values: setting.values)
             guard merged != text else { continue }
