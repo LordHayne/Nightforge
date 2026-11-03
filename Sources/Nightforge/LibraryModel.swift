@@ -515,6 +515,7 @@ final class LibraryModel: ObservableObject {
                 let folders = Self.processFolders(allGames)
                 let found = await Task.detached(priority: .utility) { Self.runningGames(folders) }.value
                 if found != running { running = found }
+                if !found.isEmpty { Engine.noteGameActivity() }
                 if loaded { runningScanned = true }  // only a look with the games known counts
                 await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
@@ -2802,6 +2803,7 @@ final class LibraryModel: ObservableObject {
         // way – ends with a Play: OxyRail, quit a few seconds in on 1.11., started again on DXVK
         // while Valheim started, and took Valheim's curtain.
         launchTask?.cancel()
+        Engine.noteGameActivity()  // the quit script waits for cloud saves if Nightforge quits soon after (Engine.steamShutdownScript)
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
             if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }

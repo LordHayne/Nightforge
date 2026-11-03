@@ -508,8 +508,10 @@ struct MacVersionTest {
         func runScript(quitting: pid_t? = nil) -> Process {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            // The last argument: a game ran just now, so the script waits for its cloud saves before it ends Steam
+            // (only then; QuitScriptTest has the other cases).
             process.arguments = [script.path, "", sandbox.appendingPathComponent("Prefix").path, library.path, "0", "/Fake/Nightforge.app",
-                                 quitting.map(String.init) ?? ""]
+                                 quitting.map(String.init) ?? "", "1", String(Int(Date().timeIntervalSince1970))]
             process.environment = ["PATH": shims.path + ":/usr/bin:/bin:/usr/sbin:/sbin"]
             try? process.run()
             return process

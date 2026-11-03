@@ -109,6 +109,14 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
   - `CompleteRemoval.Places()` zeigt außerhalb der App (ohne Bundle-ID `io.github.lordhayne.nightforge`, also in jeder Testbinary)
     ins Leere und nimmt die Domäne `nightforge.not-the-app`: ein Test, der einen Ort zu überschreiben vergisst, löscht nichts
     Echtes, und `CompleteRemoval.run()` verweigert sich dort (`requireApp`, bevor etwas beendet wird).
+  - **Steam geht nach dem Beenden schneller aus** (war: immer 30 s Cloud-Wartezeit, dann `-shutdown`, dann `wineserver -k`): Das Beenden-Skript
+    bekommt als 8. Argument, wann zuletzt ein Spiel lief oder zu starten gebeten wurde (`Engine.lastGameActivity`, gesetzt bei „Spielen“
+    und solange die Spielerkennung ein Spiel sieht), und wartet die 30 s nur, wenn das weniger als 5 Minuten her ist (oder es selbst ein Spiel
+    laufen sah). Sonst sofort `-shutdown`. Nach „Spielen“ und sofortigem Beenden (Nightforge beenden nach dem Start) bleibt die Wartezeit, damit ein
+    Spiel, das noch nicht in der Prozessliste steht, nicht unter Steam weggeräumt wird.
+  - **`-shutdown` nie an ein Steam, das nicht läuft** (es würde ein neues starten): `Engine.stopSteam` fragt nach dem Warten auf Steams Update
+    noch einmal, ob es läuft (die Schritte sind jetzt als `stopSteam(_:running:installing:shutdown:hardStop:)` prüfbar, `tests/SteamStopTest`);
+    das Skript tut es schon nur bei laufendem Steam. Ignoriert Steam das `-shutdown`, folgt nach 20 s `wineserver -k` (beides war so, jetzt getestet).
 - **Live zu prüfen** (alles im Test-HOME `build/fh`, nicht im eigenen Konto; „Komplett entfernen“ nie mit dem echten HOME):
   1. Entfernen mit laufender, angemeldeter Steam: die Zeile wechselt „Steam und Wine werden beendet …“ → „Spielstände werden kopiert …“ →
      „Dateien werden gelöscht …“, Nightforge geht in den Papierkorb und endet, nach dem Beenden liegt nichts mehr im Test-HOME außer
@@ -124,6 +132,9 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
      `ps` zeigt `steam-shutdown.sh`), Nightforge neu starten und entfernen: das Skript ist danach weg, die PID-Datei auch.
   6. Beenden-Skript, mit der installierten Nightforge: daneben einen Entwicklungsbau (anderer Ordner) offen lassen, die installierte beenden:
      Steam und die Wine-Sitzung gehen nach ~30 s trotzdem (früher blieben sie, weil der Entwicklungsbau als „wieder geöffnet“ zählte).
+  6b. Nightforge beenden ohne Spiel in den letzten 5 Minuten: Steam und die Wine-Sitzung sind in wenigen Sekunden weg (nicht nach ~1 Minute).
+     Ein Spiel starten und Nightforge sofort beenden (Nachher-Einstellung „Beenden“): das Spiel läuft weiter, Steam wird nicht darunter beendet.
+     Ein Spiel beenden und Nightforge innerhalb einer Minute beenden: ~30 s Wartezeit, dann Steam aus.
   7. Pausierter Download: in Steam einen Download pausieren, Nightforge beenden: Steam geht nach ~30 s aus, kein `steam-shutdown.sh` bleibt.
      Aktiver Download: Steam bleibt, das Skript wartet; Nightforge wieder öffnen beendet das Skript.
   8. Spielstart nach einem festgefahrenen Wine (nur im Test-HOME: den `wineserver` des Test-Prefix mit `kill -STOP` anhalten, ein
@@ -416,12 +427,6 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   Spiel von selbst (OxyRail tat das am 31.10. auch). Der Grund, warum das Update
   am Nachmittag dreimal scheiterte, war ein hängendes Steam (Log stand seit 16:46). Die Erkennung dafür liegt auf
   dem GOG-Zweig (557c2c2).
-- **Steam bleibt nach dem Beenden von Nightforge noch etwa eine Minute** (Nutzer, 31.10., „hat nur gedauert, bis es
-  zu ging“): `steam-shutdown.sh` wartet immer 30 s auf Cloud-Spielstände (`sleep 30`), dann bis zu 20 s auf
-  Steams Ende, dann `wineserver -k`. Die 30 s nur, wenn kurz vorher ein Spiel lief (zum Beispiel in den letzten
-  5 Minuten, Zeitpunkt aus Nightforge übergeben). Sonst sofort `-shutdown`. Dann ist Steam in wenigen Sekunden weg.
-- **Windows-Steam ignoriert manchmal `steam.exe -shutdown`.** Dann hilft nur `wineserver -k`. Läuft Steam gar
-  nicht, startet `-shutdown` ein neues Steam. Nightforges eigenes Beenden darauf prüfen.
 - **Angemeldete Steam nimmt keine Befehle mehr an** (31.10., OxyRail, Branch `claude/gog-7-3-e69c3b`): Seit etwa
   16:46 kam kein `-applaunch` mehr in `console_log` an. Nightforges Client endete trotzdem nach 0,2–0,3 s (macOS-Log,
   wie bei den funktionierenden Starts), und `configstore_log`/`appinfo_log` liefen weiter. Gebaut (`SteamCommands`):
