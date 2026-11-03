@@ -510,6 +510,43 @@ abdeckt, habe ich mit der KosmicKrisp-Sitzung abgestimmt (Frage 09:21, ihre Antw
   kommen nicht von Staging. Stagings `WineSandboxTest` legt seine Suite seit 7374066 im Arbeitsordner an, und keine
   Staging-Reihe nennt `com.example.other`.
 
+## Neunte Runde (3.11., auf c869b59)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 45 | `claude/signed-updates-dda700` (Review N5, N6) | 9f7c5ec | c596eb8 | keine | 0 |
+| 46 | `claude/wine-sandbox` bis 5300f05 (Review N2, N8) | 5300f05 | 2e77f71 | keine | 0 |
+| 47 | `claude/release-notes-031` bis 28d9498 | 28d9498 | 6dc2826 | keine | – (nur Doku) |
+| 48 | `claude/review-n-031` (N1, N3, N4, N7, N12, Zusatz 1–4) | 49f721f | e9f2459 | keine | 0 |
+
+- **46:** Der Schalter der Sandbox bleibt aus. Nach 5300f05 kamen 3d257f1 (das Beenden-Skript startet Steams
+  `-shutdown` auch in der Sandbox) und 77e0bba (Nightforges Steuerdateien und seine Einstellungen sind von innen
+  nicht änderbar). Beide sind nicht drin, weil die Runde bis 5300f05 verlangte.
+- **46, N8 neben M3:** `Engine.stopSessionNow` fragt das schlichte `isSteamRunning`. Erreicht wird es nur über
+  `WineSandbox.settleSession`, das unter einem laufenden Spiel nichts beendet. Seit M3 gilt `windowsGameRunning` ohne
+  Prozessliste als wahr. Ohne Liste endet also keine Sitzung, und eine Anpassung ist nicht nötig.
+- **48, warum schon in dieser Runde:** Eine Meldung „fertig“ habe ich nicht gesehen. Die Sitzung code-review ist seit
+  10:45 untätig, ihr Worktree ist sauber auf 49f721f (letzter Commit 10:18), und der Probe-Merge geht ohne Konflikt.
+  Soll 48 doch erst in die zehnte Runde, ist 6dc2826 der voll getestete Stand davor.
+- **48 und der Vorhang (34):** N4 holt die Fragesteller von macOS in `curtainLook`, aus derselben Liste wie die
+  Prozesse des Spiels. review-n-031 baut schon auf `macOSQuestions` auf. Ohne Liste wird wie bisher nichts
+  entschieden.
+
+## Tests der neunten Runde
+
+- **Auf 6dc2826 (45 bis 47):**
+  - `ProcessListLive` grün.
+  - Voller Lauf `-P 2`: alle 60 Reihen grün (1556 s), auch `CompleteRemovalTest` und `WineSandboxTest` mit der
+    Seatbelt-Probe von N2.
+  - pytest: 124 von 124.
+- **Auf e9f2459 (dazu 48):**
+  - `ProcessListLive` grün.
+  - Voller Lauf `-P 2`: alle 60 Reihen grün (1208 s).
+  - pytest: 124 von 124.
+- **Test-Plists:** Während des zweiten Laufs änderte sich in `~/Library/Preferences` keine. Im ersten Lauf änderten
+  sich `removal-test` und `engine-layout-test` um 10:30 und 10:31. Die beiden Staging-Reihen waren da schon fertig
+  (10:23, 10:26), die Plists stammen also aus einer anderen Sitzung.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
@@ -517,6 +554,7 @@ abdeckt, habe ich mit der KosmicKrisp-Sitzung abgestimmt (Frage 09:21, ihre Antw
 - `SubprocessTest` ist auf h1-h3 behoben (a097ccb, Merge 36).
 - `PadFocusTest` braucht seit 88f0cb8 (Merge 39) keinen eingeschalteten Bildschirm mehr.
 - Vor dem Tag v0.3.1: den Entwurf aus `docs/RELEASE-NOTES-0.3.1.md` nach `docs/release-notes/v0.3.1.md` (43).
+- Später nachzuziehen: `claude/wine-sandbox` ab 3d257f1 (3d257f1, 77e0bba).
 - Nur auf Staging stehen:
   - 8b5314d. engine-env hat dasselbe jetzt als 4e02fbf.
   - 49e249d, M4s „Steam ist aus“ über M3. Gehört in den M4-Zweig, sobald der M3 hat.
