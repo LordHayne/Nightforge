@@ -338,6 +338,15 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     Sperrliste hat, und das „Yes“ beendet das Spiel. `Engine.clearUnrealDriverDenyList` leert die AMD-Liste in
     `Saved/Config/Windows/Hardware.ini` vor jedem Start eines Unreal-Spiels auf D3DMetal. Noch nicht live bestätigt.
 - **MTL_HUD** erscheint unter D3DMetal 4.0 nicht (Metal-4-Backend?).
+- **Import von Apples Toolkit (Audit M4, 3.11.):** Apple signiert nur `D3DMetal.framework` und `libd3dshared.dylib`,
+  weder die Windows-DLLs noch die DMGs (geprüft an `Game_Porting_Toolkit_4.0_beta_3.dmg` und der Evaluation-DMG darin:
+  „not signed at all“). Deshalb nimmt der Import nur die DLLs, deren SHA-256 in `D3DMetalSupply.windowsFiles` steht
+  (3.0, 4.0b3), und nichts daneben. Eine neue Toolkit-Version wird abgelehnt, bis ihre Liste dort steht:
+  `shasum -a 256 redist/lib/wine/x86_64-windows/*.dll` aus Apples DMG. Die Werte für 3.0 stammen aus der
+  Kopie, die Nightforge am 2.11. aus `Game_Porting_Toolkit_3.0.dmg` importiert hat (`License.rtf` stimmt mit der App
+  überein). Gegen die DMG selbst geprüft ist bisher nur 4.0b3. Eine Datei, die während des Wartens in „Downloads“
+  ankommt, wird nicht mehr still importiert, sondern angeboten wie eine schon vorhandene, und Nightforge hüpft im
+  Dock. Das ist live noch zu prüfen. Importe von vor dieser Prüfung werden nicht nachgeprüft.
 - **Lizenz:** GPTK 4.0b3 erlaubt die Weitergabe nur nicht-kommerziell und unverändert. Nightforge muss
   kostenlos bleiben, D3DMetal.framework wird nur ganz und unverändert weitergegeben. Kein Streaming-Dienst
   damit (2C). Apple kann die Lizenz jederzeit beenden (Abschnitt 5). Plan B wäre dann, dass Nightforge das
