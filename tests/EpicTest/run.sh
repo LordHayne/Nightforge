@@ -15,5 +15,7 @@ OUT="$DIR/epic-test"
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
 swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/FakeProcesses.swift tests/EpicTest/main.swift
+# A legendary that hangs, for removing a download (Legendary.end).
+clang -O2 -Wall -o "$DIR/stand-in" tests/EpicTest/stand-in.c
 mkdir -p "$DIR/home"
-HOME="$DIR/home" CFFIXED_USER_HOME="$DIR/home" "$OUT"
+HOME="$DIR/home" CFFIXED_USER_HOME="$DIR/home" STAND_IN="$DIR/stand-in" "$OUT"

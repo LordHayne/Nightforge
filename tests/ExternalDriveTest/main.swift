@@ -574,17 +574,71 @@ struct ExternalDriveTest {
         let source = root.appendingPathComponent("compare/a", isDirectory: true), copy = root.appendingPathComponent("compare/b", isDirectory: true)
         makeGame(source)
         try? FolderCopy.copy(source, to: copy, progress: CopyProgress())
-        check(FolderCopy.difference(source, copy) == nil, "a whole copy matches")
+        check(differs(source, copy) == nil, "a whole copy matches")
         fm.createFile(atPath: copy.appendingPathComponent("._game.pak").path, contents: Data(count: 4096))
-        check(FolderCopy.difference(source, copy) == nil, "exFAT's extra files don't count")
+        check(differs(source, copy) == nil, "exFAT's extra files don't count")
         try? Data(count: 10).write(to: copy.appendingPathComponent("game.pak"))
-        check(FolderCopy.difference(source, copy) == "game.pak", "a short file is found")
+        check(differs(source, copy) == "game.pak", "a short file is found")
         try? fm.removeItem(at: copy.appendingPathComponent("bin/Frameworks/Engine.framework/Versions/Current"))
         try? fm.createSymbolicLink(atPath: copy.appendingPathComponent("bin/Frameworks/Engine.framework/Versions/Current").path, withDestinationPath: "B")
         try? FolderCopy.copy(source.appendingPathComponent("game.pak"), to: root.appendingPathComponent("compare/pak"), progress: CopyProgress())
         try? fm.removeItem(at: copy.appendingPathComponent("game.pak"))
         try? fm.moveItem(at: root.appendingPathComponent("compare/pak"), to: copy.appendingPathComponent("game.pak"))
-        check(FolderCopy.difference(source, copy) == "bin/Frameworks/Engine.framework/Versions/Current", "a link pointing elsewhere is found")
+        check(differs(source, copy) == "bin/Frameworks/Engine.framework/Versions/Current", "a link pointing elsewhere is found")
+
+        // Before the originals go, the bytes count too, not only the sizes.
+        let same = root.appendingPathComponent("compare/c", isDirectory: true), other = root.appendingPathComponent("compare/d", isDirectory: true)
+        makeGame(same)
+        try? FolderCopy.copy(same, to: other, progress: CopyProgress())
+        if var bytes = fm.contents(atPath: other.appendingPathComponent("game.pak").path), !bytes.isEmpty {
+            bytes[bytes.count / 2] ^= 0xFF
+            try? bytes.write(to: other.appendingPathComponent("game.pak"))
+        }
+        check(differs(same, other) == "game.pak", "a file of the same size with other bytes is found")
+        // A big file: its start, its end and pieces between are read (a sparse one, so the test stays quick).
+        let size = FolderCopy.comparedWhole + 8 << 20
+        let big = same.appendingPathComponent("big.archive"), bigCopy = other.appendingPathComponent("big.archive")
+        fm.createFile(atPath: big.path, contents: nil)
+        if let handle = FileHandle(forWritingAtPath: big.path) {
+            try? handle.truncate(atOffset: UInt64(size))
+            try? handle.seek(toOffset: UInt64(size) - 3)
+            handle.write(Data("end".utf8))
+            try? handle.close()
+        }
+        func bigCopyWith(_ bytes: String, at offset: Int64) {
+            try? fm.removeItem(at: bigCopy)
+            try? fm.copyItem(at: big, to: bigCopy)
+            if let handle = FileHandle(forWritingAtPath: bigCopy.path) {
+                try? handle.seek(toOffset: UInt64(offset))
+                handle.write(Data(bytes.utf8))
+                try? handle.close()
+            }
+        }
+        try? FolderCopy.copy(same.appendingPathComponent("game.pak"), to: root.appendingPathComponent("compare/pak2"), progress: CopyProgress())
+        try? fm.removeItem(at: other.appendingPathComponent("game.pak"))
+        try? fm.moveItem(at: root.appendingPathComponent("compare/pak2"), to: other.appendingPathComponent("game.pak"))
+        bigCopyWith("end", at: size - 3)
+        check(differs(same, other) == nil, "a big file copied whole matches")
+        bigCopyWith("END", at: size - 3)
+        check(differs(same, other) == "big.archive", "a big file whose end differs is found")
+        bigCopyWith("x", at: 0)
+        check(differs(same, other) == "big.archive", "and one whose start differs")
+        bigCopyWith("x", at: (size - (1 << 20)) * 3 / 7 + 100)
+        check(differs(same, other) == "big.archive", "and one with other bytes in a piece between")
+        bigCopyWith("x", at: (size - (1 << 20)) / 14)
+        check(differs(same, other) == nil, "a byte between the pieces isn't read: the limit for files over \(FolderCopy.comparedWhole >> 20) MB")
+        check(FolderCopy.sameContents(big.path, root.appendingPathComponent("compare/missing").path, size: size) == false,
+              "a copy that can't be read isn't the same")
+        do {
+            _ = try FolderCopy.difference(same, other, cancelled: { true })
+            check(false, "a cancelled check throws")
+        } catch DriveError.cancelled {
+        } catch { check(false, "a cancelled check throws DriveError.cancelled: \(error)") }
+    }
+
+    /// FolderCopy.difference, with an error said as such (never taken for a whole copy).
+    static func differs(_ source: URL, _ copy: URL) -> String? {
+        do { return try FolderCopy.difference(source, copy) } catch { return "thrown: \(error)" }
     }
 
     static func checkEpicMove(_ root: URL) async {
@@ -690,7 +744,7 @@ struct ExternalDriveTest {
             makeGame(game)
             do {
                 try FolderCopy.copy(game, to: mount.appendingPathComponent("Game"), progress: CopyProgress())
-                check(FolderCopy.difference(game, mount.appendingPathComponent("Game")) == nil, "a game copied onto \(format) checks out")
+                check(differs(game, mount.appendingPathComponent("Game")) == nil, "a game copied onto \(format) checks out")
             } catch { check(false, "copy onto \(format): \(error)") }
         }
     }

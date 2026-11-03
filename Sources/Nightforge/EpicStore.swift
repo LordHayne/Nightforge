@@ -647,15 +647,12 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         if parts.contains(where: { wanted.contains($0) || downloads[$0] != nil }) {
             wanted.removeAll(where: parts.contains)
             save(wanted, to: Self.wantedFile)
-            for part in parts {
-                guard let process = downloads.removeValue(forKey: part) else { continue }
-                Legendary.stop(process.processIdentifier)
-                while process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }  // see Legendary.run
-            }
-            for pid in Engine.ownProcesses(under: ComponentStore.shared.root.appendingPathComponent(Legendary.componentID))
-                .filter({ process in parts.contains { process.command.contains(" install \($0) ") } }).map(\.pid) {
-                Legendary.stop(pid)
-            }
+            let root = ComponentStore.shared.root.appendingPathComponent(Legendary.componentID)
+            let started = parts.compactMap { downloads.removeValue(forKey: $0)?.processIdentifier }
+            let earlier = Engine.ownProcesses(under: root)
+                .filter { process in parts.contains { process.command.contains(" install \($0) ") } }.map(\.pid)
+            // Gone before its files go (see Legendary.run); one that hangs doesn't hold the removal up.
+            await Legendary.end(started + earlier, under: root)
         }
         let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
         let installed = EpicInstall.all(fromJSON: (try? Data(contentsOf: installedFile)) ?? Data())
@@ -672,12 +669,17 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         // or a drive's.
         let folder = game.installDir.standardizedFileURL
         let gamesFolders = [Legendary.gamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.epic(on: $0)] } ?? [])
-        if gamesFolders.contains(where: { folder.deletingLastPathComponent().path == $0.standardizedFileURL.path }) {
-            try? FileManager.default.removeItem(at: folder)
+        // A folder that stays (in use, no permission) is said, as for a Steam game (Engine.removeGameFiles),
+        // once the rest is done.
+        var left: Error?
+        if gamesFolders.contains(where: { folder.deletingLastPathComponent().path == $0.standardizedFileURL.path }),
+           FileManager.default.fileExists(atPath: folder.path) {
+            do { try FileManager.default.removeItem(at: folder) } catch { left = error }
         }
         for part in parts { try? FileManager.default.removeItem(at: Legendary.log(for: part)) }
         if destinations.removeValue(forKey: appName) != nil { save(destinations, to: Self.destinationsFile) }
         Task { await startNext() }
+        if let left { throw left }
     }
 
     // MARK: - A drive that's gone
