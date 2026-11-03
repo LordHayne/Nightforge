@@ -114,6 +114,14 @@ echten App gesehen. Beschreibung der Risiken: `docs/CODE-PRUEFUNG.md` (Zweig `cl
     `removeUnusedComponents`, die Haltezeit der Engine-Kopien, Verschieben von Spielen, `startSteam`s Guide-Knopf, `ensureSteamRunning`,
     `GameResolution.fit`, die Download-Erkennung von Epic/GOG (die letzte bekannte Menge) und im Launcher der Block „Steam läuft nicht“ (dort schreibt
     später `SteamProgram.apply` – kleinkram baut es auf `Engine.steamRunningKnown == false`).
+    Nachprüfung (`docs/REVIEW-STAGING-031.md`, Nachtrag, N1/N3/N4/N7/N12): **Eine alte Liste sagt nur „da“, nie „weg“** (`GameProcesses.Presence`:
+    `running` / `gone` / `unknown`; „weg“ nur aus einer Liste, die eben erfragt wurde). Die Beobachtung der ersten Sekunden eines Starts
+    (`FirstSecondsWatch`) zählt Blicke ohne Antwort weder für noch gegen das Spiel (30 in Folge: „unbekannt“, das nichts lernt: weder Rückstufung der
+    Engine noch ein zweiter Start; die Mac-Fassung bekommt dann kein `MacHealth.confirm` und keinen Absturzbericht), `stillRunning` vor dem nächsten Weg
+    und `bringToFront` ebenso, der Vorhang entscheidet bei einer alten Liste ohne das Spiel nichts. `SteamStartCheck` urteilt ohne Liste nicht
+    (`Signs.running` ist `Bool?`). `curtainLook` liefert die Fragesteller von macOS aus derselben Liste (ein `ps` je Blick). `ensureEngine` (alte
+    Engine-Ordner), `installMsync` und `applyMsyncMode` warten bei unbekannter Sitzung (`SetupError.sessionUnknown`, nichts vermerkt).
+    `Engine.lastSteamStart` liegt hinter einem `LockedValue`.
   - **Tests brauchen kein systemweites `ps` mehr.** `ProcessList.source` nimmt eine Liste von außen an (dann wird nichts gestartet);
     `tests/Shared/FakeProcesses.swift` baut sie aus Zeilen oder aus den eigenen PIDs der Testprozesse (libproc und deren Argumente, nie eine Liste
     aller). Umgestellt: CompleteRemoval, DetachedProcess, Epic, GOG, GameOverlay, MacVersion (der `ps`-Ersatz liest eine Datei mit den
