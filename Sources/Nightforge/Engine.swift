@@ -873,17 +873,46 @@ enum Engine {
         let (wine, held) = (target.wine, target.held)
         let (graphics, dxvk) = (target.graphics, target.dxvk)
         await offMain {
-            if let graphics {
+            if let held {
+                useHeld(held, wine: wine)
+            } else if let graphics {
                 try? preparePrefix(wine: wine, build: build, graphicsDir: graphics,
                                    dxvkDir: dxvk.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil })
             }
-            // A held copy builds its own game bundle the first time; the newest one has it from setup.
-            if held != nil {
-                installGameBundle(wine: wine)
-                if isGPTKCapable(wine: wine) { linkCrossOverProfile() }
-            }
         }
         return (wine, build, held)
+    }
+
+    /// Puts the prefix's share of `held` in place for a start with its engine `wine`. A held copy
+    /// builds its own game bundle the first time; the newest one has it from setup.
+    static func useHeld(_ held: HeldBuild, wine: URL) {
+        let rollback = EngineRollback.shared
+        let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
+        let dxvk = rollback.folder(of: held, part: dxvkID)
+        try? preparePrefix(wine: wine, build: held.build, graphicsDir: rollback.folder(of: held, part: graphics),
+                           dxvkDir: FileManager.default.fileExists(atPath: dxvk.path) ? dxvk : nil)
+        installGameBundle(wine: wine)
+        if isGPTKCapable(wine: wine) { linkCrossOverProfile() }
+    }
+
+    /// The engine Nightforge last started Steam with, and when (SteamStartCheck judges that start).
+    static var lastSteamStart: (wine: URL, at: Date)?
+
+    /// The engine a fresh Steam starts with: `wine` – or, when Steam didn't come up on the newest
+    /// engine, the build held back for it (EngineRollback.steamPinnedBuild), its share of the prefix
+    /// put in place. A Wine session left on another engine ends first; one a game runs in, Steam
+    /// joins instead (two engines can't share the prefix).
+    static func steamEngine(_ wine: URL) -> URL {
+        let rollback = EngineRollback.shared
+        guard let held = rollback.steamPinnedBuild(), rollback.build(running: wine) == rollback.history().current,
+              let heldWine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID))
+        else { return wine }
+        if let session = sessionWine(), session.standardizedFileURL.path != heldWine.standardizedFileURL.path {
+            guard !windowsGameRunning else { return session }
+            stopAll(session)
+        }
+        useHeld(held, wine: heldWine)
+        return heldWine
     }
 
     /// Copies DXMT (Direct3D 10/11 → Metal) into the engine's builtin DLL folders. Safe to repeat.
@@ -2255,7 +2284,12 @@ enum Engine {
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
-        if !isSteamRunning { SteamGuideButton.turnOff(steamRoot: steamRoot) }
+        var wine = wine
+        if !isSteamRunning {
+            SteamGuideButton.turnOff(steamRoot: steamRoot)
+            wine = steamEngine(wine)
+            lastSteamStart = (wine, Date())
+        }
         let process = DetachedProcess()
         let loader = loader(for: wine)
         process.executableURL = loader

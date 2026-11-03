@@ -513,6 +513,7 @@ enum Launcher {
             if !Engine.isSteamRunning {
                 Engine.applyRetinaMode(runner)
                 SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
+                Engine.lastSteamStart = (runner, Date())
             }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own

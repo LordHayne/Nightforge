@@ -1445,15 +1445,51 @@ final class LibraryModel: ObservableObject {
 
     /// Steam hangs now and then while starting under Wine (see Engine.steamLooksStuck), and one
     /// restart fixes it. Watched for the first two minutes, ideally before anyone presses Play.
+    /// A start that didn't come up counts against its engine (steamStartFailed).
     private func watchSteamStart(_ wine: URL) async {
+        let began = Date()
         for _ in 0..<24 {
             try? await Task.sleep(for: .seconds(5))
-            if Engine.steamSignedIn { return }
+            if Engine.steamSignedIn {
+                await steamCameUp(since: began)
+                return
+            }
             if launchingID == nil, running.isEmpty, Engine.steamLooksStuck(quietFor: 45) {
+                _ = await steamStartFailed(since: began)
                 _ = await restartStuckSteam(wine)
                 return
             }
         }
+    }
+
+    /// The Steam Nightforge started since `began` came up: its engine is one Steam runs on (EngineRollback).
+    private func steamCameUp(since began: Date) async {
+        guard let start = Engine.lastSteamStart, start.at >= began.addingTimeInterval(-60),
+              let build = await Engine.offMain({ EngineRollback.shared.build(running: start.wine) })
+        else { return }
+        EngineRollback.shared.recordSteamStarted(build)
+    }
+
+    /// The Steam Nightforge started since `began` hasn't come up. Judged (SteamStartCheck) – an
+    /// update or a slow start isn't counted – and counted against its engine: the second time on
+    /// a new engine, Steam and its games go back to the previous one (EngineRollback). True then.
+    private func steamStartFailed(since began: Date) async -> Bool {
+        guard let start = Engine.lastSteamStart, start.at >= began.addingTimeInterval(-60) else { return false }
+        let (outcome, build) = await Engine.offMain {
+            (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.isSteamRunning)),
+             EngineRollback.shared.build(running: start.wine))
+        }
+        guard outcome == .failed, let build else { return false }
+        switch EngineRollback.shared.afterFailedSteamStart(build) {
+        case .rollBack(let held):
+            GameLog.note("Steam didn't come up on engine \(build.engineVersion) twice: it starts with the previous one from \(EngineRollback.day(held.setUp))")
+            return true
+        case .heldFailed:
+            GameLog.note("Steam didn't come up on the previous engine either: back to the newest")
+        case .none:
+            GameLog.note("Steam didn't come up on engine \(build.engineVersion)")
+        }
+        return false
     }
 
     /// Restarts a hung Steam, queued like any other Steam start so a launch waits for it.
@@ -1461,7 +1497,9 @@ final class LibraryModel: ObservableObject {
     /// (its remembered sign-in ran out) while a game waits to start, its window comes to the front
     /// and the player gets ten minutes for it. `freshSession`: with a new Wine session (DockHider).
     /// `hung`: it stopped taking commands, so it's ended with its Wine session (no game may run).
-    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false, hung: Bool = false) async -> Bool {
+    /// Not up again because of its engine (steamStartFailed), it starts once more on the previous
+    /// one when nothing waits on it; a start under way gets the previous engine with its next try.
+    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false, hung: Bool = false, again: Bool = true) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
@@ -1478,13 +1516,21 @@ final class LibraryModel: ObservableObject {
         await restart.value
         var asked = false
         for second in 0..<600 {
-            if Engine.steamSignedIn { return true }
+            if Engine.steamSignedIn {
+                await steamCameUp(since: began)
+                return true
+            }
             if !asked, launchingID != nil, SteamLogin.waitingForCredentials(steamRoot: Engine.steamRoot, since: began) {
                 asked = true
                 launchPhase = .signInAgain
                 showSteamWindow()
             }
-            if second >= 90 && !asked { return false }
+            if second >= 90 && !asked {
+                if await steamStartFailed(since: began), again, launchingID == nil, running.isEmpty {
+                    return await restartStuckSteam(wine, again: false)
+                }
+                return false
+            }
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return false }
         }
@@ -2959,7 +3005,11 @@ final class LibraryModel: ObservableObject {
                 launchBuildsShaders = false
                 launchingID = nil
                 startsAgain = false
-                if viaSteam, game.bottle.isBuiltIn { SteamPriority.watch(game) }
+                if viaSteam, game.bottle.isBuiltIn {
+                    SteamPriority.watch(game)
+                    // Steam took the start: it runs on this build (EngineRollback).
+                    if let build { EngineRollback.shared.recordSteamStarted(build) }
+                }
                 startedHere.insert(game.id)
                 judging = watchFirstSeconds ? (game.id, startedAt) : nil
                 await bringToFront(game)

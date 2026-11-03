@@ -297,6 +297,10 @@ struct EngineRollbackTest {
               "written back under store keys")
         try? FileManager.default.removeItem(at: older)
 
+        // MARK: Steam itself doesn't come up on a new engine
+        steamStartCheck(work)
+        steamItself(work)
+
         // MARK: The prefix follows the build a game starts with
         // It reads the process list (Engine.sessionWine): left out with --without-processes, for a
         // Mac whose process list hangs.
@@ -306,6 +310,161 @@ struct EngineRollbackTest {
             await prefixSwitch()
         }
         finish()
+    }
+
+    /// When a Steam start counts as not come up (SteamStartCheck): never while Steam updates itself
+    /// or within its first 90 s, and only log lines written since the start are signs of life.
+    static func steamStartCheck(_ work: URL) {
+        var quiet = SteamStartCheck.Signs()
+        quiet.sinceStart = 200
+        quiet.quietFor = 120
+        check(SteamStartCheck.judge(quiet) == .failed, "200 s after the start, two minutes quiet, no update: not come up")
+        for (change, name) in [({ (s: inout SteamStartCheck.Signs) in s.signedIn = true }, "signed in"),
+                               ({ (s: inout SteamStartCheck.Signs) in s.sessionReplaced = true }, "signed out by Steam for Mac"),
+                               ({ (s: inout SteamStartCheck.Signs) in s.askingForAccount = true }, "asking for the account"),
+                               ({ (s: inout SteamStartCheck.Signs) in s.startupFinished = true }, "done starting")] {
+            var signs = quiet
+            change(&signs)
+            check(SteamStartCheck.judge(signs) == .cameUp, "\(name): it came up")
+        }
+        for state in [SteamBootstrap.downloading, .installing, .updated] {
+            var signs = quiet
+            signs.bootstrap = state
+            check(SteamStartCheck.judge(signs) == .undecided, "Steam updating itself (\(state)) is never a failure")
+        }
+        var early = quiet
+        early.sinceStart = 80
+        early.running = false
+        check(SteamStartCheck.judge(early) == .undecided, "within its first 90 s: undecided, even without its process")
+        var busy = quiet
+        busy.quietFor = 10
+        check(SteamStartCheck.judge(busy) == .undecided, "still writing its logs: only slow")
+        busy.running = false
+        check(SteamStartCheck.judge(busy) == .failed, "its process gone: not come up")
+
+        // From the logs: the last session's "Logged On" doesn't count for a start that wrote nothing.
+        let steam = work.appendingPathComponent("steam-check", isDirectory: true)
+        let logs = steam.appendingPathComponent("logs", isDirectory: true)
+        let start = Date()
+        let before = start.addingTimeInterval(-600)
+        let connection = logs.appendingPathComponent("connection_log.txt")
+        write("[2026-11-03 00:50:00] Client version: 1761609000\n[2026-11-03 00:50:20] [Logged On, 0,0] Logged on\n", connection)
+        write("[2026-11-03 00:50:00] Client version: 1761609000\n[2026-11-03 00:50:20] System startup time: 20 seconds\n",
+              logs.appendingPathComponent("console_log.txt"))
+        for file in [connection, logs.appendingPathComponent("console_log.txt")] {
+            try? fm.setAttributes([.modificationDate: before], ofItemAtPath: file.path)
+        }
+        var signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: start.addingTimeInterval(200))
+        check(!signs.signedIn && !signs.startupFinished, "the last session's lines aren't this start's")
+        check(signs.sinceStart == 200 && signs.quietFor == 200, "nothing written since the start: quiet since then")
+        check(SteamStartCheck.judge(signs) == .failed, "and so not come up")
+        write("[2026-11-03 01:00:00] Startup - updater built Oct 22 2026 00:15:00\n[2026-11-03 01:00:01] Downloading manifest: client\n",
+              logs.appendingPathComponent("bootstrap_log.txt"))
+        signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: Date().addingTimeInterval(200))
+        check(signs.bootstrap == .downloading && SteamStartCheck.judge(signs) == .undecided, "looking for its update: undecided")
+        write("[2026-11-03 01:00:05] Client version: 1761609000\n[2026-11-03 01:00:30] [Logged On, 0,0] Logged on\n", connection)
+        signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: Date().addingTimeInterval(200))
+        check(signs.signedIn && SteamStartCheck.judge(signs) == .cameUp, "signed in since the start: came up")
+    }
+
+    /// Steam that doesn't come up on the newest build twice goes back to the held build it ran on,
+    /// and its games with it; Epic's and GOG's don't need Steam and stay on the newest.
+    static func steamItself(_ work: URL) {
+        let root = work.appendingPathComponent("steam-rollback", isDirectory: true)
+        let rollback = EngineRollback(root: root)
+        let a = build("4.7.3", "11.18-dxmt0.80-17")
+        let b = build("4.7.4", "11.18-dxmt0.80-18")
+        let c = build("4.7.5", "11.18-dxmt0.80-19")
+        let steamGame = GameID.steam(570), epicGame = GameID.epic("Sugar")
+        let day: TimeInterval = 86_400
+        let t0 = Date().addingTimeInterval(-10 * day)
+        install(a, root: root)
+        rollback.settle(a, now: t0)
+        rollback.recordGood(steamGame, build: a, way: "dxmt")
+        update(rollback, to: b, now: t0.addingTimeInterval(day))
+        guard let heldA = rollback.history().held.first(where: { $0.build == a }) else {
+            return check(false, "the build Steam's games ran on is held back")
+        }
+
+        check(rollback.build(running: Engine.wineBinary(in: root.appendingPathComponent("winecx/4.7.4"))!) == b,
+              "the newest build is known by its engine")
+        check(rollback.build(running: Engine.wineBinary(in: rollback.folder(of: heldA, part: "winecx"))!) == a,
+              "a held one by its copy")
+        check(rollback.build(running: URL(fileURLWithPath: "/somewhere/else/bin/wine")) == nil, "another wine: none")
+
+        check(rollback.afterFailedSteamStart(b) == .none, "Steam didn't come up once: only counted (a slow Steam)")
+        check(rollback.steamPinnedBuild() == nil && rollback.pinnedBuild(steamGame) == nil, "nothing changes yet")
+        check(rollback.afterFailedSteamStart(b) == .rollBack(heldA), "twice in a row: back to the build Steam's games ran on")
+        check(rollback.steamPinnedBuild() == heldA, "Steam starts with it")
+        check(rollback.pinnedBuild(steamGame) == heldA && rollback.pinnedForSteam(steamGame), "Steam's games with it, because of Steam")
+        check(rollback.pinnedBuild(.steam(730)) == heldA, "every Steam game, also one never played")
+        check(rollback.pinnedBuild(epicGame) == nil && !rollback.pinnedForSteam(epicGame), "Epic's games need no Steam: newest")
+        check(rollback.afterFailedSteamStart(b) == .none, "further failures on the newest change nothing")
+        check(EngineRollback.unneeded(rollback.history(), now: t0.addingTimeInterval(60 * day)).isEmpty,
+              "the copy Steam starts with stays past the 30 days")
+
+        // Not up on the held build either: not the engine's doing.
+        check(rollback.afterFailedSteamStart(a) == .none, "once on the held build: counted")
+        check(rollback.afterFailedSteamStart(a) == .heldFailed && rollback.steamPinnedBuild() == nil,
+              "twice: the pin goes, Steam starts with the newest")
+        check(rollback.afterFailedSteamStart(b) == .none && rollback.afterFailedSteamStart(b) == .none,
+              "and the newest isn't rolled back from again before the next update")
+
+        // A build Steam came up on once isn't rolled back from: a later hang is Steam's own.
+        update(rollback, to: c, now: t0.addingTimeInterval(2 * day))
+        rollback.recordSteamStarted(c)
+        check(rollback.afterFailedSteamStart(c) == .none && rollback.afterFailedSteamStart(c) == .none
+              && rollback.steamPinnedBuild() == nil, "Steam came up on it before: no rollback")
+
+        // A failure, then Steam comes up: the count starts over.
+        let root2 = work.appendingPathComponent("steam-rollback-2", isDirectory: true)
+        let second = EngineRollback(root: root2)
+        install(a, root: root2)
+        second.settle(a, now: t0)
+        second.recordSteamStarted(a)
+        second.recordGood(epicGame, build: a, way: "dxmt")
+        update(second, to: b, now: t0.addingTimeInterval(day))
+        _ = second.afterFailedSteamStart(b)
+        check(second.history().steamFailures?[b.id] == 1, "one failure counted")
+        second.recordSteamStarted(b)
+        check(second.history().steamFailures?[b.id] == nil && second.afterFailedSteamStart(b) == .none,
+              "Steam came up after all: the count is gone, and so is the rollback for this build")
+
+        // Held only for an Epic game, the build Steam came up on still serves Steam.
+        let root3 = work.appendingPathComponent("steam-rollback-3", isDirectory: true)
+        let third = EngineRollback(root: root3)
+        install(a, root: root3)
+        third.settle(a, now: t0)
+        third.recordSteamStarted(a)
+        third.recordGood(epicGame, build: a, way: "dxmt")
+        update(third, to: b, now: t0.addingTimeInterval(day))
+        _ = third.afterFailedSteamStart(b)
+        guard case .rollBack(let held) = third.afterFailedSteamStart(b) else { return check(false, "Steam came up on the held build: rolled back") }
+        check(held.build == a, "to the build Steam came up on")
+        third.tryNewest(steamGame)
+        check(third.steamPinnedBuild() == nil && third.history().steamFailures == nil,
+              "Try the Newest Now on a Steam game: Steam tries the newest again, counting from zero")
+        _ = third.afterFailedSteamStart(b)
+        _ = third.afterFailedSteamStart(b)
+        check(third.steamPinnedBuild()?.build == a, "and goes back again after two more")
+        update(third, to: c, now: t0.addingTimeInterval(2 * day))
+        check(third.steamPinnedBuild() == nil && third.history().steamFailures == nil, "the next update: the newest gets another try")
+
+        // No held build Steam ran on: nothing to go back to.
+        let root4 = work.appendingPathComponent("steam-rollback-4", isDirectory: true)
+        let fourth = EngineRollback(root: root4)
+        install(a, root: root4)
+        fourth.settle(a, now: t0)
+        fourth.recordGood(epicGame, build: a, way: "dxmt")
+        update(fourth, to: b, now: t0.addingTimeInterval(day))
+        check(fourth.afterFailedSteamStart(b) == .none && fourth.afterFailedSteamStart(b) == .none && fourth.steamPinnedBuild() == nil,
+              "a build only Epic's games ran on isn't Steam's way back")
+
+        // A history from before reads, without Steam's fields.
+        let root5 = work.appendingPathComponent("steam-rollback-5", isDirectory: true)
+        write(#"{"held":[],"lastGood":{},"pinned":{}}"#, root5.appendingPathComponent("engine-history.json"))
+        let older = EngineRollback(root: root5).history()
+        check(older.steamPinned == nil && older.steamStarted == nil && older.steamFailures == nil, "a history from before reads")
     }
 
     /// With the real `Engine.engineForStart` and the real (here: empty, temporary) Application

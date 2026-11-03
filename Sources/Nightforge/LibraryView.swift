@@ -1648,8 +1648,8 @@ private struct CompatibilityNote: View {
     }
 }
 
-/// The newest engine crashed this game, so it runs with the previous one – and the way to give the
-/// newest another try now rather than after the next update (EngineRollback).
+/// The newest engine crashed this game – or Steam didn't come up on it – so it runs with the previous
+/// one, and the way to give the newest another try now rather than after the next update (EngineRollback).
 private struct HeldEngineNote: View {
     let game: Game
     let held: HeldBuild
@@ -1657,8 +1657,11 @@ private struct HeldEngineNote: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Label(L10n.t("Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.",
-                         EngineRollback.day(held.setUp)),
+            Label(EngineRollback.shared.pinnedForSteam(game.gameID)
+                  ? L10n.t("Runs with the previous engine from %@ – Steam didn't start with the newest one. Nightforge tries the new one again after the next update.",
+                           EngineRollback.day(held.setUp))
+                  : L10n.t("Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.",
+                           EngineRollback.day(held.setUp)),
                   systemImage: "arrow.uturn.backward")
                 .font(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)

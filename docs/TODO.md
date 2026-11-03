@@ -340,7 +340,34 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Neu (3.11., Zweig `claude/engine-rueckfall-33`): Steht ein Spiel unter beiden Schlüsseln, gilt der Eintrag unter
     dem Store-Schlüssel. Bisher entschied die Reihenfolge in der Datei, und ein alter Pin konnte den neuen
     verdrängen.
-- **Nur Abstürze eines Spiels zählen.** Startet Steam selbst mit der neuen Engine nicht, greift der Rückfall nicht.
+- **Nur Abstürze eines Spiels zählen: gebaut (3.11., Zweig `claude/engine-rueckfall-33`), Live-Test offen.**
+  - Erkennen (`SteamStartCheck`):
+    - Nach einem Steam-Start durch Nightforge (`Engine.lastSteamStart`) gilt Steam als hochgekommen, sobald es seit
+      diesem Start angemeldet ist, sein Fenster nach dem Konto fragt, von Steam für Mac abgemeldet wurde oder fertig
+      gestartet ist.
+    - Es zählen nur Logzeilen seit dem Start. Ein Start, der früh stirbt, hinterlässt sonst das „Logged On“ der
+      letzten Sitzung.
+    - Als nicht hochgekommen gilt Steam erst nach 90 s, ohne eigenes Update (`SteamBootstrap` nicht `.idle` heißt
+      nie Fehlschlag), und nur mit beendetem Prozess oder 45 s stillen Logs.
+  - Zählen (`EngineRollback.afterFailedSteamStart`):
+    - Zwei Fehlstarts in Folge auf dem neuesten Build führen zum Rückfall. Hochgekommen ist Steam darauf noch nie;
+      sonst ist ein Hänger Steams eigene Sache.
+    - Dann starten Steam und alle Steam-Spiele mit dem neuesten gehaltenen Build, auf dem Steam schon lief oder
+      Steam-Spiele gut liefen. Epic- und GOG-Spiele bleiben auf dem neuesten.
+    - Kommt Steam auch dort zweimal nicht hoch, fällt der Pin weg, und dieser Build ist kein Rückweg mehr. So
+      pendelt nichts hin und her.
+    - Das nächste Update und „Jetzt die neueste probieren“ geben dem neuesten wieder eine Chance.
+  - Greifen:
+    - `Engine.startSteam` nimmt bei gesetztem Pin die gehaltene Engine (`steamEngine`, mit deren Prefix-Anteil).
+    - Steam-Spiele bekommen sie über `pinnedBuild` und `engineForStart`.
+    - Gezählt wird beim Startwächter nach App-Start (`watchSteamStart`) und nach jedem Neustart wegen Hängens
+      (`restartStuckSteam`). Nach dem zweiten Fehlstart startet Steam gleich auf der gehaltenen Engine, wenn nichts
+      darauf wartet.
+    - Die Spielseite sagt: „Läuft mit der vorigen Engine vom … – Steam ist mit der neuesten nicht gestartet.“
+  - Live-Test: geht nur mit einer Engine, auf der Steam wirklich nicht startet (etwa einem kaputten Test-Build über
+    `NightforgeManifestURL`). Prüfen: Nach zwei Fehlstarts steht in `wine.log` „Steam didn't come up on engine … twice“,
+    Steam läuft auf der Kopie in `.held`, und ein Steam-Spiel startet. Ein Steam mit Client-Update beim Start darf
+    nichts auslösen.
 - **Datum der ersten gehaltenen Engine:** Es ist der Tag, an dem 3.3 zum ersten Mal lief, nicht der Tag, an dem
   diese Engine kam.
 

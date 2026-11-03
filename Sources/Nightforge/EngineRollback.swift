@@ -56,6 +56,14 @@ struct EngineHistory: Codable, Equatable {
     var lastGood: [String: GoodStart] = [:]
     /// Per game: the held build it starts with, because the newest crashed it.
     var pinned: [String: String] = [:]
+    /// Builds Nightforge's Steam came up on (SteamStartCheck). Optional, like the next two, so a
+    /// history from before reads.
+    var steamStarted: [String]?
+    /// Steam starts in a row that didn't come up, on the newest build or the one Steam is pinned to.
+    var steamFailures: [String: Int]?
+    /// The held build Nightforge's Steam – and so its games – starts with, because Steam didn't
+    /// come up on the newest.
+    var steamPinned: String?
 
     struct GoodStart: Codable, Equatable {
         var build: String
@@ -206,12 +214,16 @@ struct EngineRollback {
                 history.current = build
                 history.currentSetUp = now
                 history.pinned = [:]
+                history.steamPinned = nil
+                history.steamFailures = nil
             }
             let gone = Self.unneeded(history, now: now).filter { !inUse(folder(of: $0, part: $0.build.engineID)) }
             history.held.removeAll { held in gone.contains(held) }
             let kept = Set(history.held.map(\.build.id) + [build.id])
             history.lastGood = history.lastGood.filter { kept.contains($0.value.build) }
             history.pinned = history.pinned.filter { kept.contains($0.value) }
+            history.steamStarted = history.steamStarted?.filter { kept.contains($0) }
+            if let steam = history.steamPinned, !kept.contains(steam) { history.steamPinned = nil }
             return gone
         }
         let fm = FileManager.default
@@ -229,7 +241,7 @@ struct EngineRollback {
     /// Held builds no game needs: none last ran well on it, or it was replaced over `keepDays`
     /// ago and no game is pinned to it; past `maxHeld`, the oldest go (pinned ones last).
     static func unneeded(_ history: EngineHistory, now: Date) -> [HeldBuild] {
-        let pinned = Set(history.pinned.values)
+        let pinned = Set(history.pinned.values + [history.steamPinned].compactMap { $0 })
         let needed = Set(history.lastGood.values.map(\.build)).union(pinned)
         let keep = history.held
             .filter { held in
@@ -246,10 +258,25 @@ struct EngineRollback {
 
     // MARK: - Starts
 
-    /// The held build the game starts with because the newest crashed it, while its copy is there.
+    /// The held build the game starts with because the newest crashed it – or, for a Steam game,
+    /// because Steam didn't come up on the newest – while its copy is there.
     func pinnedBuild(_ game: GameID) -> HeldBuild? {
         let history = history()
-        guard let id = history.pinned[game.key], let held = history.held.first(where: { $0.build.id == id }),
+        if let id = history.pinned[game.key], let held = copy(id, in: history) { return held }
+        guard game.provider == .steam, let id = history.steamPinned else { return nil }
+        return copy(id, in: history)
+    }
+
+    /// The game starts with a held build only because Steam didn't come up on the newest.
+    func pinnedForSteam(_ game: GameID) -> Bool {
+        let history = history()
+        guard game.provider == .steam, let steam = history.steamPinned else { return false }
+        return history.pinned[game.key].flatMap { copy($0, in: history) } == nil && copy(steam, in: history) != nil
+    }
+
+    /// The held build `id`, while its copy is there.
+    private func copy(_ id: String, in history: EngineHistory) -> HeldBuild? {
+        guard let held = history.held.first(where: { $0.build.id == id }),
               FileManager.default.fileExists(atPath: folder(of: held, part: held.build.engineID).path)
         else { return nil }
         return held
@@ -297,9 +324,78 @@ struct EngineRollback {
     }
 
     /// "Try the newest now": the next start uses the newest build. Should it crash again,
-    /// `afterFailedStart` brings the held one back by itself.
+    /// `afterFailedStart` brings the held one back by itself. For a Steam game Steam itself tries the
+    /// newest again too, with its count of failed starts from zero.
     func tryNewest(_ game: GameID) {
-        change { $0.pinned[game.key] = nil }
+        change { history in
+            history.pinned[game.key] = nil
+            if game.provider == .steam, history.steamPinned != nil {
+                history.steamPinned = nil
+                history.steamFailures = nil
+            }
+        }
+    }
+
+    // MARK: - Steam itself
+
+    /// Steam starts in a row that didn't come up before Steam goes back to a held build: one alone
+    /// could be a Steam that was only slow.
+    static let steamFailuresToRollBack = 2
+
+    /// The held build Nightforge's Steam starts with because it didn't come up on the newest, while
+    /// its copy is there.
+    func steamPinnedBuild() -> HeldBuild? {
+        let history = history()
+        return history.steamPinned.flatMap { copy($0, in: history) }
+    }
+
+    /// The build whose engine `wine` is: the newest set up, or a held one.
+    func build(running wine: URL) -> EngineBuild? {
+        let history = history()
+        func engine(_ folder: URL?) -> String? { folder.flatMap(Engine.wineBinary(in:))?.standardizedFileURL.path }
+        let path = wine.standardizedFileURL.path
+        if let current = history.current, engine(installedFolder(of: current, part: current.engineID)) == path { return current }
+        return history.held.first { engine(folder(of: $0, part: $0.build.engineID)) == path }?.build
+    }
+
+    /// Steam came up on `build` (SteamStartCheck).
+    func recordSteamStarted(_ build: EngineBuild) {
+        change { history in
+            if !(history.steamStarted ?? []).contains(build.id) { history.steamStarted = (history.steamStarted ?? []) + [build.id] }
+            history.steamFailures?[build.id] = nil
+        }
+    }
+
+    /// A Steam start on `build` didn't come up (SteamStartCheck). The second time in a row on the
+    /// newest build – one Steam never came up on – Steam goes back to the newest held build it did
+    /// come up on, or that Steam's games ran well on: they start through Steam. The second time on
+    /// that held build, it isn't the engine's doing: the pin goes, and that build is no way back for
+    /// Steam any more.
+    func afterFailedSteamStart(_ build: EngineBuild) -> Verdict {
+        change { history in
+            let onHeld = history.steamPinned == build.id
+            guard onHeld || (build == history.current && history.steamPinned == nil
+                             && !(history.steamStarted ?? []).contains(build.id))
+            else { return .none }
+            let failures = (history.steamFailures?[build.id] ?? 0) + 1
+            history.steamFailures = [build.id: failures]
+            guard failures >= Self.steamFailuresToRollBack else { return .none }
+            history.steamFailures = nil
+            if onHeld {
+                history.steamPinned = nil
+                history.steamStarted?.removeAll { $0 == build.id }
+                history.lastGood = history.lastGood.filter { GameID(key: $0.key)?.provider != .steam || $0.value.build != build.id }
+                return .heldFailed
+            }
+            let steamGames = Set(history.lastGood.filter { GameID(key: $0.key)?.provider == .steam }.map(\.value.build))
+            guard let held = history.held
+                .filter({ (history.steamStarted ?? []).contains($0.build.id) || steamGames.contains($0.build.id) })
+                .sorted(by: { $0.heldSince > $1.heldSince })
+                .first(where: { copy($0.build.id, in: history) != nil })
+            else { return .none }
+            history.steamPinned = held.build.id
+            return .rollBack(held)
+        }
     }
 
     // MARK: - Labels
