@@ -21,6 +21,8 @@ struct GameOverlayTest {
         hold()
         steps()
         targets()
+        presence()
+        firstSeconds()
         windows()
         curtain()
         wayBack()
@@ -153,6 +155,81 @@ struct GameOverlayTest {
     }
 
     /// What the curtain waits for: a window of a game's size from one of the game's processes.
+    /// A game's standing by the process list at hand (review N1): only a list asked for just now says it is gone;
+    /// an old one (ps is down) says it runs for a game that was in it, and "not known" for one that wasn't.
+    static func presence() {
+        let marker = #"\steamapps\common\calluna\"#
+        let folders = [marker: "steam.1"]
+        let game = FakeProcesses.Row(pid: 4201, command: #"C:\Program Files (x86)\Steam\steamapps\common\Calluna\Calluna.exe"#)
+        let other = FakeProcesses.Row(pid: 4202, command: #"C:\windows\system32\services.exe"#)
+        defer { FakeProcesses.installEmpty() }
+        func standing() -> GameProcesses.Presence { GameProcesses.presence(of: "steam.1", folders: folders) }
+
+        FakeProcesses.install { [other, game] }
+        check(standing() == .running(4201), "a list asked for just now with the game: it runs")
+        FakeProcesses.install { [other] }
+        check(standing() == .gone, "… without it: gone")
+        FakeProcesses.installEmpty()
+        check(standing() == .gone, "… an empty one: gone")
+        FakeProcesses.installOld { [other, game] }
+        check(standing() == .running(4201), "an old list (ps is down) with the game: it ran, so it runs")
+        FakeProcesses.installOld { [other] }
+        check(standing() == .unknown && standing().mayBeRunning,
+              "an old list without it: not known – the game may have started after the list was made")
+        FakeProcesses.installDown()
+        check(standing() == .unknown && standing().mayBeRunning, "no list at all: not known")
+        check(!GameProcesses.Presence.gone.mayBeRunning, "only gone is not running")
+
+        // The curtain's look: an old list that doesn't show the game decides nothing (the !seenOnce case).
+        func look() -> GameProcesses.CurtainLook? { GameProcesses.curtainLook(marker: marker, folder: nil, front: nil) }
+        FakeProcesses.install { [other] }
+        check(look() == GameProcesses.CurtainLook(pids: [], companion: false), "the curtain: a list just asked for, no game – an empty look")
+        FakeProcesses.installOld { [other] }
+        check(look() == nil, "the curtain: an old list without the game – nothing decided")
+        FakeProcesses.installOld { [other, game] }
+        check(look()?.pids == [4201], "the curtain: an old list with the game – it is there")
+        FakeProcesses.installDown()
+        check(look() == nil, "the curtain: no list – nothing decided")
+    }
+
+    /// The first-seconds watch (review N1): a look without an answer counts for neither side.
+    static func firstSeconds() {
+        typealias Verdict = FirstSecondsWatch.Verdict
+        func run(_ looks: [GameProcesses.Presence]) -> (Verdict?, FirstSecondsWatch) {
+            var watch = FirstSecondsWatch()
+            for look in looks {
+                if let verdict = watch.look(look) { return (verdict, watch) }
+            }
+            return (nil, watch)
+        }
+        let running = GameProcesses.Presence.running(1), gone = GameProcesses.Presence.gone, unknown = GameProcesses.Presence.unknown
+
+        check(run([running] + Array(repeating: gone, count: 9)).0 == nil, "gone for nine looks: not yet")
+        check(run([running] + Array(repeating: gone, count: 10)).0 == .ended, "gone for ten looks in a row: ended")
+        check(run([running, gone, gone, gone, running] + Array(repeating: gone, count: 9)).0 == nil, "a gap of a launcher handing over: not ended")
+        check(run(Array(repeating: gone, count: 3) + Array(repeating: unknown, count: 5) + Array(repeating: gone, count: 7)).0 == .ended,
+              "looks without an answer between don't reset the absence: ten gone in all")
+        check(run(Array(repeating: unknown, count: 29)).0 == nil && run(Array(repeating: unknown, count: 30)).0 == .unknown,
+              "thirty looks without an answer: unknown, not ended")
+        check(run([running, gone, gone, gone] + Array(repeating: unknown, count: 30)).0 == .unknown,
+              "an absence that began, then no answer: unknown – not that it ended")
+
+        // At the end of the window: seen running and not gone since → survived; otherwise nothing is known.
+        check(run([unknown, unknown, running, unknown]).1.verdictAtEnd == .survived, "seen running, then a blind look: survived")
+        check(run(Array(repeating: unknown, count: 20)).1.verdictAtEnd == .unknown, "never an answer: unknown, not survived")
+        check(FirstSecondsWatch().verdictAtEnd == .unknown, "no look at all: unknown")
+
+        // Whether the watch goes on: the window, then an absence that is under way.
+        var watch = FirstSecondsWatch()
+        check(watch.continues(after: 5) && !watch.continues(after: LaunchHealth.failureWindow), "the window, then it ends")
+        _ = watch.look(running)
+        _ = watch.look(gone)
+        check(watch.continues(after: LaunchHealth.failureWindow + 5), "an absence that began goes on past the window")
+        for _ in 0..<8 { _ = watch.look(gone) }
+        check(watch.continues(after: LaunchHealth.failureWindow + 5), "… until it has lasted ten looks")
+        check(watch.look(gone) == .ended && !watch.continues(after: LaunchHealth.failureWindow + 5), "ten looks: over")
+    }
+
     static func windows() {
         func window(_ pid: Int32, _ width: Double, _ height: Double, layer: Int = 0, alpha: Double = 1, number: Int = 1) -> [String: Any] {
             [kCGWindowOwnerPID as String: NSNumber(value: pid), kCGWindowLayer as String: NSNumber(value: layer),
