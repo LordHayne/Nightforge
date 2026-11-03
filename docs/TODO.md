@@ -529,11 +529,51 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 
 ### Engine-Rückfall (3.3, Branch `claude/engine-rollback-02a61e`)
 
-- **Nach dem Zusammenführen mit 0.2 (GameID):** `EngineRollback` merkt sich Spiele unter der Steam-App-ID, und
-  `LaunchHealth.confirmedWays` liest `launchHealth.<id>`. Beides auf die neue ID umstellen.
-- **Nur Abstürze eines Spiels zählen.** Startet Steam selbst mit der neuen Engine nicht, greift der Rückfall nicht.
-- **Datum der ersten gehaltenen Engine:** Es ist der Tag, an dem 3.3 zum ersten Mal lief, nicht der Tag, an dem
-  diese Engine kam.
+- **Nach dem Zusammenführen mit 0.2 (GameID): erledigt.**
+  - `EngineRollback` führt Spiele unter `GameID.key` (`steam.570`, `epic.<…>`, `gog.<…>`).
+    `EngineHistory.useGameKeys` liest alte App-IDs als `steam.<id>`.
+  - `LaunchHealth.confirmedWays` liest nur `launchHealth.<GameID.key>`. `GameIDMigration` hat die alten Einträge
+    einmal dorthin kopiert.
+  - Neu (3.11., Zweig `claude/engine-rueckfall-33`): Steht ein Spiel unter beiden Schlüsseln, gilt der Eintrag unter
+    dem Store-Schlüssel. Bisher entschied die Reihenfolge in der Datei, und ein alter Pin konnte den neuen
+    verdrängen.
+- **Nur Abstürze eines Spiels zählen: gebaut (3.11., Zweig `claude/engine-rueckfall-33`), Live-Test offen.**
+  - Erkennen (`SteamStartCheck`):
+    - Nach einem Steam-Start durch Nightforge (`Engine.lastSteamStart`) gilt Steam als hochgekommen, sobald es seit
+      diesem Start angemeldet ist, sein Fenster nach dem Konto fragt, von Steam für Mac abgemeldet wurde oder fertig
+      gestartet ist.
+    - Es zählen nur Logzeilen seit dem Start. Ein Start, der früh stirbt, hinterlässt sonst das „Logged On“ der
+      letzten Sitzung.
+    - Als nicht hochgekommen gilt Steam erst nach 90 s, ohne eigenes Update (`SteamBootstrap` nicht `.idle` heißt
+      nie Fehlschlag), und nur mit beendetem Prozess oder 45 s stillen Logs.
+  - Zählen (`EngineRollback.afterFailedSteamStart`):
+    - Zwei Fehlstarts in Folge auf dem neuesten Build führen zum Rückfall. Hochgekommen ist Steam darauf noch nie;
+      sonst ist ein Hänger Steams eigene Sache.
+    - Dann starten Steam und alle Steam-Spiele mit dem neuesten gehaltenen Build, auf dem Steam schon lief oder
+      Steam-Spiele gut liefen. Epic- und GOG-Spiele bleiben auf dem neuesten.
+    - Kommt Steam auch dort zweimal nicht hoch, fällt der Pin weg, und dieser Build ist kein Rückweg mehr. So
+      pendelt nichts hin und her.
+    - Das nächste Update und „Jetzt die neueste probieren“ geben dem neuesten wieder eine Chance.
+  - Greifen:
+    - `Engine.startSteam` nimmt bei gesetztem Pin die gehaltene Engine (`steamEngine`, mit deren Prefix-Anteil).
+    - Steam-Spiele bekommen sie über `pinnedBuild` und `engineForStart`.
+    - Gezählt wird beim Startwächter nach App-Start (`watchSteamStart`) und nach jedem Neustart wegen Hängens
+      (`restartStuckSteam`). Nach dem zweiten Fehlstart startet Steam gleich auf der gehaltenen Engine, wenn nichts
+      darauf wartet.
+    - Die Spielseite sagt: „Läuft mit der vorigen Engine vom … – Steam ist mit der neuesten nicht gestartet.“
+  - Live-Test: geht nur mit einer Engine, auf der Steam wirklich nicht startet (etwa einem kaputten Test-Build über
+    `NightforgeManifestURL`). Prüfen: Nach zwei Fehlstarts steht in `wine.log` „Steam didn't come up on engine … twice“,
+    Steam läuft auf der Kopie in `.held`, und ein Steam-Spiel startet. Ein Steam mit Client-Update beim Start darf
+    nichts auslösen.
+- **Datum der ersten gehaltenen Engine: behoben (3.11., Zweig `claude/engine-rueckfall-33`).**
+  - `settle` nimmt als Einrichtungstag den Tag, den die Ordner eines Builds nennen (`EngineRollback.setUpDate`):
+    den neuesten `.sha256`-Marker seiner Teile und den Grafik-Stempel der Engine, solange er zu diesem Build passt.
+    D3DMetal, MoltenVK und der Rest gehen in die Engine, also gilt der Stempel für sie.
+  - Die Kopien in `.held` behalten diese Daten (clonefile). Schon gespeicherte falsche Tage stellt der nächste
+    App-Start richtig. Sie werden dabei nur früher, nie später.
+  - Sagen die Ordner nichts, bleibt es beim Tag, an dem Nightforge den Build zuerst sah.
+  - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
+    erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
 ## Mac-Versionen
 

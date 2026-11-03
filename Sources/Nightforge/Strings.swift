@@ -760,6 +760,8 @@ enum L10n {
         "%@ (held back)": "%@ (zurückgehalten)",
         "Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.":
             "Läuft mit der vorigen Engine vom %@ – die neueste hat es abstürzen lassen. Nightforge probiert die neue nach dem nächsten Update wieder.",
+        "Runs with the previous engine from %@ – Steam didn't start with the newest one. Nightforge tries the new one again after the next update.":
+            "Läuft mit der vorigen Engine vom %@ – Steam ist mit der neuesten nicht gestartet. Nightforge probiert die neue nach dem nächsten Update wieder.",
         "Try the Newest Now": "Jetzt die neueste probieren",
         "Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.":
             "Der nächste Start nimmt die neueste Engine (%@). Stürzt es wieder ab, wechselt Nightforge von selbst zurück.",
