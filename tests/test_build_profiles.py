@@ -143,7 +143,11 @@ class SafetyTests(unittest.TestCase):
         today = run(ROOT)
         self.assertEqual(today.returncode, 0, today.stdout + today.stderr)
         for field, value in [("dllOverrides", {"ntdll": "native"}), ("arguments", ["--ini=/etc/passwd"]),
-                             ("arguments", ["-x"] * 17)]:
+                             ("arguments", ["-x"] * 17), ("winetricks", ["win98"]),
+                             ("fileEdits", [{"path": "../../x.ini", "find": "a", "replace": "b"}]),
+                             ("iniSettings", [{"root": "WinAppDataLocal", "path": "x.ini", "section": "a]b", "values": {"k": "v"}}]),
+                             ("resolution", {"root": "MacHome", "path": "x.cfg", "fields": {"width": 0, "height": 1}}),
+                             ("saves", [{"root": "WinAppDataRoaming", "path": "", "mac": "MacAppSupport"}])]:
             with self.subTest(field=field, value=str(value)[:40]), tempfile.TemporaryDirectory() as folder:
                 folder = pathlib.Path(folder)
                 (folder / "scripts").mkdir()
@@ -155,6 +159,88 @@ class SafetyTests(unittest.TestCase):
                 result = run(folder)
                 self.assertNotEqual(result.returncode, 0, "the workflow stops before anything is proposed")
                 self.assertIn("AssertionError", result.stderr)
+
+
+class FileRuleTests(unittest.TestCase):
+    """The game's own files: fileEdits, iniSettings, resolution and saves (review of 3.11.2026)."""
+
+    def test_paths_stay_under_their_root(self):
+        for path in ("Saved/Config/Windows/Engine.ini", "2K Games/Mafia II/Saves/videoconfig.cfg", "a\\b.ini"):
+            self.assertTrue(build_profiles.relative_path_allowed(path), path)
+        for path in ("../x.ini", "a/../../b", "a\\..\\b", "/etc/hosts", "\\\\server\\x", "C:\\x.ini", "~/x", "a\nb", "", "x" * 300):
+            self.assertFalse(build_profiles.relative_path_allowed(path), repr(path))
+        self.assertTrue(build_profiles.relative_path_allowed("", empty=True))
+
+    def test_roots_from_the_apps_list(self):
+        self.assertTrue(build_profiles.root_allowed("WinAppDataLocal", build_profiles.WINDOWS_ROOTS))
+        self.assertTrue(build_profiles.root_allowed("gameinstall", build_profiles.WINDOWS_ROOTS))
+        self.assertTrue(build_profiles.root_allowed(None, build_profiles.WINDOWS_ROOTS, optional=True))
+        for root in ("MacHome", "/", "WinSystem32", None, 3):
+            self.assertFalse(build_profiles.root_allowed(root, build_profiles.WINDOWS_ROOTS), root)
+        self.assertFalse(build_profiles.root_allowed("WinAppDataLocal", build_profiles.MAC_ROOTS))
+
+    def test_file_edits(self):
+        ok = {"root": "WinAppDataLocal", "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+              "find": "bUseRayTracing=True", "replace": "bUseRayTracing=False"}
+        self.assertTrue(build_profiles.file_edits_allowed([ok, {**ok, "root": None, "once": True}]))
+        for bad in ({**ok, "replace": "bUseRayTracing=True, again"},      # grows the file at every start
+                    {**ok, "find": ""}, {**ok, "root": "MacAppSupport"}, {**ok, "path": "../Engine.ini"},
+                    {**ok, "once": "yes"}, {**ok, "find": "a\x00b"}):
+            self.assertFalse(build_profiles.file_edits_allowed([bad]), bad)
+        self.assertFalse(build_profiles.file_edits_allowed([ok] * 33))
+
+    def test_ini_settings(self):
+        ok = {"root": "WinAppDataLocal", "path": "Sega/SonicMania/Settings.ini", "section": "Video", "values": {"windowed": "n"}}
+        self.assertTrue(build_profiles.ini_settings_allowed([ok]))
+        for bad in ({**ok, "section": "Video]\n[Other"}, {**ok, "values": {"a=b": "1"}}, {**ok, "values": {"k": "1\nx=2"}},
+                    {**ok, "values": {}}, {**ok, "root": None}, {**ok, "path": "/etc/x.ini"}, {**ok, "section": ""}):
+            self.assertFalse(build_profiles.ini_settings_allowed([bad]), bad)
+
+    def test_resolution(self):
+        fields = {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
+                  "fields": {"width": 2, "height": 3, "fullscreen": 4}}
+        ini = {"path": "settings.ini", "section": "Display", "keys": {"width": "ResX", "height": "ResY"}, "fullscreenOn": ["1", "true"]}
+        self.assertTrue(build_profiles.resolution_allowed(fields))
+        self.assertTrue(build_profiles.resolution_allowed(ini))
+        for bad in ({**fields, "fields": {"width": 2}}, {**fields, "fields": {"width": 2, "height": True}},
+                    {**fields, "keys": {"width": "a", "height": "b"}, "section": "S"}, {**ini, "keys": {"width": "a=b", "height": "c"}},
+                    {**fields, "root": "MacCaches"}, {**fields, "path": "../x"}, {**ini, "fullscreenOn": ["\n"]}):
+            self.assertFalse(build_profiles.resolution_allowed(bad), bad)
+
+    def test_saves(self):
+        ok = {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "mac": "MacAppSupport"}
+        self.assertTrue(build_profiles.saves_allowed([ok, {**ok, "pattern": "*.sav", "recursive": False, "macPath": "7 Days"}]))
+        self.assertTrue(build_profiles.saves_allowed([{**ok, "path": "", "pattern": "*.sav"}]), "a pattern of its own in a whole root")
+        self.assertTrue(build_profiles.saves_allowed([{**ok, "path": "", "recursive": False}]), "the root's own files only")
+        self.assertTrue(build_profiles.saves_allowed([{**ok, "root": "GameInstall", "path": ""}]), "the game's folder as a whole")
+        for bad in ({**ok, "path": ""}, {**ok, "path": "/", "pattern": "*"}, {**ok, "mac": "WinAppDataLocal"},
+                    {**ok, "root": "MacAppSupport"}, {**ok, "path": "../Other"}, {**ok, "macPath": "/Users"},
+                    {**ok, "pattern": "a/b"}, {**ok, "recursive": "yes"}):
+            self.assertFalse(build_profiles.saves_allowed([bad]), bad)
+
+    def test_mac_profiles_are_checked_before_they_go_into_the_list(self):
+        shipped = json.loads((ROOT / "profiles/mac.json").read_text())["games"]
+        self.assertEqual(build_profiles.mac_problems(shipped), [])
+        problems = build_profiles.mac_problems({
+            "1": {"winetricks": ["win98", "vcrun2019"]}, "2": {"saves": [{"root": "WinAppDataLocal", "path": "", "mac": "MacAppSupport"}]},
+            "3": {"fileEdits": [{"path": "x.ini", "find": "a", "replace": "aa"}]}, "4": {"arguments": ["--config=/etc/x"]},
+            "5": {"registry": [{"key": "HKCU\\Software\\Microsoft\\x"}]}, "6": {"windowsVersion": "win95"},
+        })
+        self.assertEqual(problems, ["1: winetricks 'win98' (say windowsVersion)", "2: saves", "3: fileEdits", "4: arguments",
+                                    "5: registry", "6: windowsVersion"])
+
+    def test_the_builder_refuses_a_mac_json_that_breaks_them(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = pathlib.Path(folder)
+            (root / "umu/gamefixes-steam").mkdir(parents=True)
+            (root / "mac.json").write_text(json.dumps({"games": {"1": {"iniSettings": [
+                {"root": "WinAppDataLocal", "path": "../../.ssh/config", "section": "x", "values": {"a": "b"}}]}}}))
+            out = root / "profiles.json"
+            run = subprocess.run([sys.executable, "-I", str(SCRIPT), str(root / "umu"), "--mac", str(root / "mac.json"), "--out", str(out)],
+                                 capture_output=True, text=True)
+            self.assertEqual(run.returncode, 1, run.stdout)
+            self.assertIn("1: iniSettings", run.stderr)
+            self.assertFalse(out.exists(), "nothing is written")
 
 
 class AntiCheatTests(unittest.TestCase):
