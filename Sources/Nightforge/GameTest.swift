@@ -22,10 +22,10 @@ enum GameTest {
         static let stop = "gameTest.stop"
         /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
         static let basket = "gameTest.basket"
-        /// The helper that presses "Play!" in Unity's start window is on (UnityDialog.switchKey on
-        /// kosmickrisp-dx9's branch, read at every start): the run gives it time before it calls the
-        /// window one that needs a click. Whether it runs for a game says UnityDialog.programs.
-        static let unityDialogPlay = "unityDialogPlay"
+        /// The helper that presses "Play!" in Unity's start window is on (UnityDialog's own switch, read
+        /// at every start): the run gives it time before it calls the window one that needs a click.
+        /// Whether it runs for a game says UnityDialog.programs.
+        static let unityDialogPlay = UnityDialog.switchKey
     }
 
     /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
