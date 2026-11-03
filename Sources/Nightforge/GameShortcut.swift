@@ -61,16 +61,22 @@ enum GameShortcut {
         arc4random_buf(&bytes, bytes.count)
         let key = bytes.map { String(format: "%02x", $0) }.joined()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        if FileManager.default.fileExists(atPath: file.path) {
-            try? FileManager.default.removeItem(at: file)  // there, but no key (cut short)
-        }
-        // Readable by the player alone from the moment it's there, and never over one written
-        // meanwhile (the start's addKey and a link at once): that one counts.
-        let descriptor = open(file.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        // Written whole to a file of its own, readable by the player alone from the moment it's there, and put
+        // in place in one step: the start's addKey and "Add to Applications" at once never see half a key, and
+        // the one that links first wins – the others hand out what the file holds, not a key of their own.
+        let temporary = folder.appendingPathComponent("shortcut-key.\(UUID().uuidString).tmp")
+        let descriptor = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard descriptor >= 0 else { return kept() ?? key }
-        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        guard (try? handle.write(contentsOf: Data(key.utf8))) != nil else { return kept() ?? key }
-        return key
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: false)
+        let written = (try? handle.write(contentsOf: Data(key.utf8))) != nil
+        close(descriptor)
+        defer { unlink(temporary.path) }
+        guard written else { return kept() ?? key }
+        if link(temporary.path, file.path) == 0 { return key }
+        // There already: a key, whole (the other one's), or a file that holds none (cut short), which is replaced.
+        if let other = kept() { return other }
+        if rename(temporary.path, file.path) == 0 { return kept() ?? key }
+        return kept() ?? key
     }
 
     /// What a game's app runs: open its link, with the key.

@@ -68,6 +68,7 @@ struct GameShortcutTest {
         }
 
         keys(folder)
+        concurrentKeys(folder)
         strangeLinks(folder)
         olderApps(folder)
 
@@ -89,6 +90,32 @@ struct GameShortcutTest {
         check(replaced != first && replaced.count == 32 && GameShortcut.key(in: home) == replaced, "a file that holds no key gets a new one")
         let other = GameShortcut.key(in: folder.appendingPathComponent("other", isDirectory: true))
         check(other != replaced, "each Mac its own")
+    }
+
+    /// "Add to Applications" and the start's addKey at once: every one gets the key the file holds, never a key of
+    /// its own that was not kept (outside review, item 4). The window is microseconds wide: many rounds.
+    static func concurrentKeys(_ folder: URL) {
+        var splits = 0
+        var stray = 0
+        var modes = Set<Int>()
+        for round in 0..<300 {
+            let home = folder.appendingPathComponent("support-race-\(round)", isDirectory: true)
+            let keys = LockedValue<[String]>([])
+            DispatchQueue.concurrentPerform(iterations: 16) { _ in
+                let key = GameShortcut.key(in: home)
+                keys.withLock { $0.append(key) }
+            }
+            let file = home.appendingPathComponent("shortcut-key")
+            let kept = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let all = keys.withLock { $0 }
+            if all.count != 16 || Set(all) != [kept] || kept.count != 32 { splits += 1 }
+            modes.insert(((try? FileManager.default.attributesOfItem(atPath: file.path))?[.posixPermissions] as? Int) ?? -1)
+            stray += ((try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []).filter { $0 != "shortcut-key" }.count
+            try? FileManager.default.removeItem(at: home)
+        }
+        check(splits == 0, "300 rounds of 16 at once: one key for all, the one in the file (\(splits) rounds split)")
+        check(modes == [0o600], "…readable by the player alone: \(modes)")
+        check(stray == 0, "…and nothing left beside it: \(stray) files")
     }
 
     /// Links and IDs that aren't what they look like (outside review, items 2 and 3).
