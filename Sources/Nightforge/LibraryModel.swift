@@ -2934,10 +2934,16 @@ final class LibraryModel: ObservableObject {
                 // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
                 let way = LaunchAttempt(graphics: layer, arguments: arguments).id
                 if let build, EngineRollback.shared.needsWatch(game.gameID, build: build, way: way) { watchFirstSeconds = true }
+                // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
+                let programChanged = viaSteam && game.bottle.isBuiltIn
+                    ? await Engine.offMain { [options] in
+                        SteamProgram.prepare(game, route: SteamProgram.route(game, layer: layer, options: options, profile: profile))
+                    }
+                    : false
                 if viaSteam, game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
-                                                   retina: profile?.retina == true),
+                                                   retina: profile?.retina == true) || programChanged,
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))

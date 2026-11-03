@@ -15,7 +15,8 @@ struct GameOptionsSheet: View {
     /// How tall the options are: they scroll only when the window leaves less room.
     @State private var contentHeight: CGFloat = 0
     @ObservedObject private var padFocus = PadFocus.shared
-    /// The program the store starts (Epic's, GOG's – Steam picks its own), and the game's programs beside it.
+    /// The program the store starts (Steam's launch option, its one without anti-cheat when there is
+    /// one; Epic's, GOG's), and the game's programs beside it.
     private let storeProgram: URL?
     private let programs: [String]
 
@@ -31,14 +32,14 @@ struct GameOptionsSheet: View {
         programs = storeProgram.map { GameAnalysis.programs(near: $0, in: game.installDir) } ?? []
     }
 
-    /// The program an Epic or GOG game's store starts, inside its folder.
+    /// The program a game's store starts, inside its folder.
     private static func storeProgram(of game: Game) -> URL? {
         guard game.bottle.isBuiltIn, game.isInstalled else { return nil }
         let relative: String?
         switch game.provider {
         case .epic: relative = EpicStore.executable(of: game.gameID.id)
         case .gog: relative = GOGStore.executable(of: game.gameID.id, in: game.installDir)
-        case .steam: relative = nil
+        case .steam: relative = SteamProgram.storeProgram(SteamCatalog.launchEntries(appID: game.appID, steamRoot: game.steamRoot))
         }
         return relative.map { game.installDir.appendingPathComponent($0.replacingOccurrences(of: "\\", with: "/")) }
     }

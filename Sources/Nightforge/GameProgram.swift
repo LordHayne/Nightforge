@@ -1,11 +1,12 @@
 import Foundation
 
-/// Which of a game's programs starts it, for the games Nightforge starts itself (Epic, GOG). The
-/// store names one; the player can pick another in the game's options, a profile can name one, and
-/// a game with a DirectX 12 program of its own beside the store's starts that one on D3DMetal –
-/// Control: Control.exe hands over to Control_DX11.exe, which DXMT and DXVK can't run, while
-/// Control_DX12.exe runs on D3DMetal (GameAnalysis.d3d12Program). The other layers have no
-/// DirectX 12 and keep the store's program. Steam's games start through Steam, which picks its own.
+/// Which of a game's programs starts it. The store names one; the player can pick another in the
+/// game's options, a profile can name one, and a game with a DirectX 12 program of its own beside
+/// the store's starts that one on D3DMetal – Control: Control.exe hands over to Control_DX11.exe,
+/// which DXMT and DXVK can't run, while Control_DX12.exe runs on D3DMetal
+/// (GameAnalysis.d3d12Program). The other layers have no DirectX 12 and keep the store's program.
+/// Epic's and GOG's games Nightforge starts itself; Steam's get the choice through Steam's launch
+/// options (SteamProgram).
 enum GameProgram {
     /// The program to start: `chosen` (the options' choice, "" = automatic), else `profile`'s, else
     /// on D3DMetal the game's DirectX 12 program, else the store's `store`. A choice that isn't a
