@@ -275,6 +275,15 @@ Beide Bots (`components.yml`, `profiles.yml`) schlagen Änderungen nur noch als 
 
 `bot/profiles` bringt neben `profiles.json` auch `agw.json`. Das Skript signiert jede Liste, die sich geändert hat.
 
+**Wer signiert wann?** Immer du, auf deinem Mac, **vor** dem Merge, auf dem Zweig des Pull Requests. Der Merge bringt
+Liste und `.sig` zusammen nach `main`, und von dort lädt die App beide. Ein CI-Secret mit dem Schlüssel gibt es
+absichtlich nicht. Sonst könnte jeder, der einen Workflow ändern oder ein Token stehlen kann, auch signieren, und die
+Signatur sagte nichts mehr. Der nächtliche Lauf selbst hat nur die Rechte, die er braucht. Das Bauen und Prüfen
+(auch bei Pull Requests) liest nur. Den Zweig `bot/profiles` und seinen Pull Request schreibt ein eigener Job. Nur
+der Zeitplan-Job darf Workflows wieder einschalten. Vorher weist der Prüfschritt Listen mit unsicheren
+`dllOverrides` oder `arguments` ab (bloße DLL-Namen, Wines Reihenfolgen, keine Pfade aus dem Spiel heraus, keine
+Steuer- oder Sonderzeichen), dann entsteht gar kein Pull Request.
+
 Ein Merge ohne Signatur schadet niemandem: Die Apps behalten ihre Liste, und der Check auf `main` wird rot.
 Komponenten wie `enginefix` brauchen keine eigene Signatur. Das signierte `manifest.json` nennt ihre SHA-256, und die
 App prüft jedes Paket dagegen, bevor sie es auspackt.
