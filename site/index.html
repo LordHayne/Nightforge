@@ -7,7 +7,9 @@
 <meta name="description" content="Nightforge is a free game launcher for Apple silicon Macs: Steam, Epic and GOG games in one place, Mac versions first, Windows games sharp and smooth by themselves.">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
+<link rel="canonical" href="https://lordhayne.github.io/Nightforge/">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://lordhayne.github.io/Nightforge/">
 <meta property="og:title" content="Nightforge – Your games on your Mac">
 <meta property="og:description" content="A free game launcher for Apple silicon Macs. Switch on and enjoy.">
 <meta property="og:image" content="https://lordhayne.github.io/Nightforge/img/og.jpg">
@@ -32,6 +34,14 @@
     }
     root.setAttribute('data-lang', lang);
     root.lang = lang;
+    // The picture at the top, in this language only, before the rest of the page asks for anything.
+    var hero = document.createElement('link');
+    hero.rel = 'preload';
+    hero.as = 'image';
+    hero.setAttribute('imagesrcset', 'img/shots/home-' + lang + '-1200.webp 1200w, img/shots/home-' + lang + '-2200.webp 2200w');
+    hero.setAttribute('imagesizes', '(min-width: 1180px) 1040px, 94vw');
+    hero.setAttribute('fetchpriority', 'high');
+    document.head.appendChild(hero);
     if ('IntersectionObserver' in window && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
       root.classList.add('reveals');
     }
@@ -128,7 +138,7 @@
     <h1 class="hero-title"><span lang="de">Einschalten.<br>Und genießen.</span><span lang="en">Switch on.<br>And enjoy.</span></h1>
     <p class="hero-sub"><span lang="de">Deine Spiele von Steam, Epic und GOG auf dem Mac. Kostenlos, mit einem Klick, ohne Basteln.</span><span lang="en">Your Steam, Epic and GOG games on your Mac. Free, one click, no fiddling.</span></p>
     <div class="cta">
-      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">Für den Mac laden</span><span lang="en">Download for Mac</span></a>
+      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest" data-dmg="show-install"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">Für den Mac laden</span><span lang="en">Download for Mac</span></a>
       <a class="link-more" href="#how"><span lang="de">So funktioniert’s</span><span lang="en">See how it works</span><span aria-hidden="true"> ›</span></a>
     </div>
   </div>
@@ -196,7 +206,7 @@
     <h2 class="h2"><span lang="de">Deine ganze Bibliothek. <span class="dim">Mac-Versionen zuerst.</span></span><span lang="en">Your whole library. <span class="dim">Mac versions first.</span></span></h2>
   </div>
   <figure class="wrap shot-xl reveal">
-    <img lang="de" class="screen" src="img/shots/library-de-800.webp" srcset="img/shots/library-de-800.webp 800w, img/shots/library-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Bibliothek mit Filtern und Covern, an denen MAC- und EPIC-Schilder hängen">
+    <img lang="de" class="screen" src="img/shots/library-de-800.webp" srcset="img/shots/library-de-800.webp 800w, img/shots/library-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Bibliothek mit den installierten Spielen: Schilder für MAC, GOG und EPIC + GOG, Controller-Abzeichen und unter jedem Cover, wie das Spiel läuft">
     <img lang="en" class="screen" src="img/shots/library-en-800.webp" srcset="img/shots/library-en-800.webp 800w, img/shots/library-en-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="The library with filters and covers carrying MAC and EPIC tags">
   </figure>
   <div class="wrap cols reveal">
@@ -282,16 +292,20 @@
       <div>
         <p class="panel-kicker"><span lang="de">Gibt es so nur in Nightforge</span><span lang="en">Only in Nightforge, this way</span></p>
         <h3 class="feature-title"><span lang="de">Nightforges eigenes Controller-Menü.</span><span lang="en">Nightforge’s own controller menu.</span></h3>
-        <p class="feature-text"><span lang="de">Eine Tastenkombination am Controller holt mitten im Spiel ein ruhiges Menü nach vorn. Auf dem Sofa bleibt man so nie hängen: Ein eingefrorenes Spiel beendest du mit dem Controller, ohne aufzustehen – und bist gleich wieder in deiner Bibliothek.</span><span lang="en">A button combination on the controller brings up a calm menu in the middle of a game. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up – and you’re straight back in your library.</span></p>
+        <p class="feature-text"><span lang="de">Beide Sticks drücken (L3&nbsp;+&nbsp;R3) und zwei Sekunden halten – schon kommt mitten im Spiel ein ruhiges Menü nach vorn. Auf dem Sofa bleibt man so nie hängen: Ein eingefrorenes Spiel beendest du mit dem Controller, ohne aufzustehen – und bist gleich wieder in deiner Bibliothek.</span><span lang="en">Press both sticks (L3&nbsp;+&nbsp;R3) and hold them for two seconds – and a calm menu comes up in the middle of a game. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up – and you’re straight back in your library.</span></p>
+        <ul class="feature-list">
+          <li><svg class="i" aria-hidden="true"><use href="#i-play"/></svg><span lang="de">Weiterspielen</span><span lang="en">Keep playing</span></li>
+          <li><svg class="i" aria-hidden="true"><use href="#i-x"/></svg><span lang="de">Spiel beenden – auch wenn es hängt</span><span lang="en">Quit the game – even when it hangs</span></li>
+          <li><svg class="i i-mark" aria-hidden="true"><use href="#mark"/></svg><span lang="de">Zu Nightforge</span><span lang="en">Back to Nightforge</span></li>
+        </ul>
       </div>
-      <ul class="feature-list">
-        <li><svg class="i" aria-hidden="true"><use href="#i-play"/></svg><span lang="de">Weiterspielen</span><span lang="en">Keep playing</span></li>
-        <li><svg class="i" aria-hidden="true"><use href="#i-x"/></svg><span lang="de">Spiel beenden – auch wenn es hängt</span><span lang="en">Quit the game – even when it hangs</span></li>
-        <li><svg class="i i-mark" aria-hidden="true"><use href="#mark"/></svg><span lang="de">Zu Nightforge</span><span lang="en">Back to Nightforge</span></li>
-      </ul>
+      <figure class="feature-shot">
+        <img class="screen screen-dialog" src="img/shots/controller-de-700.webp" srcset="img/shots/controller-de-700.webp 700w, img/shots/controller-de-1100.webp 1100w" sizes="(min-width: 1068px) 440px, calc(100vw - 80px)" width="1279" height="1154" loading="lazy" decoding="async" alt="Settings › Controller: button symbols, the combination for the in-game menu and every button with what it does">
+        <figcaption><span lang="de">Einstellungen › Controller: jede Taste, in Klartext.</span><span lang="en">Settings › Controller: every button, in plain words.</span></figcaption>
+      </figure>
     </div>
   </div>
-  <!-- Picture spot (0.3.0): the controller menu over a running game, once it's built and tested. No button names until then. -->
+  <!-- Picture spot (0.3.0): the controller menu over a running game. -->
 </section>
 
 <!-- Chapter: welcome back -->
@@ -305,7 +319,9 @@
     <img lang="de" class="screen" src="img/shots/detail-de-800.webp" srcset="img/shots/detail-de-800.webp 800w, img/shots/detail-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Die Seite von OxyRail mit dem Satz „Du hast gesagt, es läuft gut.“ und der Karte „Dieses Spiel“">
     <img lang="en" class="screen" src="img/shots/detail-en-800.webp" srcset="img/shots/detail-en-800.webp 800w, img/shots/detail-en-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="OxyRail’s page with “You said it runs well” and the “This game” card">
   </figure>
-  <!-- Picture spot (0.3.0): the game page with description, screenshots and game modes, once game-metadata is merged. -->
+  <figure class="wrap shot-xl reveal">
+    <img class="screen" src="img/shots/gameinfo-de-800.webp" srcset="img/shots/gameinfo-de-800.webp 800w, img/shots/gameinfo-de-1400.webp 1400w" sizes="(min-width: 1180px) 1080px, calc(100vw - 40px)" width="3024" height="1706" loading="lazy" decoding="async" alt="Further down Mafia II’s page: About the game with pictures, description, At a glance and How it plays">
+  </figure>
   <div class="wrap cols reveal">
     <div>
       <h3><span lang="de">Alles über das Spiel</span><span lang="en">All about the game</span></h3>
@@ -422,6 +438,23 @@
         <p><span lang="de">Reine VR-Spiele sind markiert, sie laufen auf keinem Mac. Spielstände in der Steam Cloud synchronisieren wie gewohnt.</span><span lang="en">VR-only games are marked; they can’t run on a Mac. Saves in the Steam Cloud sync as usual.</span></p>
       </li>
     </ul>
+    <div class="tested reveal">
+      <h3><span lang="de">Geprüft auf dem Mac</span><span lang="en">Tested on a Mac</span></h3>
+      <p><span lang="de">Live gespielt auf einem Mac mit M5, vom 24.&nbsp;Oktober bis 2.&nbsp;November 2026.</span><span lang="en">Played live on a Mac with M5, 24&nbsp;October to 2&nbsp;November 2026.</span></p>
+      <ul class="tested-list">
+        <li><span class="tg">Asphalt Legends</span><span class="tw">Steam · <span lang="de">Mac-Version</span><span lang="en">Mac version</span></span><span class="tr"><span lang="de">Läuft</span><span lang="en">Runs</span></span></li>
+        <li><span class="tg">Valheim</span><span class="tw">Steam · <span lang="de">Mac-Version</span><span lang="en">Mac version</span></span><span class="tr"><span lang="de">Läuft, auch mit Controller</span><span lang="en">Runs, with a controller too</span></span></li>
+        <li><span class="tg">No Man’s Sky</span><span class="tw">Steam · <span lang="de">Mac-Version</span><span lang="en">Mac version</span></span><span class="tr"><span lang="de">Läuft</span><span lang="en">Runs</span></span></li>
+        <li><span class="tg">OxyRail</span><span class="tw">Steam · <span lang="de">Windows · DXMT</span><span lang="en">Windows · DXMT</span></span><span class="tr"><span lang="de">Läuft, gleichmäßig 60&nbsp;FPS mit MetalFX</span><span lang="en">Runs, a steady 60&nbsp;FPS with MetalFX</span></span></li>
+        <li><span class="tg">Overcooked 2</span><span class="tw">Steam · <span lang="de">Windows · DXMT</span><span lang="en">Windows · DXMT</span></span><span class="tr"><span lang="de">Läuft mit 60&nbsp;FPS, auch mit Controller am Fernseher</span><span lang="en">Runs at 60&nbsp;FPS, with a controller and on the TV too</span></span></li>
+        <li><span class="tg">Black Myth: Wukong Benchmark Tool</span><span class="tw">Steam · <span lang="de">Windows · D3DMetal</span><span lang="en">Windows · D3DMetal</span></span><span class="tr"><span lang="de">Läuft, 68&nbsp;FPS (Niedrig, FSR, 1512&nbsp;×&nbsp;982)</span><span lang="en">Runs, 68&nbsp;FPS (Low, FSR, 1512&nbsp;×&nbsp;982)</span></span></li>
+        <li><span class="tg">The Last Caretaker Demo</span><span class="tw">Steam · <span lang="de">Windows · D3DMetal</span><span lang="en">Windows · D3DMetal</span></span><span class="tr"><span lang="de">Läuft, um 50&nbsp;FPS in voller Retina-Auflösung mit FSR Frame Generation</span><span lang="en">Runs, around 50&nbsp;FPS at full Retina resolution with FSR frame generation</span></span></li>
+        <li><span class="tg">Control</span><span class="tw">Epic Games · <span lang="de">Windows · D3DMetal</span><span lang="en">Windows · D3DMetal</span></span><span class="tr"><span lang="de">Läuft</span><span lang="en">Runs</span></span></li>
+        <li><span class="tg">Mafia II (Classic)</span><span class="tw">GOG · <span lang="de">Windows · WineD3D</span><span lang="en">Windows · WineD3D</span></span><span class="tr"><span lang="de">Läuft, aber noch nicht flüssig</span><span lang="en">Runs, but not smooth yet</span></span></li>
+        <li><span class="tg">Overwatch</span><span class="tw">Steam · <span lang="de">Windows</span><span lang="en">Windows</span></span><span class="tr"><span lang="de">Startet noch nicht – Nightforge sucht die Ursache</span><span lang="en">Doesn’t start yet – Nightforge is looking into why</span></span></li>
+      </ul>
+      <p><span lang="de">Alles andere: probier es aus. Nightforge sucht den Weg selbst und nimmt den nächsten, wenn ein Spiel nicht startet.</span><span lang="en">Everything else: try it. Nightforge finds the way by itself and takes the next one if a game doesn’t start.</span></p>
+    </div>
   </div>
 </section>
 
@@ -430,8 +463,8 @@
   <div class="wrap progress">
     <div class="progress-text reveal">
       <p class="eyebrow"><span lang="de">Fortschritt</span><span lang="en">Progress</span></p>
-      <h2 class="h2"><span lang="de">Eine Woche alt. <span class="dim">Und schon so weit.</span></span><span lang="en">One week old. <span class="dim">And already this far.</span></span></h2>
-      <p class="lede"><span lang="de">Die erste Version entstand am 24.&nbsp;Oktober 2026. Seitdem kommt fast jeden Tag etwas dazu – das hier ist der Stand vom 1.&nbsp;November.</span><span lang="en">The first version came together on 24&nbsp;October 2026. Since then something new has landed almost every day – this is where things stand on 1&nbsp;November.</span></p>
+      <h2 class="h2"><span lang="de">Neun Tage bis 0.3.0. <span class="dim">Und schon so weit.</span></span><span lang="en">Nine days to 0.3.0. <span class="dim">And already this far.</span></span></h2>
+      <p class="lede"><span lang="de">Die erste Version entstand am 24.&nbsp;Oktober 2026. Seitdem kommt fast jeden Tag etwas dazu – das hier ist der Stand von Nightforge&nbsp;0.3.0 vom 2.&nbsp;November.</span><span lang="en">The first version came together on 24&nbsp;October 2026. Since then something new has landed almost every day – this is where things stand with Nightforge&nbsp;0.3.0 on 2&nbsp;November.</span></p>
     </div>
     <ol class="timeline reveal">
       <li><time datetime="2026-10-24"><span lang="de">24.&nbsp;Okt.</span><span lang="en">Oct&nbsp;24</span></time><div><h3><span lang="de">Der Anfang</span><span lang="en">The start</span></h3><p><span lang="de">Windows-Spiele von Steam auf dem Mac, mit einem Klick eingerichtet. DXMT, macOS-Spielmodus, Spiele-Profile – und der Name Nightforge.</span><span lang="en">Windows Steam games on the Mac, set up with one click. DXMT, macOS Game Mode, game profiles – and the name Nightforge.</span></p></div></li>
@@ -441,7 +474,7 @@
       <li><time datetime="2026-10-28"><span lang="de">28.&nbsp;Okt.</span><span lang="en">Oct&nbsp;28</span></time><div><h3>Epic Games</h3><p><span lang="de">Epic-Spiele ohne Epic-Launcher, doppelt gekaufte Spiele zusammengeführt, Trackpad-Gesten.</span><span lang="en">Epic games without the Epic launcher, games owned twice merged into one, trackpad gestures.</span></p></div></li>
       <li><time datetime="2026-10-29"><span lang="de">29.&nbsp;Okt.</span><span lang="en">Oct&nbsp;29</span></time><div><h3><span lang="de">Ein neuer erster Start</span><span lang="en">A new first start</span></h3><p><span lang="de">Einrichtung mit Controller-Test und Tipps, die Startseite als Bühne mit „Weiterspielen“.</span><span lang="en">Setup with a controller test and tips, Home as a stage with “Continue playing”.</span></p></div></li>
       <li><time datetime="2026-10-31"><span lang="de">31.&nbsp;Okt.</span><span lang="en">Oct&nbsp;31</span></time><div><h3><span lang="de">GOG und externe Laufwerke</span><span lang="en">GOG and external drives</span></h3><p><span lang="de">GOG-Spiele ohne Galaxy, Spiele auf externen Laufwerken, größere Schrift auf Wunsch, eine schnellere Ersteinrichtung.</span><span lang="en">GOG games without Galaxy, games on external drives, larger text if you like, a faster first setup.</span></p></div></li>
-      <li class="now"><time datetime="2026-11-01"><span lang="de">1.&nbsp;Nov.</span><span lang="en">Nov&nbsp;1</span></time><div><h3><span lang="de">Ab auf den Fernseher</span><span lang="en">Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise, D3DMetal&nbsp;3.0 aus Apples Toolkit und kostenlose Steam-Spiele direkt aus der Suche.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes, D3DMetal&nbsp;3.0 from Apple’s toolkit and free Steam games straight from search.</span></p></div></li>
+      <li class="now"><time datetime="2026-11-02"><span lang="de">2.&nbsp;Nov.</span><span lang="en">Nov&nbsp;2</span></time><div><h3><span lang="de">0.3.0: Ab auf den Fernseher</span><span lang="en">0.3.0: Off to the TV</span></h3><p><span lang="de">TV- und Sofa-Modus, mehr Infos zu jedem Spiel, genauere Anti-Cheat-Hinweise, D3DMetal&nbsp;3.0 aus Apples Toolkit und kostenlose Steam-Spiele direkt aus der Suche.</span><span lang="en">TV and couch mode, more about every game, more precise anti-cheat notes, D3DMetal&nbsp;3.0 from Apple’s toolkit and free Steam games straight from search.</span></p></div></li>
     </ol>
   </div>
 </section>
@@ -477,8 +510,9 @@
     <h2 class="h2"><span lang="de">Hol dir Nightforge.</span><span lang="en">Get Nightforge.</span></h2>
     <p class="lede"><span lang="de">Kostenlos. Für Macs mit Apple-Chip (M1 oder neuer) und macOS&nbsp;26 (Tahoe) oder neuer – dafür ist die Windows-Engine gebaut.</span><span lang="en">Free. For Macs with Apple silicon (M1 or newer) and macOS&nbsp;26 (Tahoe) or later – the Windows engine is built for it.</span></p>
     <div class="cta cta-center">
-      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">DMG laden</span><span lang="en">Download the DMG</span></a>
+      <a class="btn btn-gold btn-lg" href="https://github.com/LordHayne/Nightforge/releases/latest" data-dmg><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span lang="de">DMG laden</span><span lang="en">Download the DMG</span></a>
     </div>
+    <p class="release-line"><span lang="de">Version <span data-release-version>0.3.0</span> · <span data-release-size>8,5</span>&nbsp;MB</span><span lang="en">Version <span data-release-version>0.3.0</span> · <span data-release-size>8.5</span>&nbsp;MB</span></p>
     <p class="term-label"><span lang="de">Oder im <b>Terminal</b> – das installiert die neueste Version und öffnet sie:</span><span lang="en">Or in <b>Terminal</b> – this installs the newest version and opens it:</span></p>
     <div class="term">
       <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/LordHayne/Nightforge/main/scripts/install.sh | bash</code>
@@ -506,6 +540,7 @@
       </p>
     </div>
     <p class="fine"><span lang="de">Kostenlos. Für immer. Keine Werbung, keine Spenden, kein Preis.</span><span lang="en">Free. For good. No price, no ads, no donations.</span></p>
+    <p class="fine"><span lang="de">Wer etwas zurückgeben möchte: <a href="https://www.codeweavers.com/crossover">Kauf CrossOver</a>. CodeWeavers trägt einen großen Teil der Wine-Entwicklung, und Nightforges Engine baut auf den Wine-Änderungen auf, die CodeWeavers mit CrossOver veröffentlicht.</span><span lang="en">If you’d like to give something back: <a href="https://www.codeweavers.com/crossover">buy CrossOver</a>. CodeWeavers pays for a large part of Wine’s development, and Nightforge’s engine is built from the Wine changes they publish with CrossOver.</span></p>
     <p class="fine"><span lang="de">Nightforge steht auf der Arbeit von</span><span lang="en">Nightforge stands on the work of</span>
       <a href="https://www.winehq.org">Wine</a>,
       <a href="https://github.com/dappermint/winecx-gptk"><span lang="de">den CrossOver-Änderungen von CodeWeavers</span><span lang="en">CodeWeavers’ CrossOver changes</span></a>,
@@ -519,7 +554,7 @@
       <a href="https://github.com/Open-Wine-Components/umu-protonfixes">umu-protonfixes</a>
       <span lang="de">und</span><span lang="en">and</span>
       <a href="https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet">AreWeAntiCheatYet</a>.</p>
-    <p class="fine"><span lang="de">Nightforge ist nicht mit Valve, Epic Games, GOG, NVIDIA oder Apple verbunden. Steam ist eine Marke der Valve Corporation, Epic Games eine Marke von Epic Games, Inc., GOG eine Marke von GOG sp. z o.o., GeForce NOW eine Marke von NVIDIA; Mac und macOS sind Marken von Apple Inc. Die Screenshots zeigen die eigene Bibliothek des Entwicklers, die Cover der Spiele sind darin ausgeblendet; Spiele-Artwork gehört den Verlagen.</span><span lang="en">Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer’s own library with the game covers left out; game artwork belongs to its publishers.</span></p>
+    <p class="fine"><span lang="de">Nightforge ist nicht mit Valve, Epic Games, GOG, NVIDIA, CodeWeavers oder Apple verbunden. Steam ist eine Marke der Valve Corporation, Epic Games eine Marke von Epic Games, Inc., GOG eine Marke von GOG sp. z o.o., GeForce NOW eine Marke von NVIDIA, CrossOver eine Marke von CodeWeavers, Inc.; Mac und macOS sind Marken von Apple Inc. Die Screenshots zeigen die eigene Bibliothek des Entwicklers, die Cover der Spiele sind darin ausgeblendet; Spiele-Artwork gehört den Verlagen.</span><span lang="en">Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA, CodeWeavers or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA, CrossOver a trademark of CodeWeavers, Inc.; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer’s own library with the game covers left out; game artwork belongs to its publishers.</span></p>
   </div>
 </footer>
 

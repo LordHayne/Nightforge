@@ -54,7 +54,7 @@ Your Steam, Epic and GOG games show up together. Nightforge downloads and starts
 
 Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, and the pointer hides until you move the mouse again; signing in and searching still need a keyboard. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge like on a console, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait. Keyboard and trackpad work everywhere too.
 
-**Nightforge's own controller menu.** A button combination on the controller brings up a calm menu in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
+**Nightforge's own controller menu.** Press both sticks (L3 + R3) and hold them for two seconds, and a calm menu comes up in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
 
 <p align="center">
   <img src="site/img/shots/pad-en-1400.webp" alt="Home with a DualSense connected: its battery at the bottom left, PlayStation buttons in the hints" width="820">
@@ -99,6 +99,25 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
 - **Storage:** what games, Nightforge and its caches take up; move or uninstall games, or remove Nightforge completely (saves that are only on your Mac are copied to Documents first).
 - **Per game (O):** Automatic, Balanced, Fastest or Most compatible, plus expert options and launch options.
 - **Advanced:** CrossOver and Whisky bottles or your own Wine, folded away until you need them.
+
+## Tested on a Mac
+
+Played live on a Mac with M5 between 24 October and 2 November 2026, with Nightforge 0.3 and the builds before it.
+
+| Game | Store | Way | Result |
+|---|---|---|---|
+| Asphalt Legends | Steam | Mac version | Runs |
+| Valheim | Steam | Mac version | Runs, with a controller too |
+| No Man's Sky | Steam | Mac version | Runs |
+| OxyRail | Steam | Windows · DXMT | Runs, a steady 60 FPS with MetalFX |
+| Overcooked 2 | Steam | Windows · DXMT | Runs at 60 FPS, with a controller and on the TV too |
+| Black Myth: Wukong Benchmark Tool | Steam | Windows · D3DMetal | Runs, 68 FPS (Low, FSR, 1512×982) |
+| The Last Caretaker Demo | Steam | Windows · D3DMetal | Runs, around 50 FPS at full Retina resolution with FSR frame generation |
+| Control | Epic Games | Windows · D3DMetal | Runs |
+| Mafia II (Classic) | GOG | Windows · WineD3D | Runs, but not smooth yet |
+| Overwatch | Steam | Windows | Doesn't start yet – Nightforge is looking into why |
+
+Everything else: try it. Nightforge picks the way from a game's files and moves on to the next one by itself if a game doesn't start. Online games with anti-cheat are the exception (see Good to know).
 
 ## What's next
 
@@ -198,7 +217,7 @@ cd Nightforge
 ./build.sh --install
 ```
 
-The app ends up in `~/Applications/Nightforge.app` and starts right away. To publish a release, push a tag such as `v0.1.0`: `.github/workflows/release.yml` builds the app and attaches the zip (used by the installer) and the DMG. The logo and app icon are drawn by `scripts/render-brand.swift`. A static page about Nightforge lives in `site/` (no build step).
+The app ends up in `~/Applications/Nightforge.app` and starts right away. To publish a release, push a tag such as `v0.1.0`: `.github/workflows/release.yml` builds the app and attaches the zip (used by the installer) and the DMG. The logo and app icon are drawn by `scripts/render-brand.swift`. A static page about Nightforge lives in `site/` (no build step); `.github/workflows/pages.yml` puts it on [GitHub Pages](https://lordhayne.github.io/Nightforge/) whenever it changes on main.
 
 ## Licence
 
@@ -210,4 +229,6 @@ D3DMetal is Apple's software, not part of Nightforge and not under the GPL. Nigh
 
 Nightforge stands on the work of [Wine](https://www.winehq.org), CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk)), [Gcenx's Wine builds and DXVK-macOS](https://github.com/Gcenx), [DXMT](https://github.com/3Shain/dxmt), [MoltenVK](https://github.com/KhronosGroup/MoltenVK), Apple's [D3DMetal](https://developer.apple.com/games/game-porting-toolkit/), [legendary](https://github.com/derrod/legendary), [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl), [winetricks](https://github.com/Winetricks/winetricks), [cabextract](https://www.cabextract.org.uk), [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) and [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet). Their licences apply to the components Nightforge downloads.
 
-Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library with the game covers left out; game artwork belongs to its publishers.
+**Support CrossOver.** CodeWeavers pays for a large part of Wine's development, and Nightforge's engine is built from the Wine changes they publish with [CrossOver](https://www.codeweavers.com/crossover) – without them, no D3DMetal and no DirectX 12 in Nightforge. Nightforge takes no money; if you'd like to support the people behind this work, buy CrossOver. It's also the right choice if you want more control over Windows programs on your Mac and support from people who know Wine.
+
+Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA, CodeWeavers or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA, CrossOver a trademark of CodeWeavers, Inc.; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library with the game covers left out; game artwork belongs to its publishers.
