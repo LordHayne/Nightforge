@@ -547,6 +547,55 @@ abdeckt, habe ich mit der KosmicKrisp-Sitzung abgestimmt (Frage 09:21, ihre Antw
   sich `removal-test` und `engine-layout-test` um 10:30 und 10:31. Die beiden Staging-Reihen waren da schon fertig
   (10:23, 10:26), die Plists stammen also aus einer anderen Sitzung.
 
+## Neunte Runde, Nachtrag (auf a847623)
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 49 | `claude/wine-sandbox` bis 77e0bba (3d257f1, 77e0bba) | 77e0bba | b7d7056, dazu 2a7b285 | `Engine.swift`, `tests/WineSandboxTest/main.swift` | 0 (mit 50) |
+| 50 | `claude/engine-env-0f3a` bis 67a4da4 | 67a4da4 | c90d1d0 | `LibraryModel.swift` | 0 |
+
+`claude/review-n-031` steht unverändert auf 49f721f, das ist mit 48 schon drin. Weitere Commits dort kämen als
+Nachtrag dazu.
+
+- **49, `steam-shutdown.sh`, die Nummern der Argumente:** h1-h3 gibt dem Skript als `$8` mit, wann zuletzt ein Spiel
+  lief. wine-sandbox wollte `$8` und `$9` für Helfer und Profil der Sandbox. `$8` bleibt, wie es ist. Helfer und
+  Profil kommen als `$9` und `${10}`.
+  - `QuitScriptTest` und `MacVersionTest` rufen das Skript mit `$8` auf.
+  - `WineSandboxTest` holt `wine_program` aus dem Skript und setzt `SANDBOX`/`PROFILE` selbst. Die Zeile in
+    `scheduleSteamShutdown`, nach der es sucht, steht unverändert.
+- **49, `WineSandboxTest`:** Die Sitzungsprüfung des Zweigs legt ihre Einstellungen jetzt selbst in ihren Testordner.
+  Das gilt, Stagings 7374066 ist damit überholt.
+- **2a7b285 (Staging-Commit):** 77e0bba schützt `launchoptions-written.json` und `shortcut-key` nach Namen. Diese
+  Dateien gibt es nur auf Staging (SteamProgram, GameShortcut).
+  - Der Test prüfte bisher nur die Namen als Text. Jetzt prüft er zusätzlich zwei Dinge:
+    - `SteamProgram.record` ist diese Datei im Datenordner und steht unter dem, was innen nicht änderbar ist.
+    - Die Datei, die `GameShortcut.key` schreibt, ist die, die die Regeln ganz sperren.
+  - Eine Umbenennung auf einer Seite fällt damit auf. `WineSandboxTest` ist grün.
+- **50, `LibraryModel.startDirect`:** Es nimmt beides, KosmicKrisps `vulkan:` (44) und engine-envs `usesD3D9:`.
+  KosmicKrisps Variablen kommen über `directLaunchEnvironment`, die des Loaders darüber in
+  `Launcher.directEnvironment`. Damit gewinnt der Loader auch hier, und der Spielordner wird nur einmal gelesen.
+- **Am Rand, seit 44 so:** Auf dem Direktweg (Epic, GOG) geht das Profilfeld `CX_ACTIVE_GRAPHICS_BACKEND` über
+  KosmicKrisps „wined3d“. Über Steam übernimmt KosmicKrisp das Backend. Das betrifft nur ein DirectX-9-Spiel auf DXVK
+  mit eigenem Backend im Profil, solange KosmicKrisp aus ist also nichts.
+
+## Tests nach dem Nachtrag (auf c90d1d0)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **pytest:** 124 von 124.
+- **Vorab allein:** `WineSandboxTest`, `EngineLayoutTest` und `QuitScriptTest` grün.
+- **Voller Lauf `-P 2`:** 59 von 60 (1270 s). `MacVersionTest` schlug mit einer Prüfung fehl: „the quit script brings
+  Nightforge back once the game has ended (after 30 s)“. Ich halte es für eine Frage der Zeit unter Last, nicht für
+  einen Fehler der Merges:
+  - Die Prüfung erwartet das Zurückholen nach 4 bis 20 s. Das Skript fragt dafür in einer Schleife ein Stand-in für
+    `ps` ab, ein Bash-Skript über eine Datei.
+  - 49 ändert am Skript nur den Start von `steam.exe -shutdown`, über `wine_program`. In dieser Prüfung ist Wine leer
+    (`$1 ""`), der Teil läuft also gar nicht.
+  - Allein lief die Reihe danach zweimal grün (Last 2), in den vorigen vollen Läufen heute jedes Mal.
+  - Für die Seite des Beenden-Skripts: Die 20 s sind unter `-P 2` auf einem beschäftigten Mac knapp, wie zuvor die
+    0,5 s in `SubprocessTest`.
+- **Test-Plists:** `ProfileFilesTest-<UUID>` um 11:21, vor Stagings `ProfileFilesTest`. Sie stammen also aus einer
+  anderen Sitzung.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
@@ -554,12 +603,14 @@ abdeckt, habe ich mit der KosmicKrisp-Sitzung abgestimmt (Frage 09:21, ihre Antw
 - `SubprocessTest` ist auf h1-h3 behoben (a097ccb, Merge 36).
 - `PadFocusTest` braucht seit 88f0cb8 (Merge 39) keinen eingeschalteten Bildschirm mehr.
 - Vor dem Tag v0.3.1: den Entwurf aus `docs/RELEASE-NOTES-0.3.1.md` nach `docs/release-notes/v0.3.1.md` (43).
-- Später nachzuziehen: `claude/wine-sandbox` ab 3d257f1 (3d257f1, 77e0bba).
+- `MacVersionTest`: die 20 s für das Zurückholen nach dem Beenden sind unter Last knapp (Nachtrag zur neunten Runde).
 - Nur auf Staging stehen:
   - 8b5314d. engine-env hat dasselbe jetzt als 4e02fbf.
   - 49e249d, M4s „Steam ist aus“ über M3. Gehört in den M4-Zweig, sobald der M3 hat.
   - 897b94a, `WineSandboxTest` kennt `Subprocess.run`. Sollten die Sandbox- und die h1-h3-Seite übernehmen.
-  - 7374066, `WineSandboxTest` legt seine Suite im Arbeitsordner an. Für `claude/wine-sandbox`.
+  - 7374066, `WineSandboxTest` legte seine Suite im Arbeitsordner an. Seit 77e0bba (49) überholt.
+  - 2a7b285, `WineSandboxTest` bindet die geschützten Dateien an `SteamProgram.record` und `GameShortcut.key`.
+    Gehört in `claude/wine-sandbox`, sobald der Zweig beides hat, sonst bleibt es auf Staging.
   - 78205cf, der Schalter des Play!-Helfers im Spieletest heißt `UnityDialog.switchKey`. Erst sinnvoll, wenn
     unity-play und game-test-fixes zusammenkommen.
   - 5dd6d71, Unitys Play!-Helfer startet über `WineSandbox.process`. Für `claude/unity-play`.
