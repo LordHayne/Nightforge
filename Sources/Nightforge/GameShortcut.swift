@@ -46,11 +46,14 @@ enum GameShortcut {
         let key = bytes.map { String(format: "%02x", $0) }.joined()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: file.path) {
-            try? Data(key.utf8).write(to: file, options: .atomic)  // there, but no key (cut short): replaced
-        } else if (try? Data(key.utf8).write(to: file, options: .withoutOverwriting)) == nil {
-            return kept() ?? key  // written meanwhile (the start's addKey and a link at once): that one counts
+            try? FileManager.default.removeItem(at: file)  // there, but no key (cut short)
         }
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        // Readable by the player alone from the moment it's there, and never over one written
+        // meanwhile (the start's addKey and a link at once): that one counts.
+        let descriptor = open(file.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard descriptor >= 0 else { return kept() ?? key }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        guard (try? handle.write(contentsOf: Data(key.utf8))) != nil else { return kept() ?? key }
         return key
     }
 
