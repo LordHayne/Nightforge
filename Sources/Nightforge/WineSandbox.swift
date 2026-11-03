@@ -63,25 +63,51 @@ enum WineSandbox {
     /// In the home folder: the small apps "Add to Applications" makes, which open Nightforge (GameShortcut).
     static let readOnlyInHome: [(path: String, folder: Bool)] = [("Applications/Nightforge Games", true)]
 
-    /// The profile: everything allowed, then the denied places, then the exceptions.
+    /// The profile: everything allowed, then the denied places, then the exceptions, then what keeps
+    /// the places where they are.
     static func profile(_ places: Places = Places()) -> String {
         let home = canonical(places.home), support = canonical(places.support)
-        func rule(_ base: String, _ entry: (path: String, folder: Bool)) -> String? {
-            quoted(base + "/" + entry.path).map { "    (\(entry.folder ? "subpath" : "literal") \($0))" }
+        typealias Place = (path: String, folder: Bool)
+        func place(_ base: String, _ entry: Place) -> Place { (base + "/" + entry.path, entry.folder) }
+        func rules(_ entries: [Place]) -> [String] {
+            entries.compactMap { entry in quoted(entry.path).map { "    (\(entry.folder ? "subpath" : "literal") \($0))" } }
         }
-        let denied = deniedInSupport.compactMap { rule(support, $0) } + deniedInHome.compactMap { rule(home, $0) }
-        let allowed = allowedInSupport.compactMap { rule(support, ($0, true)) }
+        let denied = deniedInSupport.map { place(support, $0) } + deniedInHome.map { place(home, $0) }
+        let allowed = allowedInSupport.map { place(support, ($0, true)) }
         // The app and the helper's requests: subpaths of folders that exist (the runs folder may not yet).
-        let readOnly = readOnlyInSupport.compactMap { rule(support, $0) } + readOnlyInHome.compactMap { rule(home, $0) }
-            + [quoted(canonical(places.app)), quoted(canonical(places.temporary) + "/Nightforge-runs")].compactMap { $0 }
-                .map { "    (subpath \($0))" }
+        let readOnly = readOnlyInSupport.map { place(support, $0) } + readOnlyInHome.map { place(home, $0) }
+            + [(canonical(places.app), true), (canonical(places.temporary) + "/Nightforge-runs", true)]
+        // Seatbelt checks a rename at the old and the new path, not at what's inside: renaming a folder
+        // above a place moves the place to a path no rule names. "Epic" to "Epic-alt", and legendary's
+        // token read; "Nightforge" away and a new one with Components of its own, which Nightforge
+        // runs outside (review N2, proven with the helper 3.11.2026). So no folder above them can be
+        // renamed or removed, nor the places themselves; inside them everything stays as it was.
+        let protected = (denied + readOnly).map(\.path)
+        var above: [String] = []
+        for path in protected {
+            for folder in ancestors(of: path) where !above.contains(folder) && !protected.contains(folder) { above.append(folder) }
+        }
+        let anchored = rules(above.map { ($0, false) }), fixed = rules(protected.map { ($0, false) })
         var lines = ["(version 1)", "; Nightforge (WineSandbox.swift): Wine may do anything but read or write the first places,",
-                     "; or change the last ones.",
+                     "; or change the next ones, or move any of them or the folders they're in.",
                      "(allow default)"]
-        if !denied.isEmpty { lines += ["(deny file-read* file-write*"] + denied + [")"] }
-        if !allowed.isEmpty { lines += ["(allow file-read* file-write*"] + allowed + [")"] }
-        if !readOnly.isEmpty { lines += ["(deny file-write*"] + readOnly + [")"] }
+        if !denied.isEmpty { lines += ["(deny file-read* file-write*"] + rules(denied) + [")"] }
+        if !allowed.isEmpty { lines += ["(allow file-read* file-write*"] + rules(allowed) + [")"] }
+        if !readOnly.isEmpty { lines += ["(deny file-write*"] + rules(readOnly) + [")"] }
+        if !anchored.isEmpty { lines += ["(deny file-write-unlink"] + anchored + [")"] }
+        if !fixed.isEmpty { lines += ["(deny file-write-unlink file-write-create"] + fixed + [")"] }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// The folders above `path`, nearest first, down to (not including) "/".
+    static func ancestors(of path: String) -> [String] {
+        var folders: [String] = []
+        var folder = (path as NSString).deletingLastPathComponent
+        while !folder.isEmpty, folder != "/" {
+            folders.append(folder)
+            folder = (folder as NSString).deletingLastPathComponent
+        }
+        return folders
     }
 
     /// A path as a string in the profile: quotes and backslashes escaped. nil for one with control
