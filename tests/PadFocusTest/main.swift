@@ -102,6 +102,14 @@ struct PadFocusTest {
     /// highlighted control brought into view with room around it, and the right stick's speed.
     @MainActor
     static func scrolling() {
+        // Where `show` scrolls to, not how smoothly: with Nightforge's "Reduce motion" on it's there at
+        // once. Its animation runs on the screen's display link, which stops while the screen is locked
+        // or asleep, and the page stayed at the top ("0.0", 3.11.). Only in this process: the argument
+        // domain is never written to disk.
+        let arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(arguments.merging([Prefs.Keys.reduceMotion: "on"]) { $1 },
+                                                forName: UserDefaults.argumentDomain)
+        defer { UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
         for flipped in [true, false] {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
             let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 600, height: 600))
@@ -128,12 +136,10 @@ struct PadFocusTest {
                                                : NSRect(x: 20, y: 2_000 - 1_540, width: 100, height: 40))
             document.addSubview(control)
             page.show(control.convert(control.bounds, to: scroll.contentView), top: 96, bottom: 48)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.5))  // smoothly, then there
             check(abs(down() - (1_540 + 48 - 600)) < 1, "\(name): the control below shows with room under it: \(down())")
             let high = NSView(frame: flipped ? NSRect(x: 20, y: 100, width: 100, height: 40) : NSRect(x: 20, y: 2_000 - 140, width: 100, height: 40))
             document.addSubview(high)
             page.show(high.convert(high.bounds, to: scroll.contentView), top: 96, bottom: 48)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.5))
             check(abs(down() - 4) < 1, "\(name): the one above shows with the game bar's room over it: \(down())")
             page.show(high.convert(high.bounds, to: scroll.contentView), top: 96, bottom: 48)
             check(abs(down() - 4) < 1, "\(name): already in sight: nothing moves")
