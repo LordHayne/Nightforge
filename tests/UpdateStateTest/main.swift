@@ -42,6 +42,7 @@ struct UpdateStateTest {
         check(UpdateState(flags: 1030, toDownload: 0, downloaded: 0, toStage: 2000, staged: 2000).fraction == 0.99,
               "all unpacked, not moved into the game yet: still not 100 %")
         progress()
+        stagingSizes()
         lastPlayed()
 
         // The app's own update: an app opened from its download runs translocated and can't be replaced.
@@ -97,6 +98,55 @@ struct UpdateStateTest {
         check(shown.fraction == 0.2, "the folder emptying doesn't take it back: \(shown.fraction ?? -1)")
         check(shown.speed != nil, "nor its speed")
         check(LaunchPhase.steamUpdateHint(speed: "10 MB/s").hasPrefix("10 MB/s"), "the speed under the Play button")
+    }
+
+    /// A download's unpacked files measured every 15 s at most, not at each look (every 3 s in the
+    /// downloads, every second during Update & Play): the speed and the time left stay right,
+    /// because each measurement keeps its own time.
+    static func stagingSizes() {
+        let start = Date(timeIntervalSince1970: 1_793_700_000)
+        let folder = URL(fileURLWithPath: "/nowhere/steamapps/downloading/\(UUID().uuidString)")
+        var walks = 0
+        // 10 MB/s since `start`, as Steam unpacks it.
+        func walk(_ at: Date) -> (URL) -> Int64 {
+            { _ in walks += 1; return Int64(at.timeIntervalSince(start) * 10_000_000) }
+        }
+        func size(after seconds: TimeInterval) -> Int64 {
+            let now = start.addingTimeInterval(seconds)
+            return StagingSizes.size(of: folder, now: now, measure: walk(now))
+        }
+        check(size(after: 0) == 0 && walks == 1, "the first look measures")
+        check(size(after: 3) == 0 && size(after: 14) == 0 && walks == 1, "the next looks within 15 s take that")
+        check(StagingSizes.measuredAt(folder) == start, "with the time it was measured")
+        check(size(after: 15) == 150_000_000 && walks == 2 && StagingSizes.measuredAt(folder) == start.addingTimeInterval(15),
+              "15 s on: measured again")
+        check(size(after: 10) == 100_000_000 && walks == 3, "the clock gone back: measured again")
+
+        // The downloads' looks every 3 s for a minute and a half, a 1 GB download at 10 MB/s.
+        StagingSizes.forget()
+        let total = 1_000_000_000.0
+        var rate = DownloadRate()
+        var naive = DownloadRate()
+        var right = true
+        var naiveOff = false
+        for second in stride(from: 0, through: 90, by: 3) {
+            let bytes = Double(size(after: TimeInterval(second)))
+            let measured = StagingSizes.measuredAt(folder) ?? start
+            rate.add(bytes: bytes, at: measured)
+            naive.add(bytes: bytes, at: start.addingTimeInterval(TimeInterval(second)))
+            guard second >= 15 else { continue }
+            let speed = rate.bytesPerSecond ?? 0
+            let left = rate.secondsLeft(total: total) ?? 0
+            if abs(speed - 10_000_000) > 1 || abs(left - (total - bytes) / 10_000_000) > 0.01 {
+                right = false
+                print("  at \(second) s: \(speed) B/s, \(left) s left")
+            }
+            if abs((naive.bytesPerSecond ?? 0) - 10_000_000) > 2_000_000 { naiveOff = true }
+        }
+        check(right, "10 MB/s and the time left at every look from the second measurement on")
+        check(naiveOff, "taken as each look's own, the same figures make the speed jump")
+        check(rate.samples.count <= 3, "one sample per measurement, not per look: \(rate.samples.count)")
+        StagingSizes.forget()
     }
 
     /// Steam sets LastPlayed as it installs a game: the Wukong benchmark, added for free on 1.11. at
@@ -272,6 +322,7 @@ struct UpdateStateTest {
                                                 "BytesDownloaded": "0", "BytesToStage": "100000000", "BytesStaged": "0"]),
                   "appmanifest_3907790.acf", in: oxySteam)
         check(LibraryScanner.updateState(of: oxyRail)?.fraction == 0, "the update starts, nothing unpacked: 0 %")
+        StagingSizes.forget()  // measured again at once, not 15 s on
         let pak = oxySteam.appendingPathComponent("downloading/3907790/Oxygen Train_Data/data.unity3d")
         try fm.createDirectory(at: pak.deletingLastPathComponent(), withIntermediateDirectories: true)
         check(fm.createFile(atPath: pak.path, contents: nil), "the staged file")
@@ -289,6 +340,35 @@ struct UpdateStateTest {
                                                 "BytesToStage": "100000000"]),
                   "appmanifest_3907790.acf", in: oxySteam)
         check(LibraryScanner.updateState(of: oxyRail)?.staged == 0, "an update waiting, not running: nothing measured")
+
+        // The downloads' look every 3 s: only the game's own manifest, its progress taken over while
+        // it downloads the same; anything else – done, gone, its size, a full disk – a full scan.
+        func downloading(_ fields: [String: String]) throws {
+            try write(manifest(3907790, "OxyRail", ["installdir": "Oxygen Train", "StateFlags": "1026", "BytesToDownload": "80000000",
+                                                    "BytesDownloaded": "0", "BytesToStage": "100000000"].merging(fields) { $1 }),
+                      "appmanifest_3907790.acf", in: oxySteam)
+        }
+        try fm.removeItem(at: oxySteam.appendingPathComponent("downloading"))
+        StagingSizes.forget()
+        try downloading(["BytesStaged": "10000000"])
+        guard let first = LibraryScanner.downloadLook(oxyRail) else { return check(false, "a download's manifest read alone") }
+        check(first.install == .downloading(0.1) && first.sizeOnDisk == 80_000_000, "a tenth unpacked: \(first.install)")
+        try downloading(["BytesStaged": "40000000"])
+        let nextLook = LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first))
+        check(nextLook?.install == .downloading(0.4) && nextLook?.name == "OxyRail", "the next look: 40 %, the rest as it was")
+        try downloading(["StateFlags": "4"])
+        check(LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first)) == nil, "done: the full scan")
+        try downloading(["BytesToDownload": "90000000"])
+        check(LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first)) == nil, "another size: the full scan")
+        try downloading(["UpdateResult": "12"])
+        check(LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first)) == nil, "Steam's full disk: the full scan")
+        try fm.removeItem(at: oxySteam.appendingPathComponent("appmanifest_3907790.acf"))
+        check(LibraryScanner.downloadLook(first) == nil && LibraryScanner.takeLook(first, fresh: nil) == nil, "its manifest gone: the full scan")
+        check(LibraryScanner.takeLook(oxyRail, fresh: first) == nil, "a game that wasn't downloading: the full scan")
+        // Its progress at the time it was measured, for the speed – on the Windows side only.
+        check(LibraryScanner.stagingMeasured(first) != nil, "measured with the look: the speed goes by that time")
+        check(LibraryScanner.stagingMeasured(first, now: Date().addingTimeInterval(60)) == nil, "measured long ago: the look's own time")
+        check(LibraryScanner.stagingMeasured(oxyOnMac) == nil, "Steam for Mac: not measured that way")
 
         // Several bottles; a folder that is a bottle itself; one without Steam; a file among them.
         try fm.createDirectory(at: root.appendingPathComponent("Bottles/No Steam/drive_c"), withIntermediateDirectories: true)

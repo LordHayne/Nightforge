@@ -1387,6 +1387,7 @@ final class LibraryModel: ObservableObject {
         let wasRefused = Set(allGames.filter(\.downloadRefused).map(\.id))
         allGames = withGameInfo(withStorePrices(found))
         lastScan = Date()
+        downloadLooks = 0
         measureDownloads()
         libraryLoaded = true
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
@@ -1485,28 +1486,62 @@ final class LibraryModel: ObservableObject {
     }
 
     private var downloadWatcher: Task<Void, Never>?
+    /// The downloads' looks since the last full scan.
+    private var downloadLooks = 0
+    /// Every this many looks the full scan: it alone sees a download Steam began by itself, or one
+    /// Steam won't fetch (`downloadRefused`).
+    private static let fullScanEvery = 10
 
-    /// Adds this look's progress to each download's speed; a download that ended drops out.
+    /// Adds this look's progress to each download's speed – at the time it was measured, which for
+    /// a Steam download on the Windows side can be some seconds back (StagingSizes); a download that
+    /// ended drops out.
     private func measureDownloads(now: Date = Date()) {
         var rates: [GameID: DownloadRate] = [:]
         for game in downloads where game.downloadNeedsSpace == nil {
             guard case .downloading(let fraction?) = game.install, game.sizeOnDisk > 0 else { continue }
             var rate = downloadRates[game.gameID] ?? DownloadRate()
-            rate.add(bytes: fraction * Double(game.sizeOnDisk), at: now)
+            rate.add(bytes: fraction * Double(game.sizeOnDisk), at: LibraryScanner.stagingMeasured(game, now: now) ?? now)
             rates[game.gameID] = rate
         }
         if rates != downloadRates { downloadRates = rates }
     }
 
-    /// While Steam downloads something, re-read the manifests every few seconds for progress.
+    /// While Steam downloads something, a look every few seconds for progress.
     private func watchDownloads() {
         let downloading = allGames.contains { Self.isDownloading($0.install) || Self.isDownloading($0.macPending) }
         guard downloading, downloadWatcher == nil else { return }
         downloadWatcher = Task {
             try? await Task.sleep(for: .seconds(3))
             downloadWatcher = nil
-            reload(quiet: true)
+            await lookAtDownloads()
         }
+    }
+
+    /// Only the downloading games' manifests (LibraryScanner.downloadLook): every library and every
+    /// download's files read again every 3 s cost more than the progress is worth (the UI power
+    /// budget). Anything but progress – a download done or gone, its size worked out, out of room,
+    /// a Mac version on its way, another store's – and every tenth look go to the full scan.
+    private func lookAtDownloads() async {
+        downloadLooks += 1
+        let games = allGames.filter { Self.isDownloading($0.install) }
+        guard downloadLooks < Self.fullScanEvery, !scanInFlight, !games.isEmpty, games.allSatisfy({ $0.provider == .steam }),
+              !allGames.contains(where: { Self.isDownloading($0.macPending) })
+        else { return reload(quiet: true) }
+        let looks = await Task.detached(priority: .utility) { games.map(LibraryScanner.downloadLook) }.value
+        // A full scan meanwhile has the newer word, and looks on after it.
+        guard !scanInFlight else { return }
+        var updated = allGames
+        for (old, fresh) in zip(games, looks) {
+            guard let index = updated.firstIndex(where: { $0.id == old.id }), updated[index] == old else { continue }
+            guard let game = LibraryScanner.takeLook(old, fresh: fresh) else { return reload(quiet: true) }
+            updated[index] = game
+        }
+        if updated != allGames {
+            allGames = updated
+            applyFilter()
+        }
+        measureDownloads()
+        watchDownloads()
     }
 
     /// The engine built again from what the component list and the player's D3DMetal now say, queued
@@ -3368,7 +3403,7 @@ final class LibraryModel: ObservableObject {
             // Steam updates the game first ("Update & Play"): that's no silence, however long it takes.
             if let update = await Task.detached(priority: .utility, operation: { LibraryScanner.updateState(of: game) }).value,
                update.isRunning {
-                updated.add(update)
+                updated.add(update, at: LibraryScanner.stagingMeasured(game) ?? Date())
                 launchPhase = .updating(updated.fraction)
                 if updateSpeed != updated.speed { updateSpeed = updated.speed }
                 quietSeconds = 0
