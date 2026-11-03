@@ -1652,9 +1652,13 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
   `bot/profiles`). Erst mit deiner Signatur erreicht etwas die App. umu-protonfixes und AreWeAntiCheatYet werden weiter
   ab `HEAD` gelesen, darum prüft der Validate-Schritt `dllOverrides` und `arguments` (Audit M1). Siehe „Nur geprüfte
   Komponenten ausliefern“ oben.
-- **Build-Eingaben ohne Prüfsumme.** In `graphics.yml` `WINE_TOOLCHAIN_URL`, das Gcenx-Archiv, der inotify-Header und
-  Klone per Tag, in `tools.yml` das cabextract-Archiv; dazu `brew install … || true`. Die Actions selbst sind seit dem
-  Audit auf Commit-SHAs festgelegt, Dependabot hält sie aktuell.
+- **Build-Eingaben festgelegt** (signed-updates, 3.11.): `graphics.yml` prüft jeden Klon per Tag gegen seinen Commit
+  (Wine, DXMT, LLVM, SDL) und jeden Download gegen seine SHA-256 (3Shain-Toolchain, Gcenx-Archiv, inotify-Header,
+  dieser über den Commit statt den Tag; meson mit `--require-hashes`). `tools.yml` prüft das cabextract-Archiv,
+  `release.yml` installiert dmgbuild mit Prüfsummen. `brew install` endet mit eigenem Fehler statt `|| true`. Die
+  Toolchain-Prüfsumme ist die vom 3.11. (GitHub hat für das Asset von 2023 keinen Digest). Ein neuer Wine-, DXMT- oder
+  LLVM-Stand braucht jetzt auch den neuen Commit in `graphics.yml`. Die Actions selbst sind seit dem Audit auf
+  Commit-SHAs festgelegt, Dependabot hält sie aktuell.
 - **Dependabot-PRs #21–#26** (cache 4→6, upload-artifact 4→7, download-artifact 4→8, setup-python 5→7) erst nach
   einem Release- oder Grafik-Build mergen. Ihre grünen Checks laufen nicht durch `release.yml` und `graphics.yml`, die
   diese Actions nutzen. upload- und download-artifact zusammen hochziehen.
