@@ -281,5 +281,12 @@ struct SignatureTest {
         publish("right", signedBy: mainKey, generated: "2026-11-04T04:37:00Z")
         check(await name() == "right" && !SignedLists.older.contains(SignedLists.profiles),
               "but doesn't lock the channel: the next right list counts again (review N5)")
+
+        // The app's own list from the future mustn't turn away every right online list either (review B).
+        let ownAhead = online.appendingPathComponent("own-ahead.json")
+        try? Data(#"{"formatVersion": 1, "generated": "2999-01-01T00:00:00Z", "games": {"50130": {"name": "own"}}}"#.utf8).write(to: ownAhead)
+        publish("online", signedBy: mainKey, generated: "2026-11-05T04:37:00Z")
+        check(await ProfileStore(bundledURL: ownAhead, remoteURL: remote, keys: keys).profile(for: 50130)?.name == "online",
+              "an own list from the future doesn't win over a right online one")
     }
 }
