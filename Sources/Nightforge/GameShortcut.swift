@@ -61,7 +61,8 @@ enum GameShortcut {
 
     /// Apps an older Nightforge wrote open their link without the key (or with another one): their
     /// script gets this one, so they go on starting their game directly. Only scripts exactly as
-    /// Nightforge writes them are touched. Run at start, before a link from one of them can come.
+    /// Nightforge writes them are touched. Run at start: a click on such an app that starts Nightforge
+    /// itself still sends its link without the key and shows the game's page, once.
     static func addKey(_ key: String, in folder: URL = folder) {
         let fm = FileManager.default
         let head = "#!/bin/sh\nexec /usr/bin/open \"nightforge://play/"
