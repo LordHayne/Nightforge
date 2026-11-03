@@ -1612,6 +1612,9 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
     jeden anderen Programmstart, der nicht auf der Liste der Mac-Programme steht. Wird der Schalter umgelegt, endet
     die laufende Sitzung vor dem nächsten Wine-Start (`settleSession`), egal wer ihren wineserver gestartet hat.
     Unter einem laufenden Spiel wartet das bis zum nächsten Start ohne Spiel.
+  - H3: Ist der Schalter an und fehlt der Helfer im Bündel, startet Wine gar nicht (`WineSandbox.HelperMissing`).
+    Der Spieler sieht beim Start „Die Wine-Sandbox ist eingeschaltet, aber ihr Helfer fehlt …“. Vorher lief Wine dann
+    still ohne Sandbox.
 
 **Einschalten** (Nightforge beendet, kein Spiel läuft): `defaults write io.github.lordhayne.nightforge wineSandbox
 -bool true`, dann Nightforge öffnen. Steam startet beim ersten Spiel neu. Das Profil steht danach in

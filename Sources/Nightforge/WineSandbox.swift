@@ -91,12 +91,21 @@ enum WineSandbox {
         return file
     }
 
-    /// Turns a start of `executable` with `arguments` into one inside the sandbox, when it's switched
-    /// on and the helper is there; leaves it alone otherwise. Should the profile be missing, the
-    /// helper starts nothing: switched on, Wine never runs outside.
+    /// Switched on, but the helper isn't in the app (a build without an x86_64 clang, a damaged
+    /// bundle): Wine doesn't start at all, as when the helper can't apply the profile (exit 71).
+    struct HelperMissing: LocalizedError {
+        var errorDescription: String? {
+            L10n.t("The Wine sandbox is switched on, but its helper is missing from Nightforge, so Windows programs don't start. Reinstall Nightforge or switch the sandbox off.")
+        }
+    }
+
+    /// Turns a start of `executable` with `arguments` into one inside the sandbox when it's switched
+    /// on; leaves it alone when it's off. Switched on, Wine never runs outside: without the helper
+    /// this throws, and without its profile the helper starts nothing.
     static func wrap(_ executable: inout URL?, _ arguments: inout [String]?, enabled: Bool = enabled,
-                     helper: URL? = helper, places: Places = Places()) {
-        guard enabled, let helper, let program = executable else { return }
+                     helper: URL? = helper, places: Places = Places()) throws {
+        guard enabled, let program = executable else { return }
+        guard let helper else { throw HelperMissing() }
         let file = writeProfile(places)
         executable = helper
         arguments = [file.path, program.path] + (arguments ?? [])
@@ -113,7 +122,7 @@ enum WineSandbox {
         var programArguments: [String]? = arguments
         if sandboxed {
             settleSession(executable)
-            wrap(&program, &programArguments)
+            try wrap(&program, &programArguments)
         }
         let process = DetachedProcess()
         process.executableURL = program

@@ -387,6 +387,8 @@ enum L10n {
         "Steam starts its window again …": "Steam startet sein Fenster neu …",
         "Steam couldn't start %@.": "Steam konnte %@ nicht starten.",
         "Steam didn't respond, so %@ didn't start. Please try again.": "Steam hat nicht reagiert, deshalb ist %@ nicht gestartet. Bitte versuch es noch einmal.",
+        "The Wine sandbox is switched on, but its helper is missing from Nightforge, so Windows programs don't start. Reinstall Nightforge or switch the sandbox off.":
+            "Die Wine-Sandbox ist eingeschaltet, aber ihr Helfer fehlt in Nightforge. Deshalb starten keine Windows-Programme. Installiere Nightforge neu oder schalte die Sandbox aus.",
 
         "VR only": "Nur VR",
         "Doesn't run on a Mac": "Läuft nicht auf dem Mac",

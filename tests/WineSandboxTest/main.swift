@@ -69,11 +69,19 @@ struct WineSandboxTest {
         let helper = URL(fileURLWithPath: "/app/nightforge-sandbox")
         var executable: URL? = wine
         var programArguments: [String]? = ["steam.exe", "-silent"]
-        WineSandbox.wrap(&executable, &programArguments, enabled: false, helper: helper, places: places)
+        try? WineSandbox.wrap(&executable, &programArguments, enabled: false, helper: nil, places: places)
         check(executable == wine && programArguments == ["steam.exe", "-silent"], "switched off, the start is exactly as before")
-        WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: nil, places: places)
-        check(executable == wine, "without the helper (a build without it, tests) the start stays as it is")
-        WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: helper, places: places)
+        // Switched on without the helper (a build without an x86_64 clang, a damaged bundle): no start
+        // at all, never one without the sandbox (review H3, 3.11.2026).
+        do {
+            try WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: nil, places: places)
+            check(false, "switched on without the helper: no start")
+        } catch let error as WineSandbox.HelperMissing {
+            check(error.localizedDescription.lowercased().contains("sandbox") && executable == wine, "it says why, and nothing was changed")
+        } catch {
+            check(false, "the error says the helper is missing: \(error)")
+        }
+        try? WineSandbox.wrap(&executable, &programArguments, enabled: true, helper: helper, places: places)
         let file = WineSandbox.profileFile(places)
         check(executable == helper && programArguments == [file.path, wine.path, "steam.exe", "-silent"],
               "switched on: the helper, the profile, then the program: \(programArguments ?? [])")
