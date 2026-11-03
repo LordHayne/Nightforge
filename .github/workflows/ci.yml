@@ -50,3 +50,7 @@ jobs:
       # Against stand-ins for security and codesign: no keychain, no certificate.
       - name: Code signing script
         run: python3 -m unittest tests/test_codesign_app.py
+
+      # A shell script a workflow runs as a command has to be executable in git: enginefix.yml's never ran (2.11.).
+      - name: Workflow scripts
+        run: python3 -m unittest tests/test_workflow_scripts.py
