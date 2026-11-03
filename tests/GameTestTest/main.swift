@@ -252,6 +252,17 @@ struct GameTestTest {
         check(GameTest.outcome(.init(unknown: true)) == .unknown, "not noStart either, although no process was seen")
         check(GameTest.outcome(.init(process: true, picture: true, unknown: true)) == .picture, "a picture before the list went: a picture")
         check(GameTest.blindLooks == 120, "two minutes of looks, one a second")
+        // A picture the curtain saw counts without a list too, not "unknown" after two minutes (review 3.11.).
+        check(GameTest.blindLook(picture: true, looks: 1) == .picture, "no list, but the curtain sank: a picture")
+        check(GameTest.blindLook(picture: true, looks: 500) == .picture, "also after long without a list")
+        check(GameTest.blindLook(picture: false, looks: 119) == .wait && GameTest.blindLook(picture: false, looks: 120) == .unknown,
+              "no picture: two minutes, then unknown")
+        // The wait for a list has an end, so a ps down for good doesn't hold the night's run (review 3.11.).
+        check(GameTest.processListPatience == 15 * 60, "15 minutes")
+        check(GameTest.waitsForProcessList(waited: 0, gaveUpBefore: false) && GameTest.waitsForProcessList(waited: 899, gaveUpBefore: false),
+              "within 15 minutes: wait")
+        check(!GameTest.waitsForProcessList(waited: 900, gaveUpBefore: false), "15 minutes without: on without a list")
+        check(!GameTest.waitsForProcessList(waited: 0, gaveUpBefore: true), "ps still down since: no new wait")
         check(GameTest.outcome(.init(process: true, startWindow: true)) == .startWindow && GameTest.result(.startWindow, issues: []) == nil,
               "a start window: needs a click, says nothing yet about how it runs")
         check(GameTest.outcome(.init(process: true, picture: true, startWindow: true)) == .picture, "the picture after Play!: a picture")
