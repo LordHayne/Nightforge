@@ -57,6 +57,14 @@ struct ProfileFilesTest {
               "a key is replaced, a new one goes at the section's end, other sections and line ends stay: \(merged.debugDescription)")
         let appended = Engine.mergingIni("[Other]\nA=1\n", section: "SystemSettings", values: ["r.Nanite": "0"])
         check(appended == "[Other]\nA=1\n\n[SystemSettings]\nr.Nanite=0\n", "a missing section is added at the end: \(appended.debugDescription)")
+        // Names and values from a list go in plain: a line break, a bracket or "=" starts no line or section of its own.
+        let injected = Engine.mergingIni("", section: "S]\n[Evil", values: ["a\n[Run]\nb": "1\n[Other]\nx=2", "c=d": "3\r\n", "e": "4\u{2028}5"])
+        check(injected == "[SEvil]\naRunb=1[Other]x=2\ncd=3\ne=45\n", "section, keys and values made plain: \(injected.debugDescription)")
+        check(Engine.mergingIni("[SEvil]\nk=1\n", section: "S\n[Evil]", values: ["k": "2"]) == "[SEvil]\nk=2\n",
+              "and found again the next time")
+        check(Engine.mergingIni("[A]\nx=1\n", section: "[]", values: ["k": "v"]) == "[A]\nx=1\n"
+              && Engine.mergingIni("[A]\nx=1\n", section: "A", values: ["\n=": "v"]) == "[A]\nx=1\n",
+              "a section or key that's nothing but those sets nothing")
 
         // MARK: Writing into the Windows user folder
         let places = SaveTransfer.Places(prefix: temp.appendingPathComponent("prefix", isDirectory: true), windowsUser: "tester")

@@ -2411,14 +2411,32 @@ enum Engine {
         }
     }
 
+    /// A value for an .ini line: control characters and line breaks dropped, which would end the line
+    /// and start lines (and sections) of the list's own, as in regString.
+    static func iniValue(_ text: String) -> String {
+        String(text.unicodeScalars.filter { $0.properties.generalCategory != .control && !CharacterSet.newlines.contains($0) })
+    }
+
+    /// A section's or key's name for an .ini line: as a value, and without "[", "]" and "=", which
+    /// would close the section, open another or end the key early.
+    static func iniName(_ text: String) -> String {
+        String(iniValue(text).unicodeScalars.filter { !"[]=".unicodeScalars.contains($0) }).trimmingCharacters(in: .whitespaces)
+    }
+
     /// `text` with `values` set in `[section]`: keys already there get the new value, the others
     /// go at the end of the section (sorted, so the file stays the same from start to start), and
-    /// a missing section is added at the end. Everything else stays as the game wrote it.
-    static func mergingIni(_ text: String, section: String, values: [String: String]) -> String {
+    /// a missing section is added at the end. Everything else stays as the game wrote it. Names and
+    /// values are made plain first (iniName, iniValue; the file's names the same way to find them);
+    /// a section or key left empty sets nothing.
+    static func mergingIni(_ text: String, section rawSection: String, values: [String: String]) -> String {
+        let section = iniName(rawSection)
+        var pending: [String: String] = [:]
+        // In order: two keys that come out the same give the same file at every start.
+        for key in values.keys.sorted() where !iniName(key).isEmpty { pending[iniName(key)] = iniValue(values[key]!) }
+        guard !section.isEmpty, values.isEmpty || !pending.isEmpty else { return text }
         var lines = text.isEmpty ? [] : text.components(separatedBy: "\n")
         if lines.last == "" { lines.removeLast() }
         let crlf = lines.first?.hasSuffix("\r") == true
-        var pending = values
         var out: [String] = []
         var inSection = false
         var found = false
@@ -2434,14 +2452,14 @@ enum Engine {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
                 if inSection { flush() }
-                inSection = trimmed.dropFirst().dropLast().caseInsensitiveCompare(section) == .orderedSame
+                inSection = iniName(String(trimmed.dropFirst().dropLast())).caseInsensitiveCompare(section) == .orderedSame
                 found = found || inSection
                 out.append(line)
                 continue
             }
             if inSection, let equals = trimmed.firstIndex(of: "=") {
                 let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
-                if let value = pending.removeValue(forKey: key) {
+                if let value = pending.removeValue(forKey: iniName(key)) {
                     out.append("\(key)=\(value)" + (crlf ? "\r" : ""))
                     continue
                 }
