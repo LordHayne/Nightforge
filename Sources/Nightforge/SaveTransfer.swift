@@ -60,7 +60,8 @@ enum SaveTransfer {
             let (from, to) = platform == .mac
                 ? (windows, mac.appendingPathComponent(rule.macAddPath))
                 : (mac.appendingPathComponent(rule.macAddPath), windows)
-            for folder in resolve(rule.path, under: from) {
+            for folder in resolve(rule.path, under: from)
+            where isSaveFolder(folder, root: rule.root, rule) && isSaveFolder(rule.macAddPath + "/" + folder, root: macRootName, rule) {
                 pairs.append(Pair(source: from.appendingPathComponent(folder, isDirectory: true),
                                   target: to.appendingPathComponent(folder, isDirectory: true),
                                   pattern: rule.pattern, recursive: rule.recursive,
@@ -68,6 +69,17 @@ enum SaveTransfer {
             }
         }
         return pairs
+    }
+
+    /// A save folder a rule may name, on one side (`relative` to `root`): `takeNewer` empties it of
+    /// what the other side lacks. Never a root itself – Application Support and Caches hold every app's
+    /// files, a Windows root every program's – but the game's own folder, and that not as a whole
+    /// (all files through all folders).
+    static func isSaveFolder(_ relative: String, root: String, _ rule: SaveRule) -> Bool {
+        let parts = relative.split(whereSeparator: { $0 == "/" || $0 == "\\" }).filter { $0 != "." }
+        guard !parts.contains("..") else { return false }
+        guard parts.isEmpty else { return true }
+        return root.lowercased() == "gameinstall" && !(rule.recursive && ["*", "*.*"].contains(rule.pattern))
     }
 
     /// Fills each empty save folder of `platform` from the other version's.
