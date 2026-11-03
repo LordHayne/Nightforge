@@ -625,6 +625,34 @@ class SigningScripts(unittest.TestCase):
         self.git("push", "--quiet", "origin", "main")
         self.assertEqual(self.sign_lists("main").returncode, 0, "with a newer stamp it's signed")
 
+    def test_stamps_are_weighed_as_dates_like_the_app_does(self):
+        """An offset stamp whose text sorts against its date: the script decides as the app does."""
+        main_stamp = json.loads((ROOT / "profiles/profiles.json").read_text())["generated"]
+        main_time = time.mktime(time.strptime(main_stamp, "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+        def with_offset(seconds, hours):
+            """main's stamp plus `seconds`, written in the time zone `hours` from UTC."""
+            local = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(main_time + seconds + hours * 3600))
+            return f"{local}{'+' if hours >= 0 else '-'}{abs(hours):02d}:00"
+        ahead = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + 30 * 3600 - 12 * 3600)) + "-12:00"
+        for name, stamp, refusal in [
+                ("two hours later, written at -02:00 (its text sorts before main's)", with_offset(2 * 3600, -2), None),
+                ("an hour earlier, written at +05:00 (its text sorts after main's)", with_offset(-3600, 5),
+                 "isn't newer than main's"),
+                ("30 hours ahead, written at -12:00 (its text reads 18)", ahead, "more than a day ahead")]:
+            with self.subTest(name):
+                self.setUp()  # a repository of its own for each
+                self.lists_repo()
+                self.git("checkout", "--quiet", "bot/profiles")
+                profiles = self.repo / "profiles/profiles.json"
+                profiles.write_text(stamped(profiles.read_text(), stamp))
+                self.git("commit", "--quiet", "-am", "Update game profiles")
+                self.git("push", "--quiet", "--force", "origin", "bot/profiles")
+                self.git("checkout", "--quiet", "main")
+                result = self.sign_lists("bot/profiles")
+                self.assertEqual(result.returncode, 0 if refusal is None else 1, result.stdout + result.stderr)
+                if refusal:
+                    self.assertIn(refusal, result.stderr)
+
     def test_a_stamp_from_the_future_isnt_signed(self):
         """Review N5: one list from the future would turn away every right one after it."""
         origin = self.lists_repo()

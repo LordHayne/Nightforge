@@ -268,6 +268,22 @@ struct SignatureTest {
               "a day alone is its midnight in UTC")
         check(SignedLists.isOlder(stamped("2026-11-03T23:59:59Z"), than: stamped("2026-11-04"), now: then),
               "and a second before it is older")
+
+        // sign-lists.sh asks these, through the signing tool, so it never signs what the app turns away.
+        check(SignedLists.isNewer(stamped("2026-11-04T20:00:00-02:00"), than: stamped("2026-11-04T20:26:15Z"), now: then),
+              "20:00 at -02:00 is 22:00 UTC: newer than 20:26 UTC, though its text sorts before")
+        check(!SignedLists.isNewer(stamped("2026-11-05T00:30:00+05:00"), than: stamped("2026-11-04T20:26:15Z"), now: then),
+              "00:30 on the 5th at +05:00 is 19:30 UTC on the 4th: not newer, though its text sorts after")
+        check(!SignedLists.isNewer(stamped("2026-11-04T20:26:15Z"), than: stamped("2026-11-04T20:26:15Z"), now: then),
+              "the same stamp isn't newer: a changed list needs a new one")
+        check(SignedLists.isNewer(stamped("2026-11-04T05:00:00Z"), than: stamped("2999-01-01"), now: then)
+              && SignedLists.isNewer(stamped("2026-11-04T05:00:00Z"), than: Data("{}".utf8), now: then),
+              "over a stamp the app counts as none (far ahead, or none at all) any stamp is newer")
+        check(SignedLists.isAhead(stamped("2026-11-05T13:00:00Z"), now: then) == true
+              && SignedLists.isAhead(stamped("2026-11-05T11:00:00Z"), now: then) == false
+              && SignedLists.isAhead(stamped("2026-11-05T01:00:00-12:00"), now: then) == true
+              && SignedLists.isAhead(stamped("someday"), now: then) == nil,
+              "more than a day ahead, as dates (01:00 at -12:00 is 13:00 UTC); a stamp that isn't a date")
     }
 
     static func profiles() async {

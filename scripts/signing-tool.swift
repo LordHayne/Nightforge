@@ -10,6 +10,10 @@
 //                       hold (one per line, see Signature) and adds this key's.
 //   verify FILE…        whether each FILE.sig holds, and with which key
 //   keys                the public keys in SigningKeys.swift; fails when one is missing
+//   ahead FILE          exit 0 when FILE's "generated" lies more than a day ahead, 1 when not, 2 when
+//                       it has none that reads as a date (SignedLists.isAhead)
+//   newer FILE BEFORE   exit 0 when FILE's "generated" is newer than BEFORE's by the app's own rules
+//                       (SignedLists.isNewer), 1 when not
 //
 // Error messages never repeat what came in on stdin.
 import CryptoKit
@@ -38,6 +42,16 @@ struct SigningTool {
             verify(arguments)
         case "keys":
             keys()
+        case "ahead":
+            guard arguments.count == 1, let data = FileManager.default.contents(atPath: arguments[0]) else {
+                fail("usage: signing-tool ahead FILE")
+            }
+            exit(SignedLists.isAhead(data).map { $0 ? 0 : 1 } ?? 2)
+        case "newer":
+            guard arguments.count == 2, let data = FileManager.default.contents(atPath: arguments[0]) else {
+                fail("usage: signing-tool newer FILE BEFORE")
+            }
+            exit(SignedLists.isNewer(data, than: FileManager.default.contents(atPath: arguments[1])) ? 0 : 1)
         default:
             fail("unknown command \(command)")
         }
