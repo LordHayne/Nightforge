@@ -80,8 +80,8 @@ if [ -f Resources/AppIcon.png ]; then
   rm -rf "$ICONSET"
 fi
 
-# Local ad-hoc signature so macOS launches the app without a developer account
-codesign --force --deep --sign - "$OUT" >/dev/null
+# Nightforge's own code signing identity when there is one, else ad hoc (scripts/codesign-app.sh).
+scripts/codesign-app.sh "$OUT"
 echo "✓ Done: $OUT"
 
 if [ "${1:-}" = "--install" ]; then

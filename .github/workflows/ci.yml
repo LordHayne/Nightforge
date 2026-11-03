@@ -45,3 +45,7 @@ jobs:
       # Against made-up wiki pages and store answers: no network.
       - name: AppleGamingWiki import and test basket tests
         run: python3 -m unittest tests/test_fetch_agw.py tests/test_test_basket.py
+
+      # Against stand-ins for security and codesign: no keychain, no certificate.
+      - name: Code signing script
+        run: python3 -m unittest tests/test_codesign_app.py
