@@ -114,6 +114,11 @@ struct CompleteRemovalTest {
     static func quit() {
         check(Quit.answer(removing: false) == .quit, "a sheet or not: it quits")
         check(Quit.answer(removing: true) == .wait, "removing itself: it waits, the removal quits by itself")
+        // Logging out with Settings open (review M7): the sheets closed, it quits right in the Apple Event,
+        // as AppKit does, and answers it only then – no "yes" first and the quit a second later.
+        check(!Quit.waits(panelWaiting: false, sheetsLeft: false), "the sheets closed, no panel: it quits at once")
+        check(Quit.waits(panelWaiting: true, sheetsLeft: false), "a panel's loop ends after the event: a moment's wait")
+        check(Quit.waits(panelWaiting: false, sheetsLeft: true), "a sheet still closing: a moment's wait")
         MainActor.assumeIsolated {
             check(!CompleteRemoval.isRunning, "no removal under way to begin with")
         }
