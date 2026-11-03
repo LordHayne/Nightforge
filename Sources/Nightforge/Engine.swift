@@ -1499,7 +1499,7 @@ enum Engine {
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
         var sections = [crashDialogOff]
-        for exe in exes {
+        for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
             overrides.merge(layerOverrides(layer, d3dMetalEngine: d3dMetalEngine)) { _, layer in layer }
@@ -1579,6 +1579,13 @@ enum Engine {
     /// Where a profile from the online fixes may write: a game's own settings under Software, and
     /// drive letters (MountedDevices). Never autostart entries, file associations, policies or Wine's
     /// own settings, which would reach every program in the prefix. scripts/build-profiles.py checks the same.
+    /// A program's file name that can stand in a .reg section's name (AppDefaults\<name>): a game
+    /// folder's name with "]", a line break and a section of its own (…\CurrentVersion\Run) would
+    /// write that too. No control characters, brackets or backslashes, which no Windows program has.
+    static func isPlainProgramName(_ name: String) -> Bool {
+        !name.isEmpty && !name.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F || "[]\\".unicodeScalars.contains($0) }
+    }
+
     static func isAllowedRegistryKey(_ key: String) -> Bool {
         guard !key.unicodeScalars.contains(where: { $0.value < 0x20 || $0 == "[" || $0 == "]" }) else { return false }
         let lower = key.lowercased()
