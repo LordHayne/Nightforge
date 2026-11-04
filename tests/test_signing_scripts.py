@@ -352,8 +352,8 @@ class SigningScripts(unittest.TestCase):
 
     # MARK: sign-release.sh
 
-    def draft(self, tag="v0.3.1", draft=True, prerelease=False, version=None, keys=None):
-        """A release as release.yml drafts it, its app knowing `keys`."""
+    def draft(self, tag="v0.3.1", draft=True, prerelease=False, version=None, keys=None, requirement=None):
+        """A release as release.yml drafts it, its app knowing `keys` (and code-signed with `requirement`)."""
         version = version or tag[1:]
         app = self.work / "build" / "Nightforge.app"
         (app / "Contents/MacOS").mkdir(parents=True)
@@ -363,6 +363,9 @@ class SigningScripts(unittest.TestCase):
         (app / "Contents/MacOS/Nightforge").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0".join(k.encode() for k in known) + b"\0rest")
         (app / "Contents/Resources").mkdir()
         (app / "Contents/Resources/steamwebhelper.exe").write_bytes(b"MZ wrapper")
+        if requirement:
+            (app / "Contents/_CodeSignature").mkdir()
+            (app / "Contents/_CodeSignature/requirement").write_text(requirement + "\n")
         assets = self.fake / "assets"
         assets.mkdir()
         subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(assets / f"Nightforge-{tag[1:]}.zip")], check=True)
@@ -517,6 +520,7 @@ class SigningScripts(unittest.TestCase):
         self.assertIn(f'identifier "io.github.lordhayne.nightforge" and certificate leaf = H"{CERT}"', self.requirement_in(zip_file))
         self.assertIn(f"--sign {CERT}", (self.fake / "codesign.argv").read_text())
         self.assertTrue((self.fake / "assets/Nightforge-0.3.1.dmg").read_bytes() == b"dmg", "the DMG stays as it was built")
+        self.assertIn("GitHub names no SHA-256", result.stderr, "no digest to compare: said, not silent")
 
     def test_without_the_certificate_in_the_keychain_nothing_is_signed(self):
         zip_file = self.draft()
@@ -538,6 +542,26 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(zip_file.read_bytes(), built)
         self.assertIn("ad hoc", result.stdout)
         self.assertIsNone(self.requirement_in(zip_file))
+
+    def test_add_isnt_allowed_where_code_signing_would_change_the_zip(self):
+        """Review: a .sig made for the workflow's zip wouldn't hold for the code-signed one; --add would keep only its own."""
+        zip_file = self.draft()
+        self.assertEqual(self.sign_release("v0.3.1", key=self.main).returncode, 0, "no pin yet: the workflow's zip is signed")
+        self.code_signing()
+        (self.fake / "clipboard").write_text(self.spare)
+        result = self.sign_release("v0.3.1", "--spare", "--add")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("Sign it once without --add first", result.stderr)
+        self.assertEqual(len(pathlib.Path(f"{zip_file}.sig").read_text().split()), 1, "the draft's signature is untouched")
+
+    def test_an_app_signed_earlier_has_to_name_this_bundle_id(self):
+        """Review: the identifier is checked when the app comes code-signed already, too."""
+        self.draft(requirement=f'designated => identifier "com.example.other" and certificate leaf = H"{CERT}"')
+        (self.fake / "keychain").write_text(self.main)
+        self.code_signing()
+        result = self.sign_release("v0.3.1")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("doesn't name io.github.lordhayne.nightforge", result.stderr)
 
     def test_a_second_run_leaves_the_code_signed_zip_alone(self):
         """--add after a key change: the zip on the draft is code-signed already, so its signature still holds."""

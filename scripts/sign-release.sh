@@ -77,19 +77,28 @@ echo "✓ Nightforge $version, knows both keys."
 # (a second run, --add) stays as it is, so the signature on the draft still holds for its zip.
 pinned="$(grep -v '^#' scripts/codesign-certificate.sha1 2>/dev/null | tr -d '[:space:]' | tr 'a-f' 'A-F' || true)"
 final="$work/$zip"
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
 has_certificate() { codesign --display -r - "$app" 2>/dev/null | grep -qiF "certificate leaf = H\"$pinned\""; }
+# Both, whether it was signed now or in an earlier run.
+names_us() {
+  has_certificate && codesign --display -r - "$app" 2>/dev/null | grep -qF "identifier \"$bundle_id\"" \
+    || fail "The app's designated requirement doesn't name $bundle_id and the certificate $pinned."
+}
 if [ -z "$pinned" ]; then
   code_note="ad hoc (scripts/codesign-certificate.sha1 names no certificate)"
 elif has_certificate; then
+  names_us
   code_note="Nightforge Code Signing $pinned, from an earlier run"
 else
+  # Signing it changes the zip's bytes, so a signature already on the draft wouldn't hold any more and
+  # --add would end with this key's alone.
+  [ ${#add[@]} -eq 0 ] || [ ! -e "$work/$zip.sig" ] \
+    || fail "The draft's $zip isn't code-signed yet, and signing it changes its bytes: the signature on the draft wouldn't hold. Sign it once without --add first, then add the other key."
   security find-identity -p codesigning 2>/dev/null | grep -qiF "$pinned" \
     || fail "The code signing certificate $pinned isn't in this Mac's keychain (docs/CODESIGNATUR.md)."
   echo "▸ Signing the app with Nightforge's certificate (macOS may ask whether codesign may use its key) …"
   NIGHTFORGE_CODESIGN_IDENTITY="$pinned" NIGHTFORGE_CODESIGN_KEYCHAIN="" scripts/codesign-app.sh "$app"
-  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
-  has_certificate && codesign --display -r - "$app" 2>/dev/null | grep -qF "identifier \"$bundle_id\"" \
-    || fail "The app's designated requirement doesn't name $bundle_id and the certificate $pinned."
+  names_us
   mkdir "$work/signed"
   final="$work/signed/$zip"
   ditto -c -k --sequesterRsrc --keepParent "$app" "$final"
@@ -100,6 +109,8 @@ fi
 # points at on GitHub, and the steamwebhelper wrapper in the app beside the repository's at that commit.
 zip_sha="$(shasum -a 256 "$work/$zip" | cut -d' ' -f1)"
 listed="$(jq -r --arg zip "$zip" '.assets[] | select(.name == $zip) | .digest // empty' <<< "$release")"
+# An older gh, or an asset from before GitHub kept digests: then there's nothing to compare, but said so.
+[ -n "$listed" ] || echo "⚠ GitHub names no SHA-256 for the draft's $zip (gh too old?): not compared with the download." >&2
 [ -z "$listed" ] || [ "$listed" = "sha256:$zip_sha" ] || fail "$zip came down other than GitHub lists it ($listed)."
 commit="$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}" 2>/dev/null | tail -1 | cut -f1 || true)"
 built_from="${commit:-unknown (no tag $tag on origin)}"
@@ -136,6 +147,7 @@ assets="$(gh release view "$tag" --repo "$SIGNING_REPO" --json assets)"
 jq -e --arg sig "$zip.sig" '.assets | any(.name == $sig)' <<< "$assets" > /dev/null \
   || fail "GitHub doesn't list $zip.sig on the draft."
 listed="$(jq -r --arg zip "$zip" '.assets[] | select(.name == $zip) | .digest // empty' <<< "$assets")"
+[ -n "$listed" ] || echo "⚠ GitHub names no SHA-256 for $zip on the draft: not compared with the one signed." >&2
 [ -z "$listed" ] || [ "$listed" = "sha256:$(shasum -a 256 "$final" | cut -d' ' -f1)" ] \
   || fail "GitHub lists another $zip on the draft than the one signed ($listed)."
 echo "✓ $zip.sig is on the draft$([ "$final" = "$work/$zip" ] || echo ", beside the code-signed $zip")."
