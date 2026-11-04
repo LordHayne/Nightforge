@@ -285,6 +285,13 @@ struct GameOverlayTest {
               "the second try: above what lay in front of it")
         check(GameOverlay.raisedLevel(screenSaver, covering: [abzu]) == screenSaver && GameOverlay.raisedLevel(screenSaver, covering: []) == screenSaver,
               "never lower than it was")
+        // ABZU switched the MacBook to 1920×1200 after its start (4.11.): the panel takes the display's frame as
+        // it is when it opens, in AppKit's terms – not 1512×982 from before.
+        check(GameOverlay.appKitFrame(CGRect(x: 0, y: 0, width: 1920, height: 1200), primaryHeight: 1200) == NSRect(x: 0, y: 0, width: 1920, height: 1200),
+              "the main display in its new mode")
+        check(GameOverlay.appKitFrame(CGRect(x: 1920, y: 0, width: 2560, height: 1440), primaryHeight: 1200) == NSRect(x: 1920, y: -240, width: 2560, height: 1440),
+              "a taller display beside it reaches below the main one's bottom")
+        check(GameProcesses.display(of: [], pids: game) == nil, "no window of the game's: the screen it was given")
         check(GameOverlay.shows(inFront: true, occlusionVisible: true), "in front and visible: the game pauses")
         check(!GameOverlay.shows(inFront: true, occlusionVisible: false) && !GameOverlay.shows(inFront: false, occlusionVisible: true),
               "either missing: raised once more, then the game runs on and the panel goes")
