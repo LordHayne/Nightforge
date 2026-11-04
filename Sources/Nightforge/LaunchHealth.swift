@@ -350,6 +350,16 @@ enum LaunchHealth {
         UserDefaults.standard.set(date, forKey: questionKey(game))
     }
 
+    /// When the game last ended at a question of its own.
+    static func ownQuestionEnd(_ game: GameID) -> Date? {
+        UserDefaults.standard.object(forKey: questionKey(game)) as? Date
+    }
+
+    /// Not the player's after all (LibraryModel.ownQuestionEndStands).
+    static func forgetOwnQuestion(_ game: GameID) {
+        UserDefaults.standard.removeObject(forKey: questionKey(game))
+    }
+
     /// Whether the game ended at a question of its own since `start`.
     static func endedAtOwnQuestion(_ game: GameID, since start: Date) -> Bool {
         guard let ended = UserDefaults.standard.object(forKey: questionKey(game)) as? Date else { return false }

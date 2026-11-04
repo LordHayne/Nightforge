@@ -884,6 +884,12 @@ final class LibraryModel: ObservableObject {
         var lastAsked: Date?
         /// When that question went, answered by the player – a click or key press just before.
         var answeredAt: Date?
+        /// Since when it was taken as one, and whether the game had the front at the last look at it.
+        var askedSince: Date?
+        var askedInFront = false
+        func answeredNow() -> Bool {
+            Self.answered(inputBefore: Self.sinceInput(), shownFor: askedSince.map { Date().timeIntervalSince($0) } ?? 0, inFront: askedInFront)
+        }
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
         /// macOS's questions on screen at the last look (`GameProcesses.macOSQuestions`), the frontmost
@@ -1023,7 +1029,7 @@ final class LibraryModel: ObservableObject {
                 // Closed at a question of its own – Unity's configuration window, Quit (The Forest, 3.11.): the
                 // player's choice, not a way that failed (LaunchHealth.endedAtOwnQuestion). Gone together with
                 // its question at this look: answered now.
-                if lastAsked != nil, answeredAt == nil, Self.answered(inputBefore: Self.sinceInput()) { answeredAt = Date() }
+                if lastAsked != nil, answeredAt == nil, answeredNow() { answeredAt = Date() }
                 if loweredAt == nil, Self.endedAtOwnQuestion(answeredAgo: answeredAt.map { Date().timeIntervalSince($0) }) {
                     lastAsked = nil
                     answeredAt = nil
@@ -1057,10 +1063,13 @@ final class LibraryModel: ObservableObject {
                 && asking.map { Self.takenAsQuestion($0.size, standing: Date().timeIntervalSince(questionSeen?.since ?? Date()),
                                                      helperPresses: helperPresses) } == true
             if asks {
+                if lastAsked == nil { askedSince = Date() }
                 lastAsked = Date()
+                askedInFront = gameFront
             } else if lastAsked != nil, asking == nil {
-                // Its question went: answered, if the player clicked or pressed a key just before.
-                if Self.answered(inputBefore: Self.sinceInput()) { answeredAt = Date() }
+                // Its question went: answered, if the player clicked or pressed a key just before, while it
+                // stood and the game had the front – not a click elsewhere, nor one from before it came.
+                if answeredNow() { answeredAt = Date() }
                 lastAsked = nil
             }
             let frontName = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
@@ -1230,9 +1239,12 @@ final class LibraryModel: ObservableObject {
     /// The player's click or key press at most this long before the question went: its answer.
     nonisolated static let answerInput: TimeInterval = 4
 
-    /// Whether the game's question that just went was answered: `inputBefore` seconds since the
-    /// player's last click or key press. A splash that goes by itself isn't: no one answered it.
-    nonisolated static func answered(inputBefore: TimeInterval) -> Bool { inputBefore <= answerInput }
+    /// Whether the game's question that just went was answered: the player's last click or key press
+    /// (`inputBefore` seconds ago) came while it stood (`shownFor`) and the game had the front
+    /// (`inFront`). A splash that goes by itself isn't: no one answered it.
+    nonisolated static func answered(inputBefore: TimeInterval, shownFor: TimeInterval, inFront: Bool) -> Bool {
+        inFront && inputBefore <= answerInput && inputBefore < shownFor
+    }
 
     /// Whether a game that ended with no picture ended at a question of its own: answered
     /// `answeredAgo` seconds before.
@@ -1240,10 +1252,13 @@ final class LibraryModel: ObservableObject {
         answeredAgo.map { $0 <= ownQuestionGrace } ?? false
     }
 
-    /// Whether the start takes an end at the game's own question as the player's: not with the
-    /// graphics failing or a crash in its log.
-    nonisolated static func ownQuestionEndStands(endedAtOwnQuestion: Bool, graphicsFailed: Bool, crashed: Bool) -> Bool {
-        endedAtOwnQuestion && !graphicsFailed && !crashed
+    /// Whether the start takes an end at the game's own question (`end`, LaunchHealth.ownQuestionEnd)
+    /// as the player's: one of this start, with no process of the game's running after it – a
+    /// launcher whose window counted as one hands over to the game (`lastRunning`, the first seconds'
+    /// last look at it) – and neither the graphics failing nor a crash in its log.
+    nonisolated static func ownQuestionEndStands(end: Date?, startedAt: Date, lastRunning: Date?, graphicsFailed: Bool, crashed: Bool) -> Bool {
+        guard let end, end >= startedAt, !graphicsFailed, !crashed else { return false }
+        return (lastRunning ?? .distantPast) <= end.addingTimeInterval(2)
     }
 
     /// Seconds since the player last clicked or pressed a key, anywhere (no permission needed).
@@ -3365,10 +3380,14 @@ final class LibraryModel: ObservableObject {
                 }
                 // Closed at a question of its own (the curtain saw it): the player's choice too – unless
                 // the log says the graphics failed or it crashed, as after Play in Unity's window it might.
-                if Self.ownQuestionEndStands(endedAtOwnQuestion: LaunchHealth.endedAtOwnQuestion(game.gameID, since: startedAt),
-                                             graphicsFailed: graphicsFailed, crashed: GameLog.crashed(in: log)) {
-                    GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
-                    return
+                if let end = LaunchHealth.ownQuestionEnd(game.gameID), end >= startedAt {
+                    let crashedAtAll = GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty
+                    if Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
+                                                 graphicsFailed: graphicsFailed, crashed: crashedAtAll) {
+                        GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
+                        return
+                    }
+                    LaunchHealth.forgetOwnQuestion(game.gameID)  // nor does the next start's review go by it
                 }
                 // Called off by a new start: that one has the curtain, nothing here starts again, and
                 // a game gone only a moment (a launcher handing over) isn't judged.
@@ -3763,6 +3782,9 @@ final class LibraryModel: ObservableObject {
     /// layer failed (GameLog) is ended here: it would only sit behind its own error box.
     /// `layer`: the way it started with – only that layer's failure ends it (GameLog.graphicsFailed).
     /// `ended` at once when a new start calls the watch off: nothing is known then.
+    /// When the first seconds' watch last saw a game running (`ownQuestionEndStands`).
+    private var firstSecondsRunning: [String: Date] = [:]
+
     private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil,
                                       layer: GraphicsLayer? = nil) async -> FirstSecondsWatch.Verdict {
         let folders = Self.processFolders([game])
@@ -3772,9 +3794,8 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return .ended }
             let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
+            if case .running = presence { firstSecondsRunning[game.id] = Date() }
             if let verdict = watch.look(presence) { return verdict }
-            // Closed at a question of its own: its end is clear, no ten looks to wait for.
-            if watch.absentLooks >= 2, LaunchHealth.endedAtOwnQuestion(game.gameID, since: started) { return .ended }
             if case .running(let pid) = presence, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
                 kill(pid, SIGTERM)
                 // Steam has to see it gone before the next way can start.

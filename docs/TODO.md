@@ -632,7 +632,10 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     Der Vorhang merkt sich, wann die Frage verschwand und ob der Spieler kurz davor (≤ 4 s) geklickt oder eine
     Taste gedrückt hat. Enden die Prozesse danach binnen 15 s ohne Bild, zählt es als seine Antwort. Dazu bleibt
     der Vorhang über Unitys Fenster, solange der Play!-Helfer für das Spiel läuft (`UnityDialog.isPressing`), höchstens
-    5 s, danach gilt es als Frage. Live: The Forest mit `unityDialogPlay` false, „Quit“ → „ended right at a question of
+    5 s, danach gilt es als Frage. Nach dem Hermes-Review von Runde 15: Die Eingabe zählt nur, wenn sie kam, während
+    die Frage stand und das Spiel vorne war; der Start nimmt das Ende nur, wenn danach kein Prozess des Spiels mehr
+    lief (ein Launcher, dessen Fenster als Frage galt, übergibt sonst ans Spiel), und prüft Abstürze wie sonst auch
+    über Unreals Absturzberichte. Live: The Forest mit `unityDialogPlay` false, „Quit“ → „ended right at a question of
     its own“ im `wine.log`, kein neuer Start, `shortEnds` bleibt; mit dem Helfer (Standard) kein „it asks something“ vor
     „pressed Play!“.
 - **„Aktualisieren & spielen“ zeigt die ganze Zeit 0 %.** OxyRail am 31.10.: 5,8 GB in 4,5 Minuten, der Knopf

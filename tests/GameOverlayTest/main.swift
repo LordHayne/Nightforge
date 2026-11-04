@@ -449,19 +449,27 @@ struct GameOverlayTest {
     static func ownQuestion() {
         // The order: its question seen (the curtain made way), the player clicks Quit, the window goes,
         // and Wine ends its processes some seconds later (more than the 3 s first allowed, 4.11.).
-        check(LibraryModel.answered(inputBefore: 0.6), "the window went 0.6 s after a click: answered")
+        check(LibraryModel.answered(inputBefore: 0.6, shownFor: 8, inFront: true), "the window went 0.6 s after a click on it: answered")
         check(LibraryModel.endedAtOwnQuestion(answeredAgo: 9), "its processes gone 9 s after: the player's")
         check(LibraryModel.endedAtOwnQuestion(answeredAgo: LibraryModel.ownQuestionGrace), "within \(Int(LibraryModel.ownQuestionGrace)) s")
-        check(LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: false),
+        let start = Date(timeIntervalSince1970: 1_793_800_000), end = start.addingTimeInterval(20)
+        check(LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: end.addingTimeInterval(-1), graphicsFailed: false, crashed: false),
               "so the start tries no other way")
-        // Not the player's: a splash gone by itself, an end long after answering, no question at all.
-        check(!LibraryModel.answered(inputBefore: 30), "no click or key before it went: no one answered it")
+        // Not the player's: a splash gone by itself, a click elsewhere or from before, an end long after answering.
+        check(!LibraryModel.answered(inputBefore: 30, shownFor: 8, inFront: true), "no click or key before it went: no one answered it")
+        check(!LibraryModel.answered(inputBefore: 2, shownFor: 1, inFront: true), "a click from before the window came: not its answer")
+        check(!LibraryModel.answered(inputBefore: 0.5, shownFor: 8, inFront: false), "another app in front: a click there, not on it")
         check(!LibraryModel.endedAtOwnQuestion(answeredAgo: 40), "Wukong's warning answered long before the end: the way's")
         check(!LibraryModel.endedAtOwnQuestion(answeredAgo: nil), "no answered question: the way's")
-        // Play in Unity's window, then the graphics fail at once: the way's after all.
-        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: true, crashed: false), "the graphics failed: the next way")
-        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: true), "a crash in its log: the next way")
-        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: false, graphicsFailed: false, crashed: false), "not at its question: as ever")
+        // A launcher's window taken as a question, the launcher gone, the game itself started and crashed (Control).
+        check(!LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: end.addingTimeInterval(6), graphicsFailed: false, crashed: false),
+              "a process of the game's ran after that end: a handover, the way's")
+        check(!LibraryModel.ownQuestionEndStands(end: start.addingTimeInterval(-5), startedAt: start, lastRunning: nil, graphicsFailed: false, crashed: false),
+              "an end from a start before: as ever")
+        // Play in Unity's window, then the graphics fail at once or it crashes (an Unreal crash report too): the way's after all.
+        check(!LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: nil, graphicsFailed: true, crashed: false), "the graphics failed: the next way")
+        check(!LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: nil, graphicsFailed: false, crashed: true), "a crash: the next way")
+        check(!LibraryModel.ownQuestionEndStands(end: nil, startedAt: start, lastRunning: nil, graphicsFailed: false, crashed: false), "not at its question: as ever")
 
         // A thin window takes a while to count as a question; a dialog counts at once.
         check(!LibraryModel.takenAsQuestion(CGSize(width: 601, height: 201), standing: 1), "ABZU's splash, a second in: not asking")
