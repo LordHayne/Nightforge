@@ -9,7 +9,7 @@ import SwiftUI
 /// none. A pad without them uses ☰ and ⧉ (`OverlayHold.chord`).
 ///
 /// The pad reaches Nightforge in the background (InputRouter); the game gets the same presses,
-/// which macOS can't take from it. So a Windows game is paused while the panel is up (SIGSTOP):
+/// which macOS can't take from it. So a Windows game is paused while the panel is up, once it shows (SIGSTOP):
 /// Wine's pad driver runs in winedevice.exe, not in the game, and XInput hands the game the pad's
 /// state when it runs on, not the presses made meanwhile; its sound pauses with it. A Mac game reads
 /// the pad through GameController's events, which would all arrive at once afterwards – it keeps
@@ -46,10 +46,11 @@ enum GameOverlay {
     /// The panel, while it's up: the pad's input goes there (InputRouter).
     static var window: NSWindow? { isOpen ? panel : nil }
 
-    /// Over `game` on `screen`. `pause`: its processes, stopped until the panel goes. `step`:
+    /// Over `game` on `screen`. `pids`: its processes, whose windows the panel goes above;
+    /// `pause`: whether they're stopped while it's up – once it shows (`checkShown`). `step`:
     /// `.notStarting` for a game that runs but shows nothing (LibraryModel's curtain).
     /// `soundStaysOn`: the device a Windows game still plays to after the default output changed.
-    static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, symbols: PadSymbols,
+    static func open(_ game: String, pids: [pid_t], pause: Bool, on screen: NSScreen?, symbols: PadSymbols,
                      step: OverlayStep = .menu, soundStaysOn: String? = nil, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
@@ -57,19 +58,81 @@ enum GameOverlay {
         state.soundStaysOn = soundStaysOn
         state.symbols = symbols
         state.step = step
-        stop(pause)
-        state.paused = !pause.isEmpty
+        state.paused = pause && !pids.isEmpty  // said at once, done once the panel shows
         let panel = self.panel ?? make()
         self.panel = panel
         panel.setFrame(screen.frame, display: false)
         // A game that took the screen for itself (a real display-mode change) has a shield above
         // every window: Nightforge comes to the front instead, with the same choice.
         if GameProcesses.screenCaptured() { comeForward() }
+        // Above whatever covers the screen – the game's window, whatever level it gives it, or a
+        // captured display's shield (windows above its level show over it).
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(screen.frame), except: getpid())
+        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
         panel.orderFrontRegardless()
         panel.makeKey()
         focusDefault()
         heard = false
-        GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front")
+        opened += 1
+        let look = opened
+        GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front, "
+                     + "its windows \(GameProcesses.windowList(Set(pids))), the panel L\(panel.level.rawValue)"
+                     + (panel.isOnActiveSpace ? "" : " not on the Space shown"))
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            checkShown(look, pids: pids, pause: pause)
+        }
+    }
+
+    /// The panel's opening, so a look 300 ms on knows it's still the same one.
+    private static var opened = 0
+
+    /// 300 ms after the panel opened: it shows – then the game pauses – or it's raised above what
+    /// lies in front of it and looked at once more, and failing that the game runs on in front
+    /// without it. ABZU (DXMT, macOS's Game Mode on, 3.11.) froze under a panel the player never
+    /// saw, behind the game's window: the pause came at once. So the pause waits for the panel.
+    private static func checkShown(_ look: Int, pids: [pid_t], pause: Bool, again: Bool = false) {
+        guard look == opened, isOpen, let panel, !leaving else { return }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        let covering = GameProcesses.covering(windows, window: panel.windowNumber)
+        let visible = panel.occlusionState.contains(.visible)
+        let seen = "\(covering.map { $0.isEmpty ? "nothing in front of it" : "in front of it " + GameProcesses.describe($0) } ?? "not on the Space shown"), "
+            + "\(visible ? "visible" : "hidden") to macOS, the panel L\(panel.level.rawValue), the game's windows \(GameProcesses.windowList(Set(pids)))"
+        if shows(inFront: covering?.isEmpty == true, occlusionVisible: visible) {
+            if again { GameLog.note("Overlay seen for \(state.game) once raised (\(seen))") }
+            if pause { stop(pids) }
+            return
+        }
+        if !again {
+            panel.level = NSWindow.Level(rawValue: raisedLevel(panel.level.rawValue, covering: covering ?? []))
+            panel.orderFrontRegardless()
+            panel.makeKey()
+            GameLog.note("Overlay not seen for \(state.game) after 300 ms (\(seen)): raised to L\(panel.level.rawValue), brought to the front")
+            Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                checkShown(look, pids: pids, pause: pause, again: true)
+            }
+            return
+        }
+        GameLog.note("Overlay still not seen for \(state.game) (\(seen)): it goes, the game runs on in front")
+        InputRouter.hidePointerForGame()
+        close()
+    }
+
+    /// Whether the panel shows: nothing in front of it on the Space shown, and macOS counts it as
+    /// visible.
+    nonisolated static func shows(inFront: Bool, occlusionVisible: Bool) -> Bool { inFront && occlusionVisible }
+
+    /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
+    /// the screen should that lie higher.
+    nonisolated static func panelLevel(coverLevel: Int?) -> Int {
+        max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1)
+    }
+
+    /// The panel's level for a second try: above every window found in front of it.
+    nonisolated static func raisedLevel(_ level: Int, covering: [[String: Any]]) -> Int {
+        max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1)
     }
 
     /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
@@ -709,6 +772,51 @@ enum GameProcesses {
         guard !askers.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
         else { return [] }
         return macOSQuestions(windows, askers: askers)
+    }
+
+    /// A window's frame in CGWindowList's terms (`kCGWindowBounds`): from the main display's top left.
+    nonisolated static func bounds(_ window: [String: Any]) -> CGRect? {
+        guard let bounds = window[kCGWindowBounds as String] as? NSDictionary else { return nil }
+        return CGRect(dictionaryRepresentation: bounds as CFDictionary)
+    }
+
+    /// A screen's frame (AppKit's, from the main display's bottom left) in CGWindowList's terms.
+    @MainActor
+    static func cgRect(_ frame: CGRect) -> CGRect {
+        let height = NSScreen.screens.first?.frame.height ?? frame.maxY
+        return CGRect(x: frame.minX, y: height - frame.maxY, width: frame.width, height: frame.height)
+    }
+
+    /// Whether a window covers most of `area`: a game's picture or a shield, not the menu bar, a
+    /// banner or the Dock.
+    nonisolated static func covers(_ window: [String: Any], _ area: CGRect) -> Bool {
+        guard let frame = bounds(window), (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { return false }
+        let overlap = frame.intersection(area)
+        return !overlap.isNull && overlap.width * overlap.height >= area.width * area.height / 2
+    }
+
+    /// The highest level of a window that covers `screen`, not one of `except`'s (Nightforge's own
+    /// curtain); nil without one.
+    nonisolated static func coverLevel(_ windows: [[String: Any]], screen: CGRect, except: pid_t) -> Int? {
+        windows.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != except && covers($0, screen) }
+            .map { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 }.max()
+    }
+
+    /// What lies in front of `window` (`windows`: the Space shown, front to back) over most of it;
+    /// nil when it isn't there at all.
+    nonisolated static func covering(_ windows: [[String: Any]], window: Int) -> [[String: Any]]? {
+        guard let index = windows.firstIndex(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue == window }),
+              let area = bounds(windows[index])
+        else { return nil }
+        return windows[..<index].filter { covers($0, area) }
+    }
+
+    /// Windows for wine.log: "ABZU L27 1512×982".
+    nonisolated static func describe(_ windows: [[String: Any]]) -> String {
+        windows.map { window in
+            let size = bounds(window).map { "\(Int($0.width))×\(Int($0.height))" } ?? "?"
+            return "\(window[kCGWindowOwnerName as String] as? String ?? "?") L\((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0) \(size)"
+        }.joined(separator: ", ")
     }
 
     /// The game's windows as the curtain sees them, for wine.log: "380×332 L3, 1512×982 L0, 2 hidden".

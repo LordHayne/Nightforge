@@ -1305,7 +1305,8 @@ final class LibraryModel: ObservableObject {
                 }.value
                 await self?.leaveGame(pids)
             })
-        GameOverlay.open(game.name, pause: [], on: GameDisplay.gameScreen, symbols: padSymbols, step: .notStarting, actions: actions)
+        GameOverlay.open(game.name, pids: [], pause: false, on: GameDisplay.gameScreen, symbols: padSymbols, step: .notStarting,
+                         actions: actions)
     }
 
     /// Both sticks held in a game (InputRouter): the overlay over the game being played. A
@@ -1332,7 +1333,7 @@ final class LibraryModel: ObservableObject {
                     }.value
                 },
                 nightforge: { [weak self] in await self?.leaveGame(Set(pids)) })
-            GameOverlay.open(game.name, pause: pauses ? pids : [], on: GameDisplay.gameScreen, symbols: padSymbols,
+            GameOverlay.open(game.name, pids: pids, pause: pauses, on: GameDisplay.gameScreen, symbols: padSymbols,
                              soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
         }
     }
