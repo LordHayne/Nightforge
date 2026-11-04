@@ -446,6 +446,7 @@ struct CompleteRemovalTest {
         }
 
         quit()
+        await quitOrder()
         print(failures == 0 ? "✓ CompleteRemoval" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -481,5 +482,74 @@ struct CompleteRemovalTest {
         let loop = ["A": Window(name: "B"), "B": Window(name: "A")]
         check(Quit.closingOrder([Window(name: "A"), Window(name: "B")], sheet: { loop[$0.name] }).count <= 2,
               "a sheet listed as its own window's parent can't make it go round forever")
+    }
+
+    /// With Settings open nothing quit Nightforge (3.11.): AppKit had ended the SwiftUI sheet, which
+    /// came back with the next redraw, and `NSApp.terminate` with a sheet attached does nothing. Now
+    /// the sheets close through the model first, AppKit ends only what's left of its own, and the
+    /// quit comes once they're gone – or says in wine.log why it didn't go through.
+    @MainActor
+    static func quitOrder() async {
+        @MainActor
+        final class Stage: QuitStage {
+            var events: [String] = []
+            var notes: [String] = []
+            var sheets: [String]
+            let model: Bool, appKit: Bool
+            /// `model`: the sheets go when the model closes them (SwiftUI's, a moment later);
+            /// `appKit`: when AppKit ends them (its own).
+            init(_ sheets: [String], model: Bool = false, appKit: Bool = false) {
+                self.sheets = sheets
+                self.model = model
+                self.appKit = appKit
+            }
+            func closeSheets() {
+                events.append("model")
+                if model { Task { try? await Task.sleep(for: .milliseconds(150)); self.sheets = [] } }
+            }
+            var sheetsLeft: [String] { sheets }
+            func endSheets() {
+                events.append("AppKit")
+                if appKit { sheets = [] }
+            }
+            var panelWaiting: Bool { false }
+            func stopPanel() { events.append("panel") }
+            func terminate() -> Bool {
+                events.append(sheets.isEmpty ? "terminate" : "terminate under " + sheets.joined(separator: ", "))
+                return sheets.isEmpty  // as AppKit: nothing at all with a sheet attached
+            }
+            func note(_ line: String) { notes.append(line) }
+        }
+        func quit(_ stage: Stage) async -> TimeInterval {
+            let start = Date()
+            check(Quit.now(by: "⌘Q", beforeQuitting: { stage.events.append("answer") }, on: stage), "⌘Q quits")
+            for _ in 0..<80 where !(stage.events.last ?? "").hasPrefix("terminate") {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            return Date().timeIntervalSince(start)
+        }
+
+        let settings = Stage(["Settings"], model: true)
+        let took = await quit(settings)
+        check(settings.events == ["model", "answer", "terminate"] && settings.notes.isEmpty,
+              "Settings: closed through the model, then the quit: \(settings.events)")
+        check(took < 0.8, "as soon as it's gone, not after AppKit's turn: \(took) s")
+
+        let alert = Stage(["NSAlert"], appKit: true)
+        let alertTook = await quit(alert)
+        check(alert.events == ["model", "AppKit", "answer", "terminate"] && alert.notes.isEmpty,
+              "a sheet of AppKit's own: ended through AppKit after the model's turn: \(alert.events)")
+        check(alertTook >= 0.9, "AppKit's turn comes after a second: \(alertTook) s")
+
+        let stuck = Stage(["Settings"])
+        _ = await quit(stuck)
+        check(stuck.events == ["model", "AppKit", "answer", "terminate under Settings"], "a sheet that won't go: tried all the same: \(stuck.events)")
+        check(stuck.notes == ["Quit by ⌘Q didn't go through: a sheet is still open (Settings)"], "and wine.log says why: \(stuck.notes)")
+
+        let none = Stage([])
+        check(Quit.now(by: "the menu", on: none) && none.events == ["model", "terminate"], "no sheet: at once: \(none.events)")
+
+        check(Quit.reason(sheetsLeft: [], panelWaiting: true) == "a panel still waits for a file", "a panel's wait named")
+        check(Quit.reason(sheetsLeft: [], panelWaiting: false) == "AppKit didn't take it", "else AppKit's silence")
     }
 }
