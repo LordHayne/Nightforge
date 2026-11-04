@@ -21,7 +21,9 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPTS = ["signing-lib.sh", "signing-tool.swift", "make-signing-keys.sh", "sign-release.sh", "sign-lists.sh",
-           "check-signatures.sh"]
+           "check-signatures.sh", "codesign-app.sh"]
+# The certificate a test pins and has "in the keychain".
+CERT = "0123456789ABCDEF0123456789ABCDEF01234567"
 # The online lists the scripts sign, as scripts/signing-lib.sh names them.
 LISTS = re.search(r"^SIGNED_LISTS=\((.*)\)$", (ROOT / "scripts/signing-lib.sh").read_text(), re.M).group(1).split()
 
@@ -42,6 +44,7 @@ run() {
         shift
       done ;;
     delete-generic-password) [ -e "$FAKE/keychain" ] || return 44; rm "$FAKE/keychain" ;;
+    find-identity) cat "$FAKE/identities" 2>/dev/null ;;
     find-generic-password)
       [ -e "$FAKE/keychain" ] || { echo "could not be found" >&2; return 44; }
       case " $* " in *" -w "*) cat "$FAKE/keychain"; echo ;; esac ;;
@@ -91,7 +94,8 @@ elif args[1] == "download":
 elif args[1] == "upload":
     if not state["isDraft"]:
         sys.exit("Cannot upload assets to an immutable release")
-    shutil.copy(args[3], assets)
+    for path in args[3:args.index("--repo") if "--repo" in args else len(args)]:
+        shutil.copy(path, assets)
 elif args[1] == "edit":
     if "--draft=false" in args:
         state["isDraft"] = False
@@ -104,6 +108,22 @@ else:
 def utc_stamp(offset=0):
     """Now (plus `offset` seconds) as a list's "generated" stamp."""
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + offset))
+
+
+# Remembers every call. A signature with a requirement leaves that requirement inside the bundle, as a real
+# one does, so it survives packing and unpacking; without one the app is ad hoc.
+FAKE_CODESIGN = r"""#!/bin/bash
+printf '%s\n' "$*" >> "$FAKE/codesign.argv"
+for app; do :; done
+case "$1" in
+  --display) cat "$app/Contents/_CodeSignature/requirement" 2>/dev/null || echo 'designated => cdhash H"00"' ;;
+  --force)
+    for arg; do
+      case "$arg" in -r=*) mkdir -p "$app/Contents/_CodeSignature"; printf '%s\n' "${arg#-r=}" > "$app/Contents/_CodeSignature/requirement" ;; esac
+    done ;;
+esac
+exit 0
+"""
 
 
 def stamped(text, generated):
@@ -157,13 +177,18 @@ class SigningScripts(unittest.TestCase):
         tools.mkdir()
         # The tool as the repository has it (no keys yet), for making keys.
         cls.plain_tool = tools / "plain"
-        cls.compile(cls.plain_tool, ROOT / "Sources/Nightforge/SigningKeys.swift")
+        # The repository's SigningKeys.swift without its keys, as before make-signing-keys.sh ran: the tests
+        # bring keys of their own.
+        cls.keyless = tools / "keyless" / "SigningKeys.swift"
+        cls.keyless.parent.mkdir()
+        cls.keyless.write_text(cls.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), "", ""))
+        cls.compile(cls.plain_tool, cls.keyless)
         cls.main, cls.spare, cls.stranger = (cls.tool(cls.plain_tool, "generate").strip() for _ in range(3))
         cls.main_public = cls.tool(cls.plain_tool, "public", stdin=cls.main).strip()
         cls.spare_public = cls.tool(cls.plain_tool, "public", stdin=cls.spare).strip()
         # SigningKeys.swift with the test's keys, and the tool built from it.
         cls.keys_file = tools / "SigningKeys.swift"
-        cls.keys_file.write_text(cls.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(),
+        cls.keys_file.write_text(cls.with_keys(cls.keyless.read_text(),
                                                cls.main_public, cls.spare_public))
         cls.keyed_tool = tools / "keyed"
         cls.compile(cls.keyed_tool, cls.keys_file)
@@ -189,8 +214,9 @@ class SigningScripts(unittest.TestCase):
 
     @staticmethod
     def with_keys(text, main, spare):
-        return text.replace('static let main = ""', f'static let main = "{main}"').replace(
-            'static let spare = ""', f'static let spare = "{spare}"')
+        """SigningKeys.swift's text with these public keys, whatever keys it had."""
+        text = re.sub(r'(static let main = )"[^"]*"', lambda m: f'{m.group(1)}"{main}"', text)
+        return re.sub(r'(static let spare = )"[^"]*"', lambda m: f'{m.group(1)}"{spare}"', text)
 
     def setUp(self):
         self.work = pathlib.Path(tempfile.mkdtemp(dir=self.tmp))
@@ -202,6 +228,7 @@ class SigningScripts(unittest.TestCase):
         write_executable(bin_dir / "pbcopy", FAKE_PBCOPY)
         write_executable(bin_dir / "pbpaste", FAKE_PBPASTE)
         write_executable(bin_dir / "gh", f"#!{sys.executable} -I\n" + FAKE_GH)
+        write_executable(bin_dir / "codesign", FAKE_CODESIGN)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("NIGHTFORGE_")}
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", FAKE=str(self.fake),
                         NIGHTFORGE_SIGNING_TOOL=str(self.keyed_tool),
@@ -213,7 +240,9 @@ class SigningScripts(unittest.TestCase):
         for name in SCRIPTS:
             shutil.copy2(ROOT / "scripts" / name, self.repo / "scripts" / name)
         shutil.copy(ROOT / "Sources/Nightforge/Signature.swift", self.repo / "Sources/Nightforge")
-        shutil.copy(ROOT / "Sources/Nightforge/SigningKeys.swift", self.repo / "Sources/Nightforge")
+        shutil.copy(self.keyless, self.repo / "Sources/Nightforge")
+        # No certificate pinned: releases stay ad hoc unless a test pins one (code_signing()).
+        (self.repo / "scripts/codesign-certificate.sha1").write_text("# no certificate yet\n")
 
     def key_file(self, secret):
         path = self.work / f"key-{len(list(self.work.glob('key-*')))}"
@@ -460,6 +489,70 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertFalse(pathlib.Path(str(zip_file) + ".sig").exists())
 
+    def code_signing(self, in_keychain=True):
+        """Pins CERT, and has it in the keychain or not."""
+        (self.repo / "scripts/codesign-certificate.sha1").write_text(f"# pinned\n{CERT}\n")
+        if in_keychain:
+            (self.fake / "identities").write_text(f'  1) {CERT} "Nightforge Code Signing" (CSSMERR_TP_NOT_TRUSTED)\n')
+
+    def requirement_in(self, zip_file):
+        unpacked = self.work / f"unpacked-{len(list(self.work.glob('unpacked-*')))}"
+        subprocess.run(["ditto", "-x", "-k", str(zip_file), str(unpacked)], check=True)
+        signature = unpacked / "Nightforge.app/Contents/_CodeSignature/requirement"
+        return signature.read_text() if signature.exists() else None
+
+    def test_the_app_is_code_signed_here_and_that_zip_goes_on_the_draft(self):
+        """The user's choice (b): the certificate is only on this Mac; CI builds ad hoc."""
+        zip_file = self.draft()
+        built = zip_file.read_bytes()
+        (self.fake / "keychain").write_text(self.main)
+        self.code_signing()
+        result = self.sign_release("v0.3.1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        signed = zip_file.read_bytes()
+        self.assertNotEqual(signed, built, "the code-signed zip replaces the workflow's")
+        self.assertIn(hashlib.sha256(built).hexdigest(), result.stdout, "both hashes before signing")
+        self.assertIn(hashlib.sha256(signed).hexdigest(), result.stdout)
+        self.assertEqual(self.verify(zip_file).returncode, 0, "the Ed25519 signature holds for the code-signed zip")
+        self.assertIn(f'identifier "io.github.lordhayne.nightforge" and certificate leaf = H"{CERT}"', self.requirement_in(zip_file))
+        self.assertIn(f"--sign {CERT}", (self.fake / "codesign.argv").read_text())
+        self.assertTrue((self.fake / "assets/Nightforge-0.3.1.dmg").read_bytes() == b"dmg", "the DMG stays as it was built")
+
+    def test_without_the_certificate_in_the_keychain_nothing_is_signed(self):
+        zip_file = self.draft()
+        built = zip_file.read_bytes()
+        (self.fake / "keychain").write_text(self.main)
+        self.code_signing(in_keychain=False)
+        result = self.sign_release("v0.3.1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("isn't in this Mac's keychain", result.stderr)
+        self.assertEqual(zip_file.read_bytes(), built)
+        self.assertFalse(pathlib.Path(f"{zip_file}.sig").exists(), "nothing uploaded")
+
+    def test_without_a_pinned_certificate_the_workflows_zip_is_signed(self):
+        zip_file = self.draft()
+        built = zip_file.read_bytes()
+        (self.fake / "keychain").write_text(self.main)
+        result = self.sign_release("v0.3.1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(zip_file.read_bytes(), built)
+        self.assertIn("ad hoc", result.stdout)
+        self.assertIsNone(self.requirement_in(zip_file))
+
+    def test_a_second_run_leaves_the_code_signed_zip_alone(self):
+        """--add after a key change: the zip on the draft is code-signed already, so its signature still holds."""
+        zip_file = self.draft()
+        self.code_signing()
+        self.assertEqual(self.sign_release("v0.3.1", key=self.main).returncode, 0)
+        signed = zip_file.read_bytes()
+        (self.fake / "clipboard").write_text(self.spare)
+        result = self.sign_release("v0.3.1", "--spare", "--add")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("from an earlier run", result.stdout)
+        self.assertEqual(zip_file.read_bytes(), signed, "not signed and packed again")
+        self.assertEqual(len(pathlib.Path(f"{zip_file}.sig").read_text().split()), 2, "both signatures")
+        self.assertEqual(self.verify(zip_file).returncode, 0)
+
     def test_the_spare_from_the_clipboard_then_added_to_the_main(self):
         zip_file = self.draft()
         self.assertEqual(self.sign_release("v0.3.1", key=self.main).returncode, 0)
@@ -677,7 +770,7 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(check(pull_request).returncode, 0, "signed lists, the same checker: green")
         keys = pull_request / "Sources/Nightforge/SigningKeys.swift"
         stranger = self.tool(self.plain_tool, "public", stdin=self.stranger).strip()
-        keys.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), stranger, ""))
+        keys.write_text(self.with_keys(self.keyless.read_text(), stranger, ""))
         result = check(pull_request)
         self.assertEqual(result.returncode, 1)
         self.assertIn("changes Sources/Nightforge/SigningKeys.swift", result.stdout)
@@ -747,13 +840,13 @@ class SigningScripts(unittest.TestCase):
 
     def test_the_installer_refuses_what_the_maintainer_didnt_sign(self):
         only_main = self.work / "only-main.swift"
-        only_main.write_text(self.with_keys((ROOT / "Sources/Nightforge/SigningKeys.swift").read_text(), self.main_public, ""))
+        only_main.write_text(self.with_keys(self.keyless.read_text(), self.main_public, ""))
         for case in ("unsigned", "changed after signing", "a key main doesn't list", "no keys on main yet"):
             with self.subTest(case):
                 zip_file, api = self.release(case.replace(" ", "-"), None if case == "unsigned" else
                                              self.spare if case == "a key main doesn't list" else self.main)
                 keys = {"a key main doesn't list": only_main,
-                        "no keys on main yet": ROOT / "Sources/Nightforge/SigningKeys.swift"}.get(case)
+                        "no keys on main yet": self.keyless}.get(case)
                 if case == "changed after signing":
                     with zip_file.open("ab") as file:
                         file.write(b"\0")

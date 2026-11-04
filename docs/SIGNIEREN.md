@@ -10,7 +10,8 @@ Ab 0.3.1 nimmt Nightforge vier Dinge aus dem Netz nur noch mit deiner Signatur a
 `install.sh` prüft das ZIP genauso. Signiert wird nur auf deinem Mac, mit einem Ed25519-Schlüssel, den außer dir
 niemand hat. Die Gründe und die Einzelheiten stehen in `docs/SICHERHEIT-0.3.md` › „Signierte Releases“.
 
-**Es gibt kein GitHub-Secret, und das ist Absicht.** Läge der Schlüssel als Secret auf GitHub, könnte jeder
+**Es gibt kein GitHub-Secret, und das ist Absicht**, auch nicht für das Codesignatur-Zertifikat
+(`docs/CODESIGNATUR.md`). Läge der Schlüssel als Secret auf GitHub, könnte jeder
 signieren, der einen Workflow ändert oder ein Token stiehlt, und die Signatur wäre wertlos. Unter Settings › Secrets
 legst du deshalb nichts an.
 
@@ -96,12 +97,20 @@ Release scheitert mit „isn't signed by its maintainer“.
    scripts/sign-release.sh v0.3.1 --publish
    ```
 
-   Das Skript prüft, ob die App im Entwurf v0.3.1 ist und beide Schlüssel kennt. Vor dem Signieren zeigt es drei
-   Dinge: die SHA-256 des ZIPs, den Commit, auf den der Tag zeigt, und die Prüfsumme des Steam-Browser-Wrappers
-   neben der aus dem Repo. Stimmt der Commit, und steht beim Wrapper „the same as …“, tippst du `yes`. Dann signiert
-   es (Passwortabfrage: Erlauben), lädt `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne `--publish` bleibt es beim Entwurf, und
-   das Skript zeigt den Befehl zum Veröffentlichen.
-4. Prüfen: Auf der Release-Seite liegen `Nightforge-0.3.1.zip`, `.zip.sig` und `.dmg`.
+   Das Skript prüft, ob die App im Entwurf v0.3.1 ist und beide Schlüssel kennt. Dann signiert es die App mit dem
+   Codesignatur-Zertifikat, das nur auf deinem Mac liegt (`docs/CODESIGNATUR.md` › 4), und packt das ZIP neu. macOS
+   fragt dabei, ob `codesign` den Schlüssel verwenden darf (Immer erlauben ist hier in Ordnung).
+   Vor dem Signieren zeigt es:
+   - beide SHA-256: die des ZIPs aus dem Workflow und die des neu signierten, das auf das Release kommt,
+   - die Codesignatur,
+   - den Commit, auf den der Tag zeigt,
+   - die Prüfsumme des Steam-Browser-Wrappers neben der aus dem Repo.
+
+   Stimmt der Commit, und steht beim Wrapper „the same as …“, tippst du `yes`. Dann signiert es mit Ed25519
+   (Passwortabfrage: Erlauben), lädt das neue ZIP und `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne
+   `--publish` bleibt es beim Entwurf, und das Skript zeigt den Befehl zum Veröffentlichen.
+4. Prüfen: Auf der Release-Seite liegen `Nightforge-0.3.1.zip`, `.zip.sig` und `.dmg`. Die DMG bleibt ad hoc, wie
+   der Workflow sie baut (Begründung in `docs/CODESIGNATUR.md` › 4).
 
 Ein veröffentlichtes Release lässt sich nicht mehr ändern („Immutable Releases“). Fehlt die Signatur, braucht es einen
 neuen Tag.

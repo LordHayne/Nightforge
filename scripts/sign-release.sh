@@ -12,6 +12,9 @@
 # asks for your password: click "Allow") and uploads Nightforge-<version>.zip.sig beside it. Before it
 # signs it shows what you sign and asks: the signature says you saw these bytes, not that they were
 # built from the tag.
+# First it gives the app Nightforge's code signing certificate (docs/CODESIGNATUR.md), which exists only
+# on this Mac: CI builds ad hoc. The zip is packed again from that app, and that zip is the one signed and
+# uploaded in place of the workflow's. The DMG stays as the workflow built it, ad hoc.
 # A tag with a suffix (v0.3.1-rc.1) is a test release: published as a prerelease, which neither the
 # app nor scripts/install.sh offers (docs/SICHERHEIT-0.3.md › Test-Release).
 set -euo pipefail
@@ -69,6 +72,30 @@ while read -r role key; do
 done <<< "$keys"
 echo "✓ Nightforge $version, knows both keys."
 
+# The code signature macOS recognises the app by across updates, from the certificate pinned in
+# scripts/codesign-certificate.sha1 and kept in this Mac's keychain only. An app that has it already
+# (a second run, --add) stays as it is, so the signature on the draft still holds for its zip.
+pinned="$(grep -v '^#' scripts/codesign-certificate.sha1 2>/dev/null | tr -d '[:space:]' | tr 'a-f' 'A-F' || true)"
+final="$work/$zip"
+has_certificate() { codesign --display -r - "$app" 2>/dev/null | grep -qiF "certificate leaf = H\"$pinned\""; }
+if [ -z "$pinned" ]; then
+  code_note="ad hoc (scripts/codesign-certificate.sha1 names no certificate)"
+elif has_certificate; then
+  code_note="Nightforge Code Signing $pinned, from an earlier run"
+else
+  security find-identity -p codesigning 2>/dev/null | grep -qiF "$pinned" \
+    || fail "The code signing certificate $pinned isn't in this Mac's keychain (docs/CODESIGNATUR.md)."
+  echo "▸ Signing the app with Nightforge's certificate (macOS may ask whether codesign may use its key) …"
+  NIGHTFORGE_CODESIGN_IDENTITY="$pinned" NIGHTFORGE_CODESIGN_KEYCHAIN="" scripts/codesign-app.sh "$app"
+  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
+  has_certificate && codesign --display -r - "$app" 2>/dev/null | grep -qF "identifier \"$bundle_id\"" \
+    || fail "The app's designated requirement doesn't name $bundle_id and the certificate $pinned."
+  mkdir "$work/signed"
+  final="$work/signed/$zip"
+  ditto -c -k --sequesterRsrc --keepParent "$app" "$final"
+  code_note="Nightforge Code Signing $pinned, signed now"
+fi
+
 # What you sign (review M5): the zip as it came down (and as GitHub lists it), the commit the tag
 # points at on GitHub, and the steamwebhelper wrapper in the app beside the repository's at that commit.
 zip_sha="$(shasum -a 256 "$work/$zip" | cut -d' ' -f1)"
@@ -89,22 +116,29 @@ else
   wrapper_note="nothing here to compare it with"
 fi
 echo "▸ You're about to sign:"
-echo "    $zip  sha256 $zip_sha"
+echo "    $zip  sha256 $zip_sha  (as the release workflow built it)"
+[ "$final" = "$work/$zip" ] || echo "    $zip  sha256 $(shasum -a 256 "$final" | cut -d' ' -f1)  (code-signed here: this one goes on the release)"
+echo "    code signature  $code_note"
 echo "    built from  $built_from"
 echo "    steamwebhelper.exe  sha256 ${wrapper:--}  ($wrapper_note)"
 read -r -p "Sign it? Type yes: " answer || answer=""
 [ "$answer" = "yes" ] || fail "Nothing signed."
 
 echo "▸ Signing (macOS asks for your password: click Allow) …"
-read_private_key | "$TOOL" sign ${add[@]+"${add[@]}"} "$work/$zip"
+read_private_key | "$TOOL" sign ${add[@]+"${add[@]}"} "$final"
 forget_clipboard
-"$TOOL" verify "$work/$zip" > /dev/null
+"$TOOL" verify "$final" > /dev/null
 
-gh release upload "$tag" "$work/$zip.sig" --repo "$SIGNING_REPO" --clobber
-jq -e --arg sig "$zip.sig" '.assets | any(.name == $sig)' \
-  <<< "$(gh release view "$tag" --repo "$SIGNING_REPO" --json assets)" > /dev/null \
+uploads=("$final.sig")
+[ "$final" = "$work/$zip" ] || uploads=("$final" "$final.sig")
+gh release upload "$tag" "${uploads[@]}" --repo "$SIGNING_REPO" --clobber
+assets="$(gh release view "$tag" --repo "$SIGNING_REPO" --json assets)"
+jq -e --arg sig "$zip.sig" '.assets | any(.name == $sig)' <<< "$assets" > /dev/null \
   || fail "GitHub doesn't list $zip.sig on the draft."
-echo "✓ $zip.sig is on the draft."
+listed="$(jq -r --arg zip "$zip" '.assets[] | select(.name == $zip) | .digest // empty' <<< "$assets")"
+[ -z "$listed" ] || [ "$listed" = "sha256:$(shasum -a 256 "$final" | cut -d' ' -f1)" ] \
+  || fail "GitHub lists another $zip on the draft than the one signed ($listed)."
+echo "✓ $zip.sig is on the draft$([ "$final" = "$work/$zip" ] || echo ", beside the code-signed $zip")."
 
 if [ "$prerelease" = "true" ]; then edit=(--draft=false --prerelease); else edit=(--draft=false --latest); fi
 if [ "$publish" = 1 ]; then

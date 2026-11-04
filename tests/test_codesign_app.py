@@ -67,12 +67,19 @@ class CodesignApp(unittest.TestCase):
         self.assertIn(f"--verify --deep --strict {self.app}", calls)
         self.assertIn(CERT, result.stdout)
 
+    def test_ad_hoc_on_request_whatever_the_keychain_holds(self):
+        """A build no one watches mustn't wait on macOS asking whether codesign may use the key."""
+        (self.fake / "identities").write_text(f'  1) {CERT} "Nightforge Code Signing" (CSSMERR_TP_NOT_TRUSTED)\n')
+        result, calls = self.sign(NIGHTFORGE_AD_HOC="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, [f"--force --deep --sign - {self.app}"])
+
     def test_another_identity_in_the_keychain_doesnt_count(self):
         (self.fake / "identities").write_text(f'  1) {CERT} "Someone Else" (CSSMERR_TP_NOT_TRUSTED)\n')
         result, calls = self.sign()
         self.assertEqual(calls, [f"--force --deep --sign - {self.app}"])
 
-    def test_the_identity_and_keychain_release_yml_hands_in(self):
+    def test_the_identity_and_a_keychain_handed_in(self):
         result, calls = self.sign(NIGHTFORGE_CODESIGN_IDENTITY=CERT, NIGHTFORGE_CODESIGN_KEYCHAIN="/tmp/ci keychain.keychain-db")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(all("--keychain /tmp/ci keychain.keychain-db" in call for call in calls if "--sign" in call), calls)
@@ -82,12 +89,24 @@ class CodesignApp(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("doesn't name the certificate", result.stderr)
 
-    def test_release_yml_pins_the_certificate(self):
+    def test_the_certificate_never_goes_to_github(self):
+        """The user chose: the certificate stays on the Mac, sign-release.sh signs with the pinned one."""
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
-        self.assertIn("secrets.NIGHTFORGE_CODESIGN_P12", workflow)
-        self.assertIn("scripts/codesign-certificate.sha1", workflow)
+        self.assertNotIn("NIGHTFORGE_CODESIGN", workflow)
+        self.assertNotIn("secrets.", workflow)
+        self.assertIn("scripts/codesign-certificate.sha1", (ROOT / "scripts/sign-release.sh").read_text())
         pin = [line for line in (ROOT / "scripts/codesign-certificate.sha1").read_text().splitlines() if not line.startswith("#")]
         self.assertTrue(all(len(line.strip()) == 40 for line in pin if line.strip()), "a SHA-1, or nothing yet")
+
+
+class ExportCodesignIdentity(unittest.TestCase):
+    def test_it_runs_only_in_a_terminal(self):
+        """The backup tool asks the user things (macOS's dialogs): never from a script or a session."""
+        result = subprocess.run(["bash", str(ROOT / "scripts/export-codesign-identity.sh"), "/tmp/nf-test.p12"],
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Run this yourself in Terminal", result.stderr)
+        self.assertFalse(pathlib.Path("/tmp/nf-test.p12").exists())
 
 
 if __name__ == "__main__":

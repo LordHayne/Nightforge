@@ -2176,9 +2176,12 @@ Befunde vom 26.10., die noch offen sind. Alles andere ist behoben (PR #4, #5, #1
 
 - **Feste Codesignatur** (Zweig `claude/stable-codesign`, `docs/CODESIGNATUR.md`): `scripts/codesign-app.sh` signiert
   mit dem selbst erstellten Zertifikat „Nightforge Code Signing“ (Designated Requirement: Bundle-ID und SHA-1 des
-  Zertifikats), sonst ad hoc. `release.yml` nimmt es aus den Secrets `NIGHTFORGE_CODESIGN_P12` und
-  `NIGHTFORGE_CODESIGN_PASSWORD` und nur, wenn es zu `scripts/codesign-certificate.sha1` passt. Der Nutzer erzeugt
-  das Zertifikat selbst und legt die Secrets an. Offen:
+  Zertifikats), sonst ad hoc. Das Zertifikat bleibt auf dem Mac des Nutzers (Entscheidung 3.11., Zweig
+  `claude/local-codesign`): `release.yml` baut ad hoc, `scripts/sign-release.sh` signiert die App mit dem in
+  `scripts/codesign-certificate.sha1` gepinnten Zertifikat, packt das ZIP neu und signiert dieses mit Ed25519. Die
+  DMG bleibt ad hoc. Zertifikat und Pin sind da (7fbf3ff). Offen:
+  - Die `.p12`-Sicherung auf den Stick: `scripts/export-codesign-identity.sh` (der Nutzer selbst).
+  - Den ersten Lauf von `sign-release.sh` mit echtem Zertifikat beobachten (Test-Release rc.1).
   - Live prüfen: Nach einem Update mit gleichem Zertifikat fragt macOS nicht mehr nach dem Stick.
   - Live prüfen: Für welche App fragt macOS beim Stick, Nightforge oder „Nightforge Helper“?
   - Der Helfer wird zur Laufzeit ad hoc signiert und fragt neu, sobald sich `wrapper/nightforge-helper.c` ändert.
