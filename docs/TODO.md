@@ -1358,8 +1358,17 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   `GameLog.redacted`), das Formular sagt im Feld „From the last start“, dass sie dort sind. Ein Toast sagt es auch.
 - Texte in App, README, Landingpage und `compat-report.yml` sagen jetzt: GitHub erhält die Werte schon beim Öffnen,
   öffentlich wird es erst beim Absenden.
-- **Live prüfen:** „Problem melden“ (Spieloptionen und „Startet nicht?“): Öffnet GitHub ein Formular ohne Logzeilen?
-  Liegen die Fehlerzeilen in der Zwischenablage, und passt das Einfügen ins Feld? Kommt der Toast?
+- **Live geprüft 3.11. (Control, Build 2bf81fd):** Link und Formular tragen nur die festen Fakten, in der
+  Zwischenablage stand kein Stick-, Rechner- oder Kontoname. Zwei Kleinigkeiten daraus, Zweig `claude/report-polish`:
+  - Eingefügt landete der Block in der fetten Zeile „**From the last start:**“. Jetzt stehen Überschrift
+    (`### From the last start`) und Hinweis je auf einer eigenen Zeile, darunter eine leere Zeile zum Einfügen. Der Text
+    in der Zwischenablage beginnt und endet mit einer Leerzeile, damit `<details>` auch nach Text in derselben Zeile
+    eine eigene Zeile beginnt.
+  - Die Fehlerzeilen waren nur Steams Rauschen (`SDL2.dll` für `Steam\bin\gldriverquery.exe`, `status c0000135`).
+    `GameLog.errors` lässt Steams eigene Helfer jetzt weg (`gldriverquery`, `vulkandriverquery`, `steamwebhelper`, alles
+    unter `Steam\bin\`); Zeilen von `steam.exe` und aus `steamapps` bleiben. Zeilen ohne Programmpfad (etwa DXVKs
+    „DxvkAdapter“ nach `gldriverquery`) lassen sich ohne `+pid` im Log keinem Prozess zuordnen und bleiben drin.
+  - Noch live prüfen: Einfügen unter der neuen Überschrift.
 - **Schwärzung (Audit N7):** `GameLog.redacted` ersetzt jetzt auch Laufwerksnamen (`/Volumes/<drive>`,
   `Z:\Volumes\<drive>`), Rechner- und Hostnamen samt Wines NetBIOS-Namen (`<computer>`), `/var/folders/<id>`,
   GOG-Benutzerkennungen und den Kontonamen als Wort in fremden Zeilen. Spielnamen behalten ein Wort wie den

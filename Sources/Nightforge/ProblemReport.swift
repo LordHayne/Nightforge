@@ -131,7 +131,9 @@ struct ProblemReportText: Equatable {
         if !launchOptions.isEmpty {
             extra += (extra.isEmpty ? [] : [""]) + ["Launch options: `\(clean(launchOptions))`"]
         }
-        clipboard = extra.isEmpty ? nil : extra.joined(separator: "\n")
+        // Blank lines around it: pasted at the end of a line of text (the live test put it right after
+        // the bold "From the last start:"), <details> and ``` still start a line of their own.
+        clipboard = extra.isEmpty ? nil : "\n" + extra.joined(separator: "\n") + "\n"
         func fact(_ text: String) -> String { GameLog.redacted(text, home: home, user: "") }
         title = fact("\(gameName): doesn't run properly")
         var lines = [
@@ -141,9 +143,12 @@ struct ProblemReportText: Equatable {
             "| | |",
             "|---|---|",
         ] + facts.map { "| \($0.0) | \(fact($0.1).replacingOccurrences(of: "|", with: "\\|")) |" }
+        // The heading and the hint on lines of their own, the empty last line to paste into: a click
+        // below the text puts the cursor there, outside any formatting or comment.
         if clipboard != nil {
-            lines += ["", "**From the last start:** <!-- Nightforge put the error lines and launch options on your clipboard: "
-                      + "paste them here (⌘V) if you want to share them, or leave this out. -->", ""]
+            lines += ["", "### From the last start",
+                      "<!-- Nightforge put the error lines and launch options on your clipboard: "
+                      + "paste them below (⌘V) if you want to share them, or leave this out. -->", "", ""]
         }
         body = lines.joined(separator: "\n")
     }

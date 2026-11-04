@@ -431,6 +431,19 @@ struct LaunchHealthTest {
         check(errors.count == 6, "errors without repeats: \(errors.count)")
         check(errors.first?.hasPrefix("err:module") == true, "thread ids dropped: \(errors.first ?? "")")
         check(errors.contains("err:   DXGI: Failed to create swap chain"), "DXVK's own error lines kept")
+        // Steam's driver probes and browser at every start (live test of Control, 3.11.2026).
+        let steamNoise = """
+        0098:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\gldriverquery.exe") not found
+        0098:err:module:loader_init Importing dlls for L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\gldriverquery.exe" failed, status c0000135
+        00a4:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\vulkandriverquery64.exe") not found
+        00b0:err:module:import_dll Library dwrite.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\cef\\\\cef.win7x64\\\\libcef.dll") not found
+        00c0:err:module:LdrInitializeThunk "steamwebhelper.exe" failed to initialize, aborting
+        """
+        let withNoise = GameLog.errors(in: steamNoise + "\n" + log)
+        check(withNoise == errors, "Steam's own helpers left out, steam.exe and the game kept: \(withNoise)")
+        check(GameLog.errors(in: steamNoise).isEmpty, "…nothing left when Steam's noise was all there was")
+        check(!GameLog.steamNoise(#"err:module:import_dll Library steam_api64.dll (which is needed by L"D:\\SteamLibrary\\steamapps\\common\\Bin Game\\bin\\game.exe") not found"#),
+              "a game in a Steam library with a bin folder of its own isn't Steam's")
 
         // MARK: Programs that get the Direct3D layer
         let unreal = FileManager.default.temporaryDirectory.appendingPathComponent("lht-unreal-\(UUID().uuidString)", isDirectory: true)
