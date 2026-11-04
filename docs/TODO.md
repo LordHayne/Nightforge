@@ -1391,7 +1391,9 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     Ursache: Unreal speichert nur, was von den Vorgaben abweicht, und ABZUs `DefaultGameUserSettings.ini` im Pak hat
     `ResolutionSizeX/Y=1920×1080`, `FullscreenMode=0` (exklusiv). Jetzt (Zweig `claude/abzu-defaults`) schreibt
     `olderFitted` auch Unreals eigene Schlüssel: `ResolutionSizeX/Y`, `LastUserConfirmedResolutionSizeX/Y` = Bildschirm,
-    `FullscreenMode`/`LastConfirmedFullscreenMode=2` (Fenster).
+    `FullscreenMode`/`LastConfirmedFullscreenMode=2` (Fenster). Ein Fenster, das nicht so groß ist wie einer der
+    Bildschirme des Macs, hat der Spieler gewählt (etwa 1280×720 für mehr Bilder): Es behält seine Größe, nur Unreals
+    Schlüssel folgen ihr (Hinweis aus dem Hermes-Review von Runde 15).
   - **Live prüfen:** ABZU über Epic starten und bis ins Menü spielen; in der Datei `FullscreenMode=2` und
     `ResolutionSizeX=1512`, der Metal HUD bleibt bei 1512×982, kein Moduswechsel. Offen: das kleine Fenster 601×201 vor dem Spiel.
 - **The Forest (Steam 242760, Unity 5.6.5p4) zeigt Unitys Auswahlfenster** („The Forest Configuration“, 464×438,

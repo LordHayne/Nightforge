@@ -27,6 +27,19 @@ enum GameResolution {
         retina ? pixels : points
     }
 
+    /// Every connected display's size as Wine sees it, with Retina mode and without: a game's window
+    /// at one of them is a full screen's, Nightforge's or the game's own, not one the player picked.
+    static func screenSizes() -> [Size] {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).flatMap { display -> [Size] in
+            guard let mode = CGDisplayCopyDisplayMode(display), mode.width > 0, mode.height > 0 else { return [] }
+            return [Size(width: mode.width, height: mode.height), Size(width: mode.pixelWidth, height: mode.pixelHeight)]
+        }
+    }
+
     /// The main display, where Wine opens full screen (GameDisplay has made the game's screen main
     /// by now). Mirrored, it's the mirror set's master, whose mode the whole set shows.
     static func mainScreen(retina: Bool) -> Size? {
@@ -69,7 +82,7 @@ enum GameResolution {
             notes.append("\(file.lastPathComponent): \(size)")
         }
         for file in unrealSettings(installDir: game.installDir, places: places) {
-            guard let text = try? String(contentsOf: file, encoding: .utf8), let fitted = unrealFitted(text, size: size),
+            guard let text = try? String(contentsOf: file, encoding: .utf8), let fitted = unrealFitted(text, size: size, screens: screenSizes()),
                   (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil
             else { continue }
             notes.append("\(file.lastPathComponent): \(size)")
@@ -324,7 +337,7 @@ enum GameResolution {
     /// the size in DesiredScreenWidth/Height: ABZU came up 1920×1200 on a 1512×982 MacBook (game
     /// test, 3.11.2026), its file untouched. Those get a window at `size` (`olderFitted`).
     /// Only values the game wrote itself. Nil when nothing changes.
-    static func unrealFitted(_ text: String, size: Size) -> String? {
+    static func unrealFitted(_ text: String, size: Size, screens: [Size] = []) -> String? {
         guard size.width > 0, size.height > 0 else { return nil }
         var sections: [(name: String, values: [String: String])] = []
         for line in text.components(separatedBy: "\n") {
@@ -342,7 +355,7 @@ enum GameResolution {
         for (name, values) in sections {
             // ABZU's kind, with a FullscreenMode of Nightforge's or none: always olderFitted's way.
             if values["Fullscreen"] != nil {
-                if let older = olderFitted(values, size: size) { result = Engine.mergingIni(result, section: name, values: older) }
+                if let older = olderFitted(values, size: size, screens: screens) { result = Engine.mergingIni(result, section: name, values: older) }
                 continue
             }
             guard let mode = values["FullscreenMode"].flatMap(Int.init), mode == 0 || mode == 1 else { continue }
@@ -363,18 +376,23 @@ enum GameResolution {
     /// own full screen covers the screen with. Not the game's full screen: ABZU (Unreal 4.8) set to
     /// Fullscreen=ON at the MacBook's 1512×982 crashed before its first window under DXMT/winecx,
     /// with no error in the log; Fullscreen=OFF at the same size started (live test, 3.11.2026
-    /// evening). A window gets the screen's size too, so one written for the MacBook grows on a TV.
+    /// evening). A window at one of the Mac's `screens` sizes gets the screen's too, so one written for
+    /// the MacBook grows on a TV; one of another size is the player's (1280×720, for frames) and keeps it.
     /// Unreal's own keys too: the saved file leaves out what equals the game's defaults, and ABZU's
     /// (in its pak, DefaultGameUserSettings.ini) are 1920×1080 in exclusive full screen
     /// (FullscreenMode 0) – after its intro it switched the Mac to 1920×1200 (live test, 4.11.2026).
     /// Only a section with the size stored; nil when nothing differs.
-    static func olderFitted(_ values: [String: String], size: Size) -> [String: String]? {
+    static func olderFitted(_ values: [String: String], size: Size, screens: [Size] = []) -> [String: String]? {
         let windowed = ["on": "OFF", "true": "False", "1": "0"]  // the game's own word for off
         guard let fullscreen = values["Fullscreen"]?.lowercased(),
               windowed[fullscreen] != nil || ["off", "false", "0"].contains(fullscreen),
-              values["DesiredScreenWidth"] != nil, values["DesiredScreenHeight"] != nil
+              let desiredWidth = values["DesiredScreenWidth"].flatMap(Int.init),
+              let desiredHeight = values["DesiredScreenHeight"].flatMap(Int.init)
         else { return nil }
-        let width = "\(size.width)", height = "\(size.height)"
+        let desired = Size(width: desiredWidth, height: desiredHeight)
+        // The player's window keeps its size, and Unreal's keys follow it instead of the pak's full screen.
+        let kept = windowed[fullscreen] == nil && desired != size && !screens.contains(desired) ? desired : size
+        let width = "\(kept.width)", height = "\(kept.height)"
         let screen: [String: String] = ["DesiredScreenWidth": width, "DesiredScreenHeight": height,
                                         "ResolutionSizeX": width, "ResolutionSizeY": height,
                                         "LastUserConfirmedResolutionSizeX": width, "LastUserConfirmedResolutionSizeY": height,

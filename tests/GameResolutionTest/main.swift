@@ -186,7 +186,7 @@ struct GameResolutionTest {
                   && fitted.utf8.filter { $0 == 10 }.count == abzu.utf8.filter { $0 == 10 }.count + 6,
                   "CRLF kept, Unreal's six keys added")
             check(GameResolution.unrealFitted(fitted, size: macBook) == nil, "fitted once, the next start changes nothing")
-            if let tvFitted = GameResolution.unrealFitted(fitted, size: tv) {
+            if let tvFitted = GameResolution.unrealFitted(fitted, size: tv, screens: [tv, macBook]) {
                 check(tvFitted.contains("DesiredScreenWidth=\(tv.width)") && tvFitted.contains("ResolutionSizeX=\(tv.width)")
                       && tvFitted.contains("Fullscreen=OFF") && !tvFitted.contains("ResolutionSizeX=1512"),
                       "the window written for the MacBook grows to the TV")
@@ -211,8 +211,14 @@ struct GameResolutionTest {
         check(GameResolution.olderFitted(["Fullscreen": "Borderless", "DesiredScreenWidth": "1280", "DesiredScreenHeight": "720"], size: macBook) == nil,
               "a word it doesn't know: left alone")
         let windowed = abzu.replacingOccurrences(of: "Fullscreen=ON", with: "Fullscreen=OFF")
-        check(GameResolution.unrealFitted(windowed, size: macBook).map { $0.contains("Fullscreen=OFF") && $0.contains("DesiredScreenWidth=1512") } == true,
-              "ABZU in a window stays a window, at the screen's size")
+        if let player = GameResolution.unrealFitted(windowed, size: macBook, screens: [macBook]) {
+            check(player.contains("DesiredScreenWidth=1280") && player.contains("ResolutionSizeX=1280") && player.contains("ResolutionSizeY=720")
+                  && player.contains("FullscreenMode=2") && !player.contains("=1512"),
+                  "a window the player chose (1280×720) keeps its size, Unreal's keys follow it")
+            check(GameResolution.unrealFitted(player, size: tv, screens: [tv, macBook]) == nil, "…on the TV too")
+        } else {
+            check(false, "a window the player chose (1280×720) keeps its size, Unreal's keys follow it")
+        }
         check(GameResolution.unrealFitted("[/Script/Game.Settings]\nFullscreen=ON\nShadows=HIGH\n", size: tv) == nil,
               "the older kind without a stored size: nothing invented")
         check(GameResolution.unrealFitted(fixture("GameUserSettings-windowed.ini"), size: tv) == nil, "a windowed Unreal game stays a window")
