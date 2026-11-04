@@ -701,6 +701,11 @@ enum GameProcesses {
     /// Nightforge's page) to the floating level; menus lie higher. Its number, the frontmost first.
     /// Its title, which would tell it from a splash, can't be read without Screen Recording.
     nonisolated static func question(_ windows: [[String: Any]], pids: Set<pid_t>) -> Int? {
+        questionWindow(windows, pids: pids)?.number
+    }
+
+    /// The same with its size: a thin one may be a splash (`LibraryModel.takenAsQuestion`).
+    nonisolated static func questionWindow(_ windows: [[String: Any]], pids: Set<pid_t>) -> (number: Int, size: CGSize)? {
         let asking = windows.first { window in
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
                   questionLevel((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
@@ -710,7 +715,8 @@ enum GameProcesses {
             else { return false }
             return width >= 200 && height >= 100 && !(width >= 640 && height >= 360)
         }
-        return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+        guard let asking, let number = (asking[kCGWindowNumber as String] as? NSNumber)?.intValue, let frame = bounds(asking) else { return nil }
+        return (number, frame.size)
     }
 
     /// The levels a question can be at: normal up to a modal panel, and winecx's own for a topmost
@@ -722,9 +728,13 @@ enum GameProcesses {
     }
 
     nonisolated static func question(_ pids: Set<pid_t>) -> Int? {
+        questionWindow(pids)?.number
+    }
+
+    nonisolated static func questionWindow(_ pids: Set<pid_t>) -> (number: Int, size: CGSize)? {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
         else { return nil }
-        return question(windows, pids: pids)
+        return questionWindow(windows, pids: pids)
     }
 
     /// The programs macOS asks the player through. TCC's permissions – files on a removable or

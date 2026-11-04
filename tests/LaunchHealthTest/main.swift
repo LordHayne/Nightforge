@@ -257,6 +257,19 @@ struct LaunchHealthTest {
         LaunchHealth.reset(app)
         check(!LaunchHealth.quitByPlayer(app, since: now), "reset forgets it")
 
+        // Closed at its own question – Unity's configuration window, Quit (The Forest on 3.11. went on
+        // to DXVK for it): the player's choice, the way stays.
+        LaunchHealth.recordStart(app, ladder, at: now)
+        session(seconds: 6, startedAt: now)
+        check(!LaunchHealth.endedAtOwnQuestion(app, since: now), "not ended at a question yet")
+        LaunchHealth.endedAtOwnQuestion(app, at: now.addingTimeInterval(7))
+        check(LaunchHealth.endedAtOwnQuestion(app, since: now), "ended at its question 7 s after its start")
+        check(!LaunchHealth.endedAtOwnQuestion(app, since: now.addingTimeInterval(60)), "that was an earlier start")
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == (0, false), "a 6 s session closed at its own question: the way stays")
+        LaunchHealth.reset(app)
+        check(!LaunchHealth.endedAtOwnQuestion(app, since: now), "reset forgets it")
+
         // The curtain sank, then the player quit a few seconds in (OxyRail on 1.11., started again on DXVK).
         LaunchHealth.recordStart(app, ladder, at: now)
         session(seconds: 6, startedAt: now)

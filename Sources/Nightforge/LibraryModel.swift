@@ -879,6 +879,9 @@ final class LibraryModel: ObservableObject {
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
         /// The curtain under a question of the game's (makeWay), until it's answered or the picture comes.
         var madeWay = false
+        /// The game's question window on screen and since when; when it was last taken as one.
+        var questionSeen: (number: Int, since: Date)?
+        var lastAsked: Date?
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
         /// macOS's questions on screen at the last look (`GameProcesses.macOSQuestions`), the frontmost
@@ -1015,6 +1018,13 @@ final class LibraryModel: ObservableObject {
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
                 // The start judges its first seconds: it tells what's next, under this curtain.
+                // Closed at a question of its own – Unity's configuration window, Quit (The Forest, 3.11.): the
+                // player's choice, not a way that failed (LaunchHealth.endedAtOwnQuestion).
+                if loweredAt == nil, Self.endedAtOwnQuestion(sinceAsked: lastAsked.map { Date().timeIntervalSince($0) }, sinceInput: Self.sinceInput()) {
+                    lastAsked = nil
+                    LaunchHealth.endedAtOwnQuestion(game.gameID)
+                    GameLog.note("\(game.name) ended right at a question of its own, answered by the player: no other way")
+                }
                 if judging?.id == game.id { return end("its processes are gone, the start decides what's next") }
                 if loweredAt != nil { return end("its processes are gone") }  // watchForGameEnd brings Nightforge back
                 if launchingID == nil {
@@ -1027,11 +1037,18 @@ final class LibraryModel: ObservableObject {
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
-            let (here, anywhere, question, windows) = await Task.detached(priority: .utility) {
-                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.question(pids),
+            let (here, anywhere, asking, windows) = await Task.detached(priority: .utility) {
+                (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.questionWindow(pids),
                  GameProcesses.windowList(pids))
             }.value
-            let asks = loweredAt == nil && question != nil && !here
+            if let asking, asking.number != questionSeen?.number { questionSeen = (asking.number, Date()) }
+            if asking == nil { questionSeen = nil }
+            let question = asking?.number
+            // A thin window is a splash more often than a question (ABZU's Unreal splash, 601×201, showed
+            // "asking" for a moment on 3.11.): taken as one once it has stood a while.
+            let asks = loweredAt == nil && !here
+                && asking.map { Self.takenAsQuestion($0.size, standing: Date().timeIntervalSince(questionSeen?.since ?? Date())) } == true
+            if asks { lastAsked = Date() }
             let frontName = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
             let look = "\(pids.count) processes, in front \(frontName) (\(front.map(String.init) ?? "-"), \(gameFront ? "the game's" : "not the game's")), "
                 + "windows \(windows), picture \(here ? "here" : anywhere ? "elsewhere" : "none"), asks \(asks ? "yes" : "no"), "
@@ -1076,7 +1093,7 @@ final class LibraryModel: ObservableObject {
                 _ = await handFocus(to: pids)
             case .makeWay:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
-                if let question { GameBackdrop.makeWay(under: question) }  // again at each look: nothing gets between
+                if asks, let question { GameBackdrop.makeWay(under: question) }  // again at each look: nothing gets between
                 if !madeWay {
                     madeWay = true
                     InputRouter.showPointerOverGame()
@@ -1190,6 +1207,39 @@ final class LibraryModel: ObservableObject {
         if let phase { return phase }
         guard gameRuns, !windowShown else { return nil }
         return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
+    }
+
+    /// How soon after its own question a game's end still counts as the player's answer, and the
+    /// player's last click or key press before it.
+    nonisolated static let ownQuestionGrace: TimeInterval = 3
+
+    /// Whether a game that ended with no picture ended at a question of its own: one was taken as
+    /// such moments before (`sinceAsked`), and the player had just clicked or pressed a key
+    /// (`sinceInput`). A splash gone before a crash isn't: no one answered it.
+    nonisolated static func endedAtOwnQuestion(sinceAsked: TimeInterval?, sinceInput: TimeInterval) -> Bool {
+        guard let sinceAsked else { return false }
+        return sinceAsked <= ownQuestionGrace && sinceInput <= ownQuestionGrace + 1
+    }
+
+    /// Whether the start takes an end at the game's own question as the player's: not with the
+    /// graphics failing or a crash in its log.
+    nonisolated static func ownQuestionEndStands(endedAtOwnQuestion: Bool, graphicsFailed: Bool, crashed: Bool) -> Bool {
+        endedAtOwnQuestion && !graphicsFailed && !crashed
+    }
+
+    /// Seconds since the player last clicked or pressed a key, anywhere (no permission needed).
+    nonisolated static func sinceInput() -> TimeInterval {
+        [CGEventType.leftMouseDown, .rightMouseDown, .keyDown]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity
+    }
+
+    /// How long a thin window – at least `thinRatio` times as wide as high – stands before the
+    /// curtain takes it as a question: a splash goes by then, a question waits.
+    nonisolated static let thinPatience: TimeInterval = 4
+    nonisolated static let thinRatio: CGFloat = 2.5
+
+    nonisolated static func takenAsQuestion(_ size: CGSize, standing: TimeInterval) -> Bool {
+        size.width < thinRatio * size.height || standing >= thinPatience
     }
 
     enum CurtainStep: Equatable { case wait, handOver, makeWay, lower, raiseAgain, done }
@@ -2345,6 +2395,7 @@ final class LibraryModel: ObservableObject {
                 if first == .survived || LaunchHealth.showedPicture(game.gameID, since: launchStarted) {
                     MacHealth.confirm(game.appID)
                 } else if first == .ended, !Task.isCancelled, !LaunchHealth.quitByPlayer(game.gameID, since: launchStarted),
+                          !LaunchHealth.endedAtOwnQuestion(game.gameID, since: launchStarted),
                           let program, Self.crashed(program, since: launchStarted), fallBackToWindows(game) {
                     return
                 }
@@ -3275,6 +3326,13 @@ final class LibraryModel: ObservableObject {
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 }
+                // Closed at a question of its own (the curtain saw it): the player's choice too – unless
+                // the log says the graphics failed or it crashed, as after Play in Unity's window it might.
+                if Self.ownQuestionEndStands(endedAtOwnQuestion: LaunchHealth.endedAtOwnQuestion(game.gameID, since: startedAt),
+                                             graphicsFailed: graphicsFailed, crashed: GameLog.crashed(in: log)) {
+                    GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
+                    return
+                }
                 // Called off by a new start: that one has the curtain, nothing here starts again, and
                 // a game gone only a moment (a launcher handing over) isn't judged.
                 if Task.isCancelled { return }
@@ -3673,6 +3731,8 @@ final class LibraryModel: ObservableObject {
             if Task.isCancelled { return .ended }
             let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
             if let verdict = watch.look(presence) { return verdict }
+            // Closed at a question of its own: its end is clear, no ten looks to wait for.
+            if watch.absentLooks >= 2, LaunchHealth.endedAtOwnQuestion(game.gameID, since: started) { return .ended }
             if case .running(let pid) = presence, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
                 kill(pid, SIGTERM)
                 // Steam has to see it gone before the next way can start.
