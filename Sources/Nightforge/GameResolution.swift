@@ -340,8 +340,9 @@ enum GameResolution {
         }
         var result = text
         for (name, values) in sections {
-            if values["FullscreenMode"] == nil, let older = olderFitted(values, size: size) {
-                result = Engine.mergingIni(result, section: name, values: older)
+            // ABZU's kind, with a FullscreenMode of Nightforge's or none: always olderFitted's way.
+            if values["Fullscreen"] != nil {
+                if let older = olderFitted(values, size: size) { result = Engine.mergingIni(result, section: name, values: older) }
                 continue
             }
             guard let mode = values["FullscreenMode"].flatMap(Int.init), mode == 0 || mode == 1 else { continue }
@@ -363,6 +364,9 @@ enum GameResolution {
     /// Fullscreen=ON at the MacBook's 1512×982 crashed before its first window under DXMT/winecx,
     /// with no error in the log; Fullscreen=OFF at the same size started (live test, 3.11.2026
     /// evening). A window gets the screen's size too, so one written for the MacBook grows on a TV.
+    /// Unreal's own keys too: the saved file leaves out what equals the game's defaults, and ABZU's
+    /// (in its pak, DefaultGameUserSettings.ini) are 1920×1080 in exclusive full screen
+    /// (FullscreenMode 0) – after its intro it switched the Mac to 1920×1200 (live test, 4.11.2026).
     /// Only a section with the size stored; nil when nothing differs.
     static func olderFitted(_ values: [String: String], size: Size) -> [String: String]? {
         let windowed = ["on": "OFF", "true": "False", "1": "0"]  // the game's own word for off
@@ -370,7 +374,11 @@ enum GameResolution {
               windowed[fullscreen] != nil || ["off", "false", "0"].contains(fullscreen),
               values["DesiredScreenWidth"] != nil, values["DesiredScreenHeight"] != nil
         else { return nil }
-        let screen: [String: String] = ["DesiredScreenWidth": "\(size.width)", "DesiredScreenHeight": "\(size.height)"]
+        let width = "\(size.width)", height = "\(size.height)"
+        let screen: [String: String] = ["DesiredScreenWidth": width, "DesiredScreenHeight": height,
+                                        "ResolutionSizeX": width, "ResolutionSizeY": height,
+                                        "LastUserConfirmedResolutionSizeX": width, "LastUserConfirmedResolutionSizeY": height,
+                                        "FullscreenMode": "2", "LastConfirmedFullscreenMode": "2"]
         var wanted = screen.filter { values[$0.key] != $0.value }
         if let off = windowed[fullscreen] { wanted["Fullscreen"] = off }
         guard !wanted.isEmpty else { return nil }
