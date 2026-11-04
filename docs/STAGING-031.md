@@ -763,6 +763,48 @@ Weitere Punkte:
 - **pytest:** 147 von 147. compat-db sah pytest einmal unter Last scheitern. Hier fiel kein Test aus.
 - **Test-Plists:** In `~/Library/Preferences` änderte sich während des Laufs keine.
 
+## Fünfzehnte Runde (3.11. abends, auf 2bf81fd)
+
+Der alte Staging-Worktree im Scratchpad war mit `/private/tmp` gelöscht (20:31). Der Zweig stand unversehrt auf 2bf81fd.
+Der neue Worktree liegt unter `.claude/worktrees/staging-031`.
+
+| # | Zweig | Kopf | Merge auf Staging | Konflikte | Build |
+|---|---|---|---|---|---|
+| 72 | `claude/signing-keys` | 7fbf3ff | cb80604 | keine | 0 |
+| 73 | `claude/quit-sheets` | 48e75ba | 085a226 | keine | 0 |
+| 74 | `claude/overlay-visible` | 1426ead | 8ce1ea7 | keine | 0 |
+| 75 | `claude/own-question-end` (enthält 1426ead) | fed26e4 | 0d51c5a | keine | 0 |
+| 76 | `claude/d3dmetal-quality` | 0f6f36b | ec365f5 | keine | 0 |
+| 77 | `claude/abzu-windowed` | 910d830 | 54a6b0a | keine | 0 |
+| 78 | `claude/report-polish` | 2d3137e | a8aa3a7 | keine | 0 |
+| 79 | `claude/unity-play-default` | 780d55e | 2a243b3 | `docs/TODO.md` | 0 |
+| 80 | `claude/local-codesign` | 159229c | 5f79384 | keine | 0 |
+
+Nicht dabei, wie vorgegeben: `claude/direct-probe` (zurückgestellt).
+
+- **79, `docs/TODO.md`:** unity-play-default ersetzt die alten Schritte des Live-Tests durch den Stand nach dem
+  Live-Test vom 3.11. und die offenen Punkte. Dahinter steht own-question-ends Punkt zu „Quit“ im Fenster (75), der
+  vorher mitten in diesen Schritten stand.
+- **2664a50 (Staging-Commit):** `UnityDialogTest` schreibt seit 780d55e den Schalter in eine Suite
+  `unity-dialog-test-<UUID>` im echten `~/Library/Preferences`. Am Ende wird sie nur geleert, die Datei bleibt.
+  - Das ist derselbe Fall wie 7374066. Jetzt `TestDefaults.suite("unity-dialog")`.
+  - Danach ist die Reihe grün und hinterlässt keine Datei mehr. Der Commit gehört in `claude/unity-play-default`.
+
+## Tests der fünfzehnten Runde (auf 5f79384, UnityDialogTest dazu auf 2664a50)
+
+- **`tests/ProcessListLive/run.sh`:** grün.
+- **Voller Lauf `scripts/run-tests.sh -P 2`:** 59 von 60 (1345 s). Je Reihe der Exit-Code, gleich nach ihrem Ende
+  festgehalten: CloudSaves=0, Compatibility=0, CompleteRemoval=0, ComponentsSmoke=0, ControllerCompatibility=0, D3DMetal=0, DetachedProcess=0, DownloadRate=0, DuplicateGames=0, EngineLayout=0, EngineRollback=0, Epic=1, ExternalDrive=0, FirstStart=0, GOG=0, GameAnalysis=0, GameAudio=0, GameDisplay=0, GameID=0, GameInfo=0, GameOverlay=0, GameResolution=0, GameShortcut=0, GameTest=0, GraphicsPreset=0, LaunchHealth=0, LibraryFilters=0, LibraryReveal=0, MacSources=0, MacVersion=0, Navigation=0, OfflineReadiness=0, PadFocus=0, PadGuide=0, PadRules=0, ProfileFiles=0, QuitScript=0, ScanFreshness=0, Search=0, ShaderCaches=0, Signature=0, SpaceCheck=0, Stage=0, SteamBackground=0, SteamBootstrap=0, SteamOwnership=0, SteamPackages=0, SteamProgram=0, SteamStop=0, SteamSwitch=0, StoreFacts=0, StoreSearch=0, Strings=0, Subprocess=0, TextScale=0, Trackpad=0, UnityDialog=0, UpdateState=0, VDF=0, WineSandbox=0.
+- **`EpicTest` schlug im vollen Lauf fehl und ist danach allein dreimal grün** (Last 2,6 bis 3,2). Ich halte es für
+  einen Fehler unter Last:
+  - Betroffen sind „the hanging one has a helper of its own“ und „after the patience …: 0.10 seconds“.
+  - Der Test gibt dem Stand-in 300 ms, um sein Kind zu starten und SIGTERM abzufangen. Unter Last war es noch nicht so
+    weit und starb sofort.
+  - Runde 15 ändert weder die Reihe noch `Legendary.swift` oder `EpicStore.swift`.
+  - Für uninstall-safety: Die Frist ist ein Kandidat für die Stabilisierung, wie zuvor bei `SubprocessTest`.
+- **pytest:** 153 von 153.
+- **Test-Plists:** einzig die `unity-dialog-test-<UUID>` von Stagings `UnityDialogTest` (21:08), behoben mit 2664a50.
+
 ## Für die echten Merges
 
 - Für Profile gilt vorerst die Anleitung von tested-on-mac (33). profile-guides Fassung bräuchte zuerst die Rücknahme
