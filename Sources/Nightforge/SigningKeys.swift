@@ -6,8 +6,8 @@
 /// main key is lost, the spare signs the release that brings a new main key, and the release after
 /// that brings a new spare (docs/SICHERHEIT-0.3.md › Signierte Releases).
 enum SigningKeys {
-    static let main = ""
-    static let spare = ""
+    static let main = "joQnVnwWPi3MeCJVypEkntuBqpe4vYshS7wK/W9c1aY="
+    static let spare = "AoyN5tULHaAF2ryIEbg4/dnKG1IDD++KwPPJ9Frx3BU="
 
     static var trusted: [String] { [main, spare].filter { !$0.isEmpty } }
 }
