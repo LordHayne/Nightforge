@@ -24,6 +24,13 @@ enum GameEnvironment {
         "CX_GRAPHICS_BACKEND": "the graphics backend CrossOver names",
         // dlls/ntdll/unix/virtual.c: a 32-bit program gets 4 GB of address space.
         "WINE_LARGE_ADDRESS_AWARE": "4 GB for a 32-bit program",
+        // D3DMetal, and winecx's list of displays beside it (dlls/win32u/sysparams.c): the graphics card a
+        // game sees, in hex ("0x10de" NVIDIA, "0x2684" an RTX 4090). D3DMetal shows an "AMD Compatibility
+        // Mode" card, and NGX, DLSS's runtime, wants NVIDIA's (webmonarch's Satisfactory report).
+        "D3DM_VENDOR_ID": "the graphics card's maker D3DMetal reports",
+        "D3DM_DEVICE_ID": "the graphics card D3DMetal reports",
+        // D3DMetal: DirectX ray tracing for a game that asks for it.
+        "D3DM_SUPPORT_DXR": "DirectX ray tracing on D3DMetal",
     ]
 
     /// The variables of `raw` that count: allowed names with values of letters, digits, '.', '_'

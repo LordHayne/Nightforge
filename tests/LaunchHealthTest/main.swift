@@ -469,10 +469,17 @@ struct LaunchHealthTest {
         fm.createFile(atPath: folder.appendingPathComponent("bin/shaderapidx9.dll").path, contents: Data())
         analysis = GameAnalysis.analyze(installDir: folder, launchExecutable: "left4dead2.exe")
         check(analysis.apis == [.d3d9] && ids(analysis) == ["dxvk", "wined3d"], "Source game: DirectX 9 ladder: \(analysis)")
+        check(!analysis.usesDLSS, "no DLSS library: no DLSS")
+        fm.createFile(atPath: folder.appendingPathComponent("nvngx_dlss.dll").path, contents: Data())
+        check(GameAnalysis.analyze(installDir: folder, launchExecutable: "left4dead2.exe").usesDLSS,
+              "NVIDIA's DLSS library beside the game (Control): DLSS")
         try? fm.removeItem(at: folder)
         check(GameLog.graphicsFailed(in: "warn:  DXVK: No state cache file found\nerr:   DxvkBuffer: Failed to create buffer:\nerr:     size:  65536"),
               "DXVK's failed buffer counts as a failed start")
         check(GameLog.graphicsFailed(in: "err:   DxvkAdapter: Failed to create device"), "DXVK's failed device counts as a failed start")
+        check(GameLog.d3dMetalStart("Control", environment: ["D3DM_ENABLE_METALFX": "1", "D3DM_MAX_FPS": "60", "D3DM_VENDOR_ID": ""], retina: true)
+              == "Control starts on D3DMetal: D3DM_ENABLE_METALFX=1 D3DM_MAX_FPS=1 D3DM_VENDOR_ID=0 D3DM_DEVICE_ID=0 D3DM_SUPPORT_DXR=0 retina=1",
+              "a D3DMetal start's settings in the game log: names and 1/0, an emptied one is 0")
         check(!GameLog.graphicsFailed(in: "warn:  DXVK: No state cache file found\nerr:   DXGI: Failed to create swap chain"),
               "other DXVK errors don't end a game")
         check(GameLog.missingRuntimes(in: "0040:err:mscoree:CLRRuntimeInfo_GetRuntimeHost Wine Mono is not installed", gameFolder: "x")
@@ -556,6 +563,36 @@ struct LaunchHealthTest {
         Hardware.set(.init(retina: true, lowPower: true))
         check(GameOptions().effectiveFrameLimit(displayRefreshRate: 120) == (Prefs.sharpAndSmooth ? 40 : 0),
               "Low Power Mode starts one share lower")
+
+        // Wine's Retina mode for a start: a game whose DLSS works on D3DMetal (its profile says so) gets it
+        // with MetalFX. Control's DLSS library alone isn't enough: greyed out there, under 20 FPS at full Retina.
+        Hardware.set(.init(retina: true, lowPower: false))
+        var dlss = GameAnalysis()
+        dlss.usesDLSS = true
+        func profiled(_ json: String) -> GameProfile? { try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let works = profiled(#"{"dlss": true}"#)
+        let automatic = GameOptions()
+        check(automatic.retina(profile: works, layer: .d3dmetal, analysis: dlss) == Prefs.sharpAndSmooth,
+              "DLSS known to work on D3DMetal, Sharp & smooth, a Retina screen: Retina mode")
+        check(!automatic.retina(profile: nil, layer: .d3dmetal, analysis: dlss),
+              "DLSS beside the game but not known to work (Control): none")
+        check(!automatic.retina(profile: works, layer: .d3dmetal, analysis: GameAnalysis())
+              && !automatic.retina(profile: works, layer: .dxmt, analysis: dlss) && !automatic.retina(profile: works, layer: .d3dmetal, analysis: nil),
+              "without DLSS beside the game, on another layer or unknown: none (the game would draw every pixel)")
+        var noUpscaling = GameOptions()
+        noUpscaling.upscaling = .off
+        check(!noUpscaling.retina(profile: works, layer: .d3dmetal, analysis: dlss)
+              && !automatic.retina(profile: profiled(#"{"dlss": true, "metalFX": false}"#), layer: .d3dmetal, analysis: dlss),
+              "MetalFX off, by hand or by the profile: none")
+        check(automatic.retina(profile: profiled(#"{"retina": true}"#), layer: .dxmt, analysis: nil)
+              && !automatic.retina(profile: profiled(#"{"retina": false, "dlss": true}"#), layer: .d3dmetal, analysis: dlss),
+              "a profile's word on Retina counts either way")
+        Hardware.set(.init(retina: false, lowPower: false))
+        var upscaled = GameOptions()
+        upscaled.upscaling = .on
+        check(!automatic.retina(profile: works, layer: .d3dmetal, analysis: dlss) && !upscaled.retina(profile: works, layer: .d3dmetal, analysis: dlss),
+              "a screen without Retina: none, even with MetalFX switched on")
+        Hardware.set(.init(retina: true, lowPower: false))
         check(FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt, lowPower: true)
               != FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt),
               "Low Power Mode learns apart from normal play")

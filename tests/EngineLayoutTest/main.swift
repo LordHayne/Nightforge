@@ -316,6 +316,13 @@ struct EngineLayoutTest {
                   == ["WINE_SIMULATE_WRITECOPY": "0", "CX_HACK_FILESYSTEM_TYPE": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"],
                   "the test switch wins over the profile, numbers as `defaults` writes them count, the rest stays out")
             check(GameEnvironment.wanted(for: .steam(550), profile: nil, defaults: test).isEmpty, "another game gets none of it")
+            // D3DMetal's card for a test with DLSS (Control): an NVIDIA one by its hex ids.
+            test.set(["D3DM_VENDOR_ID": "0x10de", "D3DM_DEVICE_ID": "0x2684", "D3DM_SUPPORT_DXR": NSNumber(value: 1)],
+                     forKey: GameEnvironment.testKey(.epic("calluna")))
+            let nvidia = GameEnvironment.wanted(for: .epic("calluna"), profile: nil, defaults: test)
+            check(nvidia == ["D3DM_VENDOR_ID": "0x10de", "D3DM_DEVICE_ID": "0x2684", "D3DM_SUPPORT_DXR": "1"]
+                  && GameLog.d3dMetalStart("Control", environment: nvidia, retina: false).contains("D3DM_VENDOR_ID=1 D3DM_DEVICE_ID=1 D3DM_SUPPORT_DXR=1"),
+                  "D3DMetal's card and ray tracing can be set for a game, and its start line says so")
         }
         // MARK: The prefix's registry: nothing in HKCU\Environment any more (Wine never hands it to games)
         let registry = Engine.prefixRegistry

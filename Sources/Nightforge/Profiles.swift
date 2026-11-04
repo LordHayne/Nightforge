@@ -55,6 +55,11 @@ struct GameProfile: Decodable, Equatable {
     /// true: the game sees the screen's full Retina resolution instead of half of it. Wine sets that
     /// for a whole session, so Steam starts afresh when it changes from one game to the next.
     var retina: Bool?
+    /// true: the game's DLSS was seen working on D3DMetal, through MetalFX (D3DM_ENABLE_METALFX), so with
+    /// MetalFX on it gets Retina mode as well (GameOptions.retina). A game's DLSS library alone isn't
+    /// enough: Control greys DLSS out on D3DMetal ("requires an NVIDIA RTX GPU", 3.11.2026), and at
+    /// the full Retina resolution without it ran below 20 FPS.
+    var dlss: Bool?
     /// Where the game keeps the resolution it starts in, so it's fitted to the screen it plays on
     /// (GameResolution), as Unity's and Unreal's are without a profile.
     var resolution: SavedResolution?
@@ -125,7 +130,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, resolution, executable, environment, skipUnityDialog
+        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -170,6 +175,7 @@ struct GameProfile: Decodable, Equatable {
         fileEdits = try? container.decodeIfPresent([FileEdit].self, forKey: .fileEdits)
         iniSettings = try? container.decodeIfPresent([IniSetting].self, forKey: .iniSettings)
         retina = try? container.decodeIfPresent(Bool.self, forKey: .retina)
+        dlss = try? container.decodeIfPresent(Bool.self, forKey: .dlss)
         resolution = try? container.decodeIfPresent(SavedResolution.self, forKey: .resolution)
         executable = (try? container.decodeIfPresent(String.self, forKey: .executable)).flatMap { $0.isEmpty ? nil : $0 }
         environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
