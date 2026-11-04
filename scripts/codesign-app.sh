@@ -23,7 +23,17 @@ if [ -n "${NIGHTFORGE_AD_HOC:-}" ]; then
   IDENTITY=""
 elif [ -z "$IDENTITY" ]; then
   # Without -v: the certificate is its own root, which macOS doesn't trust – codesign doesn't need it to.
-  IDENTITY="$(security find-identity -p codesigning 2>/dev/null | awk '/"Nightforge Code Signing"/ { print $2; exit }' || true)"
+  # Only the certificate pinned in codesign-certificate.sha1 when there is one: another one of that name
+  # would give the app another requirement, and macOS would ask again.
+  pinned="$(grep -v '^#' "$(dirname "$0")/codesign-certificate.sha1" 2>/dev/null | tr -d '[:space:]' | tr 'a-f' 'A-F' || true)"
+  named="$(security find-identity -p codesigning 2>/dev/null | awk '/"Nightforge Code Signing"/ { print toupper($2) }' || true)"
+  if [ -z "$pinned" ]; then
+    IDENTITY="$(head -1 <<< "$named")"
+  elif grep -qxF "$pinned" <<< "$named"; then
+    IDENTITY="$pinned"
+  elif [ -n "$named" ]; then
+    echo "⚠ The \"Nightforge Code Signing\" certificate here isn't the pinned one ($pinned): signing ad hoc." >&2
+  fi
 fi
 if [ -n "$IDENTITY" ]; then
   BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")"

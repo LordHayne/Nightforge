@@ -42,9 +42,16 @@ class CodesignApp(unittest.TestCase):
         (self.app / "Contents").mkdir(parents=True)
         (self.app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "io.github.lordhayne.nightforge"}))
         self.env = {"PATH": f"{bin_dir}:/usr/bin:/bin:/usr/sbin:/sbin", "FAKE": str(self.fake), "HOME": str(root)}
+        # The script beside a pin of the test's own (it reads codesign-certificate.sha1 next to itself).
+        scripts = root / "scripts"
+        scripts.mkdir()
+        self.script = scripts / "codesign-app.sh"
+        self.script.write_text(SCRIPT.read_text())
+        self.pin = scripts / "codesign-certificate.sha1"
+        self.pin.write_text(f"# pinned\n{CERT}\n")
 
     def sign(self, **extra):
-        result = subprocess.run(["bash", str(SCRIPT), str(self.app)], env={**self.env, **extra}, capture_output=True, text=True)
+        result = subprocess.run(["bash", str(self.script), str(self.app)], env={**self.env, **extra}, capture_output=True, text=True)
         calls = (self.fake / "codesign.argv").read_text().splitlines() if (self.fake / "codesign.argv").exists() else []
         return result, calls
 
@@ -66,6 +73,24 @@ class CodesignApp(unittest.TestCase):
                         "nested code first, then the app with its requirement")
         self.assertIn(f"--verify --deep --strict {self.app}", calls)
         self.assertIn(CERT, result.stdout)
+
+    def test_only_the_pinned_certificate_counts(self):
+        """Review: another "Nightforge Code Signing" would give the app another requirement, and macOS would ask."""
+        other = "F" * 40
+        (self.fake / "identities").write_text(f'  1) {other} "Nightforge Code Signing" (CSSMERR_TP_NOT_TRUSTED)\n')
+        result, calls = self.sign()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, [f"--force --deep --sign - {self.app}"], "ad hoc")
+        self.assertIn("isn't the pinned one", result.stderr)
+        (self.fake / "identities").write_text(f'  1) {other} "Nightforge Code Signing" (CSSMERR_TP_NOT_TRUSTED)\n'
+                                             f'  2) {CERT} "Nightforge Code Signing" (CSSMERR_TP_NOT_TRUSTED)\n')
+        (self.fake / "codesign.argv").unlink()
+        _, calls = self.sign()
+        self.assertIn(f"--force --deep --timestamp=none --sign {CERT} {self.app}", calls, "the pinned one of two")
+        self.pin.write_text("# no certificate yet\n")
+        (self.fake / "codesign.argv").unlink()
+        _, calls = self.sign()
+        self.assertIn(f"--force --deep --timestamp=none --sign {other} {self.app}", calls, "no pin: the one of that name")
 
     def test_ad_hoc_on_request_whatever_the_keychain_holds(self):
         """A build no one watches mustn't wait on macOS asking whether codesign may use the key."""
