@@ -1398,8 +1398,20 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     `DesiredScreenWidth/Height` = Bildschirm, `PreferredFullscreenMode` und `bUseDesktopResolutionForFullscreen`
     bleiben. Auch ein Fenster bekommt die Bildschirmgröße, damit es am TV mitwächst. Eine Datei, die 65e2983 schon
     auf Vollbild geschrieben hat, wird beim nächsten Start ein Fenster.
-  - **Live prüfen:** ABZU über Epic starten; im wine.log „Full screen GameUserSettings.ini: 1512×982“, in der Datei
-    `Fullscreen=OFF`, das Spiel bildschirmfüllend ohne Rand. Offen: das kleine Fenster 601×201 vor dem Spiel.
+  - **Live 4.11.:** Start in 1512×982, nach dem Intro schaltete ABZU den Mac auf 1920×1200 (Metal HUD, Bildschirmfoto).
+    Ursache: Unreal speichert nur, was von den Vorgaben abweicht, und ABZUs `DefaultGameUserSettings.ini` im Pak hat
+    `ResolutionSizeX/Y=1920×1080`, `FullscreenMode=0` (exklusiv). Jetzt (Zweig `claude/abzu-defaults`) schreibt
+    `olderFitted` auch Unreals eigene Schlüssel: `ResolutionSizeX/Y`, `LastUserConfirmedResolutionSizeX/Y` = Bildschirm,
+    `FullscreenMode`/`LastConfirmedFullscreenMode=2` (Fenster). **Live 4.11. abends:** Damit starb ABZU nach dem
+    Ladebild, wie am 3.11. – ohne Log. Gemeinsam ist beiden Abstürzen eine Größe von 1512×982 aus den Einstellungen
+    beim Start; ohne Unreals Größen startete es. Jetzt schreibt `olderFitted` nur noch den Modus:
+    `FullscreenMode`/`LastConfirmedFullscreenMode=1` (randloses Vollbildfenster, kein Moduswechsel), keine
+    `ResolutionSize…`. Ein Fenster, das nicht so groß ist wie einer der Bildschirme des Macs, hat der Spieler gewählt
+    und bleibt, wie es ist (Hinweis aus dem Hermes-Review von Runde 15). Für Versuche mit einer von Hand geschriebenen
+    Datei: `defaults write io.github.lordhayne.nightforge resolutionFitOff -array epic.Curry` lässt `GameResolution.fit`
+    das Spiel aus.
+  - **Live prüfen:** ABZU über Epic starten und bis ins Menü spielen; in der Datei `FullscreenMode=1` ohne
+    `ResolutionSize…`, der Metal HUD bleibt bei 1512×982, kein Moduswechsel. Offen: das kleine Fenster 601×201 vor dem Spiel.
 - **The Forest (Steam 242760, Unity 5.6.5p4) zeigt Unitys Auswahlfenster** („The Forest Configuration“, 464×438,
   „Play!“). Der Spieletest hat es als Hänger gezählt, weil niemand klickte. Ein normaler Start zeigt es unter dem
   Vorhang, mit dem Pad ist es aber nicht bedienbar (PCGamingWiki: „Launcher requires mouse input“).
