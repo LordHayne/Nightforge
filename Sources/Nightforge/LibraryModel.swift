@@ -882,6 +882,8 @@ final class LibraryModel: ObservableObject {
         /// The game's question window on screen and since when; when it was last taken as one.
         var questionSeen: (number: Int, since: Date)?
         var lastAsked: Date?
+        /// When that question went, answered by the player – a click or key press just before.
+        var answeredAt: Date?
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
         /// macOS's questions on screen at the last look (`GameProcesses.macOSQuestions`), the frontmost
@@ -1019,9 +1021,12 @@ final class LibraryModel: ObservableObject {
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
                 // The start judges its first seconds: it tells what's next, under this curtain.
                 // Closed at a question of its own – Unity's configuration window, Quit (The Forest, 3.11.): the
-                // player's choice, not a way that failed (LaunchHealth.endedAtOwnQuestion).
-                if loweredAt == nil, Self.endedAtOwnQuestion(sinceAsked: lastAsked.map { Date().timeIntervalSince($0) }, sinceInput: Self.sinceInput()) {
+                // player's choice, not a way that failed (LaunchHealth.endedAtOwnQuestion). Gone together with
+                // its question at this look: answered now.
+                if lastAsked != nil, answeredAt == nil, Self.answered(inputBefore: Self.sinceInput()) { answeredAt = Date() }
+                if loweredAt == nil, Self.endedAtOwnQuestion(answeredAgo: answeredAt.map { Date().timeIntervalSince($0) }) {
                     lastAsked = nil
+                    answeredAt = nil
                     LaunchHealth.endedAtOwnQuestion(game.gameID)
                     GameLog.note("\(game.name) ended right at a question of its own, answered by the player: no other way")
                 }
@@ -1045,10 +1050,19 @@ final class LibraryModel: ObservableObject {
             if asking == nil { questionSeen = nil }
             let question = asking?.number
             // A thin window is a splash more often than a question (ABZU's Unreal splash, 601×201, showed
-            // "asking" for a moment on 3.11.): taken as one once it has stood a while.
+            // "asking" for a moment on 3.11.): taken as one once it has stood a while. So is Unity's
+            // window while the helper is about to press Play! in it (UnityDialog.isPressing).
+            let helperPresses = UnityDialog.isPressing(for: game)
             let asks = loweredAt == nil && !here
-                && asking.map { Self.takenAsQuestion($0.size, standing: Date().timeIntervalSince(questionSeen?.since ?? Date())) } == true
-            if asks { lastAsked = Date() }
+                && asking.map { Self.takenAsQuestion($0.size, standing: Date().timeIntervalSince(questionSeen?.since ?? Date()),
+                                                     helperPresses: helperPresses) } == true
+            if asks {
+                lastAsked = Date()
+            } else if lastAsked != nil, asking == nil {
+                // Its question went: answered, if the player clicked or pressed a key just before.
+                if Self.answered(inputBefore: Self.sinceInput()) { answeredAt = Date() }
+                lastAsked = nil
+            }
             let frontName = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
             let look = "\(pids.count) processes, in front \(frontName) (\(front.map(String.init) ?? "-"), \(gameFront ? "the game's" : "not the game's")), "
                 + "windows \(windows), picture \(here ? "here" : anywhere ? "elsewhere" : "none"), asks \(asks ? "yes" : "no"), "
@@ -1209,16 +1223,21 @@ final class LibraryModel: ObservableObject {
         return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
     }
 
-    /// How soon after its own question a game's end still counts as the player's answer, and the
-    /// player's last click or key press before it.
-    nonisolated static let ownQuestionGrace: TimeInterval = 3
+    /// How long after the game's own question went, answered by the player, its end with no picture
+    /// still counts as that answer: Wine takes a while to end a Unity game after Quit – longer than
+    /// the 3 s counted from the last look at the question at first (The Forest, 4.11.).
+    nonisolated static let ownQuestionGrace: TimeInterval = 15
+    /// The player's click or key press at most this long before the question went: its answer.
+    nonisolated static let answerInput: TimeInterval = 4
 
-    /// Whether a game that ended with no picture ended at a question of its own: one was taken as
-    /// such moments before (`sinceAsked`), and the player had just clicked or pressed a key
-    /// (`sinceInput`). A splash gone before a crash isn't: no one answered it.
-    nonisolated static func endedAtOwnQuestion(sinceAsked: TimeInterval?, sinceInput: TimeInterval) -> Bool {
-        guard let sinceAsked else { return false }
-        return sinceAsked <= ownQuestionGrace && sinceInput <= ownQuestionGrace + 1
+    /// Whether the game's question that just went was answered: `inputBefore` seconds since the
+    /// player's last click or key press. A splash that goes by itself isn't: no one answered it.
+    nonisolated static func answered(inputBefore: TimeInterval) -> Bool { inputBefore <= answerInput }
+
+    /// Whether a game that ended with no picture ended at a question of its own: answered
+    /// `answeredAgo` seconds before.
+    nonisolated static func endedAtOwnQuestion(answeredAgo: TimeInterval?) -> Bool {
+        answeredAgo.map { $0 <= ownQuestionGrace } ?? false
     }
 
     /// Whether the start takes an end at the game's own question as the player's: not with the
@@ -1237,9 +1256,13 @@ final class LibraryModel: ObservableObject {
     /// curtain takes it as a question: a splash goes by then, a question waits.
     nonisolated static let thinPatience: TimeInterval = 4
     nonisolated static let thinRatio: CGFloat = 2.5
+    /// How long a question stands under the curtain while Unity's helper is to press Play! in it
+    /// (`helperPresses`): it does in a moment, and one it can't press shows after this.
+    nonisolated static let helperPatience: TimeInterval = 5
 
-    nonisolated static func takenAsQuestion(_ size: CGSize, standing: TimeInterval) -> Bool {
-        size.width < thinRatio * size.height || standing >= thinPatience
+    nonisolated static func takenAsQuestion(_ size: CGSize, standing: TimeInterval, helperPresses: Bool = false) -> Bool {
+        if helperPresses { return standing >= helperPatience }
+        return size.width < thinRatio * size.height || standing >= thinPatience
     }
 
     enum CurtainStep: Equatable { case wait, handOver, makeWay, lower, raiseAgain, done }

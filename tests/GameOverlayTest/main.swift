@@ -440,16 +440,17 @@ struct GameOverlayTest {
     /// ended without a picture on 3.11., and the start went on to its next way. And a splash isn't a
     /// question (ABZU's Unreal splash, 601×201, showed "asking" for a moment).
     static func ownQuestion() {
-        // The order: its question seen (the curtain made way), the player clicks Quit, its processes go.
-        check(LibraryModel.endedAtOwnQuestion(sinceAsked: 0.8, sinceInput: 1.0), "gone 0.8 s after its question, a click before: the player's")
+        // The order: its question seen (the curtain made way), the player clicks Quit, the window goes,
+        // and Wine ends its processes some seconds later (more than the 3 s first allowed, 4.11.).
+        check(LibraryModel.answered(inputBefore: 0.6), "the window went 0.6 s after a click: answered")
+        check(LibraryModel.endedAtOwnQuestion(answeredAgo: 9), "its processes gone 9 s after: the player's")
+        check(LibraryModel.endedAtOwnQuestion(answeredAgo: LibraryModel.ownQuestionGrace), "within \(Int(LibraryModel.ownQuestionGrace)) s")
         check(LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: false),
               "so the start tries no other way")
-        // Not the player's: a splash gone before a crash, a crash long after answering, no question at all.
-        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: 0.8, sinceInput: 30), "no click or key: no one answered it")
-        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: 20, sinceInput: 20), "Wukong's warning answered long before the end: the way's")
-        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: nil, sinceInput: 0.5), "no question seen: the way's")
-        check(LibraryModel.endedAtOwnQuestion(sinceAsked: LibraryModel.ownQuestionGrace, sinceInput: LibraryModel.ownQuestionGrace + 1),
-              "Wine takes a moment to end it: within \(LibraryModel.ownQuestionGrace) s")
+        // Not the player's: a splash gone by itself, an end long after answering, no question at all.
+        check(!LibraryModel.answered(inputBefore: 30), "no click or key before it went: no one answered it")
+        check(!LibraryModel.endedAtOwnQuestion(answeredAgo: 40), "Wukong's warning answered long before the end: the way's")
+        check(!LibraryModel.endedAtOwnQuestion(answeredAgo: nil), "no answered question: the way's")
         // Play in Unity's window, then the graphics fail at once: the way's after all.
         check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: true, crashed: false), "the graphics failed: the next way")
         check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: true), "a crash in its log: the next way")
@@ -462,6 +463,11 @@ struct GameOverlayTest {
         check(LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: 0), "Unity's configuration window: at once")
         check(LibraryModel.takenAsQuestion(CGSize(width: 286, height: 251), standing: 0), "Wukong's driver warning: at once")
         check(LibraryModel.takenAsQuestion(CGSize(width: 800, height: 330), standing: 0), "a wide launcher question under 2.5 : 1: at once")
+        // Unity's window while the helper is to press Play! in it: under the curtain, unless it stands too long.
+        check(!LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: 1, helperPresses: true),
+              "the helper about to press Play!: the curtain stays over it")
+        check(LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: LibraryModel.helperPatience, helperPresses: true),
+              "still there after \(Int(LibraryModel.helperPatience)) s: the player's to answer")
     }
 
     /// A question of macOS's: the curtain under it, for three minutes at most – one that hangs or lies

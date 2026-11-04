@@ -627,6 +627,14 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     (mindestens 2,5 : 1, ABZUs Unreal-Splash 601×201) gilt erst nach 4 s als Frage: der Splash zeigte kurz „fragt
     etwas“. Live: The Forest, im Fenster „Quit“ → Nightforge kommt zurück, kein zweiter Start, `index` bleibt;
     ABZU-Start ohne „fragt etwas“; Black Myth: Wukongs Treiberwarnung erscheint weiter sofort über dem Vorhang.
+    Live-Befund 4.11. (Staging 834b2fa): griff nicht. Nach „Quit“ brauchten Wine und Unity länger als die 3 s ab
+    dem letzten Blick auf die Frage, das Spiel bekam `shortEnds: 1`. Auf `claude/own-question-fix` (von 834b2fa):
+    Der Vorhang merkt sich, wann die Frage verschwand und ob der Spieler kurz davor (≤ 4 s) geklickt oder eine
+    Taste gedrückt hat. Enden die Prozesse danach binnen 15 s ohne Bild, zählt es als seine Antwort. Dazu bleibt
+    der Vorhang über Unitys Fenster, solange der Play!-Helfer für das Spiel läuft (`UnityDialog.isPressing`), höchstens
+    5 s, danach gilt es als Frage. Live: The Forest mit `unityDialogPlay` false, „Quit“ → „ended right at a question of
+    its own“ im `wine.log`, kein neuer Start, `shortEnds` bleibt; mit dem Helfer (Standard) kein „it asks something“ vor
+    „pressed Play!“.
 - **„Aktualisieren & spielen“ zeigt die ganze Zeit 0 %.** OxyRail am 31.10.: 5,8 GB in 4,5 Minuten, der Knopf
   stand bis zum Schluss auf „Aktualisiert … 0 %“. Steam schreibt `BytesDownloaded` im appmanifest erst am Ende
   (während des Updates `StateFlags 1030`, `BytesDownloaded 0`). `LibraryScanner.updateState` las nur das
