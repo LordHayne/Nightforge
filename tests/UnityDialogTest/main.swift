@@ -140,8 +140,18 @@ struct UnityDialogTest {
 
     static func switchAndProfile() {
         check(UnityDialog.switchKey == "unityDialogPlay", "the switch's name, as docs/TODO.md gives it")
-        check(UserDefaults(suiteName: "unity-dialog-test-\(UUID().uuidString)")?.bool(forKey: UnityDialog.switchKey) == false,
-              "off unless switched on")
+        // On for everyone since the live test (3.11.), with a way out.
+        let suite = "unity-dialog-test-\(UUID().uuidString)"
+        if let defaults = UserDefaults(suiteName: suite) {
+            defer { defaults.removePersistentDomain(forName: suite) }
+            check(UnityDialog.enabled(in: defaults), "on unless switched off")
+            defaults.set(false, forKey: UnityDialog.switchKey)
+            check(!UnityDialog.enabled(in: defaults), "`defaults write … unityDialogPlay -bool false` turns it off")
+            defaults.set(true, forKey: UnityDialog.switchKey)
+            check(UnityDialog.enabled(in: defaults), "and true keeps it on")
+        } else {
+            check(false, "a defaults domain of the test's own")
+        }
         check(profile(#"{"skipUnityDialog": false}"#)?.skipUnityDialog == false, "a profile keeps the window")
         check(profile(#"{"skipUnityDialog": true}"#)?.skipUnityDialog == true, "or says so")
         check(profile(#"{"name": "Game"}"#)?.skipUnityDialog == nil, "nothing said")

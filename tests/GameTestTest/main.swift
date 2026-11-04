@@ -244,6 +244,10 @@ struct GameTestTest {
         check(!GameTest.startWindowStands(unity: true, picture: false, standing: nil, helper: false), "no window: nothing")
         check(GameTest.Keys.unityDialogPlay == UnityDialog.switchKey && UnityDialog.switchKey == "unityDialogPlay",
               "the helper's own switch (UnityDialog.switchKey)")
+        // The helper is on unless switched off: the run reads it the same way, not as "off" when nothing is set.
+        let run = (try? String(contentsOf: URL(fileURLWithPath: "Sources/Nightforge/GameTestRun.swift"), encoding: .utf8)) ?? ""
+        check(run.contains("let helper = UnityDialog.enabled") && !run.contains("bool(forKey: GameTest.Keys.unityDialogPlay)"),
+              "the run takes the helper for on when the switch isn't set, as UnityDialog does")
         check(GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window \"The Forest Configuration\": pressed Play!\n"),
               "the helper's line: it pressed Play!")
         check(!GameTest.helperPressedPlay(in: "info:  [nightforge] Unity's window: didn't come up\n"), "no window, nothing pressed")

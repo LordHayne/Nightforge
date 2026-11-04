@@ -204,7 +204,7 @@ final class GameTestRun {
         var frontTakers: [String] = []
         // Unity's start window, from when it stood (GameTest.startWindowStands).
         let unity = game.platform == .windows ? await model.insight(of: game)?.analysis.engine == .unity : false
-        let helper = UserDefaults.standard.bool(forKey: GameTest.Keys.unityDialogPlay)
+        let helper = UnityDialog.enabled  // on unless switched off
         var startWindowSince: Date?
         var logLooked = Date()
         model.sessionSummary = nil  // "Welcome back" for the game before, set once its curtain had gone
