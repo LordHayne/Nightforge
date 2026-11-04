@@ -285,6 +285,13 @@ struct GameOverlayTest {
               "the second try: above what lay in front of it")
         check(GameOverlay.raisedLevel(screenSaver, covering: [abzu]) == screenSaver && GameOverlay.raisedLevel(screenSaver, covering: []) == screenSaver,
               "never lower than it was")
+        // ABZU switched the MacBook to 1920×1200 after its start (4.11.): the panel takes the display's frame as
+        // it is when it opens, in AppKit's terms – not 1512×982 from before.
+        check(GameOverlay.appKitFrame(CGRect(x: 0, y: 0, width: 1920, height: 1200), primaryHeight: 1200) == NSRect(x: 0, y: 0, width: 1920, height: 1200),
+              "the main display in its new mode")
+        check(GameOverlay.appKitFrame(CGRect(x: 1920, y: 0, width: 2560, height: 1440), primaryHeight: 1200) == NSRect(x: 1920, y: -240, width: 2560, height: 1440),
+              "a taller display beside it reaches below the main one's bottom")
+        check(GameProcesses.display(of: [], pids: game) == nil, "no window of the game's: the screen it was given")
         check(GameOverlay.shows(inFront: true, occlusionVisible: true), "in front and visible: the game pauses")
         check(!GameOverlay.shows(inFront: true, occlusionVisible: false) && !GameOverlay.shows(inFront: false, occlusionVisible: true),
               "either missing: raised once more, then the game runs on and the panel goes")
@@ -440,20 +447,29 @@ struct GameOverlayTest {
     /// ended without a picture on 3.11., and the start went on to its next way. And a splash isn't a
     /// question (ABZU's Unreal splash, 601×201, showed "asking" for a moment).
     static func ownQuestion() {
-        // The order: its question seen (the curtain made way), the player clicks Quit, its processes go.
-        check(LibraryModel.endedAtOwnQuestion(sinceAsked: 0.8, sinceInput: 1.0), "gone 0.8 s after its question, a click before: the player's")
-        check(LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: false),
+        // The order: its question seen (the curtain made way), the player clicks Quit, the window goes,
+        // and Wine ends its processes some seconds later (more than the 3 s first allowed, 4.11.).
+        check(LibraryModel.answered(inputBefore: 0.6, shownFor: 8, inFront: true), "the window went 0.6 s after a click on it: answered")
+        check(LibraryModel.endedAtOwnQuestion(answeredAgo: 9), "its processes gone 9 s after: the player's")
+        check(LibraryModel.endedAtOwnQuestion(answeredAgo: LibraryModel.ownQuestionGrace), "within \(Int(LibraryModel.ownQuestionGrace)) s")
+        let start = Date(timeIntervalSince1970: 1_793_800_000), end = start.addingTimeInterval(20)
+        check(LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: end.addingTimeInterval(-1), graphicsFailed: false, crashed: false),
               "so the start tries no other way")
-        // Not the player's: a splash gone before a crash, a crash long after answering, no question at all.
-        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: 0.8, sinceInput: 30), "no click or key: no one answered it")
-        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: 20, sinceInput: 20), "Wukong's warning answered long before the end: the way's")
-        check(!LibraryModel.endedAtOwnQuestion(sinceAsked: nil, sinceInput: 0.5), "no question seen: the way's")
-        check(LibraryModel.endedAtOwnQuestion(sinceAsked: LibraryModel.ownQuestionGrace, sinceInput: LibraryModel.ownQuestionGrace + 1),
-              "Wine takes a moment to end it: within \(LibraryModel.ownQuestionGrace) s")
-        // Play in Unity's window, then the graphics fail at once: the way's after all.
-        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: true, crashed: false), "the graphics failed: the next way")
-        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: true, graphicsFailed: false, crashed: true), "a crash in its log: the next way")
-        check(!LibraryModel.ownQuestionEndStands(endedAtOwnQuestion: false, graphicsFailed: false, crashed: false), "not at its question: as ever")
+        // Not the player's: a splash gone by itself, a click elsewhere or from before, an end long after answering.
+        check(!LibraryModel.answered(inputBefore: 30, shownFor: 8, inFront: true), "no click or key before it went: no one answered it")
+        check(!LibraryModel.answered(inputBefore: 2, shownFor: 1, inFront: true), "a click from before the window came: not its answer")
+        check(!LibraryModel.answered(inputBefore: 0.5, shownFor: 8, inFront: false), "another app in front: a click there, not on it")
+        check(!LibraryModel.endedAtOwnQuestion(answeredAgo: 40), "Wukong's warning answered long before the end: the way's")
+        check(!LibraryModel.endedAtOwnQuestion(answeredAgo: nil), "no answered question: the way's")
+        // A launcher's window taken as a question, the launcher gone, the game itself started and crashed (Control).
+        check(!LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: end.addingTimeInterval(6), graphicsFailed: false, crashed: false),
+              "a process of the game's ran after that end: a handover, the way's")
+        check(!LibraryModel.ownQuestionEndStands(end: start.addingTimeInterval(-5), startedAt: start, lastRunning: nil, graphicsFailed: false, crashed: false),
+              "an end from a start before: as ever")
+        // Play in Unity's window, then the graphics fail at once or it crashes (an Unreal crash report too): the way's after all.
+        check(!LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: nil, graphicsFailed: true, crashed: false), "the graphics failed: the next way")
+        check(!LibraryModel.ownQuestionEndStands(end: end, startedAt: start, lastRunning: nil, graphicsFailed: false, crashed: true), "a crash: the next way")
+        check(!LibraryModel.ownQuestionEndStands(end: nil, startedAt: start, lastRunning: nil, graphicsFailed: false, crashed: false), "not at its question: as ever")
 
         // A thin window takes a while to count as a question; a dialog counts at once.
         check(!LibraryModel.takenAsQuestion(CGSize(width: 601, height: 201), standing: 1), "ABZU's splash, a second in: not asking")
@@ -462,6 +478,11 @@ struct GameOverlayTest {
         check(LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: 0), "Unity's configuration window: at once")
         check(LibraryModel.takenAsQuestion(CGSize(width: 286, height: 251), standing: 0), "Wukong's driver warning: at once")
         check(LibraryModel.takenAsQuestion(CGSize(width: 800, height: 330), standing: 0), "a wide launcher question under 2.5 : 1: at once")
+        // Unity's window while the helper is to press Play! in it: under the curtain, unless it stands too long.
+        check(!LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: 1, helperPresses: true),
+              "the helper about to press Play!: the curtain stays over it")
+        check(LibraryModel.takenAsQuestion(CGSize(width: 464, height: 438), standing: LibraryModel.helperPatience, helperPresses: true),
+              "still there after \(Int(LibraryModel.helperPatience)) s: the player's to answer")
     }
 
     /// A question of macOS's: the curtain under it, for three minutes at most – one that hangs or lies

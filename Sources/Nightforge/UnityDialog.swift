@@ -104,6 +104,15 @@ enum UnityDialog {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var running: (game: String, process: DetachedProcess)?
 
+    /// Whether the helper looks for `game`'s window now, to press Play! in it: the curtain stays over
+    /// it meanwhile (LibraryModel.takenAsQuestion) – it showed for a moment before (4.11.).
+    static func isPressing(for game: Game) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let running, running.game == game.gameID.key else { return false }
+        return running.process.isRunning
+    }
+
     /// Right after the game's start, in the Wine session it joins (`wine`: the engine that runs it). A
     /// start sent again (LibraryModel resends one Steam didn't take) leaves the program that still looks.
     static func start(for game: Game, profile: GameProfile?, wine: URL,

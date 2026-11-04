@@ -61,14 +61,18 @@ enum GameOverlay {
         state.paused = pause && !pids.isEmpty  // said at once, done once the panel shows
         let panel = self.panel ?? make()
         self.panel = panel
-        panel.setFrame(screen.frame, display: false)
+        // The display the game's window is on, as it is now: ABZU switched the MacBook to 1920×1200
+        // after its start (4.11.), and the overlay laid out for 1512×982 covered a corner of it.
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        display = GameProcesses.display(of: windows, pids: Set(pids)) ?? screenNumber(screen)
+        let frame = display.map(Self.frame(of:)) ?? screen.frame
+        panel.setFrame(frame, display: false)
         // A game that took the screen for itself (a real display-mode change) has a shield above
         // every window: Nightforge comes to the front instead, with the same choice.
         if GameProcesses.screenCaptured() { comeForward() }
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).
-        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-        let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(screen.frame), except: getpid())
+        let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
         panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -77,7 +81,7 @@ enum GameOverlay {
         opened += 1
         let look = opened
         GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front, "
-                     + "its windows \(GameProcesses.windowList(Set(pids))), the panel L\(panel.level.rawValue)"
+                     + "its windows \(GameProcesses.windowList(Set(pids))), the panel L\(panel.level.rawValue) on \(Int(frame.width))×\(Int(frame.height))"
                      + (panel.isOnActiveSpace ? "" : " not on the Space shown"))
         Task {
             try? await Task.sleep(for: .milliseconds(300))
@@ -87,6 +91,32 @@ enum GameOverlay {
 
     /// The panel's opening, so a look 300 ms on knows it's still the same one.
     private static var opened = 0
+    /// The display the panel is over while it's up.
+    private static var display: CGDirectDisplayID?
+
+    /// A display's frame as it is now, in AppKit's terms – from the display itself, not a screen
+    /// remembered from before a game changed its mode.
+    static func frame(of display: CGDirectDisplayID) -> NSRect {
+        appKitFrame(CGDisplayBounds(display), primaryHeight: CGDisplayBounds(CGMainDisplayID()).height)
+    }
+
+    /// CGDisplayBounds' frame (from the main display's top left) in AppKit's (from its bottom left).
+    nonisolated static func appKitFrame(_ bounds: CGRect, primaryHeight: CGFloat) -> NSRect {
+        NSRect(x: bounds.minX, y: primaryHeight - bounds.maxY, width: bounds.width, height: bounds.height)
+    }
+
+    private static func screenNumber(_ screen: NSScreen) -> CGDirectDisplayID? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber).map { CGDirectDisplayID($0.uint32Value) }
+    }
+
+    /// The display changed while the panel is up (a game switching its mode): the panel follows it.
+    private static func followDisplay() {
+        guard isOpen, let panel, let display else { return }
+        let frame = Self.frame(of: display)
+        guard frame != panel.frame else { return }
+        panel.setFrame(frame, display: true)
+        GameLog.note("Overlay follows the display: \(Int(frame.width))×\(Int(frame.height))")
+    }
 
     /// 300 ms after the panel opened: it shows – then the game pauses – or it's raised above what
     /// lies in front of it and looked at once more, and failing that the game runs on in front
@@ -267,6 +297,9 @@ enum GameOverlay {
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { followDisplay() }
+        }
         let host = NSHostingView(rootView: OverlayView(state: state).modifier(AccessibilityFromSettings()))
         host.sizingOptions = []  // the screen's size, not the content's
         panel.contentView = host
@@ -803,6 +836,17 @@ enum GameProcesses {
         guard let frame = bounds(window), (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { return false }
         let overlap = frame.intersection(area)
         return !overlap.isNull && overlap.width * overlap.height >= area.width * area.height / 2
+    }
+
+    /// The display the largest of `pids`' windows is on (its middle); nil without one.
+    nonisolated static func display(of windows: [[String: Any]], pids: Set<pid_t>) -> CGDirectDisplayID? {
+        let frames = windows.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false }
+            .compactMap(bounds)
+        guard let largest = frames.max(by: { $0.width * $0.height < $1.width * $1.height }) else { return nil }
+        var display: CGDirectDisplayID = 0
+        var count: UInt32 = 0
+        guard CGGetDisplaysWithPoint(CGPoint(x: largest.midX, y: largest.midY), 1, &display, &count) == .success, count > 0 else { return nil }
+        return display
     }
 
     /// The highest level of a window that covers `screen`, not one of `except`'s (Nightforge's own
