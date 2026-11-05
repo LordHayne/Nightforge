@@ -330,7 +330,7 @@ struct GOGTest {
         let wine = fm.temporaryDirectory.appendingPathComponent("fake-wine-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: wine) }
         // PhysX 9.17 fails; everything else is done.
-        try? Data("#!/bin/sh\necho \"$*\" >> \"\(calls.path)\"\ncase \"$*\" in *PhysX-9.17*) exit 1;; esac\nexit 0\n".utf8).write(to: wine)
+        try? Data("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"\(calls.path)\"\ncase \"$*\" in *PhysX-9.17*) exit 1;; esac\nexit 0\n".utf8).write(to: wine)
         try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wine.path)
 
         let install = GOGInstall(id: "1816059595", path: GOGDL.windowsGamesDir.appendingPathComponent("Mafia II", isDirectory: true),

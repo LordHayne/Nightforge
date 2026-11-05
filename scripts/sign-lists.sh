@@ -44,7 +44,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "▸ Fetching $branch …"
-git fetch --quiet origin "refs/heads/$branch:refs/remotes/origin/$branch" || fail "origin has no branch $branch."
+git fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" || fail "origin has no branch $branch."
 [ "$branch" = main ] || git fetch --quiet origin "refs/heads/main:refs/remotes/origin/main" || fail "origin has no main."
 # A branch that changed the signing tool could have it write the key out: anything besides the lists
 # (and the source list the components bot writes beside its manifest) is refused before anything is built.
