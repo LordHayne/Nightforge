@@ -30,24 +30,33 @@ LISTS = re.search(r"^SIGNED_LISTS=\((.*)\)$", (ROOT / "scripts/signing-lib.sh").
 # A Keychain of one item ($FAKE/keychain), as `security` and `security -i` handle it.
 FAKE_SECURITY = r"""#!/bin/bash
 printf '%s\n' "$*" >> "$FAKE/security.argv"
+# An item per service: the signing key's in $FAKE/keychain, any other in $FAKE/keychain-<service>.
+# $FAKE/refuse-<service> makes the Keychain refuse to add one there.
+item() {
+  local service="nightforge-signing-key"
+  while [ $# -gt 0 ]; do [ "$1" = "-s" ] && service="$2"; shift; done
+  if [ "$service" = "nightforge-signing-key" ]; then echo "$FAKE/keychain"; else echo "$FAKE/keychain-$service"; fi
+}
 run() {
   local command="$1"; shift
+  local file; file="$(item "$@")"
   case "$command" in
     add-generic-password)
-      [ ! -e "$FAKE/keychain" ] || { echo "The specified item already exists in the keychain." >&2; return 45; }
+      [ ! -e "$FAKE/refuse-${file##*/}" ] || return 51
+      [ ! -e "$file" ] || { echo "The specified item already exists in the keychain." >&2; return 45; }
       while [ $# -gt 0 ]; do
         case "$1" in
-          -w) printf '%s' "$2" > "$FAKE/keychain"; shift ;;
+          -w) printf '%s' "$2" > "$file"; shift ;;
           -T) [ -n "$2" ] || touch "$FAKE/asks-every-time"; shift ;;
           -a|-s|-l|-j) shift ;;
         esac
         shift
       done ;;
-    delete-generic-password) [ -e "$FAKE/keychain" ] || return 44; rm "$FAKE/keychain" ;;
+    delete-generic-password) [ -e "$file" ] || return 44; rm "$file" ;;
     find-identity) cat "$FAKE/identities" 2>/dev/null ;;
     find-generic-password)
-      [ -e "$FAKE/keychain" ] || { echo "could not be found" >&2; return 44; }
-      case " $* " in *" -w "*) cat "$FAKE/keychain"; echo ;; esac ;;
+      [ -e "$file" ] || { echo "could not be found" >&2; return 44; }
+      case " $* " in *" -w "*) cat "$file"; echo ;; esac ;;
     *) return 2 ;;
   esac
 }
@@ -84,7 +93,7 @@ if args[:2] != ["release", args[1]] or args[2] != state["tag"]:
     sys.exit("release not found")
 if args[1] == "view":
     fields = option("--json").split(",")
-    answer = {"isDraft": state["isDraft"], "isPrerelease": state["isPrerelease"],
+    answer = {"isDraft": state["isDraft"], "isPrerelease": state["isPrerelease"], "body": state.get("body", ""),
               "assets": [{"name": p.name} for p in sorted(assets.iterdir())]}
     print(json.dumps({k: v for k, v in answer.items() if k in fields}))
 elif args[1] == "download":
@@ -99,6 +108,8 @@ elif args[1] == "upload":
 elif args[1] == "edit":
     if "--draft=false" in args:
         state["isDraft"] = False
+    if option("--notes-file"):
+        state["body"] = pathlib.Path(option("--notes-file")).read_text()
     (fake / "release.json").write_text(json.dumps(state))
 else:
     sys.exit("unknown")
@@ -229,9 +240,13 @@ class SigningScripts(unittest.TestCase):
         write_executable(bin_dir / "pbpaste", FAKE_PBPASTE)
         write_executable(bin_dir / "gh", f"#!{sys.executable} -I\n" + FAKE_GH)
         write_executable(bin_dir / "codesign", FAKE_CODESIGN)
+        write_executable(bin_dir / "hdiutil", "#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$FAKE/hdiutil.argv\"\n")
+        # The DMG built from the app it's given (review A3): it names the requirement the app's code signature has.
+        write_executable(self.work / "dmgbuild", "#!/bin/bash\n"
+                         "{ printf 'dmg of %s\\n' \"${1##*/}\"; cat \"$1/Contents/_CodeSignature/requirement\" 2>/dev/null || true; } > \"$2\"\n")
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("NIGHTFORGE_")}
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", FAKE=str(self.fake),
-                        NIGHTFORGE_SIGNING_TOOL=str(self.keyed_tool),
+                        NIGHTFORGE_SIGNING_TOOL=str(self.keyed_tool), NIGHTFORGE_DMGBUILD=str(self.work / "dmgbuild"),
                         GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="test@example.invalid",
                         GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="test@example.invalid")
         self.repo = self.work / "repo"
@@ -343,6 +358,27 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(same_spare, spare)
         self.assertEqual(self.public((self.fake / "keychain").read_text()), new_main)
         self.assertIn("--spare --add", output)
+        self.assertFalse((self.fake / "keychain-nightforge-signing-key.new").exists(), "the staged copy is gone again")
+
+    def test_a_keychain_that_refuses_halfway_keeps_a_key(self):
+        """Review A7: the old key goes only once the new one is in and reads back."""
+        status, output = self.keygen("--spare-file", str(self.work / "spare.txt"))
+        self.assertEqual(status, 0, output)
+        main, spare = self.keys_in_repo()
+        old_secret = (self.fake / "keychain").read_text()
+        (self.fake / "refuse-keychain-nightforge-signing-key.new").touch()
+        status, output = self.keygen("--replace", "main", answers=[("Type replace to go on", lambda: b"replace\n")])
+        self.assertEqual(status, 1, output)
+        self.assertEqual((self.fake / "keychain").read_text(), old_secret, "refused at once: the old key is untouched")
+        self.assertEqual(self.keys_in_repo(), [main, spare])
+        (self.fake / "refuse-keychain-nightforge-signing-key.new").unlink()
+        (self.fake / "refuse-keychain").touch()
+        status, output = self.keygen("--replace", "main", answers=[("Type replace to go on", lambda: b"replace\n")])
+        self.assertEqual(status, 1, output)
+        self.assertIn("safe as", output)
+        staged = (self.fake / "keychain-nightforge-signing-key.new").read_text()
+        self.assertNotEqual(self.public(staged), main, "refused under its own name: the new key waits under the staged one")
+        self.assertEqual(self.keys_in_repo(), [main, spare], "and SigningKeys.swift is as it was")
 
     def test_the_spare_file_may_not_go_into_the_repository(self):
         status, output = self.keygen("--spare-file", str(self.repo / "spare.txt"))
@@ -447,7 +483,9 @@ class SigningScripts(unittest.TestCase):
         self.draft("v0.3.1-rc.1", prerelease=True)
         result = self.sign_release("v0.3.1-rc.1", "--publish", key=self.main)
         self.assertEqual(result.returncode, 0, result.stderr)
-        edit = [line for line in (self.fake / "gh.argv").read_text().splitlines() if line.startswith("release edit")]
+        # The one that publishes (the notes get the DMG's SHA-256 in an edit before it).
+        edit = [line for line in (self.fake / "gh.argv").read_text().splitlines()
+                if line.startswith("release edit") and "--draft=false" in line]
         self.assertIn("--prerelease", edit[0])
         self.assertNotIn("--latest", edit[0])
 
@@ -519,7 +557,13 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(self.verify(zip_file).returncode, 0, "the Ed25519 signature holds for the code-signed zip")
         self.assertIn(f'identifier "io.github.lordhayne.nightforge" and certificate leaf = H"{CERT}"', self.requirement_in(zip_file))
         self.assertIn(f"--sign {CERT}", (self.fake / "codesign.argv").read_text())
-        self.assertTrue((self.fake / "assets/Nightforge-0.3.1.dmg").read_bytes() == b"dmg", "the DMG stays as it was built")
+        dmg = (self.fake / "assets/Nightforge-0.3.1.dmg").read_bytes()
+        self.assertTrue(dmg.startswith(b"dmg of Nightforge.app") and CERT.encode() in dmg,
+                        "the DMG is built again here, from the code-signed app (review A3)")
+        line = f"SHA-256 of Nightforge-0.3.1.dmg: `{hashlib.sha256(dmg).hexdigest()}`"
+        self.assertIn(line, self.release_state()["body"], "its SHA-256 in the notes")
+        self.assertIn(hashlib.sha256(dmg).hexdigest(), result.stdout, "and shown before signing")
+        self.assertIn("verify", (self.fake / "hdiutil.argv").read_text())
         self.assertIn("GitHub names no SHA-256", result.stderr, "no digest to compare: said, not silent")
 
     def test_without_the_certificate_in_the_keychain_nothing_is_signed(self):
@@ -576,6 +620,8 @@ class SigningScripts(unittest.TestCase):
         self.assertEqual(zip_file.read_bytes(), signed, "not signed and packed again")
         self.assertEqual(len(pathlib.Path(f"{zip_file}.sig").read_text().split()), 2, "both signatures")
         self.assertEqual(self.verify(zip_file).returncode, 0)
+        self.assertEqual(self.release_state()["body"].count("SHA-256 of Nightforge-0.3.1.dmg:"), 1,
+                         "the DMG's line in the notes once, the second run's in place of the first's")
 
     def test_the_spare_from_the_clipboard_then_added_to_the_main(self):
         zip_file = self.draft()

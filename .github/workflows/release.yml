@@ -10,8 +10,9 @@ name: Release app
 # signature, and the private key isn't on GitHub. scripts/sign-release.sh <tag> --publish on the
 # maintainer's Mac signs the app with Nightforge's code signing certificate (also only on that Mac,
 # docs/CODESIGNATUR.md), packs the zip again, adds Nightforge-<version>.zip.sig and publishes; with
-# immutable releases nothing can be added after that. The app built here is signed ad hoc, and so
-# stays the DMG's. A tag with a suffix (v0.3.1-rc.1) becomes a prerelease, a test release
+# immutable releases nothing can be added after that. The app built here is signed ad hoc, and so is
+# the DMG made here: sign-release.sh builds the DMG again from the code-signed app and puts it in place
+# of this one, its SHA-256 into the notes (review A3). A tag with a suffix (v0.3.1-rc.1) becomes a prerelease, a test release
 # that neither the app nor install.sh offers (docs/SICHERHEIT-0.3.md › Test-Release).
 
 on:

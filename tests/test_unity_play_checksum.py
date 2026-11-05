@@ -56,6 +56,18 @@ class UnityPlayChecksumTests(unittest.TestCase):
         self.assertIn("git add wrapper/unity-play.exe wrapper/unity-play.exe.sha256", workflow)
         self.assertIn("git diff --quiet wrapper/unity-play.exe wrapper/unity-play.exe.sha256", workflow)
 
+    def test_a_pull_request_never_gets_a_token_that_writes(self):
+        """Review A6: the build only reads; writing is the propose job's, on main, as a pull request."""
+        workflow = (ROOT / ".github/workflows/unity-play.yml").read_text()
+        build = workflow[workflow.index("  build:"):workflow.index("  propose:")]
+        self.assertIn("contents: read", build)
+        self.assertNotIn("contents: write", build)
+        self.assertIn("permissions:\n  contents: read\n", workflow, "the workflow's default only reads")
+        propose = workflow[workflow.index("  propose:"):]
+        self.assertIn("github.event_name != 'pull_request' && github.ref == 'refs/heads/main'", propose)
+        self.assertIn("gh pr create", propose)
+        self.assertNotIn("\n          git push\n", workflow, "never a push straight to the branch it ran on")
+
 
 if __name__ == "__main__":
     unittest.main()

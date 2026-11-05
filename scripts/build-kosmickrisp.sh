@@ -41,7 +41,8 @@ if ! python3 -c 'import sys, mako, yaml, packaging; assert sys.version_info >= (
     [ -x "$PYTHON" ] || PYTHON=python3
     "$PYTHON" -m venv "$WORK/venv"
   fi
-  "$WORK/venv/bin/python3" -m pip install -q meson==1.12.1 Mako==1.4.3 PyYAML==6.0.3 packaging==26.3
+  # Every file by its SHA-256 (review A5): what's built here ends up named in the signed component list.
+  "$WORK/venv/bin/python3" -m pip install -q --require-hashes -r "$here/kosmickrisp/requirements.txt"
   export PATH="$WORK/venv/bin:$PATH"
 fi
 python3 -c 'import sys, mako, yaml, packaging; assert sys.version_info >= (3, 10)' \

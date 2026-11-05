@@ -14,7 +14,8 @@
 # built from the tag.
 # First it gives the app Nightforge's code signing certificate (docs/CODESIGNATUR.md), which exists only
 # on this Mac: CI builds ad hoc. The zip is packed again from that app, and that zip is the one signed and
-# uploaded in place of the workflow's. The DMG stays as the workflow built it, ad hoc.
+# uploaded in place of the workflow's. The DMG is built again from that same app and goes up in place of the
+# workflow's ad hoc one, its SHA-256 into the release notes (review A3).
 # A tag with a suffix (v0.3.1-rc.1) is a test release: published as a prerelease, which neither the
 # app nor scripts/install.sh offers (docs/SICHERHEIT-0.3.md › Test-Release).
 set -euo pipefail
@@ -105,6 +106,25 @@ else
   code_note="Nightforge Code Signing $pinned, signed now"
 fi
 
+# The DMG, for whoever installs by hand, from that same app (review A3): the workflow's is ad hoc, and nothing
+# checked it. dmgbuild comes pinned by its hashes (scripts/dmgbuild-requirements.txt, as in release.yml) into a
+# venv of its own; Homebrew's Python 3.13 when there is one, as its ds-store needs a newer Python than macOS's.
+# NIGHTFORGE_DMGBUILD: a stand-in for the tests.
+dmg="Nightforge-$version.dmg"
+build_dmg() {
+  if [ -n "${NIGHTFORGE_DMGBUILD:-}" ]; then "$NIGHTFORGE_DMGBUILD" "$1" "$2"; return; fi
+  local python
+  python="$(brew --prefix python@3.13 2>/dev/null)/bin/python3.13"
+  [ -x "$python" ] || python=python3
+  "$python" -m venv "$work/dmgbuild"
+  "$work/dmgbuild/bin/python3" -m pip install -q --require-hashes -r scripts/dmgbuild-requirements.txt
+  "$work/dmgbuild/bin/python3" -m dmgbuild -s scripts/dmg-settings.py -D app="$1" Nightforge "$2" > /dev/null
+}
+echo "▸ Building $dmg from that app …"
+build_dmg "$app" "$work/$dmg" || fail "$dmg couldn't be built from the app."
+hdiutil verify "$work/$dmg" > /dev/null 2>&1 || fail "$dmg doesn't verify."
+dmg_sha="$(shasum -a 256 "$work/$dmg" | cut -d' ' -f1)"
+
 # What you sign (review M5): the zip as it came down (and as GitHub lists it), the commit the tag
 # points at on GitHub, and the steamwebhelper wrapper in the app beside the repository's at that commit.
 zip_sha="$(shasum -a 256 "$work/$zip" | cut -d' ' -f1)"
@@ -130,6 +150,7 @@ echo "▸ You're about to sign:"
 echo "    $zip  sha256 $zip_sha  (as the release workflow built it)"
 [ "$final" = "$work/$zip" ] || echo "    $zip  sha256 $(shasum -a 256 "$final" | cut -d' ' -f1)  (code-signed here: this one goes on the release)"
 echo "    code signature  $code_note"
+echo "    $dmg  sha256 $dmg_sha  (built here from that app: this one goes on the release, its SHA-256 into the notes)"
 echo "    built from  $built_from"
 echo "    steamwebhelper.exe  sha256 ${wrapper:--}  ($wrapper_note)"
 read -r -p "Sign it? Type yes: " answer || answer=""
@@ -140,8 +161,8 @@ read_private_key | "$TOOL" sign ${add[@]+"${add[@]}"} "$final"
 forget_clipboard
 "$TOOL" verify "$final" > /dev/null
 
-uploads=("$final.sig")
-[ "$final" = "$work/$zip" ] || uploads=("$final" "$final.sig")
+uploads=("$final.sig" "$work/$dmg")
+[ "$final" = "$work/$zip" ] || uploads=("$final" "$final.sig" "$work/$dmg")
 gh release upload "$tag" "${uploads[@]}" --repo "$SIGNING_REPO" --clobber
 assets="$(gh release view "$tag" --repo "$SIGNING_REPO" --json assets)"
 jq -e --arg sig "$zip.sig" '.assets | any(.name == $sig)' <<< "$assets" > /dev/null \
@@ -151,6 +172,13 @@ listed="$(jq -r --arg zip "$zip" '.assets[] | select(.name == $zip) | .digest //
 [ -z "$listed" ] || [ "$listed" = "sha256:$(shasum -a 256 "$final" | cut -d' ' -f1)" ] \
   || fail "GitHub lists another $zip on the draft than the one signed ($listed)."
 echo "✓ $zip.sig is on the draft$([ "$final" = "$work/$zip" ] || echo ", beside the code-signed $zip")."
+listed="$(jq -r --arg dmg "$dmg" '.assets[] | select(.name == $dmg) | .digest // empty' <<< "$assets")"
+[ -z "$listed" ] || [ "$listed" = "sha256:$dmg_sha" ] || fail "GitHub lists another $dmg on the draft than the one built here ($listed)."
+# Its SHA-256 into the notes, in place of the line of an earlier run: whoever downloads it by hand can compare.
+body="$(gh release view "$tag" --repo "$SIGNING_REPO" --json body | jq -r '.body // ""')"
+{ printf '%s\n' "$body" | grep -v "^SHA-256 of $dmg: " || true; printf '\nSHA-256 of %s: `%s`\n' "$dmg" "$dmg_sha"; } > "$work/notes.md"
+gh release edit "$tag" --repo "$SIGNING_REPO" --notes-file "$work/notes.md" > /dev/null
+echo "✓ $dmg is on the draft, built from the same app, its SHA-256 in the notes."
 
 if [ "$prerelease" = "true" ]; then edit=(--draft=false --prerelease); else edit=(--draft=false --latest); fi
 if [ "$publish" = 1 ]; then

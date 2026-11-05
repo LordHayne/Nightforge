@@ -79,17 +79,28 @@ build_signing_tool . "$work"
 if [ "$make_main" = 1 ]; then
   main_secret="$("$TOOL" generate)"
   main_public="$(printf '%s' "$main_secret" | "$TOOL" public)"
-  # An item of an earlier attempt (or the lost key's) goes first, so the new one starts clean.
-  printf 'delete-generic-password -a %s -s %s\n' "$SIGNING_ACCOUNT" "$SIGNING_SERVICE" | security -i > /dev/null 2>&1 || true
+  # The new key goes in beside the old one first, under a name of its own, and is read back; only then does the
+  # old one (the lost key's, or an earlier attempt's) give way to it (review A7). A Keychain that refuses halfway
+  # leaves the old key or the new one, never neither.
+  staged="$SIGNING_SERVICE.new"
+  printf 'delete-generic-password -a %s -s %s\n' "$SIGNING_ACCOUNT" "$staged" | security -i > /dev/null 2>&1 || true
   # `security -i` reads its command from the pipe, so the key never stands on a command line.
   # -T "": no program may read it without asking you first.
+  printf 'add-generic-password -a %s -s %s -l "Nightforge signing key (new)" -T "" -w %s\n' \
+    "$SIGNING_ACCOUNT" "$staged" "$main_secret" | security -i > /dev/null 2>&1 \
+    || fail "The Keychain didn't take the main key. Nothing changed, in the Keychain or in $KEYS_FILE."
+  echo "▸ Reading it back to check: macOS asks for your password now. Click Allow (not Always Allow)."
+  [ "$(security find-generic-password -s "$staged" -a "$SIGNING_ACCOUNT" -w 2>/dev/null | "$TOOL" public)" = "$main_public" ] \
+    || fail "The Keychain didn't give the new key back. The old key is as it was, nothing changed in $KEYS_FILE; run the script again."
+  printf 'delete-generic-password -a %s -s %s\n' "$SIGNING_ACCOUNT" "$SIGNING_SERVICE" | security -i > /dev/null 2>&1 || true
   printf 'add-generic-password -a %s -s %s -l "Nightforge signing key" -T "" -w %s\n' \
     "$SIGNING_ACCOUNT" "$SIGNING_SERVICE" "$main_secret" | security -i > /dev/null 2>&1 \
-    || fail "The Keychain didn't take the main key. Nothing changed in $KEYS_FILE."
+    || fail "The Keychain didn't take the main key under its own name. It's safe as \"$staged\" in Keychain Access; nothing changed in $KEYS_FILE."
   unset main_secret
-  echo "▸ Reading it back to check: macOS asks for your password now. Click Allow (not Always Allow)."
+  echo "▸ Reading it back once more, under its own name: macOS asks again. Click Allow (not Always Allow)."
   [ "$(read_private_key | "$TOOL" public)" = "$main_public" ] \
-    || fail "The Keychain didn't give the new key back. Nothing changed in $KEYS_FILE; run the script again."
+    || fail "The Keychain didn't give the new key back. It's safe as \"$staged\" in Keychain Access; nothing changed in $KEYS_FILE."
+  printf 'delete-generic-password -a %s -s %s\n' "$SIGNING_ACCOUNT" "$staged" | security -i > /dev/null 2>&1 || true
   echo "✓ The main key is in your Keychain (Keychain Access › login › \"Nightforge signing key\")."
 fi
 
