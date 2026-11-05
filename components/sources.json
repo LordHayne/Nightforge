@@ -70,15 +70,6 @@
       "tag": "v1.10.3-20230507"
     },
     {
-      "id": "kosmickrisp",
-      "kind": "graphics",
-      "repo": "LordHayne/Nightforge",
-      "tagPrefix": "kosmickrisp-",
-      "asset": "^nightforge-kosmickrisp-.*\\.tar\\.gz$",
-      "license": "MIT AND Apache-2.0",
-      "optional": true
-    },
-    {
       "id": "dxvk",
       "kind": "graphics",
       "repo": "doitsujin/dxvk",
