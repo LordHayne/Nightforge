@@ -109,8 +109,8 @@ Release scheitert mit „isn't signed by its maintainer“.
    Stimmt der Commit, und steht beim Wrapper „the same as …“, tippst du `yes`. Dann signiert es mit Ed25519
    (Passwortabfrage: Erlauben), lädt das neue ZIP und `Nightforge-0.3.1.zip.sig` hoch und veröffentlicht. Ohne
    `--publish` bleibt es beim Entwurf, und das Skript zeigt den Befehl zum Veröffentlichen.
-4. Prüfen: Auf der Release-Seite liegen `Nightforge-0.3.1.zip`, `.zip.sig` und `.dmg`. Die DMG bleibt ad hoc, wie
-   der Workflow sie baut (Begründung in `docs/CODESIGNATUR.md` › 4).
+4. Prüfen: Auf der Release-Seite liegen `Nightforge-0.3.1.zip`, `.zip.sig` und `.dmg`. Die DMG kommt aus
+   derselben App mit dem Zertifikat, ihre SHA-256 steht in den Notes (`docs/CODESIGNATUR.md` › 4).
 
 Ein veröffentlichtes Release lässt sich nicht mehr ändern („Immutable Releases“). Fehlt die Signatur, braucht es einen
 neuen Tag.

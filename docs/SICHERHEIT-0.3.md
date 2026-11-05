@@ -346,7 +346,7 @@ Update die installierten Apps mehr, dann hilft nur die Neuinstallation per Einze
   Anker außerhalb von GitHub (beides in `docs/TODO.md`).
 - `codesign --verify` im Updater prüft ohne Anforderung (`-R`): Die Releases sind ad hoc signiert, eine Anforderung
   gäbe es erst mit einer Developer-ID. Woher die App stammt, belegt die Ed25519-Signatur davor.
-- Das DMG ist nicht signiert (Ad-hoc wie bisher, es dient nur der Hand-Installation).
+- Das DMG trägt keine eigene Ed25519-Signatur. `sign-release.sh` baut es aus der App mit dem Zertifikat, seine SHA-256 steht in den Release-Notes.
 - Ein signiertes, älteres Listen-Exemplar (aus der Git-Geschichte zurückgelegt) nimmt die App nicht mehr. Jede Liste
   trägt in den signierten Bytes ihren Stempel `generated`. Ist die Online-Liste älter als die zuletzt angenommene,
   bleibt diese, und Einstellungen › Über sagt es. `scripts/sign-lists.sh` signiert keine geänderte Liste, deren

@@ -108,11 +108,10 @@ mit `security import <Datei>.p12 -k ~/Library/Keychains/login.keychain-db -T /us
 5. Ein zweiter Lauf (`--spare --add` nach einem Schlüsselwechsel) findet die App schon signiert vor und lässt das
    ZIP, wie es ist. Sonst passte die erste Signatur nicht mehr.
 
-**Die DMG bleibt ad hoc**, so wie der Workflow sie baut. Sie dient nur der allerersten Installation von Hand, und
-dabei fragt macOS ohnehin („Dennoch öffnen“). Updates kommen als ZIP, signiert und mit dem Zertifikat. Wer per DMG
-installiert hat, wird beim ersten Update einmal gefragt und dann nie wieder, wie alle beim Übergang. Die DMG auf
-dem Mac neu zu bauen hieße, bei jedem Release `dmgbuild` mit Python ab 3.10 einzurichten, und das brächte nur diese
-eine Frage weniger.
+**Die DMG kommt aus derselben App:** `sign-release.sh` baut sie aus der App mit dem Zertifikat neu, ersetzt die ad hoc
+signierte des Workflows und schreibt ihre SHA-256 in die Release-Notes. `dmgbuild` kommt über die Prüfsummen in
+`scripts/dmgbuild-requirements.txt` in eine eigene Umgebung und braucht Homebrews `python@3.13`. Wer die DMG von
+Hand öffnet, bestätigt sie einmal unter „Dennoch öffnen“, weil Nightforge nicht notarisiert ist.
 
 Prüfen nach dem Release:
 
