@@ -881,6 +881,13 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 
 ## Darstellung und Leistung
 
+- **Die Optionen eines Steam-Spiels lesen `appinfo.vdf` auf dem Main-Thread** (Release-Review C4, für 0.3.2).
+  - `SettingsViews` holt `SteamProgram.storeProgram` im `init`.
+  - `SteamCatalog.cachedAppInfo` merkt sich das Ergebnis je App-ID, liest die Datei für jedes andere Spiel also ganz
+    neu.
+  - Hier ist sie 1,0 MB groß, das kostet Millisekunden. Eine Bibliothek mit Tausenden Spielen hat aber eine viel
+    größere.
+  - Abhilfe: das Programm in einem Task holen oder je Datei einmal einen Index App-ID → Stelle bauen.
 - **MetalFX im Vulkan-Layer** (Retina für Vulkan-Spiele, PR #1): Die Metal-Seite ist geprüft, in einem Spiel noch nicht.
 - **MoltenVK 1.4.2** (PR #1) ist in keinem Spiel getestet. 1.4.0 scheiterte an Shadern von No Man's Sky.
 - **D3DM_MAX_FPS** wirkt jetzt über Steams Start-Umgebung. Prüfen, ob die gelernte Bildratengrenze
