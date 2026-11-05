@@ -955,6 +955,9 @@ enum Engine {
 
     static func noteGameActivity(_ date: Date = Date()) { lastGameActivity = date }
 
+    /// A game ran, or was asked to start, within the last five minutes (the quit script's `recent_game`).
+    static var gameRanRecently: Bool { lastGameActivity.map { Date().timeIntervalSince($0) < 300 } ?? false }
+
     /// When Nightforge quits, Steam should go too – but not while a game runs (it uploads cloud
     /// saves after the game ends) or a download is going. Nightforge itself quits right after a
     /// launch, so a small detached script waits for that and then stops Steam and the Wine session.
@@ -2627,19 +2630,27 @@ enum Engine {
         return true
     }
 
-    static func stopSteam(_ wine: URL) async throws {
+    /// `endWait`: seconds Steam gets for its "-shutdown" – `filesEndWait` where its files are touched after.
+    static func stopSteam(_ wine: URL, endWait: Int = 20) async throws {
         try await stopSteam(wine, running: { isSteamRunning },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
-                            hardStop: { stopAll($0) })
+                            hardStop: { stopAll($0) }, endWait: endWait)
     }
+
+    /// For a stop before Steam's files are touched (a game moved, a library added or forgotten): within five
+    /// minutes of a game, as the quit script, 45 s – Steam uploads its cloud saves as it ends, and the hard
+    /// stop after 20 s would cut that off.
+    static var filesEndWait: Int { gameRanRecently ? 45 : 20 }
 
     /// The steps of `stopSteam`, with what they ask and do handed in (a test hands in a Steam of its own):
     /// "-shutdown" only to a Steam that is running – asked of none, it starts one – and the hard way
-    /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't.
+    /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't. After
+    /// that up to `goneWait` pauses until it's gone: a process ended a moment ago can still be listed, and
+    /// the caller that looks right after took it for a Steam started again (The Forest's move, 5.11.2026).
     static func stopSteam(_ wine: URL, running: () -> Bool, installing: () -> Bool, shutdown: (URL) throws -> Void,
                           hardStop: (URL) -> Void, pause: Duration = .seconds(1), installWait: Int = 120,
-                          endWait: Int = 20) async throws {
+                          endWait: Int = 20, goneWait: Int = 10) async throws {
         guard running() else { return }
         // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
         var waited = 0
@@ -2655,6 +2666,27 @@ enum Engine {
             try await Task.sleep(for: pause)
         }
         hardStop(wine)
+        for _ in 0..<goneWait {
+            guard running() else { return }
+            try await Task.sleep(for: pause)
+        }
+    }
+
+    /// Why Steam's files can't be touched after its stop: nil once it is gone. A Steam still listed is asked
+    /// again `wait` pauses apart before it counts as running – it may be a moment from its end – and the
+    /// answer says which it is: still running, or not to be told (no process list) – never "started again".
+    static func steamStillThere(wait: Int = 5, pause: Duration = .seconds(1),
+                                running: () -> Bool? = { steamRunningKnown }) async -> DriveError? {
+        var answer = running()
+        for _ in 0..<wait where answer != false {
+            try? await Task.sleep(for: pause)
+            answer = running()
+        }
+        switch answer {
+        case false?: return nil
+        case true?: return .steamDidNotEnd
+        case nil: return .steamNotKnown
+        }
     }
 
     /// Removes a game (or a download in progress) without any Steam window: with Steam stopped,

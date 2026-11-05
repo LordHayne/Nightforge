@@ -4135,15 +4135,15 @@ final class LibraryModel: ObservableObject {
         do {
             if wantsWindows, let wine = await Engine.installedWine() {
                 let wasRunning = Engine.isSteamRunning
-                try await Engine.stopSteam(wine)
-                guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }
+                try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+                if let still = await Engine.steamStillThere() { throw still }
                 defer { if wasRunning { Task { try? await Engine.restartSteamInBackground(wine) } } }
                 try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle) }
             }
             if wantsMac {
                 let wasRunning = MacSteam.isRunning, ours = MacSteam.startedByNightforge
                 if wasRunning { await MacSteam.quit() }
-                guard !MacSteam.isRunning else { throw DriveError.steamStarted }
+                if let still = await Engine.steamStillThere(running: { MacSteam.isRunning }) { throw still }
                 defer {
                     if wasRunning {
                         MacSteam.start(visible: !ours)  // the player's own Steam comes back as they had it

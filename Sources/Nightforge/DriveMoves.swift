@@ -213,7 +213,7 @@ extension LibraryModel {
                     MacSteam.startedByNightforge = ours
                 }
             }
-            guard !MacSteam.isRunning else { throw DriveError.steamStarted }
+            if let still = await Engine.steamStillThere(running: { MacSteam.isRunning }) { throw still }
             var destination = MacSteam.steamapps
             if let drive {
                 let library = DriveLibrary.macSteam(on: drive)
@@ -231,9 +231,10 @@ extension LibraryModel {
         default:
             guard let wine = await Engine.installedWine() else { throw DriveError.steamStarted }
             let wasRunning = Engine.isSteamRunning
-            try await Engine.stopSteam(wine)
+            try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
             do {
-                guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }
+                // Asked a few times: a Steam a moment from its end is still listed (Engine.steamStillThere).
+                if let still = await Engine.steamStillThere() { throw still }
                 var destination = Engine.steamRoot.appendingPathComponent("steamapps", isDirectory: true)
                 if let drive {
                     let library = DriveLibrary.windowsSteam(on: drive)
@@ -324,8 +325,8 @@ extension SteamStore {
             guard !context.busy else {
                 throw DriveError.busy(L10n.t("Steam restarts to set up %@ – quit the game first, then download again.", drive.lastPathComponent))
             }
-            try await Engine.stopSteam(wine)
-            guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }
+            try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+            if let still = await Engine.steamStillThere() { throw still }
             try await Engine.offMain {
                 try SteamLibraries.ensure(library: library, path: DriveLibrary.windowsPath(of: library), steamRoot: Engine.steamRoot,
                                           rootPath: Engine.windowsPath(of: Engine.steamRoot), bottle: Engine.bottle)
@@ -355,7 +356,7 @@ extension MacSteam {
         let wasRunning = isRunning, ours = startedByNightforge
         if wasRunning { await quit() }
         if !known {
-            guard !isRunning else { throw DriveError.steamStarted }
+            if let still = await Engine.steamStillThere(running: { isRunning }) { throw still }
             let root = self.root
             try await Engine.offMain {
                 try SteamLibraries.ensure(library: library, path: library.path, steamRoot: root, rootPath: root.path, bottle: MacSteam.bottle)

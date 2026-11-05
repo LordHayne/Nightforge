@@ -720,6 +720,8 @@ enum L10n {
         "The drive was unplugged or can't be read.": "Das Laufwerk wurde abgezogen oder ist nicht lesbar.",
         "Nightforge isn't allowed to write there.": "Nightforge darf dort nicht schreiben.",
         "Steam started again meanwhile.": "Steam wurde inzwischen wieder gestartet.",
+        "Steam didn't end in time. Try again in a moment.": "Steam hat sich nicht rechtzeitig beendet. Versuch es gleich noch einmal.",
+        "Nightforge can't tell right now whether Steam is running. Try again in a minute.": "Nightforge kann gerade nicht erkennen, ob Steam läuft. Versuch es in einer Minute noch einmal.",
         "This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.":
             "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Steam-Bibliothek, du kannst es jederzeit wieder herunterladen. Spielstände in der Steam Cloud bleiben erhalten.",
         "This removes the game from %@ and frees %@ there. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.":
