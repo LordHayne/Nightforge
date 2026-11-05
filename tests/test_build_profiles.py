@@ -476,7 +476,10 @@ class EnvironmentTests(unittest.TestCase):
         swift = (SCRIPT.parent.parent / "Sources/Nightforge/GameEnvironment.swift").read_text(encoding="utf-8")
         block = swift[swift.index("static let allowed"):swift.index("]\n", swift.index("static let allowed"))]
         import re
-        self.assertEqual(set(re.findall(r'^\s*"([A-Z_]+)":', block, re.M)), build_profiles.ENVIRONMENT_NAMES)
+        # Digits too: D3DM_VENDOR_ID went unseen with [A-Z_]+, and the builder turned down what the app allows.
+        self.assertEqual(set(re.findall(r'^\s*"([A-Z0-9_]+)":', block, re.M)), build_profiles.ENVIRONMENT_NAMES)
+        self.assertTrue(build_profiles.environment_allowed({"D3DM_VENDOR_ID": "0x10de", "D3DM_DEVICE_ID": "0x2684"}),
+                        "NVIDIA's card for DLSS (Satisfactory), as GameEnvironment.allowed lets it through")
 
 
 if __name__ == "__main__":
