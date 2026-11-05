@@ -1,0 +1,19 @@
+profiles/agw.json says what AppleGamingWiki (https://www.applegamingwiki.com) reports about running
+each game on a Mac. It is taken from the "macOS Compatibility" table on each game's page there, by the
+AppleGamingWiki contributors, and is licensed, like the wiki, under the Creative Commons
+Attribution-NonCommercial-ShareAlike 3.0 Unported licence:
+
+    https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+Changes made by Nightforge (scripts/fetch-agw.py): only the table's ratings for the native, Rosetta 2,
+CrossOver and Wine ways and their notes are kept; wiki markup and references are removed, notes are
+shortened, and the versions, graphics layers, DirectX versions, Apple chips and dates the notes name are
+listed per way. "hint" is Nightforge's own reading of these. Each entry names its page; the page is at
+https://www.applegamingwiki.com/wiki/<page>.
+
+Steam app IDs for pages without an infobox come from Wikidata (https://www.wikidata.org), CC0.
+
+This licence covers profiles/agw.json only. It is a separate work from Nightforge's code (GPL-3.0, see
+LICENSE) and from profiles/profiles.json: Nightforge downloads it at run time and doesn't build it into
+the app. Under this licence it may be shared and adapted for non-commercial purposes, with attribution,
+and adaptations must carry the same licence.

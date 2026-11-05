@@ -24,20 +24,23 @@ enum LaunchHealth {
     /// (Mafia II's "PhysX SDK not initialized" for a minute, 31.10.2026 – confirmed, and the game
     /// page said "Runs great"). A way is confirmed once the game has drawn frames: DXMT and
     /// Nightforge's Vulkan layer (DXVK and Vulkan games) log the frame rate 10 s after the first
-    /// one – the layer only where the engine has a Vulkan loader, not under winecx. Where nothing
-    /// logs frames (Wine's own Direct3D, D3DMetal, DXVK on winecx), a game still running after
-    /// this long counts. One that ends before, without a frame, stays unconfirmed – on the same
-    /// way: what stopped it needn't be the graphics.
+    /// one – the layer only where a Vulkan loader runs: Gcenx's engine, and under winecx
+    /// KosmicKrisp's (DXVK's Direct3D 9). Where nothing logs frames (Wine's own Direct3D, D3DMetal,
+    /// DXVK on MoltenVK under winecx), a game still running after this long counts – once it has
+    /// shown a picture (`showedPicture`, the curtain sank for its window). Without one it's still
+    /// being watched: Overwatch sat there without a window at 0 % CPU on D3DMetal, and three
+    /// minutes of that confirmed the way (1.11.2026). One that ends before, without a frame, stays
+    /// unconfirmed – on the same way: what stopped it needn't be the graphics.
     static let drawingWindow: TimeInterval = 180
 
     enum Verdict: Equatable {
         case working, ended, watching
     }
 
-    static func verdict(drewFrames: Bool, running: Bool, ranFor: TimeInterval) -> Verdict {
+    static func verdict(drewFrames: Bool, showedPicture: Bool, running: Bool, ranFor: TimeInterval) -> Verdict {
         if drewFrames { return .working }
         if !running { return .ended }
-        return ranFor >= drawingWindow ? .working : .watching
+        return ranFor >= drawingWindow && showedPicture ? .working : .watching
     }
 
     /// What a watched start does to its way.
@@ -57,7 +60,8 @@ enum LaunchHealth {
     /// a graphics error still moves on. Without a picture a way not confirmed yet moves on, a
     /// confirmed one only on evidence: a crash in the log or the second such short start in a row
     /// unconfirms it. One short start alone isn't evidence – Wine's own Direct3D, D3DMetal and DXVK
-    /// on winecx log no frames, and players start a game just to look (OxyRail, 22 s, 31.10.2026).
+    /// on MoltenVK under winecx log no frames, and players start a game just to look (OxyRail, 22 s,
+    /// 31.10.2026).
     static func earlyEnd(trusted: Bool, graphicsFailed: Bool, crashed: Bool, drew: Bool, shortEndsBefore: Int) -> Outcome {
         if graphicsFailed { return .nextWay }
         if drew { return .confirm }
@@ -81,10 +85,17 @@ enum LaunchHealth {
     }
 
     /// The ways to try, in order. `d3dMetal`: the engine carries Apple's D3DMetal, the one way
-    /// Direct3D 12 runs on a Mac (DirectX 11 stays with DXMT and DXVK, which run it better).
-    static func attempts(for analysis: GameAnalysis, profile: GameProfile?,
-                         d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads) -> [LaunchAttempt] {
-        if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, profile?.graphics == .d3dmetal {
+    /// Direct3D 12 runs on a Mac. DirectX 11 tries DXMT and DXVK first, which run it better, and
+    /// D3DMetal (which runs Direct3D 11 too) last. `hint`: a way other sources report working
+    /// (AppleGamingWiki); it goes first where it fits the game (`hinted`) and the profile names no
+    /// layer of its own.
+    /// A game with a DirectX 12 program of its own starts that one on D3DMetal (GameProgram, Control_DX12.exe).
+    /// `kosmicKrisp`: under winecx DXVK's Direct3D 9 draws on KosmicKrisp (Engine.vulkanDriver).
+    static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint? = nil,
+                         d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads,
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> [LaunchAttempt] {
+        let preferred = profile?.graphics ?? hinted(hint, analysis: analysis, d3dMetal: d3dMetal)
+        if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, preferred == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
             let arguments = analysis.preferD3D11Arguments
             return [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt, arguments: arguments),
@@ -92,11 +103,17 @@ enum LaunchHealth {
         }
         if analysis.usesD3D11 || analysis.apis.isEmpty {
             let arguments = analysis.preferD3D11Arguments
-            let first = profile?.graphics.flatMap { $0 == .d3dmetal && !d3dMetal ? nil : $0 } ?? Engine.defaultGraphics
+            let first = preferred.flatMap { $0 == .d3dmetal && !d3dMetal ? nil : $0 } ?? Engine.defaultGraphics
+            if first == .d3dmetal {
+                // Apple's Direct3D 11 first (Control's DX11 build runs only there, 2.11.2026), then the usual two.
+                return [LaunchAttempt(graphics: .d3dmetal, arguments: arguments), LaunchAttempt(graphics: .dxmt, arguments: arguments),
+                        LaunchAttempt(graphics: .dxvk, arguments: arguments)]
+            }
             let second: GraphicsLayer = first == .dxmt ? .dxvk : .dxmt
             var list = [LaunchAttempt(graphics: first, arguments: arguments), LaunchAttempt(graphics: second, arguments: arguments)]
-            // Direct3D 12 is the last resort for games that would pick it.
-            if d3dMetal, analysis.apis.contains(.d3d12) {
+            // D3DMetal is the last resort: Direct3D 12 for games that would pick it, Apple's Direct3D
+            // 11 for the rest – Control's DX11 build ends at once on DXMT and DXVK (2.11.2026).
+            if d3dMetal {
                 list.append(LaunchAttempt(graphics: .d3dmetal))
             } else if !arguments.isEmpty {
                 list.append(LaunchAttempt(graphics: first))
@@ -104,10 +121,12 @@ enum LaunchHealth {
             return list
         }
         if analysis.usesD3D9 {
-            // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device – MoltenVK lacks
-            // geometryShader and shaderCullDistance: Wine's own Direct3D only, so an early end can't
-            // move on to a way that can't work here (Mafia II, 1.11.2026).
-            return vulkanLayer ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
+            // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device on MoltenVK – it
+            // lacks geometryShader and shaderCullDistance: Wine's own Direct3D only, so an early end
+            // can't move on to a way that can't work here (Mafia II, 1.11.2026). Unless KosmicKrisp
+            // is there: it runs DXVK and takes the CPU load off (Mafia II on WineD3D: two threads at
+            // ~95 %, every OpenGL call thunked in WoW64).
+            return vulkanLayer || kosmicKrisp ? [LaunchAttempt(graphics: .dxvk), LaunchAttempt(graphics: .wined3d)]
                 : [LaunchAttempt(graphics: .wined3d)]
         }
         if analysis.onlyD3D12, d3dMetal {
@@ -117,13 +136,53 @@ enum LaunchHealth {
         return [LaunchAttempt(graphics: Engine.defaultGraphics)]
     }
 
+    /// The layer a source's hint puts first, where it fits the game; nil where it doesn't. D3DMetal
+    /// for a game with DirectX 11 (and maybe a DirectX 12 build), or one nothing was detected for –
+    /// D3DMetal runs both – unless Nightforge knows the engine's DirectX 11 switch: Unreal's and
+    /// Unity's DirectX 11 on DXMT is measured, a report from CrossOver doesn't beat that. DXMT or DXVK
+    /// for a game with DirectX 11. (Control: DirectX 11 crashed on DXMT and DXVK and runs on D3DMetal,
+    /// 1./2.11.2026; every Mac source runs it on D3DMetal.)
+    static func hinted(_ hint: SourceHint?, analysis: GameAnalysis, d3dMetal: Bool = Engine.d3dMetalReady) -> GraphicsLayer? {
+        guard let hint, analysis.usesD3D11 || analysis.apis.isEmpty else { return nil }
+        switch hint.graphics {
+        case .d3dmetal:
+            return d3dMetal && analysis.preferD3D11Arguments.isEmpty ? .d3dmetal : nil
+        case .dxmt, .dxvk:
+            return hint.graphics
+        case .automatic, .wined3d:
+            return nil
+        }
+    }
+
+    /// The ways for a game, with a source's hint where it fits – unless the game already runs on a
+    /// confirmed way of the list without it: a way that works isn't given up for someone else's
+    /// report. One still looking for its way (started before the hint came, on the first run) takes
+    /// the hinted list. `hint` in the result: the layer the list put first for it, nil when it didn't
+    /// follow one.
+    static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
+                         preset: GraphicsPreset, d3dMetal: Bool = Engine.d3dMetalReady,
+                         vulkanLayer: Bool = Engine.vulkanLayerLoads,
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
+        let plain = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
+        guard profile?.graphics == nil, let layer = hinted(hint, analysis: analysis, d3dMetal: d3dMetal) else { return (plain, nil) }
+        let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
+                                kosmicKrisp: kosmicKrisp)
+        let before = ladder(plain, preset: preset, profile: profile)
+        let after = ladder(followed, preset: preset, profile: profile, hint: layer)
+        if after != before, peek(game, before)?.confirmed == true, peek(game, after) == nil { return (plain, nil) }
+        return (followed, layer)
+    }
+
     /// The ways in the order a preset tries them. "Most compatible" starts with the safest: the
-    /// layer a profile names (tested on a Mac), then Wine's own Direct3D, DXVK, DXMT, D3DMetal.
+    /// layer a profile names (tested on a Mac) or else the one a source's hint put first (`hint`, as
+    /// `GameInsight.hint` has it), then Wine's own Direct3D, DXVK, DXMT, D3DMetal.
     /// A list in another order is a list of its own: switching starts it over.
-    static func ladder(_ attempts: [LaunchAttempt], preset: GraphicsPreset, profile: GameProfile?) -> [LaunchAttempt] {
+    static func ladder(_ attempts: [LaunchAttempt], preset: GraphicsPreset, profile: GameProfile?,
+                       hint: GraphicsLayer? = nil) -> [LaunchAttempt] {
         guard preset == .compatible else { return attempts }
         let safest: [GraphicsLayer] = [.wined3d, .dxvk, .dxmt, .d3dmetal]
-        let tested = attempts.firstIndex { $0.graphics == profile?.graphics }
+        let first = profile?.graphics ?? hint
+        let tested = attempts.firstIndex { $0.graphics == first }
         func rank(_ index: Int) -> Int {
             index == tested ? -1 : safest.firstIndex(of: attempts[index].graphics) ?? safest.count
         }
@@ -154,12 +213,21 @@ enum LaunchHealth {
 
     private static func key(_ game: GameID) -> String { "launchHealth.\(game.key)" }
 
+    /// What's saved for the game, if it holds for `ladder`: the same ways, or the same with more
+    /// added at the end – D3DMetal as every DirectX 11 game's last way (2.11.2026) mustn't make a
+    /// game that learned DXVK start over on DXMT. Any other change starts over.
+    private static func saved(_ game: GameID, for ladder: [String]) -> State? {
+        guard let data = UserDefaults.standard.data(forKey: key(game)),
+              var state = try? JSONDecoder().decode(State.self, from: data),
+              state.ladder == ladder || (!state.ladder.isEmpty && ladder.starts(with: state.ladder))
+        else { return nil }
+        state.ladder = ladder
+        return state
+    }
+
     private static func load(_ game: GameID, _ attempts: [LaunchAttempt]) -> State {
         let ladder = attempts.map(\.id)
-        if let data = UserDefaults.standard.data(forKey: key(game)),
-           let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == ladder {
-            return state
-        }
+        if let state = saved(game, for: ladder) { return state }
         var state = State(ladder: ladder)
         // Up to 0.2: only "DXMT failed, DXVK from now on" was remembered.
         let legacy = "health.dxmtFailed.\(game.key)"
@@ -183,9 +251,7 @@ enum LaunchHealth {
 
     /// How it stands without touching what's saved: nil when the game hasn't been started this way yet.
     static func peek(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool)? {
-        guard let data = UserDefaults.standard.data(forKey: key(game)),
-              let state = try? JSONDecoder().decode(State.self, from: data), state.ladder == attempts.map(\.id)
-        else { return nil }
+        guard let state = saved(game, for: attempts.map(\.id)) else { return nil }
         return (min(state.index, max(attempts.count - 1, 0)), state.trusted)
     }
 
@@ -255,6 +321,7 @@ enum LaunchHealth {
     /// Choosing a layer by hand starts over: the player wants to try for themselves.
     static func reset(_ game: GameID) {
         UserDefaults.standard.removeObject(forKey: quitKey(game))
+        UserDefaults.standard.removeObject(forKey: questionKey(game))
         UserDefaults.standard.removeObject(forKey: pictureKey(game))
         UserDefaults.standard.removeObject(forKey: key(game))
         UserDefaults.standard.removeObject(forKey: "health.dxmtFailed.\(game.key)")
@@ -275,6 +342,32 @@ enum LaunchHealth {
 
     private static func quitKey(_ game: GameID) -> String { "launchHealth.playerQuit.\(game.key)" }
 
+    /// The game ended right at a question of its own, answered by the player (the curtain saw it,
+    /// LibraryModel.endedAtOwnQuestion): Unity's configuration window closed with Quit – The Forest
+    /// on 3.11. went on to its next way for it. The player's choice like Quit Game: no other way,
+    /// the way keeps its standing – unless the start's log says the graphics failed or it crashed.
+    static func endedAtOwnQuestion(_ game: GameID, at date: Date = Date()) {
+        UserDefaults.standard.set(date, forKey: questionKey(game))
+    }
+
+    /// When the game last ended at a question of its own.
+    static func ownQuestionEnd(_ game: GameID) -> Date? {
+        UserDefaults.standard.object(forKey: questionKey(game)) as? Date
+    }
+
+    /// Not the player's after all (LibraryModel.ownQuestionEndStands).
+    static func forgetOwnQuestion(_ game: GameID) {
+        UserDefaults.standard.removeObject(forKey: questionKey(game))
+    }
+
+    /// Whether the game ended at a question of its own since `start`.
+    static func endedAtOwnQuestion(_ game: GameID, since start: Date) -> Bool {
+        guard let ended = UserDefaults.standard.object(forKey: questionKey(game)) as? Date else { return false }
+        return ended >= start
+    }
+
+    private static func questionKey(_ game: GameID) -> String { "launchHealth.ownQuestion.\(game.key)" }
+
     /// The curtain sank for the game: its window in picture size had the front. Kept like Quit
     /// Game, so a start that ends soon after still counts as one that showed a picture – in the
     /// start flow (`earlyEnd`) and in Steam's log later (`review`), also when a new start called
@@ -294,7 +387,7 @@ enum LaunchHealth {
     /// Looks at how the last unconfirmed start went when Nightforge wasn't there to watch it.
     static func review(_ game: GameID, _ attempts: [LaunchAttempt], steamRoot: URL) {
         let state = load(game, attempts)
-        guard !state.trusted, let started = state.startedAt, !quitByPlayer(game, since: started),
+        guard !state.trusted, let started = state.startedAt, !quitByPlayer(game, since: started), !endedAtOwnQuestion(game, since: started),
               let appID = game.steamAppID, let span = sessionSpan(appID: appID, since: started, steamRoot: steamRoot)
         else { return }
         if span < failureWindow, showedPicture(game, since: started) {
@@ -391,4 +484,53 @@ enum LearnedFixes {
     static func lastLaunchMark(_ game: GameID) -> UInt64? {
         UserDefaults.standard.string(forKey: markKey(game)).flatMap(UInt64.init)
     }
+}
+
+/// The first-seconds watch of a start, a look a second (LibraryModel.survivesFirstSeconds). A launcher
+/// handing over to the game leaves a gap of a few seconds, so only a longer absence counts as the game
+/// having ended – and only one seen in a list asked for just now. A look without an answer (no list, or
+/// an old one from before the start that doesn't know the game: GameProcesses.Presence) counts for
+/// neither side; a watch that gets none for long says `unknown`, which learns nothing – not that the
+/// game ended, which would start it again another way, nor that it survived.
+struct FirstSecondsWatch {
+    enum Verdict: Equatable { case survived, ended, unknown }
+
+    /// Looks in a row at an absent game that end the watch.
+    static let goneLooks = 10
+    /// Looks in a row without an answer that end the watch as unknown.
+    static let silentLooks = 30
+
+    private var absent = 0
+    private var silent = 0
+    private var sawRunning = false
+
+    /// Looks in a row at an absent game so far.
+    var absentLooks: Int { absent }
+
+    /// Whether the watch goes on `elapsed` seconds in: for the failure window, and beyond it for an
+    /// absence that has begun and isn't over yet.
+    func continues(after elapsed: TimeInterval) -> Bool {
+        elapsed < LaunchHealth.failureWindow || (absent > 0 && absent < Self.goneLooks)
+    }
+
+    /// Takes a look; the verdict when it settles the watch.
+    mutating func look(_ presence: GameProcesses.Presence) -> Verdict? {
+        switch presence {
+        case .running:
+            absent = 0
+            silent = 0
+            sawRunning = true
+        case .gone:
+            absent += 1
+            silent = 0
+        case .unknown:
+            silent += 1
+        }
+        if absent >= Self.goneLooks { return .ended }
+        if silent >= Self.silentLooks { return .unknown }
+        return nil
+    }
+
+    /// What the watch says when its time is up: survived if the game was seen running and wasn't seen gone since.
+    var verdictAtEnd: Verdict { sawRunning && absent == 0 ? .survived : .unknown }
 }

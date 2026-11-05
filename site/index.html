@@ -391,7 +391,7 @@
       <li class="tile tile-wide tile-quiet">
         <svg class="tile-i" aria-hidden="true"><use href="#i-moon"/></svg>
         <h3><span lang="de">Kein Konto. Keine Telemetrie.<br>Kein Hintergrunddienst.</span><span lang="en">No account. No telemetry.<br>No background service.</span></h3>
-        <p><span lang="de">„Problem melden“ öffnet ein ausgefülltes GitHub-Issue, das erst rausgeht, wenn du es abschickst. Und ein Knopf entfernt Nightforge ganz – Spielstände, die nur auf diesem Mac liegen, landen vorher in „Dokumente“.</span><span lang="en">“Report problem” opens a filled-in GitHub issue that goes nowhere until you submit it. And one button removes Nightforge completely – saves that are only on this Mac are copied to Documents first.</span></p>
+        <p><span lang="de">„Problem melden“ öffnet ein GitHub-Issue, ausgefüllt mit dem Spiel und seinen Einstellungen; öffentlich wird es erst, wenn du es abschickst, Fehlerzeilen bleiben bis dahin in deiner Zwischenablage. Und ein Knopf entfernt Nightforge ganz – Spielstände, die nur auf diesem Mac liegen, landen vorher in „Dokumente“.</span><span lang="en">“Report problem” opens a GitHub issue filled in with the game and its settings; it’s public only once you submit it, and error lines stay on your clipboard until then. And one button removes Nightforge completely – saves that are only on this Mac are copied to Documents first.</span></p>
       </li>
     </ul>
   </div>
@@ -427,7 +427,7 @@
       </li>
       <li>
         <h3>DirectX</h3>
-        <p><span lang="de">DirectX&nbsp;10 und 11 sind gut abgedeckt. DirectX&nbsp;9 läuft über WineD3D, oft langsamer und ohne MetalFX – schneller soll es mit KosmicKrisp werden (siehe „Geplant“). DirectX&nbsp;12 läuft über Apples D3DMetal. Das richtet Nightforge beim ersten DirectX-12-Spiel erst nach deiner Zustimmung ein, weil Apples Lizenz es nur zum Entwickeln, Testen und Ausprobieren von Spielen freigibt – den Lizenztext bringt Nightforge selbst mit, D3DMetal kommt aus Apples eigenem Toolkit. Die Treiber-Warnung, die Unreal-Spiele darunter zeigen, fängt Nightforge ab. Es ist neueres Terrain, rechne mit dem einen oder anderen Spiel, das nicht will.</span><span lang="en">DirectX&nbsp;10 and 11 are well covered. DirectX&nbsp;9 runs through WineD3D, often slower and without MetalFX – KosmicKrisp should make it faster (see “Planned”). DirectX&nbsp;12 runs through Apple’s D3DMetal. Nightforge sets it up the first time a DirectX&nbsp;12 game needs it, and only once you agree, because Apple’s licence allows it only for developing, testing and evaluating games – the licence text ships with Nightforge, D3DMetal comes from Apple’s own toolkit. The driver warning Unreal games show on it, Nightforge heads off. It’s newer ground, so expect the odd game that doesn’t.</span></p>
+        <p><span lang="de">DirectX&nbsp;10 und 11 sind gut abgedeckt. DirectX&nbsp;9 läuft über WineD3D, oft langsamer und ohne MetalFX – schneller soll es mit KosmicKrisp werden (siehe „Geplant“). DirectX&nbsp;12 läuft über Apples D3DMetal. Das richtet Nightforge beim ersten DirectX-12-Spiel erst nach deiner Zustimmung ein, weil Apples Lizenz es nur zum Entwickeln, Testen und Ausprobieren von Spielen freigibt – den Lizenztext bringt Nightforge selbst mit, D3DMetal kommt aus Apples eigenem Toolkit. Die Treiber-Warnung, die Unreal-Spiele darunter zeigen, kann noch erscheinen, hält den Start aber nicht mehr auf. Es ist neueres Terrain, rechne mit dem einen oder anderen Spiel, das nicht will.</span><span lang="en">DirectX&nbsp;10 and 11 are well covered. DirectX&nbsp;9 runs through WineD3D, often slower and without MetalFX – KosmicKrisp should make it faster (see “Planned”). DirectX&nbsp;12 runs through Apple’s D3DMetal. Nightforge sets it up the first time a DirectX&nbsp;12 game needs it, and only once you agree, because Apple’s licence allows it only for developing, testing and evaluating games – the licence text ships with Nightforge, D3DMetal comes from Apple’s own toolkit. The driver warning Unreal games show on it can still appear, but no longer holds up the start. It’s newer ground, so expect the odd game that doesn’t.</span></p>
       </li>
       <li>
         <h3><span lang="de">Ladebildschirm</span><span lang="en">Loading screen</span></h3>
@@ -438,6 +438,23 @@
         <p><span lang="de">Reine VR-Spiele sind markiert, sie laufen auf keinem Mac. Spielstände in der Steam Cloud synchronisieren wie gewohnt.</span><span lang="en">VR-only games are marked; they can’t run on a Mac. Saves in the Steam Cloud sync as usual.</span></p>
       </li>
     </ul>
+    <div class="tested reveal">
+      <h3><span lang="de">Geprüft auf dem Mac</span><span lang="en">Tested on a Mac</span></h3>
+      <p><span lang="de">Live gespielt auf einem Mac mit M5, vom 24.&nbsp;Oktober bis 2.&nbsp;November 2026.</span><span lang="en">Played live on a Mac with M5, 24&nbsp;October to 2&nbsp;November 2026.</span></p>
+      <ul class="tested-list">
+        <li><span class="tg">Asphalt Legends</span><span class="tw">Steam · <span lang="de">Mac-Version</span><span lang="en">Mac version</span></span><span class="tr"><span lang="de">Läuft</span><span lang="en">Runs</span></span></li>
+        <li><span class="tg">Valheim</span><span class="tw">Steam · <span lang="de">Mac-Version</span><span lang="en">Mac version</span></span><span class="tr"><span lang="de">Läuft, auch mit Controller</span><span lang="en">Runs, with a controller too</span></span></li>
+        <li><span class="tg">No Man’s Sky</span><span class="tw">Steam · <span lang="de">Mac-Version</span><span lang="en">Mac version</span></span><span class="tr"><span lang="de">Läuft</span><span lang="en">Runs</span></span></li>
+        <li><span class="tg">OxyRail</span><span class="tw">Steam · <span lang="de">Windows · DXMT</span><span lang="en">Windows · DXMT</span></span><span class="tr"><span lang="de">Läuft, gleichmäßig 60&nbsp;FPS mit MetalFX</span><span lang="en">Runs, a steady 60&nbsp;FPS with MetalFX</span></span></li>
+        <li><span class="tg">Overcooked 2</span><span class="tw">Steam · <span lang="de">Windows · DXMT</span><span lang="en">Windows · DXMT</span></span><span class="tr"><span lang="de">Läuft mit 60&nbsp;FPS, auch mit Controller am Fernseher</span><span lang="en">Runs at 60&nbsp;FPS, with a controller and on the TV too</span></span></li>
+        <li><span class="tg">Black Myth: Wukong Benchmark Tool</span><span class="tw">Steam · <span lang="de">Windows · D3DMetal</span><span lang="en">Windows · D3DMetal</span></span><span class="tr"><span lang="de">Läuft, 68&nbsp;FPS (Niedrig, FSR, 1512&nbsp;×&nbsp;982)</span><span lang="en">Runs, 68&nbsp;FPS (Low, FSR, 1512&nbsp;×&nbsp;982)</span></span></li>
+        <li><span class="tg">The Last Caretaker Demo</span><span class="tw">Steam · <span lang="de">Windows · D3DMetal</span><span lang="en">Windows · D3DMetal</span></span><span class="tr"><span lang="de">Läuft, um 50&nbsp;FPS in voller Retina-Auflösung mit FSR Frame Generation</span><span lang="en">Runs, around 50&nbsp;FPS at full Retina resolution with FSR frame generation</span></span></li>
+        <li><span class="tg">Control</span><span class="tw">Epic Games · <span lang="de">Windows · D3DMetal</span><span lang="en">Windows · D3DMetal</span></span><span class="tr"><span lang="de">Läuft</span><span lang="en">Runs</span></span></li>
+        <li><span class="tg">Mafia II (Classic)</span><span class="tw">GOG · <span lang="de">Windows · WineD3D</span><span lang="en">Windows · WineD3D</span></span><span class="tr"><span lang="de">Läuft, aber noch nicht flüssig</span><span lang="en">Runs, but not smooth yet</span></span></li>
+        <li><span class="tg">Overwatch</span><span class="tw">Steam · <span lang="de">Windows</span><span lang="en">Windows</span></span><span class="tr"><span lang="de">Startet noch nicht – Nightforge sucht die Ursache</span><span lang="en">Doesn’t start yet – Nightforge is looking into why</span></span></li>
+      </ul>
+      <p><span lang="de">Alles andere: probier es aus. Nightforge sucht den Weg selbst und nimmt den nächsten, wenn ein Spiel nicht startet.</span><span lang="en">Everything else: try it. Nightforge finds the way by itself and takes the next one if a game doesn’t start.</span></p>
+    </div>
   </div>
 </section>
 
@@ -523,6 +540,7 @@
       </p>
     </div>
     <p class="fine"><span lang="de">Kostenlos. Für immer. Keine Werbung, keine Spenden, kein Preis.</span><span lang="en">Free. For good. No price, no ads, no donations.</span></p>
+    <p class="fine"><span lang="de">Wer etwas zurückgeben möchte: <a href="https://www.codeweavers.com/crossover">Kauf CrossOver</a>. CodeWeavers trägt einen großen Teil der Wine-Entwicklung, und Nightforges Engine baut auf den Wine-Änderungen auf, die CodeWeavers mit CrossOver veröffentlicht.</span><span lang="en">If you’d like to give something back: <a href="https://www.codeweavers.com/crossover">buy CrossOver</a>. CodeWeavers pays for a large part of Wine’s development, and Nightforge’s engine is built from the Wine changes they publish with CrossOver.</span></p>
     <p class="fine"><span lang="de">Nightforge steht auf der Arbeit von</span><span lang="en">Nightforge stands on the work of</span>
       <a href="https://www.winehq.org">Wine</a>,
       <a href="https://github.com/dappermint/winecx-gptk"><span lang="de">den CrossOver-Änderungen von CodeWeavers</span><span lang="en">CodeWeavers’ CrossOver changes</span></a>,
@@ -536,7 +554,7 @@
       <a href="https://github.com/Open-Wine-Components/umu-protonfixes">umu-protonfixes</a>
       <span lang="de">und</span><span lang="en">and</span>
       <a href="https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet">AreWeAntiCheatYet</a>.</p>
-    <p class="fine"><span lang="de">Nightforge ist nicht mit Valve, Epic Games, GOG, NVIDIA oder Apple verbunden. Steam ist eine Marke der Valve Corporation, Epic Games eine Marke von Epic Games, Inc., GOG eine Marke von GOG sp. z o.o., GeForce NOW eine Marke von NVIDIA; Mac und macOS sind Marken von Apple Inc. Die Screenshots zeigen die eigene Bibliothek des Entwicklers, die Cover der Spiele sind darin ausgeblendet; Spiele-Artwork gehört den Verlagen.</span><span lang="en">Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer’s own library with the game covers left out; game artwork belongs to its publishers.</span></p>
+    <p class="fine"><span lang="de">Nightforge ist nicht mit Valve, Epic Games, GOG, NVIDIA, CodeWeavers oder Apple verbunden. Steam ist eine Marke der Valve Corporation, Epic Games eine Marke von Epic Games, Inc., GOG eine Marke von GOG sp. z o.o., GeForce NOW eine Marke von NVIDIA, CrossOver eine Marke von CodeWeavers, Inc.; Mac und macOS sind Marken von Apple Inc. Die Screenshots zeigen die eigene Bibliothek des Entwicklers, die Cover der Spiele sind darin ausgeblendet; Spiele-Artwork gehört den Verlagen.</span><span lang="en">Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA, CodeWeavers or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA, CrossOver a trademark of CodeWeavers, Inc.; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer’s own library with the game covers left out; game artwork belongs to its publishers.</span></p>
   </div>
 </footer>
 

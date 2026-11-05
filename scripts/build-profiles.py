@@ -102,6 +102,21 @@ IGNORED_REGISTRY_PREFIXES = ("hklm\\system\\currentcontrolset\\services\\winebus
 
 # Where a profile may write at all: a game's own settings under Software, and drive letters. Never
 # autostart entries, file associations, policies or Wine's own settings (Engine.isAllowedRegistryKey).
+# Wine's and CrossOver's own switches a profile's "environment" may set, with plain short values: the
+# same list as GameEnvironment.allowed in the app (Sources/Nightforge/GameEnvironment.swift), which
+# drops anything else. Never DYLD_* or paths: an environment variable can load code into a program.
+ENVIRONMENT_NAMES = {"WINE_SIMULATE_WRITECOPY", "CX_HACK_FILESYSTEM_TYPE", "CX_ACTIVE_GRAPHICS_BACKEND",
+                     "CX_GRAPHICS_BACKEND", "WINE_LARGE_ADDRESS_AWARE", "D3DM_VENDOR_ID", "D3DM_DEVICE_ID",
+                     "D3DM_SUPPORT_DXR"}
+ENVIRONMENT_VALUE = re.compile(r"[A-Za-z0-9._-]{1,32}")
+
+
+def environment_allowed(environment) -> bool:
+    return isinstance(environment, dict) and all(
+        name in ENVIRONMENT_NAMES and isinstance(value, str) and ENVIRONMENT_VALUE.fullmatch(value)
+        for name, value in environment.items())
+
+
 REGISTRY_ROOTS = {"hkcu": "hkey_current_user", "hklm": "hkey_local_machine"}
 REGISTRY_BLOCKED_VENDORS = {"microsoft", "classes", "policies", "wine", "wow6432node"}
 
@@ -131,10 +146,206 @@ IGNORED_VERBS = {"ubisoftconnect"}
 # (`annihilate` deletes the whole prefix). Engine.isSafeWinetricksVerb checks the same.
 WINETRICKS_COMMANDS = {"annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version"}
 SAFE_VERB = re.compile(r"[a-z0-9_]{1,64}")
+# winetricks verbs that would change every game in the one prefix Nightforge shares, not just the one
+# that asks – the same lists as Engine.windowsVersionVerbs and Engine.sharedPrefixUnsafeVerbs in the app,
+# which never runs them (test_build_profiles compares them with Engine.swift). The Windows versions
+# first: a profile says windowsVersion instead, which the app applies to the game's programs only.
+WINDOWS_VERSION_VERBS = {"nt351", "nt40", "vista", "win20", "win2k", "win2k3", "win2k8", "win2k8r2", "win30", "win31",
+                         "win7", "win8", "win81", "win10", "win11", "win95", "win98", "winme", "winxp"}
+SHARED_PREFIX_UNSAFE_VERBS = WINDOWS_VERSION_VERBS | {
+    "dsound", "bad", "good", "fontfix", "forcemono", "heapcheck", "hosts", "isolate_home", "native_mdac",
+    "native_oleaut32", "nocrashdialog", "remove_mono", "sandbox", "set_mididevice", "set_userpath",
+}
 
 
 def safe_verb(verb) -> bool:
-    return isinstance(verb, str) and SAFE_VERB.fullmatch(verb) is not None and verb not in WINETRICKS_COMMANDS
+    """A plain install verb the app runs (Engine.isSafeWinetricksVerb): no command, nothing that
+    changes the shared prefix for every game. A profile with another would be signed and then
+    quietly do nothing."""
+    return isinstance(verb, str) and SAFE_VERB.fullmatch(verb) is not None and verb not in WINETRICKS_COMMANDS \
+        and verb not in SHARED_PREFIX_UNSAFE_VERBS
+
+
+# DLL overrides and arguments go from a stranger's repository to every player's game start, so only
+# plain ones pass (Audit M1): a DLL by its bare name ("*" in front: wherever it loads from, as Wine
+# writes it) with one of the orders above, never Wine's own core; arguments without paths that leave
+# the game, spaces, quotes or control characters. The workflow checks the finished list the same way.
+SAFE_DLL = re.compile(r"\*?[a-z0-9_][a-z0-9_.-]{0,63}")
+CORE_DLLS = {"ntdll", "kernel32", "kernelbase", "user32", "gdi32", "win32u", "advapi32", "sechost", "ucrtbase",
+             "msvcrt", "ole32", "combase", "rpcrt4", "winemac.drv", "wow64", "wow64win", "wow64cpu"}
+MAX_DLL_OVERRIDES = 32
+SAFE_ARGUMENT = re.compile(r"[A-Za-z0-9_.=+/-]{1,64}")
+MAX_ARGUMENTS = 16
+
+
+def dll_override_allowed(name, order) -> bool:
+    if not (isinstance(name, str) and SAFE_DLL.fullmatch(name) and isinstance(order, str)):
+        return False
+    return ".." not in name and name.lstrip("*").removesuffix(".dll") not in CORE_DLLS \
+        and order in OVERRIDE_ORDERS.values()
+
+
+def argument_allowed(argument) -> bool:
+    """An option ("-dx11", "+r_renderAPI", "/dx11", "-vomstyle=layer") or its value ("1", "glide_fix.conf").
+    No drive (no ":"), no home, no path from the root, also behind an "=". A relative path may go one
+    folder up, where a game in a bin folder keeps its data (Darktide's "--bundle-dir ../bundle")."""
+    if not (isinstance(argument, str) and SAFE_ARGUMENT.fullmatch(argument)):
+        return False
+    for value in argument.split("="):
+        parts = value.split("/")
+        if value.startswith("//") or value.startswith("/") and len(parts) > 2 or ".." in parts[1:]:
+            return False
+    return True
+
+
+def overrides_allowed(overrides) -> bool:
+    return isinstance(overrides, dict) and len(overrides) <= MAX_DLL_OVERRIDES \
+        and all(dll_override_allowed(name, order) for name, order in overrides.items())
+
+
+def arguments_allowed(arguments) -> bool:
+    return isinstance(arguments, list) and len(arguments) <= MAX_ARGUMENTS and all(map(argument_allowed, arguments))
+
+
+# Where a profile's file rules start: the roots SaveTransfer knows in the app (windowsRoot, macRoot),
+# case aside. Anything else the app skips; here it fails the build instead of shipping silently.
+WINDOWS_ROOTS = {"gameinstall", "winappdataroaming", "winappdatalocal", "winappdatalocallow", "winmydocuments", "winsavedgames"}
+MAC_ROOTS = {"gameinstall", "macappsupport", "maccaches"}
+MAX_FILE_RULES = 32
+
+
+def plain_text(text, length=4096, newlines=True) -> bool:
+    """A string without control characters (tabs, and line breaks where `newlines`, aside)."""
+    allowed = "\t\n\r" if newlines else "\t"
+    return isinstance(text, str) and len(text) <= length and not any(
+        (ord(c) < 0x20 and c not in allowed) or ord(c) == 0x7f for c in text)
+
+
+def relative_path_allowed(path, empty=False) -> bool:
+    """A path under one of the roots: no drive, no path from the root or the home, no "..", no
+    control characters. `empty`: the root itself may be meant."""
+    if not plain_text(path, 260, newlines=False):
+        return False
+    if not path:
+        return empty
+    if path.startswith(("/", "\\", "~")) or re.match(r"[A-Za-z]:", path):
+        return False
+    return ".." not in re.split(r"[\\/]", path)
+
+
+def ini_name_allowed(name) -> bool:
+    """An .ini section or key: what stays one name in the file, so no [, ], = or line break."""
+    return plain_text(name, 128, newlines=False) and name != "" and not any(c in "[]=" for c in name)
+
+
+def root_allowed(root, roots, optional=False) -> bool:
+    return optional if root is None else isinstance(root, str) and root.lower() in roots
+
+
+def file_edits_allowed(edits) -> bool:
+    """fileEdits: a root of WINDOWS_ROOTS (or none: the game folder), a path under it, `find` and
+    `replace` as text. Applied before every start, a `replace` that holds `find` would grow the file
+    at each one."""
+    if not isinstance(edits, list) or len(edits) > MAX_FILE_RULES:
+        return False
+    for edit in edits:
+        if not isinstance(edit, dict) or not root_allowed(edit.get("root"), WINDOWS_ROOTS, optional=True) \
+                or not relative_path_allowed(edit.get("path")) or edit.get("once") not in (None, True, False):
+            return False
+        find, replace = edit.get("find"), edit.get("replace")
+        if not plain_text(find) or not find or not plain_text(replace) or find in replace:
+            return False
+    return True
+
+
+def ini_settings_allowed(settings) -> bool:
+    """iniSettings: a root of WINDOWS_ROOTS, a path under it, a section and its values as one line each."""
+    if not isinstance(settings, list) or len(settings) > MAX_FILE_RULES:
+        return False
+    for setting in settings:
+        values = setting.get("values") if isinstance(setting, dict) else None
+        if not isinstance(values, dict) or not values or len(values) > 64 \
+                or not root_allowed(setting.get("root"), WINDOWS_ROOTS) or not relative_path_allowed(setting.get("path")) \
+                or not ini_name_allowed(setting.get("section")):
+            return False
+        if not all(ini_name_allowed(key) and plain_text(value, 256, newlines=False) for key, value in values.items()):
+            return False
+    return True
+
+
+def resolution_allowed(resolution) -> bool:
+    """resolution: a root (or none: the game folder) and a path, then either `fields` (positions in a
+    line of values) or `section` and `keys` in an .ini file."""
+    if not isinstance(resolution, dict) or not root_allowed(resolution.get("root"), WINDOWS_ROOTS, optional=True) \
+            or not relative_path_allowed(resolution.get("path")):
+        return False
+    fields, section, keys = resolution.get("fields"), resolution.get("section"), resolution.get("keys")
+    if (fields is None) == (keys is None):
+        return False
+    if fields is not None:
+        wanted = {"width", "height", "fullscreen"}
+        if not isinstance(fields, dict) or not {"width", "height"} <= set(fields) <= wanted \
+                or not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v < 64 for v in fields.values()):
+            return False
+    else:
+        if not ini_name_allowed(section) or not isinstance(keys, dict) or not {"width", "height"} <= set(keys) <= {"width", "height", "fullscreen"} \
+                or not all(ini_name_allowed(v) for v in keys.values()):
+            return False
+    on = resolution.get("fullscreenOn")
+    return on is None or isinstance(on, list) and len(on) <= 8 and all(plain_text(v, 32, newlines=False) and v for v in on)
+
+
+def saves_allowed(saves) -> bool:
+    """saves: a Windows root and a path under it, a Mac root and a path under that. Not every file of a
+    whole AppData or Documents folder ("*", with subfolders, and no path): that would carry every other
+    program's files between the game's Windows and Mac version."""
+    if not isinstance(saves, list) or len(saves) > 16:
+        return False
+    for save in saves:
+        if not isinstance(save, dict) or not root_allowed(save.get("root"), WINDOWS_ROOTS) \
+                or not root_allowed(save.get("mac"), MAC_ROOTS):
+            return False
+        path, pattern, recursive = save.get("path"), save.get("pattern"), save.get("recursive")
+        if not relative_path_allowed(path, empty=True) or not relative_path_allowed(save.get("macPath", ""), empty=True):
+            return False
+        if pattern is not None and (not plain_text(pattern, 64, newlines=False) or not pattern or re.search(r"[\\/]", pattern)):
+            return False
+        if recursive not in (None, True, False):
+            return False
+        whole = not path.strip("/\\") and save["root"].lower() != "gameinstall"
+        if whole and pattern in (None, "*") and recursive is not False:
+            return False
+    return True
+
+
+def mac_problems(mac_games) -> list:
+    """What's wrong with profiles/mac.json's entries, as "<key>: <field>" – the builder's and the
+    workflow's rules, which merge_mac would otherwise pass straight into the signed list."""
+    problems = []
+    checks = {
+        "arguments": arguments_allowed, "dllOverrides": overrides_allowed, "environment": environment_allowed,
+        "fileEdits": file_edits_allowed, "iniSettings": ini_settings_allowed, "resolution": resolution_allowed,
+        "saves": saves_allowed,
+    }
+    for key, profile in mac_games.items():
+        if not isinstance(profile, dict):
+            problems.append(f"{key}: not a profile")
+            continue
+        for field, allowed in checks.items():
+            if field in profile and not allowed(profile[field]):
+                problems.append(f"{key}: {field}")
+        for verb in profile.get("winetricks") or []:
+            if not safe_verb(verb):
+                why = " (say windowsVersion)" if verb in WINDOWS_VERSION_VERBS else \
+                    " (changes every game in the shared prefix)" if verb in SHARED_PREFIX_UNSAFE_VERBS else ""
+                problems.append(f"{key}: winetricks {verb!r}{why}")
+        for entry in profile.get("registry") or []:
+            if not isinstance(entry, dict) or not registry_key_allowed(entry.get("key")) \
+                    or any("\n" in str(v) or "\r" in str(v) for v in entry.values()):
+                problems.append(f"{key}: registry")
+        if profile.get("windowsVersion") not in (None, *WINDOWS_VERSIONS):
+            problems.append(f"{key}: windowsVersion")
+    return problems
 
 
 def literal(node):
@@ -188,15 +399,21 @@ def translate(path: pathlib.Path):
                     profile["winetricks"].append(verb)
         elif function == "winedll_override" and len(args) == 2 and isinstance(args[1], tuple):
             order = OVERRIDE_ORDERS.get(args[1][1])
-            if order is None:
+            dll = str(args[0]).lower()
+            overrides = profile.get("dllOverrides", {})
+            if order is None or not overrides_allowed(overrides | {dll: order}):
                 partial = True
                 continue
-            profile.setdefault("dllOverrides", {})[args[0].lower()] = order
+            profile.setdefault("dllOverrides", {})[dll] = order
         elif function == "disable_nvapi":
             for dll in ("nvapi", "nvapi64", "nvcuda", "nvcuvid"):
                 profile.setdefault("dllOverrides", {})[dll] = ""
         elif function == "append_argument" and args:
             kept = [a for a in str(args[0]).split() if a.lower() not in IGNORED_ARGUMENTS]
+            # All of a call or none: an option without its value would start the game wrongly.
+            if not arguments_allowed(profile.get("arguments", []) + kept):
+                partial = True
+                continue
             if kept:
                 profile.setdefault("arguments", []).extend(kept)
         elif function == "regedit_add":
@@ -406,6 +623,11 @@ def main() -> int:
         sources["areweanticheatyet"] = {"url": "https://areweanticheatyet.com", "license": "MIT"}
 
     mac = json.loads(options.mac.read_text(encoding="utf-8"))
+    # Nightforge's own profiles go into the signed list as they are: the same rules first.
+    problems = mac_problems(mac.get("games", {}))
+    if problems:
+        print(f"{options.mac.name} breaks the rules for profiles:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
     merge_mac(games, mac.get("games", {}))
     link_geforce_now(games, cloud)
 

@@ -33,7 +33,7 @@
 		</dict>
 	</array>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.0</string>
+	<string>0.3.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>GCSupportsControllerUserInteraction</key>
@@ -50,5 +50,7 @@
 	<string>https://raw.githubusercontent.com/LordHayne/Nightforge/main/components/manifest.json</string>
 	<key>NightforgeProfilesURL</key>
 	<string>https://raw.githubusercontent.com/LordHayne/Nightforge/main/profiles/profiles.json</string>
+	<key>NightforgeAGWURL</key>
+	<string>https://raw.githubusercontent.com/LordHayne/Nightforge/main/profiles/agw.json</string>
 </dict>
 </plist>

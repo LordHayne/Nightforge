@@ -27,6 +27,19 @@ enum GameResolution {
         retina ? pixels : points
     }
 
+    /// Every connected display's size as Wine sees it, with Retina mode and without: a game's window
+    /// at one of them is a full screen's, Nightforge's or the game's own, not one the player picked.
+    static func screenSizes() -> [Size] {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).flatMap { display -> [Size] in
+            guard let mode = CGDisplayCopyDisplayMode(display), mode.width > 0, mode.height > 0 else { return [] }
+            return [Size(width: mode.width, height: mode.height), Size(width: mode.pixelWidth, height: mode.pixelHeight)]
+        }
+    }
+
     /// The main display, where Wine opens full screen (GameDisplay has made the game's screen main
     /// by now). Mirrored, it's the mirror set's master, whose mode the whole set shows.
     static func mainScreen(retina: Bool) -> Size? {
@@ -42,9 +55,19 @@ enum GameResolution {
     /// settings back when it ends.
     static func fit(_ game: Game, profile: GameProfile? = nil, retina: Bool, wine: URL,
                     places: SaveTransfer.Places = SaveTransfer.Places()) {
+        guard !leftAlone.contains(game.gameID.key) else {
+            GameLog.note("Resolution of \(game.name) left alone (resolutionFitOff)")
+            return
+        }
         guard let size = mainScreen(retina: retina) else { return }
-        let marker = game.windowsFolderMarker.lowercased()
-        guard !Engine.ownProcesses().contains(where: { $0.command.lowercased().contains(marker) }) else { return }
+        let marker = game.windowsFolderMarker
+        // Its program by its Windows path, or one a launcher started by its bare name (GameProcesses.runsFrom).
+        // Not while it runs – nor while that can't be told (no process list): Wine holds the registry then.
+        guard let running = Engine.ownProcessesKnown(), !running.contains(where: { process in
+            let command = process.command.lowercased()
+            return command.contains(marker.lowercased())
+                || command.contains(".exe") && GameProcesses.runsFrom([marker], command: command, cwd: GameProcesses.cwd(of: process.pid))
+        }) else { return }
         var notes: [String] = []
         // user.reg on disk can lag the wineserver's copy by up to half a minute; the values a game
         // wrote when it ended a while ago are there.
@@ -56,18 +79,14 @@ enum GameResolution {
             notes.append("\(key.split(separator: "\\").last ?? ""): \(unitySize(values).map { "\($0) → " } ?? "")\(size)")
         }
         // A game whose profile says where it keeps its resolution (its own format).
-        if let saved = profile?.resolution,
-           let base = saved.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? game.installDir {
-            let file = base.appendingPathComponent(saved.path).standardizedFileURL
-            if file.path.hasPrefix(base.standardizedFileURL.path + "/"),
-               let text = try? String(contentsOf: file, encoding: .utf8),
-               let fitted = savedFitted(text, saved, size: size),
-               (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil {
-                notes.append("\(file.lastPathComponent): \(size)")
-            }
+        if let saved = profile?.resolution, let file = savedFile(saved, installDir: game.installDir, places: places),
+           let text = try? String(contentsOf: file, encoding: .utf8),
+           let fitted = savedFitted(text, saved, size: size),
+           (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil {
+            notes.append("\(file.lastPathComponent): \(size)")
         }
         for file in unrealSettings(installDir: game.installDir, places: places) {
-            guard let text = try? String(contentsOf: file, encoding: .utf8), let fitted = unrealFitted(text, size: size),
+            guard let text = try? String(contentsOf: file, encoding: .utf8), let fitted = unrealFitted(text, size: size, screens: screenSizes()),
                   (try? fitted.write(to: file, atomically: true, encoding: .utf8)) != nil
             else { continue }
             notes.append("\(file.lastPathComponent): \(size)")
@@ -80,22 +99,35 @@ enum GameResolution {
         log.write(Data(("info:  [nightforge] Full screen " + notes.joined(separator: ", ") + "\n").utf8))
     }
 
+    /// The file a profile names for the game's resolution, if it lies in its root (the game folder or
+    /// a Windows one) with the links on the way resolved (Engine.isInside): a folder the game links
+    /// elsewhere isn't written through, the atomic write would land at the link's end.
+    static func savedFile(_ saved: GameProfile.SavedResolution, installDir: URL, places: SaveTransfer.Places) -> URL? {
+        guard let base = saved.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir else { return nil }
+        let file = base.appendingPathComponent(saved.path).standardizedFileURL
+        return Engine.isInside(file, base) ? file : nil
+    }
+
     // MARK: - Unity
 
     /// The registry keys of the Unity programs in a game folder: Software\<company>\<product>, as
     /// <Program>_Data/app.info names them.
     static func unityKeys(installDir: URL) -> [String] {
+        let keys = unityDataFolders(installDir: installDir).compactMap { data in
+            (try? String(contentsOf: data.appendingPathComponent("app.info"), encoding: .utf8)).flatMap(unityKey(appInfo:))
+        }
+        return Array(Set(keys)).sorted()
+    }
+
+    /// A game folder's <Program>_Data folders: next to the program, which some games keep one folder down.
+    static func unityDataFolders(installDir: URL) -> [URL] {
         let fm = FileManager.default
         let top = (try? fm.contentsOfDirectory(at: installDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
-        // Next to the program, which some games keep one folder down.
         let folders = top + top.flatMap { folder in
             folder.lastPathComponent.hasSuffix("_Data") ? []
                 : (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
         }
-        let keys = folders.filter { $0.lastPathComponent.hasSuffix("_Data") }.compactMap { data in
-            (try? String(contentsOf: data.appendingPathComponent("app.info"), encoding: .utf8)).flatMap(unityKey(appInfo:))
-        }
-        return Array(Set(keys)).sorted()
+        return folders.filter { $0.lastPathComponent.hasSuffix("_Data") }
     }
 
     /// "Team17\nOvercooked2" → Software\Team17\Overcooked2. Nil for names a .reg file can't carry
@@ -294,7 +326,8 @@ enum GameResolution {
                 let platforms = (try? fm.contentsOfDirectory(atPath: config.path)) ?? []
                 for platform in platforms.sorted() where platform.lowercased().hasPrefix("windows") {
                     let file = config.appendingPathComponent("\(platform)/GameUserSettings.ini")
-                    if fm.fileExists(atPath: file.path) { found.append(file) }
+                    // Both roots are in the prefix; a project folder the game links out of it isn't written through.
+                    if fm.fileExists(atPath: file.path), Engine.isInside(file, places.prefix) { found.append(file) }
                 }
             }
         }
@@ -304,8 +337,11 @@ enum GameResolution {
     /// GameUserSettings.ini with its remembered resolution set to `size`, in every section where the
     /// game is set to full screen (FullscreenMode 0 exclusive, 1 full-screen window; 2 is a window).
     /// Games with their own settings class keep these in its section ([/Script/Game.GameSettings]).
+    /// Older ones with a class of their own (ABZU, Unreal 4.8) say "Fullscreen=ON" instead and keep
+    /// the size in DesiredScreenWidth/Height: ABZU came up 1920×1200 on a 1512×982 MacBook (game
+    /// test, 3.11.2026), its file untouched. Those get a full-screen window at `size` (`olderFitted`).
     /// Only values the game wrote itself. Nil when nothing changes.
-    static func unrealFitted(_ text: String, size: Size) -> String? {
+    static func unrealFitted(_ text: String, size: Size, screens: [Size] = []) -> String? {
         guard size.width > 0, size.height > 0 else { return nil }
         var sections: [(name: String, values: [String: String])] = []
         for line in text.components(separatedBy: "\n") {
@@ -321,6 +357,11 @@ enum GameResolution {
         }
         var result = text
         for (name, values) in sections {
+            // ABZU's kind, with a FullscreenMode of Nightforge's or none: always olderFitted's way.
+            if values["Fullscreen"] != nil {
+                if let older = olderFitted(values, size: size, screens: screens) { result = Engine.mergingIni(result, section: name, values: older) }
+                continue
+            }
             guard let mode = values["FullscreenMode"].flatMap(Int.init), mode == 0 || mode == 1 else { continue }
             let resolution: [String: String] = ["ResolutionSizeX": "\(size.width)", "ResolutionSizeY": "\(size.height)",
                                                 "LastUserConfirmedResolutionSizeX": "\(size.width)",
@@ -333,4 +374,41 @@ enum GameResolution {
         }
         return result == text ? nil : result
     }
+
+    /// For a section of ABZU's kind ("Fullscreen=ON" or OFF, True/False, 1/0, beside Unreal's own
+    /// keys): Fullscreen off, DesiredScreenWidth/Height at `size` and Unreal's FullscreenMode 1, a
+    /// window without a frame over the whole screen – no switch of the Mac's mode. Live tests of ABZU
+    /// (Unreal 4.8, DXMT/winecx) on the 1512×982 MacBook:
+    /// - Fullscreen=ON at the desktop's resolution (3.11. evening), and Unreal's ResolutionSizeX/Y at
+    ///   1512×982 with FullscreenMode 2 (4.11.), both died after the loading screen, before the first
+    ///   window, with nothing in the log.
+    /// - Fullscreen=OFF with Unreal's keys left out started in a 1512×982 window. Left out, they're
+    ///   the game's defaults (its pak's DefaultGameUserSettings.ini: 1920×1080, FullscreenMode 0,
+    ///   exclusive) – the saved file has only what differs – and after the intro it switched the Mac
+    ///   to 1920×1200.
+    /// So only Unreal's mode changes, its sizes stay unwritten. A window at one of the Mac's `screens`
+    /// sizes is a full screen's and follows the screen (a TV); one of another size is the player's
+    /// (1280×720, for frames) and stays as it is. Only a section with the size stored; nil when
+    /// nothing differs.
+    static func olderFitted(_ values: [String: String], size: Size, screens: [Size] = []) -> [String: String]? {
+        let windowed = ["on": "OFF", "true": "False", "1": "0"]  // the game's own word for off
+        guard let fullscreen = values["Fullscreen"]?.lowercased(),
+              windowed[fullscreen] != nil || ["off", "false", "0"].contains(fullscreen),
+              let desiredWidth = values["DesiredScreenWidth"].flatMap(Int.init),
+              let desiredHeight = values["DesiredScreenHeight"].flatMap(Int.init)
+        else { return nil }
+        let desired = Size(width: desiredWidth, height: desiredHeight)
+        if windowed[fullscreen] == nil, desired != size, !screens.contains(desired) { return nil }
+        let screen: [String: String] = ["DesiredScreenWidth": "\(size.width)", "DesiredScreenHeight": "\(size.height)",
+                                        "FullscreenMode": "1", "LastConfirmedFullscreenMode": "1"]
+        var wanted = screen.filter { values[$0.key] != $0.value }
+        if let off = windowed[fullscreen] { wanted["Fullscreen"] = off }
+        guard !wanted.isEmpty else { return nil }
+        return wanted
+    }
+
+    /// Games whose resolution Nightforge leaves alone, by GameID key: for live tries with a settings
+    /// file edited by hand, `defaults write io.github.lordhayne.nightforge resolutionFitOff -array
+    /// epic.Curry` (there's no switch in the app). Read at every start.
+    static var leftAlone: Set<String> { Set(UserDefaults.standard.stringArray(forKey: "resolutionFitOff") ?? []) }
 }

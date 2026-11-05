@@ -1,0 +1,14 @@
+#include <windows.h>
+
+/* Laid out like Unity 5's configuration window: the picture on top, a list, "Windowed", Play!/Quit. */
+1 DIALOGEX 0, 0, 230, 210
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Configuration"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    LTEXT           "Graphics", -1, 8, 90, 60, 10
+    COMBOBOX        100, 70, 108, 150, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+    AUTOCHECKBOX    "Windowed", 101, 70, 128, 80, 10
+    DEFPUSHBUTTON   "Play!", IDOK, 120, 188, 50, 14
+    PUSHBUTTON      "Quit", IDCANCEL, 174, 188, 50, 14
+END

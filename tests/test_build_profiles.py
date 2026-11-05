@@ -3,13 +3,15 @@
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
 
-SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "build-profiles.py"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / "scripts" / "build-profiles.py"
 spec = importlib.util.spec_from_file_location("build_profiles", SCRIPT)
 build_profiles = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build_profiles)
@@ -94,6 +96,181 @@ class TranslateTests(unittest.TestCase):
                 util.regedit_add('HKLM\\\\System\\\\CurrentControlSet\\\\Services\\\\winebus', 'DisableHidraw', 'REG_DWORD', '1')
         ''')
         self.assertNotIn("registry", profile)
+
+
+class SafetyTests(unittest.TestCase):
+    """DLL overrides and start arguments come from a stranger's repository (Audit M1)."""
+
+    def test_dll_overrides_by_bare_name_with_wines_orders(self):
+        for name, order in [("d3d9", "native,builtin"), ("*dsound", "builtin"), ("vulkan-1", ""), ("xactengine3_7", "native")]:
+            self.assertTrue(build_profiles.dll_override_allowed(name, order), (name, order))
+        for name, order in [("ntdll", "native"), ("kernel32.dll", ""), ("winemac.drv", ""), ("..", ""), ("*", ""),
+                            ("../d3d9", ""), ("D3D9", ""), ("d3d9", "native;builtin"), ("d3d9", None), (9, "")]:
+            self.assertFalse(build_profiles.dll_override_allowed(name, order), (name, order))
+
+    def test_arguments_without_paths_out_of_the_game(self):
+        for argument in ["-dx11", "/dx11", "+r_renderAPI", "1", "-vomstyle=layer", "Zonematch=true", "glide_fix.conf",
+                         "../bundle", "-c=../x"]:
+            self.assertTrue(build_profiles.argument_allowed(argument), argument)
+        for argument in ["/Users/x/game", "--ini=/etc/passwd", "C:x", "Z:\\Users", "~/x", "../../x", "x/../y", "-c=../../x",
+                         "//server/x", "file:///x", "-a b", '-a"', "-a;rm", "$HOME", "%TEMP%", "-x\n", "", "a" * 65]:
+            self.assertFalse(build_profiles.argument_allowed(argument), argument)
+
+    def test_how_many_is_limited(self):
+        self.assertTrue(build_profiles.arguments_allowed(["-a"] * 16))
+        self.assertFalse(build_profiles.arguments_allowed(["-a"] * 17))
+        self.assertFalse(build_profiles.arguments_allowed("-dx11"), "a list, not a string")
+        self.assertTrue(build_profiles.overrides_allowed({f"dll{i}": "" for i in range(32)}))
+        self.assertFalse(build_profiles.overrides_allowed({f"dll{i}": "" for i in range(33)}))
+
+    def test_translation_leaves_out_what_isnt_plain(self):
+        profile, partial = translate('''
+            from protonfixes import util
+
+            def main():
+                util.winedll_override('ntdll', util.OverrideOrder.NATIVE)
+                util.winedll_override('d3dx9_43', util.OverrideOrder.NATIVE)
+                util.append_argument('--ini=/etc/passwd -nosplash')
+                util.append_argument('-dx11')
+        ''')
+        self.assertTrue(partial)
+        self.assertEqual(profile["dllOverrides"], {"d3dx9_43": "native"})
+        self.assertEqual(profile["arguments"], ["-dx11"], "all of a call or none of it")
+
+    def test_the_workflow_check_takes_todays_list_and_nothing_unsafe(self):
+        workflow = (ROOT / ".github/workflows/profiles.yml").read_text()
+        check = textwrap.dedent(workflow.split("python3 -I - <<'PY'\n", 1)[1].split("\n          PY\n", 1)[0])
+        run = lambda folder: subprocess.run([sys.executable, "-I", "-c", check], cwd=folder, capture_output=True, text=True)
+        today = run(ROOT)
+        self.assertEqual(today.returncode, 0, today.stdout + today.stderr)
+        for field, value in [("dllOverrides", {"ntdll": "native"}), ("arguments", ["--ini=/etc/passwd"]),
+                             ("arguments", ["-x"] * 17), ("winetricks", ["win98"]),
+                             ("fileEdits", [{"path": "../../x.ini", "find": "a", "replace": "b"}]),
+                             ("iniSettings", [{"root": "WinAppDataLocal", "path": "x.ini", "section": "a]b", "values": {"k": "v"}}]),
+                             ("resolution", {"root": "MacHome", "path": "x.cfg", "fields": {"width": 0, "height": 1}}),
+                             ("saves", [{"root": "WinAppDataRoaming", "path": "", "mac": "MacAppSupport"}])]:
+            with self.subTest(field=field, value=str(value)[:40]), tempfile.TemporaryDirectory() as folder:
+                folder = pathlib.Path(folder)
+                (folder / "scripts").mkdir()
+                (folder / "profiles").mkdir()
+                (folder / "scripts/build-profiles.py").write_text(SCRIPT.read_text())
+                doc = json.loads((ROOT / "profiles/profiles.json").read_text())
+                next(iter(doc["games"].values()))[field] = value
+                (folder / "profiles/profiles.json").write_text(json.dumps(doc))
+                result = run(folder)
+                self.assertNotEqual(result.returncode, 0, "the workflow stops before anything is proposed")
+                self.assertIn("AssertionError", result.stderr)
+
+
+class FileRuleTests(unittest.TestCase):
+    """The game's own files: fileEdits, iniSettings, resolution and saves (review of 3.11.2026)."""
+
+    def test_paths_stay_under_their_root(self):
+        for path in ("Saved/Config/Windows/Engine.ini", "2K Games/Mafia II/Saves/videoconfig.cfg", "a\\b.ini"):
+            self.assertTrue(build_profiles.relative_path_allowed(path), path)
+        for path in ("../x.ini", "a/../../b", "a\\..\\b", "/etc/hosts", "\\\\server\\x", "C:\\x.ini", "~/x", "a\nb", "", "x" * 300):
+            self.assertFalse(build_profiles.relative_path_allowed(path), repr(path))
+        self.assertTrue(build_profiles.relative_path_allowed("", empty=True))
+
+    def test_roots_from_the_apps_list(self):
+        self.assertTrue(build_profiles.root_allowed("WinAppDataLocal", build_profiles.WINDOWS_ROOTS))
+        self.assertTrue(build_profiles.root_allowed("gameinstall", build_profiles.WINDOWS_ROOTS))
+        self.assertTrue(build_profiles.root_allowed(None, build_profiles.WINDOWS_ROOTS, optional=True))
+        for root in ("MacHome", "/", "WinSystem32", None, 3):
+            self.assertFalse(build_profiles.root_allowed(root, build_profiles.WINDOWS_ROOTS), root)
+        self.assertFalse(build_profiles.root_allowed("WinAppDataLocal", build_profiles.MAC_ROOTS))
+
+    def test_file_edits(self):
+        ok = {"root": "WinAppDataLocal", "path": "Voyage/Saved/Config/Windows/GameUserSettings.ini",
+              "find": "bUseRayTracing=True", "replace": "bUseRayTracing=False"}
+        self.assertTrue(build_profiles.file_edits_allowed([ok, {**ok, "root": None, "once": True}]))
+        for bad in ({**ok, "replace": "bUseRayTracing=True, again"},      # grows the file at every start
+                    {**ok, "find": ""}, {**ok, "root": "MacAppSupport"}, {**ok, "path": "../Engine.ini"},
+                    {**ok, "once": "yes"}, {**ok, "find": "a\x00b"}):
+            self.assertFalse(build_profiles.file_edits_allowed([bad]), bad)
+        self.assertFalse(build_profiles.file_edits_allowed([ok] * 33))
+
+    def test_ini_settings(self):
+        ok = {"root": "WinAppDataLocal", "path": "Sega/SonicMania/Settings.ini", "section": "Video", "values": {"windowed": "n"}}
+        self.assertTrue(build_profiles.ini_settings_allowed([ok]))
+        for bad in ({**ok, "section": "Video]\n[Other"}, {**ok, "values": {"a=b": "1"}}, {**ok, "values": {"k": "1\nx=2"}},
+                    {**ok, "values": {}}, {**ok, "root": None}, {**ok, "path": "/etc/x.ini"}, {**ok, "section": ""}):
+            self.assertFalse(build_profiles.ini_settings_allowed([bad]), bad)
+
+    def test_resolution(self):
+        fields = {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
+                  "fields": {"width": 2, "height": 3, "fullscreen": 4}}
+        ini = {"path": "settings.ini", "section": "Display", "keys": {"width": "ResX", "height": "ResY"}, "fullscreenOn": ["1", "true"]}
+        self.assertTrue(build_profiles.resolution_allowed(fields))
+        self.assertTrue(build_profiles.resolution_allowed(ini))
+        for bad in ({**fields, "fields": {"width": 2}}, {**fields, "fields": {"width": 2, "height": True}},
+                    {**fields, "keys": {"width": "a", "height": "b"}, "section": "S"}, {**ini, "keys": {"width": "a=b", "height": "c"}},
+                    {**fields, "root": "MacCaches"}, {**fields, "path": "../x"}, {**ini, "fullscreenOn": ["\n"]}):
+            self.assertFalse(build_profiles.resolution_allowed(bad), bad)
+
+    def test_saves(self):
+        ok = {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "mac": "MacAppSupport"}
+        self.assertTrue(build_profiles.saves_allowed([ok, {**ok, "pattern": "*.sav", "recursive": False, "macPath": "7 Days"}]))
+        self.assertTrue(build_profiles.saves_allowed([{**ok, "path": "", "pattern": "*.sav"}]), "a pattern of its own in a whole root")
+        self.assertTrue(build_profiles.saves_allowed([{**ok, "path": "", "recursive": False}]), "the root's own files only")
+        self.assertTrue(build_profiles.saves_allowed([{**ok, "root": "GameInstall", "path": ""}]), "the game's folder as a whole")
+        for bad in ({**ok, "path": ""}, {**ok, "path": "/", "pattern": "*"}, {**ok, "mac": "WinAppDataLocal"},
+                    {**ok, "root": "MacAppSupport"}, {**ok, "path": "../Other"}, {**ok, "macPath": "/Users"},
+                    {**ok, "pattern": "a/b"}, {**ok, "recursive": "yes"}):
+            self.assertFalse(build_profiles.saves_allowed([bad]), bad)
+
+    def test_mac_profiles_are_checked_before_they_go_into_the_list(self):
+        shipped = json.loads((ROOT / "profiles/mac.json").read_text())["games"]
+        self.assertEqual(build_profiles.mac_problems(shipped), [])
+        problems = build_profiles.mac_problems({
+            "1": {"winetricks": ["win98", "vcrun2019"]}, "2": {"saves": [{"root": "WinAppDataLocal", "path": "", "mac": "MacAppSupport"}]},
+            "3": {"fileEdits": [{"path": "x.ini", "find": "a", "replace": "aa"}]}, "4": {"arguments": ["--config=/etc/x"]},
+            "5": {"registry": [{"key": "HKCU\\Software\\Microsoft\\x"}]}, "6": {"windowsVersion": "win95"},
+        })
+        self.assertEqual(problems, ["1: winetricks 'win98' (say windowsVersion)", "2: saves", "3: fileEdits", "4: arguments",
+                                    "5: registry", "6: windowsVersion"])
+
+    def test_winetricks_verbs_the_app_wont_run_dont_get_through(self):
+        self.assertFalse(build_profiles.safe_verb("dsound"))
+        self.assertFalse(build_profiles.safe_verb("isolate_home"))
+        self.assertTrue(build_profiles.safe_verb("vcrun2019"))
+        self.assertEqual(build_profiles.mac_problems({"1": {"winetricks": ["dsound", "sandbox", "d3dx9"]}}),
+                         ["1: winetricks 'dsound' (changes every game in the shared prefix)",
+                          "1: winetricks 'sandbox' (changes every game in the shared prefix)"])
+
+    def test_the_lists_are_the_apps(self):
+        """Engine.swift's winetricksCommands, windowsVersionVerbs and sharedPrefixUnsafeVerbs: nothing the app
+        refuses may pass the builder and the workflow (it would be signed and then quietly do nothing). Once the
+        app has the Windows versions too, the lists are the same."""
+        engine = (ROOT / "Sources/Nightforge/Engine.swift").read_text()
+
+        def swift_set(name):
+            found = re.search(r"static let " + name + r": Set<String> = (windowsVersionVerbs\.union\()?\[(.*?)\]", engine, re.S)
+            return (set(re.findall(r'"([a-z0-9_]+)"', found.group(2))), bool(found.group(1))) if found else (None, False)
+
+        commands, _ = swift_set("winetricksCommands")
+        versions, _ = swift_set("windowsVersionVerbs")
+        unsafe, includes_versions = swift_set("sharedPrefixUnsafeVerbs")
+        self.assertEqual(commands, build_profiles.WINETRICKS_COMMANDS)
+        self.assertIsNotNone(unsafe, "Engine.sharedPrefixUnsafeVerbs is where the app keeps them")
+        refused = unsafe | (versions if includes_versions and versions else set())
+        self.assertLessEqual(refused, build_profiles.SHARED_PREFIX_UNSAFE_VERBS, "the app refuses these, the builder must too")
+        if versions is not None:
+            self.assertEqual(versions, build_profiles.WINDOWS_VERSION_VERBS)
+            self.assertEqual(refused, build_profiles.SHARED_PREFIX_UNSAFE_VERBS)
+
+    def test_the_builder_refuses_a_mac_json_that_breaks_them(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = pathlib.Path(folder)
+            (root / "umu/gamefixes-steam").mkdir(parents=True)
+            (root / "mac.json").write_text(json.dumps({"games": {"1": {"iniSettings": [
+                {"root": "WinAppDataLocal", "path": "../../.ssh/config", "section": "x", "values": {"a": "b"}}]}}}))
+            out = root / "profiles.json"
+            run = subprocess.run([sys.executable, "-I", str(SCRIPT), str(root / "umu"), "--mac", str(root / "mac.json"), "--out", str(out)],
+                                 capture_output=True, text=True)
+            self.assertEqual(run.returncode, 1, run.stdout)
+            self.assertIn("1: iniSettings", run.stderr)
+            self.assertFalse(out.exists(), "nothing is written")
 
 
 class AntiCheatTests(unittest.TestCase):
@@ -279,6 +456,30 @@ class BuildTests(unittest.TestCase):
         # … and a game that doesn't start yet keeps its reason beside it.
         self.assertEqual(games["2357570"], {"name": "Overwatch", "notYet": "Hangs under Rosetta.", "source": "mac",
                                             "geforceNow": "gOw"})
+
+
+
+class EnvironmentTests(unittest.TestCase):
+    """A profile's "environment": Wine's and CrossOver's own switches only, with plain values."""
+
+    def test_the_switches_recall_sets_pass(self):
+        self.assertTrue(build_profiles.environment_allowed(
+            {"WINE_SIMULATE_WRITECOPY": "1", "CX_HACK_FILESYSTEM_TYPE": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"}))
+
+    def test_anything_that_can_load_code_or_name_a_path_is_refused(self):
+        for environment in ({"DYLD_INSERT_LIBRARIES": "/tmp/x.dylib"}, {"WINE_SIMULATE_WRITECOPY": "/tmp"},
+                            {"CX_ACTIVE_GRAPHICS_BACKEND": "dxmt; rm -rf ~"}, {"WINEDLLOVERRIDES": "d3d11=n"},
+                            {"WINE_SIMULATE_WRITECOPY": 1}, ["WINE_SIMULATE_WRITECOPY"], {"WINE_SIMULATE_WRITECOPY": ""}):
+            self.assertFalse(build_profiles.environment_allowed(environment), environment)
+
+    def test_the_app_allows_the_same_names(self):
+        swift = (SCRIPT.parent.parent / "Sources/Nightforge/GameEnvironment.swift").read_text(encoding="utf-8")
+        block = swift[swift.index("static let allowed"):swift.index("]\n", swift.index("static let allowed"))]
+        import re
+        # Digits too: D3DM_VENDOR_ID went unseen with [A-Z_]+, and the builder turned down what the app allows.
+        self.assertEqual(set(re.findall(r'^\s*"([A-Z0-9_]+)":', block, re.M)), build_profiles.ENVIRONMENT_NAMES)
+        self.assertTrue(build_profiles.environment_allowed({"D3DM_VENDOR_ID": "0x10de", "D3DM_DEVICE_ID": "0x2684"}),
+                        "NVIDIA's card for DLSS (Satisfactory), as GameEnvironment.allowed lets it through")
 
 
 if __name__ == "__main__":

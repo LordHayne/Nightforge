@@ -17,6 +17,8 @@ permissions:
 
 env:
   CABEXTRACT_VERSION: "1.11"
+  # The tarball's SHA-256, the same as Homebrew's formula has for it (review G).
+  CABEXTRACT_SHA256: "b5546db1155e4c718ff3d4b278573604f30dd64c3c5bfd4657cd089b823a3ac6"
 
 jobs:
   cabextract:
@@ -25,6 +27,7 @@ jobs:
       - name: Build (universal)
         run: |
           curl -fsSLO "https://www.cabextract.org.uk/cabextract-$CABEXTRACT_VERSION.tar.gz"
+          echo "$CABEXTRACT_SHA256  cabextract-$CABEXTRACT_VERSION.tar.gz" | shasum -a 256 -c -
           tar -xzf "cabextract-$CABEXTRACT_VERSION.tar.gz"
           for arch in arm64 x86_64; do
             cp -R "cabextract-$CABEXTRACT_VERSION" "build-$arch"

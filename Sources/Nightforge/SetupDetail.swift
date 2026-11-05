@@ -44,8 +44,11 @@ enum SetupDetail {
             return dxmt.map { "DXMT \($0)" } ?? L10n.t("Graphics layers")
         case Engine.d3dMetalID: return "D3DMetal \(component.version)"
         case Engine.gamepadID: return L10n.t("Controller support")
-        case Engine.dxvkID: return "DXVK \(version)"
+        case Engine.engineFixID: return L10n.t("Engine fixes (sound, stability)")
+        case Engine.dxvkID, Engine.dxvkUpstreamID: return "DXVK \(version)"
         case Engine.moltenVKID: return "MoltenVK \(component.version)"
+        // "27.0.0-devel-44989e5a" → Mesa's "27.0.0".
+        case Engine.kosmicKrispID: return "KosmicKrisp \(version)"
         default: return "\(component.id) \(component.version)"
         }
     }

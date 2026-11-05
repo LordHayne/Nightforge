@@ -52,6 +52,9 @@ wenn sie einer Version zugeordnet sind.
       - Ohne gültige Signatur wird nichts installiert. Die gebündelte Liste gilt weiter, mit einer ruhigen Meldung.
       - Vorher den ganzen Weg „App lädt, prüft, ersetzt sich“ mit einem Test-Release durchspielen, damit kein
         Nutzer vom Update abgeschnitten wird.
+      - Stand 2.11.: gebaut auf `claude/signed-updates-dda700` (Code, Skripte, Workflows, Tests). Ablauf, Übergang
+        von 0.3.0 und Test-Release in `docs/SICHERHEIT-0.3.md` › „Signierte Releases“. Offen: Schlüssel (Nutzer),
+        Listen auf `main` signieren, Test-Release.
 
 ### 0.4: „Wie eine Konsole“
 - [ ] **Zuerst die Engine, mit voller Kraft** (Nutzer, 1.11.: „sobald das 0.3 draußen ist, geben wir richtig Gas mit
@@ -63,10 +66,20 @@ wenn sie einer Version zugeordnet sind.
         über 26.5. Der Overwatch-Hänger liegt deshalb nicht an einer alten Engine. Zuerst Overwatch mit DXMT statt
         D3DMetal testen und ohne msync. Im CX-26.3-Baum gibt es einen nachgewiesenen msync-Fehler: `alert_fd` wird
         beim Thread-Ende geschlossen.
-      - Eigene Unix-Module über die gepinnte winecx 4.7.3, nach dem Vorbild von `gamepad.yml`:
+      - **Nicht erst mit 0.4** (Nutzer, 2.11.): Wichtige Engine-Verbesserungen kommen in 0.3.x, sobald etwas eindeutig
+        nicht läuft. Jedes Stück lässt sich für sich mergen und sagt, ob es ein App-Release braucht oder über die
+        Profil- bzw. Komponentenliste kommt (`docs/TODO.md` › Engine-Arbeit).
+      - **Befund 2.11.** (Stück A, Zweig `claude/engine-04-overwatch`, braucht ein App-Release): Overwatch lief nur auf
+        D3DMetal, weil Nightforge es für ein reines DX12-Spiel hielt. Das ist behoben, jetzt kommt DXMT zuerst. Der
+        Hänger galt außerdem nach drei Minuten als „läuft“, auch das ist behoben. Der msync-Fehler ist im Code
+        bestätigt. Der Live-Test mit DXMT, ohne msync und mit dem msync-Fix steht noch aus.
+      - Eigene Unix-Module über die gepinnte winecx 4.7.3, nach dem Vorbild von `gamepad.yml`. **Gebaut am 2.11.**
+        (Stück B, Zweig `claude/engine-04-703c49`; braucht einmal ein App-Release, danach kommen neue Stände über die
+        Komponentenliste). CI-Lauf und Release stehen noch aus:
         - `ntdll.so` mit dem msync-Fix
         - `winecoreaudio.so` mit dem SpatialMixer-Downmix aus Wine 11.21 (gegen den Hall am AV-Receiver)
-        - als Release mit Quell-Asset, neue Komponente `enginefix`.
+        - als Release mit Quell-Asset, neue Komponente `enginefix` (`enginefix.yml`, `scripts/build-enginefix.sh`,
+          `Engine.installEngineFix`).
       - Den Pin erst auf winecx 4.7.4 oder 4.8.1 heben, wenn Issue #24 geklärt ist. Ein Issue bei dappermint
         (msync-Fix, 11.21-Downmix). Plan B: ein eigener Engine-Build aus dappermint/winecx, falls das Projekt stehen
         bleibt.
@@ -74,6 +87,10 @@ wenn sie einer Version zugeordnet sind.
         MoltenVK abgekündigt ist.
       - D3DMetal je nach Ergebnis der Lizenz-Recherche (Cloud, 1.11.).
       - Spiele mit DX11- und DX12-Fassung (Control, Tomb Raider, Hitman …): DX12 mit D3DMetal wählbar machen.
+        **Gebaut am 2.11.:** D3DMetal ist der letzte Weg jedes DX11-Spiels und wählbar (de1f146, `Control_DX11.exe` läuft
+        live darauf). Stück C (Zweig `claude/engine-04-control`, braucht ein App-Release): DX12-Programm erkennen,
+        Programmwahl als Profilfeld `executable` und in den Optionen (Epic, GOG), Profil für Control. Die Programmwahl für
+        Steam folgt später.
         Heute bietet Nightforge D3DMetal nur von selbst an, und nur für reine DX12-Spiele (`choosableLayers`,
         `onlyD3D12`). Epic startet bei Control `Control_DX11.exe`. Laut allen Mac-Quellen läuft Control aber nur über
         `Control_DX12.exe` mit D3DMetal (`docs/recherche/mac-kompatibilitaet.md`). Dafür braucht es die Wahl der

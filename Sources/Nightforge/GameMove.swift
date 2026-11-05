@@ -107,19 +107,22 @@ enum FolderCopy {
     }
 
     /// The first thing in `source` that `copy` lacks or has differently: each file there with the
-    /// same size, each link pointing the same way, each folder a folder. Extra files a drive keeps
-    /// beside them (exFAT's "._" files) don't count. nil when the copy is whole.
-    static func difference(_ source: URL, _ copy: URL) -> String? {
+    /// same size and the same bytes (`sameContents`), each link pointing the same way, each folder a
+    /// folder. Extra files a drive keeps beside them (exFAT's "._" files) don't count. nil when the
+    /// copy is whole – the originals are deleted after it, so looking right isn't enough. `cancelled`
+    /// is asked before each file; it throws DriveError.cancelled then.
+    static func difference(_ source: URL, _ copy: URL, cancelled: () -> Bool = { false }) throws -> String? {
         let fm = FileManager.default
         guard let items = fm.enumerator(atPath: source.path) else { return source.lastPathComponent }
         for case let relative as String in items {
+            if cancelled() { throw DriveError.cancelled }
             var original = stat(), copied = stat()
             let from = source.appendingPathComponent(relative).path, to = copy.appendingPathComponent(relative).path
             guard lstat(from, &original) == 0 else { continue }  // gone meanwhile: nothing to compare
             guard lstat(to, &copied) == 0, original.st_mode & S_IFMT == copied.st_mode & S_IFMT else { return relative }
             switch original.st_mode & S_IFMT {
             case S_IFREG:
-                if original.st_size != copied.st_size { return relative }
+                if original.st_size != copied.st_size || !sameContents(from, to, size: Int64(original.st_size)) { return relative }
             case S_IFLNK:
                 if (try? fm.destinationOfSymbolicLink(atPath: from)) != (try? fm.destinationOfSymbolicLink(atPath: to)) { return relative }
             default:
@@ -127,6 +130,44 @@ enum FolderCopy {
             }
         }
         return nil
+    }
+
+    /// Files up to this size are compared byte for byte; of a bigger one, pieces (`sameContents`).
+    static let comparedWhole: Int64 = 64 << 20
+
+    /// Whether two files of `size` bytes hold the same bytes: all of them up to `comparedWhole`; of a
+    /// bigger file the first and the last MiB and six spread between. A copy cut off or garbled on its
+    /// way shows there, while reading a game's 20 GB archives twice more would add many minutes to a move.
+    static func sameContents(_ a: String, _ b: String, size: Int64) -> Bool {
+        let piece = 1 << 20
+        let x = open(a, O_RDONLY), y = open(b, O_RDONLY)
+        defer {
+            if x >= 0 { close(x) }
+            if y >= 0 { close(y) }
+        }
+        guard x >= 0, y >= 0 else { return false }
+        let offsets = size <= comparedWhole ? Array(stride(from: Int64(0), to: size, by: piece))
+                                            : (0..<8).map { (size - Int64(piece)) * Int64($0) / 7 }
+        var first = [UInt8](repeating: 0, count: piece), second = [UInt8](repeating: 0, count: piece)
+        for offset in offsets {
+            let length = Int(min(Int64(piece), size - offset))
+            guard read(x, into: &first, length, at: offset), read(y, into: &second, length, at: offset),
+                  memcmp(first, second, length) == 0 else { return false }
+        }
+        return true
+    }
+
+    /// `length` bytes from `offset`, however many reads that takes; false when the file ends or fails before.
+    private static func read(_ descriptor: Int32, into buffer: inout [UInt8], _ length: Int, at offset: Int64) -> Bool {
+        var done = 0
+        while done < length {
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                pread(descriptor, bytes.baseAddress! + done, length - done, off_t(offset) + off_t(done))
+            }
+            guard count > 0 else { return false }
+            done += count
+        }
+        return true
     }
 }
 
@@ -185,7 +226,9 @@ enum GameMover {
                     try FolderCopy.copy(part.from, to: staging(part.to), progress: progress)
                 }
                 for part in parts {
-                    if let differs = FolderCopy.difference(part.from, staging(part.to)) { throw DriveError.copyDiffers(differs) }
+                    if let differs = try FolderCopy.difference(part.from, staging(part.to), cancelled: { progress.cancelled }) {
+                        throw DriveError.copyDiffers(differs)
+                    }
                 }
             }.value
             for part in parts {

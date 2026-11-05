@@ -388,13 +388,24 @@ enum MacSteam {
     }
 
     /// Asks Steam to quit (it saves its state and cloud files) and ends it the hard way after 20 s.
+    /// Its end comes from the kernel (ProcessEnd), not from a look every second.
     static func quit() async {
         if isTestHome { return await TestSteam.quit() }
-        for app in running { app.terminate() }
-        for _ in 0..<20 {
-            guard isRunning else { return endLeftoverIPCServer() }
-            try? await Task.sleep(for: .seconds(1))
+        let apps = running
+        for app in apps { app.terminate() }
+        // NSRunningApplication's pid can read -1 (`clientPID`): then the client's own.
+        var pids = apps.map(\.processIdentifier).filter { $0 > 0 }
+        if pids.count < apps.count, let client = clientPID { pids.append(client) }
+        let deadline = Date().addingTimeInterval(20)
+        var ended = false
+        if !pids.isEmpty { ended = await ProcessEnd.wait(pids, timeout: 20) }
+        // The workspace's list follows an end a moment later; with no process to watch, it alone says.
+        var grace = ended ? 20 : 0
+        while isRunning, Date() < deadline {
+            try? await Task.sleep(for: grace > 0 ? .milliseconds(100) : .seconds(1))
+            grace -= 1
         }
+        if !isRunning { return endLeftoverIPCServer() }
         for app in running { app.forceTerminate() }
         try? await Task.sleep(for: .seconds(2))
         endLeftoverIPCServer()

@@ -325,9 +325,7 @@ enum GOGRedist {
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
         let output = try? FileHandle(forWritingTo: log)
         defer { try? output?.close() }
-        let process = DetachedProcess()
-        process.executableURL = wine
-        process.arguments = arguments
+        guard let process = try? WineSandbox.process(wine, arguments) else { return nil }
         process.environment = Engine.environment(wine: wine)
         process.currentDirectoryURL = directory
         process.standardInput = FileHandle.nullDevice

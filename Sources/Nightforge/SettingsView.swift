@@ -568,6 +568,7 @@ private struct StorageSettings: View {
     @State private var removal: RemovalPlan?
     @State private var measuringRemoval = false
     @State private var removing = false
+    @State private var removalPhase: CompleteRemoval.Phase?
     @State private var removalError: String?
     /// A drive that isn't coming back: asking whether to forget it.
     @State private var forgetting: String?
@@ -681,8 +682,9 @@ private struct StorageSettings: View {
                 SectionTitle(L10n.t("Games on this Mac"))
             }
 
-            // Then the games, drive by drive: they move like the Mac's.
-            ForEach(drives.filter { !$0.games.isEmpty }, id: \.drive.id) { drive, games in
+            // Then the games, drive by drive: they move like the Mac's. An id of their own: the drive's
+            // bar above goes by drive.id, and two sections with one id in a Form lose their rows.
+            ForEach(drives.filter { !$0.games.isEmpty }, id: \.drive.gamesSectionID) { drive, games in
                 Section {
                     ForEach(games) { game in row(game) }
                 } header: {
@@ -738,7 +740,7 @@ private struct StorageSettings: View {
                         .padFocus("storage.removeAll", enabled: !gameBusy && !measuringRemoval && !removing, activate: planRemoval)
                     if measuringRemoval || removing {
                         GlassSpinner()
-                        Text(removing ? L10n.t("Removing …") : L10n.t("Measuring …")).font(size: 10).foregroundStyle(.secondary)
+                        Text(removing ? removalText : L10n.t("Measuring …")).font(size: 10).foregroundStyle(.secondary)
                     }
                 }
                 Text(L10n.t("Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first."))
@@ -882,13 +884,26 @@ private struct StorageSettings: View {
     private func removeEverything() {
         removal = nil
         removing = true
+        removalPhase = nil
         Task {
             do {
-                try await CompleteRemoval.run()
+                try await CompleteRemoval.run { removalPhase = $0 }
             } catch {
                 removing = false
-                removalError = L10n.t("The saves couldn't be copied to Documents (%@), so everything is still there.", error.localizedDescription)
+                removalPhase = nil
+                // The error says which of the two it was (CompleteRemoval.RemovalError).
+                removalError = error.localizedDescription
             }
+        }
+    }
+
+    /// What the line under the button says while the job runs.
+    private var removalText: String {
+        switch removalPhase {
+        case .stopping: return L10n.t("Ending Steam and Wine …")
+        case .copyingSaves: return L10n.t("Copying saves …")
+        case .deleting: return L10n.t("Deleting files …")
+        case nil: return L10n.t("Removing …")
         }
     }
 
@@ -958,13 +973,34 @@ private struct AboutSettings: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L10n.t("No account. No telemetry. No background service."))
                             .fontWeight(.semibold)
-                        Text(L10n.t("Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it."))
+                        Text(L10n.t("Nightforge sends nothing by itself. A problem report opens on GitHub, filled in with the game and its settings – GitHub gets that as the page opens, it's public only once you submit it. Error lines stay on your clipboard until you paste them."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } icon: {
                     Image(systemName: "lock.fill")
+                }
+                // Calm on purpose: nothing is wrong on this Mac, an online list just didn't count.
+                if !SignedLists.refused.isEmpty {
+                    Label {
+                        Text(L10n.t("An online list (game fixes, components or AppleGamingWiki's reports) wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "checkmark.shield")
+                    }
+                }
+                if !SignedLists.older.isEmpty {
+                    Label {
+                        Text(L10n.t("An online list was older than the one Nightforge already has, so it was left out. Nightforge keeps the newer one."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "checkmark.shield")
+                    }
                 }
             } header: {
                 SectionTitle(L10n.t("Nightforge %@", Updater.currentVersion))
@@ -1022,8 +1058,10 @@ private struct AboutSettings: View {
         case "winecx": return "Wine (CrossOver)"
         case "d3dmetal": return "D3DMetal"
         case "dxmt": return "DXMT"
-        case "dxvk-macos": return "DXVK"
+        case "dxvk-macos": return "DXVK-macOS"
+        case "dxvk": return "DXVK"
         case "moltenvk": return "MoltenVK"
+        case "kosmickrisp": return "KosmicKrisp (Mesa)"
         case "winetricks": return "winetricks"
         case "cabextract": return "cabextract"
         case "gamepad": return L10n.t("Wine with controller support")
@@ -1038,7 +1076,9 @@ private struct AboutSettings: View {
         case "d3dmetal": return L10n.t("DirectX 12 on Metal (Apple)")
         case "dxmt": return L10n.t("DirectX 10 and 11 on Metal")
         case "dxvk-macos": return L10n.t("DirectX 9 to 11 on Vulkan")
+        case "dxvk": return L10n.t("DirectX 9 on Vulkan, with KosmicKrisp")
         case "moltenvk": return L10n.t("Vulkan on Metal")
+        case "kosmickrisp": return L10n.t("Vulkan on Metal, for DirectX 9 games")
         case "winetricks": return L10n.t("Installs what games need from Windows")
         case "cabextract": return L10n.t("Unpacks Windows installers")
         default:

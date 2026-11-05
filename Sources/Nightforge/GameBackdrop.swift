@@ -7,9 +7,11 @@ import SwiftUI
 ///   the game is handed to its store until it shows its window in front ("Starting …"), and again
 ///   the moment it ends ("Back to Nightforge …") until Nightforge is in front. Spaces changing
 ///   underneath, Steam for Mac's window coming up and the desktop stay out of sight.
-/// - Behind the game (`show`, `lower`): below every normal window and in every desktop Space, so
-///   it never covers the game or another app; around a game in a window it's the page instead of
-///   the desktop.
+/// - Behind the game (`show`, `lower`): in every desktop Space, right over Nightforge's window
+///   while another app has the front – a game whose window goes before its process ends shows the
+///   page then, not Nightforge's (Mafia II on 2.11.) – and below every normal window once
+///   Nightforge is in front. It never covers the game; around a game in a window it's the page
+///   instead of the desktop.
 ///
 /// It never takes a click, a key or the pad. A loading screen of its own, like the README's banner:
 /// the N in brushed metal with its blue light seam (BrandArt, drawn once per size and scale), the
@@ -42,6 +44,10 @@ enum GameBackdrop {
     private static var spaceObserver: NSObjectProtocol?
     private static var frontObserver: NSObjectProtocol?
     private static var gameOn: @MainActor () -> Bool = { false }
+    /// Whether the game being played still shows its window (LibraryModel sets it): with the page
+    /// over Nightforge's window, Nightforge coming to the front decides by it where the page goes.
+    static var gameShowsWindow: @MainActor () -> Bool = { true }
+    private static var settling: Task<Void, Never>?
     /// The player quit the game: the curtain stays up, whatever its processes do, until Nightforge
     /// is in front (`hide(once:)`).
     private static var held = false
@@ -91,10 +97,11 @@ enum GameBackdrop {
         }
     }
 
-    /// A window of the game's asks something (GameProcesses.question): the curtain stays, right
-    /// under it – the game has the front – and over everything else, so the question shows on the
-    /// curtain as on a console. A click beside it lands on the curtain, not on Nightforge's page,
-    /// which would come to the front over the question. Back over everything with `raise`.
+    /// A window of the game's asks something (GameProcesses.question), or one of macOS's
+    /// (`macOSQuestions`, the backmost: they all show): the curtain stays, right under it – the game
+    /// or macOS has the front – and over everything else, so the question shows on the curtain as on a console. A click beside it lands on the curtain, not on Nightforge's page,
+    /// which would come to the front over the question. Back over everything with `raise`; the
+    /// game's window coming over it in front lowers it as ever.
     static func makeWay(under question: Int) {
         guard let window, isRaised else { return }
         window.level = .normal
@@ -180,7 +187,7 @@ enum GameBackdrop {
         if let observer { NotificationCenter.default.removeObserver(observer) }
         observer = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
                                                           object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { if !GameBackdrop.gameOn(), !GameBackdrop.isRaised { hide() } }
+            MainActor.assumeIsolated { GameBackdrop.nightforgeInFront() }
         }
         let window = self.window ?? make(screen.frame)
         self.window = window
@@ -203,7 +210,10 @@ enum GameBackdrop {
                 let running = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                 // With its process: Steam's Wine and the game's are both "Nightforge Game".
                 let app = "\(running?.localizedName ?? "?") (\(running.map { String($0.processIdentifier) } ?? "-"))"
+                let other = running?.processIdentifier != ProcessInfo.processInfo.processIdentifier
                 MainActor.assumeIsolated {
+                    // Behind the game, another app in front (the game again): over Nightforge's window.
+                    if other, !GameBackdrop.isRaised { return GameBackdrop.otherAppInFront() }
                     guard GameBackdrop.isRaised else { return }
                     GameLog.note("In front under the curtain: \(app)")
                     // On the way back each app coming forward brought the pointer back. The start
@@ -225,18 +235,52 @@ enum GameBackdrop {
         }
     }
 
+    /// Nightforge came to the front with the page behind a game. The game gone: the page goes. The
+    /// player came over (⌘-Tab, Go to Nightforge): it goes behind Nightforge's window. Without the
+    /// game's window macOS handed Nightforge the front as the game ended: the page stays over
+    /// Nightforge's window until the end's curtain comes (watchForGameEnd), three seconds at most.
+    private static func nightforgeInFront() {
+        guard let window, window.isVisible, !isRaised else { return }
+        guard gameOn() else { return hide() }
+        settling?.cancel()
+        guard !gameShowsWindow() else { return arrange(window, nightforgeFront: true) }
+        settling = Task {
+            for _ in 0..<30 where !isRaised && gameOn() {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !Task.isCancelled, window.isVisible, !isRaised else { return }
+            if gameOn() { arrange(window) } else { hide() }
+        }
+    }
+
+    /// Another app came to the front – the game, given the front again: the page over Nightforge's
+    /// window again.
+    private static func otherAppInFront() {
+        guard let window, window.isVisible, !isRaised else { return }
+        settling?.cancel()
+        arrange(window, nightforgeFront: false)
+    }
+
     /// The curtain above the other windows and over full-screen Spaces too – other apps' as well
     /// (the game's, Steam's), so it stays where it is while macOS slides from one Space to the
     /// next: without, it slid out with the Space it was in and Nightforge's page slid in (the
-    /// monitor test on 1.11.). Behind, above the desktop's icons only.
-    private static func arrange(_ window: NSWindow) {
+    /// monitor test on 1.11.). Behind, right over Nightforge's window while another app has the
+    /// front – the game's window going before its process ended showed Nightforge's page for a
+    /// moment before the curtain (Mafia II, 2.11.) – and above the desktop's icons only once
+    /// Nightforge is in front.
+    private static func arrange(_ window: NSWindow, nightforgeFront: Bool? = nil) {
         window.ignoresMouseEvents = true  // taken under a question (makeWay)
         if state.stage.raised {
             window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         } else {
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
+            if !(nightforgeFront ?? NSApp.isFrontmost), let main = NSApp.windows.first(where: { $0.title == "Nightforge" }), main.isVisible {
+                window.level = .normal
+                window.order(.above, relativeTo: main.windowNumber)
+                return
+            }
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         }
         window.orderFrontRegardless()
     }

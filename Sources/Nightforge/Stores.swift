@@ -161,7 +161,7 @@ final class SteamStore: StoreProvider {
             MacSteam.ask("install/\(game.appID)")
         } else {
             guard let wine = await Engine.installedWine() else { return false }
-            try Engine.startSteam(wine, arguments: ["steam://install/\(game.appID)"])
+            try await Engine.startSteamOffMain(wine, arguments: ["steam://install/\(game.appID)"])
             await SteamWindow.bringForward()  // in front of Nightforge, once it's there
         }
         // A store hit has no folder of its own yet, so the library by the Steam that adds it.

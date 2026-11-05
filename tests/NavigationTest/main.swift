@@ -56,14 +56,12 @@ struct NavigationTest {
         check(pinnedMany.prefix(2) == [137, 139] && pinnedMany.count == HomeRail.limit, "pins beat recent games and the limit holds: \(pinnedMany.prefix(3))")
 
         // Hidden and pinned marks survive a restart (UserDefaults), by store and ID.
-        let defaults = UserDefaults(suiteName: "nightforge.navigation-test")!
-        defaults.removePersistentDomain(forName: "nightforge.navigation-test")
+        let defaults = TestDefaults.suite("marks")
         GameMarks.save([.steam(570), .steam(10)], .hidden, to: defaults)
         GameMarks.save([.steam(1091500), .epic("Fortnite")], .pinned, to: defaults)
         check(GameMarks.load(.hidden, from: defaults) == [.steam(570), .steam(10)], "hidden games come back")
         check(GameMarks.load(.pinned, from: defaults) == [.steam(1091500), .epic("Fortnite")], "pinned games come back, from any store")
-        check(GameMarks.load(.hidden, from: UserDefaults(suiteName: "nightforge.navigation-test.empty")!).isEmpty, "nothing marked at first")
-        defaults.removePersistentDomain(forName: "nightforge.navigation-test")
+        check(GameMarks.load(.hidden, from: TestDefaults.suite("marks-empty")).isEmpty, "nothing marked at first")
 
         // The Dock menu: installed games played before, the last first, five at most, none hidden.
         let dock = MacIntegration.recentGames(games + many.map { var g = $0; g.lastPlayed = nil; return g }, hidden: [.steam(3)])

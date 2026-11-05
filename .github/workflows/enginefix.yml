@@ -1,0 +1,147 @@
+name: Build engine fixes (winecx)
+
+# Two of winecx's own Unix modules, rebuilt from the winecx commit the pinned runtime was built
+# from, with Nightforge's patches (engine/patches/winecx-*.patch):
+# - ntdll.so: under msync a thread that ended closed a file of the process that wasn't its own
+#   (winecx-ntdll-msync-alert-fd.patch),
+# - winecoreaudio.so: Wine 11.21's SpatialMixer downmix for 5.1/7.1 streams the device's layout
+#   doesn't match (winecx-winecoreaudio-spatialmixer.patch).
+# scripts/build-enginefix.sh does the build; this checks the results against the runtime's own
+# files and runs them under Wine. Published as one release asset that components/manifest.json
+# points to ('enginefix') – from main only, so a run on another branch just checks that it builds.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/enginefix.yml"
+      - "scripts/build-enginefix.sh"
+      - "engine/patches/winecx-ntdll-*.patch"
+      - "engine/patches/winecx-winecoreaudio-*.patch"
+      - "engine/probes/msync-thread-exit.c"
+
+permissions:
+  contents: write
+
+env:
+  # The winecx commit dappermint/winecx-gptk built runtime-v4.7.3 from (its release notes), and
+  # that runtime: the package only goes over the files it was built against.
+  WINECX_COMMIT: e0aa380780b73e20fabcfe78fd42713b94929a53
+  RUNTIME: "4.7.3"
+  RUNTIME_URL: https://github.com/dappermint/winecx-gptk/releases/download/runtime-v4.7.3/Libraries.tar.gz
+  RUNTIME_SHA256: a4b5d63493f80698cce5cad8e7212d9a51c8292037b00c478f4652636fcfd331
+
+jobs:
+  enginefix:
+    # macOS 26's SDK: the runtime's floor is 26.0, and nothing may link above it.
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Tools and sources
+        run: |
+          brew install bison flex pkg-config mingw-w64 || true
+          softwareupdate --install-rosetta --agree-to-license || true
+          mkdir winecx && cd winecx
+          git init -q
+          git remote add origin https://github.com/dappermint/winecx.git
+          git fetch -q --depth 1 origin "$WINECX_COMMIT"
+          git checkout -q FETCH_HEAD
+          cd ..
+          # Wine is LGPL: the untouched winecx source goes into the release next to the package.
+          git -C winecx archive --format=tar --prefix="winecx-$WINECX_COMMIT/" HEAD | tar -cJf winecx-source.tar.xz @-
+          curl -fsSL -o Libraries.tar.gz "$RUNTIME_URL"
+          echo "$RUNTIME_SHA256  Libraries.tar.gz" | shasum -a 256 -c -
+          mkdir runtime && tar -xzf Libraries.tar.gz -C runtime
+          rm Libraries.tar.gz
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: nightforge
+
+      - name: Build ntdll.so and winecoreaudio.so
+        run: |
+          originals="$GITHUB_WORKSPACE/runtime/Libraries/Wine/lib/wine/x86_64-unix"
+          # The runtime's originals, before anything goes over them: the app checks against these.
+          (cd "$originals" && shasum -a 256 ntdll.so winecoreaudio.so) > originals.sha256
+          cat originals.sha256
+          nightforge/scripts/build-enginefix.sh winecx work "$originals"
+          otool -L work/out/ntdll.so work/out/winecoreaudio.so
+
+      - name: Under Wine with msync
+        timeout-minutes: 20
+        run: |
+          wine="$GITHUB_WORKSPACE/runtime/Libraries/Wine"
+          x86_64-w64-mingw32-gcc -O2 -o probe64.exe nightforge/engine/probes/msync-thread-exit.c
+          i686-w64-mingw32-gcc -O2 -o probe32.exe nightforge/engine/probes/msync-thread-exit.c
+          export WINEPREFIX="$GITHUB_WORKSPACE/prefix" WINEMSYNC=1 WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml="
+          "$wine/bin/wine" wineboot -i
+          "$wine/bin/wineserver" -w
+          # The runtime as it comes, for comparison: whether this machine shows the fault there.
+          for probe in probe64.exe probe32.exe; do
+            echo "original ntdll.so, $probe: $("$wine/bin/wine" "$probe" 2>&1 | tail -1 || true)" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          "$wine/bin/wineserver" -k || true
+          cp work/out/ntdll.so work/out/winecoreaudio.so "$wine/lib/wine/x86_64-unix/"
+          for probe in probe64.exe probe32.exe; do
+            result="$("$wine/bin/wine" "$probe" 2>&1 | tail -1 || true)"
+            echo "Nightforge's ntdll.so, $probe: $result" | tee -a "$GITHUB_STEP_SUMMARY"
+            case "$result" in ok:*) ;; *) exit 1 ;; esac
+          done
+          "$wine/bin/wineserver" -k || true
+
+      - name: Assemble
+        run: |
+          version="$RUNTIME-$GITHUB_RUN_NUMBER"
+          root="nightforge-enginefix-winecx-$version"
+          mkdir -p "$root/x86_64-unix"
+          cp work/out/ntdll.so work/out/winecoreaudio.so "$root/x86_64-unix/"
+          cp originals.sha256 "$root/"
+          cp winecx/COPYING.LIB "$root/COPYING-Wine.txt"
+          cp winecx/LICENSE "$root/LICENSE-Wine.txt"
+          printf '%s\n' \
+            "ntdll.so and winecoreaudio.so: Wine (LGPL-2.1-or-later, COPYING-Wine.txt), built from https://github.com/dappermint/winecx at $WINECX_COMMIT" \
+            "with Nightforge's changes (patches/ in the source asset): ntdll.so no longer closes another file when a thread ends under" \
+            "msync, winecoreaudio.so mixes 5.1/7.1 down with Wine 11.21's SpatialMixer. For winecx runtime $RUNTIME only: originals.sha256" \
+            "names the files of that runtime these replace, and Nightforge puts them in only over exactly those." \
+            "Corresponding source: the release asset $root-source.tar.xz (untouched winecx, Nightforge's patches, the build script and workflow)." \
+            > "$root/README.txt"
+          tar -czf "$root.tar.gz" "$root"
+          # .tar.xz so it doesn't match the package asset pattern in components/sources.json.
+          # Laid out as in Nightforge's repository, so the build script finds the patches.
+          source="$root-source"
+          mkdir -p "$source/engine/patches" "$source/engine/probes" "$source/scripts" "$source/.github/workflows"
+          mv winecx-source.tar.xz "$source/"
+          cp nightforge/engine/patches/winecx-ntdll-*.patch nightforge/engine/patches/winecx-winecoreaudio-*.patch "$source/engine/patches/"
+          cp nightforge/engine/probes/msync-thread-exit.c "$source/engine/probes/"
+          cp nightforge/scripts/build-enginefix.sh "$source/scripts/"
+          cp nightforge/.github/workflows/enginefix.yml "$source/.github/workflows/"
+          cp "$root/COPYING-Wine.txt" "$root/LICENSE-Wine.txt" "$root/README.txt" "$source/"
+          printf '%s\n' \
+            "Nightforge changed these files of winecx $WINECX_COMMIT on $(date -u +%Y-%m-%d) (the patches in engine/patches/ say how and why):" \
+            "  dlls/ntdll/unix/thread.c" \
+            "  dlls/winecoreaudio.drv/coreaudio.c (Wine 11.21's commits 199ae1d, d20f6c7, 3e29c36, 8cf6408, 0c61795)" \
+            "To rebuild: unpack winecx-source.tar.xz, then scripts/build-enginefix.sh <that folder> <work folder> [the runtime's" \
+            "lib/wine/x86_64-unix]; it applies the patches. .github/workflows/enginefix.yml is how Nightforge's release was built." \
+            > "$source/NOTICE.txt"
+          tar -cJf "$source.tar.xz" "$source"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "ASSET=$root.tar.gz" >> "$GITHUB_ENV"
+          echo "SOURCE=$source.tar.xz" >> "$GITHUB_ENV"
+          shasum -a 256 "$root.tar.gz" "$source.tar.xz"
+
+      # The package of every run, so a branch's build can be tried on a Mac before it's published.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: enginefix-${{ env.VERSION }}
+          path: ${{ env.ASSET }}
+          retention-days: 14
+
+      # From main only, like gamepad.yml: a run on another branch just checks that it builds.
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "enginefix-winecx$VERSION" "$ASSET" "$SOURCE" --repo "$GITHUB_REPOSITORY" --latest=false \
+            --target "$GITHUB_SHA" --title "Engine fixes (winecx $VERSION)" \
+            --notes "ntdll.so (msync: a thread that ends no longer closes another file of the process) and winecoreaudio.so (Wine 11.21's SpatialMixer downmix) for winecx runtime $RUNTIME, built from dappermint/winecx $WINECX_COMMIT. Licence: Wine LGPL-2.1-or-later (texts inside the package). Corresponding source: $SOURCE (untouched winecx, Nightforge's patches, build script and workflow)."

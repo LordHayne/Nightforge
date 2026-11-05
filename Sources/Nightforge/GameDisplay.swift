@@ -40,6 +40,24 @@ enum GameDisplay {
     /// The screen a game will open on.
     static var screen: NSScreen? { window?.screen ?? NSScreen.main }
 
+    /// Where a game opens, for the line under Play ("Plays on: LG TV"): the screen's name once
+    /// there's more than one to open on – a mirrored one is the same place. Kept as screens come and
+    /// go and the window moves, nothing measured while the page shows.
+    final class Destination: ObservableObject {
+        @Published fileprivate(set) var name: String?
+    }
+    static let destination = Destination()
+
+    nonisolated static func destination(_ screens: [Candidate], on display: CGDirectDisplayID?) -> String? {
+        guard screens.filter({ !$0.mirrors }).count > 1, let display else { return nil }
+        return screens.first { $0.id == display }?.name
+    }
+
+    private static func showDestination() {
+        let name = destination(candidates(), on: screen.flatMap(id))
+        if destination.name != name { destination.name = name }
+    }
+
     private static var window: NSWindow? { NSApp.windows.first { $0.title == "Nightforge" } }
 
     private enum Keys {
@@ -75,10 +93,12 @@ enum GameDisplay {
             FullScreen.adopt()
             await place()
             followSound()
+            showDestination()
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
+                showDestination()
                 let all = candidates()
                 let now = Set(all.map(\.id))
                 let connected = !now.subtracting(known).isEmpty
@@ -120,6 +140,7 @@ enum GameDisplay {
         guard let moved, moved === window, let now = moved.screen.flatMap(id) else { return }
         defer {
             lastScreen = now
+            showDestination()
             // Not while Nightforge itself moves it (full screen, rearranging): only where it lands.
             if !placing, !rearranging { followSound() }
         }

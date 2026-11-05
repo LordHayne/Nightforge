@@ -55,9 +55,23 @@ struct GameProfile: Decodable, Equatable {
     /// true: the game sees the screen's full Retina resolution instead of half of it. Wine sets that
     /// for a whole session, so Steam starts afresh when it changes from one game to the next.
     var retina: Bool?
+    /// true: the game's DLSS was seen working on D3DMetal, through MetalFX (D3DM_ENABLE_METALFX), so with
+    /// MetalFX on it gets Retina mode as well (GameOptions.retina). A game's DLSS library alone isn't
+    /// enough: Control greys DLSS out on D3DMetal ("requires an NVIDIA RTX GPU", 3.11.2026), and at
+    /// the full Retina resolution without it ran below 20 FPS.
+    var dlss: Bool?
     /// Where the game keeps the resolution it starts in, so it's fitted to the screen it plays on
     /// (GameResolution), as Unity's and Unreal's are without a profile.
     var resolution: SavedResolution?
+    /// The program to start instead of the store's, relative to the game folder (GameProgram):
+    /// Epic's and GOG's games, which Nightforge starts itself. Steam picks its own.
+    var executable: String?
+    /// Wine's and CrossOver's own switches the game starts with ({"WINE_SIMULATE_WRITECOPY": "1"}),
+    /// only those GameEnvironment allows; anything else in the list is dropped.
+    var environment: [String: String]?
+    /// false: Unity's configuration window before the game asks something that matters here, so
+    /// Nightforge leaves "Play!" to the player (UnityDialog).
+    var skipUnityDialog: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -116,7 +130,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, resolution
+        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -136,14 +150,17 @@ struct GameProfile: Decodable, Equatable {
         note = try? container.decodeIfPresent(String.self, forKey: .note)
         // An unknown layer from a newer list just means "no preference" here.
         graphics = (try? container.decodeIfPresent(String.self, forKey: .graphics)).flatMap { $0.flatMap(GraphicsLayer.init(rawValue:)) }
-        arguments = try? container.decodeIfPresent([String].self, forKey: .arguments)
-        dllOverrides = try? container.decodeIfPresent([String: String].self, forKey: .dllOverrides)
+        arguments = (try? container.decodeIfPresent([String].self, forKey: .arguments)).flatMap(GameProfile.allowedArguments)
+        dllOverrides = (try? container.decodeIfPresent([String: String].self, forKey: .dllOverrides)).flatMap(GameProfile.allowedOverrides)
         registry = try? container.decodeIfPresent([RegistryEntry].self, forKey: .registry)
         windowsVersion = try? container.decodeIfPresent(String.self, forKey: .windowsVersion)
         winetricks = try? container.decodeIfPresent([String].self, forKey: .winetricks)
         metalFX = try? container.decodeIfPresent(Bool.self, forKey: .metalFX)
-        frameLimit = try? container.decodeIfPresent(Int.self, forKey: .frameLimit)
-        vulkanSamplers = try? container.decodeIfPresent(Int.self, forKey: .vulkanSamplers)
+        // Within what a game can use: a frame limit from 0 (none, as in GameOptions) to 240, samplers
+        // from 1 to 128 (the Vulkan layer reads the number unsigned: a negative one would be billions).
+        // Below that it's no preference.
+        frameLimit = (try? container.decodeIfPresent(Int.self, forKey: .frameLimit)).flatMap { $0 < 0 ? nil : min($0, 240) }
+        vulkanSamplers = (try? container.decodeIfPresent(Int.self, forKey: .vulkanSamplers)).flatMap { $0 < 1 ? nil : min($0, 128) }
         preferWindows = try? container.decodeIfPresent(Bool.self, forKey: .preferWindows)
         saves = (try? container.decodeIfPresent([SaveFolder].self, forKey: .saves))?.map {
             SaveRule(root: $0.root, path: $0.path, pattern: $0.pattern ?? "*", recursive: $0.recursive ?? true,
@@ -158,7 +175,63 @@ struct GameProfile: Decodable, Equatable {
         fileEdits = try? container.decodeIfPresent([FileEdit].self, forKey: .fileEdits)
         iniSettings = try? container.decodeIfPresent([IniSetting].self, forKey: .iniSettings)
         retina = try? container.decodeIfPresent(Bool.self, forKey: .retina)
+        dlss = try? container.decodeIfPresent(Bool.self, forKey: .dlss)
         resolution = try? container.decodeIfPresent(SavedResolution.self, forKey: .resolution)
+        executable = (try? container.decodeIfPresent(String.self, forKey: .executable)).flatMap { $0.isEmpty ? nil : $0 }
+        environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
+            .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
+        skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
+    }
+
+    // MARK: What a list may ask for at a start
+    // DLL overrides and arguments go from a stranger's repository to every player's game start, so
+    // only plain ones count, as scripts/build-profiles.py lets them through (Audit M1): a list signed
+    // without its CI meets the same rules here.
+
+    /// Load orders as Wine writes them (build-profiles.py, OVERRIDE_ORDERS).
+    static let overrideOrders: Set<String> = ["", "native", "builtin", "native,builtin", "builtin,native"]
+    /// Wine's own core, which no game's override may touch (CORE_DLLS).
+    static let coreDLLs: Set<String> = ["ntdll", "kernel32", "kernelbase", "user32", "gdi32", "win32u", "advapi32", "sechost",
+                                        "ucrtbase", "msvcrt", "ole32", "combase", "rpcrt4", "winemac.drv", "wow64", "wow64win", "wow64cpu"]
+    static let maxDLLOverrides = 32
+    static let maxArguments = 16
+
+    /// A DLL by its bare name, lowercase ("*" in front: wherever it loads from, as Wine writes it),
+    /// with one of the orders above, never Wine's core (dll_override_allowed).
+    static func isAllowedOverride(_ name: String, order: String) -> Bool {
+        let bare = name.hasPrefix("*") ? String(name.dropFirst()) : name
+        func plain(_ c: Unicode.Scalar) -> Bool { ("a"..."z").contains(c) || ("0"..."9").contains(c) || c == "_" }
+        guard let first = bare.unicodeScalars.first, plain(first), bare.unicodeScalars.count <= 64,
+              bare.unicodeScalars.allSatisfy({ plain($0) || $0 == "." || $0 == "-" }), !bare.contains(".."),
+              overrideOrders.contains(order)
+        else { return false }
+        return !coreDLLs.contains(bare.hasSuffix(".dll") ? String(bare.dropLast(4)) : bare)
+    }
+
+    /// An option ("-dx11", "+r_renderAPI", "/dx11", "-vomstyle=layer") or its value ("1", "glide_fix.conf"):
+    /// no space, quote or control character, no drive, no home, no path from the root, also behind an
+    /// "="; a relative path may go one folder up, where a game in a bin folder keeps its data
+    /// ("--bundle-dir ../bundle") (argument_allowed).
+    static func isAllowedArgument(_ argument: String) -> Bool {
+        guard (1...64).contains(argument.unicodeScalars.count), argument.unicodeScalars.allSatisfy({
+            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0) || "_.=+/-".unicodeScalars.contains($0)
+        }) else { return false }
+        for value in argument.split(separator: "=", omittingEmptySubsequences: false) {
+            let parts = value.split(separator: "/", omittingEmptySubsequences: false)
+            if value.hasPrefix("//") || value.hasPrefix("/") && parts.count > 2 || parts.dropFirst().contains("..") { return false }
+        }
+        return true
+    }
+
+    /// The overrides that pass; none at all from a list with more than the build ever makes.
+    static func allowedOverrides(_ overrides: [String: String]) -> [String: String]? {
+        let allowed = overrides.filter { isAllowedOverride($0.key, order: $0.value) }
+        return allowed.isEmpty || allowed.count > maxDLLOverrides ? nil : allowed
+    }
+
+    /// The arguments, all of them or none: an option without its value would start the game wrongly.
+    static func allowedArguments(_ arguments: [String]) -> [String]? {
+        arguments.count <= maxArguments && arguments.allSatisfy(isAllowedArgument) ? arguments : nil
     }
 }
 
@@ -202,15 +275,16 @@ private struct ProfileDocument: Decodable {
 /// Keeps the profile list current: the online copy (`NightforgeProfilesURL`) once per app run,
 /// else the last one fetched, else the copy bundled with the app. The bundled copy wins over the
 /// other two when it was built later ("generated"): a local build or an update can bring profiles
-/// the online list doesn't have yet.
+/// the online list doesn't have yet. The online copy counts only with the maintainer's signature
+/// (`Signature`) and is kept with it; a cached copy without one is passed over.
 actor ProfileStore {
     static let shared = ProfileStore()
     static let supportedFormat = 1
 
-    private let remoteURL = (Bundle.main.object(forInfoDictionaryKey: "NightforgeProfilesURL") as? String)
-        .flatMap { $0.isEmpty ? nil : URL(string: $0) }
+    private let remoteURL: URL?
     private var cachedURL: URL { Engine.supportDir.appendingPathComponent("profiles.json") }
     private let bundledURL: URL?
+    private let keys: [String]
     private var profiles: [Int: GameProfile]?
     /// Epic games' entries ("epic.<namespace>" in the list), by catalog namespace.
     private var epicProfiles: [String: GameProfile] = [:]
@@ -218,9 +292,15 @@ actor ProfileStore {
     private var gogProfiles: [String: GameProfile] = [:]
     private var refreshed = false
 
-    /// `bundledURL`: the copy that comes with the app; a test hands in its own.
-    init(bundledURL: URL? = Bundle.main.url(forResource: "profiles", withExtension: "json")) {
+    /// `bundledURL`: the copy that comes with the app, `remoteURL` the online one, `keys` the public
+    /// keys its signature must come from; a test hands in its own.
+    init(bundledURL: URL? = Bundle.main.url(forResource: "profiles", withExtension: "json"),
+         remoteURL: URL? = (Bundle.main.object(forInfoDictionaryKey: "NightforgeProfilesURL") as? String)
+             .flatMap { $0.isEmpty ? nil : URL(string: $0) },
+         keys: [String] = SigningKeys.trusted) {
         self.bundledURL = bundledURL
+        self.remoteURL = remoteURL
+        self.keys = keys
     }
 
     func profile(for appID: Int) async -> GameProfile? {
@@ -230,14 +310,16 @@ actor ProfileStore {
     }
 
     /// The profile a game starts with, from any store: Steam's by app ID, GOG's by product ID (the
-    /// Steam version's profile, for the GOG versions profiles/mac.json names). Epic's entries only
-    /// say what blocks a game (`epicAntiCheatBlocks`), so an Epic game starts without.
+    /// Steam version's profile, for the GOG versions profiles/mac.json names), Epic's by catalog
+    /// namespace ("epic.<namespace>", from the library Nightforge keeps; the entries AreWeAntiCheatYet
+    /// brings only say what blocks a game).
     func profile(for game: GameID) async -> GameProfile? {
         if let appID = game.steamAppID { return await profile(for: appID) }
-        guard game.provider == .gog else { return nil }
+        let epicNamespace = game.provider == .epic ? EpicStore.namespace(of: game.id) : nil
+        guard game.provider == .gog || epicNamespace != nil else { return nil }
         if !refreshed { await refresh() }
         loadLocalIfNeeded()
-        return gogProfiles[game.id]
+        return epicNamespace.map { epicProfiles[$0] } ?? gogProfiles[game.id]
     }
 
     /// Every game's profile from the list at hand, without waiting for the online copy (like
@@ -283,10 +365,10 @@ actor ProfileStore {
 
     private func loadLocalIfNeeded() {
         guard profiles == nil else { return }
-        let cached = try? Data(contentsOf: cachedURL)
+        let cached = Signature.signedContents(of: cachedURL, keys: keys)
         let bundled = bundledURL.flatMap { try? Data(contentsOf: $0) }
         // The newer one first; the other still serves when it can't be read.
-        let lists = cached.map { Self.isOlder($0, than: bundled) } == true ? [bundled, cached] : [cached, bundled]
+        let lists = cached.map { SignedLists.isOlder($0, than: bundled) } == true ? [bundled, cached] : [cached, bundled]
         for data in lists.compactMap({ $0 }) where use(data) { return }
     }
 
@@ -299,34 +381,28 @@ actor ProfileStore {
         return true
     }
 
-    /// Whether `list` was built before `other` (their "generated"); a list without that date counts
-    /// as older than one with it.
-    static func isOlder(_ list: Data, than other: Data?) -> Bool {
-        guard let theirs = other.flatMap(generated) else { return false }
-        guard let ours = generated(list) else { return true }
-        return ours < theirs
-    }
-
-    private static func generated(_ data: Data) -> Date? {
-        struct Stamp: Decodable { let generated: String? }
-        return (try? JSONDecoder().decode(Stamp.self, from: data))?.generated.flatMap { ISO8601DateFormatter().date(from: $0) }
-    }
-
-    /// Fetches the online list; keeps what's there when offline, when the list is too new for this
-    /// Nightforge, or when it's older than the bundled one.
+    /// Fetches the online list; keeps what's there when offline, when the list isn't signed, when
+    /// it's too new for this Nightforge, or when it's older than the bundled one or the one kept.
     func refresh() async {
         refreshed = true
         guard let remoteURL else { return }
-        var request = URLRequest(url: remoteURL)
-        request.timeoutInterval = 15
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              !Self.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }),
-              use(data)
-        else { return }
-        try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
-        try? data.write(to: cachedURL, options: .atomic)
+        switch await Signature.fetch(remoteURL, keys: keys) {
+        case .signed(let data, let signature):
+            SignedLists.note(SignedLists.profiles, refused: false)
+            // Older than the list kept: an earlier one put back (said in Settings › About). Older than the
+            // app's own is just an app newer than main's list.
+            let older = SignedLists.isOlder(data, than: Signature.signedContents(of: cachedURL, keys: keys))
+            SignedLists.note(SignedLists.profiles, older: older)
+            // By the same rule as the kept one (SignedLists.isOlder): an own list from the future doesn't count (review B).
+            guard !older, !SignedLists.isOlder(data, than: bundledURL.flatMap { try? Data(contentsOf: $0) }), use(data) else { return }
+            try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
+            try? data.write(to: cachedURL, options: .atomic)
+            try? signature.write(to: Signature.file(for: cachedURL), options: .atomic)
+        case .refused:
+            SignedLists.note(SignedLists.profiles, refused: true)
+        case .unavailable:
+            break
+        }
     }
 
     /// The entries keyed "epic.<namespace>" (older Nightforge versions skip them: not a number).

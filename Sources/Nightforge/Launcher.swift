@@ -89,7 +89,8 @@ enum Prefs {
         // Hidden – behind the game, which no longer hides the app (LibraryModel.stepBack), the same
         // as kept open – Nightforge is back the moment the game ends; quitting frees a little
         // memory and comes back too, a few seconds later.
-        AfterLaunch(rawValue: UserDefaults.standard.string(forKey: Keys.afterLaunch) ?? "") ?? .hide
+        if GameTest.active { return .stay }  // the game test starts the next game from it
+        return AfterLaunch(rawValue: UserDefaults.standard.string(forKey: Keys.afterLaunch) ?? "") ?? .hide
     }
 }
 
@@ -99,7 +100,8 @@ enum GraphicsLayer: String, Codable, CaseIterable, Identifiable {
     case automatic
     /// DXMT: Direct3D straight to Metal.
     case dxmt
-    /// DXVK: Direct3D → Vulkan → MoltenVK → Metal.
+    /// DXVK: Direct3D → Vulkan → MoltenVK → Metal. Under winecx its Direct3D 9 goes to KosmicKrisp
+    /// instead, where it gets a device (Engine.vulkanDriver).
     case dxvk
     /// Wine's own Direct3D 9 on OpenGL, for older games DXVK can't run.
     case wined3d
@@ -197,13 +199,16 @@ struct GameOptions: Codable, Equatable {
     var hdr = false
     /// Mac or Windows version, for games Steam has both of (VersionChoice).
     var version = GameVersion.automatic
+    /// The program to start instead of the store's, relative to the game folder; "" = automatic
+    /// (GameProgram). Epic's and GOG's games only: Steam picks its own.
+    var program = ""
 
     static let frameLimits = [0, 30, 40, 60, 120]
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case preset, metalHUD, extraArgs, graphics, fps, metalFX, hdr, version
+        case preset, metalHUD, extraArgs, graphics, fps, metalFX, hdr, version, program
         // 0.1.4 stored these; their defaults (0, false) meant "untouched", so they read as automatic.
         case frameLimit, upscaling
     }
@@ -220,6 +225,7 @@ struct GameOptions: Codable, Equatable {
         upscaling = try c.decodeIfPresent(Choice.self, forKey: .metalFX) ?? (legacyUpscaling ? .on : .automatic)
         hdr = try c.decodeIfPresent(Bool.self, forKey: .hdr) ?? false
         version = (try? c.decodeIfPresent(GameVersion.self, forKey: .version)) ?? .automatic
+        program = (try? c.decodeIfPresent(String.self, forKey: .program)) ?? ""
         // Before the presets (and a preset from a newer Nightforge): expert options set by hand are Custom.
         preset = (try? c.decodeIfPresent(GraphicsPreset.self, forKey: .preset))
             ?? (graphics == .automatic && frameLimit == nil && upscaling == .automatic ? .automatic : .custom)
@@ -235,6 +241,7 @@ struct GameOptions: Codable, Equatable {
         try c.encode(upscaling, forKey: .metalFX)
         if hdr { try c.encode(hdr, forKey: .hdr) }
         if version != .automatic { try c.encode(version, forKey: .version) }
+        if !program.isEmpty { try c.encode(program, forKey: .program) }
     }
 
     /// The frame limit actually used: the game's own choice, or with "Sharp & smooth" half the
@@ -290,6 +297,18 @@ struct GameOptions: Codable, Equatable {
     static func standardFrameLimit(_ refreshRate: Int, lowPower: Bool) -> Int {
         guard refreshRate > 0 else { return 0 }
         return refreshRate / ((refreshRate >= 100 ? 2 : 1) + (lowPower ? 1 : 0))
+    }
+
+    /// Wine's Retina mode for a start: what the game's profile says, and otherwise on for a game whose DLSS
+    /// works on D3DMetal (its profile's `dlss`, and DLSS beside the game) when its MetalFX is on, on a
+    /// Retina screen ("Sharp & smooth" switched on and enjoyed): the game then offers the screen's full
+    /// resolution, and its DLSS, which D3DMetal hands to MetalFX, draws below that and scales up. A game
+    /// whose DLSS doesn't come up there would draw every pixel of the Retina screen, at a fraction of
+    /// its frame rate (Control: under 20 FPS, 3.11.2026), so a DLSS library alone isn't enough.
+    func retina(profile: GameProfile?, layer: GraphicsLayer, analysis: GameAnalysis?) -> Bool {
+        if let retina = profile?.retina { return retina }
+        return layer == .d3dmetal && profile?.dlss == true && analysis?.usesDLSS == true
+            && effectiveUpscaling(profile: profile) && Hardware.current.retina
     }
 
     /// A game profile can rule MetalFX out for games it doesn't suit. Automatic upscales only on a
@@ -449,9 +468,11 @@ enum SteamCommands {
         steamWasReady && !received && sentAgo >= answerWithin
     }
 
-    /// "ExecCommandLine: ""C:\…\steam.exe" … -silent -applaunch 3907790"" – Steam took a start of `appID`.
+    /// "ExecCommandLine: ""C:\…\steam.exe" … -silent -applaunch 3907790"" – Steam took a start of `appID`;
+    /// "… -silent steam://launch/252950/Option1"" for one of the game's own launch options (SteamProgram).
     static func isLaunch(_ line: Substring, appID: Int) -> Bool {
-        line.contains("ExecCommandLine") && (line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) "))
+        line.contains("ExecCommandLine") && (line.hasSuffix("-applaunch \(appID)\"") || line.contains("-applaunch \(appID) ")
+                                             || line.contains("steam://launch/\(appID)/"))
     }
 }
 
@@ -482,6 +503,8 @@ enum Launcher {
             ? Engine.environment(wine: runner).merging(Engine.steamEnvironment) { _, new in new }
             : ProcessInfo.processInfo.environment
         var arguments: [String] = []
+        // This start begins Steam: judged by SteamStartCheck once it really started (review B5).
+        var startsSteam = false
 
         if game.bottle.isBuiltIn {
             environment["WINEDLLOVERRIDES"] = Engine.steamDLLOverrides
@@ -493,6 +516,9 @@ enum Launcher {
             // Plain Wine / Whisky / GPTK: the bottle is the prefix
             environment["WINEPREFIX"] = game.bottle.url.path
         }
+        // The program GameProgram picks, as Steam reaches it: its own launch option or the LaunchOptions.
+        let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
+        let route = game.bottle.isBuiltIn ? SteamProgram.route(game, layer: layer, options: options, profile: profile) : .standard
         if game.bottle.isBuiltIn {
             Engine.writeGameConfigs(installDir: game.installDir,
                                     frameLimit: frameLimit,
@@ -502,11 +528,21 @@ enum Launcher {
             Engine.applyIniSettings(profile?.iniSettings ?? [])
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
-            // This call starts Steam when it isn't running: in the Retina mode the game wants, and
-            // with the Guide button left to Nightforge (SteamGuideButton).
-            if !Engine.isSteamRunning {
+            // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
+            let switches = Engine.launchEnvironment.filter { GameEnvironment.allowed[$0.key] != nil && !$0.value.isEmpty }
+            if !switches.isEmpty { GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches)) through Steam") }
+            if Engine.launchEnvironment["CX_LIBVULKAN"]?.isEmpty == false {
+                GameLog.note("\(game.name) draws Direct3D 9 on DXVK through the Vulkan loader (engine test, through Steam)")
+            }
+            SteamProgram.prepare(game, route: route)
+            // This call starts Steam when it isn't running: in the Retina mode the game wants, with
+            // the Guide button left to Nightforge (SteamGuideButton) and the game's LaunchOptions.
+            // Only for a Steam that is known not to run: its files are written here, and Wine's session may end.
+            if Engine.steamRunningKnown == false {
                 Engine.applyRetinaMode(runner)
                 SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
+                SteamProgram.apply(steamRoot: Engine.steamRoot)
+                startsSteam = true
             }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own
@@ -517,18 +553,31 @@ enum Launcher {
 
         arguments += [game.steamExeWindowsPath]
         if game.bottle.isBuiltIn { arguments += Engine.steamArguments }
-        arguments += ["-silent", "-applaunch", String(game.appID)]
+        var gameArguments: [String] = []
         if game.bottle.isBuiltIn {
-            arguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
-            arguments += profile?.arguments ?? []
-            arguments += extraArguments
+            gameArguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
+            gameArguments += profile?.arguments ?? []
+            gameArguments += extraArguments
         }
-        arguments += splitArguments(options.extraArgs)
+        gameArguments += splitArguments(options.extraArgs)
+        let name = { (path: String) in (path.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent }
+        let standard = { name(SteamCatalog.launchExecutable(appID: game.appID, steamRoot: game.steamRoot) ?? "") }
+        switch route {
+        case .standard:
+            arguments += ["-silent", "-applaunch", String(game.appID)] + gameArguments
+        case .option(let type, let executable):
+            arguments += ["-silent", SteamProgram.url(appID: game.appID, type: type)]
+            GameLog.note("\(game.name) starts Steam's launch option \(type) (\(name(executable))) instead of \(standard())"
+                         + (gameArguments.isEmpty ? "" : ", without \(gameArguments.joined(separator: " ")): Steam passes none to it"))
+        case .program(let program):
+            arguments += ["-silent", "-applaunch", String(game.appID)] + gameArguments
+            GameLog.note("\(game.name) starts \(name(program)) on \(layer.rawValue) instead of \(standard()) (LaunchOptions)")
+        }
 
-        let process = DetachedProcess()
-        process.executableURL = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner
-        if process.executableURL != runner { environment["WINELOADER"] = process.executableURL?.path }
-        process.arguments = arguments
+        let program = game.bottle.isBuiltIn ? Engine.loader(for: runner) : runner
+        if program != runner { environment["WINELOADER"] = program.path }
+        // A CrossOver bottle is CrossOver's Wine, not Nightforge's: no sandbox there.
+        let process = try WineSandbox.process(program, arguments, sandboxed: game.bottle.isBuiltIn)
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         // When Steam isn't running yet, this becomes the Steam its games inherit output from.
@@ -536,15 +585,18 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        if startsSteam { Engine.lastSteamStart = (runner, Date()) }
+        // Unity's configuration window, should the game show it (only for Nightforge's own Steam).
+        UnityDialog.start(for: game, profile: profile, wine: runner)
         return process
     }
 
     /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
     /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
-    /// the game log. `environment`: `Engine.directLaunchEnvironment`.
+    /// the game log. `environment`: `Engine.directLaunchEnvironment`; `usesD3D9`: see `directEnvironment`.
     static func launchDirect(_ game: Game, command: StoreLaunchCommand, runnerPath: String, options: GameOptions,
                              profile: GameProfile?, frameLimit: Int, extraArguments: [String],
-                             environment gameEnvironment: [String: String]) throws -> DetachedProcess {
+                             environment gameEnvironment: [String: String], usesD3D9: Bool) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -558,27 +610,56 @@ enum Launcher {
         // It joins the Wine session that runs, or starts one in the Retina mode the prefix has.
         GameResolution.fit(game, profile: profile, retina: Engine.retinaModeApplied, wine: runner)
 
-        var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
-        // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
-        // choice is in the registry (AppDefaults), which an override here would beat.
-        environment["WINEDLLOVERRIDES"] = nil
-        environment["WINEDEBUG"] = GameLog.wineDebug
-        if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
+        let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
+        var environment = directEnvironment(game, layer: layer, usesD3D9: usesD3D9, runner: runner, options: options,
+                                            profile: profile, environment: gameEnvironment)
         environment.merge(command.environment) { _, store in store }
-        let process = DetachedProcess()
+        // The store's program, or the one picked for the game (GameProgram). The store's parameters
+        // (Epic's sign-in) go to whichever starts; another program runs in its own folder.
+        let program = GameProgram.resolve(store: command.executable, installDir: game.installDir, layer: layer,
+                                          chosen: options.program, profile: profile?.executable)
+        let otherProgram = program.standardizedFileURL.path != command.executable.standardizedFileURL.path
+        if otherProgram {
+            GameLog.note("\(game.name) starts \(program.lastPathComponent) on \(layer.rawValue) instead of \(command.executable.lastPathComponent)")
+        }
         let loader = Engine.loader(for: runner)
-        process.executableURL = loader
         if loader != runner { environment["WINELOADER"] = loader.path }
-        process.arguments = [Engine.windowsPath(of: command.executable)] + command.arguments + (profile?.arguments ?? [])
-            + extraArguments + splitArguments(options.extraArgs)
-        process.currentDirectoryURL = command.workingDirectory
+        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments ?? [])
+            + extraArguments + splitArguments(options.extraArgs))
+        process.currentDirectoryURL = otherProgram ? program.deletingLastPathComponent() : command.workingDirectory
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         let log = GameLog.handleForSteam()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        UnityDialog.start(for: game, profile: profile, wine: runner)
         return process
+    }
+
+    /// A direct start's environment before the store's own variables: Nightforge's engine, the game's
+    /// switches and, with the engine test on, the Vulkan loader for a Direct3D 9 game on DXVK
+    /// (Engine.vulkanLoader). `usesD3D9` is from the start's own look at the game's files
+    /// (LibraryModel.insight), so a start doesn't read them a second time.
+    static func directEnvironment(_ game: Game, layer: GraphicsLayer, usesD3D9: Bool, runner: URL, options: GameOptions,
+                                  profile: GameProfile?, environment gameEnvironment: [String: String]) -> [String: String] {
+        var environment = Engine.environment(wine: runner).merging(gameEnvironment) { _, game in game }
+        // Setting up the prefix keeps Wine Mono and Gecko out; a game may need them. The Direct3D
+        // choice is in the registry (AppDefaults), which an override here would beat.
+        environment["WINEDLLOVERRIDES"] = nil
+        let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
+        if !switches.isEmpty {
+            environment.merge(switches) { _, game in game }
+            GameLog.note("\(game.name) starts with \(GameEnvironment.describe(switches))")
+        }
+        let vulkan = Engine.vulkanLoaderEnvironment(layer: layer, d3d9: usesD3D9, wine: runner)
+        if !vulkan.isEmpty {
+            environment.merge(vulkan) { _, loader in loader }
+            GameLog.note("\(game.name) draws Direct3D 9 on DXVK through the Vulkan loader (engine test)")
+        }
+        environment["WINEDEBUG"] = GameLog.wineDebug
+        if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
+        return environment
     }
 
     /// Splits `-foo "bar baz" -x` into ["-foo", "bar baz", "-x"].

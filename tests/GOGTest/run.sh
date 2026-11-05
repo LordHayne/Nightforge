@@ -15,7 +15,7 @@ trap 'rm -rf "$DIR"' EXIT  # the test program and its home go with it
 OUT="$DIR/gog-test"
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/GOGTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/FakeProcesses.swift tests/GOGTest/main.swift
 mkdir -p "$DIR/home"
 # The real gogdl, when it's installed on this Mac (or GOGDL_COMPONENT_DIR names its version folder):
 # a copy goes into the test's home, and the test starts it the way Nightforge does.

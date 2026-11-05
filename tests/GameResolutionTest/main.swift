@@ -164,6 +164,56 @@ struct GameResolutionTest {
         } else {
             check(false, "a game's own settings section gets the TV's size")
         }
+        // ABZU (Epic, Unreal 4.8): its own class with "Fullscreen=ON" and DesiredScreenWidth/Height, no
+        // FullscreenMode – its file from the game test of 3.11.2026, when it came up 1920×1200 on the MacBook.
+        let abzu = fixture("GameUserSettings-abzu.ini")
+        if let fitted = GameResolution.unrealFitted(abzu, size: macBook) {
+            let lines = fitted.components(separatedBy: .newlines)
+            // Its full screen at 1512×982 crashed before the first window, a window that size started
+            // (live test, 3.11.2026 evening).
+            check(lines.contains("Fullscreen=OFF") && lines.contains("DesiredScreenWidth=1512") && lines.contains("DesiredScreenHeight=982"),
+                  "ABZU: a window at the screen's size, Nightforge's full screen does the rest")
+            // Its pak's defaults, which the saved file leaves out, are 1920×1080 in exclusive full screen
+            // (switched the Mac to 1920×1200 after the intro); Unreal's sizes at 1512×982 died at the
+            // start (live tests 4.11.2026). Only the mode: a window without a frame over the screen.
+            check(lines.contains("FullscreenMode=1") && lines.contains("LastConfirmedFullscreenMode=1") && !fitted.contains("ResolutionSize"),
+                  "…and Unreal's mode a full-screen window, its sizes unwritten")
+            check(lines.contains("PreferredFullscreenMode=0") && lines.contains("bUseDesktopResolutionForFullscreen=False")
+                  && lines.contains("Shadows=HIGH") && lines.contains("sg.ShadowQuality=3")
+                  && !fitted.contains("DesiredScreenWidth=1280") && !fitted.contains("Fullscreen=ON"), "the rest stays, the old size goes")
+            check(fitted.utf8.filter { $0 == 13 }.count == fitted.utf8.filter { $0 == 10 }.count
+                  && fitted.utf8.filter { $0 == 10 }.count == abzu.utf8.filter { $0 == 10 }.count + 2,
+                  "CRLF kept, Unreal's two mode keys added")
+            check(GameResolution.unrealFitted(fitted, size: macBook) == nil, "fitted once, the next start changes nothing")
+            if let tvFitted = GameResolution.unrealFitted(fitted, size: tv, screens: [tv, macBook]) {
+                check(tvFitted.contains("DesiredScreenWidth=\(tv.width)") && tvFitted.contains("Fullscreen=OFF")
+                      && tvFitted.contains("FullscreenMode=1") && !tvFitted.contains("=1512"),
+                      "the window written for the MacBook grows to the TV")
+            } else {
+                check(false, "the window written for the MacBook grows to the TV")
+            }
+        } else {
+            check(false, "ABZU's older settings get a window at the MacBook's size")
+        }
+        // What 65e2983 left behind: full screen at the screen's size, the desktop's resolution.
+        let crashed = abzu.replacingOccurrences(of: "DesiredScreenWidth=1280", with: "DesiredScreenWidth=1512")
+            .replacingOccurrences(of: "DesiredScreenHeight=720", with: "DesiredScreenHeight=982")
+            .replacingOccurrences(of: "bUseDesktopResolutionForFullscreen=False", with: "bUseDesktopResolutionForFullscreen=True")
+        check(GameResolution.unrealFitted(crashed, size: macBook)?.contains("Fullscreen=OFF") == true,
+              "a file already at the screen's size in full screen becomes a window")
+        check(GameResolution.olderFitted(["Fullscreen": "True", "DesiredScreenWidth": "1512", "DesiredScreenHeight": "982",
+                                          "FullscreenMode": "1", "LastConfirmedFullscreenMode": "1"],
+                                         size: macBook) == ["Fullscreen": "False"], "True becomes False, the game's own word")
+        check(GameResolution.unrealFitted(abzu.replacingOccurrences(of: "VSync=ON", with: "VSync=ON\r\nFullscreenMode=0"), size: macBook)?
+                .contains("FullscreenMode=1") == true, "ABZU's kind with FullscreenMode 0 gets the full-screen window too, not the exclusive mode")
+        check(GameResolution.olderFitted(["Fullscreen": "Borderless", "DesiredScreenWidth": "1280", "DesiredScreenHeight": "720"], size: macBook) == nil,
+              "a word it doesn't know: left alone")
+        let windowed = abzu.replacingOccurrences(of: "Fullscreen=ON", with: "Fullscreen=OFF")
+        check(GameResolution.unrealFitted(windowed, size: macBook, screens: [macBook]) == nil
+              && GameResolution.unrealFitted(windowed, size: tv, screens: [tv, macBook]) == nil,
+              "a window the player chose (1280×720) stays as it is")
+        check(GameResolution.unrealFitted("[/Script/Game.Settings]\nFullscreen=ON\nShadows=HIGH\n", size: tv) == nil,
+              "the older kind without a stored size: nothing invented")
         check(GameResolution.unrealFitted(fixture("GameUserSettings-windowed.ini"), size: tv) == nil, "a windowed Unreal game stays a window")
         check(GameResolution.unrealFitted("[/Script/Engine.GameUserSettings]\nbUseVSync=False\n", size: tv) == nil,
               "no FullscreenMode yet (before the game's first start): nothing to go by")
@@ -257,5 +307,28 @@ struct GameResolutionTest {
               "the project named after its program")
         check(GameResolution.unrealSettings(installDir: root.appendingPathComponent("Overcooked2"), places: places).isEmpty,
               "a Unity game has no GameUserSettings.ini")
+
+        // A folder the game links elsewhere isn't written through: the atomic write would land at its end.
+        write("Outside/Saved/Config/Windows/GameUserSettings.ini", "[/Script/Engine.GameUserSettings]")
+        write("Linked/Linked/Binaries/Win64/Linked-Win64-Shipping.exe")
+        try? fm.createSymbolicLink(at: prefix.appendingPathComponent("drive_c/users/tester/AppData/Local/Linked"),
+                                   withDestinationURL: root.appendingPathComponent("Outside"))
+        check(GameResolution.unrealSettings(installDir: root.appendingPathComponent("Linked"), places: places).isEmpty,
+              "Unreal's settings behind a project folder linked out of the prefix: left alone")
+        typealias Saved = GameProfile.SavedResolution
+        let mafia = Saved(root: "WinAppDataLocal", path: "2K Games/Mafia II/Saves/videoconfig.cfg", fields: .init(width: 2, height: 3))
+        check(GameResolution.savedFile(mafia, installDir: root, places: places)?.path
+              == prefix.appendingPathComponent("drive_c/users/tester/AppData/Local/2K Games/Mafia II/Saves/videoconfig.cfg").path,
+              "a profile's file in its root")
+        let linked = Saved(root: "WinAppDataLocal", path: "Linked/Saved/Config/Windows/GameUserSettings.ini", section: "S",
+                           keys: .init(width: "W", height: "H"))
+        check(GameResolution.savedFile(linked, installDir: root, places: places) == nil, "and none behind a link out of it")
+        write("Game/settings.ini")
+        try? fm.createSymbolicLink(at: root.appendingPathComponent("Game/Config"), withDestinationURL: root.appendingPathComponent("Outside"))
+        let inGame = Saved(path: "settings.ini", section: "Video", keys: .init(width: "W", height: "H"))
+        let throughLink = Saved(path: "Config/Saved/Config/Windows/GameUserSettings.ini", section: "Video", keys: .init(width: "W", height: "H"))
+        check(GameResolution.savedFile(inGame, installDir: root.appendingPathComponent("Game"), places: places) != nil
+              && GameResolution.savedFile(throughLink, installDir: root.appendingPathComponent("Game"), places: places) == nil,
+              "in the game folder the same: its own file yes, one behind a link out no")
     }
 }

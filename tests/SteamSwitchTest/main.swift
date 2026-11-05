@@ -22,6 +22,7 @@ struct SteamSwitchTest {
 
     @MainActor
     static func main() async {
+        TestDefaults.useWorkFolder()
         let arguments = CommandLine.arguments
         if let index = arguments.firstIndex(of: "--test-home"), arguments.count > index + 1 {
             await testHome(arguments[index + 1])

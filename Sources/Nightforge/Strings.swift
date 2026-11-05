@@ -51,6 +51,7 @@ enum L10n {
         "1 game": "1 Spiel",
         "%ld games": "%ld Spiele",
         "Rescan Library": "Bibliothek neu einlesen",
+        "Quit Nightforge": "Nightforge beenden",
         "Rescan library (⌘R)": "Bibliothek neu einlesen (⌘R)",
         "Rescan library": "Bibliothek neu einlesen",
         "Settings (⌘,)": "Einstellungen (⌘,)",
@@ -107,6 +108,14 @@ enum L10n {
         "The update download is damaged. Please try again.": "Der Update-Download ist beschädigt. Bitte versuch es noch einmal.",
         "The update isn't signed correctly, so it wasn't installed.":
             "Das Update ist nicht korrekt signiert und wurde deshalb nicht installiert.",
+        "The update says it's Nightforge %@ but holds %@, so it wasn't installed.":
+            "Das Update gibt sich als Nightforge %@ aus, enthält aber %@, und wurde deshalb nicht installiert.",
+        "The update holds an older Nightforge than the one you have, so it wasn't installed.":
+            "Das Update enthält ein älteres Nightforge als deines und wurde deshalb nicht installiert.",
+        "An online list (game fixes, components or AppleGamingWiki's reports) wasn't signed by Nightforge, so it was left out. Nightforge keeps using the lists it has.":
+            "Eine Online-Liste (Spielkorrekturen, Komponenten oder die Berichte aus dem AppleGamingWiki) war nicht von Nightforge signiert und wurde ausgelassen. Nightforge nutzt weiter die Listen, die es hat.",
+        "An online list was older than the one Nightforge already has, so it was left out. Nightforge keeps the newer one.":
+            "Eine Online-Liste war älter als die, die Nightforge schon hat, und wurde ausgelassen. Nightforge behält die neuere.",
         "Nightforge can't replace itself in this folder. Download the update from the release page instead.":
             "Nightforge kann sich in diesem Ordner nicht selbst ersetzen. Lade das Update stattdessen von der Release-Seite.",
         "Games fit": "Spiele passen",
@@ -160,8 +169,8 @@ enum L10n {
             "Dieses Spiel nutzt nur DirectX 12, das auf dem Mac bestenfalls teilweise läuft.",
         "Uses %@: online play with it doesn't work on a Mac, single player usually does.":
             "Nutzt %@: Online-Spiel damit geht auf dem Mac nicht, Einzelspieler meistens schon.",
-        "Opens a problem report on GitHub, filled in with what Nightforge knows about the game. Nothing is sent until you submit it there.":
-            "Öffnet eine Problemmeldung auf GitHub, ausgefüllt mit dem, was Nightforge über das Spiel weiß. Gesendet wird erst, wenn du sie dort abschickst.",
+        "Opens a problem report on GitHub, filled in with the game and its settings. GitHub gets that as the page opens; it's public only once you submit it. The error lines from the last start go on your clipboard, to paste if you want.":
+            "Öffnet eine Problemmeldung auf GitHub, ausgefüllt mit dem Spiel und seinen Einstellungen. GitHub erhält das schon beim Öffnen der Seite, öffentlich wird sie erst, wenn du sie abschickst. Die Fehlerzeilen des letzten Starts legt Nightforge in die Zwischenablage, zum Einfügen, wenn du willst.",
         "This game uses %@. DXMT translates DirectX 10/11 straight to Metal and is usually faster; DXVK takes a detour through Vulkan and works with more games. Automatic switches by itself if a game doesn't start.":
             "Dieses Spiel nutzt %@. DXMT übersetzt DirectX 10/11 direkt in Metal und ist meist schneller; DXVK nimmt den Umweg über Vulkan und läuft mit mehr Spielen. Automatisch wechselt von selbst, wenn ein Spiel nicht startet.",
         "This game uses %@. DXVK is usually faster; WineD3D runs some older games DXVK can't. Automatic switches by itself if a game doesn't start.":
@@ -290,6 +299,10 @@ enum L10n {
         "Performance HUD in game": "Leistungsanzeige im Spiel",
         "Shows frames per second, frame times and GPU load in the top left corner of the game.": "Zeigt Bilder pro Sekunde, Frametimes und GPU-Last oben links im Spiel.",
         "Launch Options": "Startparameter",
+        "Program": "Programm",
+        "Which of the game's programs starts. Automatic: %@.": "Welches Programm des Spiels startet. Automatisch: %@.",
+        "D3DMetal draws its DirectX 12 version.": "D3DMetal zeichnet seine DirectX-12-Fassung.",
+        "D3DMetal, Apple's own, runs it too.": "D3DMetal, Apples eigenes, kann es auch.",
         "e.g. -dx11 -skipintro": "z. B. -dx11 -skipintro",
         "Passed straight to the game at launch.": "Werden beim Start direkt an das Spiel übergeben.",
         "Cancel": "Abbrechen",
@@ -337,6 +350,7 @@ enum L10n {
         "Wine %@ (CrossOver)": "Wine %@ (CrossOver)",
         "Graphics layers": "Grafik-Schichten",
         "Controller support": "Controller-Unterstützung",
+        "Engine fixes (sound, stability)": "Engine-Verbesserungen (Ton, Stabilität)",
         "Creating Windows · %ld system files": "Windows wird angelegt · %ld Systemdateien",
         "Creating Windows …": "Windows wird angelegt …",
         "Setting up the graphics layers …": "Grafik-Schichten werden eingerichtet …",
@@ -366,6 +380,8 @@ enum L10n {
         "Steam could not be downloaded. Check your internet connection.": "Steam konnte nicht geladen werden. Prüfe deine Internetverbindung.",
         "Steam could not be installed.": "Steam konnte nicht installiert werden.",
         "Steam keeps stopping during its first start. Please try again.": "Steam bricht beim ersten Start immer wieder ab. Bitte versuch es noch einmal.",
+        "its ID can't be used in a link": "seine Kennung lässt sich nicht in einem Link verwenden",
+        "Wine's session can't be looked at just now, so the engine isn't changed under it. It's tried again at the next start.": "Wines Sitzung lässt sich gerade nicht ansehen, deshalb wird die Engine nicht unter ihr getauscht. Beim nächsten Start wird es noch einmal versucht.",
 
         // Downloads
         "Download": "Herunterladen",
@@ -382,6 +398,10 @@ enum L10n {
         "Steam starts its window again …": "Steam startet sein Fenster neu …",
         "Steam couldn't start %@.": "Steam konnte %@ nicht starten.",
         "Steam didn't respond, so %@ didn't start. Please try again.": "Steam hat nicht reagiert, deshalb ist %@ nicht gestartet. Bitte versuch es noch einmal.",
+        "The Wine sandbox is switched on, but its helper is missing from Nightforge, so Windows programs don't start. Reinstall Nightforge or switch the sandbox off.":
+            "Die Wine-Sandbox ist eingeschaltet, aber ihr Helfer fehlt in Nightforge. Deshalb starten keine Windows-Programme. Installiere Nightforge neu oder schalte die Sandbox aus.",
+        "The Wine sandbox is switched on, but the Windows programs from before it are still running. Quit them, or restart the Mac, then start again.":
+            "Die Wine-Sandbox ist eingeschaltet, aber die Windows-Programme von vorher laufen noch. Beende sie oder starte den Mac neu, dann starte noch einmal.",
 
         "VR only": "Nur VR",
         "Doesn't run on a Mac": "Läuft nicht auf dem Mac",
@@ -452,6 +472,7 @@ enum L10n {
         "The part downloaded so far is deleted. You can start the download again any time.":
             "Der bisher geladene Teil wird gelöscht. Du kannst den Download jederzeit neu starten.",
         "%@ could not be uninstalled: %@": "%@ konnte nicht deinstalliert werden: %@",
+        "still there in %@: %@": "noch da in %@: %@",
 
         "Running": "Läuft",
         "Running – switch to game": "Läuft – zum Spiel wechseln",
@@ -510,8 +531,8 @@ enum L10n {
         "Button labels": "Tastensymbole",
         "Like my controller": "Wie mein Controller",
         "No account. No telemetry. No background service.": "Kein Konto. Keine Telemetrie. Kein Hintergrunddienst.",
-        "Nothing leaves your Mac unless you send it – a problem report opens on GitHub, filled in, and goes nowhere until you submit it.":
-            "Nichts verlässt deinen Mac, außer du schickst es ab – ein Problembericht öffnet sich ausgefüllt auf GitHub und geht nirgendwohin, bis du ihn absendest.",
+        "Nightforge sends nothing by itself. A problem report opens on GitHub, filled in with the game and its settings – GitHub gets that as the page opens, it's public only once you submit it. Error lines stay on your clipboard until you paste them.":
+            "Nightforge sendet nichts von selbst. Ein Problembericht öffnet sich ausgefüllt auf GitHub, mit dem Spiel und seinen Einstellungen – GitHub erhält das schon beim Öffnen, öffentlich wird er erst, wenn du ihn abschickst. Fehlerzeilen bleiben in deiner Zwischenablage, bis du sie einfügst.",
         "Nightforge %@": "Nightforge %@",
         "Nightforge is free software under the GPL-3.0. It stands on these projects – thank you to everyone behind them. Their licence files ship inside the app.":
             "Nightforge ist freie Software unter der GPL-3.0. Es baut auf diesen Projekten auf – danke an alle, die dahinterstehen. Ihre Lizenzdateien liegen in der App.",
@@ -538,8 +559,8 @@ enum L10n {
             "Nightforges eigener Download von D3DMetal ist im Moment nicht verfügbar.",
         "Download from Apple and Import": "Bei Apple laden und importieren",
         "Download from Nightforge": "Von Nightforge laden",
-        "Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and imports it by itself.":
-            "Apples Download-Seite ist in deinem Browser geöffnet. Melde dich mit deiner Apple-Kennung an und lade das Game Porting Toolkit herunter – die .dmg-Datei. Nightforge bemerkt sie in deinem Downloads-Ordner und importiert sie von selbst.",
+        "Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and asks you before importing it.":
+            "Apples Download-Seite ist in deinem Browser geöffnet. Melde dich mit deiner Apple-Kennung an und lade das Game Porting Toolkit herunter – die .dmg-Datei. Nightforge bemerkt sie in deinem Downloads-Ordner und fragt dich, bevor es sie importiert.",
         "Waiting for the download …": "Warte auf den Download …",
         "Choose File …": "Datei wählen …",
         "Open Apple's Page Again": "Apples Seite noch einmal öffnen",
@@ -594,6 +615,10 @@ enum L10n {
             "Das ist nicht Apples Game Porting Toolkit: Nightforge hat darin kein D3DMetal gefunden.",
         "Apple didn't sign this D3DMetal, so Nightforge doesn't use it.":
             "Dieses D3DMetal ist nicht von Apple signiert, deshalb nutzt Nightforge es nicht.",
+        "Nightforge doesn't know D3DMetal %@ yet, so it can't check the toolkit's Windows files and doesn't import it. Apple's toolkit %@ can be imported.":
+            "Nightforge kennt D3DMetal %@ noch nicht, kann die Windows-Dateien des Toolkits also nicht prüfen und importiert es nicht. Apples Toolkit %@ lässt sich importieren.",
+        "The Windows files in this toolkit aren't the ones Apple ships with D3DMetal %@, so Nightforge doesn't import it. Download it from Apple again.":
+            "Die Windows-Dateien in diesem Toolkit sind nicht die, die Apple mit D3DMetal %@ ausliefert, deshalb importiert Nightforge es nicht. Lade es noch einmal bei Apple herunter.",
         "Nightforge couldn't open this download. Try downloading it again.":
             "Nightforge konnte diesen Download nicht öffnen. Lade ihn noch einmal herunter.",
         "Nightforge couldn't copy D3DMetal. Check that your Mac has room.":
@@ -601,6 +626,8 @@ enum L10n {
         "DirectX 10 and 11 on Metal": "DirectX 10 und 11 auf Metal",
         "DirectX 9 to 11 on Vulkan": "DirectX 9 bis 11 auf Vulkan",
         "Vulkan on Metal": "Vulkan auf Metal",
+        "DirectX 9 on Vulkan, with KosmicKrisp": "DirectX 9 auf Vulkan, mit KosmicKrisp",
+        "Vulkan on Metal, for DirectX 9 games": "Vulkan auf Metal, für DirectX-9-Spiele",
         "Installs what games need from Windows": "Installiert, was Spiele von Windows brauchen",
         "Unpacks Windows installers": "Entpackt Windows-Installer",
         "Tool": "Werkzeug",
@@ -628,6 +655,7 @@ enum L10n {
             "Platz schaffen – diese wurden länger nicht gespielt. Sie bleiben in deiner Steam-Bibliothek, Spielstände in der Steam Cloud bleiben erhalten.",
         "Last played %@": "Zuletzt gespielt %@",
         "Never played": "Noch nie gespielt",
+        "Plays on: %@": "Spielt auf: %@",
         "Frees %@ – enough": "Macht %@ frei – reicht",
         "Frees %@ of %@": "Macht %@ von %@ frei",
         "Uninstall %ld & Download": "%ld deinstallieren & laden",
@@ -692,6 +720,8 @@ enum L10n {
         "The drive was unplugged or can't be read.": "Das Laufwerk wurde abgezogen oder ist nicht lesbar.",
         "Nightforge isn't allowed to write there.": "Nightforge darf dort nicht schreiben.",
         "Steam started again meanwhile.": "Steam wurde inzwischen wieder gestartet.",
+        "Steam didn't end in time. Try again in a moment.": "Steam hat sich nicht rechtzeitig beendet. Versuch es gleich noch einmal.",
+        "Nightforge can't tell right now whether Steam is running. Try again in a minute.": "Nightforge kann gerade nicht erkennen, ob Steam läuft. Versuch es in einer Minute noch einmal.",
         "This removes the game from %@ and frees %@ there. It stays in your Steam library, so you can download it again any time. Saves in the Steam Cloud are kept.":
             "Das Spiel wird von %@ entfernt und gibt dort %@ frei. Es bleibt in deiner Steam-Bibliothek, du kannst es jederzeit wieder herunterladen. Spielstände in der Steam Cloud bleiben erhalten.",
         "This removes the game from %@ and frees %@ there. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.":
@@ -715,8 +745,8 @@ enum L10n {
         "Helps when something got in the way the first time – Steam updating, a window asking something.":
             "Hilft, wenn beim ersten Mal etwas dazwischenkam – ein Steam-Update oder ein Fenster mit einer Frage.",
         "Choose Graphics by Hand …": "Grafik selbst wählen …",
-        "Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there.":
-            "Immer noch nicht? Ein Problembericht öffnet sich auf GitHub, ausgefüllt mit dem, was Nightforge versucht hat – nichts wird gesendet, bis du ihn dort abschickst.",
+        "Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – GitHub gets that as the page opens, it's public only once you submit it. The error lines go on your clipboard, to paste if you want.":
+            "Immer noch nicht? Ein Problembericht öffnet sich auf GitHub, ausgefüllt mit dem, was Nightforge versucht hat – GitHub erhält das schon beim Öffnen, öffentlich wird er erst, wenn du ihn abschickst. Die Fehlerzeilen legt Nightforge in die Zwischenablage, zum Einfügen, wenn du willst.",
         "Close": "Schließen",
 
         // Launch phases
@@ -745,6 +775,8 @@ enum L10n {
         "%@ (held back)": "%@ (zurückgehalten)",
         "Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.":
             "Läuft mit der vorigen Engine vom %@ – die neueste hat es abstürzen lassen. Nightforge probiert die neue nach dem nächsten Update wieder.",
+        "Runs with the previous engine from %@ – Steam didn't start with the newest one. Nightforge tries the new one again after the next update.":
+            "Läuft mit der vorigen Engine vom %@ – Steam ist mit der neuesten nicht gestartet. Nightforge probiert die neue nach dem nächsten Update wieder.",
         "Try the Newest Now": "Jetzt die neueste probieren",
         "Next start uses the newest engine (%@). If it crashes again, Nightforge switches back by itself.":
             "Der nächste Start nimmt die neueste Engine (%@). Stürzt es wieder ab, wechselt Nightforge von selbst zurück.",
@@ -764,6 +796,8 @@ enum L10n {
         "Keep Waiting": "Weiter warten",
         "Waiting for the first picture …": "Warte auf das erste Bild …",
         "The game is asking something – answer it with the mouse or trackpad.": "Das Spiel fragt etwas – antworte mit Maus oder Trackpad.",
+        "macOS is asking for permission – answer it with the mouse or trackpad.": "macOS fragt um Erlaubnis – antworte mit Maus oder Trackpad.",
+        "macOS still has a question open.": "macOS hat noch eine Frage offen.",
         "Preparing shaders for the first start …": "Shader werden beim ersten Start vorbereitet …",
         "Full Screen": "Vollbild",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
@@ -785,8 +819,9 @@ enum L10n {
             "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
         "How did it run?": "Wie lief es?",
-        "Well": "Gut",
-        "Not well": "Nicht gut",
+        "Ran well": "Lief gut",
+        "With problems": "Mit Problemen",
+        "Didn't start": "Startet nicht",
         "Stutters": "Ruckelt",
         "Crashed": "Abgestürzt",
         "Low frame rate": "Niedrige Bildrate",
@@ -805,6 +840,8 @@ enum L10n {
         "Update & Play": "Aktualisieren & spielen",
         "Updating … %ld %%": "Aktualisiert … %ld %%",
         "Steam updates the game first – it starts by itself when the update is done.": "Steam aktualisiert das Spiel zuerst – es startet von selbst, sobald das Update fertig ist.",
+        "%@ – Steam updates the game first, it starts by itself when the update is done.":
+            "%@ – Steam aktualisiert das Spiel zuerst, es startet von selbst, sobald das Update fertig ist.",
         "An update is waiting – Steam downloads it before the game starts": "Ein Update wartet – Steam lädt es, bevor das Spiel startet",
         "Installed, update waiting": "Installiert, Update wartet",
 
@@ -838,7 +875,17 @@ enum L10n {
             "Nimmst du den neueren, bleibt der Spielstand dieser Version als Sicherung in Nightforges Ordner „Backups“.",
         "The newer save couldn't be copied over (%@). %@ starts with its own.":
             "Der neuere Spielstand ließ sich nicht übernehmen (%@). %@ startet mit seinem eigenen.",
+        "The newer save was copied over only in part (%@). The saves from before are in %@.":
+            "Der neuere Spielstand wurde nur zum Teil übernommen (%@). Die Spielstände von vorher liegen in %@.",
+        "%@; the saves from before are in %@": "%@; die Spielstände von vorher liegen in %@",
         "Removing …": "Wird entfernt …",
+        "Nightforge can only remove itself when it runs as the app.":
+            "Nightforge kann sich nur entfernen, wenn es als App läuft.",
+        "Ending Steam and Wine …": "Steam und Wine werden beendet …",
+        "Copying saves …": "Spielstände werden kopiert …",
+        "Deleting files …": "Dateien werden gelöscht …",
+        "Not everything could be deleted (%@). The rest is still there – try again, or delete it in Finder.":
+            "Nicht alles ließ sich löschen (%@). Der Rest ist noch da – versuch es noch einmal oder lösch ihn im Finder.",
         "Measuring …": "Wird gemessen …",
         "Deletes the game engine, the Windows environment with its games, the caches and the settings. Saves that are only on this Mac are copied to Documents first.":
             "Löscht die Spiel-Engine, die Windows-Umgebung mit ihren Spielen, die Caches und die Einstellungen. Spielstände, die nur auf diesem Mac liegen, werden vorher nach „Dokumente“ kopiert.",
@@ -1333,6 +1380,36 @@ enum L10n {
         "Your games in the Dock": "Deine Spiele im Dock",
         "Right-click Nightforge in the Dock: your last five games are there to start right away.":
             "Klick mit rechts auf Nightforge im Dock: Dort stehen deine letzten fünf Spiele zum Direktstart.",
+
+        // What others report (AppleGamingWiki)
+        "Mac version (Intel)": "Mac-Version (Intel)",
+        "Wine / Game Porting Toolkit": "Wine / Game Porting Toolkit",
+        "perfect": "perfekt",
+        "playable": "spielbar",
+        "runs, with big flaws": "läuft, mit großen Fehlern",
+        "only to the menu": "nur bis ins Menü",
+        "unplayable": "unspielbar",
+        "According to AppleGamingWiki: %@.": "Laut AppleGamingWiki: %@.",
+        "According to AppleGamingWiki it runs badly through CrossOver and Wine (%@) – it may not run here either.":
+            "Laut AppleGamingWiki läuft es über CrossOver und Wine schlecht (%@) – hier vielleicht auch nicht.",
+        "What others report": "Was andere berichten",
+        "According to AppleGamingWiki:": "Laut AppleGamingWiki:",
+        "Nightforge tries %@ first, as these reports did.": "Nightforge versucht zuerst %@, wie in diesen Berichten.",
+        "From AppleGamingWiki (CC BY-NC-SA 3.0), shortened. Found by the game's name – it may be another edition.":
+            "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Über den Namen des Spiels gefunden – vielleicht eine andere Ausgabe.",
+        "From AppleGamingWiki (CC BY-NC-SA 3.0), shortened. Tested with other versions than Nightforge's.":
+            "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Getestet mit anderen Versionen als denen von Nightforge.",
+        "AppleGamingWiki has no ratings for this game yet.": "Im AppleGamingWiki gibt es für dieses Spiel noch keine Bewertung.",
+        "No profile yet – %@ first, as AppleGamingWiki reports.": "Noch kein Profil – zuerst %@, wie im AppleGamingWiki berichtet.",
+
+        "Thanks – noted on this Mac. Next time Nightforge starts it another way.":
+            "Danke – auf diesem Mac vermerkt. Beim nächsten Mal startet Nightforge es auf einem anderen Weg.",
+        "You said it didn't start.": "Du hast gesagt, es startet nicht.",
+        "Share Report …": "Bericht teilen …",
+        "Opens a GitHub form in your browser, filled in with the game, your answer and the way it ran – no paths, account names or logs. GitHub gets these values as the page opens; the report is public only once you submit it, with your GitHub name on it.":
+            "Öffnet ein GitHub-Formular im Browser, ausgefüllt mit dem Spiel, deiner Antwort und dem Weg, auf dem es lief – ohne Pfade, Kontonamen oder Logs. GitHub erhält diese Werte schon beim Öffnen der Seite; öffentlich wird der Bericht erst, wenn du ihn abschickst, mit deinem GitHub-Namen daran.",
+        "The error lines from the last start are on your clipboard – paste them into the report if you want to share them.":
+            "Die Fehlerzeilen des letzten Starts sind in deiner Zwischenablage – füge sie in den Bericht ein, wenn du sie teilen willst.",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

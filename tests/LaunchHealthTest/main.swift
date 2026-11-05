@@ -37,12 +37,15 @@ struct LaunchHealthTest {
     }
 
     /// The ladder on an engine as asked – not the one installed on this Mac.
-    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false, vulkanLayer: Bool = true) -> [String] {
+    static func ids(_ analysis: GameAnalysis, _ profileJSON: String? = nil, d3dMetal: Bool = false, vulkanLayer: Bool = true,
+                    kosmicKrisp: Bool = false) -> [String] {
         let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
-        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer).map(\.id)
+        return LaunchHealth.attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
+                                     kosmicKrisp: kosmicKrisp).map(\.id)
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         // MARK: Ladders
         check(ids(GameAnalysis(apis: [.d3d11])) == ["dxmt", "dxvk"], "DirectX 11: DXMT, then DXVK")
         check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "dxvk"}"#) == ["dxvk", "dxmt"], "a profile's layer goes first")
@@ -61,19 +64,119 @@ struct LaunchHealthTest {
               "Unreal: DirectX 11 on DXMT first, DirectX 12 on D3DMetal last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"],
               "unknown engine with DirectX 12: D3DMetal after the DirectX 11 ladder")
-        check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk"], "DirectX 11 only: unchanged")
+        check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "DirectX 11 only: D3DMetal's Direct3D 11 last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: true)
               == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"], "a profile that measured DirectX 12 better starts there, without -dx11")
+        // Control: Control.exe hands over to Control_DX11.exe; Control_DX12.exe is its DirectX 12 (GameProgram).
+        let control = GameAnalysis(apis: [.d3d11, .d3d12], d3d12Program: "Control_DX12.exe")
+        check(ids(control, #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "a game with a DirectX 12 program of its own and a profile for D3DMetal: D3DMetal first")
+        check(ids(control, d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "…without the profile, D3DMetal after DXMT and DXVK")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: false).first == "dxmt -dx11",
               "…but not on an engine without D3DMetal")
         check(ids(GameAnalysis(apis: [.d3d9]), d3dMetal: true) == ["dxvk", "wined3d"], "DirectX 9: unchanged")
         check(ids(GameAnalysis(apis: [.d3d12]), #"{"graphics": "dxvk"}"#, d3dMetal: true) == ["d3dmetal"],
               "a DirectX 11 layer in a profile doesn't apply to a DirectX 12 game")
 
+        // MARK: Hints from other sources (AppleGamingWiki)
+        let d3dMetalHint = SourceHint(graphics: .d3dmetal, directX: "12")
+        let both = GameAnalysis(apis: [.d3d11, .d3d12])  // Control: no DirectX 11 switch Nightforge knows
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: both, d3dMetal: true) == .d3dmetal, "D3DMetal for a DirectX 12 build without a known switch")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: both, d3dMetal: false) == nil, "…not on an engine without D3DMetal")
+        check(LaunchHealth.hinted(SourceHint(graphics: .d3dmetal), analysis: both, d3dMetal: true) == .d3dmetal, "…also when the reports name no DirectX")
+        check(LaunchHealth.hinted(SourceHint(graphics: .d3dmetal, directX: "11"), analysis: both, d3dMetal: true) == .d3dmetal,
+              "…and when they ran it with DirectX 11: D3DMetal runs both")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), d3dMetal: true) == nil,
+              "Unreal's measured DirectX 11 on DXMT isn't left for a report")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d11]), d3dMetal: true) == .d3dmetal,
+              "DirectX 11 only: Apple's Direct3D 11 (Control's DX11 build)")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(), d3dMetal: true) == .d3dmetal, "…and a game nothing was detected for")
+        check(LaunchHealth.hinted(d3dMetalHint, analysis: GameAnalysis(apis: [.d3d9]), d3dMetal: true) == nil, "not for DirectX 9")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis(apis: [.d3d11])) == .dxvk, "DXVK for DirectX 11")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis()) == .dxvk, "…and when nothing was detected")
+        check(LaunchHealth.hinted(SourceHint(graphics: .dxvk), analysis: GameAnalysis(apis: [.d3d9])) == nil, "a DirectX 11 layer doesn't fit DirectX 9")
+        check(LaunchHealth.hinted(SourceHint(graphics: .wined3d), analysis: GameAnalysis(apis: [.d3d9])) == nil, "no WineD3D hints")
+        check(LaunchHealth.hinted(nil, analysis: both, d3dMetal: true) == nil, "no hint, nothing")
+
+        func hintedIDs(_ analysis: GameAnalysis, _ hint: SourceHint, _ profileJSON: String? = nil, d3dMetal: Bool = true) -> [String] {
+            let profile = profileJSON.flatMap { try? JSONDecoder().decode(GameProfile.self, from: Data($0.utf8)) }
+            return LaunchHealth.attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: true).map(\.id)
+        }
+        check(hintedIDs(both, d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"], "Control: DirectX 12 on D3DMetal first, DirectX 11 after")
+        check(hintedIDs(both, d3dMetalHint, d3dMetal: false) == ["dxmt", "dxvk"], "…the usual list without D3DMetal")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), SourceHint(graphics: .dxvk)) == ["dxvk", "dxmt", "d3dmetal"], "a DXVK hint goes first")
+        check(hintedIDs(both, d3dMetalHint, #"{"graphics": "dxmt"}"#) == ["dxmt", "dxvk", "d3dmetal"], "a profile's layer beats any hint")
+        check(hintedIDs(GameAnalysis(apis: [.d3d12]), d3dMetalHint) == ["d3dmetal"], "DirectX 12 only: unchanged")
+        check(hintedIDs(GameAnalysis(apis: [.d3d11]), d3dMetalHint) == ["d3dmetal", "dxmt", "dxvk"],
+              "DirectX 11 only: D3DMetal first, once, then DXMT and DXVK")
+
+        // "Most compatible": the hinted way first, as a profile's would be, then the safest.
+        let hintedControl = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, d3dMetal: true, vulkanLayer: true)
+        check(LaunchHealth.ladder(hintedControl, preset: .compatible, profile: nil, hint: .d3dmetal).map(\.id) == ["d3dmetal", "dxvk", "dxmt"],
+              "Most compatible: the hinted way first")
+        check(LaunchHealth.ladder(hintedControl, preset: .compatible, profile: nil).map(\.id) == ["dxvk", "dxmt", "d3dmetal"], "…without it, the safest first")
+        check(LaunchHealth.ladder(hintedControl, preset: .automatic, profile: nil, hint: .d3dmetal) == hintedControl, "Automatic keeps the list")
+
+        // A game that has started by the list without the hint keeps it; a new one follows the hint.
+        let fresh = GameID.steam(990_005)
+        LaunchHealth.reset(fresh)
+        let followed = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(followed.attempts.map(\.id) == ["d3dmetal", "dxmt", "dxvk"] && followed.hint == .d3dmetal, "a game not started yet follows the hint")
+        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true)
+        LaunchHealth.confirm(fresh, plain)
+        let kept = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(kept.attempts == plain && kept.hint == nil, "a way that works isn't given up for a report")
+        LaunchHealth.reset(fresh)
+        LaunchHealth.recordStart(fresh, plain)
+        _ = LaunchHealth.advance(fresh, plain)
+        let late = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(late.attempts == followed.attempts && late.hint == .d3dmetal,
+              "a game still looking for its way (started before the hint came) takes the hinted list")
+        // A ladder that only grew at the end keeps what was learned (saved(_:for:)), with or without a hint:
+        // confirmed on DXVK before D3DMetal became DirectX 11's last way, it stays on DXVK.
+        let grownGame = GameID.steam(990_006)
+        let dx11Only = GameAnalysis(apis: [.d3d11])
+        LaunchHealth.reset(grownGame)
+        let older = LaunchHealth.attempts(for: dx11Only, profile: nil, d3dMetal: false, vulkanLayer: true)
+        LaunchHealth.recordStart(grownGame, older)
+        _ = LaunchHealth.advance(grownGame, older)
+        LaunchHealth.confirm(grownGame, older)
+        let grownNow = LaunchHealth.attempts(for: dx11Only, profile: nil, hint: d3dMetalHint, game: grownGame, preset: .automatic,
+                                             d3dMetal: true, vulkanLayer: true)
+        check(grownNow.hint == nil && grownNow.attempts.map(\.id) == ["dxmt", "dxvk", "d3dmetal"]
+              && LaunchHealth.current(grownGame, grownNow.attempts) == (1, true),
+              "a game confirmed on a list that since grew at the end keeps its way; the hint doesn't reorder it")
+        LaunchHealth.reset(grownGame)
+        LaunchHealth.recordStart(grownGame, older)
+        let searching = LaunchHealth.attempts(for: dx11Only, profile: nil, hint: d3dMetalHint, game: grownGame, preset: .automatic,
+                                              d3dMetal: true, vulkanLayer: true)
+        check(searching.hint == .d3dmetal && searching.attempts.first?.graphics == .d3dmetal
+              && LaunchHealth.current(grownGame, searching.attempts) == (0, false),
+              "one not confirmed yet takes the hinted list and starts with the reported way")
+        LaunchHealth.reset(grownGame)
+        LaunchHealth.reset(fresh)
+        LaunchHealth.recordStart(fresh, followed.attempts)
+        let again = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(again.attempts == followed.attempts && again.hint == .d3dmetal, "a game started by the hinted list stays on it")
+        let ownLayer = LaunchHealth.attempts(for: both, profile: try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"graphics": "dxvk"}"#.utf8)),
+                                             hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
+        check(ownLayer.attempts.first?.graphics == .dxvk && ownLayer.hint == nil, "with a profile's layer there's no hint to follow")
+        LaunchHealth.reset(fresh)
+
+        // Under winecx DXVK's Direct3D 9 only gets a device on KosmicKrisp (Engine.vulkanDriver).
+        check(ids(GameAnalysis(apis: [.d3d9]), vulkanLayer: false) == ["wined3d"], "winecx without KosmicKrisp: WineD3D only")
+        check(ids(GameAnalysis(apis: [.d3d9]), vulkanLayer: false, kosmicKrisp: true) == ["dxvk", "wined3d"],
+              "winecx with KosmicKrisp: DXVK first, WineD3D behind it")
+        check(ids(GameAnalysis(apis: [.legacy]), vulkanLayer: false, kosmicKrisp: true) == ["dxvk", "wined3d"],
+              "older Direct3D on the same ladder")
+        check(ids(GameAnalysis(apis: [.d3d9, .d3d11]), vulkanLayer: false, kosmicKrisp: true) == ["dxmt", "dxvk"],
+              "a game with DirectX 11 as well stays on its DirectX 11 ladder")
+        check(ids(GameAnalysis(apis: [.vulkan]), vulkanLayer: false, kosmicKrisp: true) == ["dxmt"], "Vulkan games: unchanged")
+
         // MARK: State
         let appID = 990_001
         let app = GameID.steam(appID)
-        let ladder = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil)
+        let ladder = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil, d3dMetal: false)
         LaunchHealth.reset(app)
         check(LaunchHealth.current(app, ladder) == (0, false), "starts at the first way")
         LaunchHealth.recordStart(app, ladder)
@@ -91,6 +194,18 @@ struct LaunchHealthTest {
         UserDefaults.standard.set(true, forKey: "health.dxmtFailed.\(app.key)")
         check(LaunchHealth.current(app, ladder).index == 1, "0.2's \"DXMT failed\" carries over")
         check(UserDefaults.standard.object(forKey: "health.dxmtFailed.\(app.key)") == nil, "the old key is gone")
+        // D3DMetal added at the end of every DirectX 11 ladder (2.11.2026): what was learned before holds.
+        LaunchHealth.reset(app)
+        _ = LaunchHealth.advance(app, ladder)
+        LaunchHealth.confirm(app, ladder)
+        let grown = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d11]), profile: nil, d3dMetal: true)
+        check(grown.map(\.id) == ["dxmt", "dxvk", "d3dmetal"] && LaunchHealth.current(app, grown) == (1, true),
+              "a ladder that only grew at the end keeps the learned way: DXVK, confirmed")
+        check(LaunchHealth.peek(app, grown).map { $0.index == 1 && $0.confirmed } == true, "…also when only looked at")
+        check(LaunchHealth.advance(app, grown) && LaunchHealth.current(app, grown) == (2, false), "DXVK failing then moves on to D3DMetal")
+        check(ids(GameAnalysis(apis: [.d3d11]), #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "a profile's D3DMetal for a DirectX 11 game comes once, and DXMT and DXVK still follow")
+        LaunchHealth.reset(app)
 
         // MARK: What a game taught Nightforge (kept under a game ID no store has, removed again)
         let taught = GameID.steam(990_003)
@@ -142,6 +257,19 @@ struct LaunchHealthTest {
         LaunchHealth.reset(app)
         check(!LaunchHealth.quitByPlayer(app, since: now), "reset forgets it")
 
+        // Closed at its own question – Unity's configuration window, Quit (The Forest on 3.11. went on
+        // to DXVK for it): the player's choice, the way stays.
+        LaunchHealth.recordStart(app, ladder, at: now)
+        session(seconds: 6, startedAt: now)
+        check(!LaunchHealth.endedAtOwnQuestion(app, since: now), "not ended at a question yet")
+        LaunchHealth.endedAtOwnQuestion(app, at: now.addingTimeInterval(7))
+        check(LaunchHealth.endedAtOwnQuestion(app, since: now), "ended at its question 7 s after its start")
+        check(!LaunchHealth.endedAtOwnQuestion(app, since: now.addingTimeInterval(60)), "that was an earlier start")
+        LaunchHealth.review(app, ladder, steamRoot: steam)
+        check(LaunchHealth.current(app, ladder) == (0, false), "a 6 s session closed at its own question: the way stays")
+        LaunchHealth.reset(app)
+        check(!LaunchHealth.endedAtOwnQuestion(app, since: now), "reset forgets it")
+
         // The curtain sank, then the player quit a few seconds in (OxyRail on 1.11., started again on DXVK).
         LaunchHealth.recordStart(app, ladder, at: now)
         session(seconds: 6, startedAt: now)
@@ -161,9 +289,10 @@ struct LaunchHealthTest {
 
         // MARK: Confirmations from before frames counted (Mafia II's, as it stood in the defaults on 31.10.2026)
         let mafia = GameID.gog("1816059595")
-        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true)
+        let d3d9 = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: true, kosmicKrisp: false)
         check(d3d9.map(\.id) == ["dxvk", "wined3d"], "DirectX 9 with Nightforge's Vulkan layer: DXVK, then WineD3D")
-        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false).map(\.id) == ["wined3d"],
+        check(LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d9]), profile: nil, vulkanLayer: false, kosmicKrisp: false).map(\.id)
+              == ["wined3d"],
               "under winecx (no layer, DXVK never gets a device – L4D2, Mafia II): WineD3D only, nothing to move on to")
         // Mafia II's WineD3D start, 1.11.2026: two of DXVK's lines in the shared log ended it and moved it on to DXVK.
         let dxvkLines = "Failed to load ADL library\n[mvk-error] VK_ERROR_FEATURE_NOT_PRESENT: vkCreateDevice(): …\nerr:   DxvkAdapter: Failed to create device\n"
@@ -212,7 +341,7 @@ struct LaunchHealthTest {
         check(!LibraryModel.mayStart(launching: true, startsAgain: false), "the player's own start in progress: one at a time")
         check(LibraryModel.mayStart(launching: true, startsAgain: true), "Nightforge starting a game again another way gives way to a Play")
         // The player plays 2 minutes on D3DMetal (no frame lines), then quits.
-        check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 120)) == .keep,
+        check(LaunchHealth.afterFirstSeconds(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: false, ranFor: 120)) == .keep,
               "two minutes without a frame line: the confirmation stays")
         check(LaunchHealth.afterFirstSeconds(.working) == .confirm && LaunchHealth.afterFirstSeconds(.watching) == .keep, "drew: confirmed")
         LaunchHealth.confirm(mafia, d3d9)
@@ -302,6 +431,19 @@ struct LaunchHealthTest {
         check(errors.count == 6, "errors without repeats: \(errors.count)")
         check(errors.first?.hasPrefix("err:module") == true, "thread ids dropped: \(errors.first ?? "")")
         check(errors.contains("err:   DXGI: Failed to create swap chain"), "DXVK's own error lines kept")
+        // Steam's driver probes and browser at every start (live test of Control, 3.11.2026).
+        let steamNoise = """
+        0098:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\gldriverquery.exe") not found
+        0098:err:module:loader_init Importing dlls for L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\gldriverquery.exe" failed, status c0000135
+        00a4:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\vulkandriverquery64.exe") not found
+        00b0:err:module:import_dll Library dwrite.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\cef\\\\cef.win7x64\\\\libcef.dll") not found
+        00c0:err:module:LdrInitializeThunk "steamwebhelper.exe" failed to initialize, aborting
+        """
+        let withNoise = GameLog.errors(in: steamNoise + "\n" + log)
+        check(withNoise == errors, "Steam's own helpers left out, steam.exe and the game kept: \(withNoise)")
+        check(GameLog.errors(in: steamNoise).isEmpty, "…nothing left when Steam's noise was all there was")
+        check(!GameLog.steamNoise(#"err:module:import_dll Library steam_api64.dll (which is needed by L"D:\\SteamLibrary\\steamapps\\common\\Bin Game\\bin\\game.exe") not found"#),
+              "a game in a Steam library with a bin folder of its own isn't Steam's")
 
         // MARK: Programs that get the Direct3D layer
         let unreal = FileManager.default.temporaryDirectory.appendingPathComponent("lht-unreal-\(UUID().uuidString)", isDirectory: true)
@@ -340,10 +482,17 @@ struct LaunchHealthTest {
         fm.createFile(atPath: folder.appendingPathComponent("bin/shaderapidx9.dll").path, contents: Data())
         analysis = GameAnalysis.analyze(installDir: folder, launchExecutable: "left4dead2.exe")
         check(analysis.apis == [.d3d9] && ids(analysis) == ["dxvk", "wined3d"], "Source game: DirectX 9 ladder: \(analysis)")
+        check(!analysis.usesDLSS, "no DLSS library: no DLSS")
+        fm.createFile(atPath: folder.appendingPathComponent("nvngx_dlss.dll").path, contents: Data())
+        check(GameAnalysis.analyze(installDir: folder, launchExecutable: "left4dead2.exe").usesDLSS,
+              "NVIDIA's DLSS library beside the game (Control): DLSS")
         try? fm.removeItem(at: folder)
         check(GameLog.graphicsFailed(in: "warn:  DXVK: No state cache file found\nerr:   DxvkBuffer: Failed to create buffer:\nerr:     size:  65536"),
               "DXVK's failed buffer counts as a failed start")
         check(GameLog.graphicsFailed(in: "err:   DxvkAdapter: Failed to create device"), "DXVK's failed device counts as a failed start")
+        check(GameLog.d3dMetalStart("Control", environment: ["D3DM_ENABLE_METALFX": "1", "D3DM_MAX_FPS": "60", "D3DM_VENDOR_ID": ""], retina: true)
+              == "Control starts on D3DMetal: D3DM_ENABLE_METALFX=1 D3DM_MAX_FPS=1 D3DM_VENDOR_ID=0 D3DM_DEVICE_ID=0 D3DM_SUPPORT_DXR=0 retina=1",
+              "a D3DMetal start's settings in the game log: names and 1/0, an emptied one is 0")
         check(!GameLog.graphicsFailed(in: "warn:  DXVK: No state cache file found\nerr:   DXGI: Failed to create swap chain"),
               "other DXVK errors don't end a game")
         check(GameLog.missingRuntimes(in: "0040:err:mscoree:CLRRuntimeInfo_GetRuntimeHost Wine Mono is not installed", gameFolder: "x")
@@ -371,11 +520,16 @@ struct LaunchHealthTest {
                                       programs: ["Overcooked2.exe"]), "DXMT: drawing")
         check(!LaunchHealth.drewFrames(in: "info:  [nightforge-dxmt] Overcooked2: 55.0 FPS over 10 s, frames 18.2 ms on average, slowest 788 ms",
                                        programs: ["mafia2.exe"]), "another game's frames don't count")
-        check(LaunchHealth.verdict(drewFrames: true, running: true, ranFor: 35) == .working, "frames: confirmed")
-        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: 60) == .watching, "running without a frame yet: still watching")
-        check(LaunchHealth.verdict(drewFrames: false, running: false, ranFor: 62) == .ended, "ended after a minute without a frame: not confirmed")
-        check(LaunchHealth.verdict(drewFrames: false, running: true, ranFor: LaunchHealth.drawingWindow) == .working,
-              "nothing logs frames (wined3d, D3DMetal): three minutes of running count")
+        check(LaunchHealth.verdict(drewFrames: true, showedPicture: false, running: true, ranFor: 35) == .working, "frames: confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: true, ranFor: 60) == .watching,
+              "running without a frame yet: still watching")
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: false, ranFor: 62) == .ended,
+              "ended after a minute without a frame: not confirmed")
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: true, running: true, ranFor: LaunchHealth.drawingWindow) == .working,
+              "nothing logs frames (wined3d, D3DMetal): three minutes of running with a picture count")
+        // Overwatch on D3DMetal (1.11.2026): no window, 0 % CPU – three minutes of that aren't working.
+        check(LaunchHealth.verdict(drewFrames: false, showedPicture: false, running: true, ranFor: LaunchHealth.drawingWindow * 2) == .watching,
+              "running without ever showing a window: still watching, not confirmed")
         LaunchHealth.reset(app)
         LaunchHealth.recordStart(app, ladder, at: now)
         session(seconds: 70, startedAt: now)
@@ -422,6 +576,36 @@ struct LaunchHealthTest {
         Hardware.set(.init(retina: true, lowPower: true))
         check(GameOptions().effectiveFrameLimit(displayRefreshRate: 120) == (Prefs.sharpAndSmooth ? 40 : 0),
               "Low Power Mode starts one share lower")
+
+        // Wine's Retina mode for a start: a game whose DLSS works on D3DMetal (its profile says so) gets it
+        // with MetalFX. Control's DLSS library alone isn't enough: greyed out there, under 20 FPS at full Retina.
+        Hardware.set(.init(retina: true, lowPower: false))
+        var dlss = GameAnalysis()
+        dlss.usesDLSS = true
+        func profiled(_ json: String) -> GameProfile? { try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let works = profiled(#"{"dlss": true}"#)
+        let automatic = GameOptions()
+        check(automatic.retina(profile: works, layer: .d3dmetal, analysis: dlss) == Prefs.sharpAndSmooth,
+              "DLSS known to work on D3DMetal, Sharp & smooth, a Retina screen: Retina mode")
+        check(!automatic.retina(profile: nil, layer: .d3dmetal, analysis: dlss),
+              "DLSS beside the game but not known to work (Control): none")
+        check(!automatic.retina(profile: works, layer: .d3dmetal, analysis: GameAnalysis())
+              && !automatic.retina(profile: works, layer: .dxmt, analysis: dlss) && !automatic.retina(profile: works, layer: .d3dmetal, analysis: nil),
+              "without DLSS beside the game, on another layer or unknown: none (the game would draw every pixel)")
+        var noUpscaling = GameOptions()
+        noUpscaling.upscaling = .off
+        check(!noUpscaling.retina(profile: works, layer: .d3dmetal, analysis: dlss)
+              && !automatic.retina(profile: profiled(#"{"dlss": true, "metalFX": false}"#), layer: .d3dmetal, analysis: dlss),
+              "MetalFX off, by hand or by the profile: none")
+        check(automatic.retina(profile: profiled(#"{"retina": true}"#), layer: .dxmt, analysis: nil)
+              && !automatic.retina(profile: profiled(#"{"retina": false, "dlss": true}"#), layer: .d3dmetal, analysis: dlss),
+              "a profile's word on Retina counts either way")
+        Hardware.set(.init(retina: false, lowPower: false))
+        var upscaled = GameOptions()
+        upscaled.upscaling = .on
+        check(!automatic.retina(profile: works, layer: .d3dmetal, analysis: dlss) && !upscaled.retina(profile: works, layer: .d3dmetal, analysis: dlss),
+              "a screen without Retina: none, even with MetalFX switched on")
+        Hardware.set(.init(retina: true, lowPower: false))
         check(FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt, lowPower: true)
               != FramePacing.Context(refreshRate: 120, upscaling: true, graphics: .dxmt),
               "Low Power Mode learns apart from normal play")
@@ -442,6 +626,23 @@ struct LaunchHealthTest {
                     "HKEY_CURRENT_USER\\Software\\Game]\n[HKEY_CURRENT_USER\\Software\\Microsoft", #"HKEY_CURRENT_USER\Software\"#] {
             check(!Engine.isAllowedRegistryKey(key), "registry key \(key.debugDescription) refused")
         }
+        // A game's programs name their AppDefaults section: a file name can't close it and open another.
+        for name in ["Game.exe", "Baldur's Gate 3 (x64).exe", "UE4-Win64-Shipping.exe", "Ünïcødé – Spiel.exe"] {
+            check(Engine.isPlainProgramName(name), "program \(name) gets its settings")
+        }
+        let planted = "x.exe]\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n\"a\"=\"b\"\n[y.exe"
+        for name in [planted, "a[b.exe", "line\nbreak.exe", "tab\t.exe", "back\\slash.exe", "del\u{7F}.exe", ""] {
+            check(!Engine.isPlainProgramName(name), "program \(name.debugDescription) is skipped")
+        }
+        let programs = fm.temporaryDirectory.appendingPathComponent("nf-programs-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: programs, withIntermediateDirectories: true)
+        for name in ["Game.exe", planted.replacingOccurrences(of: "/", with: "-")] {
+            try? Data().write(to: programs.appendingPathComponent(name))
+        }
+        let found = Engine.executables(in: programs)
+        check(found.count == 2 && found.filter(Engine.isPlainProgramName) == ["Game.exe"],
+              "a planted name is found in the folder but gets no section: \(found.map(\.debugDescription))")
+        try? fm.removeItem(at: programs)
 
         // Migration from Nachtschicht into a Nightforge folder that already exists: the prefix it lacks
         // comes over, what it has stays its own.
@@ -485,6 +686,39 @@ struct LaunchHealthTest {
         check(GameLog.errors(in: "0124:err:module:foo L\"C:\\\\users\\\\thomas\\\\x.exe -AUTH_PASSWORD=zzzz1111\"", limit: 5).joined().contains("zzzz1111") == false,
               "error lines for a report are redacted")
 
+        // Audit N7, with lines from a real wine.log and Steam log (2026-11-01), names changed: an external
+        // drive named after its owner, the Mac's names, the account's temp folder, a GOG user id.
+        let machine = GameLog.machineNameList(["Jane’s MacBook Pro", "Janes-MacBook-Pro.local", "Janes-MacBook-Pro", "Janes-MacBook-P", "Ma", "Box"])
+        check(machine == ["Janes-MacBook-Pro.local", "Jane’s MacBook Pro", "Janes-MacBook-Pro", "Janes-MacBook-P", "Box"],
+              "the Mac's names, longest first, from 3 characters on – a shorter one would eat words: \(machine)")
+        check(GameLog.machineNames.allSatisfy { $0.count >= 3 } && GameLog.machineNames == GameLog.machineNames, "this Mac's names read, and read again alike")
+        func scrub(_ line: String) -> String { GameLog.redacted(line, home: "/Users/jane", user: "jane", machine: machine) }
+        let tracked = scrub(#"[2026-11-01 15:39:01] Game process added : AppID 2357570 ""Z:\Volumes\Jane SSD\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"", ProcID 1876, IP 0.0.0.0:0"#)
+        check(tracked.contains(#"Z:\Volumes\<drive>\Nightforge Games\steamapps\common\Overwatch\Overwatch.exe"#) && !tracked.contains("Jane"),
+              "Steam's Z:\\Volumes\\<name>: the drive's name goes, the rest of the path stays: \(tracked)")
+        let mesa = scrub(#"[2026-11-01 15:39:01] Setting MESA_GLSL_CACHE_DIR=Z:\Volumes\Jane SSD\Nightforge Games\steamapps\shadercache\2357570 MESA_DISK_CACHE_READ_ONLY_FOZ_DBS=steam_cache"#)
+        check(mesa.contains(#"Z:\Volumes\<drive>\Nightforge Games"#) && mesa.hasSuffix("steam_cache"), "a drive in an environment line: \(mesa)")
+        let doubled = scrub(#"0124:err:module:import_dll Library d3d12.dll (needed by L"Z:\\Volumes\\Jane SSD\\Games\\x.exe") not found"#)
+        check(doubled.contains(#"Z:\\Volumes\\<drive>\\Games\\x.exe"#) && !doubled.contains("Jane"), "Wine's doubled backslashes: \(doubled)")
+        let dyld = scrub(#"dyld[23696]: tried: '/Volumes/Jane SSD/Nightforge Games/hide-steam-dock.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/x'"#)
+        check(dyld.contains("'/Volumes/<drive>/Nightforge Games/hide-steam-dock.dylib'") && !dyld.contains("Jane"), "a Mac path: \(dyld)")
+        let host = scrub("[2026-10-23 19:56:50] SteamUI: INFO: Storing new config params ?LOCAL_HOSTNAME=Janes-MacBook-Pro&LANGUAGE=german&COUNTRY=")
+        check(host.contains("LOCAL_HOSTNAME=<computer>&LANGUAGE=german"), "Steam's LOCAL_HOSTNAME: \(host)")
+        let netbios = scrub("fixme:netapi32:NetWkstaGetInfo COMPUTERNAME=JANES-MACBOOK-P, host janes-macbook-pro.local, named Jane’s MacBook Pro")
+        check(!netbios.lowercased().contains("janes") && !netbios.contains("Jane’s"), "Wine's NetBIOS name, the host and computer names: \(netbios)")
+        let temp = scrub("err:winediag: /private/var/folders/x7/abcd1234efgh5678/T/com.apple.x and /var/folders/x7/abcd1234efgh5678/C/y")
+        check(temp.contains("/private/var/folders/<id>/T/com.apple.x") && temp.contains("/var/folders/<id>/C/y"), "the account's temp folder: \(temp)")
+        let others = scrub("launchd[1]: uid 501 (jane) is owner jane; a path /Users/jane/x and janet, jane_doe stay")
+        check(!others.contains("(jane)") && !others.contains("owner jane") && others.contains("~/x") && others.contains("janet") && others.contains("jane_doe"),
+              "the account name in other programs' lines, as a word only: \(others)")
+        let gog = scrub(#"GET https://galaxy-library.gog.com/users/48628349957132247/releases {"user_id": "48628349957132247", "galaxy_user_id":48628349957132247}"#)
+        check(!gog.contains("48628349957132247") && gog.contains("users/<gog user>/releases"), "GOG user ids: \(gog)")
+        check(scrub(tracked) == tracked && scrub(host) == host && scrub(temp) == temp, "redacting twice changes nothing, the temp folder's <id> too")
+        check(!GameTest.leaks(tracked + host + temp, home: "/Users/jane", user: "jane", machine: machine)
+              && GameTest.leaks(#"Z:\Volumes\Jane SSD\x"#, home: "/Users/jane", user: "jane", machine: machine)
+              && GameTest.leaks("LOCAL_HOSTNAME=janes-macbook-pro", home: "/Users/jane", user: "jane", machine: machine),
+              "the game test's second check knows drives and the Mac's names too")
+
         // Winetricks verbs from the online fixes: install verbs pass, commands and options don't.
         for verb in ["vcrun2019", "d3dcompiler_47", "xact_x64"] {
             check(Engine.isSafeWinetricksVerb(verb), "winetricks verb \(verb) allowed")
@@ -492,6 +726,14 @@ struct LaunchHealthTest {
         for verb in ["annihilate", "list", "--self-update", "-q", "../x.verb", "a b", "VCRUN", ""] {
             check(!Engine.isSafeWinetricksVerb(verb), "winetricks verb \(verb) refused")
         }
+        // Nor verbs that change the whole shared prefix, Steam and every game with it: the Windows
+        // versions (one game's is windowsVersion, per program) and winetricks' other settings.
+        for verb in ["win7", "win10", "win11", "winxp", "win95", "win98", "winme", "nt40", "vista", "win2k8r2",
+                     "dsound", "remove_mono", "sandbox", "isolate_home", "forcemono", "native_oleaut32"] {
+            check(!Engine.isSafeWinetricksVerb(verb), "winetricks verb \(verb) refused: it would change the whole prefix")
+        }
+        check(Engine.windowsVersionVerbs.count == 19 && Engine.windowsVersionVerbs.isSubset(of: Engine.sharedPrefixUnsafeVerbs),
+              "all of winetricks' Windows versions are on the list")
 
         // Covers are kept at the size they're drawn, other art as it is.
         let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1200, pixelsHigh: 1800, bitsPerSample: 8,
@@ -517,8 +759,7 @@ struct LaunchHealthTest {
         }
 
         // The first start with new graphics says shaders are being built; the second doesn't.
-        let shaderDefaults = UserDefaults(suiteName: "nightforge.launch-phase-test")!
-        shaderDefaults.removePersistentDomain(forName: "nightforge.launch-phase-test")
+        let shaderDefaults = TestDefaults.suite("launch-phase")
         func component(_ id: String, _ version: String, _ kind: Component.Kind) -> Component {
             try! JSONDecoder().decode(Component.self, from: Data("""
                 {"id":"\(id)","kind":"\(kind.rawValue)","version":"\(version)","url":"https://x/\(id).tar","sha256":"","size":1,"license":"MIT","source":"https://x"}
@@ -539,7 +780,6 @@ struct LaunchHealthTest {
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherLayer, defaults: shaderDefaults), "so does another layer")
         let otherEngine = LaunchPhase.graphicsSignature(runner: "/wine/4.8/bin/wine", layer: .dxmt, components: before)
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherEngine, defaults: shaderDefaults), "and a new engine")
-        shaderDefaults.removePersistentDomain(forName: "nightforge.launch-phase-test")
         check(Set([LaunchPhase.startingSteam, .signingIn, .settingUp, .settingUpDotNet, .restartingSteam, .retrying("DXVK"),
                    .startingSteamForMac, .signInInSteamWindow].map(\.hint)).count == 8, "every phase explains itself differently")
 
@@ -581,6 +821,51 @@ struct LaunchHealthTest {
               "no battery (desktop Mac): nothing to warn about")
         let live = PowerSource.reading()
         check(live.source.adapterWatts.map { $0 > 0 } ?? true, "adapter watts read as a positive number: \(String(describing: live.source.adapterWatts))")
+
+        // MARK: Which program starts (Control: Control.exe hands over to Control_DX11.exe; Control_DX12.exe beside it)
+        let controlDir = FileManager.default.temporaryDirectory.appendingPathComponent("lh-control-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: controlDir) }
+        for name in ["Control.exe", "Control_DX11.exe", "Control_DX12.exe", "VC_redist.x64.exe", "Tools/Editor.exe"] {
+            let file = controlDir.appendingPathComponent(name)
+            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: file.path, contents: Data("MZ".utf8))
+        }
+        let launcher = controlDir.appendingPathComponent("Control.exe")
+        func started(_ layer: GraphicsLayer, chosen: String = "", profile: String? = nil) -> String {
+            GameProgram.resolve(store: launcher, installDir: controlDir, layer: layer, chosen: chosen, profile: profile).lastPathComponent
+        }
+        check(started(.d3dmetal) == "Control_DX12.exe", "on D3DMetal its DirectX 12 program starts")
+        check(started(.dxmt) == "Control.exe" && started(.dxvk) == "Control.exe", "on DXMT and DXVK the store's")
+        check(started(.d3dmetal, chosen: "Control_DX11.exe") == "Control_DX11.exe", "the player's pick comes first")
+        check(started(.dxmt, profile: "Control_DX12.exe") == "Control_DX12.exe", "then the profile's")
+        check(started(.dxmt, chosen: "Tools\\Editor.exe") == "Editor.exe", "a Windows path inside the game folder")
+        check(started(.dxmt, chosen: "../../etc/passwd") == "Control.exe" && started(.dxmt, chosen: "Gone.exe") == "Control.exe"
+              && started(.dxmt, chosen: "Tools") == "Control.exe", "nothing outside the game folder, gone or a folder: the store's")
+        let elsewhere = controlDir.deletingLastPathComponent().appendingPathComponent("lh-elsewhere-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: elsewhere) }
+        try? FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: elsewhere.appendingPathComponent("Other.exe").path, contents: Data("MZ".utf8))
+        try? FileManager.default.createSymbolicLink(at: controlDir.appendingPathComponent("Linked"), withDestinationURL: elsewhere)
+        check(started(.dxmt, profile: "Linked\\Other.exe") == "Control.exe", "nor one behind a folder the game linked in from elsewhere")
+        check(GameAnalysis.programs(near: launcher, in: controlDir) == ["Control.exe", "Control_DX11.exe", "Control_DX12.exe"],
+              "the programs to pick from: beside the store's, no installers")
+        var picked = GameOptions()
+        check(!(String(data: (try? JSONEncoder().encode(picked)) ?? Data(), encoding: .utf8) ?? "").contains("program"),
+              "an automatic program isn't stored")
+        picked.program = "Control_DX12.exe"
+        let stored = (try? JSONEncoder().encode(picked)).flatMap { try? JSONDecoder().decode(GameOptions.self, from: $0) }
+        check(stored?.program == "Control_DX12.exe" && stored?.preset == picked.preset, "a picked program is kept")
+        let profileWithProgram = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"executable": "Control_DX12.exe"}"#.utf8))
+        check(profileWithProgram?.executable == "Control_DX12.exe", "a profile can name the program")
+        let controlAnalysis = GameAnalysis(apis: [.d3d11, .d3d12], d3d12Program: "Control_DX12.exe")
+        let d3dMetalProfile = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"graphics": "d3dmetal"}"#.utf8))
+        check(D3DMetalSupply.needed(by: controlAnalysis, picked: .automatic, profile: d3dMetalProfile),
+              "a profile naming D3DMetal for a game with its own DirectX 12 program asks for D3DMetal")
+        check(!D3DMetalSupply.needed(by: controlAnalysis, picked: .automatic, profile: nil)
+              && !D3DMetalSupply.needed(by: GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), picked: .automatic, profile: d3dMetalProfile),
+              "without the profile, or for one program drawing both (Wukong), it isn't asked")
+        check(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal).preferD3D12Arguments == ["-dx12"]
+              && GameAnalysis(apis: [.d3d11]).preferD3D12Arguments.isEmpty, "the switch to DirectX 12 only where both are")
 
         print(failures == 0 ? "✓ all checks passed" : "\(failures) checks failed")
         exit(failures == 0 ? 0 : 1)

@@ -63,6 +63,16 @@
       "source": "https://github.com/Gcenx/DXVK-macOS"
     },
     {
+      "id": "dxvk",
+      "kind": "graphics",
+      "version": "3.1.1",
+      "url": "https://github.com/doitsujin/dxvk/releases/download/v3.1.1/dxvk-3.1.1.tar.gz",
+      "sha256": "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608",
+      "size": 18041512,
+      "license": "Zlib",
+      "source": "https://github.com/doitsujin/dxvk"
+    },
+    {
       "id": "moltenvk",
       "kind": "graphics",
       "version": "1.4.2",

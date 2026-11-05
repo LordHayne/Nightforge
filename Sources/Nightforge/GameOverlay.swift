@@ -9,7 +9,7 @@ import SwiftUI
 /// none. A pad without them uses ☰ and ⧉ (`OverlayHold.chord`).
 ///
 /// The pad reaches Nightforge in the background (InputRouter); the game gets the same presses,
-/// which macOS can't take from it. So a Windows game is paused while the panel is up (SIGSTOP):
+/// which macOS can't take from it. So a Windows game is paused while the panel is up, once it shows (SIGSTOP):
 /// Wine's pad driver runs in winedevice.exe, not in the game, and XInput hands the game the pad's
 /// state when it runs on, not the presses made meanwhile; its sound pauses with it. A Mac game reads
 /// the pad through GameController's events, which would all arrive at once afterwards – it keeps
@@ -46,10 +46,11 @@ enum GameOverlay {
     /// The panel, while it's up: the pad's input goes there (InputRouter).
     static var window: NSWindow? { isOpen ? panel : nil }
 
-    /// Over `game` on `screen`. `pause`: its processes, stopped until the panel goes. `step`:
+    /// Over `game` on `screen`. `pids`: its processes, whose windows the panel goes above;
+    /// `pause`: whether they're stopped while it's up – once it shows (`checkShown`). `step`:
     /// `.notStarting` for a game that runs but shows nothing (LibraryModel's curtain).
     /// `soundStaysOn`: the device a Windows game still plays to after the default output changed.
-    static func open(_ game: String, pause: [pid_t], on screen: NSScreen?, symbols: PadSymbols,
+    static func open(_ game: String, pids: [pid_t], pause: Bool, on screen: NSScreen?, symbols: PadSymbols,
                      step: OverlayStep = .menu, soundStaysOn: String? = nil, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
@@ -57,19 +58,111 @@ enum GameOverlay {
         state.soundStaysOn = soundStaysOn
         state.symbols = symbols
         state.step = step
-        stop(pause)
-        state.paused = !pause.isEmpty
+        state.paused = pause && !pids.isEmpty  // said at once, done once the panel shows
         let panel = self.panel ?? make()
         self.panel = panel
-        panel.setFrame(screen.frame, display: false)
+        // The display the game's window is on, as it is now: ABZU switched the MacBook to 1920×1200
+        // after its start (4.11.), and the overlay laid out for 1512×982 covered a corner of it.
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        display = GameProcesses.display(of: windows, pids: Set(pids)) ?? screenNumber(screen)
+        let frame = display.map(Self.frame(of:)) ?? screen.frame
+        panel.setFrame(frame, display: false)
         // A game that took the screen for itself (a real display-mode change) has a shield above
         // every window: Nightforge comes to the front instead, with the same choice.
         if GameProcesses.screenCaptured() { comeForward() }
+        // Above whatever covers the screen – the game's window, whatever level it gives it, or a
+        // captured display's shield (windows above its level show over it).
+        let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
+        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
         panel.orderFrontRegardless()
         panel.makeKey()
         focusDefault()
         heard = false
-        GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front")
+        opened += 1
+        let look = opened
+        GameLog.note("Overlay up (\(step)) for \(game): \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front, "
+                     + "its windows \(GameProcesses.windowList(Set(pids))), the panel L\(panel.level.rawValue) on \(Int(frame.width))×\(Int(frame.height))"
+                     + (panel.isOnActiveSpace ? "" : " not on the Space shown"))
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            checkShown(look, pids: pids, pause: pause)
+        }
+    }
+
+    /// The panel's opening, so a look 300 ms on knows it's still the same one.
+    private static var opened = 0
+    /// The display the panel is over while it's up.
+    private static var display: CGDirectDisplayID?
+
+    /// A display's frame as it is now, in AppKit's terms – from the display itself, not a screen
+    /// remembered from before a game changed its mode.
+    static func frame(of display: CGDirectDisplayID) -> NSRect {
+        appKitFrame(CGDisplayBounds(display), primaryHeight: CGDisplayBounds(CGMainDisplayID()).height)
+    }
+
+    /// CGDisplayBounds' frame (from the main display's top left) in AppKit's (from its bottom left).
+    nonisolated static func appKitFrame(_ bounds: CGRect, primaryHeight: CGFloat) -> NSRect {
+        NSRect(x: bounds.minX, y: primaryHeight - bounds.maxY, width: bounds.width, height: bounds.height)
+    }
+
+    private static func screenNumber(_ screen: NSScreen) -> CGDirectDisplayID? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber).map { CGDirectDisplayID($0.uint32Value) }
+    }
+
+    /// The display changed while the panel is up (a game switching its mode): the panel follows it.
+    private static func followDisplay() {
+        guard isOpen, let panel, let display else { return }
+        let frame = Self.frame(of: display)
+        guard frame != panel.frame else { return }
+        panel.setFrame(frame, display: true)
+        GameLog.note("Overlay follows the display: \(Int(frame.width))×\(Int(frame.height))")
+    }
+
+    /// 300 ms after the panel opened: it shows – then the game pauses – or it's raised above what
+    /// lies in front of it and looked at once more, and failing that the game runs on in front
+    /// without it. ABZU (DXMT, macOS's Game Mode on, 3.11.) froze under a panel the player never
+    /// saw, behind the game's window: the pause came at once. So the pause waits for the panel.
+    private static func checkShown(_ look: Int, pids: [pid_t], pause: Bool, again: Bool = false) {
+        guard look == opened, isOpen, let panel, !leaving else { return }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        let covering = GameProcesses.covering(windows, window: panel.windowNumber)
+        let visible = panel.occlusionState.contains(.visible)
+        let seen = "\(covering.map { $0.isEmpty ? "nothing in front of it" : "in front of it " + GameProcesses.describe($0) } ?? "not on the Space shown"), "
+            + "\(visible ? "visible" : "hidden") to macOS, the panel L\(panel.level.rawValue), the game's windows \(GameProcesses.windowList(Set(pids)))"
+        if shows(inFront: covering?.isEmpty == true, occlusionVisible: visible) {
+            if again { GameLog.note("Overlay seen for \(state.game) once raised (\(seen))") }
+            if pause { stop(pids) }
+            return
+        }
+        if !again {
+            panel.level = NSWindow.Level(rawValue: raisedLevel(panel.level.rawValue, covering: covering ?? []))
+            panel.orderFrontRegardless()
+            panel.makeKey()
+            GameLog.note("Overlay not seen for \(state.game) after 300 ms (\(seen)): raised to L\(panel.level.rawValue), brought to the front")
+            Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                checkShown(look, pids: pids, pause: pause, again: true)
+            }
+            return
+        }
+        GameLog.note("Overlay still not seen for \(state.game) (\(seen)): it goes, the game runs on in front")
+        InputRouter.hidePointerForGame()
+        close()
+    }
+
+    /// Whether the panel shows: nothing in front of it on the Space shown, and macOS counts it as
+    /// visible.
+    nonisolated static func shows(inFront: Bool, occlusionVisible: Bool) -> Bool { inFront && occlusionVisible }
+
+    /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
+    /// the screen should that lie higher.
+    nonisolated static func panelLevel(coverLevel: Int?) -> Int {
+        max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1)
+    }
+
+    /// The panel's level for a second try: above every window found in front of it.
+    nonisolated static func raisedLevel(_ level: Int, covering: [[String: Any]]) -> Int {
+        max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1)
     }
 
     /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
@@ -92,6 +185,9 @@ enum GameOverlay {
 
     private static func handle(_ event: OverlayEvent) {
         guard !leaving else { return }
+        // In wine.log: which presses arrive (the pad on "Not starting?", 1.11.), and who's in front.
+        GameLog.note("Overlay: \(event) on \(state.step), \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front"
+                     + (panel?.isKeyWindow == true ? "" : ", the panel without the keys"))
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
@@ -154,12 +250,22 @@ enum GameOverlay {
         focusDefault()
     }
 
-    /// The highlight on the step's default button at once: the panel is opened with the pad.
+    /// The highlight on the step's default button at once: the panel is opened with the pad. By its
+    /// id, not looked up on the screen: right after the panel opens – the first time it's made, as
+    /// "Not starting?" often is – or changes its step, the buttons aren't laid out yet, nothing was
+    /// highlighted, and the first press only showed where you were.
     private static func focusDefault() {
         PadFocus.shared.clear()
-        DispatchQueue.main.async {
-            guard let panel, panel.isVisible else { return }
-            PadFocus.shared.move(dx: 0, dy: 1, in: panel)
+        if let id = defaultButton(state.step) { PadFocus.shared.focus(id) }
+    }
+
+    /// The button a step's highlight starts on (its `padFocus` id): the safe answer.
+    nonisolated static func defaultButton(_ step: OverlayStep) -> String? {
+        switch step {
+        case .menu: return "overlay.continue"
+        case .notStarting: return "overlay.wait"
+        case .confirmQuit: return "overlay.cancel"
+        case .quitting: return nil
         }
     }
 
@@ -191,6 +297,9 @@ enum GameOverlay {
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { followDisplay() }
+        }
         let host = NSHostingView(rootView: OverlayView(state: state).modifier(AccessibilityFromSettings()))
         host.sizingOptions = []  // the screen's size, not the content's
         panel.contentView = host
@@ -381,19 +490,138 @@ enum GameProcesses {
         var pid: pid_t
         var parent: pid_t
         var command: String
+        /// Its working folder, for a Windows program (`table`).
+        var cwd: String? = nil
     }
 
-    /// Every process with its parent and command line, as ps shows them.
-    nonisolated static func table() -> [Entry] {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,ppid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
-        return parse(output)
+    /// Every process with its parent and command line, as ps shows them – a Windows program with
+    /// its working folder too (`runsFrom`) – or why there is no list (`ProcessList`: `ps` has been seen not
+    /// answering for good). `.fresh` and empty means "no process"; `.unavailable` means "not known", and
+    /// whoever would conclude from an empty list that a game is gone must not. `allowOld`: the last good
+    /// list in its place while `ps` is down.
+    nonisolated static func lookup(allowOld: Bool = false) -> ProcessListing<[Entry]> {
+        ProcessList.listing("pid=,ppid=,command=", allowOld: allowOld).map(entries(from:))
+    }
+
+    /// The list asked for just now, [] without one: for what acts on pids (pausing a game, ending it), which
+    /// has nothing to act on then.
+    nonisolated static func table() -> [Entry] { lookup().value ?? [] }
+
+    nonisolated private static func entries(from output: String) -> [Entry] {
+        parse(output).map { entry in
+            var entry = entry
+            if entry.command.lowercased().contains(".exe") { entry.cwd = cwd(of: entry.pid) }
+            return entry
+        }
+    }
+
+    /// The games of `folders` (`running`) that run now, nil when no list is to be had at all: the last good
+    /// one stands in while `ps` is down, and a game running when it went down is still running then, as far
+    /// as anyone can tell. Nil means "not known" – not "no game".
+    nonisolated static func runningNow(_ folders: [String: String]) -> [String: pid_t]? {
+        guard !folders.isEmpty else { return [:] }
+        return lookup(allowOld: true).value.map { running(folders, in: $0) }
+    }
+
+    /// Where one game stands by the list at hand. Only a list asked for just now says it is `gone`: an
+    /// old one (`ps` is down) says `running` for a game that was in it – it ran when the list was made –
+    /// and `unknown` for one that wasn't, which may have started since. `unknown` decides nothing.
+    enum Presence: Equatable {
+        case running(pid_t)
+        case gone
+        case unknown
+
+        /// A game that may be running: it was seen, or can't be told apart from one that is.
+        var mayBeRunning: Bool { self != .gone }
+    }
+
+    /// `id`'s standing by `listing`; `folders` as for `running` (marker → id).
+    nonisolated static func presence(of id: String, folders: [String: String], in listing: ProcessListing<[Entry]>) -> Presence {
+        switch listing {
+        case .fresh(let table): return running(folders, in: table)[id].map(Presence.running) ?? .gone
+        case .old(let table): return running(folders, in: table)[id].map(Presence.running) ?? .unknown
+        case .unavailable: return .unknown
+        }
+    }
+
+    /// The same for the list asked for now (the last good one stands in while `ps` is down).
+    nonisolated static func presence(of id: String, folders: [String: String]) -> Presence {
+        presence(of: id, folders: folders, in: lookup(allowOld: true))
+    }
+
+    /// What the curtain's look at the start needs from the list: the game's processes, whether the app in
+    /// front is a Windows program of the game's, and macOS's own askers – all from the one list, so that a
+    /// look is one `ps` (and one scan of the programs' folders). Nil when nothing can be decided at that look:
+    /// no list, or an old one that doesn't show the game (it may have started since; an old list only says "there").
+    struct CurtainLook: Equatable {
+        var pids: Set<pid_t>
+        var companion: Bool
+        var askers: Set<pid_t>
+    }
+
+    nonisolated static func curtainLook(marker: String?, folder: String?, front: pid_t?) -> CurtainLook? {
+        curtainLook(marker: marker, folder: folder, front: front, in: lookup(allowOld: true))
+    }
+
+    nonisolated static func curtainLook(marker: String?, folder: String?, front: pid_t?,
+                                        in listing: ProcessListing<[Entry]>) -> CurtainLook? {
+        guard let table = listing.value else { return nil }
+        let pids = Set(targets(windows: marker, mac: folder, in: table))
+        if case .old = listing, pids.isEmpty { return nil }
+        return CurtainLook(pids: pids, companion: marker != nil && front.map { windowsCompanion($0, in: table) } == true,
+                           askers: macOSAskers(in: table))
+    }
+
+    /// A process's working folder (another user's, or one gone meanwhile: nil).
+    nonisolated static func cwd(of pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: info.pvi_cdir.vip_path) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        return path.isEmpty ? nil : path
+    }
+
+    /// The Windows game folders processes show (`Game.windowsFolderMarker`): Steam's, Epic's, GOG's.
+    nonisolated static let gameFolders = [#"\steamapps\common\"#, #"\Epic Games\"#, #"\GOG Games\"#]
+
+    /// Whether a Windows program runs from one of `folders` (`Game.windowsFolderMarker`, or any
+    /// game's: `gameFolders`). Wine names a program by its Windows path, which shows the folder – or,
+    /// started by a launcher with its bare name, only by that: Control's launcher starts
+    /// "Control_DX11.exe -AUTH_LOGIN=…" (2.11.), and the game counted as ended with the launcher.
+    /// Then its working folder tells: Wine gives a program its Windows working folder as its own
+    /// (winecx, spawn_process), and on the Mac the game folder is the same folders by name (in the
+    /// Windows environment, or Z:\Volumes\…\Nightforge Games on a drive). Not Windows' own programs,
+    /// nor Steam's, whose working folder may be a game's.
+    nonisolated static func runsFrom(_ folders: [String], command: String, cwd: String?) -> Bool {
+        let command = command.lowercased()
+        guard command.contains(".exe") else { return false }
+        let folders = folders.map { $0.lowercased() }
+        if folders.contains(where: command.contains) { return true }
+        guard let cwd, !command.contains(#"c:\windows\"#), !command.contains("steamwebhelper"),
+              !(command.contains(#"\steam\"#) && !command.contains(#"\steamapps\"#))
+        else { return false }
+        let path = cwd.lowercased() + "/"
+        return folders.contains { path.contains($0.replacingOccurrences(of: "\\", with: "/")) }
+    }
+
+    /// The first process of each game (`folders`: a Windows game's `windowsFolderMarker`, a Mac
+    /// game's folder with a trailing slash → its id), in the order ps lists them. Steam's crash
+    /// handler and similar helpers live in the same folder; the game's own process is the first
+    /// program there that isn't one of those. A Mac version's program itself runs from the folder
+    /// ("/…/steamapps/common/Game/Game.app/Contents/MacOS/Game"); a script that merely names the
+    /// folder doesn't count.
+    nonisolated static func running(_ folders: [String: String], in table: [Entry]) -> [String: pid_t] {
+        var result: [String: pid_t] = [:]
+        for entry in table {
+            let command = entry.command.lowercased()
+            guard !command.contains("crashhandler"), !command.contains("unitycrash") else { continue }
+            for (folder, id) in folders where result[id] == nil {
+                let matches = folder.hasPrefix("/") ? command.hasPrefix(folder.lowercased())
+                                                    : runsFrom([folder], command: command, cwd: entry.cwd)
+                if matches { result[id] = entry.pid }
+            }
+        }
+        return result
     }
 
     /// ps's `pid ppid command` lines.
@@ -415,7 +643,9 @@ enum GameProcesses {
     }
 
     /// The game's processes and whatever they started, however deep: a Windows game by its folder
-    /// in Wine's command line (`Game.windowsFolderMarker`), a Mac game by its folder. Never the Wine
+    /// in Wine's command line (`Game.windowsFolderMarker`) or as its working folder (`runsFrom`: Wine
+    /// starts a program with launchd as its parent, so what a launcher started isn't found below it),
+    /// a Mac game by its folder. Never the Wine
     /// session (wineserver and Windows' own programs), Steam or Nightforge, which other games share.
     nonisolated static func targets(windows marker: String?, mac folder: String?, in table: [Entry],
                                     me: pid_t = getpid()) -> [pid_t] {
@@ -425,9 +655,8 @@ enum GameProcesses {
                 || command.contains(#"\steam\steam.exe"#) || command.contains("steamwebhelper") || command.contains("/steam.app/")
         }
         func belongs(_ entry: Entry) -> Bool {
-            let command = entry.command.lowercased()
-            if let marker { return command.contains(marker.lowercased()) && command.contains(".exe") }
-            if let folder { return command.hasPrefix(folder.lowercased() + "/") }
+            if let marker { return runsFrom([marker], command: entry.command, cwd: entry.cwd) }
+            if let folder { return entry.command.lowercased().hasPrefix(folder.lowercased() + "/") }
             return false
         }
         var found = Set(table.filter { belongs($0) && !spared($0) }.map(\.pid))
@@ -465,6 +694,17 @@ enum GameProcesses {
         return info.pbi_status != UInt32(SZOMB)
     }
 
+    /// The one of `pids` with the most memory: a game's own program, not the launcher that waits for
+    /// it (for `sample` in the game test).
+    nonisolated static func biggest(_ pids: [pid_t]) -> pid_t? {
+        func resident(_ pid: pid_t) -> UInt64 {
+            var info = proc_taskinfo()
+            let size = Int32(MemoryLayout<proc_taskinfo>.size)
+            return proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &info, size) == size ? info.pti_resident_size : 0
+        }
+        return pids.max { resident($0) < resident($1) }
+    }
+
     /// Stopped by SIGSTOP.
     nonisolated static func stopped(_ pid: pid_t) -> Bool {
         var info = proc_bsdinfo()
@@ -494,22 +734,143 @@ enum GameProcesses {
     /// Nightforge's page) to the floating level; menus lie higher. Its number, the frontmost first.
     /// Its title, which would tell it from a splash, can't be read without Screen Recording.
     nonisolated static func question(_ windows: [[String: Any]], pids: Set<pid_t>) -> Int? {
+        questionWindow(windows, pids: pids)?.number
+    }
+
+    /// The same with its size: a thin one may be a splash (`LibraryModel.takenAsQuestion`).
+    nonisolated static func questionWindow(_ windows: [[String: Any]], pids: Set<pid_t>) -> (number: Int, size: CGSize)? {
         let asking = windows.first { window in
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
-                  (0...Int(CGWindowLevelForKey(.modalPanelWindow))).contains((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
+                  questionLevel((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: Any],
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
             else { return false }
             return width >= 200 && height >= 100 && !(width >= 640 && height >= 360)
         }
-        return asking.flatMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+        guard let asking, let number = (asking[kCGWindowNumber as String] as? NSNumber)?.intValue, let frame = bounds(asking) else { return nil }
+        return (number, frame.size)
+    }
+
+    /// The levels a question can be at: normal up to a modal panel, and winecx's own for a topmost
+    /// window – just above the Dock (cocoa_app.m, adjustWindowLevels: kCGDockWindowLevel + 1). There
+    /// Black Myth: Wukong's driver warning stood in both game tests on 2.11. (286×251 L21), under the
+    /// curtain, which never made way: the game never got the front and counted as hanging.
+    nonisolated static func questionLevel(_ level: Int) -> Bool {
+        (0...Int(CGWindowLevelForKey(.modalPanelWindow))).contains(level) || level == Int(CGWindowLevelForKey(.dockWindow)) + 1
     }
 
     nonisolated static func question(_ pids: Set<pid_t>) -> Int? {
+        questionWindow(pids)?.number
+    }
+
+    nonisolated static func questionWindow(_ pids: Set<pid_t>) -> (number: Int, size: CGSize)? {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
         else { return nil }
-        return question(windows, pids: pids)
+        return questionWindow(windows, pids: pids)
+    }
+
+    /// The programs macOS asks the player through. TCC's permissions – files on a removable or
+    /// network volume, a folder, the camera, the microphone, the local network: tccd shows them
+    /// through CFUserNotification, which UserNotificationCenter draws (Tomb Raider's on its drive lay
+    /// under the curtain on 2.11.), or through AuthorizationPromptService – Accessibility's
+    /// (universalAccessAuthWarn), location's (CoreLocationAgent), Gatekeeper's for an app from the
+    /// internet (CoreServicesUIAgent), a password or Touch ID (SecurityAgent, coreautha).
+    nonisolated static let macOSAskers = [
+        "/System/Library/CoreServices/UserNotificationCenter.app/",
+        "/System/Library/CoreServices/AuthorizationPromptService.app/",
+        "/System/Library/PrivateFrameworks/UniversalAccess.framework/Versions/A/Resources/universalAccessAuthWarn.app/",
+        "/System/Library/CoreServices/CoreLocationAgent.app/",
+        "/System/Library/CoreServices/CoreServicesUIAgent.app/",
+        "/System/Library/Frameworks/Security.framework/Versions/A/MachServices/SecurityAgent.bundle/",
+        "/System/Library/Frameworks/LocalAuthentication.framework/Support/coreautha.bundle/",
+    ]
+
+    /// Their processes in `table`.
+    nonisolated static func macOSAskers(in table: [Entry]) -> Set<pid_t> {
+        Set(table.filter { entry in macOSAskers.contains { entry.command.hasPrefix($0) } }.map(\.pid))
+    }
+
+    /// Their windows on the Space shown – they show one only while they ask, none of a picture's
+    /// size: their numbers, the frontmost first. At any level from the windows' up, an alert may lie
+    /// high; more than a sliver.
+    nonisolated static func macOSQuestions(_ windows: [[String: Any]], askers: Set<pid_t>) -> [Int] {
+        windows.filter { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, askers.contains(owner),
+                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= 0,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
+            else { return false }
+            return width >= 150 && height >= 60
+        }.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    /// The frontmost of them.
+    nonisolated static func macOSQuestion(_ windows: [[String: Any]], askers: Set<pid_t>) -> Int? {
+        macOSQuestions(windows, askers: askers).first
+    }
+
+    nonisolated static func macOSQuestions(askers: Set<pid_t>) -> [Int] {
+        guard !askers.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return macOSQuestions(windows, askers: askers)
+    }
+
+    /// A window's frame in CGWindowList's terms (`kCGWindowBounds`): from the main display's top left.
+    nonisolated static func bounds(_ window: [String: Any]) -> CGRect? {
+        guard let bounds = window[kCGWindowBounds as String] as? NSDictionary else { return nil }
+        return CGRect(dictionaryRepresentation: bounds as CFDictionary)
+    }
+
+    /// A screen's frame (AppKit's, from the main display's bottom left) in CGWindowList's terms.
+    @MainActor
+    static func cgRect(_ frame: CGRect) -> CGRect {
+        let height = NSScreen.screens.first?.frame.height ?? frame.maxY
+        return CGRect(x: frame.minX, y: height - frame.maxY, width: frame.width, height: frame.height)
+    }
+
+    /// Whether a window covers most of `area`: a game's picture or a shield, not the menu bar, a
+    /// banner or the Dock.
+    nonisolated static func covers(_ window: [String: Any], _ area: CGRect) -> Bool {
+        guard let frame = bounds(window), (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { return false }
+        let overlap = frame.intersection(area)
+        return !overlap.isNull && overlap.width * overlap.height >= area.width * area.height / 2
+    }
+
+    /// The display the largest of `pids`' windows is on (its middle); nil without one.
+    nonisolated static func display(of windows: [[String: Any]], pids: Set<pid_t>) -> CGDirectDisplayID? {
+        let frames = windows.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false }
+            .compactMap(bounds)
+        guard let largest = frames.max(by: { $0.width * $0.height < $1.width * $1.height }) else { return nil }
+        var display: CGDirectDisplayID = 0
+        var count: UInt32 = 0
+        guard CGGetDisplaysWithPoint(CGPoint(x: largest.midX, y: largest.midY), 1, &display, &count) == .success, count > 0 else { return nil }
+        return display
+    }
+
+    /// The highest level of a window that covers `screen`, not one of `except`'s (Nightforge's own
+    /// curtain); nil without one.
+    nonisolated static func coverLevel(_ windows: [[String: Any]], screen: CGRect, except: pid_t) -> Int? {
+        windows.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != except && covers($0, screen) }
+            .map { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 }.max()
+    }
+
+    /// What lies in front of `window` (`windows`: the Space shown, front to back) over most of it;
+    /// nil when it isn't there at all.
+    nonisolated static func covering(_ windows: [[String: Any]], window: Int) -> [[String: Any]]? {
+        guard let index = windows.firstIndex(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue == window }),
+              let area = bounds(windows[index])
+        else { return nil }
+        return windows[..<index].filter { covers($0, area) }
+    }
+
+    /// Windows for wine.log: "ABZU L27 1512×982".
+    nonisolated static func describe(_ windows: [[String: Any]]) -> String {
+        windows.map { window in
+            let size = bounds(window).map { "\(Int($0.width))×\(Int($0.height))" } ?? "?"
+            return "\(window[kCGWindowOwnerName as String] as? String ?? "?") L\((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0) \(size)"
+        }.joined(separator: ", ")
     }
 
     /// The game's windows as the curtain sees them, for wine.log: "380×332 L3, 1512×982 L0, 2 hidden".

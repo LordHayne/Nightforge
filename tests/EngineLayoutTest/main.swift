@@ -38,6 +38,7 @@ struct EngineLayoutTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 
@@ -188,6 +189,259 @@ struct EngineLayoutTest {
         check((try? String(contentsOf: unixDir.appendingPathComponent("winebus.so.engine"), encoding: .utf8)) == "plain winebus",
               "installing again keeps the engine's original")
 
+        // MARK: Engine fix package (.github/workflows/enginefix.yml)
+        func text(_ name: String) -> String? { try? String(contentsOf: unixDir.appendingPathComponent(name), encoding: .utf8) }
+        func sha256(_ text: String) -> String {
+            let file = work.appendingPathComponent("hash-\(UUID().uuidString)")
+            write(Data(text.utf8), file)
+            defer { try? fm.removeItem(at: file) }
+            return (try? ComponentStore.sha256(of: file)) ?? ""
+        }
+        write(Data("winecx ntdll".utf8), unixDir.appendingPathComponent("ntdll.so"))
+        write(Data("winecx coreaudio".utf8), unixDir.appendingPathComponent("winecoreaudio.so"))
+        let fixRoot = work.appendingPathComponent("enginefix", isDirectory: true)
+        let fix = fixRoot.appendingPathComponent("nightforge-enginefix-winecx-4.7.3-1", isDirectory: true)
+        write(Data("fixed ntdll".utf8), fix.appendingPathComponent("x86_64-unix/ntdll.so"))
+        write(Data("downmix coreaudio".utf8), fix.appendingPathComponent("x86_64-unix/winecoreaudio.so"))
+        write(Data("\(sha256("winecx ntdll"))  ntdll.so\n\(sha256("winecx coreaudio")) *winecoreaudio.so\n\(sha256("x"))  ../../evil.so\n".utf8),
+              fix.appendingPathComponent("originals.sha256"))
+        check(Engine.engineFixPackage(in: fixRoot)?.lastPathComponent == fix.lastPathComponent, "the package folder is found in the download")
+        check(Engine.engineFixOriginals(in: fix) == ["ntdll.so": sha256("winecx ntdll"), "winecoreaudio.so": sha256("winecx coreaudio")],
+              "originals.sha256 as shasum writes it; names outside the engine fix's files don't count")
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true, "the fix fits the runtime it was built for")
+        check(text("ntdll.so") == "fixed ntdll" && text("winecoreaudio.so") == "downmix coreaudio", "both modules go into the engine")
+        check(text("ntdll.so.engine") == "winecx ntdll" && text("winecoreaudio.so.engine") == "winecx coreaudio", "the engine's own are kept")
+        check(!fm.fileExists(atPath: unixDir.appendingPathComponent("../../evil.so").standardizedFileURL.path), "nothing outside goes anywhere")
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true && text("ntdll.so.engine") == "winecx ntdll",
+              "installing again checks the kept original, and keeps it")
+        // The graphics package of the Gcenx engine brings an msync pair, which winecx doesn't take:
+        // its msync step mustn't count the engine fix's *.engine copies as its own.
+        let graphicsWithMsync = work.appendingPathComponent("graphics-msync/v0.80", isDirectory: true)
+        write(Data("gcenx ntdll".utf8), graphicsWithMsync.appendingPathComponent("msync/x86_64-unix/ntdll.so"))
+        write(Data("gcenx wineserver".utf8), graphicsWithMsync.appendingPathComponent("msync/bin/wineserver"))
+        write(dll("winemetal", builtin: true), graphicsWithMsync.appendingPathComponent("x86_64-windows/winemetal.dll"))
+        try? Engine.installGraphics(work.appendingPathComponent("graphics-msync"), into: wine, matchesEngine: false, nativeInPrefix: true)
+        check(text("ntdll.so") == "fixed ntdll", "winecx's graphics install leaves the engine fix's ntdll.so in place")
+        check((try? Engine.installEngineFix(nil, into: wine)) == false, "without a package…")
+        check(text("ntdll.so") == "winecx ntdll" && text("winecoreaudio.so") == "winecx coreaudio", "…the engine's own come back")
+        // Another runtime's files: a fix built for 4.7.3 mustn't go over them.
+        write(Data("other ntdll".utf8), unixDir.appendingPathComponent("ntdll.so"))
+        try? fm.removeItem(at: unixDir.appendingPathComponent("ntdll.so.engine"))
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == false, "files other than the ones it was built against: not in")
+        check(text("ntdll.so") == "other ntdll" && text("winecoreaudio.so") == "winecx coreaudio", "both stay the engine's own")
+        write(Data("winecx ntdll".utf8), unixDir.appendingPathComponent("ntdll.so"))
+        // A later package with ntdll.so alone: the downmix it no longer has goes back to the engine's own.
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true, "in again")
+        write(Data("\(sha256("winecx ntdll"))  ntdll.so\n".utf8), fix.appendingPathComponent("originals.sha256"))
+        try? fm.removeItem(at: fix.appendingPathComponent("x86_64-unix/winecoreaudio.so"))
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == true, "a package with ntdll.so alone")
+        check(text("ntdll.so") == "fixed ntdll" && text("winecoreaudio.so") == "winecx coreaudio", "only what it carries stays replaced")
+        write(Data("not a hash list".utf8), fix.appendingPathComponent("originals.sha256"))
+        check((try? Engine.installEngineFix(fixRoot, into: wine)) == false && text("ntdll.so") == "winecx ntdll",
+              "a package that names no originals changes nothing but taking the fix out")
+
+        // MARK: Engine test switches (docs/TODO.md › Engine-Tests)
+        check(Engine.msync && Engine.environment(wine: wine)["WINEMSYNC"] == "1", "msync is on unless an engine test turns it off")
+        check(!Engine.steamConfigSignature.contains("nomsync"), "…and Steam's settings don't mention it then")
+        check(Engine.msyncSessionEnds(wanted: false, session: nil) && Engine.msyncSessionEnds(wanted: true, session: false)
+              && !Engine.msyncSessionEnds(wanted: true, session: nil) && !Engine.msyncSessionEnds(wanted: false, session: false),
+              "a session started with msync the other way ends; one from before the switch had it")
+        // Starting Steam from the window's side takes seconds (ps, an engine held back, the helper app; extra review,
+        // 3.11.): nothing outside Engine calls the synchronous startSteam – the callers on the main actor wait for the
+        // off-main one – and the window variant is awaited.
+        let sources = URL(fileURLWithPath: "Sources/Nightforge", isDirectory: true)
+        var startLines = 0
+        for file in ((try? FileManager.default.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)) ?? [])
+        where file.pathExtension == "swift" && file.lastPathComponent != "Engine.swift" {
+            for (number, line) in ((try? String(contentsOf: file, encoding: .utf8)) ?? "").components(separatedBy: "\n").enumerated() {
+                if line.contains("Engine.startSteam(") {
+                    check(false, "\(file.lastPathComponent):\(number + 1) starts Steam synchronously: Engine.startSteamOffMain")
+                }
+                if line.contains("Engine.showSteamWindow(") || line.contains("Engine.startSteamOffMain(") {
+                    startLines += 1
+                    check(line.contains("await"), "\(file.lastPathComponent):\(number + 1) doesn't wait for the off-main start")
+                }
+            }
+        }
+        check(startLines >= 5, "the callers of the off-main start were found: \(startLines)")
+        // Steam's last start is written off the main thread and read on it (review N12): never half of one value.
+        let engines = (0..<4).map { URL(fileURLWithPath: "/engine/\($0)/bin/wine") }
+        let torn = LockedValue(0)
+        DispatchQueue.concurrentPerform(iterations: 4000) { index in
+            let which = index % 4
+            Engine.lastSteamStart = (engines[which], Date(timeIntervalSince1970: Double(which)))
+            if let start = Engine.lastSteamStart, engines.firstIndex(of: start.wine).map(Double.init) != start.at.timeIntervalSince1970 {
+                torn.withLock { $0 += 1 }
+            }
+        }
+        check(torn.withLock { $0 } == 0 && Engine.lastSteamStart != nil, "lastSteamStart under concurrent writes: always one start's engine and time")
+        Engine.lastSteamStart = nil
+        // No process list (review N7): whether a session runs is not known – none is ended, and the switch isn't
+        // noted as if one had been; with a list that says "none", it is noted.
+        let msyncSession = TestDefaults.suite("msync-session")
+        msyncSession.set(false, forKey: "msyncSession")
+        FakeProcesses.installDown()
+        Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
+        check(msyncSession.object(forKey: "msyncSession") as? Bool == false, "msync switch without a process list: not noted, the next start looks again")
+        FakeProcesses.installEmpty()
+        Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
+        check(msyncSession.object(forKey: "msyncSession") as? Bool == true, "… with a list that shows no process: noted")
+        check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),
+              "the quit script's Wine agrees with the session (msync on when it isn't told)")
+        check(GameLog.extraChannels("+loaddll,+timestamp,warn+msync") == "+loaddll,+timestamp,warn+msync"
+              && GameLog.extraChannels("+loaddll; rm -rf ~") == nil && GameLog.extraChannels("") == nil,
+              "extra Wine debug channels: channel lists only")
+        check(GameLog.wineDebug == "-all,err+module,err+mscoree", "Wine stays quiet without an engine test")
+
+        // MARK: A game's Wine switches (GameEnvironment: profile "environment", test switch gameEnvironment.<key>)
+        check(GameEnvironment.sanitized(["WINE_SIMULATE_WRITECOPY": "1", "DYLD_INSERT_LIBRARIES": "/tmp/x.dylib",
+                                         "CX_ACTIVE_GRAPHICS_BACKEND": "../dxmt", "CX_HACK_FILESYSTEM_TYPE": "1 2",
+                                         "CX_GRAPHICS_BACKEND": ""]) == ["WINE_SIMULATE_WRITECOPY": "1"],
+              "only the allowed names, with plain short values")
+        let withSwitches = try? JSONDecoder().decode(GameProfile.self, from: Data(
+            #"{"environment": {"WINE_SIMULATE_WRITECOPY": "1", "DYLD_INSERT_LIBRARIES": "/x", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"}}"#.utf8))
+        check(withSwitches?.environment == ["WINE_SIMULATE_WRITECOPY": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"],
+              "a profile's environment, without what isn't allowed")
+        let onlyBad = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"environment": {"DYLD_INSERT_LIBRARIES": "/x"}}"#.utf8))
+        check(onlyBad != nil && onlyBad?.environment == nil, "nothing allowed: no environment, and the profile still reads")
+        do {
+            let test = TestDefaults.suite("game-environment")
+            let overwatch = GameID.steam(2357570)
+            check(GameEnvironment.wanted(for: overwatch, profile: withSwitches, defaults: test)
+                  == ["WINE_SIMULATE_WRITECOPY": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], "without a test switch: the profile's")
+            test.set(["WINE_SIMULATE_WRITECOPY": "0", "CX_HACK_FILESYSTEM_TYPE": NSNumber(value: 1), "DYLD_FRAMEWORK_PATH": "/x"],
+                     forKey: GameEnvironment.testKey(overwatch))
+            check(GameEnvironment.testKey(overwatch) == "gameEnvironment.steam.2357570", "the test switch is keyed by the game")
+            check(GameEnvironment.wanted(for: overwatch, profile: withSwitches, defaults: test)
+                  == ["WINE_SIMULATE_WRITECOPY": "0", "CX_HACK_FILESYSTEM_TYPE": "1", "CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"],
+                  "the test switch wins over the profile, numbers as `defaults` writes them count, the rest stays out")
+            check(GameEnvironment.wanted(for: .steam(550), profile: nil, defaults: test).isEmpty, "another game gets none of it")
+            // D3DMetal's card for a test with DLSS (Control): an NVIDIA one by its hex ids.
+            test.set(["D3DM_VENDOR_ID": "0x10de", "D3DM_DEVICE_ID": "0x2684", "D3DM_SUPPORT_DXR": NSNumber(value: 1)],
+                     forKey: GameEnvironment.testKey(.epic("calluna")))
+            let nvidia = GameEnvironment.wanted(for: .epic("calluna"), profile: nil, defaults: test)
+            check(nvidia == ["D3DM_VENDOR_ID": "0x10de", "D3DM_DEVICE_ID": "0x2684", "D3DM_SUPPORT_DXR": "1"]
+                  && GameLog.d3dMetalStart("Control", environment: nvidia, retina: false).contains("D3DM_VENDOR_ID=1 D3DM_DEVICE_ID=1 D3DM_SUPPORT_DXR=1"),
+                  "D3DMetal's card and ray tracing can be set for a game, and its start line says so")
+        }
+        // MARK: The prefix's registry: nothing in HKCU\Environment any more (Wine never hands it to games)
+        let registry = Engine.prefixRegistry
+        check(Engine.formerRegistryEnvironment.allSatisfy { registry.contains("\"\($0)\"=-") },
+              "the values earlier versions wrote there are taken away")
+        check(!registry.contains("=\"") && registry.contains("[HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\winebus]"),
+              "nothing is set in the user environment; the controller setting stays")
+        check(Set(Engine.gameEnvironment.keys).isSubset(of: Set(Engine.formerRegistryEnvironment)),
+              "every game setting earlier versions could have left there is on the list")
+        check(Set(Engine.gameEnvironment.keys).isSubset(of: Set(Engine.steamEnvironment.keys)),
+              "and each of them comes with Steam's own environment")
+
+        // MARK: Direct3D 9 on DXVK through the Vulkan loader (engine test switch vulkanLoader, off)
+        do {
+            let switches = TestDefaults.suite("vulkan-loader")
+            let loader = work.appendingPathComponent("loader/libvulkan.1.dylib")
+            write(Data("loader".utf8), loader)
+            check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "off unless an engine test turns it on")
+            switches.set(loader.path, forKey: "vulkanLoader")
+            check(Engine.vulkanLoader(for: wine, defaults: switches)?.path == loader.path, "a loader named by its path")
+            let plain = work.appendingPathComponent("plain/bin/wine")
+            write(Data("#!/bin/sh\n".utf8), plain)
+            check(Engine.vulkanLoader(for: plain, defaults: switches) == nil, "only for winecx: the Gcenx engine has a loader of its own")
+            let env = Engine.vulkanLoaderEnvironment(layer: .dxvk, d3d9: true, wine: wine, defaults: switches)
+            let bundle = winecx.appendingPathComponent("Libraries/Wine/Nightforge Game.app/Contents/Resources/vulkan").path
+            check(env == ["CX_LIBVULKAN": loader.path, "CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                          "VK_DRIVER_FILES": bundle + "/icd.d/MoltenVK_icd.json", "VK_ADD_IMPLICIT_LAYER_PATH": bundle + "/implicit_layer.d"],
+                  "Direct3D 9 on DXVK: the loader, wined3d for CW Hack 25909, MoltenVK and the layer from the game bundle")
+            check(Engine.vulkanLoaderEnvironment(layer: .dxvk, d3d9: false, wine: wine, defaults: switches).isEmpty
+                  && Engine.vulkanLoaderEnvironment(layer: .dxmt, d3d9: true, wine: wine, defaults: switches).isEmpty,
+                  "Direct3D 11 on DXVK (OxyRail draws without) and other layers: nothing")
+            // A direct start (Epic, GOG) goes by the start's analysis: the game's files are read once, by insight.
+            let source = work.appendingPathComponent("direct/Source Game", isDirectory: true)
+            writeExe(source.appendingPathComponent("game.exe"), bits64: false)
+            write(Data(), source.appendingPathComponent("bin/shaderapidx9.dll"))
+            check(GameAnalysis.analyze(installDir: source, launchExecutable: "game.exe").usesD3D9,
+                  "the test game's files say Direct3D 9 (a Source game's renderer in bin/)")
+            func direct(_ folder: URL, usesD3D9: Bool) -> [String: String] {
+                let game = Game(gameID: .gog("1"), name: "Source Game", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                                steamExeWindowsPath: "", installDir: folder, sizeOnDisk: 0)
+                return Launcher.directEnvironment(game, layer: .dxvk, usesD3D9: usesD3D9, runner: wine, options: GameOptions(),
+                                                  profile: nil, environment: [:])
+            }
+            UserDefaults.standard.set(loader.path, forKey: "vulkanLoader")
+            check(direct(source, usesD3D9: false)["CX_LIBVULKAN"] == nil,
+                  "the start's analysis says no: no loader, though a second look at the files would say Direct3D 9")
+            check(direct(work.appendingPathComponent("direct/not there"), usesD3D9: true)["CX_LIBVULKAN"] == loader.path,
+                  "the start's analysis says yes: the loader, with no game folder there to read")
+            UserDefaults.standard.removeObject(forKey: "vulkanLoader")
+            switches.set("/nowhere/libvulkan.1.dylib", forKey: "vulkanLoader")
+            check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "a path that isn't there: off")
+            let before = Engine.launchEnvironment
+            Engine.launchEnvironment = [:]
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                                  environment: ["CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], vulkanLoader: env)
+                  && Engine.steamEnvironment["CX_LIBVULKAN"] == loader.path && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d",
+                  "through Steam: the loader's variables, and wined3d over a profile's backend")
+            // With KosmicKrisp (vulkanDriver): a start that draws without Vulkan leaves Steam's driver as it is.
+            let switchedOn = TestDefaults.suite("vulkan-loader-on"), switchedOff = TestDefaults.suite("vulkan-loader-off")
+            switchedOn.set(loader.path, forKey: "vulkanLoader")
+            check(Engine.vulkanLoaderSwitchedOn(defaults: switchedOn) && !Engine.vulkanLoaderSwitchedOn(defaults: switchedOff)
+                  && !Engine.vulkanLoaderSwitchedOn(defaults: switches), "the switch: on with a loader that's there, off without one")
+            check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, defaults: switchedOn)
+                  && Engine.steamEnvironment["CX_LIBVULKAN"] == loader.path && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d",
+                  "a game without Vulkan after it (DXMT), the switch on: no restart, the loader stays")
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                                  environment: ["CX_ACTIVE_GRAPHICS_BACKEND": "dxmt"], defaults: switchedOff)
+                  && Engine.vulkanLoaderNames.allSatisfy { Engine.steamEnvironment[$0] == nil }
+                  && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "dxmt",
+                  "the switch off: Steam restarts without the loader's variables; a game's own backend switch stays")
+            let kosmicKrisp = URL(fileURLWithPath: "/kk")
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, vulkan: .kosmicKrisp(kosmicKrisp))
+                  && Engine.steamEnvironment["CX_LIBVULKAN"] == "/kk/libvulkan.1.dylib"
+                  && Engine.steamEnvironment["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json"
+                  && Engine.steamEnvironment["MESA_SHADER_CACHE_DIR"] == Engine.mesaShaderCache.path
+                  && Engine.steamEnvironment["VK_ADD_IMPLICIT_LAYER_PATH"] == nil,
+                  "KosmicKrisp after it, the loader off: its own variables, none of the loader's left")
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, vulkan: .moltenVK, vulkanLoader: env)
+                  && Engine.steamEnvironment["CX_LIBVULKAN"] == loader.path && Engine.steamEnvironment["MESA_SHADER_CACHE_DIR"] == nil,
+                  "the loader again (it wins over KosmicKrisp): its variables, KosmicKrisp's cache folder gone")
+            check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, vulkan: .moltenVK)
+                  && Engine.vulkanLoaderNames.allSatisfy { Engine.steamEnvironment[$0] == nil }
+                  && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil,
+                  "a DirectX 11 game on DXVK (MoltenVK) after it: Steam restarts without them")
+            Engine.launchEnvironment = before
+        }
+        // Through Steam they go into its environment; the next game without them takes them away again.
+        // Read in a task of its own (a Steam start) while the main thread replaces it: under one lock, so no
+        // half-replaced Dictionary is ever read.
+        do {
+            let before = Engine.launchEnvironment
+            let stop = LockedValue(false)
+            let readers = DispatchGroup()
+            for _ in 0..<4 {
+                DispatchQueue.global().async(group: readers) {
+                    while !stop.withLock({ $0 }) { _ = Engine.steamEnvironment.count + Engine.steamConfigSignature.count }
+                }
+            }
+            for round in 0..<2000 {
+                _ = Engine.prepareLaunchEnvironment(avx: round % 2 == 0, d3dMetal: true, frameLimit: round % 120,
+                                                    upscaling: round % 3 == 0, retina: round % 5 == 0)
+            }
+            stop.withLock { $0 = true }
+            check(readers.wait(timeout: .now() + 10) == .success, "read off the main thread while it's set 2000 times: no crash, readers done")
+            Engine.launchEnvironment = before
+            Engine.launchRetina = false
+        }
+        let launchBefore = Engine.launchEnvironment
+        Engine.launchEnvironment = [:]
+        _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                              environment: ["WINE_SIMULATE_WRITECOPY": "1"])
+              && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == "1", "a game with a switch: Steam restarts with it")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == nil, "the next game without it: Steam restarts without it")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false),
+              "and one more game without it: no restart")
+        Engine.launchEnvironment = launchBefore
+
         // MARK: CrossOver's user folder
         let users = work.appendingPathComponent("prefix/drive_c/users", isDirectory: true)
         try? fm.createDirectory(at: users.appendingPathComponent("thomas"), withIntermediateDirectories: true)
@@ -240,6 +494,72 @@ struct EngineLayoutTest {
               && Engine.steamEnvironment["ROSETTA_ADVERTISE_AVX"] == "1", "…and the next one gets it back")
         check(Engine.steamConfigSignature.contains("D3DM_MAX_FPS=60"), "Steam restarts when these change")
         Engine.launchEnvironment = [:]
+
+        // MARK: KosmicKrisp for DXVK's Direct3D 9 (winecx)
+        let kk = URL(fileURLWithPath: "/kk")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk))
+              && Engine.steamEnvironment["CX_ACTIVE_GRAPHICS_BACKEND"] == "wined3d"
+              && Engine.steamEnvironment["CX_LIBVULKAN"] == "/kk/libvulkan.1.dylib"
+              && Engine.steamEnvironment["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json"
+              && Engine.steamEnvironment["MESA_SHADER_CACHE_DIR"] == Engine.mesaShaderCache.path,
+              "a DirectX 9 game on DXVK brings KosmicKrisp into Steam's environment")
+        check(Engine.steamConfigSignature.contains("CX_LIBVULKAN=/kk/libvulkan.1.dylib"), "Steam restarts for it")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk)),
+              "the next one needs no restart")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 40, upscaling: false)
+              && Engine.steamEnvironment["CX_LIBVULKAN"] != nil, "a game without Vulkan in between (DXMT) leaves it alone")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .moltenVK)
+              && Engine.kosmicKrispVariables.allSatisfy { Engine.steamEnvironment[$0] == nil },
+              "a game on MoltenVK gets a Steam without it")
+        Engine.launchEnvironment = [:]
+        let direct = Engine.directLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .kosmicKrisp(kk))
+        check(direct["VK_DRIVER_FILES"] == "/kk/kosmickrisp_icd.json" && direct["DXVK_ASYNC"] == "1",
+              "GOG and Epic games get it straight, on top of the game environment")
+        check(Engine.kosmicKrispVariables.allSatisfy {
+            Engine.directLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, vulkan: .moltenVK)[$0] == nil
+        }, "…and on MoltenVK nothing of it")
+
+        let d3d9 = GameAnalysis(apis: [.d3d9])
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: d3d9, winecx: true, kosmicKrisp: kk) == .kosmicKrisp(kk),
+              "winecx: DXVK's Direct3D 9 draws on KosmicKrisp")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: d3d9, winecx: true, kosmicKrisp: nil) == .moltenVK, "without it on MoltenVK")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: d3d9, winecx: false, kosmicKrisp: kk) == nil,
+              "Gcenx: its own loader, never VK_DRIVER_FILES")
+        check(Engine.vulkanDriver(layer: .wined3d, analysis: d3d9, winecx: true, kosmicKrisp: kk) == nil, "WineD3D draws without Vulkan")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: GameAnalysis(apis: [.d3d11]), winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "DXVK for DirectX 11 stays on MoltenVK")
+        check(Engine.vulkanDriver(layer: .dxvk, analysis: GameAnalysis(apis: [.d3d9, .d3d11]), winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "so does a game with DirectX 11 as well")
+        check(Engine.vulkanDriver(layer: .dxmt, analysis: GameAnalysis(apis: [.vulkan]), winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "Vulkan games: MoltenVK")
+        check(Engine.vulkanDriver(layer: .dxmt, analysis: GameAnalysis(), winecx: true, kosmicKrisp: kk) == .moltenVK
+              && Engine.vulkanDriver(layer: .dxmt, analysis: nil, winecx: true, kosmicKrisp: kk) == .moltenVK,
+              "nothing known about the game: MoltenVK, to be safe")
+        check(Engine.vulkanDriver(layer: .dxmt, analysis: GameAnalysis(apis: [.d3d11]), winecx: true, kosmicKrisp: kk) == nil
+              && Engine.vulkanDriver(layer: .d3dmetal, analysis: GameAnalysis(apis: [.d3d12]), winecx: true, kosmicKrisp: kk) == nil,
+              "DXMT and D3DMetal: no Vulkan, Steam keeps what it has")
+
+        let unpacked = work.appendingPathComponent("kosmickrisp/27.0.0-devel-44989e5a", isDirectory: true)
+        let staged = unpacked.appendingPathComponent("nightforge-kosmickrisp-27.0.0-devel-44989e5a", isDirectory: true)
+        write(Data("loader".utf8), staged.appendingPathComponent("libvulkan.1.dylib"))
+        write(Data("driver".utf8), staged.appendingPathComponent("libvulkan_kosmickrisp.dylib"))
+        check(Engine.kosmicKrispFolder(in: unpacked) == nil, "without its manifest it's no driver")
+        write(Data("{}".utf8), staged.appendingPathComponent("kosmickrisp_icd.json"))
+        check(Engine.kosmicKrispFolder(in: unpacked)?.lastPathComponent == staged.lastPathComponent, "the archive's folder is found")
+        check(Engine.kosmicKrispFolder(in: staged)?.lastPathComponent == staged.lastPathComponent, "and the folder itself")
+
+        check(GameLog.graphicsFailed(in: "warn:  DXVK: No adapters found. Please check your device filter settings"),
+              "upstream DXVK without a device it can use counts as a graphics failure")
+        check(GameLog.graphicsFailed(in: "err:   Failed to create Vulkan device: VK_ERROR_FEATURE_NOT_PRESENT"), "so does a failed device")
+        check(!GameLog.graphicsFailed(in: "info:  Found device: Apple M5 (KosmicKrisp 27.0.0)"), "a device found doesn't")
+
+        // MARK: Layer configs
+        let configs = work.appendingPathComponent("configs/Game", isDirectory: true)
+        try? fm.createDirectory(at: configs, withIntermediateDirectories: true)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false)
+        let dxvkConf = (try? String(contentsOf: configs.appendingPathComponent("dxvk.conf"), encoding: .utf8)) ?? ""
+        check(dxvkConf.contains("dxgi.maxFrameRate = 60") && dxvkConf.contains("d3d9.maxFrameRate = 60"),
+              "the frame limit reaches DXVK's Direct3D 9 as well as its DirectX 10/11")
 
         // MARK: Settings files
         let settings = game.appendingPathComponent("b1/Saved/Config/Windows/GameUserSettings.ini")

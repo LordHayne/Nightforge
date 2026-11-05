@@ -14,6 +14,10 @@ enum Engine {
     /// winebus.so with the SDL bus for winecx, plus SDL2 (.github/workflows/gamepad.yml): without it
     /// a DualSense or DualShock 4 never reaches Windows games on winecx.
     static let gamepadID = "gamepad"
+    /// ntdll.so and winecoreaudio.so rebuilt from winecx's own source with Nightforge's patches
+    /// (.github/workflows/enginefix.yml): msync without closing other files at a thread's end, and
+    /// Wine 11.21's downmix for 5.1/7.1 sound. Version "<engine version>-N", for that engine only.
+    static let engineFixID = "enginefix"
 
     static func engineComponent(in manifest: ComponentManifest) -> Component? {
         manifest.component(winecxEngineID) ?? manifest.component(engineID)
@@ -33,6 +37,13 @@ enum Engine {
     static let dxvkID = "dxvk-macos"
     /// Vulkan → Metal for DXVK and Vulkan games, newer than the copy the engine brings along.
     static let moltenVKID = "moltenvk"
+    /// KosmicKrisp, Mesa's Vulkan driver on Metal, with the Khronos loader (scripts/build-kosmickrisp.sh):
+    /// under winecx DXVK's Direct3D 9 draws through it instead of MoltenVK, which lacks the geometry
+    /// shaders and cull distances DXVK needs for it (Mafia II, Left 4 Dead 2: no device on MoltenVK).
+    static let kosmicKrispID = "kosmickrisp"
+    /// Upstream DXVK, whose Direct3D 9 goes with KosmicKrisp: it needs Vulkan 1.3 and geometry shaders,
+    /// so it never runs on MoltenVK. DXVK-macOS (`dxvkID`) stays for DirectX 10/11.
+    static let dxvkUpstreamID = "dxvk"
     static let steamSetupURL = URL(string: "https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe")!
     static let steamExeWindowsPath = #"C:\Program Files (x86)\Steam\steam.exe"#
     /// Steam's web UI (CEF) paints a black window under Wine on macOS unless it renders in software
@@ -84,19 +95,42 @@ enum Engine {
             .appendingPathComponent("Nightforge/dxmt", isDirectory: true)
     }
 
-    /// Steam starts its games with a fresh environment built from the Windows registry, not with
-    /// its own – so the game settings go into the user environment (HKCU\Environment) as well,
-    /// where every Windows program, games included, picks them up at start.
-    static func applyGameEnvironment(wine: URL) {
-        let managed = ["DXVK_ASYNC", "MTL_HUD_ENABLED", "WINEDEBUG", "MVK_CONFIG_LOG_LEVEL", "DXVK_LOG_LEVEL", "DXVK_LOG_PATH",
-                       "ROSETTA_ADVERTISE_AVX", "DXMT_SHADER_CACHE_PATH"]
+    /// Where Mesa keeps KosmicKrisp's translated shaders (MSL), next to DXMT's instead of ~/.cache.
+    static var mesaShaderCache: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Nightforge/mesa", isDirectory: true)
+    }
+
+    /// What versions up to 0.3.x also put into the user environment (HKCU\Environment), on the
+    /// belief that Steam builds its games' environment from the registry. It doesn't: Wine takes the
+    /// registry's variables only into the Windows side of a program started from the Mac (Steam,
+    /// dlls/ntdll/unix/env.c build_initial_params), and a program another one starts – every game –
+    /// keeps its parent's Unix environment (process.c spawn_process forks). So MTL_HUD_ENABLED,
+    /// ROSETTA_ADVERTISE_AVX, MVK_CONFIG_LOG_LEVEL and Wine's own switches never came from there
+    /// (probe 3.11.2026: WINE_LARGE_ADDRESS_AWARE in HKCU\Environment left a 32-bit child at 2 GB,
+    /// in its parent's Unix environment it gave 4 GB); everything a game needs comes with Steam's
+    /// own environment (steamEnvironment) or the direct start's. Worse, Wine adds the registry's
+    /// after the Unix ones, and a child takes WINEDEBUG from the Windows side: a WINEDEBUG left there
+    /// beat Steam's for every game. So these go, once per prefix (`applyPrefixRegistry`).
+    static let formerRegistryEnvironment = ["DXVK_ASYNC", "MTL_HUD_ENABLED", "WINEDEBUG", "MVK_CONFIG_LOG_LEVEL",
+                                            "DXVK_LOG_LEVEL", "DXVK_LOG_PATH", "ROSETTA_ADVERTISE_AVX", "DXMT_SHADER_CACHE_PATH"]
+
+    /// What the prefix's registry gets from Nightforge: the controller setting, and the user
+    /// environment cleared of `formerRegistryEnvironment`.
+    static var prefixRegistry: String {
+        "[HKEY_CURRENT_USER\\Environment]\n" + formerRegistryEnvironment.map { "\"\($0)\"=-" }.joined(separator: "\n")
+            + "\n\n" + controllerRegistry
+    }
+
+    /// Bumped when `prefixRegistry` changes, so every prefix gets it once more.
+    static let prefixRegistryVersion = "1"
+
+    /// Writes `prefixRegistry` into the prefix once (its stamp there says so); a fresh prefix gets it again.
+    static func applyPrefixRegistry(wine: URL) {
         try? FileManager.default.createDirectory(at: shaderCache, withIntermediateDirectories: true)
-        let current = gameEnvironment
-        let values = managed.map { name in
-            current[name].map { "\"\(name)\"=\"\($0)\"" } ?? "\"\(name)\"=-"
-        }
-        importRegistry("[HKEY_CURRENT_USER\\Environment]\n" + values.joined(separator: "\n") + "\n\n" + controllerRegistry,
-                       wine: wine)
+        let marker = stamp(in: prefix, name: "registry")
+        guard readStamp(marker) != prefixRegistryVersion else { return }
+        if importRegistry(prefixRegistry, wine: wine) { writeStamp(marker, prefixRegistryVersion) }
     }
 
     /// Controllers for Windows games come through SDL, which reads every common pad and hands it
@@ -110,19 +144,33 @@ enum Engine {
 
     /// Changes whenever the background Steam has to restart to hand games different settings.
     static var steamConfigSignature: String {
-        "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
-            + launchEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-            + (launchRetina ? "-retina" : "")
+        let launch = launchSettings.withLock { $0 }
+        return "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
+            + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
+            + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
     }
 
     /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
     /// resolution rather than half of it. Wine takes it for a whole session, like the environment.
-    static var launchRetina = false
+    static var launchRetina: Bool {
+        get { launchSettings.withLock { $0.retina } }
+        set { launchSettings.withLock { $0.retina = newValue } }
+    }
 
     /// What the game about to start needs on top of `gameEnvironment` ("" takes a variable away).
-    /// A game gets the environment of the Steam that starts it, as it was when that Steam started –
-    /// whatever the registry says by then doesn't reach it. So these go into Steam's own.
-    static var launchEnvironment: [String: String] = [:]
+    /// A game gets the Unix environment of the Steam that starts it, as it was when that Steam
+    /// started (Wine's spawn_process forks) – the registry's never reaches it (formerRegistryEnvironment).
+    /// So these go into Steam's own.
+    static var launchEnvironment: [String: String] {
+        get { launchSettings.withLock { $0.environment } }
+        set { launchSettings.withLock { $0.environment = newValue } }
+    }
+
+    /// Both, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
+    /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
+    /// Dictionary read while it's being replaced can crash.
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool)>(([:], false))
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -135,21 +183,50 @@ enum Engine {
     /// settings, which it only takes from there (Apple's readme): D3DM_MAX_FPS caps the frame rate,
     /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
     /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
-    /// session has to start with as well. True when the running Steam has to restart.
+    /// session has to start with as well. `environment`: the game's own Wine switches
+    /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the driver its
+    /// Vulkan goes to (`vulkanDriver`), nil leaves the one Steam has. `vulkanLoader`: the engine
+    /// test's loader (vulkanLoaderEnvironment), over those – never with KosmicKrisp, which gives way
+    /// to it (`kosmicKrispReady`). Once its switch is off, what it left in the session goes too, unless
+    /// the game's own switches set it. True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
-                                         retina: Bool = false) -> Bool {
-        var wanted = launchEnvironment
+                                         retina: Bool = false, environment: [String: String] = [:],
+                                         vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
+                                         defaults: UserDefaults = .standard) -> Bool {
+        let launch = launchSettings.withLock { $0 }
+        var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
+        for name in GameEnvironment.allowed.keys { wanted[name] = environment[name] ?? "" }
         if d3dMetal {
             wanted["D3DM_MAX_FPS"] = frameLimit > 0 ? String(frameLimit) : ""
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""
         }
-        wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
-        defer {
-            launchEnvironment = wanted
-            launchRetina = retina
+        switch vulkan {
+        case .kosmicKrisp(let folder):
+            wanted.merge(kosmicKrispEnvironment(folder)) { _, new in new }
+            wanted["VK_ADD_IMPLICIT_LAYER_PATH"] = nil
+        // A game's own switch of the same name (GameEnvironment: CX_ACTIVE_GRAPHICS_BACKEND) stays;
+        // KosmicKrisp's start needs "wined3d" there and takes it over.
+        case .moltenVK:
+            for name in kosmicKrispVariables + ["VK_ADD_IMPLICIT_LAYER_PATH"] where environment[name] == nil { wanted[name] = nil }
+        case nil:
+            // Steam keeps the driver it has. Its library (CX_LIBVULKAN) counts only with "wined3d", so a
+            // game without a backend switch of its own leaves that as it is too.
+            if environment["CX_ACTIVE_GRAPHICS_BACKEND"] == nil, launch.environment["CX_LIBVULKAN"]?.isEmpty == false {
+                wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = launch.environment["CX_ACTIVE_GRAPHICS_BACKEND"]
+            }
         }
-        return wanted != launchEnvironment || retina != launchRetina
+        if !vulkanLoader.isEmpty {
+            for name in vulkanLoaderNames { wanted[name] = vulkanLoader[name] }
+            wanted["CX_ACTIVE_GRAPHICS_BACKEND"] = vulkanLoader["CX_ACTIVE_GRAPHICS_BACKEND"]
+        } else if wanted["VK_ADD_IMPLICIT_LAYER_PATH"]?.isEmpty == false, !vulkanLoaderSwitchedOn(defaults: defaults) {
+            // The loader is still in the session (nothing else sets the layer path; KosmicKrisp and MoltenVK
+            // take it away) and its switch is off. While it's on, a game without Vulkan leaves it, no restart.
+            for name in vulkanLoaderNames + ["CX_ACTIVE_GRAPHICS_BACKEND"] where environment[name] == nil { wanted[name] = nil }
+        }
+        wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
+        launchSettings.withLock { [wanted] in $0 = (wanted, retina) }
+        return wanted != launch.environment || retina != launch.retina
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
@@ -157,11 +234,12 @@ enum Engine {
     static func applyRetinaMode(_ wine: URL, defaults: UserDefaults = .standard) {
         let key = "retinaMode"
         // Never under a running game: ending the session would end it too.
-        guard defaults.bool(forKey: key) != launchRetina,
-              !ownProcesses().contains(where: { $0.command.lowercased().contains(#"\steamapps\common\"#) })
-        else { return }
-        importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
-                       wine: wine)
+        // Any Windows game (Steam's, Epic's, GOG's), and not when that can't be told.
+        guard defaults.bool(forKey: key) != launchRetina, windowsGameRunningKnown == false else { return }
+        // Noted only once the prefix has it: a regedit that failed or ran out of time leaves the note as it was,
+        // and the next start tries again (review B2).
+        guard importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
+                             wine: wine) else { return }
         stopAll(wine)
         defaults.set(launchRetina, forKey: key)
     }
@@ -171,14 +249,50 @@ enum Engine {
 
     /// What a game started straight by Nightforge (not through Steam) gets on top of `gameEnvironment`:
     /// the same as `prepareLaunchEnvironment` hands Steam ("" takes a variable away).
-    static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool) -> [String: String] {
+    static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
+                                        vulkan: VulkanDriver? = nil) -> [String: String] {
         var environment = gameEnvironment
         if !avx { environment["ROSETTA_ADVERTISE_AVX"] = nil }
         if d3dMetal {
             if frameLimit > 0 { environment["D3DM_MAX_FPS"] = String(frameLimit) }
             if upscaling { environment["D3DM_ENABLE_METALFX"] = "1" }
         }
+        if case .kosmicKrisp(let folder) = vulkan { environment.merge(kosmicKrispEnvironment(folder)) { _, new in new } }
         return environment
+    }
+
+    /// Under winecx, where a start's Vulkan goes. CrossOver's win32u loads MoltenVK straight, or the
+    /// library CX_LIBVULKAN names while CX_ACTIVE_GRAPHICS_BACKEND is "wined3d" (vulkan_init_once in
+    /// winecx 4.7.3; the only other thing the value changes is an adapter query answered for
+    /// "d3dmetal", which Nightforge never sets). That library is KosmicKrisp's Khronos loader, which
+    /// takes the driver VK_DRIVER_FILES names.
+    enum VulkanDriver: Equatable {
+        case moltenVK
+        /// KosmicKrisp's folder (`kosmicKrispNow`).
+        case kosmicKrisp(URL)
+    }
+
+    static let kosmicKrispVariables = ["CX_ACTIVE_GRAPHICS_BACKEND", "CX_LIBVULKAN", "VK_DRIVER_FILES", "MESA_SHADER_CACHE_DIR"]
+
+    static func kosmicKrispEnvironment(_ folder: URL) -> [String: String] {
+        try? FileManager.default.createDirectory(at: mesaShaderCache, withIntermediateDirectories: true)
+        return ["CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                "CX_LIBVULKAN": folder.appendingPathComponent("libvulkan.1.dylib").path,
+                "VK_DRIVER_FILES": folder.appendingPathComponent("kosmickrisp_icd.json").path,
+                // Mesa 44989e5a doesn't keep one yet (scripts/kosmickrisp/proposed/0003).
+                "MESA_SHADER_CACHE_DIR": mesaShaderCache.path]
+    }
+
+    /// The Vulkan driver a start under winecx draws through: KosmicKrisp for DXVK's Direct3D 9 once
+    /// it's installed; MoltenVK for DXVK's DirectX 10/11, Vulkan games and games whose Direct3D isn't
+    /// known. nil: this start draws without Vulkan and Steam keeps the driver it has, so going back
+    /// and forth between Mafia II and a DXMT game costs no restart. Gcenx's engine: nil, its loader
+    /// finds MoltenVK and Nightforge's layer by itself (VK_DRIVER_FILES would take that away).
+    static func vulkanDriver(layer: GraphicsLayer, analysis: GameAnalysis?, winecx: Bool, kosmicKrisp: URL?) -> VulkanDriver? {
+        guard winecx else { return nil }
+        if layer == .dxvk, let analysis, analysis.usesD3D9, !analysis.usesD3D11, let kosmicKrisp { return .kosmicKrisp(kosmicKrisp) }
+        if layer == .dxvk || analysis.map({ $0.apis.isEmpty || $0.apis.contains(.vulkan) }) ?? true { return .moltenVK }
+        return nil
     }
 
     /// The Windows path of a file in the prefix ("C:\Program Files\…"), else as Wine sees the Mac (Z:).
@@ -249,41 +363,82 @@ enum Engine {
     /// Whether Steam's main process is running (any prefix; good enough to notice a crash or restart).
     /// Only Nightforge's own Steam counts – not one from a CrossOver bottle, and not a Steam left
     /// behind without its wineserver (it can't do anything any more and would block a fresh start).
-    static var isSteamRunning: Bool {
-        let ours = ownProcesses()
-        return ours.contains { $0.command.lowercased().contains(#"\steam\steam.exe"#) }
-            && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+    /// False also when `ps` doesn't answer: where "not running" lets Nightforge start, write or move
+    /// something, ask `steamRunningKnown` (nil: not known) or `steamMayBeRunning`.
+    static var isSteamRunning: Bool { steamRunningKnown ?? false }
+
+    /// Whether Steam runs, nil when no process list is to be had (`ProcessList`: `ps` has been seen not answering
+    /// for good). An empty list that was asked for says "no".
+    static var steamRunningKnown: Bool? {
+        ownProcessesKnown().map { ours in
+            ours.contains { $0.command.lowercased().contains(#"\steam\steam.exe"#) }
+                && ours.contains { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+        }
     }
 
+    /// For what mustn't happen to a Steam that runs (its files written, its game moved): true while it can't be
+    /// told it doesn't.
+    static var steamMayBeRunning: Bool { steamRunningKnown != false }
+
     /// A Windows game runs in Nightforge's Wine session (its process shows the game folder's path:
-    /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games).
-    static var windowsGameRunning: Bool {
-        ownProcesses().contains { process in
-            let command = process.command.lowercased()
-            return command.contains(#"\steamapps\common\"#) || command.contains(#"\epic games\"#) || command.contains(#"\gog games\"#)
+    /// Steam's steamapps\common, Epic's Program Files\Epic Games, GOG's Program Files\GOG Games – or,
+    /// started by a launcher with its bare name, runs from there: GameProcesses.runsFrom).
+    /// True also when no process list is to be had: it is asked before things that mustn't happen under a game
+    /// (an engine switch, a graphics install, D3DMetal's removal, a Steam restart), which wait then.
+    static var windowsGameRunning: Bool { windowsGameRunningKnown ?? true }
+
+    /// Whether a Windows game runs, nil when that isn't known (`ProcessList`).
+    static var windowsGameRunningKnown: Bool? {
+        ownProcessesKnown().map { ours in
+            ours.contains { process in
+                let command = process.command.lowercased()
+                return GameProcesses.gameFolders.contains { command.contains($0.lowercased()) }
+                    || command.contains(".exe") && GameProcesses.runsFrom(GameProcesses.gameFolders, command: command,
+                                                                          cwd: GameProcesses.cwd(of: process.pid))
+            }
         }
     }
 
     /// Processes started from Nightforge's engine (executable inside its folder), with the command
     /// line ps shows – Wine rewrites that to the Windows program. Not Nightforge Helper, which only
     /// waits for the program it started (and ending it would look as if that program had failed).
+    /// An old list counts here (`ProcessList`'s last good one while `ps` doesn't answer): its pids are checked
+    /// again by their programs below, and only what they show is acted on.
     static func ownProcesses(under folder: URL = supportDir) -> [(pid: pid_t, command: String)] {
-        let ps = Process()
-        let pipe = Pipe()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-axo", "pid=,command="]
-        ps.standardOutput = pipe
-        guard (try? ps.run()) != nil else { return [] }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        ps.waitUntilExit()
+        own(in: processLookup().value ?? [], under: folder)
+    }
+
+    /// The same for deciding – may Nightforge end a session, write a game's files, take an engine away? –
+    /// from a list asked for just now; nil when there is none, an old one included: it can't show what
+    /// started since, so "none there" would be a guess (review B1). "none" and "not known" are two answers.
+    static func ownProcessesKnown(under folder: URL = supportDir) -> [(pid: pid_t, command: String)]? {
+        processLookup(allowOld: false).value.map { own(in: $0, under: folder) }
+    }
+
+    private static func own(in table: [(pid: pid_t, command: String)], under folder: URL) -> [(pid: pid_t, command: String)] {
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
-        return output.split(separator: "\n").compactMap { line in
-            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+        return table.filter { process in
             // Inside the folder, not merely a sibling with the same start (engine 4.7.3 vs 4.7.3-3).
-            guard parts.count == 2, let pid = pid_t(parts[0]), let path = executablePath(pid),
-                  path == root || path.hasPrefix(root + "/"), !path.hasPrefix(helper) else { return nil }
-            return (pid, String(parts[1]))
+            guard let path = executablePath(process.pid) else { return false }
+            return (path == root || path.hasPrefix(root + "/")) && !path.hasPrefix(helper)
+        }
+    }
+
+    /// Every process with the command line `ps` shows (`ProcessList`: limited, and the last list when `ps`
+    /// has stopped answering – the callers check each pid they act on). [] when there is none at all: callers
+    /// that conclude from an empty list use `processLookup`.
+    static func processTable() -> [(pid: pid_t, command: String)] {
+        processLookup().value ?? []
+    }
+
+    static func processLookup(allowOld: Bool = true) -> ProcessListing<[(pid: pid_t, command: String)]> {
+        ProcessList.listing("pid=,command=", allowOld: allowOld).map { text in
+            text.split(separator: "\n").compactMap { line in
+                let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
+                guard parts.count == 2, let pid = pid_t(parts[0]) else { return nil }
+                return (pid, String(parts[1]))
+            }
         }
     }
 
@@ -328,7 +483,8 @@ enum Engine {
         for pid in SteamBootstrap.webHelperProcesses(ownProcesses()) where pid != getpid() { kill(pid, SIGKILL) }
     }
 
-    private static func executablePath(_ pid: pid_t) -> String? {
+    /// The program a process runs, as the kernel has it (/private/var/…); nil for one that's gone.
+    static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
         return String(cString: buffer)
@@ -350,14 +506,17 @@ enum Engine {
     /// is another engine's while a game is held back on one (EngineRollback).
     static func stopAll(_ wine: URL) {
         let wine = sessionWine() ?? wine
-        let server = Process()
-        server.executableURL = wine.deletingLastPathComponent().appendingPathComponent("wineserver")
-        server.arguments = ["-k"]
-        server.environment = environment(wine: wine)
-        try? server.run()
-        server.waitUntilExit()
+        // `wineserver -k` asks the server to end and waits for it. A server that doesn't (a process of
+        // the session stuck in the kernel) must not hold up what comes after – Steam's restart, the
+        // engine switch, "Remove Nightforge completely": after the limit it is dropped, and
+        // `killLeftovers` ends what is still there.
+        Subprocess.run(wine.deletingLastPathComponent().appendingPathComponent("wineserver").path, ["-k"],
+                       environment: environment(wine: wine), timeout: serverTimeout)
         killLeftovers()
     }
+
+    /// How long `stopAll` waits for `wineserver -k`.
+    static let serverTimeout: TimeInterval = 15
 
     /// Wine helpers (winedevice.exe in particular) sometimes outlive `wineserver -k` and then
     /// hang around for days. A Wine program still running with its working directory in our
@@ -367,24 +526,25 @@ enum Engine {
     static func killLeftovers() {
         // As the kernel reports them: /private/var/… stays (resolvingSymlinksInPath drops /private).
         let root = realPath(prefix)
-        let engines = engineFolders.map(realPath)
+        let engines = engineFolders.map(realPath), components = realPath(ComponentStore.shared.root)
         var pids = [pid_t](repeating: 0, count: 4096)
         let bytes = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
         guard bytes > 0 else { return }
         for pid in pids.prefix(Int(bytes)) where pid > 0 {
-            guard let path = executablePath(pid), isWineProgram(path, engines: engines) else { continue }
+            guard let path = executablePath(pid), isWineProgram(path, engines: engines, components: components) else { continue }
             var info = proc_vnodepathinfo()
             let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
             guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { continue }
             let cwd = withUnsafeBytes(of: info.pvi_cdir.vip_path) { raw in
                 String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
             }
-            if cwd.hasPrefix(root) { kill(pid, SIGKILL) }
+            // The prefix itself or below it: "Prefix-backup" beside it starts with the same letters.
+            if cwd == root || cwd.hasPrefix(root + "/") { kill(pid, SIGKILL) }
         }
         // Wine processes working somewhere else (Steam's own folder resolved differently, …)
         // still run Nightforge's engine.
         for process in ownProcesses() where process.pid != getpid() {
-            guard let path = executablePath(process.pid), isWineProgram(path, engines: engines) else { continue }
+            guard let path = executablePath(process.pid), isWineProgram(path, engines: engines, components: components) else { continue }
             kill(process.pid, SIGKILL)
         }
     }
@@ -400,11 +560,13 @@ enum Engine {
         [engineID, winecxEngineID, "wine-staging"].map { ComponentStore.shared.root.appendingPathComponent($0, isDirectory: true) }
     }
 
-    /// A Wine program: run from one of the engines, or a Wine binary by name. Nightforge's other
-    /// components (gogdl, legendary) aren't.
-    static func isWineProgram(_ path: String, engines: [String]) -> Bool {
+    /// A Wine program: run from one of the engines, or a Wine binary by name elsewhere in Nightforge's
+    /// components (`components`: ComponentStore's folder, resolved like the paths). Nightforge's other
+    /// components (gogdl, legendary) aren't, nor another app's Wine (CrossOver, Homebrew) by its name.
+    static func isWineProgram(_ path: String, engines: [String], components: String) -> Bool {
         engines.contains { path.hasPrefix($0 + "/") }
-            || ["wine", "wine64", "wineserver", "wine-preloader", "wine64-preloader"].contains((path as NSString).lastPathComponent)
+            || path.hasPrefix(components + "/")
+                && ["wine", "wine64", "wineserver", "wine-preloader", "wine64-preloader"].contains((path as NSString).lastPathComponent)
     }
 
     /// Puts the bundled steamwebhelper wrapper in place of Steam's own (which becomes
@@ -491,7 +653,70 @@ enum Engine {
     /// MoltenVK straight, without a Vulkan loader (docs/TODO.md › Vulkan-Layer und winecx). Without
     /// the layer DXVK asks MoltenVK for what it lacks (geometryShader, shaderCullDistance) and gets
     /// no device – Left 4 Dead 2 and Mafia II on DirectX 9.
-    static var vulkanLayerLoads: Bool { installedWineNow().map { !isGPTKCapable(wine: $0) } ?? true }
+    static var vulkanLayerLoads: Bool { installedWineNow().map { !isGPTKCapable(wine: $0) || vulkanLoader(for: $0) != nil } ?? true }
+
+    /// Engine test, off unless `defaults write io.github.lordhayne.nightforge vulkanLoader -bool true`
+    /// (or the path of an x86_64 libvulkan.1.dylib instead of true): on winecx, which loads MoltenVK
+    /// itself, DXVK's Direct3D 9 draws through the Khronos loader, so Nightforge's Vulkan layer is
+    /// there to drop what MoltenVK lacks. DXVK-macOS 1.10.3's Direct3D 9 asks for geometryShader and
+    /// shaderCullDistance whatever the GPU says (d3d9_device.cpp), and MoltenVK refuses the device
+    /// (L4D2, Mafia II); its Direct3D 11 asks only for what's there (d3d11_device.cpp), which is why
+    /// OxyRail draws on DXVK without (probe, 3.11.2026, docs/TODO.md › Vulkan-Layer und winecx).
+    /// With `true` the loader is the Gcenx engine's (Khronos 1.4.350), what Wine 11.18 drew through.
+    static func vulkanLoader(for wine: URL, defaults: UserDefaults = .standard) -> URL? {
+        guard isGPTKCapable(wine: wine) else { return nil }
+        let fm = FileManager.default
+        if let path = defaults.string(forKey: "vulkanLoader"), path.hasPrefix("/") {
+            return fm.fileExists(atPath: path) ? URL(fileURLWithPath: path) : nil
+        }
+        guard defaults.bool(forKey: "vulkanLoader"), let gcenx = installedComponentNow(engineID).flatMap(wineBinary(in:)) else { return nil }
+        let loader = gcenx.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/libvulkan.1.dylib")
+        return fm.fileExists(atPath: loader.path) ? loader : nil
+    }
+
+    /// The variables that send a start's Vulkan through `vulkanLoader`, beside CX_ACTIVE_GRAPHICS_BACKEND.
+    static let vulkanLoaderNames = ["CX_LIBVULKAN", "VK_DRIVER_FILES", "VK_ADD_IMPLICIT_LAYER_PATH"]
+
+    /// Whether the engine test's switch for `vulkanLoader` is on, whatever the game: a loader's path that
+    /// is there, or `true` (the Gcenx engine's).
+    static func vulkanLoaderSwitchedOn(defaults: UserDefaults = .standard) -> Bool {
+        if let path = defaults.string(forKey: "vulkanLoader"), path.hasPrefix("/") { return FileManager.default.fileExists(atPath: path) }
+        return defaults.bool(forKey: "vulkanLoader")
+    }
+
+    /// What a start on `layer` gets for the loader: a Direct3D 9 game on DXVK, with the switch on.
+    /// CW Hack 25909 (dlls/win32u/vulkan.c) takes CX_LIBVULKAN only with
+    /// CX_ACTIVE_GRAPHICS_BACKEND=wined3d; MoltenVK and the layer come from the game bundle's files
+    /// (installGameBundle), the same the loader finds inside the bundle by itself.
+    static func vulkanLoaderEnvironment(layer: GraphicsLayer, d3d9: Bool, wine: URL?,
+                                        defaults: UserDefaults = .standard) -> [String: String] {
+        guard layer == .dxvk, d3d9, let wine, let loader = vulkanLoader(for: wine, defaults: defaults) else { return [:] }
+        let vulkan = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("\(gameBundleName)/Contents/Resources/vulkan", isDirectory: true)
+        return ["CX_LIBVULKAN": loader.path, "CX_ACTIVE_GRAPHICS_BACKEND": "wined3d",
+                "VK_DRIVER_FILES": vulkan.appendingPathComponent("icd.d/MoltenVK_icd.json").path,
+                "VK_ADD_IMPLICIT_LAYER_PATH": vulkan.appendingPathComponent("implicit_layer.d").path]
+    }
+
+    /// KosmicKrisp's folder, once it and upstream DXVK are installed (the components list names them
+    /// with winecx only): DXVK's Direct3D 9 gets its device there.
+    static var kosmicKrispNow: URL? {
+        guard installedComponentNow(dxvkUpstreamID) != nil, let dir = installedComponentNow(kosmicKrispID) else { return nil }
+        return kosmicKrispFolder(in: dir)
+    }
+
+    /// DXVK's Direct3D 9 draws on winecx: KosmicKrisp is there for it (`vulkanDriver`).
+    static var kosmicKrispReady: Bool { !vulkanLayerLoads && kosmicKrispNow != nil }
+
+    /// The folder in an unpacked KosmicKrisp archive that holds the loader, the driver and its manifest.
+    static func kosmicKrispFolder(in dir: URL) -> URL? {
+        let fm = FileManager.default
+        let candidates = [dir] + ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+        return candidates.first { folder in
+            ["libvulkan.1.dylib", "libvulkan_kosmickrisp.dylib", "kosmickrisp_icd.json"]
+                .allSatisfy { fm.fileExists(atPath: folder.appendingPathComponent($0).path) }
+        }
+    }
 
     static func isD3DMetalDeployed(wine: URL) -> Bool {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
@@ -533,17 +758,26 @@ enum Engine {
                 at: store.root.appendingPathComponent(id), includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0 != engineDir }
         } + rollback.heldEngineFolders()
-        for dir in oldEngines where !ownProcesses(under: dir).isEmpty {
+        for dir in oldEngines {
+            // Something runs from it – or that can't be told (no process list): it counts as in use, and a
+            // session that may hold a game isn't ended (`windowsGameRunning` is true then too).
+            guard ownProcessesKnown(under: dir)?.isEmpty != true else { continue }
             guard let old = wineBinary(in: dir) else { continue }
             if gameRunning || windowsGameRunning { return old }
             stopAll(old)
         }
+        if !gameRunning, !windowsGameRunning { applyMsyncMode(wine) }
         // On winecx, D3DMetal takes the engine's Direct3D builtins and DXMT and DXVK move into the
         // prefix as native DLLs (see `layerOverrides`).
         let gptk = isGPTKCapable(wine: wine)
         // Apple's D3DMetal only once the player has said how it comes (D3DMetalSupply) – or had it before.
         let d3dMetal = gptk ? D3DMetalSupply.current(manifest: manifest, componentsRoot: store.root) : nil
         let gamepad = gptk ? manifest.component(gamepadID) : nil
+        // Built for one runtime: only with that engine version (installEngineFix checks its files as well).
+        let engineFix = gptk ? manifest.component(engineFixID).flatMap { $0.version.hasPrefix(engine.version + "-") ? $0 : nil } : nil
+        // DXVK's Direct3D 9 on KosmicKrisp: winecx only, the one engine that loads it per start.
+        let kosmicKrisp = gptk ? manifest.component(kosmicKrispID) : nil
+        let dxvkUpstream = kosmicKrisp != nil ? manifest.component(dxvkUpstreamID) : nil
         // Copying the graphics files again would give them new inodes and so rebuild the game
         // bundle Steam runs from, and every regedit starts Wine: each part is only redone when what
         // it installs has changed. The stamps live in what they describe, so a fresh engine or
@@ -553,13 +787,15 @@ enum Engine {
         let moltenVK = manifest.component(moltenVKID)
         let graphicsWanted = "\(graphics.id) \(graphics.version) engine-match \(matchesEngine) moltenvk \(moltenVK?.version ?? "engine")"
             + " d3dmetal \(d3dMetal?.version ?? "-") gamepad \(gamepad?.version ?? "-")"
+            + (engineFix.map { " enginefix \($0.version)" } ?? "")
         let dxvk = manifest.component(dxvkID)
-        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, dxvk].compactMap { $0 },
+        let build = EngineBuild(engine: engine, graphics: [graphics, moltenVK, gamepad, engineFix, dxvk, kosmicKrisp, dxvkUpstream]
+                                    .compactMap { $0 },
                                 d3dMetal: d3dMetal?.version, stamp: graphicsWanted)
         // Before anything of the engine changes, the build games last ran well on stays as a copy:
         // a game the new one breaks starts with it instead (EngineRollback).
         if !gameRunning, !windowsGameRunning {
-            rollback.holdBack(before: build, copying: [graphicsID, upstreamGraphicsID, dxvkID]) { current, folder in
+            rollback.holdBack(before: build, copying: [graphicsID, upstreamGraphicsID, dxvkID, dxvkUpstreamID]) { current, folder in
                 wineBinary(in: folder).map { readStamp(graphicsStampFile(wine: $0)) == current.stamp } ?? false
             }
         }
@@ -574,11 +810,15 @@ enum Engine {
             }
             var gamepadDir: URL?
             if let gamepad { gamepadDir = try await install(gamepad) }
+            var engineFixDir: URL?
+            if let engineFix { engineFixDir = try await install(engineFix) }
             report?(.graphics)
             try installGraphics(graphicsDir, into: wine, matchesEngine: matchesEngine, nativeInPrefix: gptk)
             try installMoltenVK(moltenVKDir, into: wine)
             if let d3dMetalDir { try installD3DMetal(d3dMetalDir, into: wine) }
             if let gamepadDir { try installGamepad(gamepadDir, into: wine) }
+            // Without one (or for another engine version) the engine's own files come back.
+            if gptk { try installEngineFix(engineFixDir, into: wine) }
             writeStamp(graphicsStamp, graphicsWanted)
         }
         installGameBundle(wine: wine)  // after the graphics: its links must point at the new files
@@ -588,13 +828,17 @@ enum Engine {
         excludeGamesFromBackup()
         var dxvkDir: URL?
         if let dxvk { dxvkDir = try await install(dxvk) }
+        // KosmicKrisp isn't copied anywhere: each start on it names its folder (`vulkanDriver`).
+        if let kosmicKrisp { _ = try await install(kosmicKrisp) }
+        var d3d9Dir: URL?
+        if let dxvkUpstream { d3d9Dir = try await install(dxvkUpstream) }
         report?(.gameEnvironment)
-        try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir)
+        try preparePrefix(wine: wine, build: build, graphicsDir: graphicsDir, dxvkDir: dxvkDir, d3d9Dir: d3d9Dir)
         // Only once the engine points at the current versions: with a game running, the graphics
         // install above waits, and the engine's links (D3DMetal, MoltenVK) may still lead to older ones.
         if !gameRunning, !windowsGameRunning {
-            removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal)
-            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { !ownProcesses(under: $0).isEmpty }
+            if await store.manifestIsSigned { removeUnusedComponents(keeping: manifest, store: store, d3dMetal: d3dMetal) }
+            rollback.settle(build, seed: LaunchHealth.confirmedWays()) { ownProcessesKnown(under: $0)?.isEmpty != true }
         }
         return wine
     }
@@ -602,13 +846,14 @@ enum Engine {
     /// The prefix's share of an engine build: the game environment, DXVK's DLLs and load orders, and
     /// on winecx DXMT's DLLs and Wine's own Direct3D 12 as natives. Redone only when the build or the
     /// environment changed since (the stamp) – after an update, or switching to a held-back build and back.
-    static func preparePrefix(wine: URL, build: EngineBuild, graphicsDir: URL, dxvkDir: URL?) throws {
+    /// `d3d9Dir`: upstream DXVK, whose Direct3D 9 takes the place of DXVK-macOS's on winecx (KosmicKrisp).
+    static func preparePrefix(wine: URL, build: EngineBuild, graphicsDir: URL, dxvkDir: URL?, d3d9Dir: URL? = nil) throws {
         let gptk = isGPTKCapable(wine: wine)
         let prefixStamp = stamp(in: prefix, name: "setup")
         let prefixWanted = prefixStampText(build, gptk: gptk)
+        applyPrefixRegistry(wine: wine)  // stamped on its own: older prefixes get it once as well
         guard readStamp(prefixStamp) != prefixWanted else { return }
-        applyGameEnvironment(wine: wine)
-        if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk) }
+        if let dxvkDir { try installDXVK(dxvkDir, wine: wine, d3d9Only: gptk, d3d9From: gptk ? d3d9Dir : nil) }
         let written = loadOrdersWritten
         if gptk {
             try installDXMTNatives(graphicsDir)
@@ -620,6 +865,7 @@ enum Engine {
     static func prefixStampText(_ build: EngineBuild, gptk: Bool) -> String {
         let graphics = build.version(of: graphicsID) ?? build.version(of: upstreamGraphicsID) ?? "-"
         return "\(build.engineVersion) \(build.version(of: dxvkID) ?? "-") \(gptk ? graphics + " d3dmetal " + (build.version(of: d3dMetalID) ?? "-") : "-") "
+            + (gptk ? build.version(of: dxvkUpstreamID).map { "d3d9 \($0) " } ?? "" : "")
             + gameEnvironment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
     }
 
@@ -645,7 +891,8 @@ enum Engine {
             && (try? id.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
             let versions = (try? fm.contentsOfDirectory(at: id, includingPropertiesForKeys: nil)) ?? []
             for version in versions where version.lastPathComponent != wanted[id.lastPathComponent] {
-                guard ownProcesses(under: version).isEmpty else { continue }
+                // Not one something runs from – nor one whose users can't be told.
+                guard ownProcessesKnown(under: version)?.isEmpty == true else { continue }
                 try? fm.removeItem(at: version)
             }
             if (try? fm.contentsOfDirectory(atPath: id.path))?.isEmpty == true { try? fm.removeItem(at: id) }
@@ -702,6 +949,15 @@ enum Engine {
             }
     }
 
+    /// When a game last ran, or was last asked to start (Play pressed): the quit script waits for its cloud
+    /// saves only within five minutes of that, and only then. Set by `noteGameActivity`.
+    nonisolated(unsafe) static var lastGameActivity: Date?
+
+    static func noteGameActivity(_ date: Date = Date()) { lastGameActivity = date }
+
+    /// A game ran, or was asked to start, within the last five minutes (the quit script's `recent_game`).
+    static var gameRanRecently: Bool { lastGameActivity.map { Date().timeIntervalSince($0) < 300 } ?? false }
+
     /// When Nightforge quits, Steam should go too – but not while a game runs (it uploads cloud
     /// saves after the game ends) or a download is going. Nightforge itself quits right after a
     /// launch, so a small detached script waits for that and then stops Steam and the Wine session.
@@ -718,8 +974,10 @@ enum Engine {
 
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        // Steam's -shutdown is a Windows program like any other: in the sandbox when it's switched on.
+        let sandbox = WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid())]
+                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))] + sandbox
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -728,30 +986,105 @@ enum Engine {
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
     /// $4 "1" to quit Steam for Mac too, $5 the Nightforge app to bring back after a game, $6 the
-    /// process of the Nightforge that is quitting.
+    /// process of the Nightforge that is quitting, $7 WINEMSYNC as the session has it (`msync`), $8 when a
+    /// game last ran or was asked to start (`lastGameActivity`, epoch seconds): only within five minutes of
+    /// that does it wait 30 s for the cloud saves before it ends Steam. $9 and $10 Wine's sandbox helper and
+    /// profile (WineSandbox; review of 3.11.2026: it ran steam.exe from the prefix outside the sandbox).
+    /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
+    /// counts a download only if it isn't paused. A game that starts while Steam is being ended (from Steam's
+    /// window) sends it back to waiting, never under `wineserver -k`. Its process is in `steam-shutdown.pid`
+    /// beside it while it waits.
     static let steamShutdownScript = #"""
         #!/bin/bash
         # Written by Nightforge on quit: ends the background Steam once nothing needs it, and brings
         # Nightforge back when a game that was running ends.
         # WINE is empty without Nightforge's own Steam; QUIT_MAC is 1 when Steam for Mac should go too.
-        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"
+        # SANDBOX and PROFILE: Wine's sandbox helper and its profile when the switch is on (WineSandbox),
+        # SANDBOX "-" when it's on but the helper is missing; both empty when it's off.
+        WINE="$1"; PREFIX="$2"; MAC_STEAMAPPS="$3"; QUIT_MAC="$4"; APP="$5"; QUITTING="$6"; MSYNC="${7:-1}"
+        # When a game last ran or was asked to start (epoch seconds, 0: not for long), told by Nightforge and
+        # kept up to date here whenever one is seen running.
+        LAST_GAME="${8:-0}"
+        recent_game() { [ $(( $(date +%s) - LAST_GAME )) -lt 300 ]; }
+        SANDBOX="$9"; PROFILE="${10}"
+        # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
+        # change, so with the switch on it runs inside too, as every other Wine start does. Switched on
+        # without the helper, nothing of Windows starts; the session still ends below (wineserver -k).
+        wine_program() {
+          [ "$SANDBOX" = "-" ] && return 1
+          if [ -n "$SANDBOX" ]; then "$SANDBOX" "$PROFILE" "$WINE" "$@"; else "$WINE" "$@"; fi
+        }
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
+        # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
+        # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
+        LIMIT="${NIGHTFORGE_QUIT_LIMIT:-43200}"
+        late() { [ "$SECONDS" -gt "$LIMIT" ]; }
+        # Where "Remove Nightforge completely" finds this script, without asking ps (CompleteRemoval.endScripts).
+        PIDFILE="${0%/*}/steam-shutdown.pid"
+        echo $$ > "$PIDFILE" 2>/dev/null
+        trap '[ "$(cat "$PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$PIDFILE"' EXIT
+        # A ps that doesn't answer, or answers nothing (it always lists this script), is "unknown", not
+        # "no process": a game may be running. Unknown counts as one; unknown for half an hour on end
+        # (NIGHTFORGE_PS_LIMIT, seconds), the script leaves everything as it is and ends.
+        PS_LIMIT="${NIGHTFORGE_PS_LIMIT:-1800}"
+        UNKNOWN_SINCE=""
+        PS_OUT=""
+        read_processes() {
+          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$PS_OUT" ]; then UNKNOWN_SINCE=""; return 0; fi
+          [ -n "$UNKNOWN_SINCE" ] || UNKNOWN_SINCE="$(date +%s)"
+          return 1
+        }
+        unknown_too_long() { [ -n "$UNKNOWN_SINCE" ] && [ $(( $(date +%s) - UNKNOWN_SINCE )) -ge "$PS_LIMIT" ]; }
         # The process list is read before searching it, so the search never finds itself; -F
         # because the Windows paths are full of backslashes, which grep would read as escapes.
-        has_process() { local list; list="$(ps -axo command)"; printf '%s\n' "$list" | grep -qiF -- "$1"; }
-        reopened() { pgrep -qf "Nightforge.app/Contents/MacOS/Nightforge"; }
+        has_process() { read_processes -axo command || return 0; printf '%s\n' "$PS_OUT" | grep -qiF -- "$1"; }
+        # Nightforge runs again: a process whose command line BEGINS with this app's program – not one
+        # that merely names it (a build in another folder, lldb, codesign, a tail in a terminal), and
+        # not the Nightforge that is quitting. The needle goes in by environment, so that no command
+        # line of ours holds it.
+        reopened() {
+          ps -axo pid=,command= | NEEDLE="$APP/Contents/MacOS/Nightforge" QUITTING="$QUITTING" awk '
+            BEGIN { needle = ENVIRON["NEEDLE"]; quitting = ENVIRON["QUITTING"]; found = 0 }
+            { pid = $1; line = $0; sub(/^[ ]*[0-9]+[ ]+/, "", line) }
+            pid == quitting { next }
+            index(line, needle) == 1 { rest = substr(line, length(needle) + 1); if (rest == "" || substr(rest, 1, 1) == " ") found = 1 }
+            END { exit found ? 0 : 1 }'
+        }
         steam_running() { has_process '\steam\steam.exe'; }
+        # A Windows program a launcher started by its bare name ("Control_DX11.exe -AUTH_LOGIN=…") shows
+        # no folder; Wine gives it the game's as its working folder. Not Windows' or Steam's own programs.
+        runs_from_game_folder() {
+          local list pids
+          list="$(ps -axo pid=,command=)"
+          pids="$(printf '%s\n' "$list" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }' | paste -sd, -)"
+          [ -n "$pids" ] && lsof -a -d cwd -Fn -p "$pids" 2>/dev/null | grep -qiE '/steamapps/common/|/epic games/|/gog games/'
+        }
         game_running() {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
           has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
           has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
+          runs_from_game_folder && return 0                                               # one a launcher started
+          return 1
+        }
+        # A download is under way in this steamapps folder: a folder in downloading/ whose appmanifest is
+        # not marked paused (StateFlags 512). Steam leaves the folders of paused and failed downloads
+        # there for good; counted, they would keep Steam and this script running for as long as the Mac
+        # is on. A folder without a manifest is a leftover Steam doesn't carry on with.
+        downloading_in() {
+          local dir flags
+          for dir in "$1"/downloading/*/; do
+            [ -d "$dir" ] || continue
+            flags="$(sed -n 's/.*"StateFlags"[[:space:]]*"\([0-9]*\)".*/\1/p' "$1/appmanifest_$(basename "$dir").acf" 2>/dev/null | head -n 1)"
+            [ -n "$flags" ] || continue
+            [ $(( flags & 512 )) -ne 0 ] || return 0
+          done
           return 1
         }
         busy() {
-          game_running && return 0
-          [ -n "$WINE" ] && find "$STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
-          [ -n "$MAC_STEAMAPPS" ] && find "$MAC_STEAMAPPS/downloading" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q . && return 0
+          if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
+          [ -n "$WINE" ] && downloading_in "$STEAMAPPS" && return 0
+          [ -n "$MAC_STEAMAPPS" ] && downloading_in "$MAC_STEAMAPPS" && return 0
           return 1
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
@@ -764,33 +1097,46 @@ enum Engine {
           gone=0
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
+            late && exit 0
+            unknown_too_long && exit 0
             sleep 2
             if game_running; then gone=0; else gone=$((gone + 1)); fi
           done
           open "$APP"
           exit 0
         fi
-        while true; do
-          while busy; do reopened && exit 0; sleep 10; done
-          sleep 30                       # cloud saves of a game that just ended
-          reopened && exit 0
-          busy || break
-        done
-        if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
-          osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
-        fi
-        [ -n "$WINE" ] || exit 0
         # WINEMSYNC like every other Wine process of the session (Engine.environment).
-        export WINEPREFIX="$PREFIX" WINEDEBUG=-all WINEMSYNC=1
-        # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
-        # away): asked again before each step that would end the session.
-        reopened && exit 0
-        if steam_running; then
-          # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
-          "$WINE" 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
-          for i in $(seq 1 20); do steam_running || break; reopened && exit 0; sleep 1; done
-        fi
-        reopened && exit 0
+        export WINEPREFIX="$PREFIX" WINEDEBUG=-all WINEMSYNC="$MSYNC"
+        # A game started from Steam's window meanwhile (Steam refuses -shutdown then) is waited for like
+        # any other: looked for while Steam ends and right before the session does, which would end the
+        # game with it.
+        while true; do
+          while true; do
+            while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
+            recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
+            reopened && exit 0
+            busy || break
+          done
+          if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
+            osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
+          fi
+          [ -n "$WINE" ] || exit 0
+          # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
+          # away): asked again before each step that would end the session.
+          reopened && exit 0
+          if steam_running; then
+            # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
+            wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
+            for i in $(seq 1 20); do
+              steam_running || break
+              reopened && exit 0
+              game_running && continue 2
+              sleep 1
+            done
+          fi
+          reopened && exit 0
+          game_running || break
+        done
         "$(dirname "$WINE")/wineserver" -k
         sleep 2
         # Wine helpers that outlive the server, recognisable by their working directory in the prefix –
@@ -821,15 +1167,17 @@ enum Engine {
         let rollback = EngineRollback.shared
         let history = rollback.history()
         func root(_ wine: URL) -> String { wine.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL.path }
-        var target: (wine: URL, build: EngineBuild?, held: HeldBuild?, graphics: URL?, dxvk: URL?) = (newest, nil, nil, nil, nil)
+        var target: (wine: URL, build: EngineBuild?, held: HeldBuild?, graphics: URL?, dxvk: URL?, d3d9: URL?)
+            = (newest, nil, nil, nil, nil, nil)
         if let held = rollback.pinnedBuild(game), let wine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID)) {
             let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
-            target = (wine, held.build, held, rollback.folder(of: held, part: graphics), rollback.folder(of: held, part: dxvkID))
+            target = (wine, held.build, held, rollback.folder(of: held, part: graphics), rollback.folder(of: held, part: dxvkID),
+                      held.build.version(of: dxvkUpstreamID).map { _ in rollback.folder(of: held, part: dxvkUpstreamID) })
         } else if let current = history.current, let folder = rollback.installedFolder(of: current, part: current.engineID),
                   wineBinary(in: folder).map(root) == root(newest) {
             let graphics = current.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
             target = (newest, current, nil, rollback.installedFolder(of: current, part: graphics),
-                      rollback.installedFolder(of: current, part: dxvkID))
+                      rollback.installedFolder(of: current, part: dxvkID), rollback.installedFolder(of: current, part: dxvkUpstreamID))
         }
         guard let build = target.build else { return (newest, nil, nil) }
 
@@ -846,19 +1194,56 @@ enum Engine {
             await offMain { stopAll(session) }
         }
         let (wine, held) = (target.wine, target.held)
-        let (graphics, dxvk) = (target.graphics, target.dxvk)
+        let (graphics, dxvk, d3d9) = (target.graphics, target.dxvk, target.d3d9)
         await offMain {
-            if let graphics {
-                try? preparePrefix(wine: wine, build: build, graphicsDir: graphics,
-                                   dxvkDir: dxvk.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil })
-            }
-            // A held copy builds its own game bundle the first time; the newest one has it from setup.
-            if held != nil {
-                installGameBundle(wine: wine)
-                if isGPTKCapable(wine: wine) { linkCrossOverProfile() }
+            func existing(_ folder: URL?) -> URL? { folder.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil } }
+            if let held {
+                useHeld(held, wine: wine)
+            } else if let graphics {
+                try? preparePrefix(wine: wine, build: build, graphicsDir: graphics, dxvkDir: existing(dxvk), d3d9Dir: existing(d3d9))
             }
         }
         return (wine, build, held)
+    }
+
+    /// Puts the prefix's share of `held` in place for a start with its engine `wine`. A held copy
+    /// builds its own game bundle the first time; the newest one has it from setup.
+    static func useHeld(_ held: HeldBuild, wine: URL) {
+        let rollback = EngineRollback.shared
+        let graphics = held.build.version(of: graphicsID) != nil ? graphicsID : upstreamGraphicsID
+        func existing(_ folder: URL) -> URL? { FileManager.default.fileExists(atPath: folder.path) ? folder : nil }
+        let d3d9 = held.build.version(of: dxvkUpstreamID).flatMap { _ in existing(rollback.folder(of: held, part: dxvkUpstreamID)) }
+        try? preparePrefix(wine: wine, build: held.build, graphicsDir: rollback.folder(of: held, part: graphics),
+                           dxvkDir: existing(rollback.folder(of: held, part: dxvkID)), d3d9Dir: d3d9)
+        installGameBundle(wine: wine)
+        if isGPTKCapable(wine: wine) { linkCrossOverProfile() }
+    }
+
+    /// The engine Nightforge last started Steam with, and when (SteamStartCheck judges that start).
+    /// Written by a Steam start (off the main thread, in a task) and read by the watch of that start (on it):
+    /// one value at a time, under a lock.
+    static var lastSteamStart: (wine: URL, at: Date)? {
+        get { steamStart.withLock { $0 } }
+        set { steamStart.withLock { $0 = newValue } }
+    }
+
+    private static let steamStart = LockedValue<(wine: URL, at: Date)?>(nil)
+
+    /// The engine a fresh Steam starts with: `wine` – or, when Steam didn't come up on the newest
+    /// engine, the build held back for it (EngineRollback.steamPinnedBuild), its share of the prefix
+    /// put in place. A Wine session left on another engine ends first; one a game runs in, Steam
+    /// joins instead (two engines can't share the prefix).
+    static func steamEngine(_ wine: URL) -> URL {
+        let rollback = EngineRollback.shared
+        guard let held = rollback.steamPinnedBuild(), rollback.build(running: wine) == rollback.history().current,
+              let heldWine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID))
+        else { return wine }
+        if let session = sessionWine(), session.standardizedFileURL.path != heldWine.standardizedFileURL.path {
+            guard !windowsGameRunning else { return session }
+            stopAll(session)
+        }
+        useHeld(held, wine: heldWine)
+        return heldWine
     }
 
     /// Copies DXMT (Direct3D 10/11 → Metal) into the engine's builtin DLL folders. Safe to repeat.
@@ -884,7 +1269,11 @@ enum Engine {
                 try fm.copyItem(at: file, to: destination)
             }
         }
-        try installMsync(top.appendingPathComponent("msync", isDirectory: true), into: wine, matchesEngine: matchesEngine)
+        // winecx has msync of its own; Nightforge's ntdll.so for it is the engine fix's (installEngineFix),
+        // whose *.engine copies this mustn't take for its own.
+        if !nativeInPrefix {
+            try installMsync(top.appendingPathComponent("msync", isDirectory: true), into: wine, matchesEngine: matchesEngine)
+        }
     }
 
     /// The graphics archive has one versioned top folder: v0.80/{x86_64-windows,i386-windows,x86_64-unix}
@@ -1068,6 +1457,74 @@ enum Engine {
         }
     }
 
+    /// The engine's own files the engine fix may stand in for.
+    static let engineFixFiles = ["ntdll.so", "winecoreaudio.so"]
+
+    /// Puts the engine fix's ntdll.so and winecoreaudio.so in place of winecx's (kept as *.engine).
+    /// They're built from the winecx commit of one runtime, so they only go over that runtime's own
+    /// files: the package names their SHA-256 (originals.sha256), and an engine whose files are
+    /// anything else keeps its own. The engine gets them back as well when the list drops the
+    /// package or has it for another engine version (`packageDir` nil). The fix leaves the
+    /// wineserver protocol alone, so a running session carries on with the files it has loaded.
+    /// True when the fix is in.
+    @discardableResult
+    static func installEngineFix(_ packageDir: URL?, into wine: URL) throws -> Bool {
+        let fm = FileManager.default
+        let unix = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+        let package = packageDir.flatMap(engineFixPackage(in:))
+        let originals = package.map(engineFixOriginals(in:)) ?? [:]
+        // The engine's own file: the copy kept of it, or – before anything went over it – the file itself.
+        func own(_ name: String) -> URL {
+            let kept = unix.appendingPathComponent(name).appendingPathExtension("engine")
+            return fm.fileExists(atPath: kept.path) ? kept : unix.appendingPathComponent(name)
+        }
+        let fits = !originals.isEmpty && originals.allSatisfy { name, sha256 in
+            package.map { fm.fileExists(atPath: $0.appendingPathComponent("x86_64-unix/\(name)").path) } == true
+                && (try? ComponentStore.sha256(of: own(name))) == sha256
+        }
+        func swap(_ source: URL, over target: URL) throws {
+            guard !fm.contentsEqual(atPath: source.path, andPath: target.path) else { return }
+            let staged = target.appendingPathExtension("new")
+            try? fm.removeItem(at: staged)
+            try fm.copyItem(at: source, to: staged)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: staged.path)
+            _ = try fm.replaceItemAt(target, withItemAt: staged)
+        }
+        for name in engineFixFiles {
+            let target = unix.appendingPathComponent(name)
+            let kept = target.appendingPathExtension("engine")
+            if fits, let package, originals[name] != nil {
+                if !fm.fileExists(atPath: kept.path) { try fm.copyItem(at: target, to: kept) }
+                try swap(package.appendingPathComponent("x86_64-unix/\(name)"), over: target)
+            } else if fm.fileExists(atPath: kept.path) {
+                try swap(kept, over: target)
+            }
+        }
+        return fits
+    }
+
+    /// The folder holding originals.sha256 and x86_64-unix/ in an engine fix download.
+    static func engineFixPackage(in dir: URL) -> URL? {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: dir.appendingPathComponent("originals.sha256").path) { return dir }
+        return ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .first { fm.fileExists(atPath: $0.appendingPathComponent("originals.sha256").path) }
+    }
+
+    /// originals.sha256 as `shasum -a 256` writes it ("<hash>  ntdll.so"): what each file the package
+    /// replaces was in the runtime it was built for. Names other than `engineFixFiles` don't count.
+    static func engineFixOriginals(in package: URL) -> [String: String] {
+        let text = (try? String(contentsOf: package.appendingPathComponent("originals.sha256"), encoding: .utf8)) ?? ""
+        var originals: [String: String] = [:]
+        for line in text.split(whereSeparator: \.isNewline) {
+            guard let match = line.wholeMatch(of: #/([0-9a-f]{64}) [ *](\S+)/#),
+                  engineFixFiles.contains(String(match.2)) else { continue }
+            originals[String(match.2)] = String(match.1)
+        }
+        return originals
+    }
+
     /// The folder holding external/libd3dshared.dylib and wine/ in a D3DMetal download.
     static func d3dMetalPayloadRoot(in dir: URL) -> URL? {
         let fm = FileManager.default
@@ -1123,7 +1580,10 @@ enum Engine {
             fm.fileExists(atPath: source.path) && !fm.contentsEqual(atPath: source.path, andPath: pair.1.path)
         }
         guard changes else { return }
-        if !ownProcesses().isEmpty { stopAll(wine) }  // with the old wineserver, before it's replaced
+        // With the old wineserver, before it's replaced. A session that can't be told about (no process list)
+        // is not left with half the pair: nothing is swapped, the stamp isn't written, the next start does it.
+        guard let session = ownProcessesKnown() else { throw SetupError.sessionUnknown }
+        if !session.isEmpty { stopAll(wine) }
         for (source, pair) in zip(sources, pairs) {
             let original = pair.1.appendingPathExtension("engine")
             if available, !fm.fileExists(atPath: original.path) { try fm.copyItem(at: pair.1, to: original) }
@@ -1164,15 +1624,17 @@ enum Engine {
     /// default for every program; games set to DXMT override that in `applyGameSettings`. Safe to repeat.
     /// `d3d9Only` (winecx): system32 holds DXMT's DirectX 10/11 natives, so only DXVK's d3d9 goes
     /// there; a game that takes DXVK for DirectX 11 gets its DLLs next to its program (`placeDXVK`).
+    /// `d3d9From`: another DXVK whose d3d9 goes there instead – upstream's, for KosmicKrisp.
     /// False when the load orders couldn't be written (a wineserver of another engine still
     /// running, say), so setup tries again next time instead of counting it done.
     @discardableResult
-    static func installDXVK(_ dxvkDir: URL, wine: URL, d3d9Only: Bool = false) throws -> Bool {
+    static func installDXVK(_ dxvkDir: URL, wine: URL, d3d9Only: Bool = false, d3d9From: URL? = nil) throws -> Bool {
         defer { loadOrdersWritten = importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides]\n"
             + direct3DLibraries.map { "\"\($0)\"=\"\(defaultLoadOrder($0, d3dMetalEngine: d3d9Only))\"" }.joined(separator: "\n"),
             wine: wine) }
         let fm = FileManager.default
         let top = dxvkTop(dxvkDir)
+        let d3d9Top = d3d9From.map(dxvkTop)
         let windows = prefix.appendingPathComponent("drive_c/windows", isDirectory: true)
         for (arch, folder) in [("x64", "system32"), ("x32", "syswow64")] {
             let source = top.appendingPathComponent(arch, isDirectory: true)
@@ -1181,8 +1643,10 @@ enum Engine {
                   let files = try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) else { continue }
             for file in files where file.pathExtension == "dll" && (!d3d9Only || file.lastPathComponent == "d3d9.dll") {
                 let destination = target.appendingPathComponent(file.lastPathComponent)
+                let other = d3d9Top?.appendingPathComponent("\(arch)/d3d9.dll")
+                let copy = file.lastPathComponent == "d3d9.dll" ? other.flatMap { fm.fileExists(atPath: $0.path) ? $0 : nil } ?? file : file
                 try? fm.removeItem(at: destination)
-                try fm.copyItem(at: file, to: destination)
+                try fm.copyItem(at: copy, to: destination)
             }
         }
         return true
@@ -1249,8 +1713,20 @@ enum Engine {
     }
 
     /// winetricks verbs that would change every game in the shared prefix, not just the one that
-    /// asks (Proton gives each game its own prefix; Nightforge has one for all).
-    private static let sharedPrefixUnsafeVerbs: Set<String> = ["dsound"]
+    /// asks (Proton gives each game its own prefix; Nightforge has one for all): dsound, and every
+    /// one of winetricks' settings that is a plain word (winetricks 20260125, `w_metadata … settings`;
+    /// those with "=" aren't verbs here anyway). The Windows versions above all, which would switch
+    /// Steam and every game: one game's version is `windowsVersion`, per program (AppDefaults).
+    static let sharedPrefixUnsafeVerbs: Set<String> = windowsVersionVerbs.union([
+        "dsound", "bad", "good", "fontfix", "forcemono", "heapcheck", "hosts", "isolate_home", "native_mdac",
+        "native_oleaut32", "nocrashdialog", "remove_mono", "sandbox", "set_mididevice", "set_userpath",
+    ])
+
+    /// winetricks' verbs that set the Windows version of the whole prefix.
+    static let windowsVersionVerbs: Set<String> = [
+        "nt351", "nt40", "vista", "win20", "win2k", "win2k3", "win2k8", "win2k8r2", "win30", "win31",
+        "win7", "win8", "win81", "win10", "win11", "win95", "win98", "winme", "winxp",
+    ]
 
     /// .NET programs run on Wine Mono, which the engine brings along (share/wine/mono) and Wine finds
     /// by itself. Its Windows side – the .NET registry keys and libraries games and launchers check
@@ -1268,9 +1744,8 @@ enum Engine {
         else { return }
         let package = mono.appendingPathComponent("\(version)/support/winemono-support.msi")
         await Task.detached(priority: .userInitiated) {
-            let process = DetachedProcess()
-            process.executableURL = wine
-            process.arguments = ["msiexec", "/i", "Z:" + package.path.replacingOccurrences(of: "/", with: "\\"), "/qn"]
+            guard let process = try? WineSandbox.process(wine, ["msiexec", "/i", "Z:" + package.path.replacingOccurrences(of: "/", with: "\\"), "/qn"])
+            else { return }
             var env = environment(wine: wine)
             env["WINEDLLOVERRIDES"] = nil  // setup's switch that keeps Mono out
             process.environment = env
@@ -1285,7 +1760,7 @@ enum Engine {
     static func missingWinetricks(_ verbs: [String]) -> [String] {
         let log = (try? String(contentsOf: prefix.appendingPathComponent("winetricks.log"), encoding: .utf8)) ?? ""
         let installed = Set(log.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) })
-        return verbs.filter { !installed.contains($0) && !sharedPrefixUnsafeVerbs.contains($0) }
+        return verbs.filter { !installed.contains($0) && isSafeWinetricksVerb($0) }
     }
 
     /// winetricks commands that look like verbs but aren't installs (scripts/build-profiles.py keeps the same list).
@@ -1293,8 +1768,9 @@ enum Engine {
         "annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version",
     ]
 
+    /// A plain install verb that changes only what the game asks for: installWinetricks runs nothing else.
     static func isSafeWinetricksVerb(_ verb: String) -> Bool {
-        !verb.isEmpty && verb.count <= 64 && !winetricksCommands.contains(verb)
+        !verb.isEmpty && verb.count <= 64 && !winetricksCommands.contains(verb) && !sharedPrefixUnsafeVerbs.contains(verb)
             && verb.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
     }
 
@@ -1344,9 +1820,10 @@ enum Engine {
         env["XDG_CACHE_HOME"] = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge", isDirectory: true).path
 
-        let process = DetachedProcess()
-        process.executableURL = script
-        process.arguments = ["--unattended"] + verbs
+        guard let process = try? WineSandbox.process(script, ["--unattended"] + verbs) else {
+            try? log?.close()
+            return false
+        }
         process.environment = env
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = log ?? FileHandle.nullDevice
@@ -1402,7 +1879,7 @@ enum Engine {
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
         var sections = [crashDialogOff]
-        for exe in exes {
+        for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
             overrides.merge(layerOverrides(layer, d3dMetalEngine: d3dMetalEngine)) { _, layer in layer }
@@ -1443,26 +1920,37 @@ enum Engine {
     /// AMD list and, once that was cleared, with NVIDIA's – 30.0.15.1233 is 512.33 in NVIDIA's numbering, and
     /// Unreal checks the version against more than the one vendor's list. The lists come from the game's
     /// Hardware.ini, and the player's file in Saved/Config is read last: it clears them all. (The version
-    /// can't be changed from outside – D3DMetal states it itself.) Set before every start of an Unreal game
-    /// on D3DMetal, as the game may rewrite the file when it quits.
+    /// can't be changed from outside – D3DMetal states it itself.) The lists alone didn't do it: with all
+    /// three cleared the warning came again in both game tests on 2.11. So the check itself goes off as
+    /// well – the console variable r.WarnOfBadDrivers (0: off; in the game's code beside the warning's
+    /// text), which the player's Engine.ini sets in [SystemSettings] before the graphics start, in
+    /// shipped games too. Set before every start of an Unreal game on D3DMetal, as the game may rewrite
+    /// the files when it quits.
     static func clearUnrealDriverDenyList(installDir: URL) {
         let fm = FileManager.default
+        let lists = Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") })
         for project in unrealProjects(in: installDir) {
             let config = project.appendingPathComponent("Saved/Config", isDirectory: true)
             // Unreal 5 keeps its saved files under Windows, Unreal 4 under WindowsNoEditor (once it has run).
             let platforms = ["Windows"] + (fm.fileExists(atPath: config.appendingPathComponent("WindowsNoEditor").path) ? ["WindowsNoEditor"] : [])
             for platform in platforms {
-                let file = config.appendingPathComponent("\(platform)/Hardware.ini")
-                let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-                var merged = text
-                for section in unrealDriverSections {
-                    merged = mergingIni(merged, section: section, values: Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") }))
-                }
-                guard merged != text else { continue }
-                try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? merged.write(to: file, atomically: true, encoding: .utf8)
+                let folder = config.appendingPathComponent(platform, isDirectory: true)
+                mergeIniFile(folder.appendingPathComponent("Hardware.ini"), unrealDriverSections.map { ($0, lists) })
+                mergeIniFile(folder.appendingPathComponent("Engine.ini"), [unrealDriverWarningOff])
             }
         }
+    }
+
+    /// Unreal's switch for the driver check, in Engine.ini.
+    static let unrealDriverWarningOff = (section: "SystemSettings", values: ["r.WarnOfBadDrivers": "0"])
+
+    /// `sections` merged into an ini file (`mergingIni`), written only when that changes it.
+    private static func mergeIniFile(_ file: URL, _ sections: [(section: String, values: [String: String])]) {
+        let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        let merged = sections.reduce(text) { mergingIni($0, section: $1.section, values: $1.values) }
+        guard merged != text else { return }
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? merged.write(to: file, atomically: true, encoding: .utf8)
     }
 
     /// No "Program Error – … has encountered a serious problem" window: Wine's debugger (AeDebug's
@@ -1482,6 +1970,13 @@ enum Engine {
     /// Where a profile from the online fixes may write: a game's own settings under Software, and
     /// drive letters (MountedDevices). Never autostart entries, file associations, policies or Wine's
     /// own settings, which would reach every program in the prefix. scripts/build-profiles.py checks the same.
+    /// A program's file name that can stand in a .reg section's name (AppDefaults\<name>): a game
+    /// folder's name with "]", a line break and a section of its own (…\CurrentVersion\Run) would
+    /// write that too. No control characters, brackets or backslashes, which no Windows program has.
+    static func isPlainProgramName(_ name: String) -> Bool {
+        !name.isEmpty && !name.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F || "[]\\".unicodeScalars.contains($0) }
+    }
+
     static func isAllowedRegistryKey(_ key: String) -> Bool {
         guard !key.unicodeScalars.contains(where: { $0.value < 0x20 || $0 == "[" || $0 == "]" }) else { return false }
         let lower = key.lowercased()
@@ -1545,16 +2040,26 @@ enum Engine {
         guard (try? ("REGEDIT4\n\n" + body + "\n").write(to: file, atomically: true, encoding: .utf8)) != nil else { return false }
         defer { try? FileManager.default.removeItem(at: file) }
 
-        let regedit = DetachedProcess()
-        regedit.executableURL = wine
-        regedit.arguments = ["regedit", "/S", #"C:\windows\temp\"# + file.lastPathComponent]
+        // In the sandbox like every Wine start: the first of a session starts its wineserver.
+        guard let regedit = try? WineSandbox.process(wine, ["regedit", "/S", #"C:\windows\temp\"# + file.lastPathComponent]) else {
+            return false
+        }
         regedit.environment = environment(wine: wine)
         regedit.standardOutput = FileHandle.nullDevice
         regedit.standardError = FileHandle.nullDevice
         guard (try? regedit.run()) != nil else { return false }
-        regedit.waitUntilExit()
+        // A regedit takes seconds, the first of a session a few more (it starts the wineserver). One
+        // that is still at it after half a minute is stuck in a session that doesn't answer: ended,
+        // so the game start that asked for the import goes on – or fails – instead of waiting for good.
+        guard regedit.waitUntilExit(timeout: registryTimeout) else {
+            regedit.end()
+            return false
+        }
         return regedit.terminationStatus == 0
     }
+
+    /// How long `importRegistry` waits for regedit.
+    static let registryTimeout: TimeInterval = 30
 
     /// macOS only turns Game Mode on (CPU and GPU priority, lower Bluetooth latency) for apps whose
     /// bundle says they're games. Wine's loader is a bare binary, so this builds a small "Nightforge
@@ -1740,6 +2245,29 @@ enum Engine {
         return FileManager.default.isExecutableFile(atPath: loader.path) ? loader : wine
     }
 
+    /// msync for every Wine session, unless an engine test turns it off with `defaults write
+    /// io.github.lordhayne.nightforge msync -bool false` (docs/TODO.md › Engine-Tests; there's no
+    /// switch in the app). Read once per app run: every process of a session has to agree with its
+    /// wineserver, and `applyMsyncMode` ends a session started the other way.
+    static let msync = UserDefaults.standard.object(forKey: "msync") as? Bool ?? true
+
+    /// Whether a session started with msync as `session` says (nil: before this was noted, when
+    /// every session had it) has to end for one that wants it as `wanted`.
+    static func msyncSessionEnds(wanted: Bool, session: Bool?) -> Bool { (session ?? true) != wanted }
+
+    /// Ends the Wine session when it began with msync the other way round from `msync`. Not under
+    /// a running game – the caller makes sure of that.
+    static func applyMsyncMode(_ wine: URL, defaults: UserDefaults = .standard) {
+        let key = "msyncSession"
+        guard msyncSessionEnds(wanted: msync, session: defaults.object(forKey: key) as? Bool) else { return }
+        // Not known whether a session runs (no process list): it isn't ended, and the switch isn't noted as
+        // if it had been – the next start looks again.
+        guard let session = ownProcessesKnown() else { return }
+        if !session.isEmpty { stopAll(wine) }
+        defaults.set(msync, forKey: key)
+        GameLog.note("msync \(msync ? "on" : "off") from this Wine session on (engine test switch)")
+    }
+
     static func environment(wine: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         // Keeps Steam's own processes out of the Dock (wrapper/hide-steam-dock.m); games are untouched.
@@ -1750,7 +2278,7 @@ enum Engine {
         env["WINEPREFIX"] = prefix.path
         // msync (installMsync); every Wine process of the session, wineserver included, has to agree,
         // so it's in the environment all of them start with. Engines without it ignore it.
-        env["WINEMSYNC"] = "1"
+        env["WINEMSYNC"] = msync ? "1" : "0"
         env["WINEDEBUG"] = "-all"
         // Gecko/Mono installers would otherwise pop up dialogs during setup.
         env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
@@ -1761,9 +2289,7 @@ enum Engine {
     /// Runs a Wine command and waits for it (and the wineserver it started) to finish.
     static func run(_ wine: URL, _ arguments: [String]) async throws -> Int32 {
         try await Task.detached(priority: .userInitiated) {
-            let process = DetachedProcess()
-            process.executableURL = wine
-            process.arguments = arguments
+            let process = try WineSandbox.process(wine, arguments)
             process.environment = environment(wine: wine)
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
@@ -1830,6 +2356,8 @@ enum Engine {
     static func ensureSteamRunning(_ wine: URL, busy: Bool = false) async throws {
         let key = "steamConfigSignature"
         let current = UserDefaults.standard.string(forKey: key) == steamConfigSignature
+        // No process list to be had: neither a second Steam is started nor this one ended.
+        guard steamRunningKnown != nil else { return }
         // A Steam whose wineserver is gone: clear it away before starting afresh. A running game's
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
@@ -1856,7 +2384,8 @@ enum Engine {
         if Prefs.performanceHUD { dxvk.append("dxvk.hud = fps,frametimes,gpuload") }
         var dxmt: [String] = []
         if frameLimit > 0 {
-            dxvk.append("dxgi.maxFrameRate = \(frameLimit)")
+            // DXVK keeps the two apart: DirectX 10/11 through dxgi, Direct3D 9 on its own.
+            dxvk += ["dxgi.maxFrameRate = \(frameLimit)", "d3d9.maxFrameRate = \(frameLimit)"]
             dxmt.append("d3d11.preferredMaxFrameRate = \(frameLimit)")  // paced by Metal
         }
         if upscaling {
@@ -1895,16 +2424,53 @@ enum Engine {
                   let base = edit.root.map({ SaveTransfer.windowsRoot($0, places) }) ?? installDir
             else { continue }
             let file = base.appendingPathComponent(edit.path).standardizedFileURL
-            guard file.path.hasPrefix(base.standardizedFileURL.path + "/"), !edit.find.isEmpty,
+            guard isInside(file, base), !edit.find.isEmpty,
                   let text = try? String(contentsOf: file, encoding: .utf8)
             else { continue }
             if edit.once == true { defaults.set(true, forKey: done) }
-            guard text.contains(edit.find) else { continue }
-            if (try? text.replacingOccurrences(of: edit.find, with: edit.replace).write(to: file, atomically: true, encoding: .utf8)) != nil {
+            let edited = editing(text, find: edit.find, replace: edit.replace)
+            guard edited != text else { continue }
+            if (try? edited.write(to: file, atomically: true, encoding: .utf8)) != nil {
                 changed = true
             }
         }
         return changed
+    }
+
+    /// `text` with `find` made `replace`. Where `replace` holds `find` (a line added after it, say),
+    /// the places replaced at an earlier start stay as they are: else `find` would be there again
+    /// after every start and the file would grow by one `replace` each time.
+    static func editing(_ text: String, find: String, replace: String) -> String {
+        guard !find.isEmpty, text.contains(find) else { return text }
+        guard replace.contains(find) else { return text.replacingOccurrences(of: find, with: replace) }
+        // The earlier ones out of the way under a mark that can't be part of `find`, then back.
+        let mark = "\u{1}\u{2}"
+        guard !text.contains(mark), !find.unicodeScalars.contains(where: { $0.value == 1 || $0.value == 2 }) else { return text }
+        return text.replacingOccurrences(of: replace, with: mark)
+            .replacingOccurrences(of: find, with: replace)
+            .replacingOccurrences(of: mark, with: replace)
+    }
+
+    /// Whether `file` lies in `base` with the links on the way resolved: a link in the prefix or the
+    /// game folder that leads out (users\<name>\Documents once led to the Mac's own) isn't written
+    /// through. resolvingSymlinksInPath leaves a path alone whose end isn't there yet (an .ini the game
+    /// hasn't written), so the part that is there is resolved and the rest goes on it; a link that
+    /// leads nowhere counts as outside.
+    static func isInside(_ file: URL, _ base: URL) -> Bool {
+        let fm = FileManager.default
+        func resolved(_ url: URL) -> String? {
+            var existing = url.standardizedFileURL
+            var rest: [String] = []
+            while (try? fm.attributesOfItem(atPath: existing.path)) == nil, existing.pathComponents.count > 1 {
+                rest.insert(existing.lastPathComponent, at: 0)
+                existing.deleteLastPathComponent()
+            }
+            let real = existing.resolvingSymlinksInPath()
+            guard (try? fm.destinationOfSymbolicLink(atPath: real.path)) == nil else { return nil }
+            return rest.reduce(real) { $0.appendingPathComponent($1) }.path
+        }
+        guard let inner = resolved(file), let outer = resolved(base) else { return false }
+        return inner.hasPrefix(outer + "/")
     }
 
     /// A profile's values for the game's own .ini files (GameProfile.iniSettings), set in their
@@ -1913,7 +2479,7 @@ enum Engine {
         for setting in settings where !setting.values.isEmpty {
             guard let base = SaveTransfer.windowsRoot(setting.root, places) else { continue }
             let file = base.appendingPathComponent(setting.path).standardizedFileURL
-            guard file.path.hasPrefix(base.standardizedFileURL.path + "/") else { continue }
+            guard isInside(file, base) else { continue }
             let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
             let merged = mergingIni(text, section: setting.section, values: setting.values)
             guard merged != text else { continue }
@@ -1922,14 +2488,32 @@ enum Engine {
         }
     }
 
+    /// A value for an .ini line: control characters and line breaks dropped, which would end the line
+    /// and start lines (and sections) of the list's own, as in regString.
+    static func iniValue(_ text: String) -> String {
+        String(text.unicodeScalars.filter { $0.properties.generalCategory != .control && !CharacterSet.newlines.contains($0) })
+    }
+
+    /// A section's or key's name for an .ini line: as a value, and without "[", "]" and "=", which
+    /// would close the section, open another or end the key early.
+    static func iniName(_ text: String) -> String {
+        String(iniValue(text).unicodeScalars.filter { !"[]=".unicodeScalars.contains($0) }).trimmingCharacters(in: .whitespaces)
+    }
+
     /// `text` with `values` set in `[section]`: keys already there get the new value, the others
     /// go at the end of the section (sorted, so the file stays the same from start to start), and
-    /// a missing section is added at the end. Everything else stays as the game wrote it.
-    static func mergingIni(_ text: String, section: String, values: [String: String]) -> String {
+    /// a missing section is added at the end. Everything else stays as the game wrote it. Names and
+    /// values are made plain first (iniName, iniValue; the file's names the same way to find them);
+    /// a section or key left empty sets nothing.
+    static func mergingIni(_ text: String, section rawSection: String, values: [String: String]) -> String {
+        let section = iniName(rawSection)
+        var pending: [String: String] = [:]
+        // In order: two keys that come out the same give the same file at every start.
+        for key in values.keys.sorted() where !iniName(key).isEmpty { pending[iniName(key)] = iniValue(values[key]!) }
+        guard !section.isEmpty, values.isEmpty || !pending.isEmpty else { return text }
         var lines = text.isEmpty ? [] : text.components(separatedBy: "\n")
         if lines.last == "" { lines.removeLast() }
         let crlf = lines.first?.hasSuffix("\r") == true
-        var pending = values
         var out: [String] = []
         var inSection = false
         var found = false
@@ -1945,14 +2529,14 @@ enum Engine {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
                 if inSection { flush() }
-                inSection = trimmed.dropFirst().dropLast().caseInsensitiveCompare(section) == .orderedSame
+                inSection = iniName(String(trimmed.dropFirst().dropLast())).caseInsensitiveCompare(section) == .orderedSame
                 found = found || inSection
                 out.append(line)
                 continue
             }
             if inSection, let equals = trimmed.firstIndex(of: "=") {
                 let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
-                if let value = pending.removeValue(forKey: key) {
+                if let value = pending.removeValue(forKey: iniName(key)) {
                     out.append("\(key)=\(value)" + (crlf ? "\r" : ""))
                     continue
                 }
@@ -2021,20 +2605,88 @@ enum Engine {
 
     /// Asks Steam to quit and waits up to 20 s before ending it the hard way. Asked with the engine
     /// it runs on, which may be one held back for a game.
-    static func stopSteam(_ wine: URL) async throws {
-        guard isSteamRunning else { return }
-        // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
-        var waited = 0
-        while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
-            try await Task.sleep(for: .seconds(1))
-            waited += 1
-        }
-        try startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
-        for _ in 0..<20 {
-            guard isSteamRunning else { return }
-            try await Task.sleep(for: .seconds(1))
+    /// stopSteam for a caller that can't await (WineSandbox.settleSession), on a thread that may wait:
+    /// a client update going in finishes first, Steam is asked to quit – a download stops cleanly and
+    /// goes on at the next start – and whatever's left of the session ends. Starting Steam's -shutdown
+    /// passes through settleSession, which lets it join the session it ends. Without a process list it
+    /// can't be told whether Steam runs (an update may be going in), so nothing is ended: false then.
+    @discardableResult
+    static func stopSessionNow(_ wine: URL) -> Bool {
+        guard let running = steamRunningKnown else { return false }
+        if running {
+            var waited = 0
+            while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
+                Thread.sleep(forTimeInterval: 1)
+                waited += 1
+            }
+            try? startSteam(sessionWine() ?? wine, arguments: ["-shutdown"])
+            var left = 20
+            while left > 0, steamMayBeRunning {
+                Thread.sleep(forTimeInterval: 1)
+                left -= 1
+            }
         }
         stopAll(wine)
+        return true
+    }
+
+    /// `endWait`: seconds Steam gets for its "-shutdown" – `filesEndWait` where its files are touched after.
+    static func stopSteam(_ wine: URL, endWait: Int = 20) async throws {
+        try await stopSteam(wine, running: { isSteamRunning },
+                            installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
+                            shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
+                            hardStop: { stopAll($0) }, endWait: endWait)
+    }
+
+    /// For a stop before Steam's files are touched (a game moved, a library added or forgotten): within five
+    /// minutes of a game, as the quit script, 45 s – Steam uploads its cloud saves as it ends, and the hard
+    /// stop after 20 s would cut that off.
+    static var filesEndWait: Int { gameRanRecently ? 45 : 20 }
+
+    /// The steps of `stopSteam`, with what they ask and do handed in (a test hands in a Steam of its own):
+    /// "-shutdown" only to a Steam that is running – asked of none, it starts one – and the hard way
+    /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't. After
+    /// that up to `goneWait` pauses until it's gone: a process ended a moment ago can still be listed, and
+    /// the caller that looks right after took it for a Steam started again (The Forest's move, 5.11.2026).
+    static func stopSteam(_ wine: URL, running: () -> Bool, installing: () -> Bool, shutdown: (URL) throws -> Void,
+                          hardStop: (URL) -> Void, pause: Duration = .seconds(1), installWait: Int = 120,
+                          endWait: Int = 20, goneWait: Int = 10) async throws {
+        guard running() else { return }
+        // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
+        var waited = 0
+        while waited < installWait, installing() {
+            try await Task.sleep(for: pause)
+            waited += 1
+        }
+        // It may have ended meanwhile (the update's restart, the player): a "-shutdown" would start a new one.
+        guard running() else { return }
+        try shutdown(wine)
+        for _ in 0..<endWait {
+            guard running() else { return }
+            try await Task.sleep(for: pause)
+        }
+        hardStop(wine)
+        for _ in 0..<goneWait {
+            guard running() else { return }
+            try await Task.sleep(for: pause)
+        }
+    }
+
+    /// Why Steam's files can't be touched after its stop: nil once it is gone. A Steam still listed is asked
+    /// again `wait` pauses apart before it counts as running – it may be a moment from its end – and the
+    /// answer says which it is: still running, or not to be told (no process list) – never "started again".
+    static func steamStillThere(wait: Int = 5, pause: Duration = .seconds(1),
+                                running: () -> Bool? = { steamRunningKnown }) async -> DriveError? {
+        var answer = running()
+        for _ in 0..<wait where answer != false {
+            try? await Task.sleep(for: pause)
+            answer = running()
+        }
+        switch answer {
+        case false?: return nil
+        case true?: return .steamDidNotEnd
+        case nil: return .steamNotKnown
+        }
     }
 
     /// Removes a game (or a download in progress) without any Steam window: with Steam stopped,
@@ -2049,21 +2701,38 @@ enum Engine {
         try? SteamLibraries.forget(appID: appID, steamRoot: steamRoot, bottle: bottle)  // while Steam is stopped
     }
 
-    /// A game's manifest, files, download leftovers and shader cache in one Steam library folder.
+    /// A game's manifest, files, download leftovers and shader cache in one Steam library folder. Each
+    /// is tried, whatever happened to the others; the manifest goes last and only once the game's folder
+    /// is gone, so Steam never forgets a game whose files are still there (it's still installed then and
+    /// can be removed again). A folder name that can't be one (empty, "..", with a "/") removes no
+    /// folder, so the manifest stays too. Whatever stays is in the error.
     static func removeGameFiles(appID: Int, installDirName: String, steamapps: URL) throws {
         let fm = FileManager.default
-        var targets = [
-            steamapps.appendingPathComponent("appmanifest_\(appID).acf"),
-            steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true),
-            steamapps.appendingPathComponent("shadercache/\(appID)", isDirectory: true),
-        ]
+        var targets: [URL] = []
         // Never let an empty or odd folder name turn into deleting all of steamapps/common.
         let name = installDirName.trimmingCharacters(in: .whitespaces)
-        if !name.isEmpty, !name.contains("/"), name != ".", name != ".." {
-            targets.append(steamapps.appendingPathComponent("common/\(name)", isDirectory: true))
-        }
+        let folder = steamapps.appendingPathComponent("common/\(name)", isDirectory: true)
+        let plain = !name.isEmpty && !name.contains("/") && name != "." && name != ".."
+        if plain { targets.append(folder) }
+        targets += [steamapps.appendingPathComponent("downloading/\(appID)", isDirectory: true),
+                    steamapps.appendingPathComponent("shadercache/\(appID)", isDirectory: true)]
+        var left: [URL] = []
         for target in targets where fm.fileExists(atPath: target.path) {
-            try fm.removeItem(at: target)
+            if (try? fm.removeItem(at: target)) == nil { left.append(target) }
+        }
+        let manifest = steamapps.appendingPathComponent("appmanifest_\(appID).acf")
+        if fm.fileExists(atPath: manifest.path), !plain || left.contains(folder) || (try? fm.removeItem(at: manifest)) == nil {
+            left.append(manifest)
+        }
+        guard left.isEmpty else { throw FilesLeft(folder: steamapps, files: left) }
+    }
+
+    /// What removeGameFiles couldn't take away, named for the player ("… could not be uninstalled: …").
+    struct FilesLeft: LocalizedError {
+        let folder: URL
+        let files: [URL]
+        var errorDescription: String? {
+            L10n.t("still there in %@: %@", folder.path, files.map { String($0.path.dropFirst(folder.path.count + 1)) }.joined(separator: ", "))
         }
     }
 
@@ -2131,28 +2800,48 @@ enum Engine {
     /// Opens Steam's main window. Questions Steam asks before a launch (licence agreement, which
     /// version to start) appear in it, and with -silent it stays hidden. SteamWindow brings it to
     /// the front.
-    static func showSteamWindow(_ wine: URL) {
-        try? startSteam(wine)
+    static func showSteamWindow(_ wine: URL) async {
+        try? await startSteamOffMain(wine)
+    }
+
+    /// `startSteam` away from the main thread, for whoever is on it (the window, the controller): it looks at the
+    /// processes (`ps`, up to 4 s), may set up an engine held back for Steam (a regedit), ends a session on a switch
+    /// of the sandbox and waits for the helper app – seconds, in which everything would freeze.
+    static func startSteamOffMain(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) async throws {
+        try await offMain { try startSteam(wine, arguments: arguments, extraEnvironment: extraEnvironment) }
     }
 
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         installWebHelperWrapper()
-        if !isSteamRunning { SteamGuideButton.turnOff(steamRoot: steamRoot) }
-        let process = DetachedProcess()
-        let loader = loader(for: wine)
-        process.executableURL = loader
-        process.arguments = [steamExeWindowsPath] + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments
-        var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
-        env["WINEDLLOVERRIDES"] = steamDLLOverrides
-        if loader != wine { env["WINELOADER"] = loader.path }
-        env["WINEDEBUG"] = GameLog.wineDebug
-        process.environment = env.merging(extraEnvironment) { _, new in new }
-        process.standardInput = FileHandle.nullDevice
-        // Its games inherit this, so their errors end up in the log too.
-        let log = GameLog.handleForSteam()
-        process.standardOutput = log ?? FileHandle.nullDevice
-        process.standardError = log ?? FileHandle.nullDevice
-        try process.run()
+        var wine = wine
+        // Only for a Steam that is known not to run: its files are written here (LaunchOptions too).
+        let fresh = steamRunningKnown == false
+        if fresh {
+            SteamGuideButton.turnOff(steamRoot: steamRoot)
+            SteamProgram.apply(steamRoot: steamRoot)
+            wine = steamEngine(wine)
+        }
+        do {
+            let loader = loader(for: wine)
+            let process = try WineSandbox.process(loader, [steamExeWindowsPath]
+                + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments)
+            var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
+            env["WINEDLLOVERRIDES"] = steamDLLOverrides
+            if loader != wine { env["WINELOADER"] = loader.path }
+            env["WINEDEBUG"] = GameLog.wineDebug
+            process.environment = env.merging(extraEnvironment) { _, new in new }
+            process.standardInput = FileHandle.nullDevice
+            // Its games inherit this, so their errors end up in the log too.
+            let log = GameLog.handleForSteam()
+            process.standardOutput = log ?? FileHandle.nullDevice
+            process.standardError = log ?? FileHandle.nullDevice
+            try process.run()
+        } catch {
+            // A start that never happened isn't judged as the engine's failure (SteamStartCheck, review B5).
+            if fresh { lastSteamStart = nil }
+            throw error
+        }
+        if fresh { lastSteamStart = (wine, Date()) }
     }
 }

@@ -14,8 +14,23 @@ struct GOGTest {
         }
     }
 
+    /// Which gogdl downloads run, without a process list (extra review, 3.11.): not known is not "none" –
+    /// the first look with `ps` down says nothing, and a look that was made before stands.
+    static func runningDownloads() {
+        let memory = LockedValue<Set<String>?>(nil)
+        defer { FakeProcesses.installEmpty() }
+        FakeProcesses.installDown()
+        check(GOGDL.runningDownloads(remembered: memory) == nil, "no list and no earlier look: not known – a second download of the game must not start")
+        FakeProcesses.installEmpty()
+        check(GOGDL.runningDownloads(remembered: memory) == [], "a list without a download: none")
+        FakeProcesses.installDown()
+        check(GOGDL.runningDownloads(remembered: memory) == [], "no list after that look: the look stands")
+    }
+
     @MainActor
     static func main() async {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         // A stand-in program for `leftovers` (a copy of this one): it only waits.
         if CommandLine.arguments.dropFirst().first == "--stand-in" {
             try? await Task.sleep(for: .seconds(30))
@@ -25,6 +40,7 @@ struct GOGTest {
             print("✗ runs only in its own home (tests/GOGTest/run.sh)")
             exit(1)
         }
+        runningDownloads()
         await profiles()
         gameIDs()
         owned()
@@ -58,16 +74,18 @@ struct GOGTest {
         let json = #"{"formatVersion": 1, "games": {"50130": {"name": "Mafia II (Classic)", "graphics": "wined3d"},"#
             + #""gog.1816059595": {"name": "Mafia II (Classic)", "graphics": "wined3d", "source": "mac"},"#
             + #""epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#
+        // As the app's own copy: one fetched online counts only with its signature (ProfileFilesTest).
+        let list = Engine.supportDir.appendingPathComponent("bundled-profiles.json")
         try? FileManager.default.createDirectory(at: Engine.supportDir, withIntermediateDirectories: true)
-        try? Data(json.utf8).write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
-        let store = ProfileStore.shared
+        try? Data(json.utf8).write(to: list)
+        let store = ProfileStore(bundledURL: list)
         check(await store.profile(for: .gog("1816059595"))?.graphics == .wined3d, "a GOG game's profile, by its product ID")
         check(await store.profile(for: .steam(50130))?.graphics == .wined3d, "the Steam version's, by app ID as before")
         check(await store.profile(for: .gog("50130")) == nil, "a GOG ID is not a Steam app ID")
         check(await store.profile(for: .gog("1207658924")) == nil, "a GOG game the list doesn't know has none")
         check(await store.profile(for: .epic("fn")) == nil, "an Epic game starts without: its entry only blocks it")
         check(ProfileStore.decodeGOG(Data(json.utf8)).keys.sorted() == ["1816059595"], "only gog.<id> keys are GOG's")
-        try? FileManager.default.removeItem(at: Engine.supportDir.appendingPathComponent("profiles.json"))
+        try? FileManager.default.removeItem(at: list)
     }
 
     // MARK: - Fixtures (formats as gogdl and Heroic read them)
@@ -157,7 +175,8 @@ struct GOGTest {
         check(Provider.gog.label == "GOG" && Provider.gog.short == "GOG", "GOG's name")
         check(Provider.allCases == [.steam, .epic, .gog], "GOG is the third store, after Steam and Epic")
         check(GameShortcut.url(play: .gog("1207664663")).absoluteString == "nightforge://play/gog.1207664663", "links: nightforge://play/gog.<id>")
-        check(GameShortcut.action(from: URL(string: "nightforge://play/gog.1207664663")!) == .play(.gog("1207664663")), "and they lead to the game")
+        check(GameShortcut.action(from: GameShortcut.url(play: .gog("1207664663"), key: String(repeating: "a", count: 32)),
+                                  key: String(repeating: "a", count: 32)) == .play(.gog("1207664663")), "and they lead to the game")
     }
 
     static func owned() {
@@ -347,26 +366,30 @@ struct GOGTest {
     /// (code 137) by a GOG game's fresh Wine session on 1.11.2026.
     static func leftovers() {
         let fm = FileManager.default
-        let engines = Engine.engineFolders.map { $0.path }
-        check(Engine.isWineProgram(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine64-preloader").path, engines: engines)
-              && Engine.isWineProgram(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine").path, engines: engines),
+        let engines = Engine.engineFolders.map { $0.path }, components = ComponentStore.shared.root.path
+        func wine(_ path: String) -> Bool { Engine.isWineProgram(path, engines: engines, components: components) }
+        check(wine(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine64-preloader").path)
+              && wine(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine").path),
               "the engine's programs and its game-mode loader are Wine's")
-        check(!Engine.isWineProgram(ComponentStore.shared.root.appendingPathComponent("gogdl/1.4.0/gogdl_macos_arm64").path, engines: engines)
-              && !Engine.isWineProgram(ComponentStore.shared.root.appendingPathComponent("legendary/0.21.1/legendary_macOS_arm64").path, engines: engines),
+        check(!wine(ComponentStore.shared.root.appendingPathComponent("gogdl/1.4.0/gogdl_macos_arm64").path)
+              && !wine(ComponentStore.shared.root.appendingPathComponent("legendary/0.21.1/legendary_macOS_arm64").path),
               "gogdl and legendary aren't")
+        check(wine(ComponentStore.shared.root.appendingPathComponent("wine-devel/9.0/bin/wineserver").path)
+              && !wine("/opt/homebrew/bin/wineserver") && !wine("/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine"),
+              "a Wine binary by its name only in Nightforge's components, not another app's")
 
         // Two stand-ins (copies of this test, which wait – macOS won't run a moved /bin/sleep)
         // working in the game's folder in the prefix.
         let folder = GOGDL.windowsGamesDir.appendingPathComponent("The Evil Within 2", isDirectory: true)
         try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        func start(_ program: URL) -> Process {
+        func start(_ program: URL, in cwd: URL? = nil) -> Process {
             try? fm.createDirectory(at: program.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? fm.removeItem(at: program)
             if let me = Bundle.main.executableURL { try? fm.copyItem(at: me, to: program) }
             let process = Process()
             process.executableURL = program
             process.arguments = ["--stand-in"]
-            process.currentDirectoryURL = folder
+            process.currentDirectoryURL = cwd ?? folder
             try? process.run()
             return process
         }
@@ -374,14 +397,24 @@ struct GOGTest {
         // have copied in for `realProgram` (overwriting that made it run this test instead, c1eeaac).
         let download = start(ComponentStore.shared.root.appendingPathComponent("gogdl/0.0.0-stand-in/gogdl_macos_arm64"))
         let leftover = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wine"))
+        // A Wine program in a folder beside the prefix whose name starts the same ("Prefix-backup").
+        let backup = Engine.prefix.deletingLastPathComponent().appendingPathComponent(Engine.prefix.lastPathComponent + "-backup", isDirectory: true)
+        try? fm.createDirectory(at: backup, withIntermediateDirectories: true)
+        let beside = start(Engine.engineFolders[1].appendingPathComponent("4.7.3/Libraries/Wine/bin/wineserver"), in: backup)
         Thread.sleep(forTimeInterval: 0.5)
-        check(download.isRunning && leftover.isRunning, "both run before the sweep")
+        check(download.isRunning && leftover.isRunning && beside.isRunning, "all three run before the sweep")
+        // The sweep's second look is at the programs started from the engine: the two stand-ins, by their own pids.
+        FakeProcesses.install { FakeProcesses.rows(of: [download.processIdentifier, leftover.processIdentifier]) }
         Engine.killLeftovers()
+        FakeProcesses.installEmpty()
         Thread.sleep(forTimeInterval: 0.5)
         check(download.isRunning, "a download working in the prefix outlives the sweep")
         check(!leftover.isRunning, "a Wine program left there doesn't")
+        check(beside.isRunning, "nor is one in \"\(backup.lastPathComponent)\" beside the prefix ended")
         download.terminate()
+        beside.terminate()
         if leftover.isRunning { leftover.terminate() }
+        try? fm.removeItem(at: backup)
     }
 
     /// The real gogdl, when run.sh found it installed on this Mac: started the way Nightforge starts
@@ -728,6 +761,59 @@ struct GOGTest {
                      installDir: outside, sizeOnDisk: 0)
         try? await later.uninstall(stray)
         check(fm.fileExists(atPath: outside.path), "a folder outside GOG's games folders is never removed")
+        // A folder that won't go (in use, no permission) is said, as for a Steam game; gogdl's files for it still go.
+        let stuck = GOGDL.windowsGamesDir.appendingPathComponent("Stuck", isDirectory: true)
+        let locked = stuck.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        fm.createFile(atPath: locked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        try? fm.createDirectory(at: GOGDL.manifest(for: "515151").deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("{}".utf8).write(to: GOGDL.manifest(for: "515151"))
+        let stuckGame = Game(gameID: .gog("515151"), name: "Stuck", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                             steamExeWindowsPath: "", installDir: stuck, sizeOnDisk: 0)
+        do {
+            try await later.uninstall(stuckGame)
+            check(false, "a folder that stays isn't taken for a removed game")
+        } catch {
+            check(fm.fileExists(atPath: locked.appendingPathComponent("save.dat").path), "the folder stayed, and that's said: \(error.localizedDescription)")
+        }
+        check(!fm.fileExists(atPath: GOGDL.manifest(for: "515151").path), "gogdl's manifest for it still goes")
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        do {
+            try await later.uninstall(stuckGame)
+            check(!fm.fileExists(atPath: stuck.path), "once it can go, it goes")
+        } catch { check(false, "and without a word: \(error)") }
+        // An installed game whose folder stays isn't forgotten: it stays installed, so it can be removed again (outside
+        // review of 9c45b18). Once the folder can go, the game goes with it.
+        let keptFolder = GOGDL.windowsGamesDir.appendingPathComponent("Kept", isDirectory: true)
+        let keptLocked = keptFolder.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: keptLocked, withIntermediateDirectories: true)
+        fm.createFile(atPath: keptLocked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: keptLocked.path)
+        let installsFile = gogFolder.appendingPathComponent("installed.json")
+        func installed() -> [String: GOGInstall] {
+            (try? JSONDecoder().decode([String: GOGInstall].self, from: Data(contentsOf: installsFile))) ?? [:]
+        }
+        var withKept = installed()
+        withKept["626262"] = GOGInstall(id: "626262", path: keptFolder, platform: .windows, build: "1", language: "en-US", size: 1)
+        try? JSONEncoder().encode(withKept).write(to: installsFile)
+        try? Data("{}".utf8).write(to: GOGDL.manifest(for: "626262"))
+        let keptGame = Game(gameID: .gog("626262"), name: "Kept", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                            steamExeWindowsPath: "", installDir: keptFolder, sizeOnDisk: 0)
+        let afresh = GOGStore()
+        do {
+            try await afresh.uninstall(keptGame)
+            check(false, "an installed game whose folder stays isn't taken for removed")
+        } catch {
+            check(installed()["626262"] != nil, "it stays installed, so it can be removed again: \(error.localizedDescription)")
+            check(fm.fileExists(atPath: GOGDL.manifest(for: "626262").path), "with gogdl's manifest for the game that's still there")
+        }
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: keptLocked.path)
+        do {
+            try await afresh.uninstall(keptGame)
+            check(!fm.fileExists(atPath: keptFolder.path) && installed()["626262"] == nil && !fm.fileExists(atPath: GOGDL.manifest(for: "626262").path),
+                  "once it can go, the game goes with it")
+        } catch { check(false, "and without a word: \(error)") }
 
         // GOG can't be asked: no tokens (signed out) – the games stay.
         await later.refresh()

@@ -1,8 +1,16 @@
 name: Update game profiles
 
 # Rebuilds profiles/profiles.json every night from umu-protonfixes, AreWeAntiCheatYet and the
-# GeForce Now game list plus profiles/mac.json (see scripts/build-profiles.py) and commits it
-# when something changed. The app downloads it.
+# GeForce Now game list plus profiles/mac.json (see scripts/build-profiles.py), and beside it
+# profiles/agw.json, what AppleGamingWiki says about games on a Mac (scripts/fetch-agw.py): a file of
+# its own under CC BY-NC-SA 3.0. When either changed it proposes them in a pull request (branch
+# bot/profiles); it never pushes to main. The app downloads both from main and takes each only with
+# the maintainer's signature, which scripts/sign-lists.sh bot/profiles adds before the merge. The
+# repository setting Actions › General › "Allow GitHub Actions to create and approve pull requests"
+# has to be on (components.yml needs it too).
+#
+# Rights per job: "build" (pull requests too) only reads; "propose" writes the bot's branch and its
+# pull request; "keep-enabled" alone may switch workflows on, and only on the schedule.
 
 on:
   schedule:
@@ -13,29 +21,36 @@ on:
     paths:
       - "profiles/mac.json"
       - "scripts/build-profiles.py"
+      - "scripts/fetch-agw.py"
       - "tests/test_build_profiles.py"
       - ".github/workflows/profiles.yml"
   pull_request:
     paths:
       - "profiles/**"
       - "scripts/build-profiles.py"
+      - "scripts/fetch-agw.py"
       - "tests/test_build_profiles.py"
+      - "tests/test_fetch_agw.py"
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 jobs:
   build:
+    # The upstream repositories' files are parsed (build-profiles.py reads them as syntax trees), never run.
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
       - name: Test the profile builder
-        run: python3 -m unittest tests/test_build_profiles.py
+        run: python3 -m unittest tests/test_build_profiles.py tests/test_fetch_agw.py
 
       - name: Fetch umu-protonfixes
         run: git clone --depth 1 https://github.com/Open-Wine-Components/umu-protonfixes.git "$RUNNER_TEMP/umu-protonfixes"
@@ -58,7 +73,6 @@ jobs:
           build_profiles = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(build_profiles)
           doc = json.load(open("profiles/profiles.json"))
-          commands = {"annihilate", "apps", "benchmarks", "dlls", "fonts", "games", "settings", "list", "help", "version"}
           assert doc["formatVersion"] == 1
           assert len(doc["games"]) > 50, "suspiciously few games"
           for app_id, game in doc["games"].items():
@@ -71,11 +85,28 @@ jobs:
               assert game.get("antiCheatOnline") is None or isinstance(game["antiCheatOnline"], list), (app_id, game.get("antiCheatOnline"))
               assert game.get("geforceNow") is None or isinstance(game["geforceNow"], str), (app_id, game.get("geforceNow"))
               assert game.get("notYet") is None or isinstance(game["notYet"], str), (app_id, game.get("notYet"))
+              # A program inside the game's folder (GameProgram), relative to it.
+              program = game.get("executable")
+              assert program is None or (isinstance(program, str) and program and not program.startswith(("/", "\\"))
+                                          and ".." not in re.split(r"[\\/]", program)), (app_id, program)
+              # Wine's and CrossOver's own switches only (GameEnvironment in the app), plain short values.
+              assert game.get("environment") is None or build_profiles.environment_allowed(game["environment"]), (app_id, game.get("environment"))
               for entry in game.get("registry") or []:
                   assert build_profiles.registry_key_allowed(entry["key"]), (app_id, entry["key"])
                   assert all("\n" not in str(v) and "\r" not in str(v) for v in entry.values()), (app_id, entry)
+              # Plain install verbs the app runs: no winetricks command, no Windows version (a profile says
+              # windowsVersion), nothing else that changes the shared prefix (the builder's list, the app's).
               for verb in game.get("winetricks") or []:
-                  assert re.fullmatch(r"[a-z0-9_]{1,64}", verb) and verb not in commands, (app_id, verb)
+                  assert build_profiles.safe_verb(verb), (app_id, verb)
+              # The game's own settings files and saves (review of 3.11.2026): roots from the app's list,
+              # paths under them, .ini names that stay names, no edit that grows the file at each start,
+              # no save rule that carries a whole AppData folder.
+              for field, allowed in (("fileEdits", build_profiles.file_edits_allowed), ("iniSettings", build_profiles.ini_settings_allowed),
+                                     ("resolution", build_profiles.resolution_allowed), ("saves", build_profiles.saves_allowed)):
+                  assert field not in game or allowed(game[field]), (app_id, field)
+              # The same rules as the builder's (Audit M1): bare DLL names, Wine's orders, plain arguments.
+              assert build_profiles.overrides_allowed(game.get("dllOverrides") or {}), (app_id, game.get("dllOverrides"))
+              assert build_profiles.arguments_allowed(game.get("arguments") or []), (app_id, game.get("arguments"))
           blocked = sum(1 for game in doc["games"].values() if game.get("antiCheat"))
           assert blocked > 50, "suspiciously few anti-cheat games"
           cloud = sum(1 for game in doc["games"].values() if game.get("geforceNow"))
@@ -83,28 +114,93 @@ jobs:
           print("ok:", len(doc["games"]), "games,", blocked, "blocked by anti-cheat,", cloud, "on GeForce Now")
           PY
 
-      # GitHub switches off scheduled workflows in public repos after 60 days without activity.
-      # Re-enabling them through the API counts as activity, so the nightly jobs keep running
-      # even when upstream has been quiet for a while.
+      # Its own step: when AppleGamingWiki or Wikidata is down, or the format changed, the script fails
+      # without writing, and the last agw.json stays (marked by its "generated" date). Not for pull
+      # requests, which commit nothing: the wiki gets its ~45 requests once a night.
+      - name: Fetch AppleGamingWiki
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: python3 -I scripts/fetch-agw.py
+
+      - name: Hand the lists to the next job
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: profiles
+          path: |
+            profiles/profiles.json
+            profiles/agw.json
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    # The only job that writes: the bot's own branch and its pull request, never main.
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # The commit the lists were built from, even when main moved on meanwhile.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: profiles
+          path: profiles
+
+      - name: Propose the change in a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet profiles/profiles.json profiles/agw.json; then
+            echo "No profile changes."
+            exit 0
+          fi
+          branch=bot/profiles
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add profiles/profiles.json profiles/agw.json
+          git commit -m "Update game profiles"
+          # The bot's own branch: this night's list replaces yesterday's if it wasn't merged (and with
+          # it a signature made for yesterday's).
+          git push --force origin "$branch"
+          {
+            echo "The nightly run rebuilt the game profiles (and AppleGamingWiki's list). Nothing reaches the app until this is signed and merged."
+            echo
+            echo "1. Read the diff: profiles set Wine registry keys, DLL overrides, start arguments, winetricks verbs and game files."
+            echo "2. On the maintainer's Mac: \`scripts/sign-lists.sh $branch\` (asks for the Keychain password)."
+            echo "3. Merge once the **Signatures** check is green, with the command the script prints."
+            echo
+            echo '```'
+            git diff --stat HEAD~1 -- profiles/profiles.json profiles/agw.json
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$branch" --title "Update game profiles" --body-file "$RUNNER_TEMP/body.md" || {
+              echo "::error::The branch is pushed, the pull request isn't (may Actions open pull requests here?). Open it: https://github.com/$GITHUB_REPOSITORY/compare/main...$branch"
+              exit 1
+            }
+          else
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+  keep-enabled:
+    # GitHub switches off scheduled workflows in public repos after 60 days without activity.
+    # Re-enabling them through the API counts as activity, so the nightly jobs keep running even when
+    # upstream has been quiet for a while. The only job with actions: write, and only on the schedule.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
       - name: Keep nightly workflows enabled
-        if: github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           for workflow in profiles.yml components.yml; do
             gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/enable"
           done
-
-      - name: Commit changes
-        if: github.event_name != 'pull_request'
-        run: |
-          if git diff --quiet profiles/profiles.json; then
-            echo "No profile changes."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add profiles/profiles.json
-          git commit -m "Update game profiles"
-          git pull --rebase
-          git push

@@ -1,5 +1,6 @@
 // Checks the automatic engine rollback (roadmap 3.3) with fake engines and folders:
-// tests/EngineRollbackTest/run.sh (runs in an empty home of its own)
+// tests/EngineRollbackTest/run.sh (runs in an empty home of its own; --without-processes leaves out
+// the part that reads the process list)
 import Foundation
 
 @main
@@ -27,10 +28,12 @@ struct EngineRollbackTest {
                   sha256: "", size: 0, license: "", source: URL(string: "https://example.com")!)
     }
 
-    /// A build of winecx `engine` with Nightforge's graphics package `graphics` and DXVK `dxvk`.
-    static func build(_ engine: String, _ graphics: String, dxvk: String = "1.10") -> EngineBuild {
+    /// A build of winecx `engine` with Nightforge's graphics package `graphics` and DXVK `dxvk`;
+    /// `kosmicKrisp`: upstream DXVK of that version and KosmicKrisp come along.
+    static func build(_ engine: String, _ graphics: String, dxvk: String = "1.10", kosmicKrisp upstream: String? = nil) -> EngineBuild {
         EngineBuild(engine: component("winecx", engine, .engine),
-                    graphics: [component("graphics", graphics), component("dxvk-macos", dxvk)],
+                    graphics: [component("graphics", graphics), component("dxvk-macos", dxvk)]
+                        + (upstream.map { [component("dxvk", $0), component("kosmickrisp", "27.0.0")] } ?? []),
                     stamp: "graphics \(graphics) engine-match false moltenvk engine d3dmetal - gamepad -")
     }
 
@@ -52,6 +55,9 @@ struct EngineRollbackTest {
         if let dxvk = build.version(of: "dxvk-macos") {
             write("dxvk \(dxvk)", root.appendingPathComponent("dxvk-macos/\(dxvk)/x64/d3d9.dll"))
         }
+        if let upstream = build.version(of: "dxvk") {
+            write("dxvk \(upstream)", root.appendingPathComponent("dxvk/\(upstream)/dxvk-\(upstream)/x64/d3d9.dll"))
+        }
     }
 
     /// What `Engine.ensureEngine` does for an update to `next`: the build so far is held back if a
@@ -59,7 +65,8 @@ struct EngineRollbackTest {
     /// versions are removed, and the new build settles.
     static func update(_ rollback: EngineRollback, to next: EngineBuild, seed: [GameID: String] = [:],
                        inUse: (URL) -> Bool = { _ in false }, now: Date = Date()) {
-        rollback.holdBack(before: next, copying: [Engine.graphicsID, Engine.upstreamGraphicsID, Engine.dxvkID], isIntact: { current, folder in
+        rollback.holdBack(before: next, copying: [Engine.graphicsID, Engine.upstreamGraphicsID, Engine.dxvkID, Engine.dxvkUpstreamID],
+                          isIntact: { current, folder in
             Engine.wineBinary(in: folder).map { read(Engine.graphicsStampFile(wine: $0)) == current.stamp } ?? false
         }, now: now)
         install(next, root: rollback.root)
@@ -93,6 +100,7 @@ struct EngineRollbackTest {
     }
 
     static func main() async {
+        TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         let work = fm.temporaryDirectory.appendingPathComponent("ert-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
@@ -258,7 +266,7 @@ struct EngineRollbackTest {
               "two builds of the same engine are told apart by the day: \(EngineRollback.label(a, setUp: october, other: b))")
 
         // MARK: Seeds from what already runs
-        let suite = UserDefaults(suiteName: "nightforge.engine-rollback-test-\(UUID().uuidString)")!
+        let suite = TestDefaults.suite("seeds")
         let ladder = [LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"]), LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])]
         let state = #"{"ladder":["dxmt -dx11","dxvk -dx11"],"index":1,"confirmed":true,"proof":2}"#
         suite.set(Data(state.utf8), forKey: "launchHealth.steam.42")
@@ -279,11 +287,261 @@ struct EngineRollbackTest {
         let keys = EngineRollback(root: older).history()
         check(keys.lastGood["steam.570"] == .init(build: "x", way: "dxmt") && keys.pinned["steam.570"] == "x" && keys.lastGood["570"] == nil,
               "a history written with app IDs reads with store keys")
+        // Both, after a build from before 0.2 ran again: the entry under the store key is the newer one,
+        // whatever order the file has them in; keys that aren't games stay as they were.
+        for json in [#"{"held":[],"lastGood":{"570":{"build":"old","way":"dxvk"},"steam.570":{"build":"new","way":"dxmt"},"0":{"build":"z","way":"w"}},"pinned":{"steam.570":"new","570":"old"}}"#,
+                     #"{"held":[],"lastGood":{"steam.570":{"build":"new","way":"dxmt"},"0":{"build":"z","way":"w"},"570":{"build":"old","way":"dxvk"}},"pinned":{"570":"old","steam.570":"new"}}"#] {
+            try? Data(json.utf8).write(to: older.appendingPathComponent("engine-history.json"))
+            let both = EngineRollback(root: older).history()
+            check(both.lastGood["steam.570"] == .init(build: "new", way: "dxmt") && both.pinned["steam.570"] == "new",
+                  "the store key's entry wins over the app ID's: \(both.lastGood)")
+            check(both.lastGood.count == 2 && both.lastGood["0"]?.build == "z", "nothing else goes")
+        }
+        // Rewritten with store keys at the next change, the learned ways kept.
+        EngineRollback(root: older).recordGood(.epic("Sugar"), build: build("4.7", "a"), way: "dxmt")
+        let rewritten = read(older.appendingPathComponent("engine-history.json")) ?? ""
+        check(rewritten.contains("\"steam.570\"") && !rewritten.contains("\"570\"") && rewritten.contains("\"epic.Sugar\""),
+              "written back under store keys")
         try? FileManager.default.removeItem(at: older)
 
+        // MARK: Steam itself doesn't come up on a new engine
+        steamStartCheck(work)
+        steamItself(work)
+
+        // MARK: The day a build was set up
+        setUpDays(work)
+
         // MARK: The prefix follows the build a game starts with
-        await prefixSwitch()
+        // It reads the process list (Engine.sessionWine): left out with --without-processes, for a
+        // Mac whose process list hangs.
+        if CommandLine.arguments.contains("--without-processes") {
+            print("- prefix switch left out (--without-processes)")
+        } else {
+            await prefixSwitch()
+        }
         finish()
+    }
+
+    /// The parts of `build` installed under `root` as if downloaded on `date`: their markers
+    /// (.sha256, as ComponentStore writes them) and the engine's graphics stamp carry that date.
+    static func date(_ build: EngineBuild, root: URL, _ date: Date) {
+        for part in build.parts.map(EngineBuild.split) {
+            let folder = root.appendingPathComponent("\(part.id)/\(part.version)", isDirectory: true)
+            guard fm.fileExists(atPath: folder.path) else { continue }
+            let marker = folder.appendingPathComponent(".sha256")
+            write("0000", marker)
+            try? fm.setAttributes([.modificationDate: date], ofItemAtPath: marker.path)
+        }
+        let stamp = root.appendingPathComponent("winecx/\(build.engineVersion)/Libraries/Wine/lib/wine/.nightforge-graphics")
+        try? fm.setAttributes([.modificationDate: date], ofItemAtPath: stamp.path)
+    }
+
+    /// The day the player sees for a build ("the previous engine from 20 Oct") is the day it came
+    /// together – from its folders – not the day Nightforge with 3.3 first saw it.
+    static func setUpDays(_ work: URL) {
+        let root = work.appendingPathComponent("setup-days", isDirectory: true)
+        let rollback = EngineRollback(root: root)
+        let a = build("4.7.3", "11.18-dxmt0.80-17"), b = build("4.7.4", "11.18-dxmt0.80-18")
+        let day: TimeInterval = 86_400
+        let firstRun = Date().addingTimeInterval(-5 * day)       // Nightforge with 3.3 first ran
+        let arrived = firstRun.addingTimeInterval(-10 * day)      // engine a had come ten days before
+        func same(_ x: Date?, _ y: Date) -> Bool { x.map { abs($0.timeIntervalSince(y)) < 1 } ?? false }
+
+        install(a, root: root)
+        date(a, root: root, arrived)
+        check(same(rollback.setUpDate(of: a), arrived), "the folders say when a came")
+        rollback.settle(a, now: firstRun)
+        check(same(rollback.history().currentSetUp, arrived), "the first time: the day it came, not the day 3.3 first ran")
+        rollback.recordGood(.steam(100), build: a, way: "dxmt")
+        update(rollback, to: b, now: firstRun.addingTimeInterval(day))
+        guard let held = rollback.history().held.first(where: { $0.build == a }) else { return check(false, "a is held back") }
+        check(same(held.setUp, arrived), "held back with that day: \(EngineRollback.day(held.setUp))")
+        check(same(rollback.setUpDate(of: a, held: held), arrived), "the copy still knows it")
+        check(same(rollback.history().currentSetUp, firstRun.addingTimeInterval(day)), "b: the day it came, as before")
+
+        // A history from that first run kept its day: the next start puts the right one in.
+        var wrong = rollback.history()
+        wrong.held[0].setUp = firstRun
+        wrong.currentSetUp = firstRun.addingTimeInterval(2 * day)
+        write(String(decoding: (try? JSONEncoder().encode(wrong)) ?? Data(), as: UTF8.self), root.appendingPathComponent("engine-history.json"))
+        date(b, root: root, firstRun.addingTimeInterval(day))
+        rollback.settle(b, now: Date())
+        check(same(rollback.history().held.first?.setUp, arrived), "a held build's day put right from its copy")
+        check(same(rollback.history().currentSetUp, firstRun.addingTimeInterval(day)), "the current build's too")
+        rollback.settle(b, now: Date())
+        check(same(rollback.history().held.first?.setUp, arrived), "and it stays")
+
+        // What the folders don't say isn't guessed.
+        let c = build("4.7.5", "11.18-dxmt0.80-19")
+        let other = EngineRollback(root: work.appendingPathComponent("setup-days-2", isDirectory: true))
+        install(c, root: other.root)
+        let stamp = other.root.appendingPathComponent("winecx/4.7.5/Libraries/Wine/lib/wine/.nightforge-graphics")
+        write("graphics something else", stamp)
+        try? fm.setAttributes([.modificationDate: arrived], ofItemAtPath: stamp.path)
+        check(other.setUpDate(of: c) == nil, "no markers, and a stamp of another build: no day from the folders")
+        other.settle(c, now: firstRun)
+        check(same(other.history().currentSetUp, firstRun), "then the day it was first seen")
+    }
+
+    /// When a Steam start counts as not come up (SteamStartCheck): never while Steam updates itself
+    /// or within its first 90 s, and only log lines written since the start are signs of life.
+    static func steamStartCheck(_ work: URL) {
+        var quiet = SteamStartCheck.Signs()
+        quiet.sinceStart = 200
+        quiet.quietFor = 120
+        check(SteamStartCheck.judge(quiet) == .failed, "200 s after the start, two minutes quiet, no update: not come up")
+        for (change, name) in [({ (s: inout SteamStartCheck.Signs) in s.signedIn = true }, "signed in"),
+                               ({ (s: inout SteamStartCheck.Signs) in s.sessionReplaced = true }, "signed out by Steam for Mac"),
+                               ({ (s: inout SteamStartCheck.Signs) in s.askingForAccount = true }, "asking for the account"),
+                               ({ (s: inout SteamStartCheck.Signs) in s.startupFinished = true }, "done starting")] {
+            var signs = quiet
+            change(&signs)
+            check(SteamStartCheck.judge(signs) == .cameUp, "\(name): it came up")
+        }
+        for state in [SteamBootstrap.downloading, .installing, .updated] {
+            var signs = quiet
+            signs.bootstrap = state
+            check(SteamStartCheck.judge(signs) == .undecided, "Steam updating itself (\(state)) is never a failure")
+        }
+        var early = quiet
+        early.sinceStart = 80
+        early.running = false
+        check(SteamStartCheck.judge(early) == .undecided, "within its first 90 s: undecided, even without its process")
+        var busy = quiet
+        busy.quietFor = 10
+        check(SteamStartCheck.judge(busy) == .undecided, "still writing its logs: only slow")
+        busy.running = false
+        check(SteamStartCheck.judge(busy) == .failed, "its process gone: not come up")
+        // No process list (ps doesn't answer): not known, so not a failure – whatever the logs say.
+        var unknown = quiet
+        unknown.running = nil
+        check(SteamStartCheck.judge(unknown) == .undecided, "no process list, logs quiet: undecided, not come up")
+        unknown.signedIn = true
+        check(SteamStartCheck.judge(unknown) == .cameUp, "no process list, signed in: it came up all the same")
+
+        // From the logs: the last session's "Logged On" doesn't count for a start that wrote nothing.
+        let steam = work.appendingPathComponent("steam-check", isDirectory: true)
+        let logs = steam.appendingPathComponent("logs", isDirectory: true)
+        let start = Date()
+        let before = start.addingTimeInterval(-600)
+        let connection = logs.appendingPathComponent("connection_log.txt")
+        write("[2026-11-03 00:50:00] Client version: 1761609000\n[2026-11-03 00:50:20] [Logged On, 0,0] Logged on\n", connection)
+        write("[2026-11-03 00:50:00] Client version: 1761609000\n[2026-11-03 00:50:20] System startup time: 20 seconds\n",
+              logs.appendingPathComponent("console_log.txt"))
+        for file in [connection, logs.appendingPathComponent("console_log.txt")] {
+            try? fm.setAttributes([.modificationDate: before], ofItemAtPath: file.path)
+        }
+        var signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: start.addingTimeInterval(200))
+        check(!signs.signedIn && !signs.startupFinished, "the last session's lines aren't this start's")
+        check(signs.sinceStart == 200 && signs.quietFor == 200, "nothing written since the start: quiet since then")
+        check(SteamStartCheck.judge(signs) == .failed, "and so not come up")
+        write("[2026-11-03 01:00:00] Startup - updater built Oct 22 2026 00:15:00\n[2026-11-03 01:00:01] Downloading manifest: client\n",
+              logs.appendingPathComponent("bootstrap_log.txt"))
+        signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: Date().addingTimeInterval(200))
+        check(signs.bootstrap == .downloading && SteamStartCheck.judge(signs) == .undecided, "looking for its update: undecided")
+        write("[2026-11-03 01:00:05] Client version: 1761609000\n[2026-11-03 01:00:30] [Logged On, 0,0] Logged on\n", connection)
+        signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: Date().addingTimeInterval(200))
+        check(signs.signedIn && SteamStartCheck.judge(signs) == .cameUp, "signed in since the start: came up")
+    }
+
+    /// Steam that doesn't come up on the newest build twice goes back to the held build it ran on,
+    /// and its games with it; Epic's and GOG's don't need Steam and stay on the newest.
+    static func steamItself(_ work: URL) {
+        let root = work.appendingPathComponent("steam-rollback", isDirectory: true)
+        let rollback = EngineRollback(root: root)
+        let a = build("4.7.3", "11.18-dxmt0.80-17")
+        let b = build("4.7.4", "11.18-dxmt0.80-18")
+        let c = build("4.7.5", "11.18-dxmt0.80-19")
+        let steamGame = GameID.steam(570), epicGame = GameID.epic("Sugar")
+        let day: TimeInterval = 86_400
+        let t0 = Date().addingTimeInterval(-10 * day)
+        install(a, root: root)
+        rollback.settle(a, now: t0)
+        rollback.recordGood(steamGame, build: a, way: "dxmt")
+        update(rollback, to: b, now: t0.addingTimeInterval(day))
+        guard let heldA = rollback.history().held.first(where: { $0.build == a }) else {
+            return check(false, "the build Steam's games ran on is held back")
+        }
+
+        check(rollback.build(running: Engine.wineBinary(in: root.appendingPathComponent("winecx/4.7.4"))!) == b,
+              "the newest build is known by its engine")
+        check(rollback.build(running: Engine.wineBinary(in: rollback.folder(of: heldA, part: "winecx"))!) == a,
+              "a held one by its copy")
+        check(rollback.build(running: URL(fileURLWithPath: "/somewhere/else/bin/wine")) == nil, "another wine: none")
+
+        check(rollback.afterFailedSteamStart(b) == .none, "Steam didn't come up once: only counted (a slow Steam)")
+        check(rollback.steamPinnedBuild() == nil && rollback.pinnedBuild(steamGame) == nil, "nothing changes yet")
+        check(rollback.afterFailedSteamStart(b) == .rollBack(heldA), "twice in a row: back to the build Steam's games ran on")
+        check(rollback.steamPinnedBuild() == heldA, "Steam starts with it")
+        check(rollback.pinnedBuild(steamGame) == heldA && rollback.pinnedForSteam(steamGame), "Steam's games with it, because of Steam")
+        check(rollback.pinnedBuild(.steam(730)) == heldA, "every Steam game, also one never played")
+        check(rollback.pinnedBuild(epicGame) == nil && !rollback.pinnedForSteam(epicGame), "Epic's games need no Steam: newest")
+        check(rollback.afterFailedSteamStart(b) == .none, "further failures on the newest change nothing")
+        check(EngineRollback.unneeded(rollback.history(), now: t0.addingTimeInterval(60 * day)).isEmpty,
+              "the copy Steam starts with stays past the 30 days")
+
+        // Not up on the held build either: not the engine's doing.
+        check(rollback.afterFailedSteamStart(a) == .none, "once on the held build: counted")
+        check(rollback.afterFailedSteamStart(a) == .heldFailed && rollback.steamPinnedBuild() == nil,
+              "twice: the pin goes, Steam starts with the newest")
+        check(rollback.afterFailedSteamStart(b) == .none && rollback.afterFailedSteamStart(b) == .none,
+              "and the newest isn't rolled back from again before the next update")
+
+        // A build Steam came up on once isn't rolled back from: a later hang is Steam's own.
+        update(rollback, to: c, now: t0.addingTimeInterval(2 * day))
+        rollback.recordSteamStarted(c)
+        check(rollback.afterFailedSteamStart(c) == .none && rollback.afterFailedSteamStart(c) == .none
+              && rollback.steamPinnedBuild() == nil, "Steam came up on it before: no rollback")
+
+        // A failure, then Steam comes up: the count starts over.
+        let root2 = work.appendingPathComponent("steam-rollback-2", isDirectory: true)
+        let second = EngineRollback(root: root2)
+        install(a, root: root2)
+        second.settle(a, now: t0)
+        second.recordSteamStarted(a)
+        second.recordGood(epicGame, build: a, way: "dxmt")
+        update(second, to: b, now: t0.addingTimeInterval(day))
+        _ = second.afterFailedSteamStart(b)
+        check(second.history().steamFailures?[b.id] == 1, "one failure counted")
+        second.recordSteamStarted(b)
+        check(second.history().steamFailures?[b.id] == nil && second.afterFailedSteamStart(b) == .none,
+              "Steam came up after all: the count is gone, and so is the rollback for this build")
+
+        // Held only for an Epic game, the build Steam came up on still serves Steam.
+        let root3 = work.appendingPathComponent("steam-rollback-3", isDirectory: true)
+        let third = EngineRollback(root: root3)
+        install(a, root: root3)
+        third.settle(a, now: t0)
+        third.recordSteamStarted(a)
+        third.recordGood(epicGame, build: a, way: "dxmt")
+        update(third, to: b, now: t0.addingTimeInterval(day))
+        _ = third.afterFailedSteamStart(b)
+        guard case .rollBack(let held) = third.afterFailedSteamStart(b) else { return check(false, "Steam came up on the held build: rolled back") }
+        check(held.build == a, "to the build Steam came up on")
+        third.tryNewest(steamGame)
+        check(third.steamPinnedBuild() == nil && third.history().steamFailures == nil,
+              "Try the Newest Now on a Steam game: Steam tries the newest again, counting from zero")
+        _ = third.afterFailedSteamStart(b)
+        _ = third.afterFailedSteamStart(b)
+        check(third.steamPinnedBuild()?.build == a, "and goes back again after two more")
+        update(third, to: c, now: t0.addingTimeInterval(2 * day))
+        check(third.steamPinnedBuild() == nil && third.history().steamFailures == nil, "the next update: the newest gets another try")
+
+        // No held build Steam ran on: nothing to go back to.
+        let root4 = work.appendingPathComponent("steam-rollback-4", isDirectory: true)
+        let fourth = EngineRollback(root: root4)
+        install(a, root: root4)
+        fourth.settle(a, now: t0)
+        fourth.recordGood(epicGame, build: a, way: "dxmt")
+        update(fourth, to: b, now: t0.addingTimeInterval(day))
+        check(fourth.afterFailedSteamStart(b) == .none && fourth.afterFailedSteamStart(b) == .none && fourth.steamPinnedBuild() == nil,
+              "a build only Epic's games ran on isn't Steam's way back")
+
+        // A history from before reads, without Steam's fields.
+        let root5 = work.appendingPathComponent("steam-rollback-5", isDirectory: true)
+        write(#"{"held":[],"lastGood":{},"pinned":{}}"#, root5.appendingPathComponent("engine-history.json"))
+        let older = EngineRollback(root: root5).history()
+        check(older.steamPinned == nil && older.steamStarted == nil && older.steamFailures == nil, "a history from before reads")
     }
 
     /// With the real `Engine.engineForStart` and the real (here: empty, temporary) Application
@@ -336,6 +594,16 @@ struct EngineRollbackTest {
         check(next.build == b && next.held == nil && next.wine == newest, "another game starts with the newest build")
         check(read(system32.appendingPathComponent("d3d11.dll")) == "dxmt 11.18-dxmt0.80-17", "and the prefix gets the newest DXMT back")
         check(!switched, "without a Steam session there's nothing to stop")
+
+        // MARK: DXVK's Direct3D 9 for KosmicKrisp
+        let c = build("4.7.3", "11.18-dxmt0.80-17", kosmicKrisp: "3.1.1")
+        check(Engine.prefixStampText(c, gptk: true).contains(" d3d9 3.1.1 "), "upstream DXVK is part of the prefix stamp")
+        check(Engine.prefixStampText(c, gptk: false) == Engine.prefixStampText(b, gptk: false), "…on winecx only")
+        update(rollback, to: c)
+        let third = await Engine.engineForStart(game: GameID.steam(900), newest: newest) { switched = true }
+        check(third.build == c, "a game starts with the build that has KosmicKrisp")
+        check(read(system32.appendingPathComponent("d3d9.dll")) == "dxvk 3.1.1", "and the prefix's d3d9 is upstream DXVK's")
+        check(read(system32.appendingPathComponent("d3d11.dll")) == "dxmt 11.18-dxmt0.80-17", "DirectX 10/11 stays as it was")
     }
 
     static func finish() {

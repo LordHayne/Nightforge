@@ -13,12 +13,28 @@ struct EpicTest {
         }
     }
 
+    /// Which legendary downloads run, without a process list (extra review, 3.11.): not known is not "none" –
+    /// the first look with `ps` down says nothing, and a look that was made before stands.
+    static func runningDownloads() {
+        let memory = LockedValue<Set<String>?>(nil)
+        defer { FakeProcesses.installEmpty() }
+        FakeProcesses.installDown()
+        check(EpicStore.runningDownloads(remembered: memory) == nil, "no list and no earlier look: not known – a second download of the game must not start")
+        FakeProcesses.installEmpty()
+        check(EpicStore.runningDownloads(remembered: memory) == [], "a list without a download: none")
+        FakeProcesses.installDown()
+        check(EpicStore.runningDownloads(remembered: memory) == [], "no list after that look: the look stands")
+    }
+
     @MainActor
     static func main() async {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
         guard FileManager.default.homeDirectoryForCurrentUser.path.contains("/home") else {
             print("✗ runs only in its own home (tests/EpicTest/run.sh)")
             exit(1)
         }
+        runningDownloads()
         libraryList()
         installs()
         progress()
@@ -32,6 +48,8 @@ struct EpicTest {
         profiles()
         legendaryRuns()
         forgetDrive()
+        await endDownloads()
+        await uninstallLeftover()
         await store()
 
         print(failures == 0 ? "✓ Epic" : "\(failures) failed")
@@ -120,6 +138,138 @@ struct EpicTest {
         let table = "  1     0\n 500     1\n 501   500\n 502   500\n 510   501\n 600     1\n 601   600\nbad line\n"
         check(Set(Legendary.descendants(of: 500, in: table)) == [501, 502, 510], "legendary's helpers, and theirs")
         check(Legendary.descendants(of: 601, in: table).isEmpty, "none: nothing else is touched")
+    }
+
+    /// A removed download ends even when legendary hangs (extra review, 3.11.): SIGTERM, and after the patience SIGKILL
+    /// to it and its helpers – only while they still run a program from legendary's folder, since a number from an old
+    /// list may belong to another program by now. The stand-ins are the test's own; the list holds only them.
+    static func endDownloads() async {
+        guard let standIn = ProcessInfo.processInfo.environment["STAND_IN"] else {
+            check(false, "run.sh builds the stand-in")
+            return
+        }
+        let fm = FileManager.default
+        let legendary = ComponentStore.shared.root.appendingPathComponent(Legendary.componentID, isDirectory: true)
+        let component = legendary.appendingPathComponent("0.0.0-stand-in", isDirectory: true)
+        let elsewhere = fm.temporaryDirectory.appendingPathComponent("not-legendary-\(UUID().uuidString)", isDirectory: true)
+        for folder in [component, elsewhere] {
+            try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? fm.copyItem(atPath: standIn, toPath: folder.appendingPathComponent("legendary").path)
+        }
+        var started: [Process] = []
+        defer {
+            for process in started where process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            FakeProcesses.installEmpty()
+            try? fm.removeItem(at: legendary)
+            try? fm.removeItem(at: elsewhere)
+        }
+        func start(_ folder: URL, _ arguments: [String]) -> pid_t {
+            let process = Process()
+            process.executableURL = folder.appendingPathComponent("legendary")
+            process.arguments = arguments
+            guard (try? process.run()) != nil else { return 0 }
+            started.append(process)
+            return process.processIdentifier
+        }
+        func alive(_ pid: pid_t) -> Bool { FakeProcesses.row(of: pid) != nil }
+        func gone(_ pids: [pid_t]) async -> Bool {
+            for _ in 0..<20 where pids.contains(where: alive) { try? await Task.sleep(for: .milliseconds(50)) }
+            return !pids.contains(where: alive)
+        }
+        let hung = start(component, ["family"]), polite = start(component, ["polite"]), other = start(elsewhere, [])
+        guard hung > 0, polite > 0, other > 0 else {
+            check(false, "the stand-ins started")
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        let helper = FakeProcesses.children(of: hung).first ?? 0
+        check(helper > 0, "the hanging one has a helper of its own")
+        FakeProcesses.install { FakeProcesses.rows(of: [hung, polite, other], descendants: true) }
+
+        let clock = ContinuousClock()
+        var began = clock.now
+        await Legendary.end([hung, polite, other], under: legendary, patience: .milliseconds(600))
+        let took = clock.now - began
+        check(await gone([hung, helper, polite]), "a legendary that ignores SIGTERM is killed after the patience, its helper too")
+        check(took >= .milliseconds(600) && took < .seconds(4), "after the patience, not later and never forever: \(took)")
+        check(alive(other), "a number that belongs to a program elsewhere by now is left alone")
+
+        let listens = start(component, ["polite", "family"])
+        try? await Task.sleep(for: .milliseconds(300))
+        let itsHelper = FakeProcesses.children(of: listens).first ?? 0
+        FakeProcesses.install { FakeProcesses.rows(of: [listens, other], descendants: true) }
+        began = clock.now
+        await Legendary.end([listens], under: legendary, patience: .seconds(10))
+        let quick = clock.now - began
+        let ended = await gone([listens, itsHelper])
+        check(quick < .seconds(3) && itsHelper > 0 && ended, "one that ends on SIGTERM isn't waited for: \(quick)")
+        began = clock.now
+        await Legendary.end([0, 1, getpid()], under: legendary, patience: .seconds(10))
+        check(clock.now - began < .seconds(1), "no numbers of its own (0, launchd, Nightforge): nothing to wait for")
+    }
+
+    /// A game whose folder won't go (a folder in use, no permission) says so, as for a Steam game, and the rest still goes.
+    @MainActor
+    static func uninstallLeftover() async {
+        let fm = FileManager.default
+        let folder = Legendary.gamesDir.appendingPathComponent("Stuck", isDirectory: true)
+        let locked = folder.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        fm.createFile(atPath: locked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+            try? fm.removeItem(at: folder)
+        }
+        try? fm.createDirectory(at: Legendary.log(for: "Stuck").deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("log".utf8).write(to: Legendary.log(for: "Stuck"))
+        let game = Game(gameID: .epic("Stuck"), name: "Stuck", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                        steamExeWindowsPath: "", installDir: folder, sizeOnDisk: 0)
+        do {
+            try await EpicStore().uninstall(game)
+            check(false, "a folder that stays isn't taken for a removed game")
+        } catch {
+            check(fm.fileExists(atPath: locked.appendingPathComponent("save.dat").path), "the folder stayed: \(error.localizedDescription)")
+        }
+        check(!fm.fileExists(atPath: Legendary.log(for: "Stuck").path), "the rest still goes: its log")
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        do {
+            try await EpicStore().uninstall(game)
+            check(!fm.fileExists(atPath: folder.path), "once it can go, it goes")
+        } catch { check(false, "and without a word: \(error)") }
+
+        // An installed game: its folder goes first, and legendary forgets the game only after that. A folder that
+        // stays keeps the game installed, so it can be removed again (outside review of 9c45b18).
+        let installedFolder = Legendary.gamesDir.appendingPathComponent("Kept", isDirectory: true)
+        let keptLocked = installedFolder.appendingPathComponent("Saved", isDirectory: true)
+        try? fm.createDirectory(at: keptLocked, withIntermediateDirectories: true)
+        fm.createFile(atPath: keptLocked.appendingPathComponent("save.dat").path, contents: Data("mine".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: keptLocked.path)
+        let installedFile = Legendary.configDir.appendingPathComponent("installed.json")
+        let before = try? Data(contentsOf: installedFile)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: keptLocked.path)
+            try? fm.removeItem(at: installedFolder)
+            if let before { try? before.write(to: installedFile) } else { try? fm.removeItem(at: installedFile) }
+        }
+        try? fm.createDirectory(at: Legendary.configDir, withIntermediateDirectories: true)
+        try? JSONSerialization.data(withJSONObject: ["Kept": ["app_name": "Kept", "install_path": installedFolder.path, "executable": "Kept.exe"]])
+            .write(to: installedFile)
+        let kept = Game(gameID: .epic("Kept"), name: "Kept", bottle: Engine.bottle, steamRoot: Engine.steamRoot,
+                        steamExeWindowsPath: "", installDir: installedFolder, sizeOnDisk: 0)
+        do {
+            try await EpicStore().uninstall(kept)
+            check(false, "an installed game whose folder stays isn't taken for removed")
+        } catch {
+            let still = EpicInstall.all(fromJSON: (try? Data(contentsOf: installedFile)) ?? Data())["Kept"]
+            check(still != nil, "legendary wasn't asked, so the game stays installed and can be removed again: \(error.localizedDescription)")
+            // The folder's own error, before legendary: there's no legendary in this home, so asking it first would fail otherwise.
+            check((error as NSError).domain == NSCocoaErrorDomain && !(error is EpicError), "the folder went first: \(error)")
+        }
+        check(EpicStore.uninstallArguments("Kept", filesGone: true) == ["uninstall", "Kept", "-y", "--skip-uninstaller", "--keep-files"],
+              "with its folder gone, legendary only forgets the game")
+        check(EpicStore.uninstallArguments("Kept", filesGone: false) == ["uninstall", "Kept", "-y", "--skip-uninstaller"],
+              "a game outside the games folders: legendary removes its own files, as before")
     }
 
     /// "Update & Play": what legendary's update log means for the start.
@@ -441,10 +591,18 @@ struct EpicTest {
                                    "OddDLC": EpicSize(version: "3", download: 1_000_000_000, install: 2_000_000_000),
                                    "fn": EpicSize(version: "old", download: 1, install: 2)])
             .write(to: epicFolder.appendingPathComponent("sizes.json"))
+        // As the app's own copy: one fetched online counts only with its signature (ProfileFilesTest).
+        let profiles = Engine.supportDir.appendingPathComponent("bundled-profiles.json")
         try? Data(#"{"formatVersion": 1, "games": {"epic.fn": {"name": "Fortnite", "antiCheat": ["Easy Anti-Cheat"]}}}"#.utf8)
-            .write(to: Engine.supportDir.appendingPathComponent("profiles.json"))
+            .write(to: profiles)
+        // A start takes an Epic game's profile by its namespace (Control's is "epic.calluna"; its app name is Calluna).
+        check(EpicStore.namespace(of: "fn") == "fn" && EpicStore.namespace(of: "Missing") == nil,
+              "an Epic game's namespace, from the library on disk")
+        check(await ProfileStore(bundledURL: profiles).profile(for: .epic("fn"))?.antiCheat == ["Easy Anti-Cheat"],
+              "an Epic game starts with its profile")
+        check(await ProfileStore(bundledURL: profiles).profile(for: .epic("Missing")) == nil, "one the library doesn't know has none")
 
-        let store = EpicStore()
+        let store = EpicStore(profiles: ProfileStore(bundledURL: profiles))
         check(await store.library().isEmpty, "not connected: no Epic games")
         try? Data(#"{"displayName": "Player"}"#.utf8).write(to: epicFolder.appendingPathComponent("account.json"))
         try? Data(#"{"displayName": "Player", "account_id": "1"}"#.utf8).write(to: Legendary.configDir.appendingPathComponent("user.json"))

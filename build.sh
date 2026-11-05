@@ -49,12 +49,40 @@ if [ -n "$MINGW" ]; then
   "$MINGW" -O2 -Wall -Wextra -municode -mwindows -static \
     -o "$OUT/Contents/Resources/steamwebhelper.exe" wrapper/steamwebhelper-wrapper.c
 else
+  # It stands in for Steam's own helper for every player, and a binary diff can't be read in a review:
+  # only the build whose SHA-256 the workflow wrote beside it (a line that can) goes into the app.
+  if ! (cd wrapper && shasum -a 256 -c -s steamwebhelper.exe.sha256); then
+    echo "✗ wrapper/steamwebhelper.exe doesn't match wrapper/steamwebhelper.exe.sha256." >&2
+    echo "  Install mingw-w64 (brew install mingw-w64) to build it from wrapper/steamwebhelper-wrapper.c." >&2
+    exit 1
+  fi
   cp wrapper/steamwebhelper.exe "$OUT/Contents/Resources/steamwebhelper.exe"
+fi
+
+# Presses "Play!" in Unity's configuration window for the games that show one (wrapper/unity-play.c,
+# UnityDialog.swift). Built the same way; the checked-in build is the one unity-play.yml produces, and
+# it runs in every player's Wine session while a binary diff can't be read in a review: only the build
+# whose SHA-256 the workflow wrote beside it (a line that can) goes into the app.
+if [ -n "$MINGW" ]; then
+  "$MINGW" -O2 -Wall -Wextra -municode -mwindows -static \
+    -o "$OUT/Contents/Resources/unity-play.exe" wrapper/unity-play.c
+else
+  if ! (cd wrapper && shasum -a 256 -c -s unity-play.exe.sha256); then
+    echo "✗ wrapper/unity-play.exe doesn't match wrapper/unity-play.exe.sha256." >&2
+    echo "  Install mingw-w64 (brew install mingw-w64) to build it from wrapper/unity-play.c." >&2
+    exit 1
+  fi
+  cp wrapper/unity-play.exe "$OUT/Contents/Resources/unity-play.exe"
 fi
 
 # Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
+
+# Starts Wine inside a macOS sandbox when that's switched on (wrapper/nightforge-sandbox.c; x86_64
+# like Wine, for hide-steam-dock.dylib, which reaches it through DYLD_INSERT_LIBRARIES).
+clang -arch x86_64 -mmacosx-version-min=11.0 -O2 -Wall \
+  -o "$OUT/Contents/Resources/nightforge-sandbox" wrapper/nightforge-sandbox.c
 
 # Starts Steam, Wine, games and downloads apart from Nightforge, so a quit Nightforge leaves the Dock
 # (wrapper/nightforge-helper.c; Nightforge makes an app of it at runtime, see Detached.swift).
@@ -80,8 +108,8 @@ if [ -f Resources/AppIcon.png ]; then
   rm -rf "$ICONSET"
 fi
 
-# Local ad-hoc signature so macOS launches the app without a developer account
-codesign --force --deep --sign - "$OUT" >/dev/null
+# Nightforge's own code signing identity when there is one, else ad hoc (scripts/codesign-app.sh).
+scripts/codesign-app.sh "$OUT"
 echo "✓ Done: $OUT"
 
 if [ "${1:-}" = "--install" ]; then

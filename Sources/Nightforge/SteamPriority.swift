@@ -30,11 +30,19 @@ enum SteamPriority {
         echo $$ > "$PIDFILE"
         # -F: Windows paths are full of backslashes; game processes live under steamapps and never count as Steam.
         helpers() { printf '%s\n' "$1" | grep -iF "${HELPERS[@]}" | grep -viF steamapps; }
+        # A Windows game a launcher started by its bare name shows no folder; Wine gives it the game's
+        # as its working folder. Not Windows' or Steam's own programs.
+        from_folder() {
+          case "$GAME" in /*) return 1;; esac
+          local pids
+          pids="$(printf '%s\n' "$1" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }' | paste -sd, -)"
+          [ -n "$pids" ] && lsof -a -d cwd -Fn -p "$pids" 2>/dev/null | sed -n 's|^n\(.*\)$|\1/|p' | grep -qiF -- "${GAME//\\//}"
+        }
         absent=0
         while [ $absent -lt 2 ]; do      # a launcher handing over to the game leaves a short gap
           list="$(ps -axo pid=,pri=,command=)"
           # Not this script, whose own command line names the game's folder too.
-          if printf '%s\n' "$list" | grep -iF -- "$GAME" | grep -viqF -e crashhandler -e "$0"; then
+          if printf '%s\n' "$list" | grep -iF -- "$GAME" | grep -viqF -e crashhandler -e "$0" || from_folder "$list"; then
             absent=0
             # Priority 4 is the background state; only new helpers need it.
             helpers "$list" | awk '$2 != 4 { print $1 }' | while read -r pid; do taskpolicy -b -p "$pid" 2>/dev/null; done

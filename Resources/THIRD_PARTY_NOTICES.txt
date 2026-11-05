@@ -9,7 +9,8 @@ Vulkan-Headers (The Khronos Group Inc.), compiled into nightforge-vulkan-layer.d
   Apache-2.0 or MIT: licenses/Vulkan-Headers-LICENSE.md, licenses/Apache-2.0.txt, licenses/MIT.txt.
   https://github.com/KhronosGroup/Vulkan-Headers
 
-mingw-w64 runtime, statically linked into steamwebhelper.exe (built with x86_64-w64-mingw32-gcc).
+mingw-w64 runtime, statically linked into steamwebhelper.exe and unity-play.exe (built with
+  x86_64-w64-mingw32-gcc).
   Its runtime and headers are under permissive licences (public domain, ZPL 2.1, MIT-style); see
   COPYING.MinGW-w64-runtime.txt in the mingw-w64 sources. https://www.mingw-w64.org
 
@@ -34,6 +35,12 @@ Each package comes with its own licence and, where its licence asks for it, its 
 
 Nightforge's own builds of Wine parts, DXMT and cabextract carry their licence texts inside the
 package and their corresponding source as a second asset of the same GitHub release.
+
+What AppleGamingWiki says about games on a Mac (profiles/agw.json), shown on a game's page and used to
+order the ways Nightforge tries: by the AppleGamingWiki contributors, https://www.applegamingwiki.com,
+CC BY-NC-SA 3.0 (https://creativecommons.org/licenses/by-nc-sa/3.0/), shortened by Nightforge; Steam
+app IDs partly from Wikidata (CC0). A separate work from Nightforge, see profiles/LICENSE-applegamingwiki
+in Nightforge's repository.
 
 Nightforge is not affiliated with Valve, Epic Games, GOG or Apple. Steam is a trademark of Valve
 Corporation; Mac and macOS are trademarks of Apple Inc.

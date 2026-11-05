@@ -1,0 +1,76 @@
+name: Signatures
+
+# The app takes the online lists (components/manifest.json, profiles/profiles.json,
+# profiles/agw.json; SIGNED_LISTS in scripts/signing-lib.sh) only with a signature that holds for
+# them (Sources/Nightforge/Signature.swift). This shows on a pull request whether its lists are
+# signed, and on main whether players get them. GitHub holds no private key: the maintainer signs
+# with scripts/sign-lists.sh <branch> on their Mac.
+#
+# Pull requests the nightly bot opens don't start workflows (GitHub's rule for its own token); the
+# push of the signature does, so the check appears once a list is signed.
+#
+# For pull requests it runs as pull_request_target (review D): this file, the checker and the keys
+# come from the base branch, so a pull request can't change what it's checked with. Of the pull
+# request only its lists and their .sig are read, as data; nothing of it runs, and the token reads
+# only. A pull request that changes the checker, the keys or this file is red by design.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "components/manifest.json"
+      - "components/manifest.json.sig"
+      - "profiles/profiles.json"
+      - "profiles/profiles.json.sig"
+      - "profiles/agw.json"
+      - "profiles/agw.json.sig"
+      - "Sources/Nightforge/Signature.swift"
+      - "Sources/Nightforge/SigningKeys.swift"
+      - "scripts/signing-tool.swift"
+      - "scripts/signing-lib.sh"
+      - "scripts/check-signatures.sh"
+      - ".github/workflows/signatures.yml"
+  pull_request_target:
+    paths:
+      - "components/manifest.json"
+      - "components/manifest.json.sig"
+      - "profiles/profiles.json"
+      - "profiles/profiles.json.sig"
+      - "profiles/agw.json"
+      - "profiles/agw.json.sig"
+      - "Sources/Nightforge/Signature.swift"
+      - "Sources/Nightforge/SigningKeys.swift"
+      - "scripts/signing-tool.swift"
+      - "scripts/signing-lib.sh"
+      - "scripts/check-signatures.sh"
+      - ".github/workflows/signatures.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lists:
+    # The same CryptoKit check as the app's, so it runs where CryptoKit is.
+    runs-on: macos-26
+    steps:
+      # For a pull request: the base branch, with the checker and the keys.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: The pull request's lists
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pull-request
+          persist-credentials: false
+
+      - name: Online lists are signed
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request_target ]; then
+            scripts/check-signatures.sh pull-request
+          else
+            scripts/check-signatures.sh
+          fi

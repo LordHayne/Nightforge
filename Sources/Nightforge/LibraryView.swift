@@ -193,6 +193,7 @@ struct LibraryView: View {
             model.startInput()
             if model.games.isEmpty { model.reload() }
             model.startBackgroundSteam()
+            GameTestRun.watch(model)  // only ever its switch starts a game test
         }
     }
 
@@ -320,6 +321,10 @@ private struct DetailLevel: View {
 
     var body: some View {
         let info = model.info(for: game).flatMap { GameAboutSection.hasContent($0) ? $0 : nil }
+        // What others report about a Windows game on a Mac: with "About the game", or alone when the wiki knows it.
+        let reported = game.platform == .windows ? model.macSources.entry(for: game) : nil
+        let sources = game.platform == .windows && (info != nil || reported != nil)
+        let lower = info != nil || sources
         GeometryReader { geo in
             ScrollViewReader { scroll in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -330,15 +335,15 @@ private struct DetailLevel: View {
                         .frame(height: 0)
                         firstScreen
                             // With "About the game" below, its title and the screenshots' top peek in.
-                            .frame(height: max(geo.size.height - (info == nil ? 0 : 70), 0), alignment: .topLeading)
+                            .frame(height: max(geo.size.height - (lower ? 70 : 0), 0), alignment: .topLeading)
                             // It fades as the page goes up, rather than being cut by the top bar.
                             .scrollTransition(.interactive, axis: .vertical) { content, phase in
                                 content.opacity(phase.value < 0 ? max(0, 1 + phase.value * 2.5) : 1)
                             }
-                        if let info {
+                        if lower {
                             Button { withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) } } label: {
                                 HStack(spacing: 8) {
-                                    SectionTitle(L10n.t("About the game"))
+                                    SectionTitle(info == nil ? L10n.t("What others report") : L10n.t("About the game"))
                                     Image(systemName: "chevron.down")
                                         .font(size: 9, weight: .bold)
                                         .foregroundStyle(Theme.muted)
@@ -350,14 +355,21 @@ private struct DetailLevel: View {
                                 withAnimation(.easeOut(duration: 0.35)) { scroll.scrollTo("about", anchor: .top) }
                             }
                             .padding(.bottom, 18)
-                            GameAboutSection(game: game, info: info, narrow: geo.size.width < 1100)
-                                .id("about")
-                                .padding(.bottom, 40)
+                            VStack(alignment: .leading, spacing: 24) {
+                                if let info {
+                                    GameAboutSection(game: game, info: info, narrow: geo.size.width < 1100)
+                                }
+                                if sources {
+                                    MacSourcesSection(game: game, entry: reported)
+                                }
+                            }
+                            .id("about")
+                            .padding(.bottom, 40)
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
                     .background(alignment: .top) {
-                        if info != nil {
+                        if lower {
                             // Darkens the art behind as the section comes up: a gradient that scrolls with
                             // the page, no blur (UI power budget).
                             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Theme.night.opacity(0.92), location: 0.5),
@@ -635,7 +647,7 @@ struct FailedLaunchSheet: View {
                 }
             }
             HStack(alignment: .center, spacing: 12) {
-                Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – nothing is sent until you submit it there."))
+                Text(L10n.t("Still no luck? A problem report opens on GitHub, filled in with what Nightforge tried – GitHub gets that as the page opens, it's public only once you submit it. The error lines go on your clipboard, to paste if you want."))
                     .font(size: 12.5)
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1211,6 +1223,8 @@ private struct GameDetail: View {
     /// On Home's stage: what the game is there (StarterPicks, HomeRail.stage).
     var role: LibraryModel.HomeRole?
     @EnvironmentObject private var model: LibraryModel
+    /// The screen a game opens on, with more than one (GameDisplay).
+    @ObservedObject private var destination = GameDisplay.destination
     @State private var logo: NSImage?
     /// The Metacritic score the store gave when Steam's catalog on the Mac had none.
     @State private var askedScore: Int?
@@ -1449,6 +1463,14 @@ private struct GameDetail: View {
                     }
                 }
             }
+            // More than one screen: where the game opens, so the TV or the MacBook is no surprise.
+            if game.isInstalled, let screen = destination.name {
+                Label(L10n.t("Plays on: %@", screen), systemImage: "display")
+                    .font(size: 13, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+                    .frame(minWidth: 320, maxWidth: 620, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             // A drive that may never come back: the way out is to forget this copy and download it again.
             if !compact, game.onUnpluggedDrive, let drive = game.missingDrive {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1636,8 +1658,8 @@ private struct CompatibilityNote: View {
     }
 }
 
-/// The newest engine crashed this game, so it runs with the previous one – and the way to give the
-/// newest another try now rather than after the next update (EngineRollback).
+/// The newest engine crashed this game – or Steam didn't come up on it – so it runs with the previous
+/// one, and the way to give the newest another try now rather than after the next update (EngineRollback).
 private struct HeldEngineNote: View {
     let game: Game
     let held: HeldBuild
@@ -1645,8 +1667,11 @@ private struct HeldEngineNote: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Label(L10n.t("Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.",
-                         EngineRollback.day(held.setUp)),
+            Label(EngineRollback.shared.pinnedForSteam(game.gameID)
+                  ? L10n.t("Runs with the previous engine from %@ – Steam didn't start with the newest one. Nightforge tries the new one again after the next update.",
+                           EngineRollback.day(held.setUp))
+                  : L10n.t("Runs with the previous engine from %@ – the newest one crashed it. Nightforge tries the new one again after the next update.",
+                           EngineRollback.day(held.setUp)),
                   systemImage: "arrow.uturn.backward")
                 .font(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)

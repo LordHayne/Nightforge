@@ -13,15 +13,22 @@ on:
 # The nightly run proposes its changes in a pull request (branch bot/components) and never pushes to
 # main. The repository setting Actions › General › "Allow GitHub Actions to create and approve pull
 # requests" has to be on for that.
+#
+# Rights per job (review G): "update" runs for pull requests too, with their own code
+# (validate-manifest.py), so it only reads and checks out without credentials; "propose" alone
+# writes the bot's branch and its pull request.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
@@ -33,16 +40,46 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/update-components.py --propose | tee "$RUNNER_TEMP/changes.txt"
+        run: python3 scripts/update-components.py --propose | tee changes.txt
 
       - name: Validate manifest
         run: python3 scripts/validate-manifest.py
 
-      - name: Propose the change in a pull request
+      - name: Hand the lists to the next job
         if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: components
+          path: |
+            components/manifest.json
+            components/sources.json
+            changes.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    # The only job that writes: the bot's own branch and its pull request, never main.
+    needs: update
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # The commit the lists were built from, even when main moved on meanwhile.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: components
+          path: ${{ runner.temp }}/components
+
+      - name: Propose the change in a pull request
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cp "$RUNNER_TEMP/components/components/manifest.json" "$RUNNER_TEMP/components/components/sources.json" components/
           if git diff --quiet components/; then
             echo "No component updates."
             exit 0
@@ -56,15 +93,19 @@ jobs:
           # The bot's own branch: this night's proposal replaces yesterday's if it wasn't merged.
           git push --force origin "$branch"
           {
-            echo "The nightly run found these changes. Nothing reaches the app until this is merged."
+            echo "The nightly run found these changes. Nothing reaches the app until this is signed and merged."
             echo "Read the diff first: winetricks is a script that runs as the player's user, DXMT's files run under Wine."
+            echo "Then, on the maintainer's Mac: \`scripts/sign-lists.sh $branch\`, and merge once the **Signatures** check is green."
             echo
             echo '```'
-            cat "$RUNNER_TEMP/changes.txt"
+            cat "$RUNNER_TEMP/components/changes.txt"
             echo '```'
           } > "$RUNNER_TEMP/body.md"
           if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = "0" ]; then
-            gh pr create --base main --head "$branch" --title "Update components" --body-file "$RUNNER_TEMP/body.md"
+            gh pr create --base main --head "$branch" --title "Update components" --body-file "$RUNNER_TEMP/body.md" || {
+              echo "::error::The branch is pushed, the pull request isn't (may Actions open pull requests here?). Open it: https://github.com/$GITHUB_REPOSITORY/compare/main...$branch"
+              exit 1
+            }
           else
             gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
           fi

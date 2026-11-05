@@ -114,6 +114,16 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         macUnfit = load(Set<String>.self, Self.macFile) ?? []
         playTimes = load([String: EpicPlayTime].self, Self.playTimeFile) ?? [:]
         saveTimes = load([String: Double].self, Self.savesFile) ?? [:]
+        // These files are Nightforge's own, but the ID becomes a file name, a link and a bundle name: only a product
+        // ID passes (digits), as it does where the IDs come from GOG (GOGRelease.isProductID) – and as Epic's do.
+        catalog.games = catalog.games.filter { GOGRelease.isProductID($0.id) }.map { game in
+            var game = game
+            game.dlcs = game.dlcs.filter { GOGRelease.isProductID($0.id) }
+            return game
+        }
+        releases.items = releases.items.filter { GOGRelease.isProductID($0.key) }
+        installs = installs.filter { GOGRelease.isProductID($0.key) }
+        wanted = wanted.filter { GOGRelease.isProductID($0.id) }
     }
 
     private func save<T: Encodable>(_ value: T, to file: URL) {
@@ -172,6 +182,8 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         game.steamTwin = releases.items[entry.id]?.steamAppID
         if isDownloading {
             game.install = .downloading(progress?.fraction)
+            // What gogdl writes in all, else what the game page said: more than comes down.
+            game.installedSize = progress?.total ?? size?.install
         } else if let install {
             game.install = .installed
             if needsUpdate(install, entry: entry) { game.pendingUpdate = 0 }
@@ -444,7 +456,8 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// Starts the next download in line once nothing else downloads from GOG.
     private func startNext() async {
         guard isFree, let job = wanted.first else { return }
-        guard (await Engine.offMain { GOGDL.runningDownloads() }).isEmpty, isFree else { return }
+        // Nothing starts while it isn't known what runs (no process list): a second download of the same game.
+        guard (await Engine.offMain { GOGDL.runningDownloads() })?.isEmpty == true, isFree else { return }
         do {
             try await startDownload(job)
         } catch {
@@ -510,7 +523,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         let info = GOGGameInfo.read(id: job.id, in: folder)
         // A Mac version from the 32-bit days: macOS won't start it, so the Windows version comes instead.
         if job.platform == .mac, let info, MachO.runsHere(file: folder.pathExtension == "app" ? folder : folder.appendingPathComponent(info.path)) == false {
-            removeFiles(of: job.id, folder: folder, platform: .mac)
+            try? removeFiles(of: job.id, folder: folder, platform: .mac)  // the Windows version comes next anyway
             markMacUnfit(job.id)
             wanted.insert(GOGJob(id: job.id, platform: .windows, base: job.base), at: 0)
             save(wanted, to: Self.wantedFile)
@@ -538,10 +551,13 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
     /// Keeps the line of downloads in order after a look at the processes: a download that ended
     /// while Nightforge was away is recorded (or reported), one cut off by a restart of the Mac
     /// starts again – gogdl carries on where it stopped.
-    private func carryOn(running: Set<String>) {
-        for job in wanted where downloads[job.id] == nil && !starting.contains(job.id) && !running.contains(job.id) {
-            let progress = GOGDL.progress(inLog: GOGDL.logText(for: job.id))
-            if progress.exitCode != nil { ended(job, progress: progress) }
+    /// `running`: nil when it isn't known which downloads run (no process list): no job is judged ended then.
+    private func carryOn(running: Set<String>?) {
+        if let running {
+            for job in wanted where downloads[job.id] == nil && !starting.contains(job.id) && !running.contains(job.id) {
+                let progress = GOGDL.progress(inLog: GOGDL.logText(for: job.id))
+                if progress.exitCode != nil { ended(job, progress: progress) }
+            }
         }
         Task { await startNext() }
     }
@@ -557,35 +573,59 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         if wanted.contains(where: { $0.id == id }) || downloads[id] != nil {
             wanted.removeAll { $0.id == id }
             save(wanted, to: Self.wantedFile)
-            if let process = downloads.removeValue(forKey: id) {
-                Legendary.stop(process.processIdentifier)
-                while process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
-            }
             let root = ComponentStore.shared.root.appendingPathComponent(GOGDL.componentID, isDirectory: true)
-            for pid in Engine.ownProcesses(under: root).filter({ $0.command.contains(" \(id) ") }).map(\.pid) {
-                Legendary.stop(pid)
-            }
+            let started = downloads.removeValue(forKey: id).map { [$0.processIdentifier] } ?? []
+            let earlier = Engine.ownProcesses(under: root).filter({ $0.command.contains(" \(id) ") }).map(\.pid)
+            // Gone before its files go; one that hangs doesn't hold the removal up.
+            await Legendary.end(started + earlier, under: root)
         }
-        if let install = installs.removeValue(forKey: id) {
-            save(installs, to: Self.installedFile)
-            removeFiles(of: id, folder: install.path, platform: install.platform)
-        } else {
-            // A cancelled download: what it had fetched so far.
-            removeFiles(of: id, folder: game.installDir, platform: game.platform)
+        var left: Error?
+        do {
+            if let install = installs[id] {
+                // Forgotten only once its folder is gone: a folder that stays (in use, no permission) keeps
+                // the game installed, gogdl's files with it, so it can be removed again.
+                try removeFolder(install.path)
+                installs[id] = nil
+                save(installs, to: Self.installedFile)
+                try removeGOGDLFiles(of: id)
+            } else {
+                // A cancelled download: what it had fetched so far, and gogdl's files for it either way.
+                let folder = Result { try removeFolder(game.installDir) }
+                try removeGOGDLFiles(of: id)
+                try folder.get()
+            }
+        } catch {
+            left = error
         }
         try? FileManager.default.removeItem(at: GOGDL.log(for: id))
         objectWillChange.send()
         Task { await startNext() }
+        if let left { throw left }
     }
 
-    /// The game's folder (only inside GOG's games folders), gogdl's manifest and its support files.
-    private func removeFiles(of id: String, folder: URL, platform: Platform) {
+    /// The game's folder (only inside GOG's games folders), then gogdl's manifest and its support files. What
+    /// stays (in use, no permission) is thrown, as for a Steam game (Engine.removeGameFiles).
+    private func removeFiles(of id: String, folder: URL, platform: Platform) throws {
+        try removeFolder(folder)
+        try removeGOGDLFiles(of: id)
+    }
+
+    /// The game's folder, only inside GOG's games folders.
+    private func removeFolder(_ folder: URL) throws {
         let parent = folder.standardizedFileURL.deletingLastPathComponent().path
-        if Self.gamesFolders(of: folder).contains(where: { $0.standardizedFileURL.path == parent }) {
-            try? FileManager.default.removeItem(at: folder)
+        guard Self.gamesFolders(of: folder).contains(where: { $0.standardizedFileURL.path == parent }),
+              FileManager.default.fileExists(atPath: folder.path) else { return }
+        try FileManager.default.removeItem(at: folder)
+    }
+
+    /// gogdl's manifest and support files for the game: each is tried, the first that stays is thrown.
+    private func removeGOGDLFiles(of id: String) throws {
+        let fm = FileManager.default
+        var left: Error?
+        for target in [GOGDL.manifest(for: id), GOGDL.supportDir(for: id)] where fm.fileExists(atPath: target.path) {
+            do { try fm.removeItem(at: target) } catch { left = left ?? error }
         }
-        try? FileManager.default.removeItem(at: GOGDL.manifest(for: id))
-        try? FileManager.default.removeItem(at: GOGDL.supportDir(for: id))
+        if let left { throw left }
     }
 
     /// The folders GOG games may lie in: the Mac's two, and the one on the drive `folder` is on.
@@ -641,7 +681,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         loadFromDisk()
         let id = game.gameID.id
         guard let install = installs[id] else { return .updated }
-        guard isFree, (await Engine.offMain { GOGDL.runningDownloads() }).isEmpty else { return .skipped(.busy) }
+        guard isFree, (await Engine.offMain { GOGDL.runningDownloads() })?.isEmpty == true else { return .skipped(.busy) }
         updatingGame = id
         let job = GOGJob(id: id, platform: install.platform, update: true)
         defer {

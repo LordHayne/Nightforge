@@ -14,6 +14,8 @@ struct ExternalDrive: Identifiable, Hashable {
     var total: Int64
 
     var id: String { url.path }
+    /// The id of its games' section in Settings › Storage, apart from its bar's (`id`).
+    var gamesSectionID: String { "games:" + url.path }
 
     /// Whether games can go there.
     var check: DriveCheck { DriveCheck(format: format, readOnly: readOnly) }
@@ -462,6 +464,10 @@ enum DriveError: LocalizedError {
     case copyFailed(String)
     case cancelled
     case steamStarted
+    /// Asked to quit, Steam hadn't ended even after its hard stop.
+    case steamDidNotEnd
+    /// Whether Steam runs can't be told (no process list): nothing of its is touched then.
+    case steamNotKnown
     case busy(String)
 
     var errorDescription: String? {
@@ -484,6 +490,10 @@ enum DriveError: LocalizedError {
             return L10n.t("Cancelled.")
         case .steamStarted:
             return L10n.t("Steam started again meanwhile.")
+        case .steamDidNotEnd:
+            return L10n.t("Steam didn't end in time. Try again in a moment.")
+        case .steamNotKnown:
+            return L10n.t("Nightforge can't tell right now whether Steam is running. Try again in a minute.")
         }
     }
 }

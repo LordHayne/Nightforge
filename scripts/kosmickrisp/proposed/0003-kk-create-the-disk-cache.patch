@@ -1,0 +1,28 @@
+From: Nightforge <noreply@nightforge.invalid>
+Subject: [PATCH] kk: create the disk cache
+
+kk_physical_device_free_disk_cache frees pdev->vk.disk_cache, but nothing
+creates it, so every run translates every shader to MSL again. Create it
+like hk does; kk_shader_ops already serializes the MSL it produces.
+---
+diff --git a/src/kosmickrisp/vulkan/kk_physical_device.c b/src/kosmickrisp/vulkan/kk_physical_device.c
+index 8d096e8a..7b3c1ec9 100644
+--- a/src/kosmickrisp/vulkan/kk_physical_device.c
++++ b/src/kosmickrisp/vulkan/kk_physical_device.c
+@@ -983,6 +983,16 @@ kk_physical_device_init_pipeline_cache(struct kk_physical_device *pdev)
+    STATIC_ASSERT(BLAKE3_KEY_LEN >= VK_UUID_SIZE);
+    memcpy(pdev->vk.properties.pipelineCacheUUID, blake3, VK_UUID_SIZE);
+    memcpy(pdev->vk.properties.shaderBinaryUUID, blake3, VK_UUID_SIZE);
++
++#ifdef ENABLE_SHADER_CACHE
++   /* kk_shader_ops serializes the translated MSL, so the runtime can keep it
++    * on disk: a second run then skips NIR to MSL, and Metal finds its own
++    * compiled library for the same source in its cache.
++    */
++   char timestamp[BLAKE3_HEX_LEN];
++   _mesa_blake3_format(timestamp, instance->driver_build_sha);
++   pdev->vk.disk_cache = disk_cache_create("kosmickrisp", timestamp, 0);
++#endif
+ }
+ 
+ static void

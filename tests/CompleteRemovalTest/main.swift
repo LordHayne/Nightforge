@@ -18,9 +18,68 @@ struct CompleteRemovalTest {
         try? Data(text.utf8).write(to: url)
     }
 
+    /// Whether the work came back without throwing (its result may well be nil: no saves).
+    static func works(_ work: () throws -> URL?) -> Bool {
+        do { _ = try work(); return true } catch { return false }
+    }
+
     static func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
 
-    static func main() {
+    /// Collects the phases the removal reports (it reports from another thread).
+    final class Phases: @unchecked Sendable {
+        private let lock = NSLock()
+        private var phases: [CompleteRemoval.Phase] = []
+        func add(_ phase: CompleteRemoval.Phase) { lock.lock(); phases.append(phase); lock.unlock() }
+        var list: [CompleteRemoval.Phase] { lock.lock(); defer { lock.unlock() }; return phases }
+    }
+
+    /// Fake folders in `base`, with a save in the Windows environment, a cache and a shortcut folder.
+    static func fixture(_ base: URL) -> (places: CompleteRemoval.Places, defaults: UserDefaults) {
+        let library = base.appendingPathComponent("Library", isDirectory: true)
+        var places = CompleteRemoval.Places()
+        places.support = library.appendingPathComponent("Application Support/Nightforge", isDirectory: true)
+        places.caches = library.appendingPathComponent("Caches/Nightforge", isDirectory: true)
+        places.userCache = nil
+        places.library = library
+        places.shortcuts = base.appendingPathComponent("Applications/Nightforge Games", isDirectory: true)
+        places.documents = base.appendingPathComponent("Documents", isDirectory: true)
+        places.bundleID = "io.github.lordhayne.nightforge"
+        places.settingsDomain = TestDefaults.domain("removal-\(UUID().uuidString)")
+        write(places.support.appendingPathComponent("Components/wine/bin/wine"))
+        write(places.prefix.appendingPathComponent("drive_c/users/crossover/AppData/Roaming/Hades/Profile1.sav"), "save")
+        write(places.caches.appendingPathComponent("Artwork/550.jpg"))
+        write(places.shortcuts.appendingPathComponent("Valheim.app/Contents/Info.plist"))
+        return (places, UserDefaults(suiteName: places.settingsDomain)!)
+    }
+
+    /// A copy of this program run as `--standin` sleeps: a process whose file lies where the test wants one.
+    static func standIn(_ file: URL) -> Process? {
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let me = URL(fileURLWithPath: CommandLine.arguments[0])
+        guard (try? FileManager.default.copyItem(at: me, to: file)) != nil else { return nil }
+        let process = Process()
+        process.executableURL = file
+        process.arguments = ["--standin"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        return (try? process.run()) != nil ? process : nil
+    }
+
+    static func gone(_ pid: pid_t) -> Bool {
+        for _ in 0..<100 {
+            if kill(pid, 0) != 0 && errno == ESRCH { return true }
+            usleep(20_000)
+        }
+        return false
+    }
+
+    static func main() async {
+        // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
+        FakeProcesses.installEmpty()
+        if CommandLine.arguments.count > 1, CommandLine.arguments[1] == "--standin" {
+            sleep(120)
+            exit(0)
+        }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("removal-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let library = root.appendingPathComponent("Library", isDirectory: true)
@@ -68,7 +127,7 @@ struct CompleteRemovalTest {
                         "Steam userdata/158043902/550"], "the saves, no caches or Steam's own: \(names.sorted())")
         check(CompleteRemoval.targets(places).count == 6, "six things to remove: \(CompleteRemoval.targets(places).map(\.lastPathComponent))")
 
-        places.settingsDomain = "io.github.lordhayne.nightforge.removal-test"
+        places.settingsDomain = TestDefaults.domain("settings")
         let defaults = UserDefaults(suiteName: places.settingsDomain)!
         defaults.set(true, forKey: "library.hidden")
         let saves = try? CompleteRemoval.remove(places, defaults: defaults)
@@ -104,7 +163,393 @@ struct CompleteRemovalTest {
               "every store, in the stores' order: \(three ?? "–")")
         check(CompleteRemoval.gamesNote(count: 0, size: 0, stores: []) == nil, "no games, no line about them")
 
+        // A test program is not the app: what `Places()` says without being told otherwise is nowhere near the
+        // player's things, and the settings are a domain no one has – a test that forgets to point one place
+        // elsewhere removes nothing real.
+        do {
+            let inert = CompleteRemoval.Places()
+            let home = String(cString: getpwuid(getuid())!.pointee.pw_dir)
+            check(!CompleteRemoval.isTheApp, "the test program is not the app")
+            check(inert.settingsDomain != CompleteRemoval.appBundleID && inert.bundleID != CompleteRemoval.appBundleID,
+                  "outside the app the settings domain isn't the app's: \(inert.settingsDomain)")
+            check(inert.userCache == nil, "… no shader caches of the Mac's user folder")
+            let places = [inert.support, inert.caches, inert.library, inert.shortcuts, inert.documents]
+            check(places.allSatisfy { !$0.path.hasPrefix(home + "/") }, "… no place is in the real home: \(places.map(\.path))")
+            check(inert.support != Engine.supportDir && inert.caches.lastPathComponent == "Nightforge", "… and not Nightforge's folder")
+            check(CompleteRemoval.targets(inert).isEmpty && CompleteRemoval.saveSources(inert).isEmpty, "… nothing to remove, nothing to copy")
+            do {
+                try CompleteRemoval.requireApp()
+                check(false, "the whole job refuses to run outside the app")
+            } catch {
+                if let failure = error as? CompleteRemoval.RemovalError, case .notTheApp = failure {
+                    check(!failure.localizedDescription.isEmpty, "… with notTheApp, before anything is stopped")
+                } else {
+                    check(false, "… with notTheApp, not \(error)")
+                }
+            }
+            // Pointed at the real thing on purpose: refused. Only the predicate is run here – were it missing, `remove`
+            // itself would delete the player's settings, which no test may risk; the guard's place is read from the source.
+            var real = inert
+            real.settingsDomain = CompleteRemoval.appBundleID
+            check(CompleteRemoval.namesTheRealApp(real), "the app's settings domain is named: refused outside the app")
+            real = inert
+            real.support = Engine.supportDir
+            check(CompleteRemoval.namesTheRealApp(real), "Nightforge's data folder is named: refused")
+            real = inert
+            real.shortcuts = GameShortcut.folder
+            check(CompleteRemoval.namesTheRealApp(real), "the game apps' folder is named: refused")
+            real = inert
+            real.bundleID = CompleteRemoval.appBundleID
+            check(!CompleteRemoval.namesTheRealApp(real), "the app's bundle ID alone isn't (a test's own Library has its folders)")
+            real.library = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
+            check(CompleteRemoval.namesTheRealApp(real), "… with the player's Library it is: refused")
+            check(!CompleteRemoval.namesTheRealApp(inert), "the inert places name nothing real")
+            let source = (try? String(contentsOfFile: "Sources/Nightforge/CompleteRemoval.swift", encoding: .utf8)) ?? ""
+            let head = source.components(separatedBy: "static func remove(").dropFirst().first?.components(separatedBy: "phase?(.copyingSaves)").first ?? ""
+            check(head.contains("namesTheRealApp(places)") && head.contains("throw RemovalError.notTheApp"),
+                  "remove() asks before its first phase")
+            let probe = UserDefaults(suiteName: TestDefaults.domain("probe"))!
+            probe.set(true, forKey: "kept")
+            check(works { try CompleteRemoval.remove(defaults: probe) } && probe.bool(forKey: "kept"),
+                  "remove() on the default places does nothing and leaves other settings alone")
+        }
+
+        // The phases, in order, and the settings go only at the very end.
+        do {
+            let scenario = fixture(root.appendingPathComponent("phases", isDirectory: true))
+            let phases = Phases()
+            let saves = try? CompleteRemoval.remove(scenario.places, defaults: scenario.defaults, phase: { phases.add($0) })
+            check(saves != nil && phases.list == [.copyingSaves, .deleting], "phases: copying saves, then deleting: \(phases.list)")
+        }
+
+        // A folder without write permission (some installers leave one) doesn't stop the removal.
+        do {
+            let scenario = fixture(root.appendingPathComponent("readonly", isDirectory: true))
+            let locked = scenario.places.prefix.appendingPathComponent("drive_c/Program Files/Locked", isDirectory: true)
+            write(locked.appendingPathComponent("inner/file.dat"))
+            try? FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.appendingPathComponent("inner").path)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+            check(works { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults) }, "a read-only folder is made writable and deleted")
+            check(!exists(scenario.places.support), "… and the Windows environment is gone")
+        }
+
+        // One thing that can't be deleted: the rest goes, the settings stay, and the error says which.
+        do {
+            let scenario = fixture(root.appendingPathComponent("stuck", isDirectory: true))
+            let stuck = scenario.places.caches.appendingPathComponent("Artwork/550.jpg")
+            write(stuck)
+            try? FileManager.default.setAttributes([.immutable: true], ofItemAtPath: stuck.path)
+            scenario.defaults.set(true, forKey: "library.hidden")
+            var thrown: Error?
+            do { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults) } catch { thrown = error }
+            check(!exists(scenario.places.support), "one target stuck: the others are deleted all the same")
+            check(exists(scenario.places.caches), "… the stuck one is still there")
+            check(scenario.defaults.object(forKey: "library.hidden") != nil, "… and the settings stay, for the second try")
+            if let failure = thrown as? CompleteRemoval.RemovalError, case .notDeleted(let names) = failure {
+                check(names == ["Nightforge"], "the error names what is left: \(names)")
+                check(failure.localizedDescription.contains("Nightforge"), "… in the message: \(failure.localizedDescription)")
+                check(failure.localizedDescription != CompleteRemoval.RemovalError.savesNotCopied("x").localizedDescription,
+                      "… which doesn't blame the copying of the saves")
+            } else {
+                check(false, "a stuck target throws notDeleted, not \(String(describing: thrown))")
+            }
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: stuck.path)
+            check(works { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults) }, "second try: everything goes")
+            check(!exists(scenario.places.caches) && scenario.defaults.object(forKey: "library.hidden") == nil, "… the settings with it")
+        }
+
+        // Saves that can't be copied: nothing is deleted, and the error says so.
+        do {
+            let scenario = fixture(root.appendingPathComponent("nocopy", isDirectory: true))
+            var places = scenario.places
+            write(root.appendingPathComponent("nocopy/NotAFolder"))
+            places.documents = root.appendingPathComponent("nocopy/NotAFolder")  // a file where Documents should be
+            var thrown: Error?
+            do { try CompleteRemoval.remove(places, defaults: scenario.defaults) } catch { thrown = error }
+            if let failure = thrown as? CompleteRemoval.RemovalError, case .savesNotCopied = failure {
+                check(!failure.localizedDescription.isEmpty, "saves not copied: the error has its words")
+            } else {
+                check(false, "saves that can't be copied throw savesNotCopied, not \(String(describing: thrown))")
+            }
+            check(exists(places.support) && exists(places.caches), "… and nothing was deleted")
+        }
+
+        // Ending what runs from Nightforge's folder: its programs and its quit script, nothing else. The quit script
+        // is found by the pid it wrote beside itself – no ps.
+        do {
+            let scenario = fixture(root.appendingPathComponent("stop", isDirectory: true))
+            let support = scenario.places.support
+            let inside = standIn(support.appendingPathComponent("Components/winecx/bin/wineserver"))
+            let outside = standIn(root.appendingPathComponent("stop/elsewhere/other-program"))
+            let script = support.appendingPathComponent("steam-shutdown.sh")
+            let elsewhere = root.appendingPathComponent("stop/elsewhere/steam-shutdown.sh")
+            for file in [script, elsewhere] { write(file, "#!/bin/bash\nwhile true; do sleep 1; done\n") }
+            func bash(_ file: URL) -> Process {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/bin/bash")
+                process.arguments = [file.path, "a", "b"]
+                try? process.run()
+                return process
+            }
+            let quitScript = bash(script), otherScript = bash(elsewhere)
+            usleep(300_000)
+            write(support.appendingPathComponent("steam-shutdown.pid"), "\(quitScript.processIdentifier)\n")
+            check(inside != nil && outside != nil, "the stand-in programs started")
+            if let inside, let outside {
+                check(CompleteRemoval.processes(under: support).contains(inside.processIdentifier), "a program run from the folder is found")
+                check(!CompleteRemoval.processes(under: support).contains(outside.processIdentifier), "… one run from elsewhere is not")
+                await CompleteRemoval.stop(scenario.places, scriptsByCommandLine: false, polite: nil)
+                check(gone(inside.processIdentifier), "stop: the program from the folder is ended")
+                check(gone(quitScript.processIdentifier), "stop: the quit script named in steam-shutdown.pid is ended")
+                check(!exists(support.appendingPathComponent("steam-shutdown.pid")), "… and its pid file is gone")
+                check(outside.isRunning, "stop: a program from elsewhere keeps running")
+                check(otherScript.isRunning, "stop: a quit script of another folder keeps running")
+
+                // A pid that went to another program since is left alone, and so is a pid file from long ago.
+                let pidFile = support.appendingPathComponent("steam-shutdown.pid")
+                write(pidFile, "\(outside.processIdentifier)\n")
+                CompleteRemoval.endScripts(under: support, byCommandLine: false)
+                check(outside.isRunning, "a pid file naming a program that isn't a bash: not killed")
+                write(pidFile, "\(otherScript.processIdentifier)\n")
+                try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -3600)], ofItemAtPath: pidFile.path)
+                CompleteRemoval.endScripts(under: support, byCommandLine: false)
+                check(otherScript.isRunning, "a pid file written long before that bash began: not killed")
+                check(!exists(pidFile), "… the stale file is removed")
+                outside.terminate()
+            }
+            otherScript.terminate()
+        }
+
+        // A script of a Nightforge from before the pid file is found by its command line – here in the list
+        // of a stand-in ps (a real one lists every process on the Mac).
+        do {
+            let scenario = fixture(root.appendingPathComponent("oldscript", isDirectory: true))
+            let support = scenario.places.support
+            let script = support.appendingPathComponent("steam-shutdown.sh")
+            write(script, "#!/bin/bash\nwhile true; do sleep 1; done\n")
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [script.path]
+            try? process.run()
+            let bystander = Process()
+            bystander.executableURL = URL(fileURLWithPath: "/bin/sleep")
+            bystander.arguments = ["60"]
+            try? bystander.run()
+            // A bash that only has the script's path as an argument after something else (`bash -c … <path>`): not the script.
+            let named = Process()
+            named.executableURL = URL(fileURLWithPath: "/bin/bash")
+            named.arguments = ["-c", "sleep 60", script.path]
+            try? named.run()
+            // A shell of the player's that has the script's path in its command line (a `tail -f` on it).
+            let shell = Process()
+            shell.executableURL = URL(fileURLWithPath: "/bin/bash")
+            shell.arguments = ["-c", "sleep 60; true"]
+            try? shell.run()
+            usleep(300_000)
+            // The list of a stand-in: the bash with the script's path in its command, a bystander that only names the script,
+            // a bash that is given the path as an argument of its own, and one whose -c text names it (security-status
+            // and quit-safety each brought one of the two).
+            FakeProcesses.install {
+                [FakeProcesses.Row(pid: process.processIdentifier, command: "/bin/bash \(script.path) /wine /prefix"),
+                 FakeProcesses.Row(pid: bystander.processIdentifier, command: "/bin/sleep 60 \(script.path)"),
+                 FakeProcesses.Row(pid: named.processIdentifier, command: "/bin/bash -c sleep 60 \(script.path)"),
+                 FakeProcesses.Row(pid: shell.processIdentifier, command: "/bin/bash -c tail -f \(script.path)")]
+            }
+            CompleteRemoval.endScripts(under: support)
+            check(gone(process.processIdentifier), "a quit script without a pid file is found by its command line")
+            check(bystander.isRunning, "… a program that only names the script is not a bash, and stays")
+            check(named.isRunning, "… nor is a bash that only has the path as a later argument (less, tail, bash -c …)")
+            bystander.terminate()
+            named.terminate()
+            check(shell.isRunning, "… nor is a bash that only names it (as Migration's pkill -f once hit)")
+            shell.terminate()
+            FakeProcesses.installEmpty()
+            let spaced = "/Users/x/Library/Application Support/Nightforge/steam-shutdown.sh"
+            check(CompleteRemoval.runsScript("/bin/bash \(spaced) /wine /prefix 1 0", spaced) && CompleteRemoval.runsScript("bash \(spaced)", spaced),
+                  "the script is bash's first argument, spaces in the path or not")
+            check(!CompleteRemoval.runsScript("less \(spaced)", spaced) && !CompleteRemoval.runsScript("tail -f \(spaced)", spaced)
+                  && !CompleteRemoval.runsScript("/bin/bash -c cat \(spaced)", spaced) && !CompleteRemoval.runsScript("/bin/bash \(spaced)2", spaced),
+                  "less, tail, bash -c and a longer name are not the script")
+        }
+
+        // Saves next to the program, in the game's own folder in the prefix (outside review of deleting, item 1):
+        // the files Steam Cloud's rules and the profile name are copied – not the game.
+        do {
+            let scenario = fixture(root.appendingPathComponent("gamesaves", isDirectory: true))
+            let places = scenario.places
+            let steamapps = places.steam.appendingPathComponent("steamapps", isDirectory: true)
+            write(steamapps.appendingPathComponent("appmanifest_4242.acf"),
+                  "\"AppState\"\n{\n\t\"appid\"\t\t\"4242\"\n\t\"installdir\"\t\t\"Quiet Game\"\n}\n")
+            write(steamapps.appendingPathComponent("appmanifest_999.acf"), "\"AppState\"\n{\n\t\"appid\"\t\t\"999\"\n\t\"installdir\"\t\t\"../Elsewhere\"\n}\n")
+            let game = steamapps.appendingPathComponent("common/Quiet Game", isDirectory: true)
+            write(game.appendingPathComponent("Saves/slot1.sav"), "slot one")
+            write(game.appendingPathComponent("Saves/slot1.png"), "picture")
+            write(game.appendingPathComponent("profile.dat"), "profile")
+            write(game.appendingPathComponent("Quiet Game.exe"), "program")
+            write(game.appendingPathComponent("config.ini"), "settings")
+            write(game.appendingPathComponent("Mods/big.pak"), "mod")
+            write(game.appendingPathComponent("Extra/more.sav"), "from the profile")
+            func rule(_ path: String, _ pattern: String, recursive: Bool = false) -> SaveRule {
+                SaveRule(root: "gameinstall", path: path, pattern: pattern, recursive: recursive, macRoot: nil, macAddPath: "")
+            }
+            // Steam Cloud's rules for it: a folder, files in the folder itself, the whole game (left out), one that climbs out (left out).
+            let catalog: (Int) -> [SaveRule] = { $0 == 4242 ? [rule("Saves", "*.sav"), rule("", "*.dat"), rule("", "*", recursive: true), rule("../x", "*")] : [] }
+            let profile: [Int: [SaveRule]] = [4242: [rule("Extra", "*.sav")]]
+            check(CompleteRemoval.installedGames(places).map(\.appID) == [4242], "the games in the prefix's library, from their manifests (one naming a folder above is none)")
+            let names = Set(CompleteRemoval.saveSources(places, profileRules: profile, catalog: catalog).map(\.name).filter { $0.hasPrefix("Steam games/") })
+            check(names == ["Steam games/Quiet Game/Saves/slot1.sav", "Steam games/Quiet Game/profile.dat", "Steam games/Quiet Game/Extra/more.sav"],
+                  "the saves in the game's folder, by the rules and the profile's: \(names.sorted())")
+            let fixed = Date(timeIntervalSince1970: 1_730_000_000)
+            let first = try? CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog)
+            if let first = first ?? nil {
+                func text(_ name: String) -> String? { try? String(contentsOf: first.appendingPathComponent(name), encoding: .utf8) }
+                check(text("Steam games/Quiet Game/Saves/slot1.sav") == "slot one" && text("Steam games/Quiet Game/profile.dat") == "profile"
+                      && text("Steam games/Quiet Game/Extra/more.sav") == "from the profile", "…and copied")
+                check(!exists(first.appendingPathComponent("Steam games/Quiet Game/Quiet Game.exe"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/config.ini"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/Mods"))
+                      && !exists(first.appendingPathComponent("Steam games/Quiet Game/Saves/slot1.png")),
+                      "the game itself isn't")
+                check(first.lastPathComponent.range(of: #"^\d{4}-\d{2}-\d{2}-\d{6}$"#, options: .regularExpression) != nil,
+                      "the folder is named by date and time: \(first.lastPathComponent)")
+
+                // A second removal in the same second: a folder of its own, the first one untouched (item 2).
+                write(game.appendingPathComponent("profile.dat"), "profile 2")
+                let second = (try? CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog)) ?? nil
+                check(second != nil && second != first && second?.lastPathComponent == first.lastPathComponent + "-2",
+                      "the same time again: a second folder, \(second?.lastPathComponent ?? "–")")
+                check(text("Steam games/Quiet Game/profile.dat") == "profile"
+                      && (try? String(contentsOf: second!.appendingPathComponent("Steam games/Quiet Game/profile.dat"), encoding: .utf8)) == "profile 2",
+                      "the first backup is as it was, the second has the newer save")
+
+                // A copy that fails: the folder begun is taken away, the earlier backups stay (item 2).
+                let locked = game.appendingPathComponent("Saves/slot1.sav")
+                try? FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+                let before = ((try? FileManager.default.contentsOfDirectory(atPath: first.deletingLastPathComponent().path)) ?? []).sorted()
+                let failed = works { try CompleteRemoval.copySaves(places, now: fixed, profileRules: profile, catalog: catalog) }
+                try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path)
+                let after = ((try? FileManager.default.contentsOfDirectory(atPath: first.deletingLastPathComponent().path)) ?? []).sorted()
+                check(!failed && after == before && text("Steam games/Quiet Game/Saves/slot1.sav") == "slot one",
+                      "a copy that fails throws, leaves no half folder and the earlier backups alone: \(before) → \(after)")
+            } else {
+                check(false, "the saves of the game's folder were copied")
+            }
+        }
+
+        // The polite way is given its time and no more.
+        do {
+            let scenario = fixture(root.appendingPathComponent("polite", isDirectory: true))
+            let start = Date()
+            await CompleteRemoval.stop(scenario.places, politeFor: 0.3, scriptsByCommandLine: false,
+                                       polite: { try? await Task.sleep(for: .seconds(30)) })
+            check(Date().timeIntervalSince(start) < 5, "a polite shutdown that takes forever is not waited for")
+        }
+
+        quit()
+        await quitOrder()
         print(failures == 0 ? "✓ CompleteRemoval" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// Quitting always works: with a sheet open ⌘Q did nothing and `osascript … quit` got -128
+    /// (27./28.10.); only a removal under way makes it wait, as that quits by itself.
+    static func quit() {
+        check(Quit.answer(removing: false) == .quit, "a sheet or not: it quits")
+        check(Quit.answer(removing: true) == .wait, "removing itself: it waits, the removal quits by itself")
+        // Logging out with Settings open (review M7): the sheets closed, it quits right in the Apple Event,
+        // as AppKit does, and answers it only then – no "yes" first and the quit a second later.
+        check(!Quit.waits(panelWaiting: false, sheetsLeft: false), "the sheets closed, no panel: it quits at once")
+        check(Quit.waits(panelWaiting: true, sheetsLeft: false), "a panel's loop ends after the event: a moment's wait")
+        check(Quit.waits(panelWaiting: false, sheetsLeft: true), "a sheet still closing: a moment's wait")
+        MainActor.assumeIsolated {
+            check(!CompleteRemoval.isRunning, "no removal under way to begin with")
+        }
+
+        // The sheets to end first, a sheet's own before it: Settings over the window, the removal's
+        // question over Settings; a game's options over another window.
+        struct Window: Equatable { let name: String }
+        let main = Window(name: "Nightforge"), settings = Window(name: "Settings"), removal = Window(name: "Remove?")
+        let other = Window(name: "Other"), options = Window(name: "Options"), plain = Window(name: "Plain")
+        let sheets = ["Nightforge": settings, "Settings": removal, "Other": options]
+        func order(_ windows: [Window]) -> [String] {
+            Quit.closingOrder(windows, sheet: { sheets[$0.name] }).map { "\($0.0.name)>\($0.1.name)" }
+        }
+        // AppKit lists sheets among the windows too, in any order.
+        check(order([removal, main, settings, plain, other, options]) == ["Settings>Remove?", "Nightforge>Settings", "Other>Options"],
+              "innermost first, each once, a window without a sheet left alone: \(order([removal, main, settings, plain, other, options]))")
+        check(order([plain]).isEmpty, "no sheet open: nothing to end")
+        check(order([]).isEmpty, "no windows: nothing")
+        let loop = ["A": Window(name: "B"), "B": Window(name: "A")]
+        check(Quit.closingOrder([Window(name: "A"), Window(name: "B")], sheet: { loop[$0.name] }).count <= 2,
+              "a sheet listed as its own window's parent can't make it go round forever")
+    }
+
+    /// With Settings open nothing quit Nightforge (3.11.): AppKit had ended the SwiftUI sheet, which
+    /// came back with the next redraw, and `NSApp.terminate` with a sheet attached does nothing. Now
+    /// the sheets close through the model first, AppKit ends only what's left of its own, and the
+    /// quit comes once they're gone – or says in wine.log why it didn't go through.
+    @MainActor
+    static func quitOrder() async {
+        @MainActor
+        final class Stage: QuitStage {
+            var events: [String] = []
+            var notes: [String] = []
+            var sheets: [String]
+            let model: Bool, appKit: Bool
+            /// `model`: the sheets go when the model closes them (SwiftUI's, a moment later);
+            /// `appKit`: when AppKit ends them (its own).
+            init(_ sheets: [String], model: Bool = false, appKit: Bool = false) {
+                self.sheets = sheets
+                self.model = model
+                self.appKit = appKit
+            }
+            func closeSheets() {
+                events.append("model")
+                if model { Task { try? await Task.sleep(for: .milliseconds(150)); self.sheets = [] } }
+            }
+            var sheetsLeft: [String] { sheets }
+            func endSheets() {
+                events.append("AppKit")
+                if appKit { sheets = [] }
+            }
+            var panelWaiting: Bool { false }
+            func stopPanel() { events.append("panel") }
+            func terminate() -> Bool {
+                events.append(sheets.isEmpty ? "terminate" : "terminate under " + sheets.joined(separator: ", "))
+                return sheets.isEmpty  // as AppKit: nothing at all with a sheet attached
+            }
+            func note(_ line: String) { notes.append(line) }
+        }
+        func quit(_ stage: Stage) async -> TimeInterval {
+            let start = Date()
+            check(Quit.now(by: "⌘Q", beforeQuitting: { stage.events.append("answer") }, on: stage), "⌘Q quits")
+            for _ in 0..<80 where !(stage.events.last ?? "").hasPrefix("terminate") {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            return Date().timeIntervalSince(start)
+        }
+
+        let settings = Stage(["Settings"], model: true)
+        let took = await quit(settings)
+        check(settings.events == ["model", "answer", "terminate"] && settings.notes.isEmpty,
+              "Settings: closed through the model, then the quit: \(settings.events)")
+        check(took < 0.8, "as soon as it's gone, not after AppKit's turn: \(took) s")
+
+        let alert = Stage(["NSAlert"], appKit: true)
+        let alertTook = await quit(alert)
+        check(alert.events == ["model", "AppKit", "answer", "terminate"] && alert.notes.isEmpty,
+              "a sheet of AppKit's own: ended through AppKit after the model's turn: \(alert.events)")
+        check(alertTook >= 0.9, "AppKit's turn comes after a second: \(alertTook) s")
+
+        let stuck = Stage(["Settings"])
+        _ = await quit(stuck)
+        check(stuck.events == ["model", "AppKit", "answer", "terminate under Settings"], "a sheet that won't go: tried all the same: \(stuck.events)")
+        check(stuck.notes == ["Quit by ⌘Q didn't go through: a sheet is still open (Settings)"], "and wine.log says why: \(stuck.notes)")
+
+        let none = Stage([])
+        check(Quit.now(by: "the menu", on: none) && none.events == ["model", "terminate"], "no sheet: at once: \(none.events)")
+
+        check(Quit.reason(sheetsLeft: [], panelWaiting: true) == "a panel still waits for a file", "a panel's wait named")
+        check(Quit.reason(sheetsLeft: [], panelWaiting: false) == "AppKit didn't take it", "else AppKit's silence")
     }
 }

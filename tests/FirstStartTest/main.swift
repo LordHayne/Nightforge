@@ -124,6 +124,7 @@ struct FirstStartTest {
         check(SetupDetail.name(of: component("dxvk-macos", "1.10.3-20230507")) == "DXVK 1.10.3", "DXVK")
         check(SetupDetail.name(of: component("moltenvk", "1.4.2")) == "MoltenVK 1.4.2", "MoltenVK")
         check(SetupDetail.name(of: component("gamepad", "4.7.3-7")) == L10n.t("Controller support"), "the controller package")
+        check(SetupDetail.name(of: component("enginefix", "4.7.3-1")) == L10n.t("Engine fixes (sound, stability)"), "the engine fixes")
         check(SetupDetail.component(wine, fraction: 0.5, bytesPerSecond: nil)
               == L10n.t("%@: %@", L10n.t("Wine %@ (CrossOver)", "4.7.3"), SetupDetail.transfer(done: 230_565_799, total: 461_131_598, bytesPerSecond: nil)),
               "halfway: \(SetupDetail.component(wine, fraction: 0.5, bytesPerSecond: nil))")

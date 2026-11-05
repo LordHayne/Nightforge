@@ -54,15 +54,16 @@ extension LibraryModel {
         guard game.bottle.isBuiltIn, game.platform == .windows, d3dMetalDialog == nil, !Engine.d3dMetalReady,
               Engine.installedWineNow().map({ Engine.isGPTKCapable(wine: $0) }) == true else { return false }
         let picked = GameOptionsStore.load(game.gameID).graphics
-        if let analysis = insights[game.gameID]?.analysis {
+        if let analysis = insights[game.gameID]?.analysis, analysis.d3d12Program == nil {
             guard D3DMetalSupply.needed(by: analysis, picked: picked) else { return false }
             askAboutD3DMetal(for: game)
             return true
         }
-        // Not looked at yet: look, then decide.
+        // Not looked at yet – or a DirectX 12 program of its own, where the profile decides: look, then decide.
         Task {
             let insight = await self.insight(of: game)
-            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked) {
+            let profile = await ProfileStore.shared.profile(for: game.gameID)
+            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked, profile: profile) {
                 askAboutD3DMetal(for: game)
             } else {
                 launch(game, d3dMetalChecked: true)
@@ -124,7 +125,7 @@ extension LibraryModel {
     }
 
     /// "Download from Apple and Import": a toolkit already lying in the Downloads folder is offered
-    /// first; else Apple's page opens, and the toolkit is imported as soon as it arrives there.
+    /// first; else Apple's page opens, and the toolkit is offered as soon as it arrives there.
     func importD3DMetalFromApple() {
         guard d3dMetalDialog != nil else { return }
         if let have = D3DMetalSupply.newToolkitDownload(in: downloadsFolder, since: .distantPast) {
@@ -147,8 +148,8 @@ extension LibraryModel {
         guard d3dMetalDialog != nil else { return }
         d3dMetalDialog?.step = .waitingForApple
         NSWorkspace.shared.open(D3DMetalSupply.appleDownloadURL)
-        // A download that finished a moment ago counts; an old one in the folder doesn't.
-        let since = Date().addingTimeInterval(-120)
+        // Only a download that comes after this click counts.
+        let since = Date()
         let downloads = downloadsFolder
         d3dMetalRun.task?.cancel()
         d3dMetalRun.task = Task {
@@ -158,7 +159,11 @@ extension LibraryModel {
                 }
                 return
             }
-            await importD3DMetal(from: file)
+            // Any page can put a file with a fitting name into Downloads meanwhile: the player sees
+            // which one arrived and imports it, as one found there before.
+            d3dMetalRun.found = file
+            d3dMetalDialog?.step = .found(file.lastPathComponent)
+            NSApp.requestUserAttention(.informationalRequest)
         }
     }
 
@@ -397,7 +402,7 @@ struct D3DMetalSheet: View {
     }
 
     @ViewBuilder private var waiting: some View {
-        Text(L10n.t("Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and imports it by itself."))
+        Text(L10n.t("Apple's download page is open in your browser. Sign in with your Apple Account and download the Game Porting Toolkit – the .dmg file. Nightforge notices it in your Downloads folder and asks you before importing it."))
             .modifier(BodyText())
         HStack(spacing: 10) {
             ProgressView().controlSize(.small)

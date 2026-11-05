@@ -13,6 +13,8 @@ trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
 OUT="$WORK/components-smoke"
 swiftc -o "$OUT" \
   Sources/Nightforge/Components.swift \
+  Sources/Nightforge/Signature.swift \
+  Sources/Nightforge/SigningKeys.swift \
   Sources/Nightforge/Strings.swift \
   tests/ComponentsSmokeTest/main.swift
 "$OUT"

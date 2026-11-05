@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # Only the patches this package is built with: winecx's go to gamepad.yml and enginefix.yml.
     paths:
-      - "engine/**"
+      - "engine/patches/dxmt-*.patch"
+      - "engine/patches/wine-*.patch"
+      - "engine/patches/winebus-11.18-*.patch"
       - ".github/workflows/graphics.yml"
 
 # Only the package job publishes; the build jobs run upstream code (DXMT, LLVM, Wine) and get a
@@ -19,14 +22,26 @@ on:
 permissions:
   contents: read
 
+# Every input is pinned (review G): a clone by its tag has to be the commit below, and a download its
+# SHA-256, or the build stops. A moved tag or a replaced file is then a change someone makes here.
 env:
   WINE_VERSION: "11.18"
+  WINE_COMMIT: 7b3fff76fa5178f6ce0141b2c776afa2a822f101  # wine-11.18 on gitlab.winehq.org
+  # Gcenx's build of this Wine (the engine's Vulkan loader and libinotify): the same SHA-256 as the "wine"
+  # component in components/manifest.json and as GitHub gives for the asset.
+  GCENX_SHA256: aa0ea4c82e636ae7bca2076387cb0a5affa26509ad13f119ecd0d62bd7ba6f82
   # Header for the engine's libinotify (libinotify-kqueue), which wineserver links like Gcenx's does.
   LIBINOTIFY_TAG: "20240724"
+  LIBINOTIFY_COMMIT: 0de168e0a9363f6f261e59f93b9f976b57d4fab6
+  LIBINOTIFY_SHA256: 8b59eb4e1c93299a20855b4eeae7903162b486a60ff8e11221b21a7364dbf0d4
   DXMT_VERSION: v0.80
+  DXMT_COMMIT: 589adb780354b461645b29999cefaf533594ee99
   LLVM_VERSION: llvmorg-15.0.7
-  # Wine headers/tools DXMT builds against (from DXMT's own CI)
+  LLVM_COMMIT: 8dfdcc7b7bf66834a761bd8de445840ef68e4d1a
+  # Wine headers/tools DXMT builds against (from DXMT's own CI). GitHub has no digest for this 2023 asset:
+  # the SHA-256 is the file's as it was on 3.11.2026.
   WINE_TOOLCHAIN_URL: https://github.com/3Shain/wine/releases/download/v8.16-3shain/wine.tar.gz
+  WINE_TOOLCHAIN_SHA256: 289c7f19e270a3d3d0a6fdb07691b176c70a0795f6811e5255cba82425de4f10
 
 jobs:
   llvm:
@@ -44,8 +59,10 @@ jobs:
       - name: Build LLVM (x86_64)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          brew install ninja || true
+          brew list --versions ninja > /dev/null || brew install ninja || { echo "::error::brew couldn't install ninja"; exit 1; }
           git clone --depth 1 --branch "$LLVM_VERSION" https://github.com/llvm/llvm-project.git toolchains/llvm-project
+          test "$(git -C toolchains/llvm-project rev-parse HEAD)" = "$LLVM_COMMIT" \
+            || { echo "::error::$LLVM_VERSION isn't commit $LLVM_COMMIT any more"; exit 1; }
           cmake -B toolchains/llvm-build -S toolchains/llvm-project/llvm \
             -DCMAKE_INSTALL_PREFIX="$PWD/toolchains/llvm-darwin" \
             -DCMAKE_OSX_ARCHITECTURES=x86_64 \
@@ -78,6 +95,9 @@ jobs:
         run: |
           git clone --depth 1 --branch "$DXMT_VERSION" --recurse-submodules --shallow-submodules \
             https://github.com/3Shain/dxmt.git dxmt
+          # Its submodules are pinned by this commit.
+          test "$(git -C dxmt rev-parse HEAD)" = "$DXMT_COMMIT" \
+            || { echo "::error::DXMT $DXMT_VERSION isn't commit $DXMT_COMMIT any more"; exit 1; }
           # DXMT v0.80 is MIT, with DXVK code (zlib) and NVIDIA's NVAPI headers (MIT) built in: their
           # licences and the untouched source (submodules included) go into the release.
           mkdir -p source
@@ -100,11 +120,18 @@ jobs:
 
       - name: Toolchain
         run: |
-          brew install mingw-w64 ninja || true
-          pip3 install meson==1.10.0 --break-system-packages
+          for formula in mingw-w64 ninja; do
+            brew list --versions "$formula" > /dev/null || brew install "$formula" \
+              || { echo "::error::brew couldn't install $formula"; exit 1; }
+          done
+          printf '%s\n' 'meson==1.10.0 --hash=sha256:4b27aafce281e652dcb437b28007457411245d975c48b5db3a797d3e93ae1585 --hash=sha256:8071860c1f46a75ea34801490fd1c445c9d75147a65508cd3a10366a7006cc1c' \
+            > "$RUNNER_TEMP/meson.txt"
+          pip3 install --require-hashes -r "$RUNNER_TEMP/meson.txt" --break-system-packages
           sudo xcode-select -s /Applications/Xcode_16.1.app
           mkdir -p dxmt/toolchains/wine
-          curl -fsSL "$WINE_TOOLCHAIN_URL" | tar -xz -C dxmt/toolchains/wine
+          curl -fsSL -o "$RUNNER_TEMP/wine-toolchain.tar.gz" "$WINE_TOOLCHAIN_URL"
+          echo "$WINE_TOOLCHAIN_SHA256  $RUNNER_TEMP/wine-toolchain.tar.gz" | shasum -a 256 -c -
+          tar -xz -C dxmt/toolchains/wine -f "$RUNNER_TEMP/wine-toolchain.tar.gz"
           mv toolchains/llvm-darwin dxmt/toolchains/llvm-darwin
 
       - name: Build 64-bit
@@ -146,8 +173,13 @@ jobs:
 
       - name: Tools and sources
         run: |
-          brew install bison flex pkg-config mingw-w64 || true
+          for formula in bison flex pkg-config mingw-w64; do
+            brew list --versions "$formula" > /dev/null || brew install "$formula" \
+              || { echo "::error::brew couldn't install $formula"; exit 1; }
+          done
           git clone --depth 1 --branch "wine-$WINE_VERSION" https://gitlab.winehq.org/wine/wine.git wine
+          test "$(git -C wine rev-parse HEAD)" = "$WINE_COMMIT" \
+            || { echo "::error::wine-$WINE_VERSION isn't commit $WINE_COMMIT any more"; exit 1; }
           # Wine is LGPL: its untouched source and licence go into the release (winebus builds from the same tag).
           mkdir -p source
           git -C wine rev-parse HEAD > source/wine-commit.txt
@@ -160,12 +192,16 @@ jobs:
           done
           # Link against the same Vulkan loader and libinotify the engine ships (Gcenx build of this Wine version).
           mkdir -p gcenx
-          curl -fsSL "https://github.com/Gcenx/macOS_Wine_builds/releases/download/$WINE_VERSION/wine-devel-$WINE_VERSION-osx64.tar.xz" \
-            | tar -xJ -C gcenx
+          curl -fsSL -o "$RUNNER_TEMP/gcenx.tar.xz" \
+            "https://github.com/Gcenx/macOS_Wine_builds/releases/download/$WINE_VERSION/wine-devel-$WINE_VERSION-osx64.tar.xz"
+          echo "$GCENX_SHA256  $RUNNER_TEMP/gcenx.tar.xz" | shasum -a 256 -c -
+          tar -xJ -C gcenx -f "$RUNNER_TEMP/gcenx.tar.xz"
           ln -s "$PWD/gcenx/Wine Devel.app/Contents/Resources/wine/lib" gcenxlib
           mkdir -p inotify/sys
-          curl -fsSL "https://raw.githubusercontent.com/libinotify-kqueue/libinotify-kqueue/$LIBINOTIFY_TAG/sys/inotify.h" \
+          # By the tag's commit, not the tag; and the file by its SHA-256.
+          curl -fsSL "https://raw.githubusercontent.com/libinotify-kqueue/libinotify-kqueue/$LIBINOTIFY_COMMIT/sys/inotify.h" \
             -o inotify/sys/inotify.h
+          echo "$LIBINOTIFY_SHA256  inotify/sys/inotify.h" | shasum -a 256 -c -
 
       - name: Configure (x86_64, visible symbols)
         run: |
@@ -232,6 +268,7 @@ jobs:
     runs-on: macos-15
     env:
       SDL_HEADERS_TAG: release-2.32.8  # the SDL the engine ships (libSDL2-2.0.0.dylib, dlopened by name)
+      SDL_HEADERS_COMMIT: 98d1f3a45aae568ccd6ed5fec179330f47d4d356
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -239,13 +276,20 @@ jobs:
 
       - name: Tools and sources
         run: |
-          brew install bison flex pkg-config mingw-w64 || true
+          for formula in bison flex pkg-config mingw-w64; do
+            brew list --versions "$formula" > /dev/null || brew install "$formula" \
+              || { echo "::error::brew couldn't install $formula"; exit 1; }
+          done
           git clone --depth 1 --branch "wine-$WINE_VERSION" https://gitlab.winehq.org/wine/wine.git wine
+          test "$(git -C wine rev-parse HEAD)" = "$WINE_COMMIT" \
+            || { echo "::error::wine-$WINE_VERSION isn't commit $WINE_COMMIT any more"; exit 1; }
           for patch in nightforge/engine/patches/winebus-"$WINE_VERSION"-*.patch; do
             echo "Applying $patch"
             git -C wine apply --verbose "$GITHUB_WORKSPACE/$patch"
           done
           git clone -q --depth 1 --branch "$SDL_HEADERS_TAG" https://github.com/libsdl-org/SDL.git sdl
+          test "$(git -C sdl rev-parse HEAD)" = "$SDL_HEADERS_COMMIT" \
+            || { echo "::error::SDL $SDL_HEADERS_TAG isn't commit $SDL_HEADERS_COMMIT any more"; exit 1; }
 
       - name: Configure (x86_64, SDL bus)
         run: |

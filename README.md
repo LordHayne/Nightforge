@@ -80,7 +80,7 @@ After every game Nightforge shows how long you played and asks how it ran. It re
 - **Store search.** Search also finds games in the Steam store, with price and Metascore; you buy in your browser, and they appear in your library. Free games you add right away with **Add for Free** – Steam asks once in its own window.
 - **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it by themselves.
 - **Larger text and less motion.** One switch makes all of Nightforge's text a step larger; another turns zooming and sliding into plain cross-fades.
-- **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub, filled in, and goes nowhere until you submit it.
+- **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub filled in with the game and its settings, and is public only once you submit it; error lines stay on your clipboard until you paste them.
 
 ### Settings in plain words
 
@@ -99,6 +99,25 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
 - **Storage:** what games, Nightforge and its caches take up; move or uninstall games, or remove Nightforge completely (saves that are only on your Mac are copied to Documents first).
 - **Per game (O):** Automatic, Balanced, Fastest or Most compatible, plus expert options and launch options.
 - **Advanced:** CrossOver and Whisky bottles or your own Wine, folded away until you need them.
+
+## Tested on a Mac
+
+Played live on a Mac with M5 between 24 October and 2 November 2026, with Nightforge 0.3 and the builds before it.
+
+| Game | Store | Way | Result |
+|---|---|---|---|
+| Asphalt Legends | Steam | Mac version | Runs |
+| Valheim | Steam | Mac version | Runs, with a controller too |
+| No Man's Sky | Steam | Mac version | Runs |
+| OxyRail | Steam | Windows · DXMT | Runs, a steady 60 FPS with MetalFX |
+| Overcooked 2 | Steam | Windows · DXMT | Runs at 60 FPS, with a controller and on the TV too |
+| Black Myth: Wukong Benchmark Tool | Steam | Windows · D3DMetal | Runs, 68 FPS (Low, FSR, 1512×982) |
+| The Last Caretaker Demo | Steam | Windows · D3DMetal | Runs, around 50 FPS at full Retina resolution with FSR frame generation |
+| Control | Epic Games | Windows · D3DMetal | Runs |
+| Mafia II (Classic) | GOG | Windows · WineD3D | Runs, but not smooth yet |
+| Overwatch | Steam | Windows | Doesn't start yet – Nightforge is looking into why |
+
+Everything else: try it. Nightforge picks the way from a game's files and moves on to the next one by itself if a game doesn't start. Online games with anti-cheat are the exception (see Good to know).
 
 ## What's next
 
@@ -157,7 +176,7 @@ On a trackpad, two fingers sideways go back, and pinching in the library makes t
 ## Good to know
 
 - **Online games with anti-cheat** (Easy Anti-Cheat, BattlEye) can't run on a Mac in their Windows versions – though some have a Mac version with anti-cheat. Nightforge says so before you download and offers **GeForce Now** when the game is there – with your copy from Steam or, where GeForce Now supports it, from Epic. When Steam offers a way to start a game without anti-cheat, Nightforge takes it. Single player and servers without anti-cheat work.
-- **DirectX 10 and 11** are well covered. **DirectX 9** runs through WineD3D, often slower and without MetalFX; KosmicKrisp should make it faster (see What's next). **DirectX 12** runs through Apple's D3DMetal, which Nightforge sets up the first time a DirectX 12 game needs it, and only once you agree – Apple's licence allows it only for developing, testing and evaluating games. Nightforge heads off the driver warning Unreal games show on D3DMetal. It's newer ground, so expect the odd game that doesn't.
+- **DirectX 10 and 11** are well covered. **DirectX 9** runs through WineD3D, often slower and without MetalFX; KosmicKrisp should make it faster (see What's next). **DirectX 12** runs through Apple's D3DMetal, which Nightforge sets up the first time a DirectX 12 game needs it, and only once you agree – Apple's licence allows it only for developing, testing and evaluating games. The driver warning Unreal games show on D3DMetal can still appear, but no longer holds up the start. It's newer ground, so expect the odd game that doesn't.
 - **VR-only games** are marked as such; they can't run on a Mac.
 - **Around the loading screen** there are still small display glitches, like a pointer that flashes up briefly or a window that shows up just before it. They don't get in the way of playing and are next in line for the coming versions.
 - Saves in the **Steam Cloud** sync as usual.
@@ -186,7 +205,7 @@ Got a game running better with a specific setting? Add it to `profiles/mac.json`
 }
 ```
 
-Fields: `graphics` (`dxmt` or `dxvk`), `arguments`, `dllOverrides`, `registry`, `windowsVersion`, `winetricks`, `metalFX` (`false` keeps MetalFX off for a game it doesn't suit), `frameLimit` (the game's automatic FPS limit), `vulkanSamplers` (for games that draw with Vulkan themselves: the samplers per shader stage reported to them, when MoltenVK's 16 make a game refuse to start) `preferWindows` (`true` keeps a game on its Windows version although Steam has a 64-bit Mac version, e.g. an old Mac port that is known to be broken) and `saves` (save folders for games whose Steam Cloud rules don't name them, so their saves come along when the game changes between its Windows and Mac version: `{"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "mac": "MacAppSupport"}`).
+Common fields are `graphics` (`dxmt`, `dxvk`, `wined3d` or `d3dmetal`), `arguments`, `metalFX`, `frameLimit` and `saves`. Every field, the keys for Epic and GOG games, what the automatic check rejects and how to test a profile first: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## Build from source
 
@@ -210,4 +229,6 @@ D3DMetal is Apple's software, not part of Nightforge and not under the GPL. Nigh
 
 Nightforge stands on the work of [Wine](https://www.winehq.org), CodeWeavers' CrossOver changes ([winecx-gptk](https://github.com/dappermint/winecx-gptk)), [Gcenx's Wine builds and DXVK-macOS](https://github.com/Gcenx), [DXMT](https://github.com/3Shain/dxmt), [MoltenVK](https://github.com/KhronosGroup/MoltenVK), Apple's [D3DMetal](https://developer.apple.com/games/game-porting-toolkit/), [legendary](https://github.com/derrod/legendary), [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl), [winetricks](https://github.com/Winetricks/winetricks), [cabextract](https://www.cabextract.org.uk), [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) and [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet). Their licences apply to the components Nightforge downloads.
 
-Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library with the game covers left out; game artwork belongs to its publishers.
+**Support CrossOver.** CodeWeavers pays for a large part of Wine's development, and Nightforge's engine is built from the Wine changes they publish with [CrossOver](https://www.codeweavers.com/crossover) – without them, no D3DMetal and no DirectX 12 in Nightforge. Nightforge takes no money; if you'd like to support the people behind this work, buy CrossOver. It's also the right choice if you want more control over Windows programs on your Mac and support from people who know Wine.
+
+Nightforge is not affiliated with Valve, Epic Games, GOG, NVIDIA, CodeWeavers or Apple. Steam is a trademark of Valve Corporation, Epic Games a trademark of Epic Games, Inc., GOG a trademark of GOG sp. z o.o., GeForce NOW a trademark of NVIDIA, CrossOver a trademark of CodeWeavers, Inc.; Mac and macOS are trademarks of Apple Inc. Screenshots show the maintainer's own library with the game covers left out; game artwork belongs to its publishers.

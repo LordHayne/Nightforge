@@ -91,15 +91,10 @@ enum MacSteamProgress {
 
     /// What a process has received over the network since it started (`nettop`).
     private static func bytesReceived(pid: pid_t) -> Int64? {
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        process.arguments = ["-P", "-L", "1", "-J", "bytes_in", "-p", String(pid)]
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        process.waitUntilExit()
+        // With a limit: nettop asks the kernel for every process's counters, as ps does.
+        let nettop = Subprocess.run("/usr/bin/nettop", ["-P", "-L", "1", "-J", "bytes_in", "-p", String(pid)], capture: true, timeout: 5)
+        guard nettop.launched, !nettop.timedOut else { return nil }
+        let output = nettop.text
         // ",bytes_in,\nsteam_osx.53069,4312550781,"
         guard let line = output.split(whereSeparator: \.isNewline).last, line.contains(".\(pid),") else { return nil }
         return line.split(separator: ",").dropFirst().first.flatMap { Int64($0) }

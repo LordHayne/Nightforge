@@ -89,6 +89,7 @@ struct MacVersionTest {
     }
 
     static func main() {
+        TestDefaults.useWorkFolder()
         // MARK: Decision
         typealias Facts = VersionChoice.Facts
         func decide(_ facts: Facts, _ choice: GameVersion = .automatic, preferWindows: Bool = false,
@@ -201,7 +202,7 @@ struct MacVersionTest {
         let inGame = places.windowsInstall!.appendingPathComponent("SNAppData/SavedGames/slot1", isDirectory: true)
         try? fm.createDirectory(at: inGame, withIntermediateDirectories: true)
         try? Data("world".utf8).write(to: inGame.appendingPathComponent("world.bin"))
-        let suite = UserDefaults(suiteName: "mvt-\(UUID().uuidString)")!
+        let suite = TestDefaults.suite("save-transfer")
         check(SaveTransfer.beforeStart(appID: 1001, platform: .mac, rules: rules, places: places, defaults: suite) == 4,
               "the first Mac start takes the Windows saves along")
         let carried = ((try? fm.contentsOfDirectory(atPath: macSaves.path)) ?? []).sorted()
@@ -407,8 +408,37 @@ struct MacVersionTest {
         check(!fm.fileExists(atPath: folder.path) && !fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_1001.acf").path),
               "files and manifest removed")
         check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path), "other games stay")
-        try? Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps)
+        var oddLeft: [URL] = []
+        do { try Engine.removeGameFiles(appID: 2000, installDirName: "..", steamapps: steamapps) } catch let error as Engine.FilesLeft {
+            oddLeft = error.files
+        } catch {}
         check(fm.fileExists(atPath: steamapps.path), "an odd folder name never removes the library")
+        check(fm.fileExists(atPath: steamapps.appendingPathComponent("appmanifest_2000.acf").path)
+              && oddLeft.map(\.lastPathComponent) == ["appmanifest_2000.acf"],
+              "nor its manifest, while its folder can't be removed: still there, and said so (\(oddLeft))")
+        // One that can't all go (a read-only folder inside it): the rest is tried, the manifest stays while
+        // the game's folder is there, and the error names what's left.
+        let locked = steamapps.appendingPathComponent("common/Locked/Data", isDirectory: true)
+        try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        fm.createFile(atPath: locked.appendingPathComponent("pak0").path, contents: Data("x".utf8))
+        try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        let cache = steamapps.appendingPathComponent("shadercache/3000", isDirectory: true)
+        try? fm.createDirectory(at: cache, withIntermediateDirectories: true)
+        let lockedManifest = steamapps.appendingPathComponent("appmanifest_3000.acf")
+        fm.createFile(atPath: lockedManifest.path, contents: Data("\"AppState\"\n{\n}\n".utf8))
+        var left: [URL] = []
+        do { try Engine.removeGameFiles(appID: 3000, installDirName: "Locked", steamapps: steamapps) } catch let error as Engine.FilesLeft {
+            left = error.files
+        } catch {}
+        check(left.map(\.lastPathComponent) == ["Locked", "appmanifest_3000.acf"] && !fm.fileExists(atPath: cache.path)
+              && fm.fileExists(atPath: lockedManifest.path),
+              "a folder that won't all go: the shader cache goes anyway, the manifest stays, the error has both: \(left)")
+        let message = Engine.FilesLeft(folder: steamapps, files: left).errorDescription ?? ""
+        check(message.contains("common/Locked") && message.contains("appmanifest_3000.acf"), "and names them: \(message)")
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        try? Engine.removeGameFiles(appID: 3000, installDirName: "Locked", steamapps: steamapps)
+        check(!fm.fileExists(atPath: steamapps.appendingPathComponent("common/Locked").path) && !fm.fileExists(atPath: lockedManifest.path),
+              "tried again once it can go: all of it goes")
 
         // MARK: Download progress from Steam's content log
         let contentLog = """
@@ -486,29 +516,42 @@ struct MacVersionTest {
         check(Engine.startupFinished(steamRoot: steam), "then Steam has finished starting")
 
         // MARK: Quit script: back to Nightforge when the game ends
-        // A stand-in game (a process whose path lies in the Mac library), `open` and `pgrep` replaced
-        // so nothing real is opened and no running Nightforge counts as "opened again" – only a
-        // stand-in for the Nightforge that is still quitting when the script starts – and `ps` only
-        // lists the sandbox's processes, so a real game running on this Mac doesn't count either.
+        // A stand-in game (a process whose path lies in the Mac library) and `open` replaced, so nothing real is
+        // opened; `ps` lists only the stand-ins the test has noted in a file (and only while they run), and
+        // launchd, as a real one always lists something (the script takes an empty list for "unknown"), so
+        // a real game running on this Mac doesn't count, no Nightforge counts as "opened again" – the one
+        // still quitting when the script starts is left out and named by its pid – and no listing of every
+        // process on the Mac is asked for (`ps -ax` has been seen hanging for good, 3.11.2026).
         let sandbox = steam.appendingPathComponent("quit-script", isDirectory: true)
         let shims = sandbox.appendingPathComponent("bin", isDirectory: true)
         let library = sandbox.appendingPathComponent("Steam/steamapps", isDirectory: true)
         try? fm.createDirectory(at: shims, withIntermediateDirectories: true)
         let opened = sandbox.appendingPathComponent("opened.txt")
         let script = sandbox.appendingPathComponent("steam-shutdown.sh")
+        let psList = sandbox.appendingPathComponent("ps-list.tsv")
+        try? "".write(to: psList, atomically: true, encoding: .utf8)
         try? Engine.steamShutdownScript.write(to: script, atomically: true, encoding: .utf8)
+        let live = "printf '1\\t/sbin/launchd\\n'; while IFS=$'\\t' read -r pid cmd; do kill -0 \"$pid\" 2>/dev/null && printf '%s\\t%s\\n' \"$pid\" \"$cmd\"; done < '\(psList.path)'"
         for (name, body) in [("open", "echo \"$@\" > '\(opened.path)'"),
-                             ("pgrep", "case \"$*\" in *Nightforge.app*) exec /usr/bin/pgrep -qf /Fake/Nightforge.app/Contents/MacOS/Nightforge;; esac; exec /usr/bin/pgrep \"$@\""),
-                             ("ps", "/bin/ps \"$@\" | /usr/bin/grep -F -- '\(sandbox.path)'")] {
+                             ("ps", "case \"$*\" in *pid=*) { \(live); } | /usr/bin/tr '\\t' ' ' ;; *) { \(live); } | /usr/bin/cut -f2- ;; esac")] {
             let shim = shims.appendingPathComponent(name)
             try? "#!/bin/bash\n\(body)\n".write(to: shim, atomically: true, encoding: .utf8)
             try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shim.path)
         }
+        /// A stand-in the `ps` shim lists for as long as it runs.
+        func listed(_ process: Process, as command: String) {
+            guard let handle = try? FileHandle(forWritingTo: psList) else { return }
+            _ = try? handle.seekToEnd()
+            handle.write(Data("\(process.processIdentifier)\t\(command)\n".utf8))
+            try? handle.close()
+        }
         func runScript(quitting: pid_t? = nil) -> Process {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            // The last argument: a game ran just now, so the script waits for its cloud saves before it ends Steam
+            // (only then; QuitScriptTest has the other cases).
             process.arguments = [script.path, "", sandbox.appendingPathComponent("Prefix").path, library.path, "0", "/Fake/Nightforge.app",
-                                 quitting.map(String.init) ?? ""]
+                                 quitting.map(String.init) ?? "", "1", String(Int(Date().timeIntervalSince1970))]
             process.environment = ["PATH": shims.path + ":/usr/bin:/bin:/usr/sbin:/sbin"]
             try? process.run()
             return process
@@ -517,6 +560,7 @@ struct MacVersionTest {
         fakeGame.executableURL = URL(fileURLWithPath: "/bin/bash")
         fakeGame.arguments = ["-c", "exec -a '\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake' /bin/sleep 3"]
         try? fakeGame.run()
+        listed(fakeGame, as: "\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake")
         let quittingNightforge = Process()
         quittingNightforge.executableURL = URL(fileURLWithPath: "/bin/bash")
         quittingNightforge.arguments = ["-c", "exec -a /Fake/Nightforge.app/Contents/MacOS/Nightforge /bin/sleep 1.5"]
@@ -529,6 +573,28 @@ struct MacVersionTest {
         check((try? String(contentsOf: opened, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) == "/Fake/Nightforge.app"
               && reopenedAfter > 4 && reopenedAfter < 20,
               "the quit script brings Nightforge back once the game has ended (after \(Int(reopenedAfter)) s)")
+        try? fm.removeItem(at: opened)
+        // A game its launcher started by its bare name (Control_DX11.exe, 2.11.): no folder in its
+        // command line, the game's as its working folder. Unseen, the script would end the Wine session
+        // under it; it waits for it like for any game.
+        let bareFolder = sandbox.appendingPathComponent("Prefix/drive_c/Program Files/Epic Games/Bare Game", isDirectory: true)
+        try? fm.createDirectory(at: bareFolder, withIntermediateDirectories: true)
+        let bareGame = Process()
+        bareGame.executableURL = URL(fileURLWithPath: "/bin/bash")
+        bareGame.currentDirectoryURL = bareFolder
+        // The sandbox in its arguments only so that the ps stand-in lists it.
+        bareGame.arguments = ["-c", "exec -a 'BareGame_DX11.exe --log=\(sandbox.path)/bare.log' /bin/sleep 3"]
+        try? bareGame.run()
+        listed(bareGame, as: "BareGame_DX11.exe --log=\(sandbox.path)/bare.log")
+        Thread.sleep(forTimeInterval: 0.5)
+        let bareWait = runScript()
+        let bareStarted = Date()
+        while bareWait.isRunning && Date().timeIntervalSince(bareStarted) < 30 { Thread.sleep(forTimeInterval: 0.5) }
+        let bareAfter = Date().timeIntervalSince(bareStarted)
+        check((try? String(contentsOf: opened, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) == "/Fake/Nightforge.app"
+              && bareAfter > 2 && bareAfter < 20,
+              "a game started by its bare name counts as running, Nightforge comes back after it (after \(Int(bareAfter)) s)")
+        if bareWait.isRunning { bareWait.terminate() }
         try? fm.removeItem(at: opened)
         let idle = runScript()  // no game: it waits to shut Steam down instead
         Thread.sleep(forTimeInterval: 3)

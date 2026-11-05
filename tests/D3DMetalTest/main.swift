@@ -1,5 +1,6 @@
 // Checks where Apple's D3DMetal comes from: the answer on file, a copy from before the question, the
 // import from Apple's toolkit, the wait for the download: tests/D3DMetalTest/run.sh
+import CryptoKit
 import Foundation
 
 @main
@@ -29,6 +30,7 @@ struct D3DMetalTest {
         current(work)
         folders(work)
         imports(work)
+        windowsFiles(work)
         diskImages(work)
         await downloads(work)
         games()
@@ -60,8 +62,8 @@ struct D3DMetalTest {
         try? fm.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
         info.write(to: plist, atomically: true)
         write("framework \(marker)", to: lib.appendingPathComponent("external/D3DMetal.framework/Versions/A/D3DMetal"))
-        for dll in ["d3d12.dll", "d3d11.dll", "dxgi.dll"] {
-            write("front end \(dll) \(marker)", to: lib.appendingPathComponent("wine/x86_64-windows/\(dll)"))
+        for dll in frontEnds {
+            write(frontEnd(dll, marker), to: lib.appendingPathComponent("wine/x86_64-windows/\(dll)"))
         }
         let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
         try? fm.createDirectory(at: unix, withIntermediateDirectories: true)
@@ -72,6 +74,17 @@ struct D3DMetalTest {
             write("thanks", to: root.appendingPathComponent("Acknowledgements.rtf"))
         }
         return lib
+    }
+
+    static let frontEnds = ["d3d12.dll", "d3d11.dll", "dxgi.dll"]
+    static func frontEnd(_ dll: String, _ marker: String) -> String { "front end \(dll) \(marker)" }
+
+    /// Nightforge's list of Windows files as it would be for the stand-in toolkits: their front ends, by version.
+    static func known(_ marker: String = "a") -> [String: [String: String]] {
+        let files = Dictionary(uniqueKeysWithValues: frontEnds.map { dll in
+            (dll, SHA256.hash(data: Data(frontEnd(dll, marker).utf8)).map { String(format: "%02x", $0) }.joined())
+        })
+        return ["3.0": files, "4.0b3": files]
     }
 
     static func manifest(d3dmetal version: String?) -> ComponentManifest? {
@@ -156,7 +169,7 @@ struct D3DMetalTest {
         Supply.save(.init(source: .apple, version: "3.0", accepted: Date()), in: apple)
         check(Supply.current(manifest: list, componentsRoot: components, folder: apple) == nil, "an import that isn't there gives nothing (the list's isn't taken instead)")
         toolkit(at: fresh(work, "apple-source"))
-        _ = try? Supply.importToolkit(from: work.appendingPathComponent("apple-source"), into: apple, verify: { _ in true })
+        _ = try? Supply.importToolkit(from: work.appendingPathComponent("apple-source"), into: apple, verify: { _ in true }, known: known())
         let imported = Supply.current(manifest: list, componentsRoot: components, folder: apple)
         check(imported?.version == "apple-3.0", "imported: apple-3.0: \(String(describing: imported?.version))")
         if case .imported(let dir)? = imported?.origin {
@@ -193,7 +206,7 @@ struct D3DMetalTest {
         toolkit(at: source)
         let home = fresh(work, "import-home")
         var checked: [String] = []
-        let version = try? Supply.importToolkit(from: source, into: home, verify: { checked.append($0.path); return true })
+        let version = try? Supply.importToolkit(from: source, into: home, verify: { checked.append($0.path); return true }, known: known())
         check(version == "3.0", "imported at the framework's version: \(String(describing: version))")
         let target = Supply.importedFolder(in: home).appendingPathComponent("3.0")
         let lib = target.appendingPathComponent("lib")
@@ -214,7 +227,7 @@ struct D3DMetalTest {
 
         // A newer copy of the same version replaces it.
         toolkit(at: source, marker: "b")
-        _ = try? Supply.importToolkit(from: source, into: home, verify: { _ in true })
+        _ = try? Supply.importToolkit(from: source, into: home, verify: { _ in true }, known: known("b"))
         check((try? String(contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"), encoding: .utf8)) == "dylib b",
               "importing again replaces it")
 
@@ -222,7 +235,8 @@ struct D3DMetalTest {
         let strange = fresh(work, "strange-home")
         func refused(_ root: URL, _ verify: @escaping (URL) -> Bool, _ expected: Supply.Failure, _ message: String) {
             do {
-                _ = try Supply.importToolkit(from: root, into: strange, verify: verify)
+                // The source holds the second copy's files now.
+                _ = try Supply.importToolkit(from: root, into: strange, verify: verify, known: known("b"))
                 check(false, message + " (imported)")
             } catch {
                 check(error as? Supply.Failure == expected, message + ": \(error)")
@@ -248,6 +262,83 @@ struct D3DMetalTest {
         } catch {
             check(error as? Supply.Failure == .notSignedByApple, "the real signature check refuses unsigned files: \(error)")
         }
+    }
+
+    /// Apple signs D3DMetal's framework and libd3dshared.dylib, but not the Windows front ends or its disk
+    /// images: those are taken only as Nightforge's list has them for the version, and nothing else with them.
+    static func windowsFiles(_ work: URL) {
+        let hex = Set("0123456789abcdef")
+        check(Supply.windowsFiles.keys.sorted() == ["3.0", "4.0b3"] && Supply.windowsFiles[Supply.finishedVersion] != nil,
+              "the list knows Apple's toolkits 3.0 and 4.0 beta 3: \(Supply.windowsFiles.keys.sorted())")
+        check(Supply.windowsFiles.values.allSatisfy { files in
+            files.count == 7 && files["d3d12.dll"] != nil
+                && files.allSatisfy { $0.key.hasSuffix(".dll") && $0.value.count == 64 && $0.value.allSatisfy(hex.contains) }
+        }, "seven front ends each, d3d12.dll among them, by SHA-256")
+
+        let home = fresh(work, "windows-files-home")
+        func refused(_ name: String, version: String = "3.0", _ expected: Supply.Failure, _ message: String,
+                     change: (URL) -> Void = { _ in }, verify: @escaping (URL) -> Bool = { _ in true },
+                     known: [String: [String: String]] = D3DMetalTest.known()) {
+            let source = fresh(work, "windows-\(name)")
+            change(toolkit(at: source, version: version))
+            do {
+                _ = try Supply.importToolkit(from: source, into: home, verify: verify, known: known)
+                check(false, message + " (imported)")
+            } catch {
+                check(error as? Supply.Failure == expected, message + ": \(error)")
+            }
+        }
+        refused("unknown", version: "5.0", .unknownVersion("5.0"), "a version Nightforge has no list of")
+        check(Supply.Failure.unknownVersion("5.0b1").errorDescription?.contains("5.0 beta 1") == true
+              && Supply.Failure.unknownVersion("5.0b1").errorDescription?.contains(Supply.finishedVersion) == true,
+              "it says which version, and which one can be imported")
+        refused("stand-in", .changed("3.0"), "the real list refuses the stand-in's front ends", known: Supply.windowsFiles)
+        refused("edited", .changed("3.0"), "a front end changed by one byte", change: { lib in
+            write(frontEnd("d3d11.dll", "a") + "!", to: lib.appendingPathComponent("wine/x86_64-windows/d3d11.dll"))
+        })
+        refused("missing", .changed("3.0"), "a front end missing", change: { lib in
+            try? fm.removeItem(at: lib.appendingPathComponent("wine/x86_64-windows/dxgi.dll"))
+        })
+        refused("extra-dll", .changed("3.0"), "a DLL more, which would become a front end", change: { lib in
+            write("d3d9", to: lib.appendingPathComponent("wine/x86_64-windows/d3d9.dll"))
+        })
+        refused("hidden-dll", .changed("3.0"), "a hidden one too", change: { lib in
+            write("d3d9", to: lib.appendingPathComponent("wine/x86_64-windows/.d3d9.dll"))
+        })
+        refused("extra-half", .changed("3.0"), "a unix half for a DLL that isn't Apple's", change: { lib in
+            try? fm.createSymbolicLink(atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d9.so").path,
+                                       withDestinationPath: "../../external/libd3dshared.dylib")
+        })
+        refused("linked", .changed("3.0"), "a front end that is a link, which could change after the check", change: { lib in
+            let real = lib.deletingLastPathComponent().appendingPathComponent("d3d11.dll")
+            write(frontEnd("d3d11.dll", "a"), to: real)
+            let dll = lib.appendingPathComponent("wine/x86_64-windows/d3d11.dll")
+            try? fm.removeItem(at: dll)
+            try? fm.createSymbolicLink(atPath: dll.path, withDestinationPath: real.path)
+        })
+        refused("extra-external", .changed("3.0"), "something beside the framework and libd3dshared.dylib", change: { lib in
+            write("dylib", to: lib.appendingPathComponent("external/libextra.dylib"))
+        })
+        refused("extra-folder", .changed("3.0"), "a folder Apple's toolkit doesn't have", change: { lib in
+            write("dll", to: lib.appendingPathComponent("wine/i386-windows/d3d9.dll"))
+        })
+        // Checked again on the copy: a front end changed between the two checks isn't taken.
+        refused("after-copy", .changed("3.0"), "a copy that changed after the first check", verify: { url in
+            if url.path.contains("/.staging-") {
+                write("swapped", to: url.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("wine/x86_64-windows/d3d12.dll"))
+            }
+            return true
+        })
+        check(((try? fm.contentsOfDirectory(atPath: Supply.importedFolder(in: home).path)) ?? []).isEmpty,
+              "nothing left from the refused ones")
+
+        // Finder's .DS_Store in a folder that was looked at doesn't count.
+        let looked = fresh(work, "windows-looked-at")
+        let lib = toolkit(at: looked)
+        write("finder", to: lib.appendingPathComponent(".DS_Store"))
+        write("finder", to: lib.appendingPathComponent("wine/x86_64-windows/.DS_Store"))
+        check((try? Supply.importToolkit(from: looked, into: home, verify: { _ in true }, known: known())) == "3.0",
+              "a folder Finder has shown is still imported")
     }
 
     static func diskImages(_ work: URL) {
@@ -283,7 +374,7 @@ struct D3DMetalTest {
         }
         let home = fresh(work, "image-home")
         var version: String?
-        do { version = try Supply.importDiskImage(direct, into: home, verify: { _ in true }) } catch { check(false, "importing a disk image: \(error)") }
+        do { version = try Supply.importDiskImage(direct, into: home, verify: { _ in true }, known: known()) } catch { check(false, "importing a disk image: \(error)") }
         check(version == "3.0" && Engine.d3dMetalPayloadRoot(in: Supply.importedFolder(in: home).appendingPathComponent("3.0")) != nil,
               "imported from a disk image: \(String(describing: version))")
         check(!mounted(), "and the image is closed again")
@@ -304,7 +395,7 @@ struct D3DMetalTest {
         }
         let nestedHome = fresh(work, "nested-home")
         var nestedVersion: String?
-        do { nestedVersion = try Supply.importDiskImage(nested, into: nestedHome, verify: { _ in true }) } catch { check(false, "importing a nested image: \(error)") }
+        do { nestedVersion = try Supply.importDiskImage(nested, into: nestedHome, verify: { _ in true }, known: known()) } catch { check(false, "importing a nested image: \(error)") }
         check(nestedVersion == "4.0b3", "imported from the image inside the image: \(String(describing: nestedVersion))")
         check(!mounted(), "both are closed again")
 
@@ -552,9 +643,23 @@ struct D3DMetalTest {
         check(!fm.fileExists(atPath: game.appendingPathComponent("Engine/Saved").path)
               && !fm.fileExists(atPath: game.appendingPathComponent("Saved").path), "nothing written for Unreal's helpers or beside the program")
 
+        // The check itself off too (r.WarnOfBadDrivers): with all three lists cleared the warning came again (2.11.).
+        let engine = game.appendingPathComponent("b1/Saved/Config/Windows/Engine.ini")
+        check(text(engine) == "[SystemSettings]\nr.WarnOfBadDrivers=0\n", "Engine.ini turns Unreal's driver check off: \(text(engine).debugDescription)")
+
         let before = cleared
+        let engineBefore = text(engine)
         Engine.clearUnrealDriverDenyList(installDir: game)
-        check(text(hardware) == before, "doing it again changes nothing")
+        check(text(hardware) == before && text(engine) == engineBefore, "doing it again changes nothing")
+
+        // The game's own Engine.ini (Wukong's, CRLF) keeps what it has; [SystemSettings] goes at its end.
+        write("[Core.System]\r\nPaths=../../../Engine/Content\r\n\r\n[WindowsApplication.Accessibility]\r\nStickyKeysHotkey=False\r\n", to: engine)
+        Engine.clearUnrealDriverDenyList(installDir: game)
+        check(text(engine) == "[Core.System]\r\nPaths=../../../Engine/Content\r\n\r\n[WindowsApplication.Accessibility]\r\nStickyKeysHotkey=False\r\n\r\n[SystemSettings]\r\nr.WarnOfBadDrivers=0\r\n",
+              "the game's Engine.ini kept, CRLF and all: \(text(engine).debugDescription)")
+        write("[SystemSettings]\nr.WarnOfBadDrivers=1\nr.Other=2\n", to: engine)
+        Engine.clearUnrealDriverDenyList(installDir: game)
+        check(text(engine) == "[SystemSettings]\nr.WarnOfBadDrivers=0\nr.Other=2\n", "a check switched on is switched off, the rest stays: \(text(engine).debugDescription)")
 
         // A game that has not run yet has no Saved/ folder: it's made, so the very first start is spared too.
         let fresh1 = fresh(work, "unreal-first-start")
@@ -590,6 +695,8 @@ struct D3DMetalTest {
         write("MZ", to: old.appendingPathComponent("Game/Binaries/Win64/Game-Win64-Shipping.exe"))
         write("", to: old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Engine.ini"))
         Engine.clearUnrealDriverDenyList(installDir: old)
+        check(text(old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Engine.ini"))?.contains("r.WarnOfBadDrivers=0") == true,
+              "Unreal 4: the check off in its Engine.ini too")
         check(text(old.appendingPathComponent("Game/Saved/Config/WindowsNoEditor/Hardware.ini"))?.contains("!Blacklist=ClearArray") == true
               && fm.fileExists(atPath: old.appendingPathComponent("Game/Saved/Config/Windows/Hardware.ini").path), "Unreal 4: its folder as well")
 
@@ -600,7 +707,8 @@ struct D3DMetalTest {
         write("MZ", to: other.appendingPathComponent("Unity/Game_Data/x.exe"))
         Engine.clearUnrealDriverDenyList(installDir: other)
         let leftovers = (fm.enumerator(atPath: other.path)?.allObjects as? [String] ?? []).filter { $0.contains("Hardware.ini") }
-        check(Engine.unrealProjects(in: other).isEmpty && leftovers.isEmpty, "no Unreal, no file: \(leftovers)")
+        let engines = (fm.enumerator(atPath: other.path)?.allObjects as? [String] ?? []).filter { $0.contains("Engine.ini") }
+        check(Engine.unrealProjects(in: other).isEmpty && leftovers.isEmpty && engines.isEmpty, "no Unreal, no file: \(leftovers + engines)")
 
         // Two projects in one folder (a game and its benchmark), both done.
         let two = fresh(work, "two-projects")

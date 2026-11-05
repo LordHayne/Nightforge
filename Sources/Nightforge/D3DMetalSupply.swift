@@ -37,6 +37,10 @@ enum D3DMetalSupply {
 
     enum Failure: LocalizedError, Equatable {
         case notAToolkit, notSignedByApple, cannotOpen, copyFailed
+        /// A version whose Windows files Nightforge has no list of (`windowsFiles`).
+        case unknownVersion(String)
+        /// Its Windows files, or what lies beside Apple's, aren't as Apple ships that version.
+        case changed(String)
 
         var errorDescription: String? {
             switch self {
@@ -44,6 +48,12 @@ enum D3DMetalSupply {
                 return L10n.t("This isn't Apple's Game Porting Toolkit: Nightforge found no D3DMetal in it.")
             case .notSignedByApple:
                 return L10n.t("Apple didn't sign this D3DMetal, so Nightforge doesn't use it.")
+            case .unknownVersion(let version):
+                return L10n.t("Nightforge doesn't know D3DMetal %@ yet, so it can't check the toolkit's Windows files and doesn't import it. Apple's toolkit %@ can be imported.",
+                              displayVersion(version), finishedVersion)
+            case .changed(let version):
+                return L10n.t("The Windows files in this toolkit aren't the ones Apple ships with D3DMetal %@, so Nightforge doesn't import it. Download it from Apple again.",
+                              displayVersion(version))
             case .cannotOpen:
                 return L10n.t("Nightforge couldn't open this download. Try downloading it again.")
             case .copyFailed:
@@ -187,10 +197,12 @@ enum D3DMetalSupply {
     }
 
     /// A game that can't draw without D3DMetal: DirectX 12 and nothing else, or the player picked it
-    /// for the game. (A profile that prefers it for a game with a DirectX 11 way too isn't asked
-    /// about: that game runs without.)
-    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer) -> Bool {
+    /// for the game, or its profile names it for a game with a DirectX 12 program of its own
+    /// (Control: its DirectX 11 program crashes on DXMT and DXVK). A profile that only prefers it
+    /// for a game that draws both with one program isn't asked about: that game runs without.
+    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer, profile: GameProfile? = nil) -> Bool {
         picked == .d3dmetal || analysis?.onlyD3D12 == true
+            || (analysis?.d3d12Program != nil && profile?.graphics == .d3dmetal)
     }
 
     // MARK: Importing Apple's toolkit
@@ -239,17 +251,73 @@ enum D3DMetalSupply {
             && text.unicodeScalars.allSatisfy { ($0.isASCII && CharacterSet.alphanumerics.contains($0)) || "._+-".unicodeScalars.contains($0) }
     }
 
+    /// The Windows front ends of each version of Apple's toolkit, by SHA-256. They run in every DirectX
+    /// 11 and 12 game, and Apple signs only the framework and libd3dshared.dylib – not these, nor its
+    /// disk images – so a toolkit is imported only with exactly these files. Taken from Apple's images
+    /// (Game_Porting_Toolkit_3.0.dmg, Game_Porting_Toolkit_4.0_beta_3.dmg) with
+    /// `shasum -a 256 redist/lib/wine/x86_64-windows/*.dll`; a new version of the toolkit needs its list here.
+    static let windowsFiles: [String: [String: String]] = [
+        "3.0": [
+            "atidxx64.dll": "bd004dd9e41415b0e1395d51a2ded762a02c7731491e74ed6076f3648ae9ea7f",
+            "d3d10.dll": "d316848cc78301829e6031b60c6f558716cdc74c440df72935968160253c03a5",
+            "d3d11.dll": "05fa6f700fb5ee5561dc3a46d98f0aed845d4fa8ab274bff1dc604b0b3f6edd1",
+            "d3d12.dll": "27dcf69bedb20ed557a83953e356ab2477b688c2a2c631f880b7583f30ff0705",
+            "dxgi.dll": "249711d3d786a9b0bb7c3558f36e472ab07ee21b8dbf118e34c975046832f9a2",
+            "nvapi64.dll": "8e1e6cde85551360d7a061a09445500f3c38805651502f3be65049d937c6960c",
+            "nvngx-on-metalfx.dll": "d7c0df74d9bb4de5e2a3cc357b2309148fd3fdc824fe7941e4d789dbd072ff99",
+        ],
+        "4.0b3": [
+            "d3d10.dll": "8509cd61f4e25e20fa6c4444b3dea062f026d672f441e82402702fa1faf6676b",
+            "d3d11.dll": "a5de9738b3f89f1d8cdfb9103e82f9231ae543ce3c46134ed761c146a2f2d3e1",
+            "d3d12.dll": "02aa673497ff8694b41f976e194a920468e54897f3546ed1cd4c1b3a97179735",
+            "d3d12core.dll": "1034f5989c8c69496add15f79c04e56ae47cdf2a861098e8b4323bc8835b9e29",
+            "dxgi.dll": "124015390b8527033bcd6e65af6376fde8fb3923450b63a9dbe0bbef05e63f10",
+            "nvapi64.dll": "60ceaeb697b5141702c372da33861f499931397b43febb9be9f087f18276d772",
+            "nvngx-on-metalfx.dll": "2e522873d2dec412c29f73096f1c1dc6bd8016dc40fd76fbeddd2eb7e226d3cb",
+        ],
+    ]
+
+    /// A toolkit's lib/ as Apple ships `version`, and nothing else in it: external/ holds the framework and
+    /// libd3dshared.dylib (their signature is checked apart), wine/x86_64-windows exactly the version's
+    /// front ends as plain files, byte for byte, and wine/x86_64-unix only their halves (the engine makes
+    /// its own links for those). A file more could become a front end, a link could change after the check.
+    static func checkWindowsFiles(in lib: URL, version: String, known: [String: [String: String]] = windowsFiles) throws {
+        guard let expected = known[version] else { throw Failure.unknownVersion(version) }
+        let fm = FileManager.default
+        func names(_ path: String) -> Set<String> {
+            Set(((try? fm.contentsOfDirectory(atPath: lib.appendingPathComponent(path).path)) ?? []).filter { $0 != ".DS_Store" })
+        }
+        func type(_ path: String) -> FileAttributeType? {
+            (try? fm.attributesOfItem(atPath: lib.appendingPathComponent(path).path))?[.type] as? FileAttributeType
+        }
+        let halves = Set(expected.keys.map { ($0 as NSString).deletingPathExtension + ".so" })
+        guard names("") == ["external", "wine"],
+              names("external") == ["D3DMetal.framework", "libd3dshared.dylib"],
+              type("external/D3DMetal.framework") == .typeDirectory, type("external/libd3dshared.dylib") == .typeRegular,
+              names("wine").isSubset(of: ["x86_64-windows", "x86_64-unix"]),
+              names("wine/x86_64-windows") == Set(expected.keys),
+              names("wine/x86_64-unix").isSubset(of: halves),
+              expected.allSatisfy({ name, sha256 in
+                  let path = "wine/x86_64-windows/" + name
+                  return type(path) == .typeRegular && (try? ComponentStore.sha256(of: lib.appendingPathComponent(path))) == sha256
+              })
+        else { throw Failure.changed(version) }
+    }
+
     /// Copies Apple's D3DMetal out of `root` (a disk image's contents, or a folder) into
-    /// `folder/Apple/<version>`, byte for byte, with Apple's notices. Only what Apple signed is
-    /// taken, checked at the source and again on the copy. Returns the version.
+    /// `folder/Apple/<version>`, byte for byte, with Apple's notices. Only what Apple signed and the
+    /// Windows files of a known version are taken (`checkWindowsFiles`), checked at the source and
+    /// again on the copy. Returns the version.
     static func importToolkit(from root: URL, into folder: URL = D3DMetalSupply.folder,
-                              verify: (URL) -> Bool = Engine.isAppleSigned) throws -> String {
+                              verify: (URL) -> Bool = Engine.isAppleSigned,
+                              known: [String: [String: String]] = D3DMetalSupply.windowsFiles) throws -> String {
         let fm = FileManager.default
         guard let toolkit = findToolkit(in: root) else { throw Failure.notAToolkit }
         let external = toolkit.lib.appendingPathComponent("external", isDirectory: true)
         let codes = ["libd3dshared.dylib", "D3DMetal.framework"]
         guard let version = version(ofFramework: external.appendingPathComponent("D3DMetal.framework")) else { throw Failure.notAToolkit }
         guard codes.allSatisfy({ verify(external.appendingPathComponent($0)) }) else { throw Failure.notSignedByApple }
+        try checkWindowsFiles(in: toolkit.lib, version: version, known: known)
 
         let imported = importedFolder(in: folder)
         let staging = imported.appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)
@@ -264,6 +332,7 @@ enum D3DMetalSupply {
         }
         let copied = staging.appendingPathComponent("lib/external", isDirectory: true)
         guard codes.allSatisfy({ verify(copied.appendingPathComponent($0)) }) else { throw Failure.notSignedByApple }
+        try checkWindowsFiles(in: staging.appendingPathComponent("lib", isDirectory: true), version: version, known: known)
 
         let target = imported.appendingPathComponent(version, isDirectory: true)
         do {
@@ -278,7 +347,8 @@ enum D3DMetalSupply {
     /// Opens a downloaded disk image read-only (not shown in Finder), imports from it – the image
     /// inside it too, where Apple nests one – and closes it again.
     static func importDiskImage(_ image: URL, into folder: URL = D3DMetalSupply.folder,
-                                verify: (URL) -> Bool = Engine.isAppleSigned) throws -> String {
+                                verify: (URL) -> Bool = Engine.isAppleSigned,
+                                known: [String: [String: String]] = D3DMetalSupply.windowsFiles) throws -> String {
         let fm = FileManager.default
         let work = fm.temporaryDirectory.appendingPathComponent("nightforge-d3dmetal-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
@@ -287,13 +357,13 @@ enum D3DMetalSupply {
         guard attach(image, at: outer) else { throw Failure.cannotOpen }
         defer { detach(outer) }
 
-        if findToolkit(in: outer) != nil { return try importToolkit(from: outer, into: folder, verify: verify) }
+        if findToolkit(in: outer) != nil { return try importToolkit(from: outer, into: folder, verify: verify, known: known) }
         for (index, inner) in diskImages(in: outer).enumerated() {
             let mountpoint = work.appendingPathComponent("inner\(index)", isDirectory: true)
             try? fm.createDirectory(at: mountpoint, withIntermediateDirectories: true)
             guard attach(inner, at: mountpoint) else { continue }
             defer { detach(mountpoint) }
-            if findToolkit(in: mountpoint) != nil { return try importToolkit(from: mountpoint, into: folder, verify: verify) }
+            if findToolkit(in: mountpoint) != nil { return try importToolkit(from: mountpoint, into: folder, verify: verify, known: known) }
         }
         throw Failure.notAToolkit
     }

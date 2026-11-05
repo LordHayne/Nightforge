@@ -60,7 +60,8 @@ enum SaveTransfer {
             let (from, to) = platform == .mac
                 ? (windows, mac.appendingPathComponent(rule.macAddPath))
                 : (mac.appendingPathComponent(rule.macAddPath), windows)
-            for folder in resolve(rule.path, under: from) {
+            for folder in resolve(rule.path, under: from)
+            where isSaveFolder(folder, root: rule.root, rule) && isSaveFolder(rule.macAddPath + "/" + folder, root: macRootName, rule) {
                 pairs.append(Pair(source: from.appendingPathComponent(folder, isDirectory: true),
                                   target: to.appendingPathComponent(folder, isDirectory: true),
                                   pattern: rule.pattern, recursive: rule.recursive,
@@ -68,6 +69,17 @@ enum SaveTransfer {
             }
         }
         return pairs
+    }
+
+    /// A save folder a rule may name, on one side (`relative` to `root`): `takeNewer` empties it of
+    /// what the other side lacks. Never a root itself – Application Support and Caches hold every app's
+    /// files, a Windows root every program's – but the game's own folder, and that not as a whole
+    /// (all files through all folders).
+    static func isSaveFolder(_ relative: String, root: String, _ rule: SaveRule) -> Bool {
+        let parts = relative.split(whereSeparator: { $0 == "/" || $0 == "\\" }).filter { $0 != "." }
+        guard !parts.contains("..") else { return false }
+        guard parts.isEmpty else { return true }
+        return root.lowercased() == "gameinstall" && !(rule.recursive && ["*", "*.*"].contains(rule.pattern))
     }
 
     /// Fills each empty save folder of `platform` from the other version's.
@@ -116,8 +128,11 @@ enum SaveTransfer {
     }
 
     /// Continues with the other version's newer saves: this version's go to `backup` first, then
-    /// each such folder gets exactly the other version's saves. Throws before changing a folder
-    /// whose backup failed. Returns how many files were copied.
+    /// each such folder gets exactly the other version's saves. Those are copied into a folder beside
+    /// it first and only then renamed into place, each over its old one at once, so a copy that fails
+    /// (a save that can't be read, a full disk) leaves this version's saves as they were. Throws
+    /// before changing a folder whose backup or copy failed; `PartlyTaken` if it stopped while
+    /// changing one. Returns how many files were copied.
     @discardableResult
     static func takeNewer(to platform: Platform, rules: [SaveRule], places: Places, backup: URL) throws -> Int {
         let fm = FileManager.default
@@ -130,18 +145,40 @@ enum SaveTransfer {
                 try fm.copyItem(at: pair.target.appendingPathComponent(relative), to: destination)
             }
             let theirs = pair.sourceSaves
-            for relative in Set(ours).subtracting(theirs) {
-                try fm.removeItem(at: pair.target.appendingPathComponent(relative))
-            }
+            // Beside the folder, on its volume: a rename there is one step.
+            let staging = pair.target.deletingLastPathComponent()
+                .appendingPathComponent(".\(pair.target.lastPathComponent).nightforge-\(UUID().uuidString)", isDirectory: true)
+            defer { try? fm.removeItem(at: staging) }
             for relative in theirs {
-                let destination = pair.target.appendingPathComponent(relative)
+                let destination = staging.appendingPathComponent(relative)
                 try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-                if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
                 try fm.copyItem(at: pair.source.appendingPathComponent(relative), to: destination)
-                copied += 1
+            }
+            do {
+                for relative in theirs {
+                    let destination = pair.target.appendingPathComponent(relative)
+                    try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    guard rename(staging.appendingPathComponent(relative).path, destination.path) == 0 else {
+                        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                    }
+                    copied += 1
+                }
+                for relative in Set(ours).subtracting(theirs) {
+                    try fm.removeItem(at: pair.target.appendingPathComponent(relative))
+                }
+            } catch {
+                throw PartlyTaken(backup: backup, reason: error.localizedDescription)
             }
         }
         return copied
+    }
+
+    /// takeNewer stopped while it changed a save folder (a rename, a removal): the saves from before
+    /// are in `backup`.
+    struct PartlyTaken: LocalizedError {
+        let backup: URL
+        let reason: String
+        var errorDescription: String? { L10n.t("%@; the saves from before are in %@", reason, backup.path) }
     }
 
     /// Where a switch's replaced saves are kept: Nightforge's Backups folder, by game and time.
@@ -179,8 +216,9 @@ enum SaveTransfer {
         case "winsavedgames": folder = user.appendingPathComponent("Saved Games", isDirectory: true)
         default: return nil
         }
-        let inside = places.prefix.resolvingSymlinksInPath().path
-        return folder.resolvingSymlinksInPath().path.hasPrefix(inside) ? folder : nil
+        // Inside means in the prefix's folder: "Prefix-old" beside it starts with the same letters.
+        let inside = places.prefix.resolvingSymlinksInPath().path, path = folder.resolvingSymlinksInPath().path
+        return path == inside || path.hasPrefix(inside + "/") ? folder : nil
     }
 
     /// A macOS root. Documents, Desktop and Downloads are out: reading them makes macOS ask.

@@ -63,10 +63,9 @@ enum LegacyMigration {
             server.environment = ["WINEPREFIX": folder.appendingPathComponent("Prefix").path]
             if (try? server.run()) != nil { server.waitUntilExit() }
         }
-        let quitScript = Process()
-        quitScript.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        quitScript.arguments = ["-f", folder.appendingPathComponent("steam-shutdown.sh").path]
-        if (try? quitScript.run()) != nil { quitScript.waitUntilExit() }
+        // By its pid file or as `/bin/bash <script>` exactly, as for "Remove Nightforge completely": a
+        // `pkill -f` on the path also hit an editor or a `tail` that had it open.
+        CompleteRemoval.endScripts(under: folder)
         for process in Engine.ownProcesses(under: folder) { kill(process.pid, SIGKILL) }
     }
 }

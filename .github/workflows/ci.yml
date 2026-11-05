@@ -24,20 +24,33 @@ jobs:
       - name: Build the app
         run: ./build.sh
 
+      # Every tests/*Test at once, one per core, each with its own log and exit code: all logs land in
+      # groups, a failed series' log once more at the end, and any failure fails the job.
       - name: Swift tests
-        run: |
-          failed=0
-          for test in tests/*/run.sh; do
-            # CatalogProbe only prints what it finds in a real Steam install.
-            [ "$test" = tests/CatalogProbe/run.sh ] && continue
-            echo "::group::$test"
-            bash "$test" || failed=1
-            echo "::endgroup::"
-          done
-          exit "$failed"
+        run: scripts/run-tests.sh
+
+      # The one check that asks the real `ps -ax`; the series above hand ProcessList a list of their own.
+      - name: Live process list
+        run: tests/ProcessListLive/run.sh
 
       - name: Profile builder tests
         run: python3 -m unittest tests/test_build_profiles.py
 
+      # Against stand-ins for the Keychain, the clipboard and GitHub: no key, no network.
+      - name: Signing scripts
+        run: python3 -m unittest tests/test_signing_scripts.py
+
       - name: Component list
         run: python3 -I scripts/validate-manifest.py
+
+      # Against made-up wiki pages and store answers: no network.
+      - name: AppleGamingWiki import and test basket tests
+        run: python3 -m unittest tests/test_fetch_agw.py tests/test_test_basket.py
+
+      # Against stand-ins for security and codesign: no keychain, no certificate.
+      - name: Code signing script
+        run: python3 -m unittest tests/test_codesign_app.py
+
+      # A shell script a workflow runs as a command has to be executable in git: enginefix.yml's never ran (2.11.).
+      - name: Workflow scripts
+        run: python3 -m unittest tests/test_workflow_scripts.py

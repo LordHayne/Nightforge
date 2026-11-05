@@ -16,6 +16,8 @@ struct DownloadRate: Equatable {
     private(set) var samples: [Sample] = []
 
     mutating func add(bytes: Double, at date: Date = Date()) {
+        // A look with no newer measurement than the last (StagingSizes) adds nothing.
+        if let last = samples.last, date <= last.date { return }
         // Less than before: the download started over (another depot, a verify).
         if let last = samples.last, bytes < last.bytes { samples.removeAll() }
         samples.append(Sample(date: date, bytes: bytes))
