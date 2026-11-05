@@ -3,7 +3,7 @@
  "sources": {
   "umu-protonfixes": {
    "url": "https://github.com/Open-Wine-Components/umu-protonfixes",
-   "commit": "4500d09ff2af530afd400962f8fa5a40a888a7f3",
+   "commit": "28a02c25e4b895131c9ebdeda411ec3646b38151",
    "license": "BSD-2-Clause"
   },
   "geforce-now": {
@@ -3023,6 +3023,14 @@
    ],
    "source": "umu"
   },
+  "1041720": {
+   "name": "Kingdoms of Amalur: Re-Reckoning",
+   "winetricks": [
+    "d3dcompiler_43",
+    "d3dcompiler_47"
+   ],
+   "source": "umu"
+  },
   "1054690": {
    "name": "Dreadlands",
    "source": "anticheat",
@@ -3675,14 +3683,6 @@
     "d3dcompiler_47"
    ],
    "source": "umu"
-  },
-  "1436900": {
-   "name": "Sabotaj",
-   "source": "anticheat",
-   "antiCheat": [
-    "Easy Anti-Cheat"
-   ],
-   "geforceNow": "e75a2222-787f-4213-88bf-268297e927ae"
   },
   "1442910": {
    "name": "Reign Of Dwarf",
