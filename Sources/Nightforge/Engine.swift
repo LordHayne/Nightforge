@@ -236,8 +236,10 @@ enum Engine {
         // Never under a running game: ending the session would end it too.
         // Any Windows game (Steam's, Epic's, GOG's), and not when that can't be told.
         guard defaults.bool(forKey: key) != launchRetina, windowsGameRunningKnown == false else { return }
-        importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
-                       wine: wine)
+        // Noted only once the prefix has it: a regedit that failed or ran out of time leaves the note as it was,
+        // and the next start tries again (review B2).
+        guard importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
+                             wine: wine) else { return }
         stopAll(wine)
         defaults.set(launchRetina, forKey: key)
     }
@@ -400,17 +402,23 @@ enum Engine {
     /// Processes started from Nightforge's engine (executable inside its folder), with the command
     /// line ps shows – Wine rewrites that to the Windows program. Not Nightforge Helper, which only
     /// waits for the program it started (and ending it would look as if that program had failed).
+    /// An old list counts here (`ProcessList`'s last good one while `ps` doesn't answer): its pids are checked
+    /// again by their programs below, and only what they show is acted on.
     static func ownProcesses(under folder: URL = supportDir) -> [(pid: pid_t, command: String)] {
-        ownProcessesKnown(under: folder) ?? []
+        own(in: processLookup().value ?? [], under: folder)
     }
 
-    /// The same, nil when no process list is to be had (`ProcessList`): "none" and "not known" are two answers.
-    /// An old list counts (its pids are checked again by their programs below); whoever needs to know that
-    /// something is gone looks at `processLookup(allowOld: false)`.
+    /// The same for deciding – may Nightforge end a session, write a game's files, take an engine away? –
+    /// from a list asked for just now; nil when there is none, an old one included: it can't show what
+    /// started since, so "none there" would be a guess (review B1). "none" and "not known" are two answers.
     static func ownProcessesKnown(under folder: URL = supportDir) -> [(pid: pid_t, command: String)]? {
+        processLookup(allowOld: false).value.map { own(in: $0, under: folder) }
+    }
+
+    private static func own(in table: [(pid: pid_t, command: String)], under folder: URL) -> [(pid: pid_t, command: String)] {
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
-        return processLookup().value?.filter { process in
+        return table.filter { process in
             // Inside the folder, not merely a sibling with the same start (engine 4.7.3 vs 4.7.3-3).
             guard let path = executablePath(process.pid) else { return false }
             return (path == root || path.hasPrefix(root + "/")) && !path.hasPrefix(helper)
@@ -2776,25 +2784,32 @@ enum Engine {
         installWebHelperWrapper()
         var wine = wine
         // Only for a Steam that is known not to run: its files are written here (LaunchOptions too).
-        if steamRunningKnown == false {
+        let fresh = steamRunningKnown == false
+        if fresh {
             SteamGuideButton.turnOff(steamRoot: steamRoot)
             SteamProgram.apply(steamRoot: steamRoot)
             wine = steamEngine(wine)
-            lastSteamStart = (wine, Date())
         }
-        let loader = loader(for: wine)
-        let process = try WineSandbox.process(loader, [steamExeWindowsPath]
-            + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments)
-        var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
-        env["WINEDLLOVERRIDES"] = steamDLLOverrides
-        if loader != wine { env["WINELOADER"] = loader.path }
-        env["WINEDEBUG"] = GameLog.wineDebug
-        process.environment = env.merging(extraEnvironment) { _, new in new }
-        process.standardInput = FileHandle.nullDevice
-        // Its games inherit this, so their errors end up in the log too.
-        let log = GameLog.handleForSteam()
-        process.standardOutput = log ?? FileHandle.nullDevice
-        process.standardError = log ?? FileHandle.nullDevice
-        try process.run()
+        do {
+            let loader = loader(for: wine)
+            let process = try WineSandbox.process(loader, [steamExeWindowsPath]
+                + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments)
+            var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
+            env["WINEDLLOVERRIDES"] = steamDLLOverrides
+            if loader != wine { env["WINELOADER"] = loader.path }
+            env["WINEDEBUG"] = GameLog.wineDebug
+            process.environment = env.merging(extraEnvironment) { _, new in new }
+            process.standardInput = FileHandle.nullDevice
+            // Its games inherit this, so their errors end up in the log too.
+            let log = GameLog.handleForSteam()
+            process.standardOutput = log ?? FileHandle.nullDevice
+            process.standardError = log ?? FileHandle.nullDevice
+            try process.run()
+        } catch {
+            // A start that never happened isn't judged as the engine's failure (SteamStartCheck, review B5).
+            if fresh { lastSteamStart = nil }
+            throw error
+        }
+        if fresh { lastSteamStart = (wine, Date()) }
     }
 }

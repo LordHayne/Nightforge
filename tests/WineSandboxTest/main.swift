@@ -390,6 +390,17 @@ struct WineSandboxTest {
         check(ended.count == 1 && defaults.bool(forKey: WineSandbox.sessionKey), "switched off under a running game: it goes on for now")
         settle(false)
         check(ended.count == 2 && !defaults.bool(forKey: WineSandbox.sessionKey), "once the game has ended, it ends")
+        // Review A4: what a start learns. A session from before that couldn't end, or has a game in it, still runs
+        // the other way – WineSandbox.process refuses the start then, rather than have it join that session.
+        check(WineSandbox.settleSession(wine, enabled: false, defaults: defaults, gameRunning: { false }, end: { _ in true }),
+              "a session as the switch says: on with the start")
+        check(!WineSandbox.settleSession(wine, enabled: true, defaults: defaults, gameRunning: { false }, end: { _ in false })
+              && !defaults.bool(forKey: WineSandbox.sessionKey), "switched on, but the session couldn't end: no, and nothing noted")
+        check(!WineSandbox.settleSession(wine, enabled: true, defaults: defaults, gameRunning: { true }, end: { _ in true }),
+              "switched on under a running game: no")
+        let source = (try? String(contentsOf: URL(fileURLWithPath: "Sources/Nightforge/WineSandbox.swift"), encoding: .utf8)) ?? ""
+        check(source.contains("if !settleSession(executable), enabled { throw SessionOutside() }"),
+              "WineSandbox.process starts nothing into a session from before the sandbox")
 
         // Review N8: two Wine starts right after switching end the session once, not each other's.
         let lock = NSLock()

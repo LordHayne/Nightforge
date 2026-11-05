@@ -162,6 +162,14 @@ enum WineSandbox {
         }
     }
 
+    /// The sandbox is switched on, but the Wine session from before it couldn't end (no process list, or a
+    /// game in it): a program started now would join it, outside what the sandbox keeps away (review A4).
+    struct SessionOutside: LocalizedError {
+        var errorDescription: String? {
+            L10n.t("The Wine sandbox is switched on, but the Windows programs from before it are still running. Quit them, or restart the Mac, then start again.")
+        }
+    }
+
     /// Turns a start of `executable` with `arguments` into one inside the sandbox when it's switched
     /// on; leaves it alone when it's off. The profile goes to the helper as text, never as a file a
     /// program inside could change first. Switched on, Wine never runs outside: without the helper
@@ -184,7 +192,8 @@ enum WineSandbox {
         var program: URL? = executable
         var programArguments: [String]? = arguments
         if sandboxed {
-            settleSession(executable)
+            // Switched off, a program joins a session begun inside: that only keeps more away.
+            if !settleSession(executable), enabled { throw SessionOutside() }
             try wrap(&program, &programArguments)
         }
         let process = DetachedProcess()
@@ -208,17 +217,23 @@ enum WineSandbox {
     /// and noting happen under one lock. `end`: Engine.stopSessionNow – Steam is asked to quit first,
     /// so a download in it stops cleanly instead of being cut off with the session. When it ended
     /// nothing (no process list: Steam may be running), nothing is noted, and the next start tries again.
+    /// True when the session runs the way the switch says now (or this start is the ending's own); false when
+    /// it runs the other way still – a game in it, or it couldn't end.
+    @discardableResult
     static func settleSession(_ wine: URL, enabled: Bool = enabled, defaults: UserDefaults = .standard,
                               gameRunning: () -> Bool = { Engine.windowsGameRunning },
-                              end: (URL) -> Bool = { Engine.stopSessionNow($0) }) {
+                              end: (URL) -> Bool = { Engine.stopSessionNow($0) }) -> Bool {
         sessionLock.lock()
         defer { sessionLock.unlock() }
         // A start the ending makes itself joins the session it ends.
-        guard !settling, (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled, !gameRunning() else { return }
+        if settling { return true }
+        guard (defaults.object(forKey: sessionKey) as? Bool ?? false) != enabled else { return true }
+        guard !gameRunning() else { return false }
         settling = true
         defer { settling = false }
-        guard end(wine) else { return }
+        guard end(wine) else { return false }
         defaults.set(enabled, forKey: sessionKey)
+        return true
     }
 
     /// `settleSession` on a thread of its own, for Nightforge's start: the process list and ending

@@ -503,6 +503,8 @@ enum Launcher {
             ? Engine.environment(wine: runner).merging(Engine.steamEnvironment) { _, new in new }
             : ProcessInfo.processInfo.environment
         var arguments: [String] = []
+        // This start begins Steam: judged by SteamStartCheck once it really started (review B5).
+        var startsSteam = false
 
         if game.bottle.isBuiltIn {
             environment["WINEDLLOVERRIDES"] = Engine.steamDLLOverrides
@@ -540,7 +542,7 @@ enum Launcher {
                 Engine.applyRetinaMode(runner)
                 SteamGuideButton.turnOff(steamRoot: Engine.steamRoot)
                 SteamProgram.apply(steamRoot: Engine.steamRoot)
-                Engine.lastSteamStart = (runner, Date())
+                startsSteam = true
             }
         }
         // CrossOver bottles: the game inherits this process's environment. Nightforge's own
@@ -583,6 +585,7 @@ enum Launcher {
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
         try process.run()
+        if startsSteam { Engine.lastSteamStart = (runner, Date()) }
         // Unity's configuration window, should the game show it (only for Nightforge's own Steam).
         UnityDialog.start(for: game, profile: profile, wine: runner)
         return process

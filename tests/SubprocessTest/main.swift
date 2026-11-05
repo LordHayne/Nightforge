@@ -149,6 +149,11 @@ struct SubprocessTest {
         check(again == nil && calls() == asked, "… and for the next minute ps isn't asked at all (\(calls() - asked) more calls)")
         check(seconds < ProcessList.timeout / 3, "… so nobody waits (\(seconds) s, the limit is \(ProcessList.timeout) s)")
         check(ProcessList.ps("pid=,command=", stale: true) == good, "whoever may take an old list gets the last good one")
+        // What decides (may a session end, a game's files be written?) never takes the old one: it can't show what
+        // started since (review B1). What acts on its pids still may.
+        check(Engine.ownProcessesKnown() == nil && Engine.windowsGameRunningKnown == nil && Engine.steamRunningKnown == nil,
+              "deciding on an old list: not known, never \"none\"")
+        check(!Engine.processTable().isEmpty, "… while acting on its pids may still take it")
         if case .old(let text) = ProcessList.listing("pid=,command=", allowOld: true) {
             check(text == good, "… marked as old")
         } else {
