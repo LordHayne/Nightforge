@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generated": "2026-10-27",
+  "generated": "2026-11-05T21:26:18Z",
   "components": [
     {
       "id": "wine",
@@ -23,6 +23,16 @@
       "source": "https://github.com/dappermint/winecx-gptk"
     },
     {
+      "id": "d3dmetal",
+      "kind": "graphics",
+      "version": "3.0",
+      "url": "https://github.com/LordHayne/Nightforge/releases/download/d3dmetal-3.0/nightforge-d3dmetal-3.0.tar.gz",
+      "sha256": "d5f685ec49a75ec94eff5d8bc83a8a54437cfc580cfc61e9ec19fcf56a7a5dbd",
+      "size": 22610504,
+      "license": "LicenseRef-Apple-Game-Porting-Toolkit (non-commercial, Apple hardware only)",
+      "source": "https://github.com/LordHayne/Nightforge"
+    },
+    {
       "id": "gamepad",
       "kind": "graphics",
       "version": "4.7.3-15",
@@ -30,6 +40,16 @@
       "sha256": "621b6a66219cf22dbbe2ccbeb8ad33c9a68e03f9c3a45cd2a7b2cc8274f98660",
       "size": 632469,
       "license": "LGPL-2.1-or-later AND Zlib",
+      "source": "https://github.com/LordHayne/Nightforge"
+    },
+    {
+      "id": "enginefix",
+      "kind": "graphics",
+      "version": "4.7.3-4",
+      "url": "https://github.com/LordHayne/Nightforge/releases/download/enginefix-winecx4.7.3-4/nightforge-enginefix-winecx-4.7.3-4.tar.gz",
+      "sha256": "2cb9049997ff6cf4b24cd86dc2046763582a5d470c638a1bba5c20fc8e2a8446",
+      "size": 334895,
+      "license": "LGPL-2.1-or-later",
       "source": "https://github.com/LordHayne/Nightforge"
     },
     {
@@ -95,10 +115,10 @@
     {
       "id": "cabextract",
       "kind": "tool",
-      "version": "1.11-4",
-      "url": "https://github.com/LordHayne/Nightforge/releases/download/cabextract-1.11-4/nightforge-cabextract-1.11-4.tar.gz",
-      "sha256": "82578d50b3ff41a1c79825680f009ea0de019836e43fe06f53b0b58b526c4f80",
-      "size": 85622,
+      "version": "1.11-5",
+      "url": "https://github.com/LordHayne/Nightforge/releases/download/cabextract-1.11-5/nightforge-cabextract-1.11-5.tar.gz",
+      "sha256": "489c94854a4652d211386f8b8ea4f0a7cdfe139041eb1e79b83dbf54bfcb20e4",
+      "size": 85621,
       "license": "GPL-3.0-or-later",
       "source": "https://github.com/LordHayne/Nightforge"
     },
