@@ -50,7 +50,7 @@ jobs:
           done
           python3 -c 'import json, sys; icd = json.load(open(sys.argv[1]))["ICD"]; assert icd["library_path"] == "./libvulkan_kosmickrisp.dylib", icd' \
             "$stage/kosmickrisp_icd.json"
-          lipo -archs "$stage"/*.dylib
+          for dylib in "$stage"/*.dylib; do lipo -archs "$dylib"; done
           otool -L "$stage"/*.dylib
 
       # From main only, like graphics.yml: a run on another branch just checks that it builds.
