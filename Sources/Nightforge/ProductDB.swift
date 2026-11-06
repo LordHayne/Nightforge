@@ -1,10 +1,12 @@
 import Foundation
 
-/// What Battle.net's Agent knows about the products on this Mac: product.db, a bare protobuf message
-/// with no account data in it. Blizzard documents neither; the field numbers are those of the GOG
-/// Galaxy plugin's product_db.proto (MIT) and WowUp's reader (fields 6 and 13), checked on 6.11.2026
-/// against the file Battle.net 2.53.8 writes on a Mac. Only ever read: the Agent owns the file. This
-/// reads the few fields a library needs and steps over the rest, so a new Agent's fields do no harm.
+/// What Battle.net's Agent knows about the products on this Mac: product.db, a bare protobuf message.
+/// Blizzard documents neither; the field numbers are those of the GOG Galaxy plugin's product_db.proto
+/// (MIT) and WowUp's reader (fields 6 and 13), checked on 6.11.2026 against the files Battle.net
+/// 2.53.8 writes on a Mac while it installs Hearthstone and after. Only ever read: the Agent owns the
+/// file. This reads the few fields a library needs and steps over the rest, so a new Agent's fields
+/// do no harm – among them the account's country (settings 11 and 12, the build tags), which has no
+/// business in Nightforge's logs or in a test's files.
 enum ProductDB {
     /// What the Agent is doing to a product (`Operation` in the proto; none when the field is absent).
     enum Operation: Int, Equatable {
@@ -12,7 +14,7 @@ enum ProductDB {
     }
 
     struct Install: Equatable {
-        /// The Agent's name for it, often with a language ("s2_dede"): no key to go by.
+        /// The Agent's name for it, with a language or not ("s2_dede", "hs_beta"): no key to go by.
         var uid = ""
         /// Blizzard's product code: wow, pro, fenris, hsb, and for the client itself bna and agent.
         var code = ""
@@ -27,7 +29,7 @@ enum ProductDB {
         var playable = false
         var updateComplete = false
         var version = ""
-        /// 0…1, of the update or download it last did.
+        /// 0…1, of the update or download it last did; 0 and no sizes yet early in a first download.
         var progress: Double?
         var totalBytes: UInt64 = 0
         var remainingBytes: UInt64 = 0

@@ -264,7 +264,7 @@ extension LibraryModel {
     /// Drives a download can go to instead of the Mac – for games of Nightforge's Steam, Steam for
     /// Mac, Epic and GOG (a CrossOver bottle's Steam keeps its own libraries).
     func driveChoices(for game: Game, needed: Int64) -> [DriveChoice] {
-        guard game.provider != .steam || game.platform == .mac || game.bottle.isBuiltIn else { return [] }
+        guard game.provider != .battlenet, game.provider != .steam || game.platform == .mac || game.bottle.isBuiltIn else { return [] }
         return DriveChoice.options(ExternalDrive.connected(), size: needed)
     }
 

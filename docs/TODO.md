@@ -736,9 +736,13 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   zuerst, der Windows-Client läuft in `Nightforge/BattleNet/Prefix`, nie in Steams Prefix. Noch startet keine Karte, „Spielen“
   sagt das. Bis der Start da ist, bleibt alles hinter dem versteckten Schalter
   `defaults write io.github.lordhayne.nightforge battleNetStore -bool true`.
-- **Live offen:** `product.db` eines laufenden und eines fertigen Downloads ansehen (Hearthstone auf `/Volumes/Games/Nightforge
-  Games/Battle.net`). Die Felder sind bisher nur an `agent` und `bna` geprüft, nicht an einem Spiel; Karten für laufende
-  Downloads gibt es noch nicht.
+- **Echte Daten (6.11.):** Hearthstone lief während des Downloads und danach durch den Parser; die Tests nutzen beide
+  Dateien, ohne Pfade, Sprache und Kontoland (`tests/BattleNetTest/fixtures`). `product.db` hält das Land des Kontos und der
+  IP in Feld 3.11, 3.12 und den Build-Tags: nie loggen. Während des Downloads steht nur `active_operation`, der Rest ist 0,
+  die Karte zeigt dann „Preparing download …“.
+- **Mac-Agent und externe Laufwerke:** Der Agent hat keinen Zugriff auf Wechselmedien und steht nicht in „Dateien und
+  Ordner“; die Installation auf die NVMe endete mit EPERM (BLZBNTAGT000002BF). Blizzards Mac-Spiele bleiben deshalb
+  auf der internen Platte, Nightforge schlägt für sie keinen Umzug vor und sagt das (`Game.moveNote`).
 - **Vor Schritt 4:** `Engine.killLeftovers` beendet jedes Wine-Programm aus Nightforges Engine-Ordnern, auch im eigenen
   Prefix. Ein Steam-Neustart träfe also den Battle.net-Client: Ausnahme mit Test. „Nightforge vollständig entfernen“ muss
   den wineserver von Battle.net beenden.

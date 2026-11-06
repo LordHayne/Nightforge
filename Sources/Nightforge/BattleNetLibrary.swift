@@ -107,18 +107,24 @@ enum BattleNetLibrary {
         }
     }
 
-    /// The games of one client's list: known titles the Agent calls installed or playable, each once.
-    /// Its folder has to be there: product.db can outlive an uninstall. On a drive that isn't plugged
-    /// in, the game is only waiting for the drive, like Epic's and GOG's: it stays, to "Connect T7 to Play".
-    /// A game the Windows client lists for a title that has a Mac version comes along too; `merged`
-    /// decides between them.
+    /// The games of one client's list: known titles the Agent calls installed or playable, or is
+    /// downloading for the first time, each once. An installed one's folder has to be there:
+    /// product.db can outlive an uninstall. On a drive that isn't plugged in, the game is only waiting
+    /// for the drive, like Epic's and GOG's: it stays, to "Connect T7 to Play". A game the Windows
+    /// client lists for a title that has a Mac version comes along too; `merged` decides between them.
     static func games(_ installs: [ProductDB.Install], client: Client,
                       exists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) -> [Game] {
         var seen = Set<String>()
         return installs.compactMap { install in
-            guard let title = titles[install.code], install.installed || install.playable,
-                  let top = folder(install.installPath, client: client)
-            else { return nil }
+            guard let title = titles[install.code], let top = folder(install.installPath, client: client) else { return nil }
+            guard install.installed || install.playable else {
+                // On its way down: everything in the list is still 0, the operation alone says so.
+                guard install.operation == .update, seen.insert(install.code).inserted else { return nil }
+                var coming = game(install, title, client: client, installDir: top)
+                coming.install = .downloading(install.progress.flatMap { $0 > 0 ? $0 : nil })
+                coming.pendingUpdate = nil
+                return coming
+            }
             if !exists(top) {
                 guard let drive = DriveLibrary.drive(of: top), !exists(drive), seen.insert(install.code).inserted else { return nil }
                 var waiting = game(install, title, client: client, installDir: top)

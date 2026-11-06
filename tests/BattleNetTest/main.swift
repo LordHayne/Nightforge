@@ -1,8 +1,9 @@
 // Checks the Battle.net store (BattleNetLibrary, BattleNetStore): product.db read from a file of the
-// shape Battle.net 2.53.8 writes – made up here, with no player's data in it – and what doesn't add
-// up refused without a crash; the product codes; which cards come of a client's list, Mac first and
-// never in Steam's prefix. Nothing here reads a real Battle.net.
-// `battlenet-test --read <copy of product.db>` prints what a copy holds, by product code only.
+// shape Battle.net 2.53.8 writes – made up here, with no player's data in it – and from two real
+// ones, Hearthstone downloading and installed, with the paths, the language and the account's
+// country taken out (fixtures/); what doesn't add up refused without a crash; the product codes;
+// which cards come of a client's list, Mac first and never in Steam's prefix. Nothing here reads a
+// real Battle.net. `battlenet-test --read <copy of product.db>` prints what a copy holds, and its cards.
 import Foundation
 
 /// Protobuf's wire format, to write a product.db with.
@@ -58,11 +59,15 @@ struct BattleNetTest {
         if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--read" {
             let installs = BattleNetLibrary.read(URL(fileURLWithPath: CommandLine.arguments[2]))
             print(installs.map { $0.map { "\($0.code): installed \($0.installed), playable \($0.playable), version \($0.version)" }.joined(separator: "\n") } ?? "not readable")
+            for game in BattleNetLibrary.games(installs ?? [], client: .mac) {
+                print("card \(game.gameID.key): \(game.name), \(game.install), \(game.platform), \(game.sizeOnDisk) bytes, \(game.installDir.path)")
+            }
             return
         }
         TestDefaults.useWorkFolder()
         parses()
         refuses()
+        realFiles()
         codes()
         paths()
         cards()
@@ -174,6 +179,41 @@ struct BattleNetTest {
         check((try? Data(contentsOf: copy)) == file && (try? FileManager.default.attributesOfItem(atPath: copy.path)[.modificationDate] as? Date) == before,
               "the file stays as it was")
         check(BattleNetLibrary.read(folder.appendingPathComponent("gone.db")) == nil, "no file: nil, not an empty list")
+    }
+
+    /// What Battle.net 2.53.8 wrote while Hearthstone came down and after, without the player's details.
+    static func realFiles() {
+        func read(_ name: String) -> [ProductDB.Install] { BattleNetLibrary.read(URL(fileURLWithPath: "tests/BattleNetTest/fixtures/\(name)")) ?? [] }
+        let folder = "/Users/Shared/Games/Hearthstone"
+        let downloading = read("product-installing.db")
+        check(downloading.map(\.code) == ["agent", "bna", "hsb"], "the client and the game, downloading: \(downloading.map(\.code))")
+        guard let coming = downloading.last else { return }
+        check(coming.uid == "hs_beta" && coming.code == "hsb", "hs_beta is its uid, hsb its code: \(coming.uid), \(coming.code)")
+        check(coming.installPath == folder && coming.region == "eu", "its folder, already: \(coming.installPath)")
+        check(!coming.installed && !coming.playable && !coming.updateComplete && coming.version.isEmpty, "nothing of it is there yet: \(coming)")
+        check(coming.operation == .update && coming.progress == 0 && coming.totalBytes == 0, "the operation alone says it's coming: \(coming)")
+        // The folder isn't asked for: it may not be there yet.
+        let card = BattleNetLibrary.games(downloading, client: .mac) { _ in false }
+        check(card.map(\.gameID.id) == ["hsb"] && card.first?.install == .downloading(nil), "a card, downloading: \(card.map(\.install))")
+        check(card.first?.name == "Hearthstone" && card.first?.installDir.path == folder && card.first?.platform == .mac, "by name, folder and version")
+        check(card.first?.pendingUpdate == nil, "a first download isn't an update waiting")
+
+        let installed = read("product-installed.db")
+        check(installed.map(\.code) == ["agent", "bna", "hsb"], "the client and the game, installed: \(installed.map(\.code))")
+        guard let game = installed.last else { return }
+        check(game.installed && game.playable && game.updateComplete && game.operation == nil, "ready: \(game)")
+        check(game.version == "37.0.2.256589.255790" && game.totalBytes == 13_282_753_988 && game.remainingBytes == 0 && game.progress == 1, "its version and size: \(game)")
+        let ready = BattleNetLibrary.games(installed, client: .mac) { $0.path == folder }
+        check(ready.map(\.gameID.key) == ["battlenet.hsb"] && ready.first?.isInstalled == true, "a card, installed")
+        check(ready.first?.installDir.path == folder && ready.first?.sizeOnDisk == 13_282_753_988 && ready.first?.pendingUpdate == nil, "with its size, nothing waiting")
+        check(ready.first.map { !$0.inNightforgeFolder } == true, "the client's files, not Nightforge's to remove")
+        check(BattleNetLibrary.games(installed, client: .mac) { _ in false }.isEmpty, "its folder gone: no card")
+
+        let dropped = ["thomas", "AUT", "acct-", "geoip", "deDE"]
+        for name in ["product-installing.db", "product-installed.db"] {
+            let text = String(decoding: (try? Data(contentsOf: URL(fileURLWithPath: "tests/BattleNetTest/fixtures/\(name)"))) ?? Data(), as: UTF8.self)
+            check(!text.isEmpty && !dropped.contains { text.contains($0) }, "\(name) holds nothing of the player's")
+        }
     }
 
     static func refuses() {
@@ -300,10 +340,8 @@ struct BattleNetTest {
         check(pro.antiCheatBlock == nil, "Overwatch isn't stopped here")
         check(inPrefix[2].antiCheatBlock?.antiCheat == ["RICOCHET"], "Call of Duty is")
 
-        // On an external drive, in the folder of Nightforge's stores there.
-        let driveFolder = DriveLibrary.battleNet(on: URL(fileURLWithPath: "/Volumes/Games", isDirectory: true))
-        check(driveFolder.path == "/Volumes/Games/Nightforge Games/Battle.net", "the drive's folder for it: \(driveFolder.path)")
-        let onDrive = driveFolder.appendingPathComponent("Hearthstone").path
+        // On an external drive, should it be there all the same: Nightforge suggests none (Game.moveNote).
+        let onDrive = "/Volumes/Games/Nightforge Games/Battle.net/Hearthstone"
         let plugged = BattleNetLibrary.games([install("hsb", path: onDrive)], client: .mac) { ["/Volumes/Games", onDrive].contains($0.path) }
         check(plugged.first?.isInstalled == true && plugged.first?.installDir.path == onDrive, "a game on a drive that's there plays from it")
         check(plugged.first.map { DriveLibrary.drive(of: $0.installDir)?.lastPathComponent == "Games" && !$0.inNightforgeFolder } == true,
@@ -317,6 +355,12 @@ struct BattleNetTest {
         let viaWine = BattleNetLibrary.games([install("pro", path: zPath)], client: windows) { _ in true }
         check(viaWine.first?.windowsFolderMarker == #"\Volumes\Games\Nightforge Games\Battle.net\Overwatch\"#,
               "the Windows client's game on a drive, as ps shows it: \(viaWine.first?.windowsFolderMarker ?? "-")")
+
+        check(mac.first?.moveNote?.contains("Battle.net") == true, "a Mac game says it stays on the internal disk")
+        check(pro.moveNote == nil, "a Windows client's has nothing to say about that")
+        let steam = Game(gameID: .steam(570), name: "Dota 2", bottle: Engine.bottle, steamRoot: Engine.steamRoot, steamExeWindowsPath: "",
+                     installDir: Engine.steamRoot, sizeOnDisk: 1)
+        check(steam.moveNote == nil, "other stores' games: no such note")
 
         let both = BattleNetLibrary.merged(mac: mac, windows: inPrefix)
         check(both.map(\.gameID.id) == ["wow", "wow_classic", "hsb", "pro", "auks"], "Mac first: \(both.map(\.gameID.id))")

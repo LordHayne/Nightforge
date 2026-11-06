@@ -216,11 +216,6 @@ enum DriveLibrary {
     /// environment, so a running Windows version shows the same path (`Game.windowsFolderMarker`).
     static func gog(on drive: URL) -> URL { root(on: drive).appendingPathComponent("GOG Games", isDirectory: true) }
 
-    /// What to pick in Battle.net's own settings for a game on the drive: "Battle.net", beside Nightforge's
-    /// other stores' folders. The client decides where a game goes, and Nightforge reads it back
-    /// from product.db (BattleNetLibrary), so this one only names the place.
-    static func battleNet(on drive: URL) -> URL { root(on: drive).appendingPathComponent("Battle.net", isDirectory: true) }
-
     /// The drive a folder is on: /Volumes/<name>; nil for a folder on the Mac itself.
     static func drive(of folder: URL) -> URL? {
         let parts = folder.standardizedFileURL.pathComponents

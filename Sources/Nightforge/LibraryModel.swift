@@ -4057,6 +4057,7 @@ final class LibraryModel: ObservableObject {
         guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
         guard uninstallingID == nil && launchingID == nil && move == nil else { return false }
+        if game.provider == .battlenet { return false }  // the client's to remove (BattleNetStore)
         if game.provider == .gog && game.platform == .mac { return !isRunning(game) }
         if game.platform == .mac { return !anyRunning(.mac) }
         return game.bottle.isBuiltIn && !anyRunning(.windows)

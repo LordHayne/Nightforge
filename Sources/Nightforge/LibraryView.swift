@@ -1896,6 +1896,8 @@ struct GameContextMenu: ViewModifier {
             // Onto a drive plugged in, or back to the Mac (DriveMoves).
             if model.canMove(game) {
                 Button(L10n.t("Move to …")) { model.requestMove(game) }
+            } else if let note = game.moveNote {
+                Text(note)
             }
             if model.canUninstall(game) {
                 Divider()
