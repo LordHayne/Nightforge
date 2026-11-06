@@ -97,7 +97,7 @@ enum DuplicateGames {
             if let chosen, (a.provider == chosen) != (b.provider == chosen) { return a.provider == chosen }
             if onMac(a) != onMac(b) { return onMac(a) < onMac(b) }
             if onMac(a) < 2, a.lastPlayed != b.lastPlayed { return (a.lastPlayed ?? .distantPast) > (b.lastPlayed ?? .distantPast) }
-            if onMac(a) == 2, (a.platform == .mac) != (b.platform == .mac) { return a.platform == .mac }
+            if onMac(a) == 2, a.hasMacVersion != b.hasMacVersion { return a.hasMacVersion }
             return storeRank(a) < storeRank(b)
         }
     }
@@ -120,6 +120,9 @@ enum DuplicateGames {
 }
 
 extension Game {
+    /// Runs as a Mac version once it's there; a store hit, that its store sells one.
+    fileprivate var hasMacVersion: Bool { platform == .mac || (install == .inStore && macNative) }
+
     /// Hidden or pinned in one of its stores: a game from several stores shares its marks.
     func isMarked(in marks: Set<GameID>) -> Bool { gameIDs.contains(where: marks.contains) }
 }

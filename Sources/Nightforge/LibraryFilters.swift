@@ -138,7 +138,9 @@ struct LibrarySection: Equatable {
         } else {
             sections = [LibrarySection(id: "all", title: sort == .name ? L10n.t("A – Z") : L10n.t("Largest first"), items: owned)]
         }
-        sections.append(LibrarySection(id: "store", title: GridGroup.store.title, items: store))
+        let stores = Set(store.flatMap { games[$0].providers })
+        let title = stores.count == 1 ? stores.first?.inStore : nil
+        sections.append(LibrarySection(id: "store", title: title ?? L10n.t("In the Stores"), items: store))
         return sections.filter { !$0.items.isEmpty }
     }
 }

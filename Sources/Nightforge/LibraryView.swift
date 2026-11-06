@@ -1210,6 +1210,7 @@ private struct NoResults: View {
             Button(L10n.t("Clear search")) { model.searchText = "" }
                 .buttonStyle(GlassTextButtonStyle())
                 .padFocus("noResults.clear", activate: { model.searchText = "" })
+            EpicSearchLink()
         }
     }
 }
@@ -1401,8 +1402,12 @@ private struct GameDetail: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !compact && game.providers.count > 1 && game.install != .inStore {
-                StoreChoiceRow(game: game)
+            if !compact && game.providers.count > 1 {
+                if game.install == .inStore {
+                    OtherStoresRow(game: game)
+                } else {
+                    StoreChoiceRow(game: game)
+                }
             }
 
             // The round buttons go to a new line rather than squeezing Play's words (a narrow window,
@@ -1549,6 +1554,7 @@ extension PlayButton {
                    noSpace: game.downloadNeedsSpace != nil,
                    demo: game.demoOf != nil,
                    free: game.storeFree,
+                   store: game.provider,
                    update: game.pendingUpdate,
                    compact: compact) {
             model.primaryAction()
@@ -1633,6 +1639,28 @@ private struct StoreChoiceRow: View {
                     .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+    }
+}
+
+/// A store hit more stores sell: the way to the others' pages, with what they ask there.
+private struct OtherStoresRow: View {
+    let game: Game
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        HStack(spacing: 18) {
+            ForEach(game.others) { other in
+                Button { model.openStorePage(other) } label: {
+                    Label(other.storePrice.map { L10n.t("Also in the %@ Store · %@", other.provider.label, $0) }
+                          ?? L10n.t("Also in the %@ Store", other.provider.label),
+                          systemImage: "arrow.up.right.square")
+                        .font(size: 13, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                }
+                .buttonStyle(.plain)
+                .padFocus("detail.otherStore.\(other.provider.rawValue)", activate: { model.openStorePage(other) })
             }
         }
     }
@@ -1756,6 +1784,8 @@ private struct PlayButton: View {
     var demo = false
     /// A store hit that costs nothing: the button adds it instead of opening the store page.
     var free = false
+    /// The store a store hit's page is in.
+    var store = Provider.steam
     /// An update Steam downloads first: its size, 0 when not known yet.
     var update: Int64?
     /// Smaller, for the game bar.
@@ -1783,7 +1813,7 @@ private struct PlayButton: View {
         case .notInstalled: return demo ? L10n.t("Download Demo") : L10n.t("Download")
         case .downloading(let fraction?): return L10n.t("Downloading … %ld %%", Int(fraction * 100))
         case .downloading(nil): return L10n.t("Preparing download …")
-        case .inStore: return free ? L10n.t("Add for Free") : L10n.t("View in Steam Store")
+        case .inStore: return free ? L10n.t("Add for Free") : store.viewInStore
         }
     }
 
@@ -1943,8 +1973,8 @@ struct CoverCard: View {
             // Side by side: a game from several stores can use its Mac version from Steam.
             HStack(spacing: -7) {
                 // Another store than Steam: which one (Steam is where most games come from); a game from
-                // several stores names them all.
-                if game.providers != [.steam] {
+                // several stores names them all. A store's hit always: they come from several.
+                if game.providers != [.steam] || game.install == .inStore {
                     Text(game.providers.map(\.short).joined(separator: " + "))
                         .displayFont(9.5)
                         .lineLimit(1)
@@ -1965,7 +1995,7 @@ struct CoverCard: View {
                         .padding(.vertical, 3)
                         .background(Theme.night.opacity(0.78), in: Capsule())
                         .padding(7)
-                        .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
+                        .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("%@ also has a Mac version", game.provider.label))
                 }
             }
         }
@@ -2042,7 +2072,7 @@ struct CoverCard: View {
         case .downloading: parts.append(L10n.t("Downloading"))
         case .notInstalled where shown.onUnpluggedDrive: parts.append(L10n.t("Connect %@ to Play", shown.missingDrive ?? ""))
         case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
-        case .inStore: parts.append(L10n.t("In the Steam Store"))
+        case .inStore: parts.append(game.provider.inStore)
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }
         if game.providers != [.steam] { parts.append(L10n.t("From %@", Self.stores(game))) }
@@ -2392,7 +2422,7 @@ private struct VersionNotes: View {
 
     private var text: String? {
         if game.install == .inStore {
-            return game.macNative ? L10n.t("Steam also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.") : nil
+            return game.macNative ? L10n.t("%@ also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.", game.provider.label) : nil
         }
         guard let reason = game.versionReason else { return nil }
         if game.platform == .mac {

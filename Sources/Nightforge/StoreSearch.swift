@@ -5,7 +5,7 @@ import Foundation
 /// tools), and the store search API adds price, platforms and Metacritic score where it has them.
 /// Games the filter doesn't list (Black Myth: Wukong Benchmark Tool) come from the search API once
 /// appdetails says they're games. Both are undocumented; if either fails, the library search simply
-/// shows no store hits.
+/// shows no hits from Steam (`StoreHits` puts the stores together).
 actor StoreSearch {
     static let shared = StoreSearch()
 
@@ -95,10 +95,10 @@ actor StoreSearch {
     }
 
     /// No word of the search starts one of the name's.
-    private static let unrelated = 4
+    static let unrelated = 4
 
     /// `Search.rank` (0–2), 3 for a name that has some of the search's words, else `unrelated`.
-    private static func fit(_ name: String, _ term: String) -> Int {
+    static func fit(_ name: String, _ term: String) -> Int {
         if let rank = Search.rank(name: name, query: term) { return rank }
         let words = Search.words(name)
         return Search.words(term).contains { term in words.contains { $0.hasPrefix(term) } } ? 3 : unrelated

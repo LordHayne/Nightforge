@@ -1,0 +1,682 @@
+{
+ "pages": 2,
+ "productCount": 36,
+ "products": [
+  {
+   "id": "1640424747",
+   "slug": "the_witcher_3_wild_hunt_game_of_the_year_edition",
+   "title": "The Witcher 3: Wild Hunt — Remastered",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "49,99 €",
+    "base": "49,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "49.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "49.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/79ac87014addb87a16fb636a404ff8b667865f7059b9bc0a8438b69d17ddd88b.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/536b00d90b91d9248d08aff37920d9706995337cb708cb69fa45e7900edf80b7.png",
+   "storeLink": "https://www.gog.com/de/game/the_witcher_3_wild_hunt_game_of_the_year_edition",
+   "releaseDate": "2016.08.30"
+  },
+  {
+   "id": "1207658924",
+   "slug": "the_witcher",
+   "title": "The Witcher: Enhanced Edition",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "osx"
+   ],
+   "price": {
+    "final": "7,99 €",
+    "base": "7,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "7.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "7.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/32385c2c39b8715a9ccfb159ed481b55503b96526b00866f75a4af48461615a5.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/37d4a208d1f5bb0e163da540ac894ba46a7d566ede31aaaefc74bbcd46ebd190.png",
+   "storeLink": "https://www.gog.com/de/game/the_witcher",
+   "releaseDate": "2007.10.26"
+  },
+  {
+   "id": "1207658930",
+   "slug": "the_witcher_2",
+   "title": "The Witcher 2: Assassins of Kings Enhanced Edition",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "linux",
+    "osx"
+   ],
+   "price": {
+    "final": "19,99 €",
+    "base": "19,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "19.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "19.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/e19cac8a80476f260cc9477d54230e406107f2f61a983239af4a79f3aa84a5cc.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/8355e657a19311b158a3553a154e109199d6991c7791a20c3305af1f84d15ed7.png",
+   "storeLink": "https://www.gog.com/de/game/the_witcher_2",
+   "releaseDate": "2012.04.17"
+  },
+  {
+   "id": "1960488876",
+   "slug": "the_knight_witch_deluxe_edition",
+   "title": "The Knight Witch Deluxe Edition",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "2,25 €",
+    "base": "22,49 €",
+    "discount": "-90%",
+    "finalMoney": {
+     "amount": "2.25",
+     "currency": "EUR",
+     "discount": "20.24"
+    },
+    "baseMoney": {
+     "amount": "22.49",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/42539f8d98948dd236ec858da4e1b4078bf59d52b5d634e8d00b2ce9efc004d3.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/f41a594917a411c84da6125d221713362913fc0509ab5479ea6276a99b807668.png",
+   "storeLink": "https://www.gog.com/de/game/the_knight_witch_deluxe_edition",
+   "releaseDate": "2022.11.29"
+  },
+  {
+   "id": "1213176929",
+   "slug": "reigns_the_witcher",
+   "title": "Reigns: The Witcher",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "osx"
+   ],
+   "price": {
+    "final": "4,19 €",
+    "base": "5,99 €",
+    "discount": "-30%",
+    "finalMoney": {
+     "amount": "4.19",
+     "currency": "EUR",
+     "discount": "1.80"
+    },
+    "baseMoney": {
+     "amount": "5.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/10779d6b291ba601d5f3baad4f16982083514366c0caf227dc06f8f2a4daf1c2.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/6a4c67c9cdb2343134e73e06ecaa26198588faff65c633e8b3ca5a1a76589638.png",
+   "storeLink": "https://www.gog.com/de/game/reigns_the_witcher",
+   "releaseDate": "2026.02.25"
+  },
+  {
+   "id": "1876851871",
+   "slug": "the_knight_witch",
+   "title": "The Knight Witch",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "4,99 €",
+    "base": "19,99 €",
+    "discount": "-75%",
+    "finalMoney": {
+     "amount": "4.99",
+     "currency": "EUR",
+     "discount": "15.00"
+    },
+    "baseMoney": {
+     "amount": "19.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/900ba3a66acba4bda2f36508e85bfadd59066a54559d6dd50505d049977aeeae.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/3a2fd89457765bebfcab105ce172c630bbc98df16b9aff43ad5b576075ab89ee.png",
+   "storeLink": "https://www.gog.com/de/game/the_knight_witch",
+   "releaseDate": "2022.11.29"
+  },
+  {
+   "id": "1868296162",
+   "slug": "the_witchs_love_diary",
+   "title": "The Witch's Love Diary",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "12,49 €",
+    "base": "24,99 €",
+    "discount": "-50%",
+    "finalMoney": {
+     "amount": "12.49",
+     "currency": "EUR",
+     "discount": "12.50"
+    },
+    "baseMoney": {
+     "amount": "24.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/ac7bf88f5581c2868a8b7c6d1a7a60d60d4773884983d35810d7753e4798ebfa.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/abab2542ae4aab4520b5b2c7d6d7e49be9f6d1881ccc4963ebb29f5f10779fc0.png",
+   "storeLink": "https://www.gog.com/de/game/the_witchs_love_diary",
+   "releaseDate": "2019.07.27"
+  },
+  {
+   "id": "1765156887",
+   "slug": "creature_kitchen",
+   "title": "Creature Kitchen",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "7,79 €",
+    "base": "7,79 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "7.79",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "7.79",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/5743e546e1e2aec9ecb1046cd17091e489fe1cc5d0098b769b23969d918837c4.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/f663ff34037f223dd54615948ec5df6767eecf7f7f210291aca31bd567653383.png",
+   "storeLink": "https://www.gog.com/de/game/creature_kitchen",
+   "releaseDate": "2026.02.06"
+  },
+  {
+   "id": "1304876527",
+   "slug": "creature_kitchen_demo",
+   "title": "Creature Kitchen Demo",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "0,00 €",
+    "base": "0,00 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "0.00",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "0.00",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/c290efa5bfe414a20fff0c9263ea1c094a31be0dcc0d6b1116bb9ae1d7a76b20.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/d24fb637952042e1d7f77c2ab4abc5236fb8e0a055eb05b69b10bd3db8254f71.png",
+   "storeLink": "https://www.gog.com/de/game/creature_kitchen_demo",
+   "releaseDate": "2026.02.06"
+  },
+  {
+   "id": "1932624899",
+   "slug": "mandragora_whispers_of_the_witch_tree_digital_deluxe_upgrade_bundle",
+   "title": "Mandragora: Whispers of the Witch Tree — Digital Deluxe Upgrade Bundle",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "9,99 €",
+    "base": "9,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "9.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "9.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/f8b4c65b6b3d2d6a6cc0f2085ea8df97bfda9bf2f24a83d0bc4ce141aeaba5f9.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/531725bd4d2d92acb6300ee2f743588dae82f3f8b38432ec44d3735379e6089d.png",
+   "storeLink": "https://www.gog.com/de/game/mandragora_whispers_of_the_witch_tree_digital_deluxe_upgrade_bundle",
+   "releaseDate": "2025.08.12"
+  },
+  {
+   "id": "1165555973",
+   "slug": "witch_of_eclipse",
+   "title": "Witch of Eclipse",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "19,59 €",
+    "base": "24,50 €",
+    "discount": "-20%",
+    "finalMoney": {
+     "amount": "19.59",
+     "currency": "EUR",
+     "discount": "4.91"
+    },
+    "baseMoney": {
+     "amount": "24.50",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/4555ba0a75589e62db2678dfa1b24234728fa6af5fb8f9f1b540fa646ad16ea7.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/65c186c9896d297ae247cb6789d4f03c9e39b9ef2e1cb8444842c4c2c2f53676.png",
+   "storeLink": "https://www.gog.com/de/game/witch_of_eclipse",
+   "releaseDate": "2025.06.14"
+  },
+  {
+   "id": "1716387415",
+   "slug": "mandragora_whispers_of_the_witch_tree",
+   "title": "Mandragora: Whispers of the Witch Tree",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "39,99 €",
+    "base": "39,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "39.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "39.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/02292f9c4db06f1b94b5ae9db7b464cfebe5f6b49f4e7bd5ef173e1aa698e20f.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/21b97cba92454bff1d8e45f0c49e5e7f7fe1760946774b2b83b84aec26737a57.png",
+   "storeLink": "https://www.gog.com/de/game/mandragora_whispers_of_the_witch_tree",
+   "releaseDate": "2025.04.17"
+  },
+  {
+   "id": "1383188955",
+   "slug": "mandragora_whispers_of_the_witch_tree_digital_deluxe",
+   "title": "Mandragora: Whispers of the Witch Tree — Digital Deluxe",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "49,99 €",
+    "base": "49,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "49.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "49.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/3e87a7481511b688f3f7ebaa74442017fce71cbf4530d6ebb0e087bd8a77014a.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/9ad0e2c9ea3ace1254467121228961007b5763470f0941316ddd68117193dd84.png",
+   "storeLink": "https://www.gog.com/de/game/mandragora_whispers_of_the_witch_tree_digital_deluxe",
+   "releaseDate": "2025.04.17"
+  },
+  {
+   "id": "1441199941",
+   "slug": "the_witcher_3_redkit",
+   "title": "The Witcher 3 REDkit",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "0,00 €",
+    "base": "0,00 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "0.00",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "0.00",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/1da93b20a0389c37d3da140a7b320489030f8d3df31cf9ae11869ebdcabc5e94.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/6808c0f7f179257a0eb94000b5062b87ae4afc2037119e67f30b7d68d148b59b.png",
+   "storeLink": "https://www.gog.com/de/game/the_witcher_3_redkit",
+   "releaseDate": "2024.05.21"
+  },
+  {
+   "id": "1303262246",
+   "slug": "the_witch_of_fern_island",
+   "title": "The Witch of Fern Island",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "9,79 €",
+    "base": "24,50 €",
+    "discount": "-60%",
+    "finalMoney": {
+     "amount": "9.79",
+     "currency": "EUR",
+     "discount": "14.71"
+    },
+    "baseMoney": {
+     "amount": "24.50",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/cc7fe9ced8ef6b5fcce17939349513f4e04c31af3b232e6a29cf5fe53837dab6.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/4cf9396936b0f5e44781170a6e2f85c57b462ae350126e657083cda160059378.png",
+   "storeLink": "https://www.gog.com/de/game/the_witch_of_fern_island",
+   "releaseDate": "2024.02.27"
+  },
+  {
+   "id": "2091072545",
+   "slug": "tiny_witch",
+   "title": "Tiny Witch",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "9,75 €",
+    "base": "9,75 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "9.75",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "9.75",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/47052c99521b5837fb99aaf6b9a294388dc4a3e5ae9562cb70ed440293dcd04b.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/da25b3d0a01e2743afdfddcee6d02520d0f168872ec217ef101cce1b35c8e7aa.png",
+   "storeLink": "https://www.gog.com/de/game/tiny_witch",
+   "releaseDate": "2023.09.01"
+  },
+  {
+   "id": "1421124555",
+   "slug": "witchs_rhythm_puzzle",
+   "title": "Witch's Rhythm Puzzle",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "2,99 €",
+    "base": "4,99 €",
+    "discount": "-40%",
+    "finalMoney": {
+     "amount": "2.99",
+     "currency": "EUR",
+     "discount": "2.00"
+    },
+    "baseMoney": {
+     "amount": "4.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/247a16fd0ab4aa621a880f4f3a7188336890ed5c9b0a3c46e53a78a6d56a6cc7.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/3ea7c9f5d02a4fe3529c5ee1a913b41b06572508211dd35e21289a96097bdbc1.png",
+   "storeLink": "https://www.gog.com/de/game/witchs_rhythm_puzzle",
+   "releaseDate": "2023.07.28"
+  },
+  {
+   "id": "1303795270",
+   "slug": "witchs_rhythm_puzzle_soundtrack_edition",
+   "title": "Witch's Rhythm Puzzle Soundtrack Edition",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "7,39 €",
+    "base": "8,89 €",
+    "discount": "-17%",
+    "finalMoney": {
+     "amount": "7.39",
+     "currency": "EUR",
+     "discount": "1.50"
+    },
+    "baseMoney": {
+     "amount": "8.89",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/014ae62bf53d40b534ab4be25272efb8079cc29f5bfb1c91c6ac61d2e44740f5.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/61a5a11d95daa2dd7f041d16f7b15278af413e74f31cf437fb83c7bf82d4e5b8.png",
+   "storeLink": "https://www.gog.com/de/game/witchs_rhythm_puzzle_soundtrack_edition",
+   "releaseDate": "2023.07.28"
+  },
+  {
+   "id": "1112615757",
+   "slug": "esperia_uprising_of_the_scarlet_witch",
+   "title": "Esperia ~ Uprising of the Scarlet Witch ~",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "5,39 €",
+    "base": "18,02 €",
+    "discount": "-70%",
+    "finalMoney": {
+     "amount": "5.39",
+     "currency": "EUR",
+     "discount": "12.63"
+    },
+    "baseMoney": {
+     "amount": "18.02",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/4db8f1517dcc8038357c62aaf8863c147cfe9da5ff9b158ac53d9cf485a6072c.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/cd041ee14423f52e51bb26ac43f69e57dbaa0142b0d7191e008e5fce73a95b9d.png",
+   "storeLink": "https://www.gog.com/de/game/esperia_uprising_of_the_scarlet_witch",
+   "releaseDate": "2023.03.01"
+  },
+  {
+   "id": "1827806299",
+   "slug": "dreams_in_the_witch_house_bundle",
+   "title": "Dreams in the Witch House Bundle",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "9,39 €",
+    "base": "14,43 €",
+    "discount": "-35%",
+    "finalMoney": {
+     "amount": "9.39",
+     "currency": "EUR",
+     "discount": "5.04"
+    },
+    "baseMoney": {
+     "amount": "14.43",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/bb40ea3ae1e3a9576ec7e70ed47735ee3d389c5d164bb8a83e7e5256773f6d02.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/d8643fa6da5c061164b734853dfff12105316ef2119aceb944baec0d8234b6bb.png",
+   "storeLink": "https://www.gog.com/de/game/dreams_in_the_witch_house_bundle",
+   "releaseDate": "2023.02.21"
+  },
+  {
+   "id": "1123332294",
+   "slug": "dreams_in_the_witch_house",
+   "title": "Dreams in the Witch House",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "4,39 €",
+    "base": "10,99 €",
+    "discount": "-60%",
+    "finalMoney": {
+     "amount": "4.39",
+     "currency": "EUR",
+     "discount": "6.60"
+    },
+    "baseMoney": {
+     "amount": "10.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/87c55bc8bdf5f174c30e10094b403959a6c11a244ea9995d40bfb6ce50147094.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/a49c66125fc63940740cb35c53d4393e60e88850c1a426725d875e56bc443393.png",
+   "storeLink": "https://www.gog.com/de/game/dreams_in_the_witch_house",
+   "releaseDate": "2023.02.16"
+  },
+  {
+   "id": "2055895186",
+   "slug": "the_maiden_the_butler_and_the_witch",
+   "title": "The Maiden, the Butler, and the Witch",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "6,25 €",
+    "base": "12,49 €",
+    "discount": "-50%",
+    "finalMoney": {
+     "amount": "6.25",
+     "currency": "EUR",
+     "discount": "6.24"
+    },
+    "baseMoney": {
+     "amount": "12.49",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/f66801a7131f23d86bb25ff469bbe5254a38b6a3b57589638b096a9c3bb46958.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/8bb70e3f33786a82da7e6925d87cb5ec3133cc316aa5dfc3d6a95d4dcc71ade3.png",
+   "storeLink": "https://www.gog.com/de/game/the_maiden_the_butler_and_the_witch",
+   "releaseDate": "2023.02.11"
+  },
+  {
+   "id": "2047978668",
+   "slug": "relord_2_the_witch_of_cologne_and_black_cat",
+   "title": "Re;Lord 2 ~The witch of Cologne and black cat~",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "6,69 €",
+    "base": "16,79 €",
+    "discount": "-60%",
+    "finalMoney": {
+     "amount": "6.69",
+     "currency": "EUR",
+     "discount": "10.10"
+    },
+    "baseMoney": {
+     "amount": "16.79",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/8c0babdf7f4f12e470030a8bb7f7c373f7fd5efaf6e86f231a84dec097734b77.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/fdc2e139c7d0f2e4b4fe1e9cc5cffe318978244729b80684a5c42a22b27ea5fc.png",
+   "storeLink": "https://www.gog.com/de/game/relord_2_the_witch_of_cologne_and_black_cat",
+   "releaseDate": "2021.11.19"
+  },
+  {
+   "id": "1205379739",
+   "slug": "nine_witches_family_disruption",
+   "title": "Nine Witches: Family Disruption",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "4,49 €",
+    "base": "17,99 €",
+    "discount": "-75%",
+    "finalMoney": {
+     "amount": "4.49",
+     "currency": "EUR",
+     "discount": "13.50"
+    },
+    "baseMoney": {
+     "amount": "17.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/cb3987e8b76e45b19cd4978ec195509e43ca847bc74cb5919d4c867d5d60f8f0.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/14a142ce8d52f4bc18d2d21b22badb56034613a99269ef8f82bf666ad6872076.png",
+   "storeLink": "https://www.gog.com/de/game/nine_witches_family_disruption",
+   "releaseDate": "2020.12.04"
+  }
+ ]
+}

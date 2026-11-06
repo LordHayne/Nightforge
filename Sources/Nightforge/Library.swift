@@ -13,7 +13,7 @@ enum InstallState: Hashable {
     case notInstalled
     /// Steam is downloading it; nil while Steam hasn't worked out the size yet.
     case downloading(Double?)
-    /// Not owned: a hit from the Steam store search.
+    /// Not owned: a hit from a store's search.
     case inStore
 }
 
@@ -96,8 +96,11 @@ struct Game: Identifiable, Hashable {
     /// Store hits only: price as shown in the store, and the Metacritic score.
     var storePrice: String?
     var metascore: Int?
-    /// … and it costs nothing: Steam adds its licence when asked to install it, as for a demo.
+    /// … and it costs nothing: Steam adds its licence when asked to install it, as for a demo. Not
+    /// for another store's hits: those are taken on their store page.
     var storeFree = false
+    /// … and the address of its page, in a store other than Steam (whose pages go by the app ID).
+    var storePage: URL?
     /// A demo, standing in for the game it's the demo of (that game's app ID): the account doesn't own it.
     var demoOf: Int?
     /// … and Steam still has to add the demo's free licence to the account, which takes one click in Steam.
