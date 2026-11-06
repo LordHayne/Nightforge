@@ -175,7 +175,11 @@ struct SignatureTest {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Nightforge/Components", isDirectory: true)
         try? FileManager.default.createDirectory(at: online, withIntermediateDirectories: true)
-        let bundled = URL(fileURLWithPath: "components/manifest.json")
+        // The real list with an age of the test's own: its date moves on with every update, the stamps below don't.
+        let bundled = work.appendingPathComponent("components-own.json")
+        let shipped = (try? String(contentsOf: URL(fileURLWithPath: "components/manifest.json"), encoding: .utf8)) ?? ""
+        try? Data(shipped.replacingOccurrences(of: #""generated": "[^"]*""#, with: #""generated": "2026-10-27""#, options: .regularExpression).utf8)
+            .write(to: bundled)
         let remote = online.appendingPathComponent("manifest.json")
         func publish(_ generated: String, signedBy key: Curve25519.Signing.PrivateKey?) {
             var text = (try? String(contentsOf: bundled, encoding: .utf8)) ?? ""
