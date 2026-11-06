@@ -30,6 +30,10 @@ struct PadRulesTest {
         check(PadRules.back(Open(sheet: true, modal: true, options: true)) == .sheet,
               "a question over the options answers B, not the options behind it")
         check(PadRules.back(Open(overlay: true, sheet: true, downloads: true)) == .overlay, "over a game the overlay has B")
+        check(PadRules.back(Open(list: true, highlight: true, quickMenu: true)) == .quickMenu, "a game's quick menu is innermost")
+        check(PadRules.back(Open(sheet: true, quickMenu: true)) == .sheet, "a sheet over it closes first")
+        check(PadRules.back(Open(overlay: true, quickMenu: true)) == .overlay, "the overlay over it too")
+        check(PadRules.back(Open(curtain: true, quickMenu: true)) == .nothing, "on the curtain B stays out")
         // The curtain while a game loads (1.11.: B took it away, and Steam started the game anyway).
         check(PadRules.back(Open(awaitingSteam: true, curtain: true)) == .nothing, "on the curtain B doesn't call the start off")
         check(PadRules.back(Open(highlight: true, gamePage: true, curtain: true)) == .nothing, "nor changes the page hidden under it")

@@ -74,7 +74,9 @@ struct HomeStage: View {
         let front = distance == 0
         // A cover behind is picked; the front one opens its page, the last tile the library.
         let press = {
-            if !front {
+            if model.quickMenu != nil {
+                // A long click that opened it, let go.
+            } else if !front {
                 model.selectOnHome(place: item.place)
             } else if item.place == model.homeRail.count {
                 model.goLibrary()
@@ -88,8 +90,8 @@ struct HomeStage: View {
                 let game = model.games[index]
                 StageCover(game: game, front: front, width: width, shade: Self.shades[step],
                            progress: { if case .downloading(let fraction) = game.shown.install { return fraction ?? 0 } else { return nil } }())
-                    // Right-click: the same actions as the big view, without selecting first.
-                    .modifier(GameContextMenu(game: game, index: index))
+                    .modifier(CardMenuButton(shown: front) { model.openQuickMenu(at: index) })
+                    .modifier(GameCardMenu(game: game))
             } else {
                 AllGamesStageTile(count: model.visibleCount, front: front, width: width)
             }
@@ -99,6 +101,9 @@ struct HomeStage: View {
         .opacity(Self.seen[step])
         .contentShape(Rectangle())
         .onTapGesture(perform: press)
+        .modifier(LongClick {
+            if item.place < model.homeRail.count { model.openQuickMenu(at: model.homeRail[item.place]) }
+        })
         // VoiceOver and AXPress do what a click does.
         .accessibilityAction(.default, press)
     }

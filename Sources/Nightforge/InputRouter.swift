@@ -22,6 +22,9 @@ final class InputRouter {
     private var stickStep = Step()
     private var overlayHold = OverlayHold()
     private var holdTimer: Timer?
+    /// ☰ on a card, until it's clear whether it's held (MenuHold).
+    private var menuHold = MenuHold()
+    private var menuHoldTimer: Timer?
     /// A button was down at the last look (for waking Nightforge on a fresh press).
     private var anyDown = false
     private var lastWake: TimeInterval = 0
@@ -114,6 +117,7 @@ final class InputRouter {
     private func handleKey(code: UInt16, chars: String, plain: Bool) -> Bool {
         guard plain, let model, !model.showingOptions, model.macSetup == nil else { return false }
         guard let window = NSApp.keyWindow, window.title == "Nightforge" else { return false }
+        if model.quickMenu != nil { return handleMenuKey(code, in: window, model) }
         if window.firstResponder is NSText { return false }
 
         switch code {
@@ -166,6 +170,20 @@ final class InputRouter {
         default:
             return false
         }
+    }
+
+    /// An open quick menu has the keys, as it has the pad: ↑/↓ between its entries, Return, Esc.
+    private func handleMenuKey(_ code: UInt16, in window: NSWindow, _ model: LibraryModel) -> Bool {
+        let focus = PadFocus.shared
+        switch code {
+        case 53: model.closeQuickMenu()
+        case 125: focus.move(dx: 0, dy: 1, in: window, within: .panel)
+        case 126: focus.move(dx: 0, dy: -1, in: window, within: .panel)
+        case 36, 76:
+            if let item = focus.focusedItem(in: window) { item.activate() } else { focus.move(dx: 0, dy: 1, in: window, within: .panel) }
+        default: break
+        }
+        return true
     }
 
     // MARK: - Trackpad
@@ -242,7 +260,7 @@ final class InputRouter {
     /// panel, nor to the library's search field under the pointer.
     private func mayGesture(_ event: NSEvent) -> Bool {
         guard let model, let main = Self.mainWindow, event.window === main, dialog == nil,
-              !model.showingDownloads, !model.showingOptions, model.macSetup == nil else { return false }
+              !model.showingDownloads, !model.showingOptions, model.quickMenu == nil, model.macSetup == nil else { return false }
         return !(model.route == .library && SwipeStage.shared.pointer(Self.topLeft(event), isOn: .search))
     }
 
@@ -389,9 +407,10 @@ final class InputRouter {
                                          lightbox: model.lightbox != nil, list: model.libraryMenu != nil,
                                          downloads: model.showingDownloads, options: model.showingOptions, highlight: highlight,
                                          gamePage: model.route.isDetail, awaitingSteam: model.awaitingSteam,
-                                         curtain: GameBackdrop.isRaised)
+                                         curtain: GameBackdrop.isRaised, quickMenu: model.quickMenu != nil)
                 switch PadRules.back(open) {
                 case .overlay: GameOverlay.back()
+                case .quickMenu: model.closeQuickMenu()
                 case .lightbox: model.lightbox = nil
                 case .list: model.libraryMenu.map(model.closeLibraryMenu)
                 case .downloads: model.closeDownloads()
@@ -419,10 +438,9 @@ final class InputRouter {
                 self?.model?.focusSearch()
             }
         }
-        // ☰: the selected game's options, as on Xbox and PlayStation.
+        // ☰: the selected game's options, as on Xbox and PlayStation; held on a card, its quick menu.
         pad.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in
-            guard pressed else { return }
-            MainActor.assumeIsolated { self?.openOptions() }
+            MainActor.assumeIsolated { self?.menuButton(pressed) }
         }
         // L1 always to Home, R1 always to the library (the chips beside the top bar's switch).
         pad.leftShoulder.pressedChangedHandler = { [weak self] _, _, pressed in
@@ -477,6 +495,38 @@ final class InputRouter {
                 self.watchHold(pad)
             }
         }
+    }
+
+    /// ☰ down or up (MenuHold): with a card selected it waits to see whether it's held.
+    private func menuButton(_ pressed: Bool) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard pressed else { return settleMenuHold(down: false, now: now) }
+        guard selectedCard != nil else { return openOptions() }
+        menuHold.press(now: now)
+        menuHoldTimer?.invalidate()
+        menuHoldTimer = Timer.scheduledTimer(withTimeInterval: MenuHold.seconds + 0.01, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.settleMenuHold(down: true, now: ProcessInfo.processInfo.systemUptime) }
+        }
+    }
+
+    private func settleMenuHold(down: Bool, now: TimeInterval) {
+        switch menuHold.update(down: down, now: now, chord: overlayHold.since != nil) {
+        case .none: break
+        case .options: openOptions()
+        case .quickMenu:
+            if let index = selectedCard { model?.openQuickMenu(at: index, byPad: true) }
+        }
+        if menuHold.since == nil {
+            menuHoldTimer?.invalidate()
+            menuHoldTimer = nil
+        }
+    }
+
+    /// The selected game when it's a card in front of the player: on Home or in the library, with
+    /// nothing open over them.
+    private var selectedCard: Int? {
+        guard levelsFree, let model, !model.showsFirstStart, !model.route.isDetail, model.heroGame != nil else { return nil }
+        return model.selectedIndex
     }
 
     private func goSection(_ shoulder: PadPart) {
@@ -652,10 +702,10 @@ final class InputRouter {
     }
 
     /// Something over the main window's levels that keeps the pad: the downloads panel, a chip's list,
-    /// a big screenshot.
+    /// a game's quick menu, a big screenshot.
     private var panelOpen: Bool {
         guard let model else { return false }
-        return model.showingDownloads || model.libraryMenu != nil || model.lightbox != nil
+        return model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
     }
 
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
@@ -683,6 +733,9 @@ final class InputRouter {
         stickStep = Step()
         setHeld(Step())
         scrollWithStick(0)
+        menuHold.cancel()
+        menuHoldTimer?.invalidate()
+        menuHoldTimer = nil
     }
 
     /// The right stick, up or down: scrolls at a speed that grows with how far it's pushed (a little
@@ -700,7 +753,7 @@ final class InputRouter {
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.stickScroll != 0, self.reach == .app, let model = self.model, model.lightbox == nil,
-                      let window = self.padWindow ?? Self.mainWindow else { return }
+                      model.quickMenu == nil, let window = self.padWindow ?? Self.mainWindow else { return }
                 // The library's grid: the selection follows, a row at a time, and the grid with it.
                 if model.route == .library, window === Self.mainWindow, !self.panelOpen {
                     let (rows, left) = PadRules.stickRows(self.stickRows + self.stickScroll / 60)
@@ -729,6 +782,11 @@ final class InputRouter {
 
     private func primary() {
         guard let model, !model.showingOptions, model.macSetup == nil else { return }
+        // A menu the mouse opened has no highlight yet: the first press shows where you are.
+        if model.quickMenu != nil {
+            if let main = Self.mainWindow { PadFocus.shared.move(dx: 0, dy: 1, in: main, within: .panel) }
+            return
+        }
         model.activate()
     }
 
@@ -774,9 +832,9 @@ final class InputRouter {
             if step.dx != 0 { model.lightbox?.step(step.dx) }
             return true
         }
-        // An open panel (downloads, a chip's list) keeps the pad: its controls only, entering it from
-        // wherever the highlight was.
-        if model.showingDownloads || model.libraryMenu != nil, let main = Self.mainWindow, padWindow === main {
+        // An open panel (downloads, a chip's list, a quick menu) keeps the pad: its controls only,
+        // entering it from wherever the highlight was.
+        if model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil, let main = Self.mainWindow, padWindow === main {
             PadFocus.shared.move(dx: step.dx, dy: step.dy, in: main, within: .panel)
             return false
         }

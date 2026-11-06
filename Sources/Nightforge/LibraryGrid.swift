@@ -113,16 +113,21 @@ struct LibraryGrid: View {
                                     ForEach(section.items, id: \.game.id) { item in
                                         GridCard(game: item.game, isSelected: item.index == model.selectedIndex,
                                                  isRunning: model.isRunning(item.game), isPinned: model.isPinned(item.game),
-                                                 compatibility: model.compatibility(of: item.game), width: cardWidth)
-                                            .id(item.game.id)
-                                            .modifier(GameContextMenu(game: item.game, index: item.index))
-                                            .onTapGesture {
-                                                if item.index == model.selectedIndex {
-                                                    model.openDetail()
-                                                } else {
-                                                    model.selectedIndex = item.index
-                                                }
+                                                 isLater: model.isLater(item.game),
+                                                 compatibility: model.compatibility(of: item.game), width: cardWidth) {
+                                            model.openQuickMenu(at: item.index)
+                                        }
+                                        .id(item.game.id)
+                                        .modifier(GameCardMenu(game: item.game))
+                                        .onTapGesture {
+                                            guard model.quickMenu == nil else { return }  // a long click that opened it, let go
+                                            if item.index == model.selectedIndex {
+                                                model.openDetail()
+                                            } else {
+                                                model.selectedIndex = item.index
                                             }
+                                        }
+                                        .modifier(LongClick { model.openQuickMenu(at: item.index) })
                                     }
                                 }
                             }
@@ -165,12 +170,15 @@ private struct GridCard: View {
     let isSelected: Bool
     var isRunning = false
     var isPinned = false
+    var isLater = false
     let compatibility: Compatibility
     var width = CoverSize.regular.width
+    let openMenu: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned, width: width)
+            CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned, isLater: isLater, width: width,
+                      openMenu: openMenu)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 // The level's own icon (each has a different one), named for VoiceOver and on hover.
                 Image(systemName: compatibility.level.symbol)

@@ -24,7 +24,7 @@ enum PadPart: String, CaseIterable {
         case .b: return L10n.t("Back, one level up – like Esc")
         case .x: return L10n.t("Opens the selected game's page")
         case .y: return L10n.t("Searches your library")
-        case .start: return L10n.t("Options for the selected game")
+        case .start: return L10n.t("Options for the selected game – held, its quick menu")
         case .l1: return L10n.t("Goes to Home")
         case .r1: return L10n.t("Goes to the library")
         case .l2: return L10n.t("Jumps to the first game")
