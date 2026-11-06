@@ -63,7 +63,7 @@ enum GameTest {
     /// Why a game isn't started, or why its start was called off: each would need the player, or a download.
     enum Skip: String, Codable, CaseIterable {
         case antiCheat, vrOnly, otherBottle, signIn, update, runtimes, d3dMetal, macSteamSetup, versionSwitch,
-             steamAsks, macOSAsks, stopped, gone
+             steamAsks, macOSAsks, stopped, gone, battleNet
 
         var german: String {
             switch self {
@@ -80,6 +80,7 @@ enum GameTest {
             case .macOSAsks: return "macOS fragt um Erlaubnis"
             case .stopped: return "Test vorher angehalten"
             case .gone: return "nicht mehr installiert"
+            case .battleNet: return "Battle.net-Spiele starten noch nicht aus Nightforge"
             }
         }
     }
@@ -106,6 +107,7 @@ enum GameTest {
     }
 
     static func skip(_ facts: Facts) -> Skip? {
+        if facts.store == .battlenet { return .battleNet }
         if facts.antiCheat { return .antiCheat }
         if facts.vrOnly { return .vrOnly }
         if facts.platform == .windows, !facts.builtInBottle { return .otherBottle }
@@ -193,8 +195,8 @@ enum GameTest {
         switch (candidate.platform, candidate.store) {
         case (.windows, .steam): return 0
         case (.windows, .epic): return 1
-        case (.windows, .gog): return 2
-        case (.mac, .gog), (.mac, .epic): return 3
+        case (.windows, .gog), (.windows, .battlenet): return 2
+        case (.mac, .gog), (.mac, .epic), (.mac, .battlenet): return 3
         case (.mac, .steam): return 4
         }
     }

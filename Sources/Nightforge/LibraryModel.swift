@@ -201,7 +201,8 @@ final class LibraryModel: ObservableObject {
     let steam = SteamStore()
     let epic = EpicStore()
     let gog = GOGStore()
-    var stores: [StoreProvider] { [steam, epic, gog] }
+    let battleNet = BattleNetStore()
+    var stores: [StoreProvider] { [steam, epic, gog, battleNet] }
 
     func store(for game: Game) -> StoreProvider {
         stores.first { $0.provider == game.provider } ?? steam
@@ -2098,7 +2099,7 @@ final class LibraryModel: ObservableObject {
         switch game.provider {
         case .epic: return await epic.size(of: game)?.install
         case .gog: return await gog.size(of: game, stillWanted: stillWanted)?.install
-        case .steam: return nil
+        case .steam, .battlenet: return nil
         }
     }
 
@@ -3112,6 +3113,11 @@ final class LibraryModel: ObservableObject {
     /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
     func launch(_ game: Game, d3dMetalChecked: Bool = false) {
         guard game.isInstalled, Self.mayStart(launching: launchingID != nil, startsAgain: startsAgain) else { return }
+        // Nothing below knows Battle.net's client: Steam's or Epic's way would start the wrong thing.
+        if game.provider == .battlenet {
+            errorMessage = L10n.t("%@ can't start from Nightforge yet: start it in Battle.net.", game.name)
+            return
+        }
         // What the start before still does – watch its game's first seconds, start it again another
         // way – ends with a Play: OxyRail, quit a few seconds in on 1.11., started again on DXVK
         // while Valheim started, and took Valheim's curtain.

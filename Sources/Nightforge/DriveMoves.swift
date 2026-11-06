@@ -56,6 +56,7 @@ extension LibraryModel {
         switch (game.provider, game.platform) {
         case (.epic, _): return !epic.isBusy
         case (.gog, _): return !gog.isBusy  // no Steam to stop; gogdl mustn't be writing meanwhile
+        case (.battlenet, _): return false  // its folder is the client's to move
         case (_, .mac): return !gameRunning(.mac)
         default: return game.bottle.isBuiltIn && !gameRunning(.windows)
         }

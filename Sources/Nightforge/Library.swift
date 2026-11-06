@@ -153,6 +153,8 @@ struct Game: Identifiable, Hashable {
         case .steam: return "\\steamapps\\common\\\(installDirName)\\"
         case .epic: return "\\Epic Games\\\(installDirName)\\"
         case .gog: return "\\GOG Games\\\(installDirName)\\"
+        // Wherever the client put it: `installDirName` is the whole path below the drive (BattleNetLibrary).
+        case .battlenet: return "\\\(installDirName)\\"
         }
     }
     /// Its files are in Nightforge's own folder (the Windows environment, GOG's Mac versions), not

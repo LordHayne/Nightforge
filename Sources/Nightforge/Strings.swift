@@ -189,6 +189,9 @@ enum L10n {
         "The battery drains although the Mac is plugged in – the charger is too weak for games.":
             "Der Akku entlädt sich, obwohl der Mac am Netzteil hängt – das Netzteil ist zu schwach für Spiele.",
         "Battery Settings": "Batterie-Einstellungen",
+        "Battle.net has to run and be signed in to start it: it needs internet.": "Battle.net muss laufen und angemeldet sein, damit es startet: Es braucht Internet.",
+        "Battle.net installs and removes its games itself: do that in Battle.net.": "Battle.net installiert und entfernt seine Spiele selbst: Bitte dort erledigen.",
+        "%@ can't start from Nightforge yet: start it in Battle.net.": "%@ startet noch nicht aus Nightforge: Bitte in Battle.net starten.",
         "Steam also has a Mac version": "Steam hat auch eine Mac-Version",
         "Steam also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
             "Steam hat dieses Spiel auch als Mac-Version. Nightforge nutzt sie, sobald dir das Spiel gehört – wenn sie auf aktuellen Macs läuft.",

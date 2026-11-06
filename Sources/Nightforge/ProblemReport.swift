@@ -43,7 +43,7 @@ enum ProblemReport {
     static func storeReference(_ game: Game) -> String {
         switch game.provider {
         case .steam: return "[\(game.appID)](https://store.steampowered.com/app/\(game.appID))"
-        case .epic, .gog: return "\(game.provider.label) \(game.gameID.id)"
+        case .epic, .gog, .battlenet: return "\(game.provider.label) \(game.gameID.id)"
         }
     }
 

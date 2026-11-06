@@ -153,7 +153,7 @@ actor GameInfoStore {
         guard await askSteam(for: entries, language: language, publish: publish) else { return }
 
         // 2. The other twins, a few lookups at a time; each round's Steam info right after it.
-        let unknown = entries.filter { $0.provider != .steam && $0.steamTwin == nil && Self.needsAsking(known.twins[$0.gameID.key]) }
+        let unknown = entries.filter { $0.provider != .steam && $0.provider != .battlenet && $0.steamTwin == nil && Self.needsAsking(known.twins[$0.gameID.key]) }
         var offline = false
         for round in stride(from: 0, to: unknown.count, by: Self.twinsPerRound) where !offline {
             let games = unknown[round..<min(round + Self.twinsPerRound, unknown.count)]
@@ -185,7 +185,7 @@ actor GameInfoStore {
                 let file = Legendary.configDir.appendingPathComponent("metadata/\(game.gameID.id).json")
                 known.infos[key] = (try? Data(contentsOf: file)).flatMap { GameInfo.epic(fromMetadata: $0, appName: game.gameID.id, language: language) }
                     ?? GameInfo(language: language, source: key, asked: Date())
-            case .steam:
+            case .steam, .battlenet:
                 break
             }
         }
