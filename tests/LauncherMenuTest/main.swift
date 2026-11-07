@@ -1,6 +1,6 @@
 // Checks what each store shows in each state in both launcher menus (LauncherState), how a client's
-// sign-in is read from its files, and that the sign-in has no field of Nightforge's own:
-// tests/LauncherMenuTest/run.sh
+// sign-in is read from its files, that the sign-in has no field of Nightforge's own, the stores' tones
+// and the card of a game without art (TypoCover): tests/LauncherMenuTest/run.sh
 import AppKit
 
 @main
@@ -31,6 +31,8 @@ struct LauncherMenuTest {
         battleNetFolder()
         battleNetLinks()
         noFieldOfOurOwn()
+        storeTones()
+        typoCover()
         print(failures == 0 ? "✓ LauncherMenu" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -238,6 +240,39 @@ struct LauncherMenuTest {
             store.unlink()
             check(!store.isLinked && store.wasUnlinked, "disconnected is remembered as such")
         }
+    }
+
+    /// Canvas 7.11., "Buchstabe mit Farbring": a tone of its own per store, none of them a brand's.
+    static func storeTones() {
+        check(LauncherState.tint(.steam) == 0x6F93BD && LauncherState.tint(.epic) == 0xD4D6DA
+              && LauncherState.tint(.gog) == 0xA47DDB && LauncherState.tint(.battlenet) == 0x4F9BE8, "the canvas's four tones")
+        check(Set(Provider.allCases.map(LauncherState.tint)).count == 4, "each store its own")
+        let views = (try? String(contentsOfFile: "Sources/Nightforge/LauncherViews.swift", encoding: .utf8)) ?? ""
+        check(views.contains("strokeBorder(tint, lineWidth: 2)") && views.contains(".foregroundStyle(tint)"), "ring and letter in the tone")
+    }
+
+    /// Canvas 7.11., "Typo-Karte": the name big at the bottom left, scaled to the card, a line only with
+    /// what Nightforge knows, and the name once where the hero names the game beside it.
+    static func typoCover() {
+        check(TypoCover.nameSize(width: 252) == 34 && TypoCover.inset(width: 252) == 22 && TypoCover.lineSize(width: 252) == 13,
+              "the canvas's card: 34 pt name, 22 pt inset, 13 pt line")
+        check(TypoCover.nameSize(width: 154) == 21, "the grid's regular cover: the name scales with it")
+        check(TypoCover.lineSize(width: 80) == 10, "a small cover's line stays readable")
+        check(TypoCover.line(nil) == nil, "nothing known: no line")
+        var info = GameInfo(language: "german", source: "battlenet.hsb", asked: Date())
+        check(TypoCover.line(info) == nil, "an empty entry: no line either")
+        info.developers = ["Blizzard Entertainment", "Other"]
+        info.genres = ["Kartenspiel", "Strategie"]
+        check(TypoCover.line(info) == "Blizzard Entertainment · Kartenspiel", "first developer and first genre")
+        info.developers = [" "]
+        check(TypoCover.line(info) == "Kartenspiel", "only what's really there")
+        let stage = (try? String(contentsOfFile: "Sources/Nightforge/HomeStage.swift", encoding: .utf8)) ?? ""
+        check(stage.contains("TypoCover(name: front ? nil : game.name"), "Home's front cover leaves the name to the hero")
+        let grid = (try? String(contentsOfFile: "Sources/Nightforge/LibraryView.swift", encoding: .utf8)) ?? ""
+        check(grid.contains("TypoCover(name: game.name, line: facts, width: width, bottomRoom:"),
+              "the grid's cover names it above its bottom badges, the caption under it stays small")
+        let typo = (try? String(contentsOfFile: "Sources/Nightforge/TypoCover.swift", encoding: .utf8)) ?? ""
+        check(!typo.contains("URL") && !typo.contains("NSImage") && !typo.contains("Image("), "no picture of anyone's, nothing loaded")
     }
 
     /// Nightforge never sees a password: the sign-in has no field of its own, wherever it opens.

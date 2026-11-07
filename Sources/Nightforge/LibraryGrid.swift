@@ -132,7 +132,8 @@ struct LibraryGrid: View {
                                         GridCard(game: item.game, isSelected: item.index == model.selectedIndex,
                                                  isRunning: model.isRunning(item.game), isPinned: model.isPinned(item.game),
                                                  isLater: model.isLater(item.game),
-                                                 compatibility: model.compatibility(of: item.game), width: cardWidth) {
+                                                 compatibility: model.compatibility(of: item.game), width: cardWidth,
+                                                 facts: TypoCover.line(model.info(for: item.game))) {
                                             model.openQuickMenu(at: item.index)
                                         }
                                         .id(item.game.id)
@@ -193,12 +194,13 @@ private struct GridCard: View {
     var isLater = false
     let compatibility: Compatibility
     var width = CoverSize.regular.width
+    var facts: String?
     let openMenu: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned, isLater: isLater, width: width,
-                      openMenu: openMenu)
+                      facts: facts, openMenu: openMenu)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 // The level's own icon (each has a different one), named for VoiceOver and on hover.
                 Image(systemName: compatibility.level.symbol)

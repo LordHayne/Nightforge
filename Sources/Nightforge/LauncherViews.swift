@@ -135,18 +135,24 @@ private struct LauncherCard: View {
     }
 }
 
-/// The store's tile: plain type, as the app has none of their marks.
+/// The store's tile: its letter and a 2-point ring inside, both in the store's own tone.
 private struct LauncherTile: View {
     let state: LauncherState
     let size: CGFloat
     let font: CGFloat
 
+    private var tint: Color {
+        let hex = LauncherState.tint(state.provider)
+        return Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
+    }
+
     var body: some View {
         Text(verbatim: state.letter)
             .displayFont(font)
-            .foregroundStyle(Theme.ink)
+            .foregroundStyle(tint)
             .frame(width: size, height: size)
             .background(Theme.night, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(tint, lineWidth: 2))
             .accessibilityHidden(true)
     }
 }
