@@ -5,9 +5,8 @@ import Foundation
 /// shows what the Agent lists and will ask the client to start it, and never holds a Blizzard
 /// password or changes the client's files.
 ///
-/// So far the library only: the cards show, nothing starts from them (LibraryModel.launch). Until
-/// the start is there they stay behind a hidden switch:
-/// `defaults write io.github.lordhayne.nightforge battleNetStore -bool true`
+/// So far the library only: the cards show, nothing starts from them (LibraryModel.launch). They
+/// show once the player has connected Battle.net on its launcher card (`link`).
 @MainActor
 final class BattleNetStore: StoreProvider {
     static let switchKey = "battleNetStore"
@@ -17,10 +16,15 @@ final class BattleNetStore: StoreProvider {
 
     private var clients: [BattleNetLibrary.Client] { [.mac, .windows(prefix: BattleNetLibrary.prefix)] }
 
-    /// Switched on, and a client has left its list on this Mac. No sign-in of Nightforge's own: that's the client's.
+    /// The player connected Battle.net on its launcher card.
+    var isLinked: Bool { UserDefaults.standard.bool(forKey: Self.switchKey) }
+
+    func link() { UserDefaults.standard.set(true, forKey: Self.switchKey) }
+    func unlink() { UserDefaults.standard.set(false, forKey: Self.switchKey) }
+
+    /// Linked, and a client has left its list on this Mac. No sign-in of Nightforge's own: that's the client's.
     var isConnected: Bool {
-        UserDefaults.standard.bool(forKey: Self.switchKey)
-            && clients.contains { FileManager.default.fileExists(atPath: $0.database.path) }
+        isLinked && clients.contains { FileManager.default.fileExists(atPath: $0.database.path) }
     }
 
     func library() async -> [Game] {

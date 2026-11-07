@@ -173,7 +173,7 @@ struct GOGTest {
         check(GameID(key: "gog.1207664663") == .gog("1207664663"), "and a link with that key finds the game")
         check(GameID(key: "gog.../evil") == nil, "an ID that would climb out of a folder isn't one")
         check(Provider.gog.label == "GOG" && Provider.gog.short == "GOG", "GOG's name")
-        check(Provider.allCases == [.steam, .epic, .gog], "GOG is the third store, after Steam and Epic")
+        check(Array(Provider.allCases.prefix(3)) == [.steam, .epic, .gog], "GOG is the third store, after Steam and Epic")
         check(GameShortcut.url(play: .gog("1207664663")).absoluteString == "nightforge://play/gog.1207664663", "links: nightforge://play/gog.<id>")
         check(GameShortcut.action(from: GameShortcut.url(play: .gog("1207664663"), key: String(repeating: "a", count: 32)),
                                   key: String(repeating: "a", count: 32)) == .play(.gog("1207664663")), "and they lead to the game")

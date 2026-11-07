@@ -730,12 +730,27 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
     erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
+## Launcher-Menü (0.3.2, Zweig `claude/launcher-032`)
+
+- **Gebaut nach dem Canvas vom 7.11.:** `LauncherState` ist der eine Zustand für beide Menüs (`Launchers.swift`), vier Karten und
+  Menü oben rechts in `LauncherViews.swift`, Bühne in `SignInStage.swift`. Tests: `tests/LauncherMenuTest`.
+- **Live offen:** Nichts davon lief in der echten App. Die Ansichten sind nur offscreen gerendert. Zu prüfen: Epic und GOG in
+  der Bühne (Tastatur im `WKWebView`, Zwei-Faktor, „Mit Google anmelden“), Battle.net-Fenster über dem Vorhang, B bei fremdem
+  Fenster vorn, Pad auf Karten und Menü, Erststart mit den Karten nach Steams Anmeldung.
+- **Fremde Fenster liegen, wo sie wollen:** Steam und Battle.net lassen sich ohne Bedienungshilfen-Recht nicht verschieben, ihr
+  echtes Fenster sitzt also nicht genau im Rahmen des Entwurfs. Epic und GOG sitzen genau dort.
+- **Battle.net-Anmeldung:** Der Client verrät sie nur im Log (`UAuth: browser state changed: Done`). Ohne „Angemeldet bleiben“ fragt
+  er beim nächsten Start neu, die Karte zeigt dann „Abgemeldet“. Einen Kontonamen zeigt sie nicht: In den Dateien steht nur die Mail.
+- **Battle.net-Karten starten noch nicht:** Nach dem Verbinden stehen die Spiele in der Bibliothek, „Spielen“ verweist auf den Client.
+- **Abgemeldeter Store:** Die Karte bietet nur „Erneut anmelden“, „Trennen“ gibt es erst danach wieder über „Verwalten“.
+- **Keine Store-Logos in der App:** Die Kacheln zeigen schlichte Buchstaben.
+
 ## Battle.net (0.3.2, Zweig `claude/battlenet-032`)
 
 - **Schritte 0–2 stehen:** `ProductDB` liest `product.db` nur lesend, `BattleNetLibrary` macht daraus Karten, Mac-Client
   zuerst, der Windows-Client läuft in `Nightforge/BattleNet/Prefix`, nie in Steams Prefix. Noch startet keine Karte, „Spielen“
-  sagt das. Bis der Start da ist, bleibt alles hinter dem versteckten Schalter
-  `defaults write io.github.lordhayne.nightforge battleNetStore -bool true`.
+  sagt das. Sichtbar werden die Spiele, sobald der Spieler Battle.net auf seiner Launcher-Karte verbindet (derselbe Schlüssel
+  `battleNetStore`, jetzt `BattleNetStore.link()`).
 - **Echte Daten (6.11.):** Hearthstone lief während des Downloads und danach durch den Parser; die Tests nutzen beide
   Dateien, ohne Pfade, Sprache und Kontoland (`tests/BattleNetTest/fixtures`). `product.db` hält das Land des Kontos und der
   IP in Feld 3.11, 3.12 und den Build-Tags: nie loggen. Während des Downloads steht nur `active_operation`, der Rest ist 0,

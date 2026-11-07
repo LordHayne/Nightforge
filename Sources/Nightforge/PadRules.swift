@@ -23,10 +23,14 @@ enum PadRules {
         var curtain = false
         /// A game's quick menu.
         var quickMenu = false
+        /// The small launcher menu.
+        var launcherMenu = false
+        /// A store's sign-in on the curtain (SignInStage).
+        var signIn = false
     }
 
     /// What B does: the innermost thing open goes, one per press.
-    enum Back: Equatable { case overlay, quickMenu, lightbox, list, downloads, highlight, options, sheet, cancelLaunch, level, nothing }
+    enum Back: Equatable { case overlay, signIn, quickMenu, launcherMenu, lightbox, list, downloads, highlight, options, sheet, cancelLaunch, level, nothing }
 
     static func back(_ open: Open) -> Back {
         if open.overlay { return .overlay }
@@ -36,7 +40,9 @@ enum PadRules {
         // changed the page hidden under it.
         if open.curtain { return .nothing }
         let overLevels = !open.sheet && !open.modal
+        if overLevels && open.signIn { return .signIn }
         if overLevels && open.quickMenu { return .quickMenu }
+        if overLevels && open.launcherMenu { return .launcherMenu }
         if overLevels && open.lightbox { return .lightbox }
         if overLevels && open.list { return .list }
         if overLevels && open.downloads { return .downloads }

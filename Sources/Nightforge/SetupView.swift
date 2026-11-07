@@ -14,6 +14,8 @@ struct SetupView: View {
                 WelcomePage(setup: setup)
             case .checklist:
                 ChecklistPage(setup: setup, macSteam: macSteam)
+            case .launchers:
+                LauncherPage(firstStart: true)
             case .checking(let check):
                 CheckingPage(check: check, replay: setup.isReplay, macSteam: macSteam) { setup.close() }
             case .reveal(let reveal):

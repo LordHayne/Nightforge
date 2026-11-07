@@ -65,6 +65,8 @@ final class LibraryModel: ObservableObject {
             quickMenu = nil
             quickMenuReturn = nil
             lightbox = nil
+            launcherMenuOpen = false
+            launcherMenuReturn = nil
             // The pad's highlight stays with the level it was on (a chip kept behind a game's page).
             PadFocus.shared.clear()
         }
@@ -221,6 +223,27 @@ final class LibraryModel: ObservableObject {
     let macSteamPrep = MacSteamPrep()
     private var setupChanges: AnyCancellable?
 
+    /// The stores as both launcher menus show them (LauncherState), in their own order.
+    @Published var launchers = Provider.allCases.map { LauncherState($0) }
+    var launcherRefresh: Task<Void, Never>?
+    var launcherUpdate: Task<Void, Never>?
+    /// What the two clients' files said last.
+    var launcherClients = LauncherClients()
+    /// The small menu at the top right.
+    @Published var launcherMenuOpen = false
+    var launcherMenuReturn: String?
+    /// The store whose card was last used: the highlight comes back to it.
+    var lastLauncher: Provider?
+    /// "Manage" on a store's card.
+    @Published var managedLauncher: Provider?
+    /// The store signing in on the curtain (SignInStage).
+    @Published var signingIn: Provider? {
+        didSet { if signingIn != oldValue { refreshLaunchers() } }
+    }
+    /// Waits for a client's own window to be through.
+    var signInWatch: Task<Void, Never>?
+    private var storeChanges: [AnyCancellable] = []
+
     /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
     let steam = SteamStore()
     let epic = EpicStore()
@@ -247,6 +270,11 @@ final class LibraryModel: ObservableObject {
             guard let self, self.setup.isActive, !self.setup.isReplay else { return }
             self.macSteamPrep.start()
         }
+        // The four cards after the sign-in: Steam's window had the front.
+        setup.onLaunchers = { [weak self] in
+            self?.comeForward()
+            self?.refreshLaunchers()
+        }
         setup.onClosed = { [weak self] in
             guard let self else { return }
             self.macSteamPrep.abandon()
@@ -258,6 +286,8 @@ final class LibraryModel: ObservableObject {
             }
         }
         setupChanges = setup.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        storeChanges = [epic.objectWillChange.sink { [weak self] _ in self?.storeChanged() },
+                        gog.objectWillChange.sink { [weak self] _ in self?.storeChanged() }]
         epic.changed = { [weak self] in self?.reload(quiet: true) }
         watchDrives()
         epic.downloadFailed = { [weak self] name, reason, addOn in
@@ -320,9 +350,11 @@ final class LibraryModel: ObservableObject {
             MainActor.assumeIsolated {
                 self?.reload(quiet: true)
                 self?.refreshStores()
+                self?.refreshLaunchers()
             }
         }
         refreshStores()
+        refreshLaunchers()
     }
 
     // MARK: - Stores
@@ -342,30 +374,39 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Epic's sign-in page in its own window; its code goes to legendary.
+    /// Epic's sign-in page on the stage; its code goes to legendary.
     func connectEpic() {
-        guard !epic.connecting else {
-            EpicSignIn.bringToFront()
+        if !epic.connecting {
+            epic.connecting = true
+            Task { await Legendary.prepare() }
+        }
+        signingIn = .epic
+    }
+
+    /// A store's page on the stage is through: its code, or nil when the player called it off.
+    func signInPageDone(_ provider: Provider, code: String?) {
+        signingIn = nil
+        switch provider {
+        case .epic: finishEpicSignIn(code)
+        case .gog: finishGOGSignIn(code)
+        case .steam, .battlenet: break
+        }
+    }
+
+    private func finishEpicSignIn(_ code: String?) {
+        guard let code else {
+            epic.connecting = false
             return
         }
-        epic.connecting = true
-        Task { await Legendary.prepare() }
-        EpicSignIn.present { [weak self] code in
-            guard let self else { return }
-            guard let code else {
-                self.epic.connecting = false
-                return
-            }
-            Task {
-                defer { self.epic.connecting = false }
-                do {
-                    try await self.epic.connect(code: code)
-                    self.storeAsked[.epic] = Date()
-                    self.reload(quiet: true)
-                    Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
-                } catch {
-                    self.errorMessage = error.localizedDescription
-                }
+        Task {
+            defer { epic.connecting = false }
+            do {
+                try await epic.connect(code: code)
+                storeAsked[.epic] = Date()
+                reload(quiet: true)
+                Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -404,30 +445,29 @@ final class LibraryModel: ObservableObject {
 
     // MARK: - GOG
 
-    /// GOG's sign-in page in its own window; its code goes to gogdl.
+    /// GOG's sign-in page on the stage; its code goes to gogdl.
     func connectGOG() {
-        guard !gog.connecting else {
-            GOGSignIn.bringToFront()
+        if !gog.connecting {
+            gog.connecting = true
+            Task { await GOGDL.prepare() }
+        }
+        signingIn = .gog
+    }
+
+    private func finishGOGSignIn(_ code: String?) {
+        guard let code else {
+            gog.connecting = false
             return
         }
-        gog.connecting = true
-        Task { await GOGDL.prepare() }
-        GOGSignIn.present { [weak self] code in
-            guard let self else { return }
-            guard let code else {
-                self.gog.connecting = false
-                return
-            }
-            Task {
-                defer { self.gog.connecting = false }
-                do {
-                    try await self.gog.connect(code: code)
-                    self.storeAsked[.gog] = Date()
-                    self.reload(quiet: true)
-                    Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
-                } catch {
-                    self.errorMessage = error.localizedDescription
-                }
+        Task {
+            defer { gog.connecting = false }
+            do {
+                try await gog.connect(code: code)
+                storeAsked[.gog] = Date()
+                reload(quiet: true)
+                Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -2305,6 +2345,7 @@ final class LibraryModel: ObservableObject {
         showingSettings = false
         pendingSpace = nil
         pendingMove = nil
+        managedLauncher = nil
         if macSetup != nil { closeMacSetup() }
         errorMessage = nil
         sessionSummary = nil
@@ -2688,6 +2729,7 @@ final class LibraryModel: ObservableObject {
             break
         }
         if quickMenu != nil, quickMenuGame == nil { closeQuickMenu() }  // its game is gone
+        storeChanged()  // the launchers' game counts; this runs at every key of a search too
     }
 
     /// The search lives in the library's header: from Home or a game's page it opens the library.
@@ -2710,7 +2752,7 @@ final class LibraryModel: ObservableObject {
 
     /// The game shown big: on Home nil while the "All games" tile is selected, or the first start shows.
     var heroGame: Game? {
-        route == .home && (homeOnAllGames || setup.isActive) ? nil : selected
+        route == .launchers || (route == .home && (homeOnAllGames || setup.isActive)) ? nil : selected
     }
 
     /// Stands for the "All games" tile in `homeGameID`.
@@ -2720,7 +2762,7 @@ final class LibraryModel: ObservableObject {
         switch route {
         case .home: homeGameID = homeOnAllGames ? Self.allGamesTile : selected?.id
         case .library: libraryGameID = selected?.id
-        case .detail: break
+        case .detail, .launchers: break
         }
     }
 
@@ -2762,6 +2804,14 @@ final class LibraryModel: ObservableObject {
         route.level == .library ? goHome() : goLibrary()
     }
 
+    /// The four launcher cards; Settings › Stores leads here.
+    func openLaunchers() {
+        showingSettings = false
+        rememberSelection()
+        refreshLaunchers()
+        route = .launchers
+    }
+
     /// The selected game's page. A second click on a cover comes here – it never starts or downloads.
     func openDetail() {
         guard let game = heroGame, !route.isDetail else { return }
@@ -2790,6 +2840,8 @@ final class LibraryModel: ObservableObject {
             } else {
                 goHome()
             }
+        case .launchers:
+            goHome()
         case .home:
             return showsFirstStart && (macSteamPrep.back() || setup.back())
         }
@@ -2825,6 +2877,8 @@ final class LibraryModel: ObservableObject {
             goHome()
         case .library:
             goLibrary()
+        case .launchers:
+            openLaunchers()
         case .detail(let id, _):
             guard let index = games.firstIndex(where: { $0.holds(id) }) else { return false }
             if route == .home { homeOnAllGames = false }
@@ -2849,6 +2903,7 @@ final class LibraryModel: ObservableObject {
             }
         case .library: openDetail()
         case .detail: primaryAction()
+        case .launchers: break  // the selected card has it (InputRouter)
         }
     }
 
@@ -3098,7 +3153,7 @@ final class LibraryModel: ObservableObject {
             selectOnHome(place: max(0, min(homeRail.count, homePlace + delta)))
         case .library:
             if let next = gridLayout.index(from: selectedIndex, steps: delta) { selectedIndex = next }
-        case .detail:
+        case .detail, .launchers:
             break
         }
     }
@@ -3111,7 +3166,7 @@ final class LibraryModel: ObservableObject {
         case .library:
             let order = gridLayout.order
             selectedIndex = (toStart ? order.first : order.last) ?? 0
-        case .detail:
+        case .detail, .launchers:
             break
         }
     }

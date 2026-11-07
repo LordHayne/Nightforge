@@ -43,6 +43,9 @@ struct FirstStartTest {
         check(S.confirmAction(stage: .checklist, phase: .failed(.steam, "x")) == .retry, "checklist: Return tries again")
         check(S.backAction(stage: .checklist, replay: false) == nil, "checklist: Esc doesn't leave the setup")
 
+        check(S.confirmAction(stage: .launchers, phase: .done) == nil, "cards: the selected card has Return")
+        check(S.backAction(stage: .launchers, replay: false) == .leaveLaunchers, "cards: Esc leads on, there's nothing behind them")
+
         let checking = SetupModel.Stage.checking(LibraryCheck(total: 10, checked: 3))
         check(S.confirmAction(stage: checking, phase: .done) == nil, "checking: nothing to press")
         check(S.backAction(stage: checking, replay: false) == .skip, "checking: Esc skips")
