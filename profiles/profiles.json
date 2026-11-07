@@ -4791,6 +4791,11 @@
   },
   "2357570": {
    "name": "Overwatch",
+   "graphics": "dxmt",
+   "dllOverrides": {
+    "nvapi64": "",
+    "nvngx": ""
+   },
    "notYet": "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.",
    "note": "Tested 2026-11-01 on M5, macOS 27.0.1, winecx 4.7.3 with D3DMetal 4.0b3: Overwatch.exe starts, 0 % CPU, no window. Not yet tried: DXMT instead of D3DMetal, a run without msync.",
    "source": "mac",
@@ -5911,5 +5916,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-03T15:39:46Z"
+ "generated": "2026-11-07T00:36:32Z"
 }
