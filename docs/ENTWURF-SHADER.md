@@ -44,7 +44,7 @@ ein damit gebautes DXMT also auch auf dem MIT-Pin. `Resources/THIRD_PARTY_NOTICE
 
 ## Ablauf in Nightforge
 
-- **Im Spiel:** `DXMT_PIPELINE_CACHE_PATH` zeigt app-weit auf `~/Library/Caches/Nightforge/dxmt-pipelines` und gilt so auch über
+- **Im Spiel:** `DXMT_PIPELINE_CACHE_PATH` zeigt app-weit auf `pipelines` in DXMTs Ordner (`Engine.shaderCache`) und gilt so auch über
   Steam. Zwei Änderungen an Recalls Code: Der Ordner bekommt `<exe>` aus `MTLGetShaderCachePath()`, damit Launcher und Spiel sich
   nicht `write.lock` wegnehmen. `registryID` und macOS-Text fliegen aus dem Ordnerschlüssel: Die ID wechselt bei jedem Neustart,
   und Rezepte hängen nicht von macOS ab.
@@ -63,7 +63,7 @@ Hier gemessen, Recalls Ordner `/Volumes/Games/Overwatch2Mac/cache`, Zeitstempel 
 `DXMT_PREPARE_SHADERS`, das alles übersetzt, was das Spiel anlegt. Metals Cache: Recall nennt rund 120 KB je Pipeline.
 
 Also: Übersetzungs-Datei je Programm, Deckel 2 GB je Programm für Rezepte und AIR (älteste zuerst), und `ShaderCaches.folders`
-bekommt `dxmt-pipelines` und `C/dxmt`.
+bekommt `C/dxmt`; `Engine.shaderCache` steht dort schon.
 
 ## Nach Updates
 
@@ -86,14 +86,44 @@ Minute, schlimmster Frame, 1-%-Low, Anteil der Haken mit Shader-Eintrag im selbe
 wenig. Dann sind Recalls Wine-Patches dran, die wir nicht haben: `wine-server-registry-save` (0,1 s Pause alle 30 s) und
 `wine-ntdll-syscall-log` (Freezes von 150–400 ms). Recalls „95 % weniger Stotterer“ nennt Shader und Wine-Fixes zusammen.
 
+## Grenzen und Anti-Cheat
+
+**Rein lokal:** Nichts wird hochgeladen. Nightforge liefert keine Shader oder Metal-Bibliotheken eines Spiels aus. Nichts hängt sich
+ins Spiel oder ändert Spieldateien. Alle Daten liegen in DXMTs Cache-Ordnern.
+
+**Der Fall von 2018:** Im September 2018 wurden Overwatch-Spieler auf Linux mit DXVK gesperrt, die Sperren wurden wieder aufgehoben
+([AltChar](https://www.altchar.com/games-news/576591/blizzard-unbans-overwatch-players-who-used-linux-os)). DXVK entfernte seine
+Option für asynchrones Kompilieren am 13.9.2018 mit dem Vermerk „Unsafe“ ([Commit](https://github.com/doitsujin/dxvk/commit/922f0382)).
+Die Ursache ist nicht belegt: Ein gesperrter Spieler nannte die Option, Phoronix vermutete einen Fehlalarm
+([Slashdot](https://tech.slashdot.org/story/18/09/14/2055209/some-linux-gamers-using-winedxvk-to-play-blizzards-overwatch-banned)),
+eine Aussage von Blizzard zur Ursache fand ich nicht, und der Commit nennt Overwatch nicht. Geprüft an diesen Quellen; Phoronix selbst
+und Rock Paper Shotgun ließen sich nicht lesen. Es bleibt: Eine Änderung an der Grafikschicht kann verdächtig wirken, und messen
+können wir dieses Risiko nicht.
+
+**Wo der Entwurf bleibt:** Auf DXMTs Ebene, hinter den D3D11-Aufrufen, die das Spiel selbst macht. Lernen und Vorab-Anlegen laufen auf
+der Mac-Seite in `winemetal.so`. Der Helfer ist ein Mac-Prozess und läuft nie neben dem Spiel. Anders als DXVKs Option, die laut
+Release 0.51 erst unoptimiert zeichnete und nachoptimierte, gibt es keine vorläufige Pipeline: `GetPipeline` wartet wie heute auf die
+fertige, kein Zeichenaufruf fällt aus. Recalls Meldung als RTX 4090 übernehmen wir nicht.
+
+**Was sich für Overwatch ändern kann:**
+- **Bytes:** `d3d11.dll` ist ein neuer Build, wie bei jedem DXMT-Update.
+- **Threads:** zwei zusätzliche Windows-Threads niedrigster Priorität (`DXMT_PREPARE_SHADERS`).
+- **Zeiten:** Shader und Layouts anlegen dauert etwas länger, beim Start warten Pipeline-Anfragen bis zu 10 s, im Spiel weniger Haken.
+- **Bild:** gleiche Shader aus dem eigenen Bytecode. Nur `canonical()` legt gleichwertige Varianten zusammen; ein Fehler dort wäre sichtbar.
+- **Gleich bleiben:** Adapter, VRAM, Feature-Level, Spieldateien, Spielspeicher.
+
+**Regel:** Erst der Spieletest ohne Overwatch, dann Overwatch nur nach ausdrücklichem OK des Nutzers, weil dabei das eigene Konto auf dem Spiel steht. Jeder
+Teil ist je Spiel abschaltbar. Recall macht bei Overwatch dasselbe und erwähnt in seiner Doku keine Sperren; ein Beleg ist das nicht.
+`DXVK_ASYNC=1` gilt in Nightforge app-weit. Overwatch steht per Profil auf `dxmt`; zu prüfen ist, dass es nie auf DXVK zurückfällt.
+
 ## Stufen
 
 | Stufe | Inhalt | Braucht |
 |---|---|---|
 | 0 | Messung Nightforge heute gegen Recall | Keinen Build; der Nutzer spielt |
-| 1 | `dxmt-0.80-shader-prep.patch` mit allem, was oben „Nehmen“ heißt, Helfer in `graphics.yml`, App-Seite, Recalls `tests/pipeline_cache`. Beide Teile einzeln schaltbar: A/B mit einem Build | graphics-Build und App-Release, Basis `claude/staging-032`, Spieletest mit Korb |
+| 1 | `dxmt-0.80-shader-prep.patch` mit allem, was oben „Nehmen“ heißt, Helfer in `graphics.yml`, App-Seite, Recalls `tests/pipeline_cache`. Beide Teile einzeln schaltbar: A/B mit einem Build | graphics-Build und App-Release, Basis `claude/staging-032`, Spieletest mit Korb, Overwatch zuletzt und nur mit OK |
 | 2 | Pack mit festem Budget, teuerste Pipelines zuerst (Vorschlag: 1 GB) | Nur wenn Lauf B nach Stufe 1 noch Shader-Haken zeigt. Helfer und App, kein neuer DXMT-Patch |
 
-**Außerhalb:** D3DMetal ist geschlossen, Spiele darauf bleiben draußen. Eine geteilte Liste wie Fossilize bräuchte Server, Opt-in,
-Zusammenführen je Spiel-Build und GPU sowie Signaturen. Rezepte wären teilbar; AIR stammt aber aus dem Shader-Code des Spiels und
-müsste beim Spieler entstehen.
+**Außerhalb:** D3DMetal ist geschlossen, Spiele darauf bleiben draußen. Eine geteilte Liste wie Fossilize gehört nicht zu diesem Plan.
+Sie bräuchte Server, Opt-in, Zusammenführen je Spiel-Build und GPU, Signaturen und eine rechtliche Prüfung. AIR stammt aus dem
+Shader-Code des Spiels und dürfte nicht mitreisen. Einstieg: Recherche `hermes/queue-032/shader-sharing.md`, Quellen großteils ungeprüft.
