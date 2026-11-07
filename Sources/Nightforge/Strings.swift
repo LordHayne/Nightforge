@@ -197,6 +197,10 @@ enum L10n {
         "%@ also has a Mac version": "%@ hat auch eine Mac-Version",
         "%@ also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
             "%@ hat dieses Spiel auch als Mac-Version. Nightforge nutzt sie, sobald dir das Spiel gehört – wenn sie auf aktuellen Macs läuft.",
+        "Blizzard's Mac games stay on this Mac: Battle.net can't install to external drives.": "Blizzards Mac-Spiele bleiben auf diesem Mac: Battle.net kann nicht auf externe Laufwerke installieren.",
+        "Battle.net has to run and be signed in to start it: it needs internet.": "Battle.net muss laufen und angemeldet sein, damit es startet: Es braucht Internet.",
+        "Battle.net installs and removes its games itself: do that in Battle.net.": "Battle.net installiert und entfernt seine Spiele selbst: Bitte dort erledigen.",
+        "%@ can't start from Nightforge yet: start it in Battle.net.": "%@ startet noch nicht aus Nightforge: Bitte in Battle.net starten.",
 
         // Mac versions through Steam for Mac
         "Version": "Version",

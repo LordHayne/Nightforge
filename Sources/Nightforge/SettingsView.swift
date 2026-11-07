@@ -819,6 +819,9 @@ private struct StorageSettings: View {
                      : game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
                     .font(size: 10)
                     .foregroundStyle(.secondary)
+                if let note = game.moveNote {
+                    Text(note).font(size: 10).foregroundStyle(.secondary)
+                }
             }
         }
     }

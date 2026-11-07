@@ -24,6 +24,7 @@ struct GameCardMenu: ViewModifier {
                         model.perform(action, on: game)
                     }
                 }
+                if let note = game.moveNote { Text(note) }  // why this game has no "Move to …"
             }
             .anchorPreference(key: GameMenuAnchor.self, value: .bounds) { model.quickMenu.map(game.holds) == true ? $0 : nil }
     }

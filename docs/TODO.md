@@ -730,6 +730,25 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
     erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
+## Battle.net (0.3.2, Zweig `claude/battlenet-032`)
+
+- **Schritte 0–2 stehen:** `ProductDB` liest `product.db` nur lesend, `BattleNetLibrary` macht daraus Karten, Mac-Client
+  zuerst, der Windows-Client läuft in `Nightforge/BattleNet/Prefix`, nie in Steams Prefix. Noch startet keine Karte, „Spielen“
+  sagt das. Bis der Start da ist, bleibt alles hinter dem versteckten Schalter
+  `defaults write io.github.lordhayne.nightforge battleNetStore -bool true`.
+- **Echte Daten (6.11.):** Hearthstone lief während des Downloads und danach durch den Parser; die Tests nutzen beide
+  Dateien, ohne Pfade, Sprache und Kontoland (`tests/BattleNetTest/fixtures`). `product.db` hält das Land des Kontos und der
+  IP in Feld 3.11, 3.12 und den Build-Tags: nie loggen. Während des Downloads steht nur `active_operation`, der Rest ist 0,
+  die Karte zeigt dann „Preparing download …“.
+- **Mac-Agent und externe Laufwerke:** Der Agent hat keinen Zugriff auf Wechselmedien und steht nicht in „Dateien und
+  Ordner“; die Installation auf die NVMe endete mit EPERM (BLZBNTAGT000002BF). Blizzards Mac-Spiele bleiben deshalb
+  auf der internen Platte, Nightforge schlägt für sie keinen Umzug vor und sagt das (`Game.moveNote`).
+- **Vor Schritt 4:** `Engine.killLeftovers` beendet jedes Wine-Programm aus Nightforges Engine-Ordnern, auch im eigenen
+  Prefix. Ein Steam-Neustart träfe also den Battle.net-Client: Ausnahme mit Test. „Nightforge vollständig entfernen“ muss
+  den wineserver von Battle.net beenden.
+- **DXMT-Lizenz:** Unser 0.80 (589adb7) steht unter MIT, die Angabe in `THIRD_PARTY_NOTICES.txt` stimmt. DXMTs `main` steht
+  inzwischen unter LGPL-2.1-or-later: Beim nächsten DXMT-Update den Hinweis ändern und die Quellen wie bei Wine mitliefern.
+
 ## Mac-Versionen
 
 - **Windows-Fallback** hat noch nie wirklich ausgelöst (keine Mac-Version ist bisher abgestürzt).

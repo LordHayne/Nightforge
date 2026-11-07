@@ -2,7 +2,7 @@ import Foundation
 
 /// The stores Nightforge brings games in from.
 enum Provider: String, CaseIterable, Identifiable {
-    case steam, epic, gog
+    case steam, epic, gog, battlenet
 
     var id: String { rawValue }
 
@@ -12,6 +12,7 @@ enum Provider: String, CaseIterable, Identifiable {
         case .steam: return "Steam"
         case .epic: return "Epic Games"
         case .gog: return "GOG"
+        case .battlenet: return "Battle.net"
         }
     }
 
@@ -27,12 +28,13 @@ enum Provider: String, CaseIterable, Identifiable {
         case .steam: return "STEAM"
         case .epic: return "EPIC"
         case .gog: return "GOG"
+        case .battlenet: return "BATTLE.NET"
         }
     }
 }
 
 /// Which store a game comes from and its ID there – Steam's app ID, Epic's app name, GOG's product
-/// ID. Everything Nightforge keeps per game (options, what a start taught it, marks, ratings, art)
+/// ID, Battle.net's product code. Everything Nightforge keeps per game (options, what a start taught it, marks, ratings, art)
 /// is filed under `key`, so a game from another store never mixes with a Steam game that happens to
 /// share its ID.
 struct GameID: Hashable, CustomStringConvertible {
@@ -42,6 +44,7 @@ struct GameID: Hashable, CustomStringConvertible {
     static func steam(_ appID: Int) -> GameID { GameID(provider: .steam, id: String(appID)) }
     static func epic(_ appName: String) -> GameID { GameID(provider: .epic, id: appName) }
     static func gog(_ productID: String) -> GameID { GameID(provider: .gog, id: productID) }
+    static func battlenet(_ productCode: String) -> GameID { GameID(provider: .battlenet, id: productCode) }
 
     /// Steam's app ID, for what only Steam knows (its manifests, store pages, the profile list).
     var steamAppID: Int? { provider == .steam ? Int(id) : nil }

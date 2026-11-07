@@ -16,7 +16,7 @@ enum GameAction: String, CaseIterable {
         case .play: return demo ? L10n.t("Play Demo") : L10n.t("Play")
         case .download: return demo ? L10n.t("Download Demo") : L10n.t("Download")
         case .addForFree: return L10n.t("Add for Free")
-        case .storePage: return L10n.t("View in Steam Store")
+        case .storePage: return game.provider.viewInStore
         case .tryAnyway: return game.install == .installed ? L10n.t("Play Anyway") : L10n.t("Download Anyway")
         case .addLater: return L10n.t("Add to Play Later")
         case .removeLater: return L10n.t("Remove from Play Later")
