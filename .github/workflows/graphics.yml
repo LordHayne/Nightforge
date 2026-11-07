@@ -151,14 +151,14 @@ jobs:
           meson compile -C build32
           meson install -C build32
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dxmt
           path: |
             dxmt/install64
             dxmt/install32
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dxmt-source
           path: source
@@ -247,7 +247,7 @@ jobs:
           otool -L server/wineserver
           otool -L dlls/ntdll/ntdll.so
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: winemac
           path: |
@@ -255,7 +255,7 @@ jobs:
             build/dlls/ntdll/ntdll.so
             build/server/wineserver
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wine-source
           path: source
@@ -334,7 +334,7 @@ jobs:
           codesign -fs - "$so"
           otool -L "$so"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: winebus
           path: build/dlls/winebus.sys/winebus.so
