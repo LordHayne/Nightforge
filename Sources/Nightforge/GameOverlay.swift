@@ -41,6 +41,8 @@ enum GameOverlay {
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
+    /// The player went back to the game from here (LibraryModel, GameStage).
+    static var resumed: (@MainActor () -> Void)?
     /// Open with "Not starting?" (or the question it led to).
     static var asksAboutStart: Bool { isOpen && state.step == .notStarting }
     /// The panel, while it's up: the pad's input goes there (InputRouter).
@@ -196,6 +198,7 @@ enum GameOverlay {
         case .close:
             InputRouter.hidePointerForGame()  // while the panel still has the keys
             close()
+            resumed?()
         case .quit:
             // One curtain from here until Nightforge is in front: the panel goes at once, the
             // curtain holds whatever the game's processes do while they end.
@@ -902,6 +905,21 @@ enum GameProcesses {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
         else { return false }
         return showsWindow(windows, pids: pids)
+    }
+
+    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it.
+    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?) -> (here: Bool, anywhere: Bool, pageOver: Bool) {
+        guard !pids.isEmpty, let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return (false, false, false) }
+        let here = showsWindow(shown, pids: pids)
+        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false)
+    }
+
+    /// Whether Nightforge's page lies over the game's picture and none of it in front (`windows`:
+    /// the Space shown, front to back).
+    nonisolated static func pageCovers(_ windows: [[String: Any]], page: Int, pids: Set<pid_t>) -> Bool {
+        guard let index = windows.firstIndex(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue == page }) else { return false }
+        return !showsWindow(Array(windows[..<index]), pids: pids) && showsWindow(Array(windows[index...]), pids: pids)
     }
 
     /// The biggest window of `pids` on the Space shown, for wine.log ("1512×945").

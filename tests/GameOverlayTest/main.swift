@@ -367,10 +367,12 @@ struct GameOverlayTest {
     static func curtain() {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, macOS: Bool = false,
                   here: Bool = false, anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0,
-                  settle: TimeInterval = 1, guardOver: Bool = false) -> LibraryModel.CurtainStep {
+                  settle: TimeInterval = 1, guardOver: Bool = false, pictureFor: TimeInterval = 0, broughtBack: Int = 0,
+                  playerActed: Bool = false) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, macOSAsks: macOS,
                                      windowHere: here, windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor,
-                                     settle: settle, guardOver: guardOver)
+                                     settle: settle, guardOver: guardOver, pictureFor: pictureFor, broughtBack: broughtBack,
+                                     playerActed: playerActed)
         }
         check(step() == .wait, "no window yet: the curtain waits")
         check(step(here: true) == .handOver, "its window is there, another app in front: the game gets the front")
@@ -378,18 +380,32 @@ struct GameOverlayTest {
         check(step(nightforgeFront: true, here: true) == .handOver, "Nightforge still in front: handed over too")
         check(step(gameFront: true, here: true, frontFor: 0.5) == .wait, "the game in front only just: a moment more")
         check(step(gameFront: true, here: true, frontFor: 1) == .lower, "the game in front for a second: the curtain sinks")
-        check(step(gameFront: true, anywhere: true, frontFor: 3) == .wait, "in front, its window not on the Space shown yet: waits")
+        check(step(gameFront: true, anywhere: true, frontFor: 3) == .wait, "in front, its window not on the Space shown yet: waits a moment")
         check(step(gameFront: true, frontFor: 3) == .wait, "in front without a window of a game's size: waits")
         check(step(lowered: true, gameFront: true) == .wait, "down and the game in front: all well")
         check(step(lowered: true) == .raiseAgain, "down and another app took the front: up again, back to the game")
-        check(step(lowered: true, nightforgeFront: true) == .done, "Go to Nightforge: the player's choice, the watch ends")
+        check(step(lowered: true, nightforgeFront: true, playerActed: true) == .done, "⌘-Tab or a click to Nightforge: the player's choice, the watch ends")
+        // Valheim on 7.11.: macOS handed Nightforge the front, the watch took it for the player and ended.
+        check(step(lowered: true, nightforgeFront: true) == .raiseAgain, "Nightforge in front by itself: the game gets the front back")
         check(step(lowered: true, guardOver: true) == .done, "after the guard time the front is the player's")
         // Up again once already (Sonic Mania on 1.11. built its window anew and the curtain came and went).
         let again = LibraryModel.settleAgain
         check(step(gameFront: true, here: true, frontFor: 1.5, settle: again) == .wait, "up again: one second isn't enough")
         check(step(gameFront: true, here: true, frontFor: again, settle: again) == .lower, "the game kept the front a while: it sinks")
-        // Its window elsewhere, however long: sinking showed Nightforge's page under the game (1.11.).
-        check(step(gameFront: true, anywhere: true, frontFor: 30) == .wait, "its window in another Space: the curtain stays")
+        // In front with its window off the screen: shrunk into the Dock, or in a Space not shown.
+        let patience = LibraryModel.windowAwayPatience
+        check(step(gameFront: true, anywhere: true, frontFor: patience) == .bringBack, "its window off the screen: fetched back, activating it does nothing")
+        check(step(gameFront: true, anywhere: true, frontFor: patience, broughtBack: 1) == .bringBack, "once more")
+        check(step(gameFront: true, anywhere: true, frontFor: patience, broughtBack: LibraryModel.maxBroughtBack) == .lower,
+              "it won't come: the curtain goes all the same, a running game is never left under it")
+        check(step(gameFront: true, frontFor: 60) == .wait, "no window of a picture's size anywhere: nothing to fetch")
+        check(step(gameFront: true, macOS: true, anywhere: true, frontFor: 30) == .wait, "macOS asks: its question keeps the front")
+        // The ceiling: a picture under the curtain whoever has the front.
+        let ceiling = LibraryModel.curtainCeiling
+        check(step(here: true, pictureFor: ceiling - 1) == .handOver, "its picture for a while, another app in front: still handing over")
+        check(step(here: true, pictureFor: ceiling) == .lower, "its picture for long enough: the curtain sinks, whoever has the front")
+        check(step(nightforgeFront: true, here: true, pictureFor: ceiling) == .lower, "Nightforge in front too")
+        check(step(macOS: true, here: true, pictureFor: ceiling) == .wait, "not while macOS's question holds the start")
         // A question of the game's before any picture: the game gets the front, its window goes over the curtain.
         check(step(asks: true) == .handOver, "a question, another app in front: the game gets the front")
         check(step(nightforgeFront: true, asks: true) == .handOver, "Nightforge in front: handed over too")
@@ -406,7 +422,8 @@ struct GameOverlayTest {
               "the game in front with its window: the curtain sinks, the question over it")
         check(step(gameFront: true, macOS: true, asks: true) == .makeWay, "the game's question in front: over the curtain too")
         check(step(lowered: true, macOS: true) == .wait, "down, macOS's question in front: the curtain stays down")
-        check(step(lowered: true, nightforgeFront: true, macOS: true) == .done, "Go to Nightforge meanwhile: the watch ends")
+        check(step(lowered: true, nightforgeFront: true, macOS: true, playerActed: true) == .done, "the player went to Nightforge meanwhile: the watch ends")
+        check(step(lowered: true, nightforgeFront: true, macOS: true) == .wait, "by itself, macOS's question open: the question keeps the front")
         check(step(lowered: true, macOS: true, guardOver: true) == .done, "after the guard time: the watch ends")
 
         // Steam's question before the start (ShowInterstitials, Black Myth: Wukong on 1.11.): the

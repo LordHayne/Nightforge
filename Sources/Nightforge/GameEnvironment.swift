@@ -10,6 +10,16 @@ import Foundation
 /// environment variable can load code into every program (DYLD_*) or point one somewhere else.
 /// CrossOver sets these per game from a database of its own that isn't free; Recall, which runs
 /// Overwatch on the same Wine, sets the first two at every start (2.11.2026).
+///
+/// One goes the other way: Engine.environment(wine:) gives every Windows program
+/// CX_APPLEGPTK_LIBD3DSHARED_PATH, and "off" in its place takes that away for one game, by a test
+/// or for good by its profile – Overwatch needs it, and a game it breaks would not:
+///
+///     defaults write io.github.lordhayne.nightforge gameEnvironment.steam.550 -dict CX_APPLEGPTK_LIBD3DSHARED_PATH off
+///     defaults delete io.github.lordhayne.nightforge gameEnvironment.steam.550
+///
+/// A running Steam restarts for it, as for every switch. "off" is no path: dlopen fails and winecx
+/// goes on as without the variable (init_non_native_support, dlls/ntdll/unix/loader.c).
 enum GameEnvironment {
     /// The names a game may set, with what they do in winecx.
     static let allowed: [String: String] = [
@@ -31,13 +41,18 @@ enum GameEnvironment {
         "D3DM_DEVICE_ID": "the graphics card D3DMetal reports",
         // D3DMetal: DirectX ray tracing for a game that asks for it.
         "D3DM_SUPPORT_DXR": "DirectX ray tracing on D3DMetal",
+        // CW Hack 22434 (dlls/ntdll/unix/loader.c): winecx loads what this names, so "off" is all
+        // that gets past `sanitized`.
+        rosettaLibrary: "off: Windows modules aren't registered with Rosetta",
     ]
+
+    static let rosettaLibrary = "CX_APPLEGPTK_LIBD3DSHARED_PATH"
 
     /// The variables of `raw` that count: allowed names with values of letters, digits, '.', '_'
     /// and '-', at most 32 of them – no paths, no spaces, nothing for a shell.
     static func sanitized(_ raw: [String: String]?) -> [String: String] {
         (raw ?? [:]).filter { name, value in
-            allowed[name] != nil && value.wholeMatch(of: #/[A-Za-z0-9._-]{1,32}/#) != nil
+            allowed[name] != nil && value.wholeMatch(of: #/[A-Za-z0-9._-]{1,32}/#) != nil && (name != rosettaLibrary || value == "off")
         }
     }
 

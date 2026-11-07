@@ -231,6 +231,18 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   `msync: up and running` (Test vom 28.10.), also ist dessen eigenes msync aktiv. Beide haben denselben Fehler beim
   Thread-Ende (unten „Engine-Arbeit“). Für winecx behebt ihn `enginefix` (Stück B).
 
+## Vorhang und Bühnenwache (0.3.2) – Zweig `claude/vorhang-032`, live prüfen
+
+- **Was war:** Nightforges Zeiger-Panel (`InputRouter.pointerOverGame`) nahm dem Spiel 50 ms die Tasten. Wine meldet das dem
+  Spiel als verlorenen Fokus, und Unity und Unreal minimieren sich dann im Vollbild (The Forest, 6.11. 21:53). Das Panel läuft
+  jetzt nie über einem Spiel mit Bild; `GameStage`/`LibraryModel.watchStage` holen ein verschwundenes Spiel zurück.
+- **Preis:** Mit dem Pad kann der Zeiger über einem Spiel stehen bleiben, das ihn nicht selbst versteckt, wenn das Bild kam,
+  bevor das Spiel 1 s vorne war. Offen: ein Weg ohne Tastenwegnahme. Anfangen bei `watchCurtain` (Zeiger-Block).
+- **Live offen:** ABZU verschwand erst 10–20 s nach dem Vorhang; nur die Log-Zeilen `Stage …`, `In front over the page`,
+  `Pointer: …` zeigen, ob das dieselbe Ursache war. Valheim: Ob die Seite über dem Spiel lag oder macOS Nightforge die Front
+  gab, ist nicht bewiesen; beide Wege sind jetzt abgefangen.
+- **Direct:** Nach dem Zurückholen stand die Metal-HUD auf Composited (The Forest). Noch nicht angegangen.
+
 ## Engine-Arbeit (ab 0.3.x, seit 2.11.)
 
 Der Nutzer hat am 2.11. entschieden: Wichtige Engine-Verbesserungen kommen in 0.3.x, sobald etwas eindeutig nicht läuft,
