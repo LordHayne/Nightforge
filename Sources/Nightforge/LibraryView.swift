@@ -2217,7 +2217,9 @@ private struct HintBar: View {
                     // With a pad the library is R1, beside "Home | Library" above.
                     if !controller {
                         Hint(.key("L"), text: L10n.t("Library"))
-                        Hint(.key("M"), text: L10n.t("Launchers"))
+                    }
+                    if !controller || pad.view != nil {
+                        Hint(controller ? .pad(pad.view ?? "") : .key("M"), text: L10n.t("Launchers"))
                     }
                     Hint(controller ? .pad(pad.stick) : .key("← →"), text: L10n.t("Select"))
                 case .library:
@@ -2225,6 +2227,9 @@ private struct HintBar: View {
                     Hint(controller ? .pad(pad.stick) : .key("← ↑ →"),
                          text: L10n.t("Select"))
                     Hint(controller ? .pad(pad.search) : .key("⌘F"), text: L10n.t("Search"))
+                    if controller, let view = pad.view {
+                        Hint(.pad(view), text: L10n.t("Launchers"))
+                    }
                     if controller, let game = model.heroGame {
                         Hint(.pad(pad.menu), text: Self.menuHint(game))
                     }

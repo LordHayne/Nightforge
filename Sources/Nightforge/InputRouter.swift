@@ -24,6 +24,8 @@ final class InputRouter {
     private var holdTimer: Timer?
     /// ☰ on a card, until it's clear whether it's held (MenuHold).
     private var menuHold = MenuHold()
+    /// ⧉ is down together with ☰ (the overlay's buttons): its release opens no menu.
+    private var viewChorded = false
     private var menuHoldTimer: Timer?
     /// A button was down at the last look (for waking Nightforge on a fresh press).
     private var anyDown = false
@@ -86,7 +88,13 @@ final class InputRouter {
         // In the background (a game in front) GameController delivers nothing, not even the
         // release of a held stick – without this the selection would run on by itself.
         observers.append(center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.letGo() }
+            MainActor.assumeIsolated {
+                self?.letGo()
+                Self.takeViewButton()
+            }
+        })
+        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { Self.takeViewButton() }
         })
         // A sheet or dialog opened while the pad is in use shows its highlight at once, on its safe
         // default answer (PadFocus.Item.preferred), so the first A already answers.
@@ -388,6 +396,7 @@ final class InputRouter {
         // In a game too, for the hold that opens the overlay. Only once a controller is there:
         // SDL saw crashes when it was set before.
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
+        Self.takeViewButton()
 
         // D-pad and left stick both move in all four directions, repeating while held.
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
@@ -481,6 +490,10 @@ final class InputRouter {
                 self?.model?.focusSearch()
             }
         }
+        // ⧉: the small launcher menu, on its release (it may be the start of ☰ + ⧉).
+        pad.buttonOptions?.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
+            MainActor.assumeIsolated { self?.viewButton(pressed, menuDown: pad?.buttonMenu.isPressed ?? false) }
+        }
         // ☰: the selected game's options, as on Xbox and PlayStation; held on a card, its quick menu.
         pad.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in
             MainActor.assumeIsolated { self?.menuButton(pressed) }
@@ -522,6 +535,7 @@ final class InputRouter {
             NSCursor.setHiddenUntilMouseMoves(true)
         }
         wakeIfIdle(pad, now: now)
+        if pad.buttonOptions?.isPressed == true && pad.buttonMenu.isPressed { viewChorded = true }
         let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
                                         menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
         if overlayHold.update(pressed: pressed, now: now) {
@@ -537,6 +551,34 @@ final class InputRouter {
                 guard let self, let pad else { return }
                 self.watchHold(pad)
             }
+        }
+    }
+
+    /// ⧉ down or up: let go on its own, it opens or closes the small launcher menu (PadRules.viewButton).
+    private func viewButton(_ pressed: Bool, menuDown: Bool) {
+        guard !pressed else {
+            viewChorded = menuDown
+            return
+        }
+        defer { viewChorded = false }
+        guard let model, reach == .app, model.signingIn == nil else { return }
+        let others = dialog != nil || model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
+        switch PadRules.viewButton(menuOpen: model.launcherMenuOpen, levelsFree: !others && reach == .app,
+                                   firstStart: model.showsFirstStart, cards: model.showsLauncherCards, chorded: viewChorded) {
+        case .open: model.openLauncherMenu(byPad: true)
+        case .close: model.closeLauncherMenu()
+        case .nothing: break
+        }
+    }
+
+    /// ⧉ is Nightforge's while it's in front (PadRules.takesViewButton): a system gesture on it (a
+    /// DualSense's screenshot) waits until Nightforge isn't. Only buttons the system has a gesture on.
+    static func takeViewButton() {
+        let takes = PadRules.takesViewButton(active: NSApp.isActive, overlay: GameOverlay.isOpen)
+        for controller in GCController.controllers() {
+            guard let view = controller.extendedGamepad?.buttonOptions, view.isBoundToSystemGesture else { continue }
+            let state: GCControllerElement.SystemGestureState = takes ? .disabled : .enabled
+            if view.preferredSystemGestureState != state { view.preferredSystemGestureState = state }
         }
     }
 
@@ -998,6 +1040,8 @@ struct PadSymbols: Equatable {
     /// ☰: the selected game's options. On a PlayStation pad the drawn capsule (PadGlyph).
     var menu = "line.3.horizontal.circle.fill"
     var stick = "l.joystick.fill"
+    /// ⧉ (View, Create): the small launcher menu; nil on a pad without it.
+    var view: String? = "rectangle.on.rectangle.circle.fill"
     /// The right stick: it scrolls.
     var scroll = "r.joystick.fill"
     /// The overlay's buttons (GameOverlay): both sticks pressed, or ☰ and ⧉ on a pad without stick buttons.
@@ -1029,6 +1073,7 @@ struct PadSymbols: Equatable {
         search = Self.filled(pad.buttonY.sfSymbolsName) ?? search
         menu = Self.menuSymbol(pad.buttonMenu.sfSymbolsName)
         stick = Self.filled(pad.leftThumbstick.sfSymbolsName) ?? stick
+        view = pad.buttonOptions.map { Self.filled($0.sfSymbolsName) ?? "rectangle.on.rectangle.circle.fill" }
         scroll = Self.filled(pad.rightThumbstick.sfSymbolsName) ?? scroll
         layout = PadLayout(pad)
         if layout == .playstation { shoulders = ["L1", "R1"] }

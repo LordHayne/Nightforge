@@ -54,6 +54,22 @@ enum PadRules {
         return .level
     }
 
+    /// ⧉ (View, on a DualSense Create), let go: the small launcher menu opens or closes. Not as part of
+    /// ☰ + ⧉ (the overlay's buttons on a pad without stick buttons), not over a sheet or another panel,
+    /// and not where the four cards or the first start are anyway.
+    enum ViewButton: Equatable { case open, close, nothing }
+
+    static func viewButton(menuOpen: Bool, levelsFree: Bool, firstStart: Bool, cards: Bool, chorded: Bool) -> ViewButton {
+        if chorded { return .nothing }
+        if menuOpen { return .close }
+        return levelsFree && !firstStart && !cards ? .open : .nothing
+    }
+
+    /// Whether Nightforge takes ⧉ from macOS: a DualSense's Create takes screenshots, a gesture of the
+    /// system's. Only while Nightforge itself is in front – Nightforge hears the pad in a game too
+    /// (for the overlay), and there the button stays the system's and the game's.
+    static func takesViewButton(active: Bool, overlay: Bool) -> Bool { active && !overlay }
+
     /// X, Y, ☰ and L2/R2 act on the games only with nothing in front of the levels: no sheet, and no
     /// panel (downloads, a chip's list, a big screenshot).
     static func actsOnGames(inFront: Bool, sheet: Bool, panel: Bool) -> Bool {
