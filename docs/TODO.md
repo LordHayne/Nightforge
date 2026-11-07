@@ -1893,6 +1893,16 @@ Bekannte Lücken (bewusst, siehe Roadmap 7.3):
   (`Engine.stopSteam` → `stopAll`). Zulassen hieße: Steam für Mac meldet die Windows-Steam ab, ohne sie zu stoppen – und
   ein späterer Neustart der Windows-Steam (`restartStuckSteam`) darf dann das laufende Spiel nicht treffen. Text stimmt nicht.
 
+### Suche über alle Stores (Zweig `claude/zen-wozniak-b16b21`, für 0.3.2)
+
+- **Vor dem Release:** Der Nutzer entscheidet über GOGs Nutzungsbedingungen (die gemeldete Klausel zu automatisiertem
+  Zugriff ist unbestätigt). Abschalten geht an einer Stelle: `GOGStore.search`.
+- **Battle.net:** `claude/battlenet-032` war beim Bau nicht auf `main`. Nach dem Merge dort `search` aus der Titeltabelle
+  in `BattleNetLibrary.swift` ergänzen, ohne Netz.
+- **Kontextmenü:** `GameContextMenu` sagt bei GOG-Treffern noch „Im Steam-Store ansehen“ (die Session `schnellmenue`
+  arbeitet dort). Nach deren Merge `game.provider.viewInStore` nehmen und den Text „View in Steam Store“ streichen.
+- **Live prüfen:** Treffer von GOG im Raster, Doppel-Karte mit „Auch im GOG-Store“, Epic-Link. Bisher nur Testreihe und Build.
+
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 
 Mit zwei Fingern am 28.10. am echten Trackpad geprüft. Offen:

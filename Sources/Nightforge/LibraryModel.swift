@@ -6,7 +6,10 @@ import SwiftUI
 final class LibraryModel: ObservableObject {
     /// Everything the scan found: each store's entry of a game on its own.
     @Published private(set) var allGames: [Game] = [] {
-        didSet { mergeCards() }
+        didSet {
+            ownedGames = nil
+            mergeCards()
+        }
     }
     /// One card per game: `allGames` with a game from several stores merged (DuplicateGames).
     @Published private(set) var cards: [Game] = []
@@ -33,9 +36,22 @@ final class LibraryModel: ObservableObject {
             searchStore()
         }
     }
-    /// Steam store hits for the current search, games the account doesn't own yet.
+    /// The stores' hits for the current search, each game once.
     @Published private(set) var storeResults: [Game] = []
+    /// Each store's hits, as they came (`searchStore`).
+    private var storeFound: [Provider: [StoreHit]] = [:]
+    /// Steam's info for its hits: their covers and controller support.
+    private var storeInfos: [Int: GameInfo] = [:]
     private var storeSearch: Task<Void, Never>?
+    private var storeCovers: Task<Void, Never>?
+    /// What the player has, once a search has asked: kept while the library doesn't change.
+    private var ownedGames: OwnedGames?
+    private var ownedIndex: OwnedGames {
+        if let ownedGames { return ownedGames }
+        let index = OwnedGames(allGames)
+        ownedGames = index
+        return index
+    }
     /// Bumped to move keyboard focus into the search field in the library's header (⌘F, /).
     @Published private(set) var searchFocusRequest = 0
     /// A focus request the field hasn't taken yet: it may only appear with the library.
@@ -1888,10 +1904,19 @@ final class LibraryModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    /// Buying happens on Steam's own store page in the browser; Nightforge never sees payment data.
-    /// Once Steam has the new licence, the game shows up in the library with its Download button.
+    /// Buying happens on the store's own page in the browser; Nightforge never sees payment data.
+    /// Once the store has the new licence, the game shows up in the library with its Download button.
     func openStorePage(_ game: Game) {
-        guard let url = URL(string: "https://store.steampowered.com/app/\(game.demoOf ?? game.appID)") else { return }
+        guard let url = game.storePageURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// A search, not among the hidden games: Epic's store is one link away.
+    var offersEpicSearch: Bool { !showingHidden && searchTerm.count >= 2 }
+
+    /// Epic's own search in the player's browser, for what's in the search field.
+    func openEpicSearch() {
+        guard let url = StoreHits.epicSearch(searchTerm) else { return }
         NSWorkspace.shared.open(url)
     }
 
@@ -1923,54 +1948,56 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    // MARK: - Steam store search
+    // MARK: - Store search
 
-    /// Waits for a pause in typing, then asks the store; owned games are left out.
+    private var searchTerm: String { searchText.trimmingCharacters(in: .whitespaces) }
+
+    /// Waits for a pause in typing, then asks every store at once; each one's hits show as they
+    /// come, and until they do those of the last search stay, so nothing blinks while typing on.
     private func searchStore() {
         storeSearch?.cancel()
-        let term = searchText.trimmingCharacters(in: .whitespaces)
+        storeCovers?.cancel()
+        let term = searchTerm
         guard term.count >= 2 else {
+            storeFound = [:]
+            storeInfos = [:]
             if !storeResults.isEmpty { storeResults = []; applyFilter() }
             return
         }
+        let searches: [StoreHits.Query] = stores.map { store in (store.provider, { await store.search(term) }) }
         storeSearch = Task {
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
-            let hits = await StoreSearch.shared.search(term)
-            guard !Task.isCancelled, term == searchText.trimmingCharacters(in: .whitespaces) else { return }
-            storeResults = hits.map { storeGame($0, info: nil) }
-            applyFilter()
-            // Their covers: newer games keep them only at addresses Steam's store-browse API names.
-            let infos = await GameInfoStore.shared.storeInfos(hits.map(\.appID))
-            guard !Task.isCancelled, !infos.isEmpty, term == searchText.trimmingCharacters(in: .whitespaces) else { return }
-            storeResults = hits.map { storeGame($0, info: infos[$0.appID]) }
-            applyFilter()
+            await StoreHits.gather(searches) { provider, hits in
+                guard !Task.isCancelled, term == searchTerm, storeFound[provider] ?? [] != hits else { return }
+                storeFound[provider] = hits
+                showStoreHits()
+                if provider == .steam { askCovers(of: hits) }
+            }
         }
+    }
+
+    /// Steam's covers: newer games keep them only at addresses its store-browse API names.
+    private func askCovers(of hits: [StoreHit]) {
+        let appIDs = hits.compactMap(\.gameID.steamAppID)
+        storeCovers = Task {
+            let infos = await GameInfoStore.shared.storeInfos(appIDs)
+            guard !Task.isCancelled, !infos.isEmpty else { return }
+            storeInfos.merge(infos) { _, new in new }
+            showStoreHits()
+        }
+    }
+
+    private func showStoreHits() {
+        let found = storeFound.mapValues { hits in
+            hits.map { StoreHits.game($0, info: $0.gameID.steamAppID.flatMap { storeInfos[$0] }, blocks: antiCheatBlocks) }
+        }
+        storeResults = StoreHits.cards(found, term: searchTerm)
+        applyFilter()
     }
 
     /// Games whose anti-cheat stops them on a Mac, so the store search can say so before buying.
     private var antiCheatBlocks: [Int: AntiCheatBlock] = [:]
-
-    private func storeGame(_ hit: StoreSearch.Hit, info: GameInfo?) -> Game {
-        var game = Game(
-            appID: hit.appID, name: hit.name, bottle: Engine.bottle, steamRoot: Engine.steamRoot,
-            steamExeWindowsPath: Engine.steamExeWindowsPath,
-            installDir: Engine.steamRoot.appendingPathComponent("steamapps/common", isDirectory: true),
-            sizeOnDisk: 0
-        )
-        game.install = .inStore
-        game.macNative = hit.macNative ?? false
-        game.controller = hit.controller ?? info?.controller ?? .none
-        game.controllerKnown = true
-        game.playModes = info?.modes ?? []
-        if let info { game.art = StoreArt(info) }
-        game.storePrice = hit.price
-        game.storeFree = hit.free
-        game.metascore = hit.metascore
-        // Store hits don't say whether there's single player, so only blocks that always hold.
-        if hit.macNative != true, let block = antiCheatBlocks[hit.appID], !block.onlineOnly { game.antiCheatBlock = block }
-        return game
-    }
 
     /// Hits from the games-only search can lack price and platforms; fetch them once it's selected.
     private var storeDetailsRequested: Set<Int> = []
@@ -2044,7 +2071,7 @@ final class LibraryModel: ObservableObject {
     }
 
     private func loadStoreDetailsIfNeeded() {
-        guard let game = selected, game.install == .inStore, game.storePrice == nil,
+        guard let game = selected, game.provider == .steam, game.install == .inStore, game.storePrice == nil,
               storeDetailsRequested.insert(game.appID).inserted  // once: some games have no price at all
         else { return }
         Task {
@@ -2053,16 +2080,14 @@ final class LibraryModel: ObservableObject {
             storePrices[game.appID] = hit.price
             if hit.free { freeInStore.insert(game.appID) }
             allGames = withStorePrices(allGames)
-            guard let index = storeResults.firstIndex(where: { $0.appID == game.appID }) else {
+            guard let index = storeFound[.steam]?.firstIndex(where: { $0.gameID == game.gameID }) else {
                 applyFilter()
                 return
             }
-            var updated = storeGame(hit, info: nil)
-            updated.metascore = hit.metascore ?? storeResults[index].metascore
-            updated.art = storeResults[index].art  // the cover Steam's store-browse API named
-            updated.playModes = storeResults[index].playModes
-            storeResults[index] = updated
-            applyFilter()
+            var updated = StoreHit(hit)
+            updated.metascore = hit.metascore ?? storeFound[.steam]?[index].metascore
+            storeFound[.steam]?[index] = updated
+            showStoreHits()
         }
     }
 
@@ -2632,11 +2657,14 @@ final class LibraryModel: ObservableObject {
             let ranked = shelf.compactMap { game in
                 game.entries.compactMap { Search.rank(name: $0.name, query: searchText) }.min().map { (game, $0) }
             }
-            // Store hits are games you don't own – in any store: not Overcooked! 2 on Steam when it's in your Epic library.
-            let owned = Set(allGames.map(\.gameID))
-            let ownedOnSteam = Set(allGames.compactMap(\.steamAppID))
-            let storeHits = showingHidden ? [] : storeResults.filter { !owned.contains($0.gameID) && !ownedOnSteam.contains($0.appID) }
-            games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + storeHits
+            // Store hits are games you don't own – in any store: not Overcooked! 2 on Steam when it's
+            // in your Epic library. A hit you do own leads to your game, whatever the library calls it.
+            let hits = (showingHidden ? [] : storeResults).map { (hit: $0, yours: ownedIndex.game(of: $0)) }
+            let yours = Set(hits.compactMap(\.yours))
+            let listed = Set(ranked.map(\.0.id))
+            let reached = yours.isEmpty ? [] : shelf.filter { !listed.contains($0.id) && $0.gameIDs.contains(where: yours.contains) }
+            games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + reached
+                + hits.filter { $0.yours == nil }.map(\.hit)
         }
         let first = route.level == .library ? gridLayout.order.first ?? 0 : 0
         selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.holds(previous) }) ?? first

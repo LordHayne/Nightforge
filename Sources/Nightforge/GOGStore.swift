@@ -133,6 +133,10 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     // MARK: - Library
 
+    func search(_ term: String) async -> [StoreHit] {
+        await GOGSearch.shared.search(term)
+    }
+
     func library() async -> [Game] {
         loadFromDisk()
         guard isConnected else { return [] }

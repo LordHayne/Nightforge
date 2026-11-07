@@ -1,0 +1,62 @@
+{
+ "pages": 1,
+ "productCount": 2,
+ "products": [
+  {
+   "id": "1302422684",
+   "slug": "gwent_rogue_mage",
+   "title": "GWENT: Rogue Mage",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "9,99 €",
+    "base": "9,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "9.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "9.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/207fe9ae6c7c8a792d6056143bf532e176af445effa5092ef7fea2f5e4b8ec53.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/7651bbe9d67d5ccf5b765a43c31cb6f140c249f7ccee94f2e596ad499f7f40f3.png",
+   "storeLink": "https://www.gog.com/en/game/gwent_rogue_mage",
+   "releaseDate": "2022.07.07"
+  },
+  {
+   "id": "1971477531",
+   "slug": "gwent_the_witcher_card_game",
+   "title": "GWENT: The Witcher Card Game",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "0,00 €",
+    "base": "0,00 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "0.00",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "0.00",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/c6aa604bc3fb7a93a221b466d99c3ccb726156c271e4bb8008cea7760c1598c7.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/934e329b61f010fb039c7a6d82b477ad254bf70a5e0a0709b4c43524645f2a42.png",
+   "storeLink": "https://www.gog.com/en/game/gwent_the_witcher_card_game",
+   "releaseDate": "2018.10.23"
+  }
+ ]
+}

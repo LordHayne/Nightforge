@@ -66,10 +66,14 @@ protocol StoreProvider: AnyObject {
     func install(_ game: Game, context: StoreContext) async throws
     /// Removes the game from the Mac (or the download that's under way).
     func uninstall(_ game: Game) async throws
+    /// What the store sells under `term`, signed in or not. Nothing when it can't be reached – or,
+    /// like Epic's, can't be searched from here (`StoreHits.epicSearch`).
+    func search(_ term: String) async -> [StoreHit]
 }
 
 extension StoreProvider {
     func refresh() async {}
+    func search(_ term: String) async -> [StoreHit] { [] }
 }
 
 /// A store the player signs in to in the store's own page (Epic Games, GOG): Settings › Stores and
@@ -113,6 +117,10 @@ final class SteamStore: StoreProvider {
     private(set) var sync = StoreSync()
     /// Nightforge's own Steam is set up, or another Steam has games.
     private(set) var isConnected = false
+
+    func search(_ term: String) async -> [StoreHit] {
+        await StoreSearch.shared.search(term).map(StoreHit.init)
+    }
 
     func library() async -> [Game] {
         let root = Prefs.bottlesRoot

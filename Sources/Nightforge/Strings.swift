@@ -70,7 +70,12 @@ enum L10n {
 
         // Steam store & Mac versions
         "View in Steam Store": "Im Steam-Store ansehen",
-        "In the Steam Store": "Im Steam-Store",
+        "View in %@ Store": "Im %@-Store ansehen",
+        "In the %@ Store": "Im %@-Store",
+        "In the Stores": "In den Stores",
+        "Also in the %@ Store": "Auch im %@-Store",
+        "Also in the %@ Store · %@": "Auch im %@-Store · %@",
+        "Search Epic Games in your browser": "Epic Games im Browser durchsuchen",
         "Price": "Preis",
         "Free": "Kostenlos",
         "Add for Free": "Kostenlos hinzufügen",
@@ -189,9 +194,9 @@ enum L10n {
         "The battery drains although the Mac is plugged in – the charger is too weak for games.":
             "Der Akku entlädt sich, obwohl der Mac am Netzteil hängt – das Netzteil ist zu schwach für Spiele.",
         "Battery Settings": "Batterie-Einstellungen",
-        "Steam also has a Mac version": "Steam hat auch eine Mac-Version",
-        "Steam also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
-            "Steam hat dieses Spiel auch als Mac-Version. Nightforge nutzt sie, sobald dir das Spiel gehört – wenn sie auf aktuellen Macs läuft.",
+        "%@ also has a Mac version": "%@ hat auch eine Mac-Version",
+        "%@ also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
+            "%@ hat dieses Spiel auch als Mac-Version. Nightforge nutzt sie, sobald dir das Spiel gehört – wenn sie auf aktuellen Macs läuft.",
 
         // Mac versions through Steam for Mac
         "Version": "Version",

@@ -1,0 +1,95 @@
+{
+ "pages": 14,
+ "productCount": 56,
+ "products": [
+  {
+   "id": "1234906600",
+   "slug": "thief_the_dark_project_remastered_digital_deluxe_edition",
+   "title": "Thief: The Dark Project Remastered Digital Deluxe Edition",
+   "productType": "pack",
+   "productState": "preorder",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "34,57 €",
+    "base": "34,57 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "34.57",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "34.57",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/9adbef051bef4a3566f63220021ee4746f680dc3fc91629750fd86c9e7f4ee70.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/3469b9dd231add15958e2344a5af05f46f1a71fb6eb4ebe9850a3481a9e66437.png",
+   "storeLink": "https://www.gog.com/en/game/thief_the_dark_project_remastered_digital_deluxe_edition",
+   "releaseDate": "2026.12.03"
+  },
+  {
+   "id": "1477689565",
+   "slug": "thief_the_dark_project_remastered",
+   "title": "Thief: The Dark Project Remastered",
+   "productType": "game",
+   "productState": "preorder",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "29,99 €",
+    "base": "29,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "29.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "29.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/9adbef051bef4a3566f63220021ee4746f680dc3fc91629750fd86c9e7f4ee70.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/3469b9dd231add15958e2344a5af05f46f1a71fb6eb4ebe9850a3481a9e66437.png",
+   "storeLink": "https://www.gog.com/en/game/thief_the_dark_project_remastered",
+   "releaseDate": "2026.12.03"
+  },
+  {
+   "id": "2140964530",
+   "slug": "after_the_wane",
+   "title": "After the Wane",
+   "productType": "game",
+   "productState": "coming-soon",
+   "operatingSystems": [
+    "windows",
+    "linux",
+    "osx"
+   ],
+   "price": null,
+   "coverVertical": "https://images.gog-statics.com/4db9b46d1f9cf63085ea0be742c00593e2f1a0b9b8ec29e73a72ec6c8e638902.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/7134636ec3a0da2f42f0dac86596ba6a6e8fef0f4378ae6445b1cce555886513.png",
+   "storeLink": "https://www.gog.com/en/game/after_the_wane",
+   "releaseDate": "2026.11.10"
+  },
+  {
+   "id": "1980751921",
+   "slug": "vampire_the_masquerade_oaths_ashes",
+   "title": "Vampire: The Masquerade - Oaths & Ashes",
+   "productType": "game",
+   "productState": "coming-soon",
+   "operatingSystems": [
+    "windows",
+    "linux"
+   ],
+   "price": null,
+   "coverVertical": "https://images.gog-statics.com/b0873223437566615e9e5a1f0078d31f9ede8ec65094dec9837ec454a20389dc.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/25fd8b8baa1dd64d11ced26ae1d8c49affa00611ea099600896af383da699c71.png",
+   "storeLink": "https://www.gog.com/en/game/vampire_the_masquerade_oaths_ashes",
+   "releaseDate": "2026.11.10"
+  }
+ ]
+}

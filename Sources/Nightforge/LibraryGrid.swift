@@ -9,7 +9,7 @@ enum GridGroup: CaseIterable {
         case .installed: return L10n.t("Installed")
         case .downloading: return L10n.t("Downloading")
         case .library: return L10n.t("In your library")
-        case .store: return L10n.t("In the Steam Store")
+        case .store: return L10n.t("In the Stores")
         }
     }
 
@@ -17,6 +17,24 @@ enum GridGroup: CaseIterable {
         switch (self, state) {
         case (.installed, .installed), (.downloading, .downloading), (.library, .notInstalled), (.store, .inStore): return true
         default: return false
+        }
+    }
+}
+
+/// A search's quiet last line: Epic's store can't be searched from here (`StoreHits.epicSearch`), so
+/// its own search opens in the browser.
+struct EpicSearchLink: View {
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        if model.offersEpicSearch {
+            Button(action: model.openEpicSearch) {
+                Label(L10n.t("Search Epic Games in your browser"), systemImage: "arrow.up.right.square")
+                    .font(size: 13, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+            }
+            .buttonStyle(.plain)
+            .padFocus("search.epic", activate: model.openEpicSearch)
         }
     }
 }
@@ -132,6 +150,8 @@ struct LibraryGrid: View {
                                 }
                             }
                         }
+                        EpicSearchLink()
+                            .padReachable(false)  // the pad's steps stay with the games and the top row
                     }
                     .padding(.horizontal, Theme.gutter)
                     .padding(.vertical, 20)
