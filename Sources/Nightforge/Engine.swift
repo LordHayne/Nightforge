@@ -2145,7 +2145,7 @@ enum Engine {
             }
             let info: [String: Any] = [
                 "CFBundleExecutable": "wine",
-                "CFBundleIdentifier": "io.github.lordhayne.nightforge.game",
+                "CFBundleIdentifier": gameBundleID,
                 "CFBundleName": "Nightforge Game",
                 "CFBundleIconFile": "AppIcon",
                 "CFBundlePackageType": "APPL",
@@ -2206,6 +2206,8 @@ enum Engine {
         }
     }
 
+    /// The bundle Wine's windowed programs run as: every Windows game, and Steam's helpers too.
+    static let gameBundleID = "io.github.lordhayne.nightforge.game"
     private static let gameBundleName = "Nightforge Game.app"
     private static let lsregister = URL(fileURLWithPath:
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
@@ -2289,7 +2291,7 @@ enum Engine {
         let rosettaLibrary = wine.deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("lib/external/libd3dshared.dylib")
         if FileManager.default.fileExists(atPath: rosettaLibrary.path) {
-            env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] = rosettaLibrary.path
+            env[GameEnvironment.rosettaLibrary] = rosettaLibrary.path
         }
         return env
     }

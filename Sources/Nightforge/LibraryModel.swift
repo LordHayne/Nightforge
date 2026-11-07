@@ -309,6 +309,8 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(3))  // after the window and Steam got going
             availableUpdate = await Updater.check()
         }
+        // Continue Playing: whatever the stage gave up on, the player wants the game now.
+        GameOverlay.resumed = { [weak self] in self?.stage.again() }
         // Where the page behind a game goes when Nightforge comes to the front: behind Nightforge's
         // window while the game shows its own, over it a moment longer when the game is ending.
         GameBackdrop.gameShowsWindow = { [weak self] in
@@ -871,6 +873,10 @@ final class LibraryModel: ObservableObject {
     // MARK: - The curtain
 
     private var curtainWatch: Task<Void, Never>?
+    private var stageWatch: Task<Void, Never>?
+    private var stage = GameStage()
+    /// The curtain's watch has the game down and still guards its front (`curtainStep`).
+    private var curtainGuards = false
     /// Nightforge opened Steam's window for a question (`showSteamWindow`) and hasn't hidden it since.
     private var steamWindowShown = false
     /// The questions of macOS's on screen at the first look of this start, for each way it tries:
@@ -889,6 +895,8 @@ final class LibraryModel: ObservableObject {
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
+        stageWatch?.cancel()
+        stageWatch = Task { await watchStage(game) }
     }
 
     private func watchCurtain(_ game: Game) async {
@@ -899,6 +907,9 @@ final class LibraryModel: ObservableObject {
         var frontSince: Date?
         var loweredAt: Date?
         var raisedAgain = 0
+        /// Its picture on the Space shown since, and how often its window was fetched back under the curtain.
+        var pictureSince: Date?
+        var broughtBack = 0
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
@@ -939,6 +950,7 @@ final class LibraryModel: ObservableObject {
             if let lowest = macOSOnScreen.last { GameBackdrop.makeWay(under: lowest) }
         }
         GameLog.note("Curtain watch for \(game.name) begins")
+        defer { curtainGuards = false }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
@@ -1107,15 +1119,16 @@ final class LibraryModel: ObservableObject {
                 GameLog.note("Curtain look at \(game.name): \(look)")
             }
             // Each app coming to the front brings the pointer back over the curtain (1.11.): another
-            // one (Steam's, Nightforge handing over) hidden again at once, the game once it has had
-            // the front a moment, before the curtain goes – taking its keys for 50 ms while it sets
-            // up its screen could cost it its full screen. Not while it asks something, which takes
-            // the mouse.
+            // one (Steam's, Nightforge handing over) hidden again at once, the game only while it shows
+            // no picture yet. Taking the keys from a game in full screen for those 50 ms tells it that it
+            // lost the focus, and a Unity or Unreal game minimises itself then (The Forest, 6.11.:
+            // gone right after "Curtain down" in the runs with the pad, there in those with the
+            // mouse; GameStage). Not while it asks something, which takes the mouse.
             let newFront = front != pointerFront
             pointerFront = front
             // Nor while macOS asks, nor while one of its askers has the front before its window shows.
             if loweredAt == nil, !asks, !madeWay, !macOSAsks, !(front.map(askers.contains) ?? false) {
-                if gameFront, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
+                if gameFront, !here, !anywhere, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
                     pointerHidden = since
                     InputRouter.hidePointerOverGame()
                 } else if !gameFront, newFront, front != nil {
@@ -1129,16 +1142,24 @@ final class LibraryModel: ObservableObject {
             }
             sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks,
                          macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+            pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
                                     windowHere: here, windowAnywhere: anywhere, asks: asks,
                                     frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     settle: raisedAgain == 0 ? 1 : Self.settleAgain,
-                                    guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
+                                    guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false,
+                                    pictureFor: pictureSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                    broughtBack: broughtBack, playerActed: Self.playerActed()) {
             case .wait:
                 break
             case .handOver:
                 _ = await handFocus(to: pids)
+            case .bringBack:
+                broughtBack += 1
+                frontSince = nil
+                GameLog.note("Curtain: \(game.name) has the front, its window isn't on the screen: fetching it back (\(broughtBack))")
+                _ = await handFocus(to: pids, again: true)
             case .makeWay:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 if asks, let question { GameBackdrop.makeWay(under: question) }  // again at each look: nothing gets between
@@ -1152,16 +1173,22 @@ final class LibraryModel: ObservableObject {
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
                 loweredAt = Date()
+                curtainGuards = true
+                stage.pictureSeen()
                 madeWay = false
                 LaunchHealth.pictureShown(game.gameID)  // it started, however soon it ends now
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
                 GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
+                // Down because it had stood long enough: going up again for the front would only flap.
+                if !gameFront { return end("its picture doesn't stay under the curtain, the stage watch has it") }
             case .raiseAgain:
+                if raisedAgain >= Self.maxRaisedAgain { return end("the front doesn't stay with it, the curtain stays down") }
                 // Another app took the front from the game – Unity builds its window anew for full
                 // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
                 curtainUp()
                 loweredAt = nil
+                curtainGuards = false
                 frontSince = nil
                 raisedAgain += 1
                 GameLog.note("Curtain up again for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front")
@@ -1174,6 +1201,68 @@ final class LibraryModel: ObservableObject {
             }
         }
         end("a new start or Go to Nightforge")
+    }
+
+    /// From a start to the game's end, once the curtain is down: the game stays where the player can
+    /// reach it (GameStage), and Nightforge's page never lies over it. A look a second, without a
+    /// process list as long as the game is in front (the game's frames come first).
+    private func watchStage(_ game: Game) async {
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        stage = GameStage()
+        var pids = Set<pid_t>()
+        var companion = false
+        var askers = Set<pid_t>()
+        var listed = Date.distantPast
+        var noted = ""
+        func goesOn() -> Bool {
+            launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id) || judging?.id == game.id
+                || GameBackdrop.isRaised
+        }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(stage.left ? 5 : 1))  // nothing to do meanwhile but see it return
+            guard !Task.isCancelled, goesOn() else { return }
+            guard !GameBackdrop.isRaised else { continue }
+            let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let inFront = front.map(pids.contains) ?? false
+            if !inFront || Date().timeIntervalSince(listed) > 30 {
+                guard let look = await Task.detached(priority: .utility, operation: {
+                    GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
+                }).value else { continue }
+                (pids, companion, askers) = (look.pids, look.companion, look.askers)
+                listed = Date()
+            }
+            let page = GameBackdrop.pageNumber
+            let known = pids
+            let windows = await Task.detached(priority: .utility) { GameProcesses.onStage(known, page: page) }.value
+            if windows.pageOver {
+                GameBackdrop.stepAside()
+                GameLog.note("Stage: the page lay over \(game.name)'s picture, it goes behind")
+            }
+            let gameFront = (front.map(pids.contains) ?? false) || companion
+            let askerFront = front.map(askers.contains) ?? false
+            let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
+                                                 handsOff: GameOverlay.isOpen || askerFront,
+                                                 // A swipe to another Space moves no key and no click.
+                                                 playerActed: Self.playerActed() || GameBackdrop.spaceJustChanged,
+                                                 guarded: curtainGuards, now: Date()))
+            let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
+            let look = "\(name) in front, picture \(windows.here ? "here" : windows.anywhere ? "elsewhere" : "none")"
+                + (gameFront ? " (the game's)" : "") + (stage.left ? ", the player went elsewhere" : "")
+            if look != noted, stage.sawPicture {
+                noted = look
+                GameLog.note("Stage of \(game.name): \(look)")
+            }
+            switch step {
+            case .wait:
+                break
+            case .bringBack:
+                GameLog.note("Stage: fetching \(game.name) back (\(stage.tries)), \(name) in front")
+                await handFocus(to: pids, again: true)
+            case .gaveUp:
+                GameLog.note("Stage: \(game.name) didn't come back, the player has the Dock, Switch to Game and the overlay")
+            }
+        }
     }
 
     enum MacOSTurn: Equatable { case none, makeWay, giveUp, answered }
@@ -1305,7 +1394,7 @@ final class LibraryModel: ObservableObject {
         return size.width < thinRatio * size.height || standing >= thinPatience
     }
 
-    enum CurtainStep: Equatable { case wait, handOver, makeWay, lower, raiseAgain, done }
+    enum CurtainStep: Equatable { case wait, handOver, makeWay, bringBack, lower, raiseAgain, done }
 
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
     /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
@@ -1318,24 +1407,52 @@ final class LibraryModel: ObservableObject {
     /// the game isn't handed the front – the question may have it, and the keys – but taking it
     /// with its window, it sinks the curtain as ever; down already, the curtain stays down, the
     /// question over the game.
+    ///
+    /// The curtain never stays over a game that runs: its picture shown for `curtainCeiling` seconds,
+    /// it sinks whoever has the front. In front with its window off the screen – shrunk into the Dock,
+    /// or in a Space not shown – it's fetched back (`bringBack`, Wine does nothing for an app that's
+    /// active already), then the curtain sinks anyway (GameStage has it from there). Nightforge
+    /// in front is the player's choice only after a ⌘ or a click (`playerActed`); by itself it's macOS
+    /// handing the front on, and the game gets it back (Valheim, 7.11.: the watch ended there).
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, macOSAsks: Bool = false,
                                         windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
-                                        settle: TimeInterval = 1, guardOver: Bool) -> CurtainStep {
+                                        settle: TimeInterval = 1, guardOver: Bool, pictureFor: TimeInterval = 0,
+                                        broughtBack: Int = 0, playerActed: Bool = false) -> CurtainStep {
         if lowered {
-            if guardOver || nightforgeFront { return .done }
+            if guardOver || (nightforgeFront && playerActed) { return .done }
             return gameFront || macOSAsks ? .wait : .raiseAgain
         }
         let handOver: CurtainStep = macOSAsks ? .wait : .handOver
         if asks, !windowHere { return gameFront ? .makeWay : handOver }
         guard windowHere || windowAnywhere else { return .wait }
+        if windowHere, !macOSAsks, pictureFor >= curtainCeiling { return .lower }
         guard gameFront else { return handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
         // page while the game had the front (1.11.).
-        return windowHere && frontFor >= settle ? .lower : .wait
+        if windowHere { return frontFor >= settle ? .lower : .wait }
+        guard !macOSAsks, frontFor >= windowAwayPatience else { return .wait }
+        return broughtBack < maxBroughtBack ? .bringBack : .lower
+    }
+
+    /// How long a picture may stand under the curtain, whatever has the front.
+    nonisolated static let curtainCeiling: TimeInterval = 15
+    /// How long the game has the front with its window off the screen before it's fetched back.
+    nonisolated static let windowAwayPatience: TimeInterval = 4
+    nonisolated static let maxBroughtBack = 2
+
+    /// A ⌘ (⌘-Tab, ⌘H) or a click within `seconds`: the player moved, what came to the front is their
+    /// choice. Not any key: one playing with the keyboard presses them all the time. A click in the
+    /// game just as the front goes counts too – Nightforge leaves it then, the safe side.
+    nonisolated static func playerActed(within seconds: TimeInterval = 1.5) -> Bool {
+        [CGEventType.leftMouseDown, .rightMouseDown, .flagsChanged]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity <= seconds
     }
 
     /// How long after the curtain sinks the game's front is still watched.
     private static let focusGuard: TimeInterval = 8
+    /// How often the curtain comes up again for one start: a game that can't be given the front
+    /// doesn't get the curtain going up and down for ever.
+    private static let maxRaisedAgain = 4
     /// How long the game has to keep the front before the curtain sinks a second time: a game
     /// building its window anew more than once made it come and go (Sonic Mania on 1.11.).
     nonisolated static let settleAgain: TimeInterval = 2.5
@@ -1344,11 +1461,24 @@ final class LibraryModel: ObservableObject {
     /// Mac game's app). Since macOS 14 only the app in front can pass it on – asking from behind
     /// is ignored, and macOS gives the front to whatever app is next – so Nightforge comes to the
     /// front first when it isn't (under the curtain, or from its own page).
+    ///
+    /// `again`: its window is gone though it may be the active app, so an activation that does nothing
+    /// won't do (GameStage). A Mac version gets what a click on the Dock sends; Wine brings a window
+    /// back when it becomes active, so a Windows game loses the front to Nightforge for a moment. Not
+    /// Launch Services for that: Steam's Wine and the game's are the same app to it.
     @discardableResult
-    private func handFocus(to pids: Set<pid_t>) async -> Bool {
+    private func handFocus(to pids: Set<pid_t>, again: Bool = false) async -> Bool {
         guard let app = Self.gameApp(pids) else { return false }
         if app.isHidden { app.unhide() }  // Go to Nightforge hid it (leaveGame)
-        if app.isActive { return true }
+        if again, app.bundleIdentifier != Engine.gameBundleID, let url = app.bundleURL {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            return app.isActive
+        }
+        if app.isActive, !again { return true }
+        GameBackdrop.handingOver = again  // the page stays while Nightforge has the front for this
+        defer { GameBackdrop.handingOver = false }
         if !NSApp.isActive {
             // Not through Launch Services here: its activation can land after the handover and take
             // the front back from the game.
@@ -1360,9 +1490,8 @@ final class LibraryModel: ObservableObject {
         // All its windows: with only the key one, Wine's full-screen window stayed under others.
         app.activate(from: .current, options: [.activateAllWindows])
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
-        // Its coming forward brought the pointer back (Switch to Game, 1.11.). Under the curtain
-        // its watch hides it.
-        if app.isActive, !GameBackdrop.isRaised { InputRouter.hidePointerSoon() }
+        // Its coming forward brings the pointer back (Switch to Game, 1.11.), and that stays: taking
+        // a game's keys to hide it costs its full screen (watchCurtain).
         return app.isActive
     }
 
@@ -1377,6 +1506,8 @@ final class LibraryModel: ObservableObject {
     /// which handed it over. Should another app get it, the game shows again – never a third app in
     /// front of a hidden game. Switch to Game shows it again too (handFocus).
     private func leaveGame(_ pids: Set<pid_t>) async {
+        curtainWatch?.cancel()
+        stage.playerLeft()
         let window = NSApp.windows.first { $0.title == "Nightforge" }
         window?.orderFrontRegardless()
         NSApp.comeToFront()
@@ -1460,7 +1591,8 @@ final class LibraryModel: ObservableObject {
             let pids = await Task.detached(priority: .userInitiated) {
                 Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
             }.value
-            await handFocus(to: pids)
+            stage.again()
+            await handFocus(to: pids, again: true)
         }
     }
 
@@ -4070,10 +4202,7 @@ final class LibraryModel: ObservableObject {
                 NSApp.yieldActivation(to: app)
                 app.activate(from: .current, options: [.activateAllWindows])
                 try? await Task.sleep(for: .milliseconds(600))
-                if app.isActive {
-                    if !GameBackdrop.isRaised { InputRouter.hidePointerSoon() }  // as handFocus
-                    return
-                }
+                if app.isActive { return }
             }
             try? await Task.sleep(for: .seconds(1))
         }

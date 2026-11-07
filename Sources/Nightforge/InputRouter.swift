@@ -586,7 +586,8 @@ final class InputRouter {
     /// hides it only for the app with the keys and the window under the pointer. So Nightforge has
     /// both for a moment – a sheer panel over the pointer's screen, as the overlay is when Continue
     /// Playing closes it – and the game is without its keys for 50 ms. A one-point panel, one the mouse passes through (as the
-    /// curtain), no keys or no wait: the pointer stayed (probe on 1.11.).
+    /// curtain), no keys or no wait: the pointer stayed (probe on 1.11.). So never over a game that shows
+    /// its picture: without its keys, a Windows game in full screen minimises itself (GameStage).
     static func hidePointerOverGame() { pointerOverGame(hidden: true) }
 
     /// Shown again over the game, for a question of its own that only the mouse answers.
@@ -597,6 +598,7 @@ final class InputRouter {
         guard !hidden || padUsedLast, !GameOverlay.isOpen,
               let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
         else { return }
+        GameLog.note("Pointer: the sheer panel takes the keys from \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody")")
         let panel = pointerPanel ?? makePointerPanel()
         pointerPanel = panel
         panel.setFrame(screen.frame, display: false)
