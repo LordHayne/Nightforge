@@ -73,6 +73,7 @@ enum Quit {
         if stage.panelWaiting { stage.stopPanel() }
         stage.closeSheets()
         func quit() {
+            stage.note("Quit by \(by)")
             beforeQuitting?()
             guard !stage.terminate() else { return }
             // Still here: AppKit didn't take it.

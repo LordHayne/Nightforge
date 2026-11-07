@@ -29,6 +29,7 @@ struct LauncherMenuTest {
         steamName()
         battleNetLog()
         battleNetFolder()
+        battleNetLinks()
         noFieldOfOurOwn()
         print(failures == 0 ? "✓ LauncherMenu" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -217,6 +218,26 @@ struct LauncherMenuTest {
         check(BattleNetClient.isSignedIn(logs: folder), "a start still loading leaves the last word to the one before")
         write("battle.net-20261107T203100.100000.log", asksAgain)
         check(!BattleNetClient.isSignedIn(logs: folder), "the newest start that says so counts")
+    }
+
+    /// Live test 7.11. 21:20: the client was signed in, the card said "Not signed in" – Battle.net had
+    /// never been linked. A signed-in client links it now, until the player disconnects it.
+    static func battleNetLinks() {
+        typealias B = BattleNetStore
+        check(B.links(linked: false, unlinked: false, clientSignedIn: true), "signed in on this Mac, never decided: its games come in")
+        check(!B.links(linked: false, unlinked: false, clientSignedIn: false), "not signed in: nothing")
+        check(!B.links(linked: false, unlinked: true, clientSignedIn: true), "disconnected by the player: stays out, signed in or not")
+        check(B.links(linked: true, unlinked: false, clientSignedIn: false), "linked and the client signed out: the games stay (the card says Signed out)")
+        let card = LauncherState(.battlenet, facts: Facts(connected: B.links(linked: false, unlinked: false, clientSignedIn: true), signedIn: true, games: 2))
+        check(card.account == .signedIn(name: nil) && card.status == L10n.t("Signed in"), "the card of 21:20 says Signed in")
+        MainActor.assumeIsolated {
+            let store = BattleNetStore()
+            check(!store.isLinked && !store.wasUnlinked, "a new Mac: neither")
+            store.link()
+            check(store.isLinked && !store.wasUnlinked, "linked")
+            store.unlink()
+            check(!store.isLinked && store.wasUnlinked, "disconnected is remembered as such")
+        }
     }
 
     /// Nightforge never sees a password: the sign-in has no field of its own, wherever it opens.
