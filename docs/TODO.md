@@ -759,6 +759,22 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - `EpicTest` und `GOGTest` liefen für die neue Größe nicht (am 3.11. hing `ps`). Sie haben noch keinen Fall für
     einen laufenden Download.
 
+## Schnellmenü und „Später spielen“ (0.3.2) – Zweig `claude/amazing-archimedes-75496a`, in der echten App prüfen
+
+Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Aktionsliste steht an einer Stelle
+(`GameMenu.swift`), Rechtsklick und Schnellmenü zeigen dieselbe; ein neuer Eintrag ist ein `case` dort. Zu prüfen:
+
+- **Langer Klick** (`LongClick`, 0,45 s): öffnet das Menü auf einer Karte in Bibliothek und Startseite, ein normaler
+  Klick wählt und öffnet weiter wie bisher, und das Loslassen danach löst nichts aus. Synthetische Klicks erreichen
+  SwiftUI-Gesten nicht, das geht nur von Hand.
+- **Knopf auf der Karte:** „···“ unten in der Mitte beim Überfahren, auch auf der kleinsten Größe (116 pt) neben Controller- und
+  Download-Zeichen; auf der Startseite nur auf der vorderen Karte.
+- **Pad:** ☰ gehalten öffnet das Menü, kurz die Optionen (jetzt beim Loslassen), B schließt, der Rahmen bleibt drin und
+  geht danach zurück. Dazu ☰ + ⧉ an einem Pad ohne Stick-Tasten: öffnet das Overlay, nicht das Menü.
+- **Platz:** Menü rechts oder links neben der Karte, am Fensterrand; längste deutsche Zeile in 300 pt.
+- **Chip „Später spielen“** in der Bibliothek: erscheint ab dem ersten Spiel, bleibt beim Filtern stehen, geht aus,
+  wenn das letzte Spiel die Liste verlässt.
+
 ## Controller
 
 - **Die meistgenutzten Controller durchgehen** (Nutzer, 1.11.). In Nightforge ist bisher nur der DualSense live

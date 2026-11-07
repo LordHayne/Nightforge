@@ -103,10 +103,11 @@ enum DuplicateGames {
     }
 
     /// The player's games among `cards`, each once, without the hidden ones – of one store: a game
-    /// from several stores counts in each.
-    static func count(_ cards: [Game], hidden: Set<GameID>, in provider: Provider? = nil) -> Int {
+    /// from several stores counts in each. `list`: only those on it (Play Later).
+    static func count(_ cards: [Game], hidden: Set<GameID>, in provider: Provider? = nil, on list: Set<GameID>? = nil) -> Int {
         cards.lazy.filter { card in
             card.counted && !card.isMarked(in: hidden) && provider.map(card.providers.contains) ?? true
+                && list.map(card.isMarked) ?? true
         }.count
     }
 
@@ -120,7 +121,8 @@ enum DuplicateGames {
 }
 
 extension Game {
-    /// Hidden or pinned in one of its stores: a game from several stores shares its marks.
+    /// Marked (hidden, pinned, to play later) in one of its stores: a game from several stores
+    /// shares its marks.
     func isMarked(in marks: Set<GameID>) -> Bool { gameIDs.contains(where: marks.contains) }
 }
 

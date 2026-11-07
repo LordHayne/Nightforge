@@ -57,9 +57,11 @@ struct LibraryFilters: Equatable {
     /// The panel's switches that are on.
     var on: Set<Filter> = []
     var sort = Sort.recent
+    /// Only the games on the player's Play Later list: the chip of its own in the library's row.
+    var later = false
 
     /// Something leaves games out.
-    var narrows: Bool { store != nil || !on.isEmpty }
+    var narrows: Bool { store != nil || !on.isEmpty || later }
 
     /// Without what leaves games out (the order stays).
     var cleared: LibraryFilters { LibraryFilters(sort: sort) }
@@ -70,8 +72,8 @@ struct LibraryFilters: Equatable {
         filters.narrows || !Search.key(search).isEmpty
     }
 
-    /// The panel's "All filters off": the store stays.
-    var switchesOff: LibraryFilters { LibraryFilters(store: store, sort: sort) }
+    /// The panel's "All filters off": the store and the list, which aren't in the panel, stay.
+    var switchesOff: LibraryFilters { LibraryFilters(store: store, sort: sort, later: later) }
 
     func has(_ filter: Filter) -> Bool { on.contains(filter) }
 
@@ -79,9 +81,11 @@ struct LibraryFilters: Equatable {
         if on.remove(filter) == nil { on.insert(filter) }
     }
 
-    /// A game from several stores goes by what its card shows (`Game.shown`) and is in each of its stores.
-    func admits(_ game: Game, level: (Game) -> Compatibility.Level) -> Bool {
+    /// A game from several stores goes by what its card shows (`Game.shown`) and is in each of its
+    /// stores. `laterGames`: the player's list (GameMarks).
+    func admits(_ game: Game, laterGames: Set<GameID> = [], level: (Game) -> Compatibility.Level) -> Bool {
         if let store, !game.providers.contains(store) { return false }
+        if later, !game.isMarked(in: laterGames) { return false }
         for filter in on {
             switch filter {
             case .great where level(game) != .great: return false

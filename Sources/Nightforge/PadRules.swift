@@ -21,10 +21,12 @@ enum PadRules {
         var awaitingSteam = false
         /// Nightforge's curtain is up (GameBackdrop): a game starting, or one that ended on its way back.
         var curtain = false
+        /// A game's quick menu.
+        var quickMenu = false
     }
 
     /// What B does: the innermost thing open goes, one per press.
-    enum Back: Equatable { case overlay, lightbox, list, downloads, highlight, options, sheet, cancelLaunch, level, nothing }
+    enum Back: Equatable { case overlay, quickMenu, lightbox, list, downloads, highlight, options, sheet, cancelLaunch, level, nothing }
 
     static func back(_ open: Open) -> Back {
         if open.overlay { return .overlay }
@@ -34,6 +36,7 @@ enum PadRules {
         // changed the page hidden under it.
         if open.curtain { return .nothing }
         let overLevels = !open.sheet && !open.modal
+        if overLevels && open.quickMenu { return .quickMenu }
         if overLevels && open.lightbox { return .lightbox }
         if overLevels && open.list { return .list }
         if overLevels && open.downloads { return .downloads }
@@ -91,5 +94,33 @@ enum PadRules {
     static func stickRows(_ points: CGFloat, row: CGFloat = 220) -> (rows: Int, left: CGFloat) {
         let rows = Int(points / row)  // toward zero
         return (rows, points - CGFloat(rows) * row)
+    }
+}
+
+/// ☰ with a game's card selected: a short press opens the game's options as ever, held it opens the
+/// card's quick menu. Which of the two only shows later, so there the options open when ☰ comes up.
+/// ☰ acts on the press where there's no card (a game's page). No other button is free for this: A, B,
+/// X and Y act the moment they're pressed, in dialogs too, and consoles keep a card's menu on ☰.
+struct MenuHold {
+    static let seconds: TimeInterval = 0.45
+
+    enum Result: Equatable { case none, options, quickMenu }
+
+    /// When ☰ went down, while that press is undecided.
+    private(set) var since: TimeInterval?
+
+    mutating func press(now: TimeInterval) { since = now }
+
+    /// Forgets the press: Nightforge lost the front.
+    mutating func cancel() { since = nil }
+
+    /// A look at the press, when ☰ comes up (`down` false) or its time is up. `chord`: ☰ is part of
+    /// the overlay's buttons being held (a pad without stick buttons), then it's neither.
+    mutating func update(down: Bool, now: TimeInterval, chord: Bool) -> Result {
+        guard let since else { return .none }
+        let long = now - since >= Self.seconds
+        guard long || !down else { return .none }
+        self.since = nil
+        return chord ? .none : long ? .quickMenu : .options
     }
 }

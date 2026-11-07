@@ -23,6 +23,7 @@ final class LibraryModel: ObservableObject {
         didSet {
             guard searchText != oldValue else { return }
             libraryMenu = nil
+            closeQuickMenu()
             // Hits show in the library, wherever the search started.
             if !searchText.isEmpty, route != .library {
                 rememberSelection()
@@ -45,6 +46,8 @@ final class LibraryModel: ObservableObject {
             guard route != oldValue else { return }
             history.moved(from: oldValue, to: route, by: historyStep)
             libraryMenu = nil
+            quickMenu = nil
+            quickMenuReturn = nil
             lightbox = nil
             // The pad's highlight stays with the level it was on (a chip kept behind a game's page).
             PadFocus.shared.clear()
@@ -59,9 +62,10 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var homeStartersFrom: Int?
     /// On Home, the "All games" tile after the rail is selected instead of a game.
     @Published private(set) var homeOnAllGames = false
-    /// Games hidden from the library and pinned to Home (GameMarks).
+    /// Games hidden from the library, pinned to Home and on the Play Later list (GameMarks).
     @Published private(set) var hiddenGames = GameMarks.load(.hidden)
     @Published private(set) var pinnedGames = GameMarks.load(.pinned)
+    @Published private(set) var laterGames = GameMarks.load(.later)
     /// The library shows only the hidden games, to bring them back.
     @Published private(set) var showingHidden = false
     /// What the library grid shows and how it's ordered (only the library applies them).
@@ -70,6 +74,10 @@ final class LibraryModel: ObservableObject {
     }
     /// The list one of the library's chips opened (stores, order, filters).
     @Published var libraryMenu: LibraryMenu?
+    /// The game (`Game.id`) whose quick menu is open (GameMenu.swift).
+    @Published var quickMenu: String?
+    /// What the pad had highlighted when the quick menu opened.
+    var quickMenuReturn: String?
     /// A game's screenshot shown big over the window.
     @Published var lightbox: Lightbox?
     /// The game each level had selected, so going back to it finds it there again.
@@ -2612,7 +2620,7 @@ final class LibraryModel: ObservableObject {
         // and not during a search: it finds every game, whatever the filters leave out.
         var shelf = cards.filter { isHidden($0) == showingHidden }
         if route.level == .library {
-            if words.isEmpty { shelf = shelf.filter { filters.admits($0) { compatibility(of: $0).level } } }
+            if words.isEmpty { shelf = shelf.filter { filters.admits($0, laterGames: laterGames) { compatibility(of: $0).level } } }
             shelf = showingHidden ? LibraryFilters(sort: .name).sorted(shelf) : filters.sorted(shelf)
         }
         if words.isEmpty {
@@ -2650,6 +2658,7 @@ final class LibraryModel: ObservableObject {
         default:
             break
         }
+        if quickMenu != nil, quickMenuGame == nil { closeQuickMenu() }  // its game is gone
     }
 
     /// The search lives in the library's header: from Home or a game's page it opens the library.
@@ -2959,6 +2968,16 @@ final class LibraryModel: ObservableObject {
     /// Marked in any of its stores: a game from several stores shares its marks.
     func isHidden(_ game: Game) -> Bool { game.isMarked(in: hiddenGames) }
     func isPinned(_ game: Game) -> Bool { game.isMarked(in: pinnedGames) }
+    func isLater(_ game: Game) -> Bool { game.isMarked(in: laterGames) }
+
+    /// Any game in the library, installed or not; a game that's hidden comes back first.
+    func canMarkLater(_ game: Game) -> Bool { game.inLibrary && !isHidden(game) }
+
+    /// The Play Later list as the library's chip counts it, with the store picked. A game that left
+    /// the library doesn't count, and is on the list again when it returns.
+    var laterCount: Int {
+        laterGames.isEmpty ? 0 : DuplicateGames.count(cards, hidden: hiddenGames, in: filters.store, on: laterGames)
+    }
 
     /// Pinning keeps a game on Home's rail; only games on this Mac are there.
     func canPin(_ game: Game) -> Bool {
@@ -2989,17 +3008,31 @@ final class LibraryModel: ObservableObject {
                                : L10n.t("%@ is no longer pinned", game.name))
     }
 
+    /// A game to play some day, marked from its card while scrolling the library.
+    func toggleLater(_ game: Game) {
+        guard canMarkLater(game) || isLater(game) else { return }
+        let add = !isLater(game)
+        mark(game.gameIDs, later: add)
+        Toasts.shared.show(add ? L10n.t("%@ is on your Play Later list", game.name) : L10n.t("%@ is off your Play Later list", game.name))
+    }
+
     /// All of a game's stores at once, so it's marked or not wherever it's looked up.
-    private func mark(_ games: [GameID], hidden: Bool? = nil, pinned: Bool? = nil) {
+    private func mark(_ games: [GameID], hidden: Bool? = nil, pinned: Bool? = nil, later: Bool? = nil) {
         if let hidden {
-            if hidden { hiddenGames.formUnion(games) } else { hiddenGames.subtract(games) }
+            GameMarks.set(games, hidden, in: &hiddenGames)
             GameMarks.save(hiddenGames, .hidden)
             if hiddenGames.isEmpty { showingHidden = false }
         }
         if let pinned {
-            if pinned { pinnedGames.formUnion(games) } else { pinnedGames.subtract(games) }
+            GameMarks.set(games, pinned, in: &pinnedGames)
             GameMarks.save(pinnedGames, .pinned)
         }
+        if let later {
+            GameMarks.set(games, later, in: &laterGames)
+            GameMarks.save(laterGames, .later)
+        }
+        // The list's last game gone: no empty grid, the library again.
+        if filters.later, laterCount == 0 { filters.later = false }
         applyFilter()
     }
 
