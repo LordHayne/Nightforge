@@ -89,6 +89,13 @@ Kompilieren misst deshalb ein Beobachter von außen: Rechenzeit von `MTLCompiler
 Zeitstempel der `.reg`-Dateien. Am Testprogramm trennt das sauber: kalt 98 s Compiler und Spitzen um 725 ms, warm 0 s und fast keine.
 Aus dem Metal-Cache bediente Pipelines sieht der Beobachter nicht. Werkzeug: Notizen unter `shader-messung/`.
 
+**Ergebnis Stufe 0 (7.11., nur Overwatch, Übungsbereich, ganze Runden):** Kalt 175 s, 27 Frames über 50 ms je Minute, schlimmster 500 ms, 62
+von 69 Haken bei Compiler oder Übersetzung, 33 s Compiler. Warm 238 s, 2,3 je Minute, schlimmster 117 ms, 0,7 s Compiler; 10 der 12 Haken
+lagen in den ersten 15 s, ohne Compiler. Ein Takt von 20 bis 30 s trat nicht auf, in einem Match ist das aber nicht gemessen. Für Stufe 1
+heißt das: Die erste Runde ist die Lücke, die zweite Runde auf derselben Karte schaffen die vorhandenen Caches schon. Früh übersetzen
+kommt zuerst. Lernen und Vorab-Anlegen brauchen erst einen Grund aus einer weiteren Messung. Wie viel früh übersetzen bringt, sagt die
+Messung nicht, denn Übersetzen und Metals Kompilieren fielen fast immer zusammen.
+
 **Entscheidung:** Liegt in Lauf B weniger als die Hälfte der Haken über 50 ms bei einem Shader-Eintrag, hilft dieser Plan dort
 wenig. Dann sind Recalls Wine-Patches dran, die wir nicht haben: `wine-server-registry-save` (0,1 s Pause alle 30 s) und
 `wine-ntdll-syscall-log` (Freezes von 150–400 ms). Recalls „95 % weniger Stotterer“ nennt Shader und Wine-Fixes zusammen.
