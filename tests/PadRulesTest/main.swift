@@ -40,6 +40,15 @@ struct PadRulesTest {
         check(PadRules.back(Open(overlay: true, curtain: true)) == .overlay, "\"Not starting?\" over the curtain takes B")
         check(PadRules.back(Open(awaitingSteam: true)) == .cancelLaunch, "without the curtain a waiting start is still called off")
 
+        // The launcher menus.
+        check(PadRules.back(Open(highlight: true, launcherMenu: true)) == .launcherMenu, "the small menu closes in one press")
+        check(PadRules.back(Open(list: true, launcherMenu: true)) == .launcherMenu, "over a chip's list too")
+        check(PadRules.back(Open(sheet: true, launcherMenu: true)) == .sheet, "a dialog over it closes first")
+        check(PadRules.back(Open(highlight: true, launcherMenu: true, signIn: true)) == .signIn, "the stage over the menu goes first, the menu stays")
+        check(PadRules.back(Open(sheet: true, signIn: true)) == .sheet, "an error over the stage closes first")
+        check(PadRules.back(Open(curtain: true, signIn: true)) == .nothing, "a game's curtain wins")
+        check(PadRules.back(Open(highlight: true, gamePage: true)) == .level, "the four cards go back at once, as a game's page")
+
         // X, Y, ☰ and L2/R2 only with nothing in front of the levels.
         check(PadRules.actsOnGames(inFront: true, sheet: false, panel: false), "the levels free: they act")
         check(!PadRules.actsOnGames(inFront: true, sheet: false, panel: true), "not behind the downloads panel, a list or a big screenshot")

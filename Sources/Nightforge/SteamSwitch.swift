@@ -33,6 +33,16 @@ enum SteamLogin {
         rememberedAccount(users: VDF.parse(contentsOf: steamRoot.appendingPathComponent("config/loginusers.vdf"))?["users"])
     }
 
+    /// The name the remembered account shows in Steam; never its login name.
+    static func personaName(steamRoot: URL) -> String? {
+        personaName(users: VDF.parse(contentsOf: steamRoot.appendingPathComponent("config/loginusers.vdf"))?["users"])
+    }
+
+    static func personaName(users: VDF?) -> String? {
+        guard let id = rememberedAccount(users: users), let name = users?[id]?["PersonaName"]?.string, !name.isEmpty else { return nil }
+        return name
+    }
+
     /// "MostRecent" 1 where Steam still writes it, else the one it signs in by itself ("AutoLogin"
     /// 1), else the newest.
     static func rememberedAccount(users: VDF?) -> String? {

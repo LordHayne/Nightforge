@@ -187,10 +187,11 @@ extension View {
 
     /// Makes a control reachable with the pad. `activate` is what A does on it; `adjust`, for
     /// switches and pickers, what left/right do. `shape` is the highlight's corner radius;
-    /// `preferred` marks a dialog's default answer, where the highlight starts.
-    func padFocus(_ id: String, enabled: Bool = true, cornerRadius: CGFloat = 10, preferred: Bool = false,
+    /// `preferred` marks a dialog's default answer, where the highlight starts. `ring: false` for a
+    /// control that draws the highlight itself (a launcher card).
+    func padFocus(_ id: String, enabled: Bool = true, cornerRadius: CGFloat = 10, preferred: Bool = false, ring: Bool = true,
                   activate: @escaping () -> Void, adjust: ((Int) -> Void)? = nil) -> some View {
-        modifier(PadFocusModifier(id: id, enabled: enabled, cornerRadius: cornerRadius, preferred: preferred,
+        modifier(PadFocusModifier(id: id, enabled: enabled, cornerRadius: cornerRadius, preferred: preferred, ring: ring,
                                   activate: activate, adjust: adjust))
     }
 
@@ -217,6 +218,7 @@ private struct PadFocusModifier: ViewModifier {
     let enabled: Bool
     let cornerRadius: CGFloat
     let preferred: Bool
+    let ring: Bool
     let activate: () -> Void
     let adjust: ((Int) -> Void)?
     @ObservedObject private var focus = PadFocus.shared
@@ -228,7 +230,7 @@ private struct PadFocusModifier: ViewModifier {
             .background(PadAnchor(id: id, enabled: enabled && reachable, preferred: preferred, zone: zone,
                                   activate: activate, adjust: adjust))
             .overlay {
-                if focus.focused == id {
+                if ring && focus.focused == id {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .stroke(Theme.sodium, lineWidth: 3)
                         .padding(-5)

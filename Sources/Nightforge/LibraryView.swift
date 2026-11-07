@@ -47,6 +47,9 @@ struct LibraryView: View {
                         }
                     case .library:
                         EmptyView()
+                    case .launchers:
+                        LauncherPage()
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -70,6 +73,20 @@ struct LibraryView: View {
                     .transition(.opacity.combined(with: .offset(y: -8)))
             }
 
+            if model.launcherMenuOpen {
+                // A click beside the menu closes it, like the downloads panel.
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.closeLauncherMenu() }
+                LauncherMenu()
+                    .padZone(.panel)
+                    .padding(.top, 82)  // right under its pill
+                    .padding(.trailing, Theme.gutter)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .transition(.opacity.combined(with: .offset(y: -8)))
+            }
+
             if let lightbox = model.lightbox {
                 ScreenshotLightbox(lightbox: lightbox)
                     .transition(.opacity)
@@ -88,6 +105,15 @@ struct LibraryView: View {
         }
         // A game's quick menu, beside its card.
         .overlayPreferenceValue(GameMenuAnchor.self) { GameMenuLayer(anchor: $0) }
+        // A store's sign-in, over everything in the window.
+        .overlay {
+            if let provider = model.signingIn {
+                SignInStage(provider: provider)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: model.signingIn)
+        .animation(.easeOut(duration: 0.14), value: model.launcherMenuOpen)
         .animation(.easeOut(duration: 0.16), value: model.libraryMenu)
         .animation(.easeOut(duration: 0.14), value: model.quickMenu)
         .animation(.easeOut(duration: 0.18), value: model.showingDownloads)
@@ -110,6 +136,11 @@ struct LibraryView: View {
         }
         .sheet(item: $model.pendingMove) { game in
             MoveSheet(game: game, targets: model.moveTargets(for: game))
+        }
+        .sheet(item: $model.managedLauncher, onDismiss: {
+            if model.showsLauncherCards { model.focusLauncherCards() }
+        }) { provider in
+            ManageLauncherSheet(provider: provider)
         }
         // Esc closes it like Cancel: the setup stops.
         .sheet(item: Binding(get: { model.macSetup }, set: { if $0 == nil { model.closeMacSetup() } })) { setup in
@@ -1128,6 +1159,10 @@ private struct TopBar: View {
             .padding(.horizontal, 4)
             .frame(height: 38)
             .background(GlassBackground(glass: .regular, shape: Capsule()))
+
+            if !model.showsFirstStart && model.route != .launchers {
+                LauncherPill()
+            }
 
             TimelineView(.everyMinute) { context in
                 Text(context.date, format: .dateTime.hour().minute().locale(L10n.locale))  // the app's language, not the Mac's
@@ -2149,7 +2184,13 @@ private struct HintBar: View {
             if !controller, let action = toasts.current?.action {
                 Hint(.key("⌘↩"), text: action.label)
             }
-            if controller && focus.focused != nil {
+            if model.showsLauncherCards {
+                LauncherHints()
+            } else if model.launcherMenuOpen {
+                Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Select"))
+                Hint(controller ? .pad(pad.stick) : .key("↑ ↓"), text: L10n.t("Move"))
+                Hint(controller ? .pad(pad.back) : .key("esc"), text: L10n.t("Close"))
+            } else if controller && focus.focused != nil {
                 Hint(.pad(pad.confirm), text: L10n.t("Select"))
                 Hint(.pad(pad.stick), text: L10n.t("Move"))
                 Hint(.pad(pad.back), text: backWithHighlight)
@@ -2176,6 +2217,7 @@ private struct HintBar: View {
                     // With a pad the library is R1, beside "Home | Library" above.
                     if !controller {
                         Hint(.key("L"), text: L10n.t("Library"))
+                        Hint(.key("M"), text: L10n.t("Launchers"))
                     }
                     Hint(controller ? .pad(pad.stick) : .key("← →"), text: L10n.t("Select"))
                 case .library:
@@ -2204,10 +2246,12 @@ private struct HintBar: View {
                         Hint(.pad(pad.scroll), text: L10n.t("Scroll"))
                     }
                     Hint(controller ? .pad(pad.back) : .key("esc"), text: from == .home ? L10n.t("Home") : L10n.t("Library"))
+                case .launchers:
+                    EmptyView()  // LauncherHints, above
                 }
             }
         }
-        .opacity(model.games.isEmpty && !model.showsFirstStart ? 0 : 1)
+        .opacity(model.games.isEmpty && !model.showsFirstStart && !model.showsLauncherCards ? 0 : 1)
     }
 
     /// Where B goes with a control highlighted: an open panel closes, a game's page goes back, Home
@@ -2216,7 +2260,7 @@ private struct HintBar: View {
         if model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil { return L10n.t("Close") }
         switch model.route {
         case .detail(_, let from): return from == .home ? L10n.t("Home") : L10n.t("Library")
-        case .home, .library: return L10n.t("To the games")
+        case .home, .library, .launchers: return L10n.t("To the games")
         }
     }
 

@@ -117,8 +117,21 @@ final class InputRouter {
     private func handleKey(code: UInt16, chars: String, plain: Bool) -> Bool {
         guard plain, let model, !model.showingOptions, model.macSetup == nil else { return false }
         guard let window = NSApp.keyWindow, window.title == "Nightforge" else { return false }
-        if model.quickMenu != nil { return handleMenuKey(code, in: window, model) }
+        // The store's page has the keys: passwords go there. Only Esc is the stage's.
+        if let provider = model.signingIn {
+            if code == 53 {
+                model.cancelSignIn()
+                return true
+            }
+            if (code == 36 || code == 76) && provider.signsInInItsOwnWindow {
+                model.showSignInWindow(provider)
+                return true
+            }
+            return false
+        }
+        if model.quickMenu != nil || model.launcherMenuOpen { return handleMenuKey(code, in: window, model) }
         if window.firstResponder is NSText { return false }
+        if model.showsLauncherCards, handleCardKey(code, in: window, model) { return true }
 
         switch code {
         case 123 where model.lightbox != nil: model.lightbox?.step(-1); return true
@@ -167,16 +180,36 @@ final class InputRouter {
         case "d" where !model.downloads.isEmpty:
             model.showingDownloads.toggle()
             return true
+        case "m" where !model.showsFirstStart && model.route != .launchers:
+            model.openLauncherMenu(byPad: true)
+            return true
         default:
             return false
         }
     }
 
+    /// The four launcher cards: ←/→ between them (↑/↓ reach "Continue"), Return on the one selected,
+    /// Esc back. False for the keys they leave alone.
+    private func handleCardKey(_ code: UInt16, in window: NSWindow, _ model: LibraryModel) -> Bool {
+        let focus = PadFocus.shared
+        switch code {
+        case 123: focus.move(dx: -1, dy: 0, in: window, within: .panel)
+        case 124: focus.move(dx: 1, dy: 0, in: window, within: .panel)
+        case 125: focus.move(dx: 0, dy: 1, in: window, within: .panel)
+        case 126: focus.move(dx: 0, dy: -1, in: window, within: .panel)
+        case 36, 76: focus.focusedItem(in: window)?.activate()
+        case 53: model.back()
+        default: return false
+        }
+        return true
+    }
+
     /// An open quick menu has the keys, as it has the pad: ↑/↓ between its entries, Return, Esc.
+    /// The small launcher menu the same way.
     private func handleMenuKey(_ code: UInt16, in window: NSWindow, _ model: LibraryModel) -> Bool {
         let focus = PadFocus.shared
         switch code {
-        case 53: model.closeQuickMenu()
+        case 53: model.launcherMenuOpen ? model.closeLauncherMenu() : model.closeQuickMenu()
         case 125: focus.move(dx: 0, dy: 1, in: window, within: .panel)
         case 126: focus.move(dx: 0, dy: -1, in: window, within: .panel)
         case 36, 76:
@@ -259,7 +292,7 @@ final class InputRouter {
     /// Gestures belong to the main window's levels: never to a sheet, a dialog or the downloads
     /// panel, nor to the library's search field under the pointer.
     private func mayGesture(_ event: NSEvent) -> Bool {
-        guard let model, let main = Self.mainWindow, event.window === main, dialog == nil,
+        guard let model, let main = Self.mainWindow, event.window === main, dialog == nil, !panelOpen,
               !model.showingDownloads, !model.showingOptions, model.quickMenu == nil, model.macSetup == nil else { return false }
         return !(model.route == .library && SwipeStage.shared.pointer(Self.topLeft(event), isOn: .search))
     }
@@ -379,6 +412,12 @@ final class InputRouter {
         pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
+                // On the stage A brings a client's own window back, and is nothing else: the row under
+                // it keeps its highlight.
+                if let provider = self?.model?.signingIn {
+                    if provider.signsInInItsOwnWindow { self?.model?.showSignInWindow(provider) }
+                    return
+                }
                 guard self?.reach != Reach.none else { return }
                 // The overlay has A to itself, not the big screenshot under it.
                 if self?.reach != .overlay, self?.model?.lightbox != nil, self?.dialog == nil {
@@ -399,18 +438,22 @@ final class InputRouter {
         pad.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard let self, let model = self.model, self.reach != .none else { return }
+                // A store's own window has the front while it signs in: B still takes the stage down.
+                guard let self, let model = self.model, self.reach != .none || model.signingIn != nil else { return }
                 let main = Self.mainWindow
                 let highlight = NSApp.keyWindow.map { $0 === main && PadFocus.shared.focusedItem(in: $0) != nil } ?? false
                 // One press, one level: the innermost thing open goes first.
                 let open = PadRules.Open(overlay: self.reach == .overlay, sheet: self.dialog != nil, modal: NSApp.modalWindow != nil,
                                          lightbox: model.lightbox != nil, list: model.libraryMenu != nil,
                                          downloads: model.showingDownloads, options: model.showingOptions, highlight: highlight,
-                                         gamePage: model.route.isDetail, awaitingSteam: model.awaitingSteam,
-                                         curtain: GameBackdrop.isRaised, quickMenu: model.quickMenu != nil)
+                                         gamePage: model.route.isDetail || model.showsLauncherCards, awaitingSteam: model.awaitingSteam,
+                                         curtain: GameBackdrop.isRaised, quickMenu: model.quickMenu != nil,
+                                         launcherMenu: model.launcherMenuOpen, signIn: model.signingIn != nil)
                 switch PadRules.back(open) {
                 case .overlay: GameOverlay.back()
+                case .signIn: model.cancelSignIn()
                 case .quickMenu: model.closeQuickMenu()
+                case .launcherMenu: model.closeLauncherMenu()
                 case .lightbox: model.lightbox = nil
                 case .list: model.libraryMenu.map(model.closeLibraryMenu)
                 case .downloads: model.closeDownloads()
@@ -566,7 +609,7 @@ final class InputRouter {
             .contains { $0.isPressed }
             || abs(pad.dpad.xAxis.value) > 0.5 || abs(pad.dpad.yAxis.value) > 0.5
         defer { anyDown = down }
-        guard down, !anyDown, now - lastWake > 2, let model,
+        guard down, !anyDown, now - lastWake > 2, let model, model.signingIn == nil,
               Self.wakes(inFront: NSApp.isActive, overlayOpen: GameOverlay.isOpen, gameOn: model.gameOnScreen,
                          frontIsGame: Self.frontAppIsGame())
         else { return }
@@ -704,10 +747,11 @@ final class InputRouter {
     }
 
     /// Something over the main window's levels that keeps the pad: the downloads panel, a chip's list,
-    /// a game's quick menu, a big screenshot.
+    /// a game's quick menu, a big screenshot, the launcher menus, a store's sign-in.
     private var panelOpen: Bool {
         guard let model else { return false }
         return model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
+            || model.launcherMenuOpen || model.showsLauncherCards || model.signingIn != nil
     }
 
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
@@ -783,9 +827,9 @@ final class InputRouter {
     }
 
     private func primary() {
-        guard let model, !model.showingOptions, model.macSetup == nil else { return }
+        guard let model, !model.showingOptions, model.macSetup == nil, model.signingIn == nil else { return }
         // A menu the mouse opened has no highlight yet: the first press shows where you are.
-        if model.quickMenu != nil {
+        if model.quickMenu != nil || model.launcherMenuOpen {
             if let main = Self.mainWindow { PadFocus.shared.move(dx: 0, dy: 1, in: main, within: .panel) }
             return
         }
@@ -829,14 +873,16 @@ final class InputRouter {
     @discardableResult
     private func perform(_ step: Step) -> Bool {
         guard let model else { return false }
+        if model.signingIn != nil { return false }  // the store's page has nothing for the pad
         // A screenshot shown big: left and right go through the others.
         if model.lightbox != nil, padWindow == nil || padWindow === Self.mainWindow {
             if step.dx != 0 { model.lightbox?.step(step.dx) }
             return true
         }
-        // An open panel (downloads, a chip's list, a quick menu) keeps the pad: its controls only,
-        // entering it from wherever the highlight was.
-        if model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil, let main = Self.mainWindow, padWindow === main {
+        // An open panel (downloads, a chip's list, a quick menu, the launcher menus) keeps the pad: its
+        // controls only, entering it from wherever the highlight was.
+        if model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.launcherMenuOpen || model.showsLauncherCards,
+           let main = Self.mainWindow, padWindow === main {
             PadFocus.shared.move(dx: step.dx, dy: step.dy, in: main, within: .panel)
             return false
         }

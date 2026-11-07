@@ -76,7 +76,7 @@ extension StoreProvider {
     func search(_ term: String) async -> [StoreHit] { [] }
 }
 
-/// A store the player signs in to in the store's own page (Epic Games, GOG): Settings › Stores and
+/// A store the player signs in to in the store's own page (Epic Games, GOG): the launcher menus and
 /// the sync banner show each the same way.
 @MainActor
 protocol AccountStore: StoreProvider, ObservableObject {
