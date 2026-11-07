@@ -1009,6 +1009,9 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
 
 ## Darstellung und Leistung
 
+- **Shader und Pipelines auf dem DXMT-Weg vorbereiten** (Plan `docs/ENTWURF-SHADER.md`, wartet auf das OK des Nutzers).
+  - Zuerst Stufe 0: messen, ob die Haken in Overwatch Shader sind. Sonst sind Recalls Wine-Patches dran.
+  - `ShaderCaches.folders` kennt `C/dxmt/<exe>/com.apple.metal` nicht: „Shader löschen“ lässt Metals Cache stehen.
 - **Die Optionen eines Steam-Spiels lesen `appinfo.vdf` auf dem Main-Thread** (Release-Review C4, für 0.3.2).
   - **Teilweise erledigt (8.11., f0d1adc):** Die Datei wird nur noch einmal pro Änderung gelesen (bis 64 MB im
     Speicher), nicht mehr für jedes Spiel neu. Das Auswerten je Spiel läuft weiter auf dem Main-Thread.
