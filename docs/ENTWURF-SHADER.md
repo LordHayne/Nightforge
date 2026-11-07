@@ -82,6 +82,12 @@ Gleicher Mac, Netzteil, gleiche Auflösung und Stufe, gleiches Laufwerk. Übungs
 **A** kalt (alle Caches leer, Recalls vorher sichern), **B** zweiter Lauf, **C** nach Neustart. Zahlen: Frames über 33/50/100 ms je
 Minute, schlimmster Frame, 1-%-Low, Anteil der Haken mit Shader-Eintrag im selben Moment.
 
+**Stufe 0 läuft ohne Build und zunächst ohne Recall:** nur Nightforge, kalt und warm. `MTL_HUD_LOG_ENABLED=1` schreibt die Frames über
+stderr ins `wine.log`. Die Compile-Einträge von `MTL_HUD_LOG_SHADER_ENABLED` waren hier nicht zu sehen (macOS 27, kleines Testprogramm).
+Kompilieren misst deshalb ein Beobachter von außen: Rechenzeit von `MTLCompilerService`, Wachstum der Übersetzungs-Datei, dazu die
+Zeitstempel der `.reg`-Dateien. Am Testprogramm trennt das sauber: kalt 98 s Compiler und Spitzen um 725 ms, warm 0 s und fast keine.
+Aus dem Metal-Cache bediente Pipelines sieht der Beobachter nicht. Werkzeug: Notizen unter `shader-messung/`.
+
 **Entscheidung:** Liegt in Lauf B weniger als die Hälfte der Haken über 50 ms bei einem Shader-Eintrag, hilft dieser Plan dort
 wenig. Dann sind Recalls Wine-Patches dran, die wir nicht haben: `wine-server-registry-save` (0,1 s Pause alle 30 s) und
 `wine-ntdll-syscall-log` (Freezes von 150–400 ms). Recalls „95 % weniger Stotterer“ nennt Shader und Wine-Fixes zusammen.
