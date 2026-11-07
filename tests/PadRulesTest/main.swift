@@ -49,6 +49,25 @@ struct PadRulesTest {
         check(PadRules.back(Open(curtain: true, signIn: true)) == .nothing, "a game's curtain wins")
         check(PadRules.back(Open(highlight: true, gamePage: true)) == .level, "the four cards go back at once, as a game's page")
 
+        // ⧉: the small launcher menu.
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: false, cards: false, chorded: false) == .open,
+              "⧉ opens the launcher menu on Home and in the library")
+        check(PadRules.viewButton(menuOpen: true, levelsFree: false, firstStart: false, cards: false, chorded: false) == .close,
+              "and closes it again")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: false, cards: false, chorded: true) == .nothing,
+              "not as part of ☰ + ⧉, the overlay's buttons")
+        check(PadRules.viewButton(menuOpen: true, levelsFree: false, firstStart: false, cards: false, chorded: true) == .nothing,
+              "the chord leaves an open menu open too")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: false, firstStart: false, cards: false, chorded: false) == .nothing,
+              "not over a sheet or another panel")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: true, cards: false, chorded: false) == .nothing,
+              "not in the first start")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: false, cards: true, chorded: false) == .nothing,
+              "not on the four cards, which are the same thing big")
+        check(PadRules.takesViewButton(active: true, overlay: false), "Nightforge in front: ⧉ is Nightforge's")
+        check(!PadRules.takesViewButton(active: false, overlay: false), "a game in front: its screenshot gesture stays the system's")
+        check(!PadRules.takesViewButton(active: true, overlay: true), "the overlay over a game leaves it to the system too")
+
         // X, Y, ☰ and L2/R2 only with nothing in front of the levels.
         check(PadRules.actsOnGames(inFront: true, sheet: false, panel: false), "the levels free: they act")
         check(!PadRules.actsOnGames(inFront: true, sheet: false, panel: true), "not behind the downloads panel, a list or a big screenshot")

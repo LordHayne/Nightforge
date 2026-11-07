@@ -1343,7 +1343,6 @@ enum L10n {
         "Scroll": "Scrollen",
         "To the games": "Zu den Spielen",
         "Browse": "Blättern",
-        "Works – Nightforge doesn't need this button, games do": "Funktioniert – Nightforge braucht diese Taste nicht, Spiele schon",
         "Works – it belongs to macOS, Nightforge leaves it alone": "Funktioniert – sie gehört macOS, Nightforge lässt sie in Ruhe",
         "Works – Nightforge doesn't need the touchpad, games do": "Funktioniert – Nightforge braucht das Touchpad nicht, Spiele schon",
         "Paused while Steam waits for you to sign in": "Pausiert, solange Steam auf deine Anmeldung wartet",
@@ -1469,6 +1468,7 @@ enum L10n {
         "%@'s sign-in page doesn't answer. Check your internet connection.":
             "Die Anmeldeseite von %@ antwortet nicht. Prüfe deine Internetverbindung.",
         "Cancel, back to the launcher menu": "Abbrechen, zurück zum Launcher-Menü",
+        "Opens and closes the launcher menu – in games it's the game's": "Öffnet und schließt das Launcher-Menü – in Spielen gehört sie dem Spiel",
         "Sign in to %@": "Bei %@ anmelden",
 
         // Errors

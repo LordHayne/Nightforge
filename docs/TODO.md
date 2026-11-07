@@ -748,6 +748,10 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - **Battle.net-Karten starten noch nicht:** Nach dem Verbinden stehen die Spiele in der Bibliothek, „Spielen“ verweist auf den Client.
 - **Abgemeldeter Store:** Die Karte bietet nur „Erneut anmelden“, „Trennen“ gibt es erst danach wieder über „Verwalten“.
 - **Keine Store-Logos in der App:** Die Kacheln zeigen schlichte Buchstaben.
+- **⧉ öffnet das kleine Menü (live offen):** View bzw. Create. Beim DualSense ist Create eine Bildschirmfoto-Geste von macOS.
+  Nightforge setzt sie nur ab, solange es selbst vorn ist (`preferredSystemGestureState = .disabled`), und gibt sie beim
+  Wechsel ins Spiel zurück. Der Header sagt, das sei „not guaranteed to be respected“: am DualSense prüfen, ob Create in
+  Nightforge das Menü öffnet und im Spiel weiter Bildschirmfotos macht.
 
 ## Battle.net (0.3.2, Zweig `claude/battlenet-032`)
 
