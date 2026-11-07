@@ -3,7 +3,7 @@
  "sources": {
   "umu-protonfixes": {
    "url": "https://github.com/Open-Wine-Components/umu-protonfixes",
-   "commit": "28a02c25e4b895131c9ebdeda411ec3646b38151",
+   "commit": "9466f1e638d4a66fe5415c1d903979490ad687c8",
    "license": "BSD-2-Clause"
   },
   "geforce-now": {
@@ -4824,6 +4824,13 @@
     "BattlEye"
    ]
   },
+  "2399420": {
+   "name": "Le Mans Ultimate",
+   "dllOverrides": {
+    "d3dx11_43": "builtin"
+   },
+   "source": "umu"
+  },
   "2399830": {
    "name": "ARK: Survival Ascended",
    "source": "anticheat",
@@ -5911,5 +5918,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-03T15:39:46Z"
+ "generated": "2026-11-07T11:17:51Z"
 }
