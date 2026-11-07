@@ -82,7 +82,8 @@ Gleicher Mac, Netzteil, gleiche Auflösung und Stufe, gleiches Laufwerk. Übungs
 **A** kalt (alle Caches leer, Recalls vorher sichern), **B** zweiter Lauf, **C** nach Neustart. Zahlen: Frames über 33/50/100 ms je
 Minute, schlimmster Frame, 1-%-Low, Anteil der Haken mit Shader-Eintrag im selben Moment.
 
-**Stufe 0 läuft ohne Build und zunächst ohne Recall:** nur Nightforge, kalt und warm. `MTL_HUD_LOG_ENABLED=1` schreibt die Frames über
+**Stufe 0 läuft ohne Build und zunächst ohne Recall:** nur Nightforge, kalt und warm. Sie klärt Overwatchs Spitzen und ist zugleich der
+Vorher-Wert für erste Runden, möglichst mit einem zweiten Spiel (ABZU); der Nutzen für DXMT-Spiele hängt nicht an Overwatchs Spitzen. `MTL_HUD_LOG_ENABLED=1` schreibt die Frames über
 stderr ins `wine.log`. Die Compile-Einträge von `MTL_HUD_LOG_SHADER_ENABLED` waren hier nicht zu sehen (macOS 27, kleines Testprogramm).
 Kompilieren misst deshalb ein Beobachter von außen: Rechenzeit von `MTLCompilerService`, Wachstum der Übersetzungs-Datei, dazu die
 Zeitstempel der `.reg`-Dateien. Am Testprogramm trennt das sauber: kalt 98 s Compiler und Spitzen um 725 ms, warm 0 s und fast keine.
