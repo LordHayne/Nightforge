@@ -20,7 +20,11 @@
  "games": {
   "550": {
    "name": "Left 4 Dead 2",
-   "note": "Tested 2026-10-26 on M5: DXVK fails (MoltenVK rejects its buffers, 'Failed to create D3D device'), Nightforge switches to WineD3D by itself. Menu and play work, but it crashed after about a minute twice; -vulkan (Valve's DXVK) and WineD3D's Vulkan renderer don't start.",
+   "arguments": [
+    "+windows_speaker_config",
+    "2"
+   ],
+   "note": "Tested 2026-11-07 on M5, macOS 27.0, winecx 4.7.3, WineD3D: with four speakers (windows_speaker_config 4, what the game picks under winecx) loading a map hangs right after 'Redownloading all lightmaps' while it loads its sounds; in stereo, or with -nosound, Dead Center loads in seconds. Not the cause: graphics backend (OpenGL or Vulkan), CSMT, mat_queue_mode, msync, Rosetta's AVX hint, CX_APPLEGPTK_LIBD3DSHARED_PATH. 2026-10-26: DXVK fails (MoltenVK rejects its buffers), -vulkan (Valve's DXVK) doesn't start.",
    "source": "mac"
   },
   "1930": {
@@ -5915,5 +5919,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-07T00:40:56Z"
+ "generated": "2026-11-07T21:50:08Z"
 }
