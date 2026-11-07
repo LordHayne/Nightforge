@@ -229,7 +229,7 @@ private struct DownloadCover: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
+            TypoCover.background(width: 36)
             if let cover {
                 Image(nsImage: cover).resizable().scaledToFill()
             }

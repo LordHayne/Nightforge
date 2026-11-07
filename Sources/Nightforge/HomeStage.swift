@@ -88,7 +88,7 @@ struct HomeStage: View {
             if item.place < model.homeRail.count {
                 let index = model.homeRail[item.place]
                 let game = model.games[index]
-                StageCover(game: game, front: front, width: width, shade: Self.shades[step],
+                StageCover(game: game, front: front, width: width, shade: Self.shades[step], facts: TypoCover.line(model.info(for: game)),
                            progress: { if case .downloading(let fraction) = game.shown.install { return fraction ?? 0 } else { return nil } }())
                     .modifier(CardMenuButton(shown: front) { model.openQuickMenu(at: index) })
                     .modifier(GameCardMenu(game: game))
@@ -157,6 +157,8 @@ private struct StageCover: View {
     let front: Bool
     let width: CGFloat
     let shade: Double
+    /// The line on a cover without art (TypoCover.line).
+    let facts: String?
     /// A download's progress, along the bottom edge.
     let progress: Double?
     @State private var cover: NSImage?
@@ -168,14 +170,8 @@ private struct StageCover: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
-                if front {
-                    Text(game.name)
-                        .displayFont(22)
-                        .foregroundStyle(Theme.ink.opacity(0.9))
-                        .multilineTextAlignment(.center)
-                        .padding(20)
-                }
+                // In front the hero beside it names the game big already: once is enough.
+                TypoCover(name: front ? nil : game.name, line: front ? nil : facts, width: width)
             }
         }
         .frame(width: width, height: width * 1.5)

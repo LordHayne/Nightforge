@@ -164,8 +164,19 @@ struct LauncherState: Equatable, Identifiable {
     /// And the small menu's row.
     static func rowID(_ provider: Provider) -> String { "launcher.row.\(provider.rawValue)" }
 
-    /// Plain type in place of a logo: the app has none of the stores' marks, and doesn't draw any.
+    /// Plain type in place of a logo: the app draws no store's mark. A tone of its own per store
+    /// (canvas 7.11., "Buchstabe mit Farbring"), in the letter and a ring: no brand colour.
     var letter: String { String(provider.label.prefix(1)) }
+
+    /// The store's tone, as 0xRRGGBB.
+    static func tint(_ provider: Provider) -> Int {
+        switch provider {
+        case .steam: return 0x6F93BD
+        case .epic: return 0xD4D6DA
+        case .gog: return 0xA47DDB
+        case .battlenet: return 0x4F9BE8
+        }
+    }
 }
 
 /// The two stores that live in a client of their own, as their files show them. Read off the main

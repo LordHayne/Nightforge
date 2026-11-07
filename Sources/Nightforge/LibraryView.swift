@@ -1938,6 +1938,8 @@ struct CoverCard: View {
     var isLater = false
     /// The library's covers change size with a pinch (CoverSize); the rail's stay as they are.
     var width = CoverSize.regular.width
+    /// The line under the name on a cover without art (TypoCover.line).
+    var facts: String?
     let openMenu: () -> Void
     @State private var cover: NSImage?
     @Environment(\.reduceMotion) private var reduceMotion
@@ -1949,12 +1951,8 @@ struct CoverCard: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
-                Text(game.name)
-                    .font(size: 15, weight: .bold).fontWidth(.expanded)
-                    .foregroundStyle(Theme.ink.opacity(0.85))
-                    .multilineTextAlignment(.center)
-                    .padding(14)
+                // The name under the card stays small: this one's the big one.
+                TypoCover(name: game.name, line: facts, width: width, bottomRoom: hasBottomBadge ? 30 : 0)
             }
         }
         .frame(width: width, height: width * 1.5)
@@ -2057,6 +2055,11 @@ struct CoverCard: View {
 
     /// A game from several stores shows what one of them is doing (a download), else the one it starts through.
     private var shown: Game { game.shown }
+
+    /// A badge sits in a bottom corner (controller, download, update, drive): a typo cover's name stays above it.
+    private var hasBottomBadge: Bool {
+        game.controller != .none || shown.install != .installed || game.pendingUpdate != nil
+    }
 
     /// "Steam and Epic Games".
     static func stores(_ game: Game) -> String {

@@ -305,7 +305,7 @@ private struct SessionCover: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
+            TypoCover.background(width: 64)
             if let cover {
                 Image(nsImage: cover).resizable().scaledToFill()
             }
