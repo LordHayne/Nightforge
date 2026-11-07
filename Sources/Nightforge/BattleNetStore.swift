@@ -6,7 +6,8 @@ import Foundation
 /// password or changes the client's files.
 ///
 /// So far the library only: the cards show, nothing starts from them (LibraryModel.launch). They
-/// show once the player has connected Battle.net on its launcher card (`link`).
+/// show once Battle.net is linked: on its launcher card, or by itself once the client is signed in
+/// on this Mac – until the player disconnects it (`links`).
 @MainActor
 final class BattleNetStore: StoreProvider {
     static let switchKey = "battleNetStore"
@@ -16,8 +17,16 @@ final class BattleNetStore: StoreProvider {
 
     private var clients: [BattleNetLibrary.Client] { [.mac, .windows(prefix: BattleNetLibrary.prefix)] }
 
-    /// The player connected Battle.net on its launcher card.
+    /// Linked: its games are in the library.
     var isLinked: Bool { UserDefaults.standard.bool(forKey: Self.switchKey) }
+    /// The player chose "Disconnect": a signed-in client doesn't bring the games back by itself.
+    var wasUnlinked: Bool { UserDefaults.standard.object(forKey: Self.switchKey) as? Bool == false }
+
+    /// Whether Battle.net belongs in the library: linked, or signed in on this Mac and never disconnected
+    /// – as Steam's games show once Steam is signed in. Blizzard's client has no sign-in of Nightforge's.
+    nonisolated static func links(linked: Bool, unlinked: Bool, clientSignedIn: Bool) -> Bool {
+        linked || (!unlinked && clientSignedIn)
+    }
 
     func link() { UserDefaults.standard.set(true, forKey: Self.switchKey) }
     func unlink() { UserDefaults.standard.set(false, forKey: Self.switchKey) }

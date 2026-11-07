@@ -261,6 +261,12 @@ extension LibraryModel {
             let clients = await Engine.offMain { LauncherClients.read() }
             guard !Task.isCancelled, let self else { return }
             self.launcherClients = clients
+            // Signed in on this Mac and never disconnected: its games come in by themselves.
+            if !self.battleNet.isLinked,
+               BattleNetStore.links(linked: false, unlinked: self.battleNet.wasUnlinked, clientSignedIn: clients.battleNetSignedIn) {
+                self.battleNet.link()
+                self.reload(quiet: true)
+            }
             self.updateLaunchers()
         }
     }
@@ -301,7 +307,8 @@ extension LibraryModel {
             facts.name = gog.accountName
             facts.sync = gog.sync
         case .battlenet:
-            facts.connected = battleNet.isLinked
+            facts.connected = BattleNetStore.links(linked: battleNet.isLinked, unlinked: battleNet.wasUnlinked,
+                                                   clientSignedIn: clients.battleNetSignedIn)
             facts.signedIn = clients.battleNetSignedIn
             facts.clientMissing = !clients.battleNetInstalled
         }

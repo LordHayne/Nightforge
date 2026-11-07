@@ -71,17 +71,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// then, rather than hearing yes while Nightforge is still there.
     @MainActor @objc private func quitEvent(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
         let manager = NSAppleEventManager.shared()
+        let by = Self.sender(of: event)
         guard let held = manager.suspendCurrentAppleEvent() else {
-            if !Quit.now(by: "an Apple Event") {
+            if !Quit.now(by: by) {
                 reply.setParam(NSAppleEventDescriptor(int32: Int32(userCanceledErr)), forKeyword: keyErrorNumber)
             }
             return
         }
-        guard !Quit.now(by: "an Apple Event", beforeQuitting: { manager.resume(withSuspensionID: held) }) else { return }
+        guard !Quit.now(by: by, beforeQuitting: { manager.resume(withSuspensionID: held) }) else { return }
         // Removing itself: the sender hears that nothing happens now, as from AppKit.
         manager.replyAppleEvent(forSuspensionID: held)
             .setParam(NSAppleEventDescriptor(int32: Int32(userCanceledErr)), forKeyword: keyErrorNumber)
         manager.resume(withSuspensionID: held)
+    }
+
+    /// Who sent a quit, for wine.log: the Dock, `osascript` (an install script), logging out.
+    private static func sender(of event: NSAppleEventDescriptor) -> String {
+        guard let pid = event.attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value, pid > 0 else {
+            return "an Apple Event"
+        }
+        var name = [CChar](repeating: 0, count: 256)
+        let length = proc_name(pid, &name, UInt32(name.count))
+        return "an Apple Event from \(length > 0 ? String(cString: name) : "process \(pid)")"
     }
 
     /// Never a silent no: the one time it waits, Quit says why in wine.log.
@@ -110,7 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        GameLog.note("Quit by the last window closing")
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {

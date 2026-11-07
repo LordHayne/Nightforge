@@ -531,23 +531,24 @@ struct CompleteRemovalTest {
 
         let settings = Stage(["Settings"], model: true)
         let took = await quit(settings)
-        check(settings.events == ["model", "answer", "terminate"] && settings.notes.isEmpty,
+        check(settings.events == ["model", "answer", "terminate"] && settings.notes == ["Quit by ⌘Q"],
               "Settings: closed through the model, then the quit: \(settings.events)")
         check(took < 0.8, "as soon as it's gone, not after AppKit's turn: \(took) s")
 
         let alert = Stage(["NSAlert"], appKit: true)
         let alertTook = await quit(alert)
-        check(alert.events == ["model", "AppKit", "answer", "terminate"] && alert.notes.isEmpty,
+        check(alert.events == ["model", "AppKit", "answer", "terminate"] && alert.notes == ["Quit by ⌘Q"],
               "a sheet of AppKit's own: ended through AppKit after the model's turn: \(alert.events)")
         check(alertTook >= 0.9, "AppKit's turn comes after a second: \(alertTook) s")
 
         let stuck = Stage(["Settings"])
         _ = await quit(stuck)
         check(stuck.events == ["model", "AppKit", "answer", "terminate under Settings"], "a sheet that won't go: tried all the same: \(stuck.events)")
-        check(stuck.notes == ["Quit by ⌘Q didn't go through: a sheet is still open (Settings)"], "and wine.log says why: \(stuck.notes)")
+        check(stuck.notes == ["Quit by ⌘Q", "Quit by ⌘Q didn't go through: a sheet is still open (Settings)"], "and wine.log says why: \(stuck.notes)")
 
         let none = Stage([])
         check(Quit.now(by: "the menu", on: none) && none.events == ["model", "terminate"], "no sheet: at once: \(none.events)")
+        check(none.notes == ["Quit by the menu"], "every quit says in wine.log what asked for it: \(none.notes)")
 
         check(Quit.reason(sheetsLeft: [], panelWaiting: true) == "a panel still waits for a file", "a panel's wait named")
         check(Quit.reason(sheetsLeft: [], panelWaiting: false) == "AppKit didn't take it", "else AppKit's silence")

@@ -745,7 +745,11 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   er beim nächsten Start neu, die Karte zeigt dann „Abgemeldet“. Einen Kontonamen zeigt sie nicht: In den Dateien steht nur die Mail.
 - **Fenster in Nightforge (wartet aufs OK des Nutzers):** `CGWindowListCopyWindowInfo` liefert die Fensterrahmen von Battle.net ohne
   Bedienungshilfen- und Bildschirmaufnahme-Recht (geprüft 7.11.). Die Bühne könnte ihren Rahmen also dorthin legen, wo das Fenster ist.
-- **Battle.net-Karten starten noch nicht:** Nach dem Verbinden stehen die Spiele in der Bibliothek, „Spielen“ verweist auf den Client.
+- **Battle.net-Karten starten noch nicht:** Ist der Mac-Client angemeldet, verknüpft Nightforge Battle.net von selbst (wie Steam), bis
+  der Spieler „Trennen“ wählt. Die Spiele stehen dann in der Bibliothek, „Spielen“ verweist auf den Client.
+- **Beendigungen im wine.log:** Seit 7.11. steht jede Beendigung mit Auslöser dort (`[nightforge] Quit by …`, bei Apple Events mit
+  dem Absender, etwa `osascript`). Das Beenden im Live-Test 7.11. 21:20:45 war sauber, aber ohne Spur: vorher wurde nur ein
+  verweigertes Beenden geloggt.
 - **Abgemeldeter Store:** Die Karte bietet nur „Erneut anmelden“, „Trennen“ gibt es erst danach wieder über „Verwalten“.
 - **Keine Store-Logos in der App:** Die Kacheln zeigen schlichte Buchstaben.
 - **⧉ öffnet das kleine Menü (live offen):** View bzw. Create. Beim DualSense ist Create eine Bildschirmfoto-Geste von macOS.
