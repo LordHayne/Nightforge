@@ -64,7 +64,7 @@ enum Engine {
 
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
-    static let steamConfigVersion = 9
+    static let steamConfigVersion = 10
     static var gameEnvironment: [String: String] {
         var env = [
             // Compile shaders in the background instead of stalling the frame that first needs them.
@@ -2283,6 +2283,14 @@ enum Engine {
         // Gecko/Mono installers would otherwise pop up dialogs during setup.
         env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
         env["PATH"] = wine.deletingLastPathComponent().path + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+        // With this, winecx registers every Windows module with Rosetta through Apple's library
+        // (CW HACK 22434, dlls/ntdll/unix/loader.c). CrossOver and Recall set it; without it,
+        // Overwatch's loader hangs at start with no window (7.11.2026). It comes with D3DMetal.
+        let rosettaLibrary = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("lib/external/libd3dshared.dylib")
+        if FileManager.default.fileExists(atPath: rosettaLibrary.path) {
+            env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] = rosettaLibrary.path
+        }
         return env
     }
 
