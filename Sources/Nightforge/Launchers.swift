@@ -201,27 +201,41 @@ enum BattleNetClient {
             .appendingPathComponent("Library/Application Support/Battle.net/Logs", isDirectory: true)
     }
 
-    /// The newest client log that got as far as its sign-in.
+    /// Whether the newest client start that says so has the player. A start that hasn't got that far
+    /// yet (or the short log every start writes beside its real one) says nothing, and the one before counts.
     nonisolated static func isSignedIn(logs: URL? = nil) -> Bool {
         let folder = logs ?? Self.logs
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        // Their names hold the time they were started; a start writes a short log and the real one.
-        for name in names.filter({ $0.hasPrefix("battle.net-") && $0.hasSuffix(".log") }).sorted().reversed().prefix(4) {
+        // Their names hold the time they were started.
+        for name in names.filter({ $0.hasPrefix("battle.net-") && $0.hasSuffix(".log") }).sorted().reversed().prefix(6) {
             // Bytes it can't read as text mustn't hide the sign-in, so not `String(contentsOf:)`.
             guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)),
-                  let state = signInState(log: String(decoding: data, as: UTF8.self)) else { continue }
-            return state == "Done"
+                  let signedIn = signedIn(log: String(decoding: data, as: UTF8.self)) else { continue }
+            return signedIn
         }
         return false
     }
 
-    /// The last state of its sign-in page in a client log: "Login" and "LoginCredential" while it
-    /// asks, "Done" once it took the player. The lines around it can hold the account's mail
-    /// address and country, so nothing else is taken from the log, and it's never kept.
-    nonisolated static func signInState(log: String) -> String? {
-        guard let marker = log.range(of: "UAuth: browser state changed: ", options: .backwards) else { return nil }
-        let name = log[marker.upperBound...].prefix { $0.isLetter }
-        return name.isEmpty ? nil : String(name)
+    /// The account loaded: the client has the player, after its sign-in page or with a remembered
+    /// sign-in, which shows no page at all (7.11.). At its end the client writes "Incomplete": that's
+    /// it shutting down, no sign-out.
+    nonisolated static let accountReady = "Account manager state has changed to: Ready"
+    /// Its sign-in page asks: "Login" and "LoginCredential". Its other states say nothing: "Done" and
+    /// "None" come and go while it hands over, and it loads a fresh sign-in page behind a finished one.
+    nonisolated static let pageAsks = "UAuth: browser state changed: Login"
+
+    /// What a client log says of the sign-in, by whichever of the two came last: true signed in,
+    /// false asked and not through, nil nothing either way. Only these two lines are looked for: the
+    /// ones around them can hold the account's mail address and country, and the log is never kept.
+    nonisolated static func signedIn(log: String) -> Bool? {
+        let ready = log.range(of: accountReady, options: .backwards)?.lowerBound
+        let asks = log.range(of: pageAsks, options: .backwards)?.lowerBound
+        switch (ready, asks) {
+        case let (ready?, asks?): return ready > asks
+        case (_?, nil): return true
+        case (nil, _?): return false
+        case (nil, nil): return nil
+        }
     }
 
     /// Its window, for the sign-in, or in front again when it's up already.

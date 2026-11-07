@@ -739,8 +739,12 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   Fenster vorn, Pad auf Karten und Menü, Erststart mit den Karten nach Steams Anmeldung.
 - **Fremde Fenster liegen, wo sie wollen:** Steam und Battle.net lassen sich ohne Bedienungshilfen-Recht nicht verschieben, ihr
   echtes Fenster sitzt also nicht genau im Rahmen des Entwurfs. Epic und GOG sitzen genau dort.
-- **Battle.net-Anmeldung:** Der Client verrät sie nur im Log (`UAuth: browser state changed: Done`). Ohne „Angemeldet bleiben“ fragt
+- **Battle.net-Anmeldung:** Der Client verrät sie nur im Log. Angemeldet heißt `Account manager state has changed to: Ready`, auch bei
+  gemerkter Anmeldung ohne Anmeldeseite. `UAuth: browser state changed: Login…` heißt, die Seite fragt; das spätere Wort zählt.
+  „Done“ und „None“ taugen nicht, sie wechseln während der Übergabe (Live-Test 7.11.). Ohne „Angemeldet bleiben“ fragt
   er beim nächsten Start neu, die Karte zeigt dann „Abgemeldet“. Einen Kontonamen zeigt sie nicht: In den Dateien steht nur die Mail.
+- **Fenster in Nightforge (wartet aufs OK des Nutzers):** `CGWindowListCopyWindowInfo` liefert die Fensterrahmen von Battle.net ohne
+  Bedienungshilfen- und Bildschirmaufnahme-Recht (geprüft 7.11.). Die Bühne könnte ihren Rahmen also dorthin legen, wo das Fenster ist.
 - **Battle.net-Karten starten noch nicht:** Nach dem Verbinden stehen die Spiele in der Bibliothek, „Spielen“ verweist auf den Client.
 - **Abgemeldeter Store:** Die Karte bietet nur „Erneut anmelden“, „Trennen“ gibt es erst danach wieder über „Verwalten“.
 - **Keine Store-Logos in der App:** Die Kacheln zeigen schlichte Buchstaben.

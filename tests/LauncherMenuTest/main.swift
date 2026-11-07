@@ -160,26 +160,36 @@ struct LauncherMenuTest {
         check(SteamLogin.personaName(users: empty) == nil, "an empty name isn't one")
     }
 
-    /// What the client's log says on a real Mac (6.11., shortened): it asks, then it has the player.
-    static let asks = """
-    D 2026-11-06 18:18:45.1 [UnifiedAuth] {} UAuth: browser state changed: Login
-    D 2026-11-06 18:18:45.2 [UnifiedAuth] {Main} UAuth: finished loading. statusCode=200 state=Login
-    """
-    static let through = asks + """
+    /// Client starts on a real Mac (6.11. and 7.11.), only the lines of these two kinds, in their order.
+    /// What sits between them (mail address, country) never goes into a test.
+    static func line(_ text: String) -> String { "D 2026-11-07 19:22:31.1 [x] {Main} \(text)\n" }
+    static func page(_ state: String) -> String { line("UAuth: browser state changed: \(state)") }
+    static func status(_ state: String) -> String { line("UAuth: status changed: \(state)") }
+    static func account(_ state: String) -> String { line("[AccountManager] {Main} Account manager state has changed to: \(state)") }
 
-    I 2026-11-06 18:39:57.1 [UnifiedAuth] {Main} UAuth: status changed: RequestingToken
-    D 2026-11-06 18:39:58.1 [UnifiedAuth] {} UAuth: browser state changed: LoginCredential
-    I 2026-11-06 18:40:24.1 [UnifiedAuth] {Main} UAuth: status changed: ReceivedToken
-    D 2026-11-06 18:40:24.2 [UnifiedAuth] {Main} UAuth: browser state changed: Done
-    I 2026-11-06 18:40:28.1 [AccountManager] {Main} Account manager state has changed to: Loading
-
-    """
+    /// 6.11. 18:18: the sign-in page, closed without signing in.
+    static let neverThrough = page("Login")
+    /// 7.11. 19:22: signed in on the page. After "Done" it loads a new sign-in page behind it, and the
+    /// last page state is "None"; "Incomplete" is the client shutting down.
+    static let throughThePage = page("LoginCredential") + status("RequestingToken") + page("None") + status("ReceivedToken")
+        + status("Ready") + page("Done") + page("None") + page("LoginCredential") + account("Loading") + account("Ready")
+        + page("None") + account("Incomplete")
+    /// 7.11. 19:25: the start after it, signed in from memory: no sign-in page at all.
+    static let remembered = account("Loading") + account("Ready")
+    /// 6.11. 20:24: "stay signed in" off, so the next start asks again.
+    static let asksAgain = page("LoginCredential")
+    /// Signed out in the client while it runs: its page asks after the account was there.
+    static let signedOutWhileRunning = remembered + page("Login")
 
     static func battleNetLog() {
-        check(BattleNetClient.signInState(log: asks) == "Login", "it asks")
-        check(BattleNetClient.signInState(log: through) == "Done", "it's through, the last state counts")
-        check(BattleNetClient.signInState(log: "I started\n") == nil, "a log without a sign-in says nothing")
-        check(BattleNetClient.signInState(log: "") == nil, "an empty log says nothing")
+        check(BattleNetClient.signedIn(log: neverThrough) == false, "the page asked, no one signed in")
+        check(BattleNetClient.signedIn(log: throughThePage) == true, "signed in on the page, whatever page states follow")
+        check(BattleNetClient.signedIn(log: remembered) == true, "a remembered sign-in shows no page and counts")
+        check(BattleNetClient.signedIn(log: asksAgain) == false, "the page asks again")
+        check(BattleNetClient.signedIn(log: signedOutWhileRunning) == false, "the page asking after the account was there")
+        check(BattleNetClient.signedIn(log: account("Loading")) == nil, "a start still loading says nothing")
+        check(BattleNetClient.signedIn(log: line("[Main] {Main} Starting")) == nil, "the short log beside a start says nothing")
+        check(BattleNetClient.signedIn(log: "") == nil, "an empty log says nothing")
     }
 
     static func battleNetFolder() {
@@ -191,14 +201,22 @@ struct LauncherMenuTest {
         }
         check(!BattleNetClient.isSignedIn(logs: folder), "no logs: not signed in")
         check(!BattleNetClient.isSignedIn(logs: folder.appendingPathComponent("gone")), "no folder: not signed in")
-        write("battle.net-20261106T183938.569696.log", through)
-        write("battle.net-20261106T183938.039723.log", "started\n")
-        write("libcef-20261106T183939.965284.log", "UAuth: browser state changed: Login")
-        check(BattleNetClient.isSignedIn(logs: folder), "the last start signed in")
-        // The start after it asks again: the client doesn't keep a sign-in with "stay signed in" off.
-        write("battle.net-20261106T202443.841847.log", asks)
-        write("battle.net-20261106T202443.536327.log", "started\n")
-        check(!BattleNetClient.isSignedIn(logs: folder), "the newest start counts")
+        // Each start writes a short log and its real one, a few hundred ms apart.
+        write("battle.net-20261106T202443.536327.log", line("[Main] {Main} Starting"))
+        write("battle.net-20261106T202443.841847.log", asksAgain)
+        write("libcef-20261106T202445.137163.log", account("Ready"))
+        check(!BattleNetClient.isSignedIn(logs: folder), "the start that asked and nothing more")
+        write("battle.net-20261107T192229.617391.log", line("[Main] {Main} Starting"))
+        write("battle.net-20261107T192230.291231.log", throughThePage)
+        check(BattleNetClient.isSignedIn(logs: folder), "signed in on the page (the live test of 7.11. 20:24)")
+        write("battle.net-20261107T192521.941521.log", line("[Main] {Main} Starting"))
+        write("battle.net-20261107T192522.248808.log", remembered)
+        check(BattleNetClient.isSignedIn(logs: folder), "the restart after it, from memory")
+        // A new start that hasn't got to its account yet: the one before still counts.
+        write("battle.net-20261107T203000.100000.log", account("Loading"))
+        check(BattleNetClient.isSignedIn(logs: folder), "a start still loading leaves the last word to the one before")
+        write("battle.net-20261107T203100.100000.log", asksAgain)
+        check(!BattleNetClient.isSignedIn(logs: folder), "the newest start that says so counts")
     }
 
     /// Nightforge never sees a password: the sign-in has no field of its own, wherever it opens.
