@@ -4,6 +4,54 @@ Stand 31.10.2026. Gemessen auf `claude/ux-roadmap-next` 159acfa (GOG gemergt), d
 aufsetzt. Zum Vergleich steht auch 001a3e0 da, der Stand vor dem GOG-Merge. Die Prozentzahlen sind Zeilenabdeckung
 laut `llvm-cov`.
 
+## Stand 8.11.2026, dritte Runde (0.3.3, auf `claude/staging-033` 365f393)
+
+| | vorher | nachher |
+|---|---|---|
+| Zeilen | 34,47 % | 36,72 % |
+| Funktionen | 46,49 % | 49,97 % |
+| Regionen | 43,70 % | 46,99 % |
+
+Gemessen wie in der zweiten Runde: 23 betroffene Reihen, zusammengeführt mit den älteren Profilen. Funktionen, die sich
+seither geändert haben, verlieren die alten Zähler, die absoluten Zahlen liegen also eher zu niedrig. Zwei kleine
+Testfälle kamen nach der Messung dazu.
+
+Neu abgedeckt: `PadKeyboard` 100 %, `TouchpadPointer` 99 %, `HomeSources` 99 %, `Navigation` 99 %, `ControllerNotices` 97 %,
+`CurtainEscape` 93 %, `BattleNetStart` 76 %, `PlayerSlots` 63 %, `SteamOnDemand` 42 %, `D3DMetalFlow` 0,4 → 15 %.
+
+### Gefundene Fehler, alle behoben
+
+| Commit | Fehler | Ursprungszweig |
+|---|---|---|
+| 12c6c39 | Steam schläft, ein Mac-Spiel startet ohne Nightforge im Vordergrund (Dock-Menü, Link): Das Nach-vorn-Kommen verbrauchte das Aufwecken, der Start wurde wegen des Mac-Spiels verweigert, und niemand holte das Windows-Steam zurück. Das nächste Windows-Spiel wartete dann 45 s aufs Anmelden | `claude/steam-on-demand-033` (fff859f) |
+| ac054bc | Battle.net: Das Log wurde erst nach dem Senden des Befehls mitgelesen, die Antwort des Clients ging verloren; ein angenommener Start wurde bei 12 s erneut gesendet, bei 30 s kam sein Fenster nach vorn | `claude/battlenet-start-033` (d900dc5) |
+| 61df63e | Vorhang: Die neue Geschwindigkeitszeile stürzte bei einem Wert „unendlich“ aus einem beschädigten legendary- oder gogdl-Log ab | `claude/ruhiger-ladescreen-033` (cb2223c) |
+
+Die Regeln selbst hielten: Touchpad-Zeiger, Pad-Tastatur, Spielernummern, Controller-Meldungen, Ausweg aus dem Vorhang
+und Steam nur bei Bedarf liefen über 12 Durchgänge mit Zufallseingaben fehlerfrei. Epic- und GOG-Updates beenden beim
+Abbruch wirklich ihren Prozess; ihr Log beginnt bei jedem Start neu.
+
+### Neue Reihen
+
+`PadAndCurtainFuzzTest` (alle Regeln oben unter Zufall, dazu Battle.nets Log und die Zahlen des Vorhangs). `ModelFlowsTest`
+kann jetzt auch die Reihenfolge der Pins und die D3DMetal-Frage, `ModelNavigationTest` auch die Quellen der Startseite.
+
+Gegenprobe in einer Kopie: Alle 11 eingebauten Fehler wurden am Ende erkannt. Zwei überlebten zuerst (Tastatur-Limit,
+Reihenfolge der Pins, weil der Zufall sie selten traf) und haben deshalb je einen festen Testfall bekommen.
+
+### Beobachtet, nicht geändert
+
+- Beim kurzen Bluetooth-Aussetzer kommt „Controller getrennt“, aber keine Meldung, dass er wieder da ist
+  (`ControllerNoticesTest` will das so). Ob die Meldung die 4 s abwarten soll, ist eine Entscheidung.
+- `nightforge://show/…` und der Klick auf eine Mitteilung wählen das Spiel nur aus. Der Kommentar in `GameShortcut` spricht
+  von der Spielseite.
+- Der Stopp von „Steam schläft“ prüft nach dem Einreihen nicht erneut, ob inzwischen ein Start läuft. Das Fenster ist
+  Millisekunden groß.
+- Laufende Updates installierter Spiele zählen für „Steam schläft“ nicht als Download; Steam macht beim Aufwachen weiter.
+
+Weiter ungetestet: die echten Startabläufe (`launch`, `watchCurtain`, `start`, `launchMac`), `InputRouter`, `SettingsView`,
+`GameBackdrop`.
+
 ## Stand 8.11.2026, zweite Runde (nach 0.3.2)
 
 Neu ist eine Testumgebung für das echte `LibraryModel` ([tests/Shared/ModelWorld.swift](../tests/Shared/ModelWorld.swift)):
