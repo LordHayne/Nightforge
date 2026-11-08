@@ -146,7 +146,7 @@ Shader-Code des Spiels und dürfte nicht mitreisen. Einstieg: Recherche `hermes/
 ## Stufe 1: Stand 8.11.2026
 
 **Ergebnis:** `engine/patches/dxmt-0.80-prepare-shaders.patch` übersetzt die Shader eines Spiels, sobald es sie anlegt, in zwei Hintergrund-Threads.
-Der Patch ändert nur `d3d11.dll`. Ohne `DXMT_PREPARE_SHADERS` läuft alles wie heute. Gebaut wurde er zur Probe lokal; in einem Spiel lief er noch nicht, und einen Workflow-Lauf gab es nicht.
+Der Patch ändert nur `d3d11.dll`. Ohne `d3d11.prepareShaders` in `dxmt.conf` oder `DXMT_PREPARE_SHADERS` (geht vor, `0` schaltet aus) läuft alles wie heute. Gebaut wurde er zur Probe lokal; in einem Spiel lief er noch nicht, und einen Workflow-Lauf gab es nicht.
 
 **Was früh übersetzen kann und was nicht:** Es erzeugt AIR im vorhandenen Cache (`Engine.shaderCache`) und spart damit airconv in der Spielrunde. Metals eigenes Kompilieren beim ersten Zeichnen bleibt. In Stufe 0 maß der
 Beobachter vor allem dieses Kompilieren. Wie viel die erste Runde gewinnt, zeigt erst die Messung unten.
@@ -196,5 +196,5 @@ ABZU, dieselbe Probe-DLL, Schalter abwechselnd aus und an, je Block eine kalte u
 ### Was noch fehlt
 
 - Probe in einem Spiel, Workflow-Lauf, Spieletest mit Korb.
-- App-Schalter je Spiel in `Engine.gameEnvironment` oder per Profil, Standard erst nach der Messung. `DXMT_PREPARE_SHADERS` ist noch nirgends gesetzt.
-- `ShaderCaches.folders` kennt `C/dxmt` nicht, Deckel je Programm für die Übersetzungs-Datei (die Datei teilen sich alle Spiele).
+- Einschalten (Beschluss 8.11., erst nach dem Kurztest bei Spielern): `writeGameConfigs` schreibt `d3d11.prepareShaders = 1` für alle DXMT-Spiele außer Overwatch (`ShaderCaches.translatesEarly`). Ausweg ohne Schalter in der App: `defaults write io.github.lordhayne.nightforge dxmtEarlyShaders -bool false`. Eine ältere `d3d11.dll` speichert die unbekannte Zeile nur und fragt sie nie ab.
+- Die gemeinsame Übersetzungs-Datei geht vor einem Spielstart weg, wenn sie 4 GB überschreitet (`ShaderCaches.limitTranslations`). Ein Deckel je Programm fehlt.

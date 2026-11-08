@@ -2461,7 +2461,8 @@ enum Engine {
     /// from the game's working folder – the game is started by the already running Steam, so
     /// environment variables don't reach it. Written next to every program of the game, since some
     /// start from a subfolder; a config the game ships itself is left alone.
-    static func writeGameConfigs(installDir: URL, frameLimit: Int, upscaling: Bool, vulkanSamplers: Int? = nil, hdr: Bool = false) {
+    static func writeGameConfigs(installDir: URL, frameLimit: Int, upscaling: Bool, vulkanSamplers: Int? = nil, hdr: Bool = false,
+                                 defaults: UserDefaults = .standard) {
         var dxvk = ["dxvk.enableAsync = True"]
         if Prefs.performanceHUD { dxvk.append("dxvk.hud = fps,frametimes,gpuload") }
         var dxmt: [String] = []
@@ -2475,13 +2476,15 @@ enum Engine {
             // factor DXMT upscales to exactly the window's Retina pixels.
             dxmt.append("d3d11.metalSpatialUpscale = True")
         }
+        let programs = executableFiles(in: installDir)
+        if ShaderCaches.translatesEarly(programs: programs, defaults: defaults) { dxmt.append("d3d11.prepareShaders = 1") }
         // Read by Nightforge's Vulkan layer (wrapper/nightforge-vulkan-layer.c), for games that draw
         // through Vulkan themselves or via DXVK.
         var vulkan = vulkanSamplers.map { ["maxPerStageDescriptorSamplers = \($0)"] } ?? []
         if hdr { vulkan.append("hdr = on") }
         if upscaling { vulkan.append("upscale = on") }  // MetalFX, as DXMT does it
         var folders = Set([installDir.standardizedFileURL])
-        for exe in executableFiles(in: installDir) { folders.insert(exe.deletingLastPathComponent().standardizedFileURL) }
+        for exe in programs { folders.insert(exe.deletingLastPathComponent().standardizedFileURL) }
         for folder in folders {
             writeConfig(folder.appendingPathComponent("dxvk.conf"), lines: dxvk)
             writeConfig(folder.appendingPathComponent("dxmt.conf"), lines: dxmt)

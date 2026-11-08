@@ -523,6 +523,7 @@ enum Launcher {
         let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
         let route = game.bottle.isBuiltIn ? SteamProgram.route(game, layer: layer, options: options, profile: profile) : .standard
         if game.bottle.isBuiltIn {
+            ShaderCaches.limitTranslationsBeforeStart()
             Engine.writeGameConfigs(installDir: game.installDir,
                                     frameLimit: frameLimit,
                                     upscaling: options.effectiveUpscaling(profile: profile),
@@ -604,6 +605,7 @@ enum Launcher {
             throw LaunchError.runnerMissing(runnerPath)
         }
         let runner = URL(fileURLWithPath: runnerPath)
+        ShaderCaches.limitTranslationsBeforeStart()
         Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
                                 upscaling: options.effectiveUpscaling(profile: profile),
                                 vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
