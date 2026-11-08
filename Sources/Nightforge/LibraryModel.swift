@@ -2940,13 +2940,13 @@ final class LibraryModel: ObservableObject {
                 handledRejections = watcher.rejectedCommands
                 resent += 1
                 try? await Task.sleep(for: .seconds(2))
-                send()
+                guard Self.asksAgain(cancelled: Task.isCancelled, send: send) else { return .cancelled }
                 quietSeconds = 0
                 continue
             }
             if !watcher.steamReceivedLaunch && seconds % 15 == 0 && resent < 5 {
                 resent += 1
-                send()
+                guard Self.asksAgain(cancelled: Task.isCancelled, send: send) else { return .cancelled }
             }
             switch event {
             case .running?:
@@ -4500,6 +4500,14 @@ final class LibraryModel: ObservableObject {
     }
 
     nonisolated static let steamAnswerGrace = 5
+
+    /// Steam asked again, unless the player has left the start: neither the pause before it nor the look at the
+    /// processes stops for that, and Steam would start the game, or ask which way, with nobody there.
+    nonisolated static func asksAgain(cancelled: Bool, send: () -> Void) -> Bool {
+        guard !cancelled else { return false }
+        send()
+        return true
+    }
 
     /// Brings Steam's main window, with the question it's waiting on, in front of Nightforge.
     func showSteamWindow() {

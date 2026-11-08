@@ -546,6 +546,9 @@ struct GameOverlayTest {
 
         // Steam's question itself: its hidden window first, the player only if it still waits
         // (Left 4 Dead 2 on 2.11.: ShowInterstitials went on 1 s after the window, 5 s in).
+        var sent = 0
+        check(!LibraryModel.asksAgain(cancelled: true) { sent += 1 } && sent == 0, "the player left the start: Steam isn't asked again behind their back")
+        check(LibraryModel.asksAgain(cancelled: false) { sent += 1 } && sent == 1, "the start goes on: Steam is asked again")
         func question(_ waited: Int, shownFor: Int? = nil) -> LibraryModel.SteamQuestionStep {
             LibraryModel.steamQuestionStep(waited: waited, shownFor: shownFor)
         }
