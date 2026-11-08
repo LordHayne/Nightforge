@@ -1,6 +1,10 @@
 # Entwurf: Das große Nightforge-Overlay
 
-Stand 8.11.2026, Konzept ohne App-Code. Das Board `Overlay.dc.html` zeigt drei Varianten, der Nutzer wählt, danach wird gebaut.
+Stand 8.11.2026. Das Board liegt unter [`docs/entwuerfe/Overlay.dc.html`](entwuerfe/Overlay.dc.html).
+
+**Entscheidung des Nutzers (8.11.): Variante A, die Seitenleiste.** B (Streifen unten) bleibt Kandidat für den späteren Konsolen-Modus, C (Raum) bleibt als Idee; alle drei bleiben auf dem Board erhalten.
+
+**Gebaut (Stufe 1, Zweig `claude/overlay-entwurf`):** Seitenleiste aus Bausteinen (`OverlayTiles.swift`, `OverlayView.swift`) mit Spielname, Sitzungszeit, Uhr, Akku je Controller und den drei Wegen. Das Spiel läuft erst weiter, wenn nichts mehr gedrückt ist. Mac-Versionen stehen jetzt auch, reine Online-Spiele auf dem Mac bleiben laufen und das Overlay sagt es. **Noch nicht gebaut:** die stille Eingabe in `winebus`, sie braucht ein neues Paket. Spielernummern kommen mit Stufe 2, bis dahin steht dort nur der Controller-Name. Was nur live geht, steht in `docs/TODO.md` unter „Großes Nightforge-Overlay“.
 
 Belege: **[Code]** Datei:Zeile auf `origin/main` (2276ccb), **[Wine]** winecx-Quelltext `e0aa380` (`dappermint/winecx`, der Stand aus `gamepad.yml`),
 **[SDK]** macOS-SDK 26, **[Quelle n]** Liste am Ende, **[Vermutung]** nicht belegt, **[Live]** nur am echten Gerät zu klären.
@@ -219,7 +223,7 @@ Es gibt zwei Arten, und Nightforge unterscheidet sie schon (`ControllerCompatibi
 - **Kein `.ultraThinMaterial`, kein großer Schatten**, keine Dauer-Animation. Ein Öffnen in höchstens 150 ms, dann steht die Fläche.
 - **Timer:** höchstens einmal pro Minute. Sitzungszeit in Minuten, nie Sekunden.
 - **Geschlossen ist weg**: `orderOut`, nicht unsichtbar.
-- **Fensterfläche:** Heute ist das Panel so groß wie der Bildschirm. Bei einer Seitenleiste reicht ein Fenster von einem Drittel. Das spart beim laufenden Mac-Spiel Mischarbeit.
+- **Fensterfläche:** Das Panel bleibt bildschirmgroß und durchsichtig, gezeichnet wird nur die Karte rechts. `hidePointerForGame` braucht es unter dem Mauszeiger, und ein kleineres Fenster brächte kaum etwas, weil fast alle Spiele dabei stehen.
 - **„Direct“ geht verloren, solange das Overlay offen ist.** Ein Fenster über dem Spiel macht „Composited“ (Notizen zu `direct-display`). Darum ist auch ein Dauer-Widget über dem Spiel kein Thema, das Overlay lebt nur, wenn es offen ist.
 - **Rückmeldung beim Halten:** Ab 0,5 s ein kleiner Ring wie `GameHint`, klickt nicht, nimmt nichts. Haptik über GameController könnte mit SDL um den Motor streiten **[Live]**, daher vorerst nur das Bild.
 
@@ -289,11 +293,11 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 | Idee | Spalte rechts, das Spiel bleibt links sichtbar | Eine Reihe unten, Regler öffnen darüber eine Karte | Abgedunkelter Bildschirm, Kacheln in der Mitte |
 | Bedienung | Hoch und runter, ein Weg | Links und rechts, ein Klick mehr für Regler | Vier Richtungen |
 | Wächst | Einfach nach unten, scrollt | Bis etwa 9 Einträge, dann eng | Kacheln, aber bald voll |
-| Fensterfläche | Ein Drittel | Etwa ein Drittel | Ganzer Bildschirm |
+| Verdeckt vom Spiel | Rechte Spalte | Unteren Streifen | Alles |
 | Am TV | Sehr lesbar | Gut, Karten klein | Sehr lesbar |
 | Nähe zu heute | Neu, Liste bleibt | Neu | Am nächsten am Panel |
 
-**Empfehlung A.** Eine Richtung reicht, es wächst ohne Umbau, verdeckt am wenigsten, und das kleinste Fenster schont das Spiel.
+**Empfehlung A, vom Nutzer gewählt.** Eine Richtung reicht, es wächst ohne Umbau und verdeckt am wenigsten.
 
 ---
 
@@ -310,7 +314,7 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 
 ## 8. Fragen an den Nutzer
 
-1. **Welche Variante?** Empfehlung A.
+1. ~~Welche Variante?~~ Entschieden: A.
 2. **Mac-Versionen:** In Ordnung, dass sie erst einmal anhalten und reine Online-Spiele dort die Kurzform bekommen? Oder soll Nightforge bei Mac-Versionen kurz nach vorne gehen dürfen (Weg 3), also die Tastatur-Regel dort lockern? Empfehlung: anhalten, die Regel bleibt.
 3. **Leistungsanzeige:** Alle DXMT-Spiele mit verstecktem HUD starten, damit der Schalter immer geht? Empfehlung: erst messen, was es kostet.
 4. **Bildschirmfoto:** Wäre „Bedienungshilfen“ als einmaliges Recht in Ordnung, falls Create nicht zu retten ist?

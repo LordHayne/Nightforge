@@ -43,6 +43,9 @@ final class InputRouter {
 
     func start(model: LibraryModel) {
         self.model = model
+        GameOverlay.padIdle = {
+            GCController.controllers().allSatisfy { controller in controller.extendedGamepad.map { !Self.inUse($0) } ?? true }
+        }
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let code = event.keyCode

@@ -1676,8 +1676,8 @@ final class LibraryModel: ObservableObject {
                          actions: actions)
     }
 
-    /// Both sticks held in a game (InputRouter): the overlay over the game being played. A
-    /// Windows game is paused under it. Quit ends its processes, also when it hangs, and its end
+    /// Both sticks held in a game (InputRouter): the overlay over the game being played. The game
+    /// is paused under it (OverlayStillness). Quit ends its processes, also when it hangs, and its end
     /// is then seen like any other (watchForGameEnd); Go to Nightforge leaves it running.
     func openOverlay() {
         guard !GameOverlay.isOpen,
@@ -1686,7 +1686,11 @@ final class LibraryModel: ObservableObject {
         else { return }
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
-        let pauses = game.platform == .windows
+        let stillness = OverlayRules.stillness(platform: game.platform, onlineOnly: game.onlineOnly)
+        let pauses = stillness == .paused
+        input.refreshBattery()  // otherwise read only while Nightforge is in front
+        let context = OverlayContext(stillness: stillness, startedAt: running[game.id].flatMap(GameProcesses.started),
+                                     pads: controllerStatuses)
         Task {
             let pids = await Task.detached(priority: .userInitiated) {
                 GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table())
@@ -1709,7 +1713,8 @@ final class LibraryModel: ObservableObject {
                     await self?.startAgainWhenEnded(game)
                 })
             GameOverlay.open(game.name, pids: pids, pause: pauses, on: GameDisplay.gameScreen, symbols: padSymbols,
-                             soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
+                             soundStaysOn: game.platform == .windows ? GameAudio.gameStillOn : nil, context: context,
+                             actions: actions)
         }
     }
 
