@@ -168,11 +168,29 @@ Nightforge sollte es sagen, statt es zu versprechen. Vorschlag für die Download
 
 Seit 1.11.: 442 Mal Schlaf (251 „Sleep Service Back to Sleep“, 177 „Maintenance Sleep“, 12 Deckel, 2 Idle, beide auf Akku). In den sechs Download-Zeiträumen und bis 3 min danach: keiner. Von den Steam-Läufen in beiden `content_log.txt` überspannte keiner einen Schlaf. Ein abgerissener Download ist damit nicht belegt. Das beweist aber wenig, denn am Netzteil ist hier kein Idle-Schlaf eingestellt und das Log beginnt erst am 1.11.
 
+### 7 · Was die Oberfläche sagen sollte (nur Vorschlag, nichts gebaut)
+
+Der Nutzer hielt den Mac für eingeschlafen, dabei war nur der Bildschirm aus. Der gewünschte Satz steht schon seit 27.10. in den Downloads (`Downloads.swift:177`: „Dein Mac bleibt wach, solange Spiele laden. Der Bildschirm darf trotzdem ausgehen.“). Er hilft nur nicht, aus zwei Gründen:
+
+- **Er steht am falschen Ort.** Das Feld öffnet sich nur auf Klick, der schwarze Bildschirm kommt später und ohne Zusammenhang. Während er aus ist, kann Nightforge nichts anzeigen; sagen lässt es sich nur vorher oder danach.
+- **Er stimmt nicht immer.** Er steht bei jedem gelisteten Download, seit 5a2369b und ee63ab8 also auch, wenn der Mac schlafen darf (alles pausiert, Store beendet). Und er verschweigt den Deckel.
+
+| Stufe | Was | Wann |
+|---|---|---|
+| A | Satz nach dem echten Zustand: „Dein Mac bleibt wach, solange Spiele laden. Der Bildschirm darf ausgehen.“ Am MacBook ohne externen Bildschirm dazu: „Lass den Deckel offen.“ Alles pausiert: „Pausiert: Der Mac darf schlafen.“ Steam beendet: „Steam läuft nicht, der Download steht.“ | im Feld „Downloads“ |
+| B | Derselbe Satz einmal als kurze Meldung, wenn ein Download beginnt und jemand hinschaut | beim ersten Download der Sitzung |
+| C | Beim Zurückkommen der Beweis: „Der Download lief weiter: 12 GB, während der Bildschirm aus war.“ | wenn der Bildschirm wieder angeht und in der Zeit geladen wurde |
+
+**Empfehlung: A und C.** A macht den Satz wahr, C beantwortet genau die Frage, die sich beim schwarzen Bildschirm stellt. B fällt weg, wenn C da ist, denn beim Spielstart stört jede Meldung mehr. Den Bildschirm anzulassen ist keine Lösung: Das kostet Strom und widerspricht „der Bildschirm darf ausgehen“.
+
+Für A braucht die Oberfläche `KeepAwake`s Zustand (heute privat), für C `NSWorkspace.screensDidSleepNotification` und die Summe aus `downloadRates`. Aussehen und Ort gehören aufs Board (Design first).
+
 ### Fragen an den Nutzer
 
 1. Auf Akku wachhalten: wie heute bis macOS abschaltet, oder ab 20 % nicht mehr, oder gar nicht?
 2. Ein Download ohne jeden Fortschritt: nach 30 min nicht mehr wachhalten? Das bräuchte Nightforges gemessene Geschwindigkeit, denn Steam schreibt seine Zahlen nur selten.
 3. Epic und GOG nach dem Beenden: sollen sie den Mac auch wachhalten?
+4. Die Hinweise aus Abschnitt 7: nur A, A und C, oder alle drei? Dafür ein Board?
 
 ### Live prüfen
 
