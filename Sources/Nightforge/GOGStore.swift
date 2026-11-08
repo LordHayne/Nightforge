@@ -681,7 +681,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     /// Brings an installed game up to date before it starts ("Update & Play"): gogdl fetches only
     /// what changed, add-ons bought since included, and carries on where an earlier try stopped.
-    func update(_ game: Game, progress: @escaping @MainActor (Double?) -> Void) async -> StoreUpdate {
+    func update(_ game: Game, speed: @escaping @MainActor (String?) -> Void = { _ in }, progress: @escaping @MainActor (Double?) -> Void) async -> StoreUpdate {
         loadFromDisk()
         let id = game.gameID.id
         guard let install = installs[id] else { return .updated }
@@ -707,6 +707,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
             }
             let state = await Engine.offMain { GOGDL.progress(inLog: GOGDL.logText(for: id)) }
             progress(state.fraction)
+            speed(DownloadRate.label(speed: state.speed, secondsLeft: state.secondsLeft))
             if !process.isRunning || state.exitCode != nil {
                 let outcome = Self.updateOutcome(state)
                 if outcome == .updated { recordUpdate(id, folder: install.path) }

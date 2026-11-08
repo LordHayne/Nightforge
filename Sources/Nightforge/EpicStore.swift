@@ -761,7 +761,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     /// Brings an installed game and its add-ons up to date before it starts, like Steam's "Update &
     /// Play": legendary fetches only what changed and carries on where an earlier try stopped.
     /// `progress` hears how far all of it is, from legendary's logs.
-    func update(_ game: Game, progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
+    func update(_ game: Game, speed: @escaping @MainActor (String?) -> Void = { _ in }, progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
         loadFromDisk()
         let appName = game.gameID.id
         let config = Legendary.configDir
@@ -785,7 +785,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         // Not known which downloads run (no process list): as if another did.
         guard let running, downloads.isEmpty, starting.isEmpty, running.isSubset(of: Set(parts)) else { return .skipped(.busy) }
         for (index, part) in parts.enumerated() {
-            let outcome = await updatePart(part, installed: versions[part] != nil, following: running.contains(part)) { fraction in
+            let outcome = await updatePart(part, installed: versions[part] != nil, following: running.contains(part), speed: speed) { fraction in
                 let share = fraction ?? 0
                 progress(fraction == nil && index == 0 ? nil : (Double(index) + share) / Double(parts.count))
             }
@@ -810,7 +810,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     }
 
     /// One part of an update: the game or an add-on, fetched by legendary (a missing add-on in full).
-    private func updatePart(_ appName: String, installed: Bool, following: Bool,
+    private func updatePart(_ appName: String, installed: Bool, following: Bool, speed: @escaping @MainActor (String?) -> Void,
                             progress: @escaping @MainActor (Double?) -> Void) async -> UpdateOutcome {
         var process: DetachedProcess?
         if !following {
@@ -833,6 +833,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
             }
             let state = await Engine.offMain { Legendary.progress(inLog: Self.logText(for: appName)) }
             progress(state.fraction)
+            speed(DownloadRate.label(speed: state.speed, secondsLeft: state.secondsLeft))
             let ended: Bool
             if let process {
                 ended = !process.isRunning

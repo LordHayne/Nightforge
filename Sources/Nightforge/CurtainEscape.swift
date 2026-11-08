@@ -6,7 +6,19 @@ import Foundation
 /// for a while there's nothing to break: Nightforge stops waiting and goes back, Steam and its update are
 /// left as they are, and a game Steam still starts is followed to its end.
 enum CurtainEscape {
-    enum Reason: Equatable { case steamQuiet, updating, updateStuck }
+    enum Reason: Equatable {
+        case storeQuiet, updating, updateStuck
+        /// Epic's or GOG's update or save, which Nightforge runs itself: nothing is with a store yet, so B
+        /// ends the start at once, as it does from the Play button.
+        case ownUpdate, ownSaves
+
+        var atOnce: Bool { self == .ownUpdate || self == .ownSaves }
+    }
+
+    struct Words: Equatable {
+        let title: String
+        let text: String
+    }
 
     struct Look: Equatable {
         /// A process of the game's is there, or its curtain has come down.
@@ -18,6 +30,9 @@ enum CurtainEscape {
         /// How long the curtain has stood without a process of the game's.
         var waited: TimeInterval
         var updating = false
+        /// Nightforge's own work for Epic or GOG (`Reason.ownUpdate`, `ownSaves`).
+        var ownUpdate = false
+        var ownSaves = false
         /// How long the update's progress hasn't moved; nil while Steam gives no figures to go by.
         var updateStillFor: TimeInterval?
         /// When the player was last asked, whether by this or by pressing B.
@@ -35,8 +50,11 @@ enum CurtainEscape {
 
     /// Why the player may want out; nil while there's no way out to offer.
     static func reason(_ look: Look) -> Reason? {
-        guard !look.gameRuns, look.startGoesOn, !look.questionUp, look.waited >= openAfter else { return nil }
-        guard look.updating else { return .steamQuiet }
+        guard !look.gameRuns, look.startGoesOn, !look.questionUp else { return nil }
+        if look.ownUpdate { return .ownUpdate }
+        if look.ownSaves { return .ownSaves }
+        guard look.waited >= openAfter else { return nil }
+        guard look.updating else { return .storeQuiet }
         return (look.updateStillFor ?? 0) >= updateStuckAfter ? .updateStuck : .updating
     }
 
@@ -44,21 +62,34 @@ enum CurtainEscape {
     static func asks(_ look: Look) -> Bool {
         guard (look.askedAgo ?? .infinity) >= askAgainAfter else { return false }
         switch reason(look) {
-        case .steamQuiet?: return look.waited >= askAfter
+        case .storeQuiet?: return look.waited >= askAfter
         case .updateStuck?: return true
-        case .updating?, nil: return false
+        case .updating?, .ownUpdate?, .ownSaves?, nil: return false
         }
     }
 
     /// The line on the curtain: B on the controller drawn, or Esc without one.
-    static func tip(pad: PadSymbols?) -> LaunchTip {
-        guard let pad else { return LaunchTip(symbols: [], text: L10n.t("Stuck? Esc takes you back to Nightforge")) }
-        return LaunchTip(symbols: [pad.back], text: L10n.t("Stuck? Back to Nightforge"))
+    static func tip(_ reason: Reason, pad: PadSymbols?) -> LaunchTip {
+        let symbols = pad.map { [$0.back] } ?? []
+        switch reason {
+        case .ownUpdate:
+            return LaunchTip(symbols: symbols, text: pad == nil ? L10n.t("Esc stops for now, the update carries on next time")
+                                                                : L10n.t("Stop for now, the update carries on next time"))
+        case .ownSaves:
+            return LaunchTip(symbols: symbols, text: pad == nil ? L10n.t("Esc takes you back to Nightforge") : L10n.t("Back to Nightforge"))
+        case .storeQuiet, .updating, .updateStuck:
+            return LaunchTip(symbols: symbols, text: pad == nil ? L10n.t("Stuck? Esc takes you back to Nightforge") : L10n.t("Stuck? Back to Nightforge"))
+        }
     }
 
-    static func title(_ reason: Reason, game: String) -> String {
+    /// What the question says; `store`: whose start it is.
+    static func words(_ reason: Reason, game: String, store: String) -> Words {
+        Words(title: title(reason, game: game, store: store), text: text(reason, game: game))
+    }
+
+    static func title(_ reason: Reason, game: String, store: String) -> String {
         switch reason {
-        case .steamQuiet: return L10n.t("Steam isn't answering")
+        case .storeQuiet, .ownUpdate, .ownSaves: return L10n.t("%@ isn't answering", store)
         case .updating: return L10n.t("Steam is updating %@", game)
         case .updateStuck: return L10n.t("The update of %@ isn't moving", game)
         }
@@ -66,7 +97,7 @@ enum CurtainEscape {
 
     static func text(_ reason: Reason, game: String) -> String {
         switch reason {
-        case .steamQuiet:
+        case .storeQuiet, .ownUpdate, .ownSaves:
             return L10n.t("%@ hasn't started yet. You can keep waiting or go back to Nightforge. Going back breaks nothing.", game)
         case .updating:
             return L10n.t("That can take a while. You can go back to Nightforge: Steam keeps updating and starts the game by itself afterwards.")

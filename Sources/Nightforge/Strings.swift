@@ -804,7 +804,13 @@ enum L10n {
         "Keep Waiting": "Weiter warten",
         "Stuck? Esc takes you back to Nightforge": "Hängt es? Mit Esc zurück zu Nightforge",
         "Stuck? Back to Nightforge": "Hängt es? Zurück zu Nightforge",
-        "Steam isn't answering": "Steam antwortet gerade nicht",
+        "%@ isn't answering": "%@ antwortet gerade nicht",
+        "Esc stops for now, the update carries on next time": "Esc hält an, das Update läuft beim nächsten Mal weiter",
+        "Stop for now, the update carries on next time": "Anhalten, das Update läuft beim nächsten Mal weiter",
+        "Esc takes you back to Nightforge": "Mit Esc zurück zu Nightforge",
+        "Back to Nightforge": "Zurück zu Nightforge",
+        "%@ – the update comes from %@ first, the game starts by itself when it's done.":
+            "%@ – das Update kommt zuerst von %@, das Spiel startet danach von selbst.",
         "Steam is updating %@": "Steam aktualisiert %@",
         "The update of %@ isn't moving": "Das Update von %@ kommt nicht voran",
         "%@ hasn't started yet. You can keep waiting or go back to Nightforge. Going back breaks nothing.":
