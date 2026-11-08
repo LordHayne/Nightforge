@@ -123,10 +123,10 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX (x86_64,
-# loaded by Wine's Vulkan loader).
+# Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX. Only Wine's
+# Vulkan loader in the game bundle loads it, so x86_64 is the part that runs; the arm64 part is for later.
 # Its MetalFX upscaling is Objective-C (wrapper/nightforge-vulkan-metalfx.m); MetalFX is weak-linked for older Macs.
-clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -fvisibility=hidden -fobjc-arc -O2 -Wall \
+clang -arch x86_64 -arch arm64 -mmacosx-version-min=11.0 -dynamiclib -fvisibility=hidden -fobjc-arc -O2 -Wall \
   -I wrapper/vulkan-headers -I wrapper -framework Metal -framework QuartzCore -framework CoreGraphics -weak_framework MetalFX \
   -o "$OUT/Contents/Resources/nightforge-vulkan-layer.dylib" wrapper/nightforge-vulkan-layer.c wrapper/nightforge-vulkan-metalfx.m
 

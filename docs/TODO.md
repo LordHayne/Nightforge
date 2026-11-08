@@ -7,6 +7,11 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Rosetta und macOS 28
+
+Plan und Stand in `docs/ENTWURF-ARM64.md`. Vorbereitung auf `claude/arm64-vorbereitung` (Abschnitt 6). Offen sind die
+Entscheidungen in Abschnitt 7 und die monatliche Beobachtungsliste in Abschnitt 8.
+
 ## Nächster Release (0.3.0)
 
 Der Nutzer, 31.10.: „Wenn wir die großen Brocken abgearbeitet haben, brauchen wir einen Stand für einen Release.“

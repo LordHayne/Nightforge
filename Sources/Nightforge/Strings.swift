@@ -363,6 +363,7 @@ enum L10n {
         "Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license.":
             "Windows-Spiele brauchen Rosetta von Apple. macOS fragt einmal nach deinem Passwort, um es zu installieren; mit der Installation akzeptierst du Apples Rosetta-Lizenz.",
         "Install Rosetta": "Rosetta installieren",
+        "Windows games can't run on this version of macOS: Rosetta, which they need, isn't available here.": "Windows-Spiele können auf dieser macOS-Version nicht laufen: Rosetta, das sie brauchen, gibt es hier nicht.",
         "Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login.":
             "Melde dich im Steam-Fenster an – mit dem QR-Code aus der Steam-App auf deinem Handy oder mit deinem Passwort. Nightforge sieht deine Anmeldedaten nie.",
         "Show Steam window again": "Steam-Fenster wieder zeigen",

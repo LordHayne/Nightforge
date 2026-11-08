@@ -739,7 +739,7 @@ enum Engine {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
         let fm = FileManager.default
         return fm.fileExists(atPath: lib.appendingPathComponent("external/libd3dshared.dylib").path)
-            && (try? fm.destinationOfSymbolicLink(atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d12.so").path)) != nil
+            && (try? fm.destinationOfSymbolicLink(atPath: lib.appendingPathComponent("wine/\(WineFolders.unix)/d3d12.so").path)) != nil
     }
 
     /// Makes sure the engine and graphics layer from the current component list are installed –
@@ -1346,7 +1346,7 @@ enum Engine {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine", isDirectory: true)
         let top = graphicsTop(dxmtDir)
 
-        for arch in ["x86_64-windows", "i386-windows", "x86_64-unix"] {
+        for arch in [WineFolders.windows, WineFolders.windows32, WineFolders.unix] {
             let source = top.appendingPathComponent(arch, isDirectory: true)
             let target = lib.appendingPathComponent(arch, isDirectory: true)
             guard let files = try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) else { continue }
@@ -1370,7 +1370,7 @@ enum Engine {
     private static func graphicsTop(_ dir: URL) -> URL {
         let fm = FileManager.default
         return ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
-            .first { fm.fileExists(atPath: $0.appendingPathComponent("x86_64-windows").path) } ?? dir
+            .first { fm.fileExists(atPath: $0.appendingPathComponent(WineFolders.windows).path) } ?? dir
     }
 
     /// DXMT's Direct3D DLLs as natives in the prefix (64-bit → system32, 32-bit → syswow64), for
@@ -1379,7 +1379,7 @@ enum Engine {
     static func installDXMTNatives(_ dxmtDir: URL, windows: URL = prefix.appendingPathComponent("drive_c/windows", isDirectory: true)) throws {
         let fm = FileManager.default
         let top = graphicsTop(dxmtDir)
-        for (arch, folder) in [("x86_64-windows", "system32"), ("i386-windows", "syswow64")] {
+        for (arch, folder) in [(WineFolders.windows, "system32"), (WineFolders.windows32, "syswow64")] {
             let target = windows.appendingPathComponent(folder, isDirectory: true)
             guard fm.fileExists(atPath: target.path),
                   let files = try? fm.contentsOfDirectory(at: top.appendingPathComponent(arch), includingPropertiesForKeys: nil)
@@ -1394,7 +1394,7 @@ enum Engine {
     /// Wine's own Direct3D 12, which D3DMetal took the place of in the engine (kept as *.wine), as
     /// natives in system32: for games on DXMT or DXVK that look for Direct3D 12 (`layerOverrides`).
     static func installWineD3D12Natives(wine: URL, windows: URL = prefix.appendingPathComponent("drive_c/windows", isDirectory: true)) throws {
-        let engine = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine/x86_64-windows")
+        let engine = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine/\(WineFolders.windows)")
         for name in ["d3d12.dll", "d3d12core.dll"] {
             guard let original = try? Data(contentsOf: engine.appendingPathComponent(name + ".wine")) else { continue }
             try writeAsNative(original, to: windows.appendingPathComponent("system32/\(name)"))
@@ -1431,15 +1431,15 @@ enum Engine {
             throw SetupError.engineBroken
         }
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
-        let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
-        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let windows = lib.appendingPathComponent("wine/\(WineFolders.windows)", isDirectory: true)
+        let unix = lib.appendingPathComponent("wine/\(WineFolders.unix)", isDirectory: true)
 
         // Apple's front ends are the DLLs with a unix half; a toolkit that brings no unix folder
         // (the bridges are only links anyway) has nothing but them.
-        let payloadUnix = payload.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let payloadUnix = payload.appendingPathComponent("wine/\(WineFolders.unix)", isDirectory: true)
         let bridged = Set(((try? fm.contentsOfDirectory(atPath: payloadUnix.path)) ?? []).filter { $0.hasSuffix(".so") }
             .map { String($0.dropLast(3)) })
-        let frontEnds = ((try? fm.contentsOfDirectory(at: payload.appendingPathComponent("wine/x86_64-windows"),
+        let frontEnds = ((try? fm.contentsOfDirectory(at: payload.appendingPathComponent("wine/\(WineFolders.windows)"),
                                                       includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "dll" && (bridged.isEmpty || bridged.contains($0.deletingPathExtension().lastPathComponent)) }
         // DLSS → MetalFX: Apple's readme has nvngx-on-metalfx installed under NVIDIA's name, nvngx.
@@ -1502,8 +1502,8 @@ enum Engine {
     static func removeD3DMetal(from wine: URL) {
         let fm = FileManager.default
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
-        let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
-        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let windows = lib.appendingPathComponent("wine/\(WineFolders.windows)", isDirectory: true)
+        let unix = lib.appendingPathComponent("wine/\(WineFolders.unix)", isDirectory: true)
         let links = ((try? fm.contentsOfDirectory(atPath: unix.path)) ?? []).filter {
             (try? fm.destinationOfSymbolicLink(atPath: unix.appendingPathComponent($0).path)) == "../../external/libd3dshared.dylib"
         }
@@ -1528,7 +1528,7 @@ enum Engine {
         else { throw SetupError.engineBroken }
         let package = bus.deletingLastPathComponent().deletingLastPathComponent()
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
-        let pairs = [(bus, lib.appendingPathComponent("wine/x86_64-unix/winebus.so")),
+        let pairs = [(bus, lib.appendingPathComponent("wine/\(WineFolders.unix)/winebus.so")),
                      (package.appendingPathComponent("lib/libSDL2-2.0.0.dylib"), lib.appendingPathComponent("libSDL2-2.0.0.dylib"))]
         for (source, target) in pairs where fm.fileExists(atPath: source.path) {
             if target.lastPathComponent == "winebus.so", fm.fileExists(atPath: target.path) {
@@ -1561,7 +1561,7 @@ enum Engine {
     static func installEngineFix(_ packageDir: URL?, into wine: URL) throws -> Bool {
         let fm = FileManager.default
         let unix = wine.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+            .appendingPathComponent("lib/wine/\(WineFolders.unix)", isDirectory: true)
         let package = packageDir.flatMap(engineFixPackage(in:))
         let originals = package.map(engineFixOriginals(in:)) ?? [:]
         // The engine's own file: the copy kept of it, or – before anything went over it – the file itself.
@@ -1570,7 +1570,7 @@ enum Engine {
             return fm.fileExists(atPath: kept.path) ? kept : unix.appendingPathComponent(name)
         }
         let fits = !originals.isEmpty && originals.allSatisfy { name, sha256 in
-            package.map { fm.fileExists(atPath: $0.appendingPathComponent("x86_64-unix/\(name)").path) } == true
+            package.map { fm.fileExists(atPath: $0.appendingPathComponent("\(WineFolders.unix)/\(name)").path) } == true
                 && (try? ComponentStore.sha256(of: own(name))) == sha256
         }
         func swap(_ source: URL, over target: URL) throws {
@@ -1586,7 +1586,7 @@ enum Engine {
             let kept = target.appendingPathExtension("engine")
             if fits, let package, originals[name] != nil {
                 if !fm.fileExists(atPath: kept.path) { try fm.copyItem(at: target, to: kept) }
-                try swap(package.appendingPathComponent("x86_64-unix/\(name)"), over: target)
+                try swap(package.appendingPathComponent("\(WineFolders.unix)/\(name)"), over: target)
             } else if fm.fileExists(atPath: kept.path) {
                 try swap(kept, over: target)
             }
@@ -1621,7 +1621,7 @@ enum Engine {
         guard let files = fm.enumerator(at: dir, includingPropertiesForKeys: nil, options: [.skipsPackageDescendants]) else { return nil }
         for case let file as URL in files where file.lastPathComponent == "libd3dshared.dylib" {
             let root = file.deletingLastPathComponent().deletingLastPathComponent()
-            if fm.fileExists(atPath: root.appendingPathComponent("wine/x86_64-windows/d3d12.dll").path) { return root }
+            if fm.fileExists(atPath: root.appendingPathComponent("wine/\(WineFolders.windows)/d3d12.dll").path) { return root }
         }
         return nil
     }
@@ -1658,7 +1658,7 @@ enum Engine {
         let fm = FileManager.default
         let root = wine.deletingLastPathComponent().deletingLastPathComponent()
         let pairs = [
-            (msyncDir.appendingPathComponent("x86_64-unix/ntdll.so"), root.appendingPathComponent("lib/wine/x86_64-unix/ntdll.so")),
+            (msyncDir.appendingPathComponent("\(WineFolders.unix)/ntdll.so"), root.appendingPathComponent("lib/wine/\(WineFolders.unix)/ntdll.so")),
             (msyncDir.appendingPathComponent("bin/wineserver"), wine.deletingLastPathComponent().appendingPathComponent("wineserver")),
         ]
         let available = matchesEngine && pairs.allSatisfy { fm.fileExists(atPath: $0.0.path) }
@@ -2171,7 +2171,7 @@ enum Engine {
     static func installGameBundle(wine: URL) -> URL? {
         let fm = FileManager.default
         let root = wine.deletingLastPathComponent().deletingLastPathComponent()  // …/Resources/wine
-        let unix = root.appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+        let unix = root.appendingPathComponent("lib/wine/\(WineFolders.unix)", isDirectory: true)
         let bundle = root.appendingPathComponent(gameBundleName, isDirectory: true)
         let macOS = bundle.appendingPathComponent("Contents/MacOS", isDirectory: true)
         let resources = bundle.appendingPathComponent("Contents/Resources", isDirectory: true)
@@ -2210,14 +2210,14 @@ enum Engine {
                 let name = file.lastPathComponent
                 let target = macOS.appendingPathComponent(name)
                 if (try? file.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    try fm.createSymbolicLink(atPath: target.path, withDestinationPath: "../../../lib/wine/x86_64-unix/\(name)")
+                    try fm.createSymbolicLink(atPath: target.path, withDestinationPath: "../../../lib/wine/\(WineFolders.unix)/\(name)")
                 } else {
                     try fm.linkItem(at: file, to: target)
                 }
             }
             // Wine looks for its other folders next to the loader's.
-            try fm.createSymbolicLink(atPath: macOS.appendingPathComponent("x86_64-unix").path, withDestinationPath: ".")
-            for arch in ["x86_64-windows", "i386-windows"] {
+            try fm.createSymbolicLink(atPath: macOS.appendingPathComponent(WineFolders.unix).path, withDestinationPath: ".")
+            for arch in [WineFolders.windows, WineFolders.windows32] {
                 try fm.createSymbolicLink(atPath: macOS.appendingPathComponent(arch).path, withDestinationPath: "../../../lib/wine/\(arch)")
             }
             // Libraries are found at @loader_path/../../, i.e. the bundle folder itself.

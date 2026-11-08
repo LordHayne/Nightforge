@@ -157,22 +157,30 @@ DirectX 12 und 32-Bit je nach Apple und Konto später.
 
 ## 6. Was jetzt ohne Risiko geht
 
-Nichts davon lädt Fremdcode oder ändert das Verhalten für Spieler auf macOS 27:
+Nichts davon lädt Fremdcode oder ändert das Verhalten für Spieler auf macOS 27. Gebaut am 8.11. auf `claude/arm64-vorbereitung`:
 
-1. **Hinweis für macOS 28.** Eine Prüfung beim Start: Läuft `arch -x86_64` nicht, sagt Nightforge klar, dass Windows-Spiele
-   hier noch nicht gehen. Die Rosetta-Prüfung in `Setup.swift` gibt es schon, sie unterscheidet aber nicht „fehlt“ von
-   „gibt es nicht mehr“.
-2. **Komponenten mit Architektur.** Ein optionales Feld `arch` in der Komponentenliste (fehlt es: x86_64). Alte Apps
-   ignorieren es.
-3. **Pfade bündeln.** Die festen `x86_64-unix`/`x86_64-windows` in `Engine.swift` an einer Stelle sammeln, ohne Änderung im
-   Verhalten, mit den vorhandenen Tests.
-4. **Eigene Helfer universal bauen,** soweit sie keine Wine-Teile sind (`hide-steam-dock`, Sandbox-Helfer, Vulkan-Layer).
-5. **Keine neuen x86_64-Abhängigkeiten** ohne Not, neue Komponenten möglichst universal.
-6. **Vergleichswerte sammeln.** Die Spieletest-Ergebnisse unter Rosetta aufbewahren, damit ein späterer Vergleich eine Basis hat.
-7. **Beobachtungsliste, monatlich:** Wine-Merge-Requests zu macOS/ARM64, CrossOver 27 und seine Quellen, FEX für macOS,
-   DXMT-arm64-Pakete, Toolkit für arm64, Apples Definition der Altspiele.
-8. **Sobald eine macOS-28-Beta da ist:** auf einem Testvolumen klären, was x86_64-Wine dort tut, auch mit
-   `game-test-tool enable`. Das nur auf einem Volumen, das nicht zum Spielen dient, weil der Schalter Rosetta abschaltet [4].
+1. **Hinweis für macOS 28** (gebaut, `RosettaSupport.swift`). Ab macOS 28, wenn `arch -x86_64` nicht läuft: bei der Einrichtung
+   und beim Start eines Windows-Spiels ein klarer Satz, ohne Install-Knopf und ohne Versprechen. Bis macOS 27 wird nichts
+   zusätzlich geprüft und nichts anders angezeigt. Auf macOS 28 kann noch niemand testen: siehe Punkt 8.
+2. **Komponenten mit Architektur** (gebaut). Optionales Feld `arch`, fehlt es: x86_64. Nightforge lässt Einträge weg, die
+   nicht unter Rosetta laufen. Alte Apps ignorieren das Feld und würden einen arm64-Bau für ihren halten, darum verlangt
+   `validate-manifest.py` dafür eine eigene Kennung (`wine-arm64`). In der echten Liste steht es noch nirgends.
+3. **Pfade bündeln** (gebaut, `WineFolders.swift`). Nur `Engine.swift`; `D3DMetalSupply.swift` beschreibt Apples eigenes
+   Paket und bleibt.
+4. **Eigene Helfer: anders als hier ursprünglich geplant.** Nur der Vulkan-Layer ist jetzt universal, ihn lädt allein der
+   x86_64-Loader im Spielebündel. Dock-Hider und Sandbox-Helfer bleiben x86_64, sonst änderte sich das Verhalten:
+   `DYLD_INSERT_LIBRARIES` geht an alles, was Steam startet. Heute überspringen arm64-Programme die Bibliothek, universal
+   würden sie sie samt AppKit laden. Der Sandbox-Helfer liefe als arm64, weil Nightforge ihn aus einem arm64-Prozess startet.
+   Dass beide für arm64 bauen, prüft `tests/test_helper_architectures.py`. Universal werden sie mit der ARM64-Engine.
+5. **Keine neuen x86_64-Abhängigkeiten** (Prüfung gebaut, `tests/test_no_new_x86_only.py`, Regel in `CONTRIBUTING.md`).
+6. **Vergleichswerte** (gebaut). Berichte sagen jetzt, wie Wine lief (`runsOn`). Die drei Spieletests vom 3.11. mit gemessenen
+   Bildraten liegen in `docs/spieletest`. Das ist wenig: ABZU und The Forest, teils mit belastetem Mac. Ein Lauf auf
+   ruhigem Mac wäre die bessere Basis.
+7. **Beobachtungsliste, monatlich:** Abschnitt 8.
+8. **Sobald eine macOS-28-Beta da ist:** `tests/arm64/macos28-probe.sh` auf einem Testvolumen, das nicht zum Spielen dient,
+   vor und nach `game-test-tool enable` (der Schalter stellt Rosetta ab [4]). Das Skript zeigt auch, ob `/usr/bin/true` noch
+   einen x86_64-Teil hat. **[Vermutung]** Fehlt er, schlüge die Prüfung aus Punkt 1 auch bei vorhandenem Rosetta an. Dann
+   muss sie vor dem ersten Einsatz ein anderes Programm nehmen.
 
 ## 7. Entscheidungen für den Nutzer
 
@@ -180,6 +188,23 @@ Nichts davon lädt Fremdcode oder ändert das Verhalten für Spieler auf macOS 2
 2. **Fremdzweig oder warten?** Ein Community-Zweig wie MetalSharp wäre früher da, bindet aber an ein kleines Projekt (35 Sterne,
    eigene Skripte unter AGPL [7]). Empfehlung: warten bis Mai 2027, dann entscheiden.
 3. **Was sagen wir den Spielern?** Empfehlung: nichts versprechen, ab der macOS-28-Beta klar benennen, was geht.
+4. **Spieletest-Werte im Repository?** Die drei Berichte in `docs/spieletest` werden mit dem Merge öffentlich. Die Prüfung
+   des Importers fand weder Namen noch Pfade. Sie enthalten Spielenamen, Bildraten und „Apple M5 · macOS 27.0“.
+5. **Wer geht die Beobachtungsliste durch?** Von Hand, oder eine monatliche Aufgabe, die nur liest und berichtet.
+6. **Testvolumen für die Beta?** Sobald es eine macOS-28-Beta gibt: ein eigenes APFS-Volumen dafür, oder bis zum Release warten.
+
+## 8. Beobachtungsliste
+
+Monatlich durchgehen und die Spalte „Stand“ fortschreiben. Solange nichts Neues kommt, bleibt alles wie heute.
+
+| Was | Wo | Worauf es ankommt | Stand (8.11.2026) |
+|---|---|---|---|
+| Wine: Merge-Requests zu macOS/ARM64 | https://gitlab.winehq.org/wine/wine/-/merge_requests?scope=all&state=all&search=macOS+ARM64 | Sind Shanks' Patches eingereicht oder gemergt, ab welcher Version? | Am 7.11. nicht eingereicht [5] |
+| CrossOver 27 und seine Quellen | https://www.codeweavers.com/crossover/source | Liegen die ARM64-Quellen offen? Bleiben 32-Bit-Flaschen? | Vorschau seit 31.7. [6], Seite nicht lesbar (403) |
+| FEX für macOS | https://github.com/FEX-Emu/FEX/issues/5222 | Gibt es upstream einen macOS-Bau? Vergleich mit Rosetta aus einem Spiel? | Nur Fremdzweige [7][8][12], keine Spielzahlen |
+| DXMT mit arm64-Paket | https://github.com/3Shain/dxmt/releases | Liefert ein Release die arm64-Unix-Seite? Gehen die winemac-Haken? | x86_64-Paket [10], arm64 nur in der CI gemeldet [9] |
+| Toolkit und D3DMetal für arm64 | https://developer.apple.com/games/game-porting-toolkit/ | Nennt Apple eine arm64-Fassung? | Toolkit 3.0 ist x86_64 [Mac] |
+| Apples Definition der Altspiele | https://support.apple.com/en-us/102527 | Liste, API oder Schlüssel? Wird Wine genannt? | Nichts davon [1][2][3][4] |
 
 ## Quellen
 
