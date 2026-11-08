@@ -1354,7 +1354,16 @@ enum L10n {
         "To the games": "Zu den Spielen",
         "Browse": "Blättern",
         "Works – it belongs to macOS, Nightforge leaves it alone": "Funktioniert – sie gehört macOS, Nightforge lässt sie in Ruhe",
-        "Works – Nightforge doesn't need the touchpad, games do": "Funktioniert – Nightforge braucht das Touchpad nicht, Spiele schon",
+        "Moves the pointer where a mouse is needed – in games it's the game's": "Bewegt den Mauszeiger, wo eine Maus nötig ist – im Spiel gehört es dem Spiel",
+        "One click needs your OK first": "Dieser Klick braucht erst deine Erlaubnis",
+        "Allow it once in Settings › Controller, with a mouse or trackpad.": "Erlaube es einmal unter Einstellungen › Controller, mit Maus oder Trackpad.",
+        "As a mouse": "Als Maus",
+        "Controller as a mouse": "Controller als Maus",
+        "Touchpad: one finger moves the pointer, press to click, two fingers scroll, press with two for a right click. Other controllers: right stick and R2 while another app is in front.": "Touchpad: Ein Finger bewegt den Zeiger, Drücken klickt, zwei Finger scrollen, mit zwei Fingern drücken ist der Rechtsklick. Andere Controller: rechter Stick und R2, solange ein anderes Programm vorn ist.",
+        "Clicks in other windows": "Klicks in anderen Fenstern",
+        "Allowed. The controller reaches Steam's windows and questions from macOS.": "Erlaubt. Der Controller erreicht Steams Fenster und Fragen von macOS.",
+        "Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa.": "Steams Fenster und Fragen von macOS brauchen das Recht „Bedienungshilfen“. Schalte es einmal mit Maus oder Trackpad ein, danach geht es vom Sofa aus.",
+        "Allow …": "Erlauben …",
         "Paused while Steam waits for you to sign in": "Pausiert, solange Steam auf deine Anmeldung wartet",
 
         // First start: the tips while Steam installs

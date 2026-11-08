@@ -24,6 +24,7 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        static let padPointer = "padPointer"
         /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
         static let launchTipShown = "launchTipShown"
         static let notifyDownloads = "notifyDownloads"
@@ -49,6 +50,11 @@ enum Prefs {
     /// A macOS notification when a download finishes while Nightforge isn't in front. On by default.
     static var notifyDownloads: Bool {
         UserDefaults.standard.object(forKey: Keys.notifyDownloads) as? Bool ?? true
+    }
+
+    /// The pad as the Mac's pointer where a mouse is needed (PadPointer). On by default.
+    static var padPointer: Bool {
+        UserDefaults.standard.object(forKey: Keys.padPointer) as? Bool ?? true
     }
 
     /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.

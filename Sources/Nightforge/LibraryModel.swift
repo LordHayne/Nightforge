@@ -828,7 +828,9 @@ final class LibraryModel: ObservableObject {
     }
 
     /// A game runs or starts: the pad belongs to it (InputRouter doesn't wake Nightforge meanwhile).
-    var gameOnScreen: Bool { !running.isEmpty || !playing.isEmpty || launchingID != nil }
+    var gameOnScreen: Bool { gamePlaying || launchingID != nil }
+    /// A game is running, not just starting: a pad's touchpad is the game's now (PadPointerRules).
+    var gamePlaying: Bool { !running.isEmpty || !playing.isEmpty }
 
     /// Nightforge in front again after a Steam window had it (its sign-in), the way it comes back
     /// after a game (comeBack): keys and the pad only reach the app in front.

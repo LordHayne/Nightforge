@@ -333,6 +333,9 @@ private struct PadGuideGlyph: View {
 private struct ControllerSettings: View {
     @EnvironmentObject private var model: LibraryModel
     @AppStorage(Prefs.Keys.padGlyphs) private var padGlyphs = PadSymbols.Style.automatic.rawValue
+    @AppStorage(Prefs.Keys.padPointer) private var padPointer = true
+    /// Looked up again whenever Nightforge comes back, from System Settings for example.
+    @State private var pointerAllowed = PadPointerAccess.granted
     /// Bumped when a controller comes or goes, or its battery may have changed.
     @State private var refresh = 0
     @State private var pairing = false
@@ -374,6 +377,42 @@ private struct ControllerSettings: View {
                       id: "settings.padGlyphs") { padGlyphs = $0 }
                 .onChange(of: padGlyphs) { _, _ in model.refreshPadSymbols() }
 
+            // What a mouse is otherwise needed for: Steam's windows, a question from macOS.
+            SectionTitle(L10n.t("As a mouse"))
+                .padding(.top, 6)
+            Toggle(isOn: $padPointer) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.t("Controller as a mouse"))
+                    Text(L10n.t("Touchpad: one finger moves the pointer, press to click, two fingers scroll, press with two for a right click. Other controllers: right stick and R2 while another app is in front."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padFocus("settings.padPointer", toggle: $padPointer)
+            if padPointer {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Clicks in other windows"))
+                            .font(size: 12)
+                        Text(pointerAllowed
+                             ? L10n.t("Allowed. The controller reaches Steam's windows and questions from macOS.")
+                             : L10n.t("Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if pointerAllowed {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    } else {
+                        Button(L10n.t("Allow …"), action: PadPointerAccess.ask)
+                            .padFocus("settings.padPointerAllow", cornerRadius: 15, activate: PadPointerAccess.ask)
+                    }
+                }
+            }
+
             // The overlay's buttons (GameOverlay), so they can be found before they're needed.
             SectionTitle(L10n.t("In a game"))
                 .padding(.top, 6)
@@ -414,6 +453,9 @@ private struct ControllerSettings: View {
         .padding(.bottom, 12)
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidConnect)) { _ in refresh += 1; pairing = false }
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidDisconnect)) { _ in refresh += 1 }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            pointerAllowed = PadPointerAccess.granted
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refresh += 1 }
     }
 
