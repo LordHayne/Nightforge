@@ -139,7 +139,8 @@ struct SignInStageWords: View {
                 }
                 .buttonStyle(GlassTextButtonStyle(small: true))
                 // A presses this one, so it's the one marked, as on the board.
-                .overlay(Capsule().strokeBorder(Theme.sodium, lineWidth: 2).padding(-4))
+                .padding(4)
+                .overlay(Capsule(style: .circular).strokeBorder(Theme.sodium, lineWidth: 2))
             }
         }
         .multilineTextAlignment(.center)
