@@ -181,13 +181,13 @@ Stand Recall v1.6.3. Basis bleibt Pin 589adb7, die 201 Commits des Forks kommen 
 - **Lokal hier nicht vollständig:** Es gibt nur die Command Line Tools, `xcrun metal` fehlt. `winemetal.so` geht deshalb nur über den Workflow (Xcode auf dem Runner).
 - **Lokale Probe, nur `d3d11.dll`:** gebaut mit mingw 16.2 und meson, mit Stellvertretern für `xcrun`, `winebuild` und `winecrt0`. Die eingebettete Metal-Bibliothek (152.339 Byte) stammt aus der ausgelieferten DLL. Importe gleich der ausgelieferten, 32-Bit-Objekte übersetzen. Dieser Weg dient nur dem Prüfen und der Messung, nicht dem Release.
 
-### Lizenz: Entscheidung des Nutzers vor dem Merge
+### Lizenz: vom Nutzer freigegeben (8.11.)
 
 Siehe `docs/ENTSCHEIDUNG-DXMT-LGPL.md`: Pflichten, was öffentlich würde, was unberührt bleibt. Auf dem Zweig sind `graphics.yml` und `Resources/THIRD_PARTY_NOTICES.txt` schon angepasst.
 
-### Messplan
+### Messplan (späterer Beleg, kein Tor für den Merge)
 
-Ablauf und Werkzeug: Notizordner `shader-messung/SCHRITTE.md`, ein Befehl (`ablauf.sh`), rund 40 Minuten, der Nutzer spielt.
+Vor dem Merge reicht der Kurztest (`ablauf.sh test`, rund 6 Minuten): Startet ABZU, sieht es normal aus, läuft der Schalter. Ablauf und Werkzeug: Notizordner `shader-messung/SCHRITTE.md`, ein Befehl (`ablauf.sh`), rund 40 Minuten, der Nutzer spielt.
 
 ABZU, dieselbe Probe-DLL, Schalter abwechselnd aus und an, je Block eine kalte und eine warme Runde von 4 Minuten. `vergleich.py` nennt je Runde Frames über 33/50/100 ms je Minute, schlimmsten Frame, 99. Perzentil, Compiler-Sekunden, Wachstum der Übersetzungs-Datei und die Trefferquote.
 

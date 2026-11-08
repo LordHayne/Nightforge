@@ -1,9 +1,11 @@
 # Entscheidung: DXMT-Build unter LGPL (0.3.3)
 
-**Frage:** Darf `engine/patches/dxmt-0.80-prepare-shaders.patch` in unseren DXMT-Build? **Empfehlung: Ja**, einbauen aber erst, wenn die Messung einen Gewinn zeigt.
+**Entschieden: Ja, 8.11.2026, der Nutzer** („ja auf jeden fall machen“).
 
-**Ja:** Der DXMT-Teil des Graphics-Pakets steht danach als Ganzes unter LGPL-2.1-or-later statt MIT, denn der Patch enthält Teile aus Recalls DXMT-Patches, die unter dieser Lizenz stehen.
-**Nein:** Alles bleibt MIT, und die erste Runde bleibt, wie sie ist. Den Code neu zu schreiben hilft kaum, wir kennen Recalls Fassung schon.
+**Frage war:** Darf `engine/patches/dxmt-0.80-prepare-shaders.patch` in unseren DXMT-Build? Gemergt wird nach einem lokalen Test. Die Messung ist kein Tor mehr, sie bleibt als späterer Beleg im Plan (`docs/ENTWURF-SHADER.md`).
+
+**Mit dem Ja:** Der DXMT-Teil des Graphics-Pakets steht danach als Ganzes unter LGPL-2.1-or-later statt MIT, denn der Patch enthält Teile aus Recalls DXMT-Patches, die unter dieser Lizenz stehen.
+**Wäre es ein Nein gewesen:** Alles bliebe MIT, die erste Runde bliebe, wie sie ist.
 
 **Was uns das verpflichtet (LGPL-2.1)**
 
