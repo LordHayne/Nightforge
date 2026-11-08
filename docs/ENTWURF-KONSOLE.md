@@ -74,6 +74,8 @@ seit dem 31.10. in `docs/TODO.md:972`.
 schließt, die Treffer laufen live mit; „rdr2“ und „bg3“ gehen schon, meist reichen 2 bis 3 Buchstaben. Als zweiter
 Schritt dieselbe Tastatur für Epics und GOGs Anmeldeseite im `WKWebView`, die sich heute nicht bedienen lässt
 (`InputRouter.swift:919`). Passwörter bleiben auch dann nur auf der Seite des Stores; das braucht aber eine eigene Prüfung.
+schließt, die Treffer laufen live mit; „rdr2“ und „bg3“ gehen schon, meist reichen 2 bis 3 Buchstaben. Auf Anmeldeseiten
+kommt die Pad-Tastatur nicht: Das Passwort liefe durch Nightforge (Beschluss 8.11., `docs/ENTWURF-ANMELDEN.md`).
 
 **Einordnung:** größeres Stück, zuerst Boards. Kein laufender Effekt, also kein Strompreis. **Risiko:** gering; die
 Tastatur liegt als Ebene über dem Hauptfenster wie die Panels.
@@ -270,12 +272,14 @@ Aufwand: S bis ½ Tag, M 1–2 Tage, L mehr. Alle Oberflächen zuerst als Board.
 | K8 | TV-Erkennung auch nach Größe (`CGDisplayScreenSize` ab etwa 40″) | klein | S | 0.3.3 | Große Monitore, Merken je Schirm hilft | `GameDisplay.swift:537` |
 | K9 | Home-Taste auf Nightforge einrichten | hoch | S–M | 0.3.3, nach Live | Spiel verliert Tasten | [SDK 27] |
 | G1 | Pad-Tastatur: Suche, Store-Suche, später Anmeldung | hoch | M–L | größeres Stück | gering | Abschnitt 2 |
+| G1 | Pad-Tastatur: Suche, Store-Suche | hoch | M–L | größeres Stück | gering | Abschnitt 2 |
 | G3 | Klang, Haptik, Licht | hoch | M | größeres Stück, Klangwahl | SDL gegen GC | Abschnitt 5 |
 | G2 | Echte TV-Stufe | hoch | L | größeres Stück, Sonde zuerst | Layouts, Fokus | Abschnitt 3 |
 | G4 | Fragen per Pad: A/B in Windows-Dialogen, Stick als Zeiger | hoch | L | größeres Stück | offen, teils TCC | Abschnitt 4 |
 | G5 | Großes Overlay: Uhr, Akku, Lautstärke, Downloads | mittel | M | größeres Stück, steht in TODO | Panel-Sichtbarkeit bei Game Mode | `docs/TODO.md:952` |
 | G6 | Spielerreihenfolge wählen | mittel | L | größeres Stück, nach Test Sonic Mania | SDL/winebus | `docs/TODO.md:954` |
 | S1 | Handy-Anmeldung für Epic und GOG (nur der Code, nie das Passwort) | mittel | L | später | Stores ändern Abläufe | [Quelle 14] als Muster |
+| S1 | Handy-Anmeldung für GOG (nur der Code, nie das Passwort); Epic sagt ehrlich, dass es eine Tastatur braucht, siehe `docs/ENTWURF-ANMELDEN.md` | mittel | L | später | Stores ändern Abläufe | [Quelle 14] als Muster |
 | S2 | Spiel beim Wechsel zu Nightforge pausieren | klein | M | später | Online-Spiele, Wine braucht Lauf für Übergabe | `GameOverlay.swift:297` |
 | S3 | Eigene Pad-Kopplung | klein | L | später | einmaliger Vorgang | [Quelle 11] |
 

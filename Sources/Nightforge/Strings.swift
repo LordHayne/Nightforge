@@ -1561,8 +1561,40 @@ enum L10n {
         "Your password only goes to %@. After that, Nightforge downloads and starts your games itself.":
             "Dein Passwort geht nur an %@. Danach lädt und startet Nightforge deine Spiele selbst.",
         "%@'s window is open": "Das Fenster von %@ ist offen",
-        "Sign in there, with two-factor too. Nightforge only lays it on the curtain.":
-            "Melde dich dort an, auch mit Zwei-Faktor. Nightforge legt es nur auf den Vorhang.",
+        "Scan the QR code in Steam's window with the Steam app on your phone. No typing needed.":
+            "Scanne den QR-Code in Steams Fenster mit der Steam-App auf dem Handy. Tippen musst du nichts.",
+        "Battle.net needs a keyboard once: mail address and password go into Blizzard's window, not through Nightforge.":
+            "Battle.net braucht einmal eine Tastatur: Mail-Adresse und Passwort gehen in Blizzards Fenster, nicht durch Nightforge.",
+        "%@ needs a keyboard once": "Dafür braucht %@ einmal eine Tastatur",
+        "You type your password right on %@'s page. A Bluetooth keyboard is enough, or sign in later.":
+            "Dein Passwort tippst du direkt auf der Seite von %@. Eine Bluetooth-Tastatur genügt, oder du meldest dich später an.",
+        "Sign In Later": "Später anmelden",
+        "Sign in with your phone": "Mit dem Handy anmelden",
+        "Sign In Here with a Keyboard": "Mit Tastatur hier anmelden",
+        "Scan the QR code with your phone, on the same network as this Mac.":
+            "Scanne den QR-Code mit dem Handy, im selben Netz wie dieser Mac.",
+        "Sign in on %@'s own page. Only %@ sees your password.":
+            "Melde dich auf der Seite von %@ an. Dein Passwort sieht nur %@.",
+        "Paste the address %@ ends on into the page on your phone.":
+            "Füge die Adresse, auf der %@ endet, in die Seite auf dem Handy ein.",
+        "QR code for signing in on your phone": "QR-Code zum Anmelden auf dem Handy",
+        "Valid for %ld minutes, and only on this network.": "Gilt %ld Minuten und nur in diesem Netz.",
+        "The code has run out.": "Der Code ist abgelaufen.",
+        "New Code": "Neuer Code",
+        "Your phone can't reach this Mac: it isn't on a home or office network. You can still sign in here with a keyboard.":
+            "Das Handy erreicht diesen Mac nicht, er hängt in keinem Heim- oder Büronetz. Mit einer Tastatur kannst du dich hier anmelden.",
+        "Connect %@": "%@ verbinden",
+        "Sign in at %@": "Bei %@ anmelden",
+        "You give your password only on %@'s page. Nightforge never sees it.":
+            "Dein Passwort gibst du nur auf der Seite von %@ ein. Nightforge sieht es nicht.",
+        "Paste the address": "Adresse einfügen",
+        "When %@ is through, copy the whole address from the address bar, come back to this tab and paste it here.":
+            "Wenn %@ fertig ist, kopiere die ganze Adresse aus der Adresszeile, komm zurück in diesen Tab und füge sie hier ein.",
+        "That wasn't %@'s address. Copy the whole address of the page %@ ended on.":
+            "Das war nicht die Adresse von %@. Kopiere die ganze Adresse der Seite, auf der %@ gelandet ist.",
+        "All done": "Geschafft",
+        "Nightforge carries on from here, you can put your phone down.":
+            "Nightforge macht jetzt weiter, du kannst das Handy weglegen.",
         "Show Window Again": "Fenster wieder zeigen",
         "%@'s sign-in page doesn't answer. Check your internet connection.":
             "Die Anmeldeseite von %@ antwortet nicht. Prüfe deine Internetverbindung.",
