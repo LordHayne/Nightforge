@@ -24,6 +24,7 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        static let parkPointer = "parkPointerOverGames"
         static let keepAwakeMinutes = "keepAwakeMinutes"
         static let padHaptics = "padHaptics"
         static let padPointer = "padPointer"
@@ -66,6 +67,13 @@ enum Prefs {
 
     /// How long after the last input Nightforge keeps the Mac awake, plugged in. 0, the default: never (IdleAwake).
     static var keepAwakeMinutes: Int { IdleAwake.minutes(stored: UserDefaults.standard.integer(forKey: Keys.keepAwakeMinutes)) }
+
+    /// The pointer moved out of a game's picture while the pad is used (PointerParking). On by default;
+    /// `defaults write io.github.lordhayne.nightforge parkPointerOverGames -bool false` turns it off,
+    /// for a game that scrolls when the pointer is at the screen's edge.
+    static var parkPointer: Bool {
+        UserDefaults.standard.object(forKey: Keys.parkPointer) as? Bool ?? true
+    }
 
     /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.
     static var padGlyphs: PadSymbols.Style {

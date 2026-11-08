@@ -1621,6 +1621,7 @@ final class LibraryModel: ObservableObject {
             case .lower:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
+                input.parkPointerForGame()
                 loweredAt = Date()
                 curtainGuards = true
                 stage.pictureSeen()

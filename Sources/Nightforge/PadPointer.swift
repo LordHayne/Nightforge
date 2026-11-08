@@ -24,12 +24,16 @@ final class PadPointer {
     private var stickVelocity = CGVector.zero
     private var stickTimer: Timer?
     private var heldTriggers: Set<PadPart> = []
+    private var lastTouch: TimeInterval = -.infinity
     /// Whether the stick, out of its middle, is the mouse: settled once per push. In a game it's
     /// asked otherwise at every sample, and the answer reads the window list.
     private var stickDecided: Bool?
 
     /// The stick or a trigger is working the pointer now: the pad's "in use" mustn't hide it.
     var isMouse: Bool { stickTimer != nil || !heldTriggers.isEmpty }
+
+    /// The touchpad moved the pointer a moment ago: then it's meant to be seen.
+    func touchedRecently(now: TimeInterval) -> Bool { now - lastTouch < 3 }
 
     func attach(_ pad: GCExtendedGamepad) {
         guard let touchpad = Touchpad(pad) else { return }
@@ -70,7 +74,10 @@ final class PadPointer {
                 desk.fingerLanded()
             }
         }
-        if active { driver.apply(tracker.feed(sample)) }
+        if active {
+            lastTouch = sample.now
+            driver.apply(tracker.feed(sample))
+        }
         if !touches {
             owner = nil
             active = false

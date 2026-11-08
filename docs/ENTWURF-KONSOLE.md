@@ -137,6 +137,14 @@ Bedienungshilfen-Recht (`docs/TODO.md:622`), Steams Frage nach der Startoption b
 
 **Live:** Ein Spiel mit Steam-Frage (Wukong-Benchmark, EULA) nur mit dem Pad; mitzählen, wie oft man zur Maus greift. Dasselbe am TV.
 
+**Zeiger über dem Spiel (8.11., gebaut als `PointerParking`):** Versteckt das Spiel den Zeiger nicht selbst, bleibt er stehen. Von außen geht mit öffentlichen Schnittstellen kein echtes Verstecken:
+- `NSCursor.setHiddenUntilMouseMoves` wirkt nur für die App vorne, auch mit einem durchlässigen oder ein Punkt großen Panel blieb der Zeiger stehen **[Code, Probe 1.11.]**. Für `CGDisplayHideCursor` aus dem Hintergrund nennen die Quellen ebenfalls keinen öffentlichen Weg (https://developer.apple.com/forums/thread/756199, https://www.raycast.com/Dhaiwat10/mouse-cursor-toggle); selbst probiert habe ich das nicht, um den laufenden Spieler nicht zu stören.
+- Ein eigener Zeiger aus einem Panel über dem Spiel scheidet aus: `NSTrackingActiveAlways` ist laut Header „Not supported for NSTrackingCursorUpdate“ **[SDK]**, ohne Hauptfenster gibt es also keinen Cursor-Wechsel.
+- Einen Moment die Tasten nehmen geht (so macht es der Vorhang), aber nie über einem sichtbaren Spiel: Unity und Unreal minimieren sich dann (`GameStage`).
+- **Privat, nur genannt:** Die Fensterserver-Eigenschaft `SetsCursorInBackground` (`CGSSetConnectionProperty`) erlaubt Hintergrund-Apps das Verstecken, kleine Werkzeuge nutzen sie. Dagegen spricht: undokumentiert, kann mit jedem macOS brechen, Apples DTS nennt das Dock als Hindernis, der Prozess muss dafür laufen bleiben, und der Zählerstand von Verstecken und Zeigen muss stimmen. Bewusst nicht eingebaut.
+
+Öffentlich bleibt: den Zeiger aus dem Bild schieben. `CGWarpMouseCursorPosition` braucht kein Recht und bewegt „without generating events“ **[SDK]**, das Spiel bekommt also weder Fokus- noch Mausereignis. Ziel ist der untere Rand etwas neben der Ecke, dort bleibt nur die Pfeilspitze. Regel: Pad in Benutzung und die Maus seit 2 s still, einmal hinschieben; echte Maus oder Touchpad-Zeiger, er gehört wieder dem Spieler. Nicht bei einer offenen Frage, die den Zeiger braucht. Grenzen: ein bis zwei Pixel bleiben, und ein Spiel, das am Bildrand scrollt, könnte reagieren (Ausweg in `docs/TODO.md`).
+
 ### 5. Antwort unter den Fingern: Klang, Haptik, Licht, Akku
 
 **Heute:** Die Oberfläche ist stumm und still. Im ganzen Code keine Treffer für `NSSound`, `AVAudioPlayer`,

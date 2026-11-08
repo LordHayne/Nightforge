@@ -40,6 +40,8 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    private var parking = PointerParking()
+    private var parkingLook: TimeInterval = -.infinity
     /// When the PS or Xbox button went down, in Nightforge.
     private var homeDown: TimeInterval?
     private let haptics = PadHaptics()
@@ -454,6 +456,7 @@ final class InputRouter {
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
         Self.takeViewButton()
         pointer.attach(pad)
+        pointerAfterConnecting()
         if HomeButtonSetup.exists, let home = pad.controller?.physicalInputProfile.buttons[GCInputButtonHome] {
             home.pressedChangedHandler = { [weak self] _, _, pressed in
                 MainActor.assumeIsolated { self?.homeButton(pressed) }
@@ -606,6 +609,7 @@ final class InputRouter {
         if Self.inUse(pad) {
             Self.padUse = now
             GameOverlay.padHeard()
+            parkPointerIfDue(padInUse: true)
         }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
         // moves, as on a console. In a game it's the game's.
@@ -770,6 +774,43 @@ final class InputRouter {
                            firstStart: model.showsFirstStart) == .home
         else { return }
         model.goHome()
+    }
+
+    /// A controller came: the pointer goes as it does when the pad is used, unless the mouse is in hand.
+    private func pointerAfterConnecting() {
+        guard Self.mouseIdle >= PointerParking.mouseQuiet, !pointer.isMouse else { return }
+        if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: true) { NSCursor.setHiddenUntilMouseMoves(true) }
+        parkPointerIfDue(padInUse: true)
+    }
+
+    /// The curtain went down on the game and the pad was used last: the pointer leaves the picture
+    /// without waiting for the next press.
+    func parkPointerForGame() { parkPointerIfDue(padInUse: Self.padUsedLast) }
+
+    /// The pad in use with a game in front: the pointer out of the picture (PointerParking). At most
+    /// twice a second, as this runs beside a game: a stick reports hundreds of times.
+    private func parkPointerIfDue(padInUse: Bool) {
+        guard padInUse, let model else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - parkingLook >= 0.5 else { return }
+        parkingLook = now
+        guard parking.parksNow(padInUse: true, now: now, mouseAgo: Self.mouseIdle,
+                               pointerInUse: pointer.isMouse || pointer.touchedRecently(now: now), setting: Prefs.parkPointer,
+                               overGame: reach == .none && model.gamePlaying && !GameBackdrop.isRaised && Self.gameHasTheFront(model),
+                               question: model.windowsQuestion != nil || PadPointer.macOSAsks),
+              let location = CGEvent(source: nil)?.location
+        else { return }
+        var display: CGDirectDisplayID = 0
+        var count: UInt32 = 0
+        guard CGGetDisplaysWithPoint(location, 1, &display, &count) == .success, count == 1 else { return }
+        CGWarpMouseCursorPosition(PointerParking.place(on: CGDisplayBounds(display)))
+        GameLog.note("Pointer: moved out of the game's picture, the pad is in use")
+    }
+
+    /// The app in front is a game, or the one Nightforge runs (a Mac game needn't say that it's one).
+    private static func gameHasTheFront(_ model: LibraryModel) -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return false }
+        return frontAppIsGame() || model.running.values.contains(front)
     }
 
     /// ☰ down or up (MenuHold): with a card selected it waits to see whether it's held.
