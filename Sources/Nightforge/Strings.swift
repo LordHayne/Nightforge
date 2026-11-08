@@ -809,6 +809,12 @@ enum L10n {
         "Sound now comes from %@": "Ton kommt jetzt aus %@",
         "The game plays its sound on %@ until it starts again.": "Das Spiel spielt seinen Ton bis zum nächsten Start über %@.",
         "Continue Playing": "Weiterspielen",
+        "Restart Game": "Spiel neu starten",
+        "Controller connected": "Controller verbunden",
+        "Controller connected after the start": "Controller nach dem Start verbunden",
+        "%@ may only find it after a restart – the overlay offers one.": "%@ erkennt ihn vielleicht erst nach einem Neustart – das Overlay bietet ihn an.",
+        "Some games only look for controllers when they start. A restart takes about a minute; your progress stays where the game saves it.":
+            "Manche Spiele suchen Controller nur beim Start. Ein Neustart dauert etwa eine Minute, dein Fortschritt bleibt, wo das Spiel ihn speichert.",
         "Quit Game": "Spiel beenden",
         "Go to Nightforge": "Zu Nightforge",
         "Paused": "Pausiert",

@@ -73,6 +73,8 @@ struct GameOverlayTest {
         expect(.menu, .back, (.menu, .close), "B in the choice: back to the game")
         expect(.menu, .resume, (.menu, .close), "Continue Playing or the sticks held again: back to the game")
         expect(.menu, .askQuit, (.confirmQuit, .none), "Quit Game asks first")
+        expect(.menu, .restart, (.quitting, .restart), "Restart Game after a late controller: ends and starts again, no question")
+        expect(.confirmQuit, .restart, (.confirmQuit, .none), "no restart from the quit question")
         expect(.menu, .quit, (.menu, .none), "no quitting without the question")
         expect(.menu, .nightforge, (.menu, .nightforge), "Go to Nightforge")
         expect(.confirmQuit, .back, (.menu, .none), "B in the question: back to the choice")

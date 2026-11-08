@@ -652,6 +652,8 @@ final class LibraryModel: ObservableObject {
     /// Games Nightforge started, from when their process shows up until it ends.
     private var startedHere: Set<String> = []
     private var playing: Set<String> = []
+    /// Windows games started while no controller was connected (padArrivedLate).
+    private var padlessStarts: Set<String> = []
     /// When each of them started running, and the play time Steam had for it then.
     private var sessionStarts: [String: (date: Date, totalBefore: Int)] = [:]
     /// The way each Windows game's last start took (`LaunchAttempt.id`), for "How did it run?".
@@ -1616,10 +1618,35 @@ final class LibraryModel: ObservableObject {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
                     }.value
                 },
-                nightforge: { [weak self] in await self?.leaveGame(Set(pids)) })
+                nightforge: { [weak self] in await self?.leaveGame(Set(pids)) },
+                restart: { [weak self] in
+                    LaunchHealth.playerQuit(game.gameID)
+                    await Task.detached(priority: .userInitiated) {
+                        GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                    }.value
+                    await self?.startAgainWhenEnded(game)
+                })
             GameOverlay.open(game.name, pids: pids, pause: pauses, on: GameDisplay.gameScreen, symbols: padSymbols,
                              soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
         }
+    }
+
+    /// A controller came after a Windows game started without one: many only look for pads at start
+    /// (Left 4 Dead 2, 7.11.). Said once for a few seconds over the game, then asked in the overlay.
+    func padArrivedLate() {
+        guard let game = allGames.first(where: { padlessStarts.contains($0.id) && running[$0.id] != nil }) else { return }
+        padlessStarts.remove(game.id)
+        GameOverlay.lateController = true
+        GameLog.note("A controller came after \(game.name) started without one: hint shown, the overlay offers a restart")
+        GameHint.show(title: L10n.t("Controller connected"),
+                      detail: L10n.t("%@ may only find it after a restart – the overlay offers one.", game.name),
+                      on: GameDisplay.gameScreen)
+    }
+
+    /// The overlay's restart: once the game's processes are gone, it starts again.
+    func startAgainWhenEnded(_ game: Game) async {
+        for _ in 0..<60 where running[game.id] != nil { try? await Task.sleep(for: .milliseconds(500)) }
+        play(game)
     }
 
     /// Brings the running game's window to the front.
@@ -3499,6 +3526,7 @@ final class LibraryModel: ObservableObject {
                 }
                 let logMark = GameLog.mark()
                 let startedAt = Date()
+                if controllerConnected { padlessStarts.remove(game.id) } else { padlessStarts.insert(game.id) }
                 LearnedFixes.setLastLaunch(game.gameID, logMark: logMark)
                 var (frameLimit, learning) = FramePacing.automaticLimit(game: game.gameID, options: options,
                                                                          profile: profile, refreshRate: refreshRate)

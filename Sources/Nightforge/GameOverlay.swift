@@ -23,6 +23,9 @@ enum GameOverlay {
         @Published var symbols = PadSymbols()
         /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
         @Published var soundStaysOn: String?
+        /// A controller came after the game started without one (LibraryModel.padArrivedLate):
+        /// the menu offers a restart first, once.
+        @Published var lateController = false
     }
 
     /// What the model does for the choices.
@@ -31,6 +34,8 @@ enum GameOverlay {
         var quit: () async -> Void
         /// Nightforge in front, the game left running behind it; done once it's there or can't be.
         var nightforge: () async -> Void
+        /// Ends the game and starts it again; nil where the overlay offers no restart.
+        var restart: (() async -> Void)? = nil
     }
 
     private static let state = State()
@@ -41,6 +46,11 @@ enum GameOverlay {
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
+    /// Set when a controller came late; the next overlay asks, then it's cleared (close).
+    static var lateController: Bool {
+        get { state.lateController }
+        set { state.lateController = newValue }
+    }
     /// The player went back to the game from here (LibraryModel, GameStage).
     static var resumed: (@MainActor () -> Void)?
     /// Open with "Not starting?" (or the question it led to).
@@ -183,6 +193,7 @@ enum GameOverlay {
     static func resume() { handle(.resume) }
     static func askQuit() { handle(.askQuit) }
     static func quit() { handle(.quit) }
+    static func restart() { handle(.restart) }
     static func toNightforge() { handle(.nightforge) }
 
     private static func handle(_ event: OverlayEvent) {
@@ -199,6 +210,11 @@ enum GameOverlay {
             InputRouter.hidePointerForGame()  // while the panel still has the keys
             close()
             resumed?()
+        case .restart:
+            guard let actions else { return }
+            GameBackdrop.returning(held: true)
+            close()
+            Task { await (actions.restart ?? actions.quit)() }
         case .quit:
             // One curtain from here until Nightforge is in front: the panel goes at once, the
             // curtain holds whatever the game's processes do while they end.
@@ -221,7 +237,7 @@ enum GameOverlay {
         }
     }
 
-    enum Effect: Equatable { case none, close, quit, nightforge }
+    enum Effect: Equatable { case none, close, quit, nightforge, restart }
 
     /// The overlay's steps: B steps back, the sticks held again go back to the game from anywhere
     /// but the quitting, and a game is only quit from the question.
@@ -233,6 +249,7 @@ enum GameOverlay {
         case (.menu, .nightforge), (.notStarting, .nightforge): return (step, .nightforge)
         case (.confirmQuit, .back): return (.menu, .none)
         case (.confirmQuit, .quit): return (.quitting, .quit)
+        case (.menu, .restart): return (.quitting, .restart)
         default: return (step, .none)
         }
     }
@@ -240,6 +257,7 @@ enum GameOverlay {
     /// Also when Nightforge quits: a paused game never stays paused.
     static func close() {
         cont()
+        state.lateController = false
         panel?.orderOut(nil)
         PadFocus.shared.clear()
         actions = nil
@@ -259,7 +277,11 @@ enum GameOverlay {
     /// highlighted, and the first press only showed where you were.
     private static func focusDefault() {
         PadFocus.shared.clear()
-        if let id = defaultButton(state.step) { PadFocus.shared.focus(id) }
+        if state.step == .menu && state.lateController {
+            PadFocus.shared.focus("overlay.restart")
+        } else if let id = defaultButton(state.step) {
+            PadFocus.shared.focus(id)
+        }
     }
 
     /// The button a step's highlight starts on (its `padFocus` id): the safe answer.
@@ -312,7 +334,7 @@ enum GameOverlay {
 
 enum OverlayStep: Equatable { case menu, notStarting, confirmQuit, quitting }
 
-enum OverlayEvent { case back, resume, askQuit, quit, nightforge }
+enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart }
 
 /// Takes keys without making Nightforge the active app, so the game's Space stays where it is.
 private final class OverlayPanel: NSPanel {
@@ -365,8 +387,25 @@ private struct OverlayView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
         }
+        // A controller came after the start: many games only look for one then (Left 4 Dead 2, 7.11.).
+        if state.lateController {
+            VStack(spacing: 6) {
+                Label(L10n.t("Controller connected after the start"), systemImage: "gamecontroller.fill")
+                    .font(size: 15, weight: .semibold)
+                    .foregroundStyle(Theme.sodium)
+                Text(L10n.t("Some games only look for controllers when they start. A restart takes about a minute; your progress stays where the game saves it."))
+                    .font(size: 13)
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: 380)
+            }
+            .padding(.top, 6)
+        }
         VStack(spacing: 12) {
-            choice("overlay.continue", L10n.t("Continue Playing"), tint: Theme.sodium, preferred: true) { GameOverlay.resume() }
+            if state.lateController {
+                choice("overlay.restart", L10n.t("Restart Game"), tint: Theme.sodium, preferred: true) { GameOverlay.restart() }
+            }
+            choice("overlay.continue", L10n.t("Continue Playing"), tint: state.lateController ? nil : Theme.sodium,
+                   preferred: !state.lateController) { GameOverlay.resume() }
             choice("overlay.quit", L10n.t("Quit Game")) { GameOverlay.askQuit() }
             choice("overlay.nightforge", L10n.t("Go to Nightforge")) { GameOverlay.toNightforge() }
         }

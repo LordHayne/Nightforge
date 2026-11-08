@@ -393,6 +393,7 @@ final class InputRouter {
     private func attach(_ controller: GCController?) {
         guard let pad = controller?.extendedGamepad else { return }
         refreshConnected()
+        model?.padArrivedLate()
         // In a game too, for the hold that opens the overlay. Only once a controller is there:
         // SDL saw crashes when it was set before.
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
