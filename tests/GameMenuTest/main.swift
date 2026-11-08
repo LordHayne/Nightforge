@@ -130,8 +130,11 @@ struct GameMenuTest {
         check(list(installed) == [.play, .addLater, .pin, .reveal, .hide, .uninstall], "installed: \(list(installed))")
         var onHome = usual
         onHome.onHome = true
-        check(list(installed, onHome) == [.play, .addLater, .pin, .removeFromHome, .reveal, .hide, .uninstall],
-              "on Home: taken off there right after pinning: \(list(installed, onHome))")
+        check(list(installed, onHome) == [.play, .addLater, .removeFromHome, .reveal, .hide, .uninstall],
+              "on Home: taking it off, not pinning it: \(list(installed, onHome))")
+        onHome.pinned = true
+        check(list(installed, onHome) == [.play, .addLater, .removeFromHome, .reveal, .hide, .uninstall],
+              "a pinned game on Home: the same one entry: \(list(installed, onHome))")
         var everything = usual
         everything.canMove = true
         check(list(installed, everything) == [.play, .addLater, .pin, .move, .reveal, .hide, .uninstall], "the order: \(list(installed, everything))")

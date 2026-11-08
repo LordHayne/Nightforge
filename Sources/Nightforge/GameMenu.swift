@@ -65,7 +65,8 @@ enum GameMenu {
         var canMarkLater = false
         var pinned = false
         var canPin = false
-        /// On Home's rail now: it can be taken off there (until it's played again).
+        /// Opened on Home, on a game of its rail: it can be taken off there (until it's played again),
+        /// and pinning it is what the library offers.
         var onHome = false
         var hidden = false
         var canMove = false
@@ -94,8 +95,14 @@ enum GameMenu {
             list.append(.tryAnyway)
         }
         if state.later { list.append(.removeLater) } else if state.canMarkLater { list.append(.addLater) }
-        if state.pinned { list.append(.unpin) } else if state.canPin { list.append(.pin) }
-        if state.onHome { list.append(.removeFromHome) }
+        // On Home the game is already there: only taking it off makes sense (a pinned one comes off too).
+        if state.onHome {
+            list.append(.removeFromHome)
+        } else if state.pinned {
+            list.append(.unpin)
+        } else if state.canPin {
+            list.append(.pin)
+        }
         if state.canMove { list.append(.move) }
         if game.hasFolder { list.append(.reveal) }
         if game.install != .inStore { list.append(state.hidden ? .unhide : .hide) }
@@ -133,7 +140,7 @@ extension LibraryModel {
     /// What the list shows for `game` right now.
     func menuState(for game: Game) -> GameMenu.State {
         GameMenu.State(running: isRunning(game), later: isLater(game), canMarkLater: canMarkLater(game),
-                       pinned: isPinned(game), canPin: canPin(game), onHome: isOnHome(game), hidden: isHidden(game),
+                       pinned: isPinned(game), canPin: canPin(game), onHome: route == .home && isOnHome(game), hidden: isHidden(game),
                        canMove: canMove(game), canUninstall: canUninstall(game))
     }
 

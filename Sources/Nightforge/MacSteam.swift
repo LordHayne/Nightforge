@@ -270,8 +270,22 @@ enum MacSteam {
         guard isRunning else { return start(visible: true) }
         allowVisible(for: seconds)
         for app in clientApps { app.unhide() }
-        open("open/main", activate: true)
+        // Steam's question about a launch option is a small window of its own: the store, opened on
+        // top of it, left nothing to click (Drawful 2, 8.11.).
+        let windows = steamWindows()
+        let asking = asksLaunchOption
+        if asking { GameLog.note("Steam asks for a launch option, its windows: " + windows.map { "\($0.pid) \(Int($0.width))×\(Int($0.height))\($0.onScreen ? "" : " hidden")" }.joined(separator: ", ")) }
+        if !(asking && windows.contains { $0.onScreen && (200...1000).contains($0.width) && (100...760).contains($0.height) }) {
+            open("open/main", activate: true)
+        }
         comeForward()
+    }
+
+    /// The last thing Steam logged about a start is that it waits for the pick among a game's launch options.
+    private static var asksLaunchOption: Bool {
+        guard let last = logLines("console_log.txt").last(where: { $0.contains("GameAction [AppID") }),
+              last.contains("waiting for user response to ShowLaunchOption"), let date = logDate(last) else { return false }
+        return Date().timeIntervalSince(date) < 600
     }
 
     /// A Steam dialog the player answers (steam://install/… asks where to install).
@@ -306,7 +320,7 @@ enum MacSteam {
             $0.bundleIdentifier == helperBundleID || $0.executableURL?.lastPathComponent == "steam_osx"
         }
         steam.forEach { $0.unhide() }
-        let owners = windowOwners()
+        let owners = Set(steamWindows().filter { $0.width > 120 && $0.height > 80 }.map(\.pid))
         // The one with Steam's window; without a window anywhere yet, the client, which opens one.
         let target = steam.first { owners.contains($0.processIdentifier) && $0.bundleIdentifier == helperBundleID }
             ?? steam.first { owners.contains($0.processIdentifier) } ?? clientApps.first
@@ -315,15 +329,17 @@ enum MacSteam {
         target.activate(from: .current, options: [.activateAllWindows])
     }
 
-    /// The processes with a window of a normal level and some size, on screen or behind others.
-    private static func windowOwners() -> Set<pid_t> {
+    /// Steam's windows of a normal level, on screen or not: whose they are and how big.
+    private static func steamWindows() -> [(pid: pid_t, width: CGFloat, height: CGFloat, onScreen: Bool)] {
+        let steam = Set(NSWorkspace.shared.runningApplications.filter {
+            $0.bundleIdentifier == helperBundleID || $0.executableURL?.lastPathComponent == "steam_osx"
+        }.map(\.processIdentifier))
         let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-        return Set(list.compactMap { info -> pid_t? in
-            guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
-                  (bounds["Width"] ?? 0) > 120, (bounds["Height"] ?? 0) > 80 else { return nil }
-            return info[kCGWindowOwnerPID as String] as? pid_t
-        })
+        return list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0, let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  steam.contains(pid), let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+            return (pid, bounds["Width"] ?? 0, bounds["Height"] ?? 0, info[kCGWindowIsOnscreen as String] as? Bool ?? false)
+        }
     }
 
     /// Until when Nightforge wants Steam's window up although Steam doesn't log that it waits.
