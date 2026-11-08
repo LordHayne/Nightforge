@@ -191,6 +191,14 @@ struct PadKeyboard {
                     .right: Pointer(position: CGPoint(x: j.frame.midX, y: j.frame.midY), key: j.id)]
     }
 
+    /// A key clicked with the mouse: as if a thumb had typed it.
+    mutating func tap(_ id: String) -> [Event] {
+        guard let key = layout.key(id: id) else { return [] }
+        var events: [Event] = []
+        perform(key.action, id: key.id, side: nil, &events)
+        return events
+    }
+
     mutating func feed(_ input: Input) -> [Event] {
         var events: [Event] = []
         let elapsed = CGFloat(min(max(input.now - last.now, 0), 0.1))
@@ -353,12 +361,33 @@ struct PadKeyboardGeometry: Equatable {
     static let gap: CGFloat = 6
     static let splitGap: CGFloat = 18
 
-    /// The keys that fit `width`, up to the size where a wider board only adds thumb travel.
-    static func fitting(width: CGFloat) -> PadKeyboardGeometry {
+    /// The keys that fit `width`, up to the size where a wider board only adds thumb travel. In a low
+    /// window they're flatter: the hits above the keyboard need the room.
+    static func fitting(width: CGFloat, windowHeight: CGFloat = .infinity) -> PadKeyboardGeometry {
         let room = (width - (PadKeyLayout.columns - 1) * gap - splitGap) / PadKeyLayout.columns
         let keyWidth = max(44, min(104, room.rounded(.down)))
-        return PadKeyboardGeometry(keyWidth: keyWidth, keyHeight: max(40, min(68, (keyWidth * 0.72).rounded())))
+        return PadKeyboardGeometry(keyWidth: keyWidth, keyHeight: max(40, min(68, (keyWidth * 0.72).rounded(), (windowHeight * 0.06).rounded())))
     }
+
+    /// The panel's padding, and what its line of hints takes under the keys.
+    static let panelPadding: CGFloat = 14
+    static let legendRoom: CGFloat = 28
+    static let searchBarHeight: CGFloat = 56
+    static let searchBarGap: CGFloat = 12
+
+    var panelHeight: CGFloat { size.height + Self.legendRoom + 2 * Self.panelPadding }
+
+    /// Where the search bar stands while the keyboard is open: in the middle, right above it, so the
+    /// eyes stay where the thumbs are working.
+    func searchBarFrame(window: CGSize, bottomMargin: CGFloat) -> CGRect {
+        let width = min(640, (window.width * 0.5).rounded())
+        return CGRect(x: ((window.width - width) / 2).rounded(), y: window.height - bottomMargin - panelHeight - Self.searchBarGap - Self.searchBarHeight,
+                      width: width, height: Self.searchBarHeight)
+    }
+
+    /// How far the hits' grid has to end above its own bottom, so that nothing lies behind the bar or
+    /// the keyboard. `gridBottom` and `barTop` in the same coordinates.
+    static func gridRoom(gridBottom: CGFloat, barTop: CGFloat) -> CGFloat { max(0, gridBottom - barTop + 8) }
 
     private func x(_ column: CGFloat) -> CGFloat {
         column * (keyWidth + Self.gap) + (column >= PadKeyLayout.split ? Self.splitGap : 0)

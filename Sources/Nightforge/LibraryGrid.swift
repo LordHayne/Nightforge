@@ -113,6 +113,9 @@ struct LibraryGrid: View {
         GeometryReader { geo in
             let columnCount = max(1, Int((geo.size.width - 2 * Theme.gutter + Self.spacing) / (cardWidth + Self.spacing)))
             let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: Self.spacing), count: columnCount)
+            // The hits end above the keyboard's search bar, rather than lying behind it.
+            let keyboardRoom = model.padKeyboard == nil || model.searchBarTarget == .zero ? 0
+                : PadKeyboardGeometry.gridRoom(gridBottom: geo.frame(in: .named(PadSearchBar.space)).maxY, barTop: model.searchBarTarget.minY)
 
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
@@ -158,6 +161,9 @@ struct LibraryGrid: View {
                     .padding(.vertical, 20)
                     .id(Self.top)
                 }
+                .padding(.bottom, keyboardRoom)
+                .animation(reduceMotion ? nil : .smooth(duration: 0.32), value: keyboardRoom)
+                .onChange(of: keyboardRoom) { _, _ in showSelected(proxy, columns: columnCount) }
                 .onAppear {
                     model.gridColumns = columnCount
                     showSelected(proxy, columns: columnCount)
@@ -389,6 +395,8 @@ private struct LibrarySearchField: View {
         .background(GlassBackground(glass: .regular, shape: Capsule()))
         .overlay(Capsule().strokeBorder(Theme.sodium.opacity(focused || !model.searchText.isEmpty ? 0.8 : 0), lineWidth: 1.5))
         .modifier(SwipeArea(kind: .search))  // two fingers over the field never swipe
+        .opacity(model.searchBarFloats ? 0 : 1)  // the bar over the keyboard is this field, moved (PadSearchBar)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(PadSearchBar.space)) } action: { model.searchFieldFrame = $0 }
         .padFocus("library.search", cornerRadius: 19, activate: { focused = true })
         .onChange(of: model.searchFocusRequest) { _, _ in takeFocus() }
         // The library stays behind a game's page it opened: the field mustn't keep the keys there

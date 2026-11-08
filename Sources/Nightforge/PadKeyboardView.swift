@@ -25,6 +25,14 @@ final class PadKeyboardSession: ObservableObject {
         show()
     }
 
+    /// A key clicked with the mouse. Done closes.
+    func tap(_ id: String) -> [PadKeyboard.Event] {
+        let events = board.tap(id)
+        for case let .typed(_, key) in events { presses[key, default: 0] += 1 }
+        show()
+        return events
+    }
+
     /// One look at the pad. What happened is handed back, for the motors and to close.
     func feed(_ input: PadKeyboard.Input) -> [PadKeyboard.Event] {
         let events = board.feed(input)
@@ -49,12 +57,16 @@ struct PadKeyboardPanel: View {
     @ObservedObject var session: PadKeyboardSession
     /// Whose names the buttons go by.
     let layout: PadLayout
-    private let padding: CGFloat = 14
+    /// Where the search bar stands above it; the hits end there.
+    var onBarFrame: (CGRect) -> Void = { _ in }
+    /// Done, clicked with the mouse.
+    var onDone: () -> Void = {}
+    private let padding = PadKeyboardGeometry.panelPadding
 
     var body: some View {
         GeometryReader { geo in
             let inner = min(geo.size.width - 2 * Theme.gutter, 1_180) - 2 * padding
-            let geometry = PadKeyboardGeometry.fitting(width: inner)
+            let geometry = PadKeyboardGeometry.fitting(width: inner, windowHeight: geo.size.height)
             VStack(spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     LightSeam(geometry: geometry)
@@ -63,6 +75,8 @@ struct PadKeyboardPanel: View {
                         KeyCap(label: key.label, height: geometry.keyHeight, hovered: session.hovered.contains(key.id),
                                armed: key.action == .shift && session.shift != .off, presses: session.presses[key.id] ?? 0)
                             .frame(width: rect.width, height: rect.height)
+                            .contentShape(Rectangle())
+                            .onTapGesture { if session.tap(key.id).contains(.submit) { onDone() } }
                             .offset(x: rect.minX, y: rect.minY)
                     }
                     if let space = session.layout.key(id: "space") {
@@ -83,6 +97,8 @@ struct PadKeyboardPanel: View {
             .shadow(color: .black.opacity(0.55), radius: 22, y: 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, Theme.margins.bottom)
+            .onAppear { onBarFrame(geometry.searchBarFrame(window: geo.size, bottomMargin: Theme.margins.bottom)) }
+            .onChange(of: geo.size) { _, size in onBarFrame(geometry.searchBarFrame(window: size, bottomMargin: Theme.margins.bottom)) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L10n.t("Keyboard"))
@@ -98,6 +114,69 @@ struct PadKeyboardPanel: View {
         }
         .font(size: 13, weight: .medium)
         .foregroundStyle(Theme.muted)
+    }
+}
+
+/// The search while the keyboard is open: the field from the library's header, grown and right
+/// above the keys, so the eyes needn't go up and back. One element, moved from the field's place
+/// to the middle and back; nothing here runs once it has arrived.
+struct PadSearchBar: View {
+    /// The window's own coordinates, which the field and the bar are measured in.
+    static let space = "nightforge.window"
+
+    let text: String
+    /// The field's place in the header.
+    let from: CGRect
+    let to: CGRect
+    let raised: Bool
+    var close: () -> Void = {}
+
+    var body: some View {
+        let rect = raised ? to : from
+        let scale = raised || to.height == 0 ? 1 : from.height / to.height
+        ZStack(alignment: .leading) {
+            Capsule().fill(Theme.slate.opacity(0.97))
+            Capsule().strokeBorder(Theme.sodium.opacity(0.8), lineWidth: 1.5)
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(size: 20, weight: .semibold, scales: false)
+                    .foregroundStyle(Theme.muted)
+                HStack(spacing: 2) {
+                    if text.isEmpty {
+                        Rectangle().fill(Theme.sodium).frame(width: 2, height: 26)
+                        Text(L10n.t("Search"))
+                            .font(size: 24, weight: .semibold, scales: false)
+                            .foregroundStyle(Theme.muted)
+                    } else {
+                        Text(text)
+                            .font(size: 24, weight: .semibold, scales: false)
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                        Rectangle().fill(Theme.sodium).frame(width: 2, height: 26)
+                    }
+                }
+                Spacer(minLength: 0)
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .font(size: 12, weight: .bold, scales: false)
+                        .foregroundStyle(Theme.ink.opacity(0.8))
+                        .frame(width: 30, height: 30)
+                        .background(Theme.ink.opacity(0.15), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .opacity(raised ? 1 : 0)
+                .accessibilityLabel(L10n.t("Close"))
+            }
+            .padding(.horizontal, 22)
+            .frame(width: to.width, height: to.height, alignment: .leading)
+            .scaleEffect(scale, anchor: .leading)
+            .frame(width: rect.width, height: rect.height, alignment: .leading)
+            .clipShape(Capsule())
+        }
+        .frame(width: rect.width, height: rect.height)
+        .position(x: rect.midX, y: rect.midY)
+        .allowsHitTesting(raised)
     }
 }
 

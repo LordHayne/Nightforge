@@ -57,6 +57,12 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var searchFocusRequest = 0
     /// The keyboard for the controller while it's open.
     @Published private(set) var padKeyboard: PadKeyboardSession?
+    /// The search stands as the bar over the keyboard, or is on its way there or back (PadSearchBar).
+    @Published private(set) var searchBarFloats = false
+    @Published private(set) var searchBarRaised = false
+    /// Where the search field is in the header, and where the bar goes.
+    @Published var searchFieldFrame = CGRect.zero
+    @Published var searchBarTarget = CGRect.zero
     /// A focus request the field hasn't taken yet: it may only appear with the library.
     private var searchFocusPending = false
     /// Home, the library grid, or a game's page.
@@ -3604,11 +3610,36 @@ final class LibraryModel: ObservableObject {
         guard !allGames.isEmpty else { return nil }
         if route != .library { goLibrary() }
         let session = PadKeyboardSession(text: searchText)
-        padKeyboard = session
+        searchBarFloats = true
+        searchBarRaised = false
+        withAnimation(searchBarMotion) { padKeyboard = session }
+        // A beat for the field to be measured, coming from Home; then it moves.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            guard padKeyboard === session else { return }
+            withAnimation(searchBarMotion) { searchBarRaised = true }
+        }
         return session
     }
 
-    func closePadKeyboard() { padKeyboard = nil }
+    /// The bar goes back to its place as the keyboard leaves; the field takes over once it's there.
+    func closePadKeyboard() {
+        guard padKeyboard != nil else { return }
+        withAnimation(searchBarMotion) {
+            padKeyboard = nil
+            searchBarRaised = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(searchBarMotion == nil ? 0 : 340))
+            if padKeyboard == nil { searchBarFloats = false }
+        }
+    }
+
+    /// Short and quiet, once there and once back; none with Reduce Motion.
+    private var searchBarMotion: Animation? {
+        Prefs.reduceMotion(system: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                           stored: UserDefaults.standard.string(forKey: Prefs.Keys.reduceMotion) ?? "") ? nil : .smooth(duration: 0.32)
+    }
 
     /// The search field takes a focus request once, when it's asked or when it appears.
     func takeSearchFocus() -> Bool {
