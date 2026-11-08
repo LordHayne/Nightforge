@@ -269,16 +269,23 @@ enum MacSteam {
     static func show(keepFor seconds: TimeInterval = 0) {
         guard isRunning else { return start(visible: true) }
         allowVisible(for: seconds)
-        for app in clientApps { app.unhide() }
-        // Steam's question about a launch option is a small window of its own: the store, opened on
-        // top of it, left nothing to click (Drawful 2, 8.11.).
-        let windows = steamWindows()
-        let asking = asksInADialog
-        if asking { GameLog.note("Steam asks in a dialog of its own, its windows: " + windows.map { "\($0.pid) \(Int($0.width))×\(Int($0.height))\($0.onScreen ? "" : " hidden")" }.joined(separator: ", ")) }
-        if !(asking && windows.contains { $0.onScreen && (200...1000).contains($0.width) && (100...760).contains($0.height) }) {
+        for app in windowApps { app.unhide() }  // `hide` hides the web view too, and with it Steam's dialogs
+        guard asksInADialog else {
             open("open/main", activate: true)
+            comeForward()
+            return
         }
-        comeForward()
+        // Steam's question is a small window of its own: the store, opened on top of it, left nothing
+        // to click (Drawful 2, 8.11.). Unhidden just now, it may need a moment to be on screen.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            let windows = steamWindows()
+            GameLog.note("Steam asks in a dialog of its own, its windows: " + windows.map { "\($0.pid) \(Int($0.width))×\(Int($0.height))\($0.onScreen ? "" : " hidden")" }.joined(separator: ", "))
+            if !windows.contains(where: { $0.onScreen && (200...1000).contains($0.width) && (100...760).contains($0.height) }) {
+                open("open/main", activate: true)
+            }
+            comeForward()
+        }
     }
 
     /// The last thing Steam logged about a start is that it waits for an answer in a dialog of its
