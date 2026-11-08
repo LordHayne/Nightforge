@@ -2762,18 +2762,29 @@ final class LibraryModel: ObservableObject {
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
             let appID = game.appID
-            let launchType = await Task.detached(priority: .userInitiated) { () -> String? in
+            let macLaunch = await Task.detached(priority: .userInitiated) { () -> [SteamCatalog.LaunchEntry] in
                 ControllerCompatibility.prepare(installDir: installDir)
                 MacGameHUD.prepare(folder: installDir)
-                return SteamProgram.macLaunchType(SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root))
+                return SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root)
             }.value
+            let launchType = SteamProgram.macLaunchType(macLaunch)
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             // With several launch options Steam asks which one, in a window that didn't come forward
             // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
             // first straight away; it passes no arguments, so with the player's own Steam asks as before.
             let command = launchType.flatMap { arguments.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
-            let run = { MacSteam.open(command) }
+            // Options steam://launch has no name for ("none", no type), or the player's own arguments:
+            // -applaunch starts the first and takes arguments, with no question. Tried once; a resend
+            // (Steam didn't note it) goes the old way, where Steam may ask.
+            var handOver = SteamProgram.macNeedsApplaunch(macLaunch, hasArguments: !arguments.isEmpty)
+            let run = {
+                if handOver {
+                    handOver = false
+                    if MacSteam.applaunch(appID, arguments: Launcher.splitArguments(arguments)) { return }
+                }
+                MacSteam.open(command)
+            }
             raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)

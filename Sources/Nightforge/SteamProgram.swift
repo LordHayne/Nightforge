@@ -72,6 +72,15 @@ enum SteamProgram {
         return type
     }
 
+    /// Steam would ask which option to start and steam://launch can't name the one to take: several
+    /// options, the first with a type it has no name for ("none", "") or shared with another – or
+    /// the player's own arguments, which steam://launch doesn't carry. `steam_osx -applaunch` starts
+    /// the first option as Steam orders them, and takes arguments.
+    static func macNeedsApplaunch(_ entries: [SteamCatalog.LaunchEntry], hasArguments: Bool) -> Bool {
+        guard entries.filter({ $0.betaKey.isEmpty }).count > 1 else { return false }
+        return macLaunchType(entries) == nil || hasArguments
+    }
+
     /// steam://launch/<id>/<type>, for Steam's command line.
     static func url(appID: Int, type: String) -> String { "steam://launch/\(appID)/\(type)" }
 
