@@ -1161,7 +1161,7 @@ final class LibraryModel: ObservableObject {
     /// update and save end at once, as from the Play button: the update carries on from where it stopped.
     func askAboutStuckStart() {
         guard let (game, reason) = curtainEscape, !GameOverlay.isOpen else { return }
-        if reason.atOnce { return leaveStuckStart(game, handedOver: false) }
+        if reason.atOnce { return leaveStuckStart(game, handedOver: reason == .steamAsks) }
         stuckAskedAt = Date()
         let actions = GameOverlay.Actions(quit: {}, nightforge: { [weak self] in self?.leaveStuckStart(game, handedOver: true) })
         GameOverlay.open(game.name, pids: [], pause: false, on: GameDisplay.gameScreen, symbols: padSymbols, step: .stuck,
@@ -1177,7 +1177,11 @@ final class LibraryModel: ObservableObject {
         curtainWatch?.cancel()
         stageWatch?.cancel()
         abandonLaunch()
-        if handedOver { startedHere.insert(game.id) }
+        if handedOver {
+            startedHere.insert(game.id)
+            hideSteamWindow(for: game)  // a question of Steam's that stands: out of sight, and asked again at the next Play
+        }
+        GameBackdrop.setSteamAsks(false)
         curtainEscape = nil
         GameBackdrop.returning()
         if game.inLibrary, reveal(game), !route.isDetail { openDetail() }
@@ -1263,6 +1267,8 @@ final class LibraryModel: ObservableObject {
         }
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
+        /// Steam's question stands on the curtain: when its window was last seen there.
+        var steamWindowSeen: Date?
         /// macOS's questions on screen at the last look (`GameProcesses.macOSQuestions`), the frontmost
         /// first: the curtain lies under them while it's up.
         var macOSOnScreen: [Int] = []
@@ -1306,19 +1312,51 @@ final class LibraryModel: ObservableObject {
                 case .away:
                     steamAsked = true
                     noProcessSince = nil  // the question's time isn't the game's
-                    offerWayOut(game, reason: nil)
                     if GameOverlay.asksWayOut { GameOverlay.close() }
-                    GameBackdrop.hide(after: .zero)
-                    GameLog.note("Curtain away for \(game.name): Steam asks something")
+                    if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil) {
+                        steamWindowSeen = Date()
+                        GameBackdrop.setSteamAsks(true)
+                        offerWayOut(game, reason: .steamAsks)
+                        GameLog.note("Curtain stays for \(game.name): Steam asks something, on the curtain")
+                    } else {
+                        offerWayOut(game, reason: nil)
+                        GameBackdrop.hide(after: .zero)
+                        GameLog.note("Curtain away for \(game.name): the saves to choose are on Nightforge's page")
+                    }
                     continue
                 case .wait:
+                    guard let seen = steamWindowSeen else { continue }
+                    let steamWindows = await steamWindowsOnScreen(game)
+                    switch Self.steamOnCurtainStep(lowest: steamWindows.last, sinceSeen: Date().timeIntervalSince(seen), savesToChoose: saveChoice != nil) {
+                    case .lieUnder(let lowest):
+                        steamWindowSeen = Date()
+                        GameBackdrop.makeWay(under: lowest)
+                    case .wait:
+                        break
+                    case .giveUp:
+                        // Nothing to answer on the curtain, or the saves' sheet on Nightforge's page: as before it stood here.
+                        steamWindowSeen = nil
+                        GameBackdrop.setSteamAsks(false)
+                        offerWayOut(game, reason: nil)
+                        GameBackdrop.hide(after: .zero)
+                        GameLog.note("Curtain away for \(game.name): Steam's window isn't to be found under it")
+                    }
                     continue
                 case .over:
                     // Answered with Cancel, or the start went wrong: Steam's window doesn't stay.
                     hideSteamWindow(for: game)
+                    if steamWindowSeen != nil {
+                        steamWindowSeen = nil
+                        GameBackdrop.setSteamAsks(false)
+                        GameBackdrop.returning()
+                        comeBack(to: route)
+                    }
                     return end("Steam asked, the start is over")
                 case .back:
                     steamAsked = false
+                    steamWindowSeen = nil
+                    GameBackdrop.setSteamAsks(false)
+                    offerWayOut(game, reason: nil)
                     curtainUp()
                     hideSteamWindow(for: game)
                     askAt = Date().addingTimeInterval(Self.curtainPatience)  // the question's time isn't the game's
@@ -1699,6 +1737,41 @@ final class LibraryModel: ObservableObject {
     /// Black Myth: Wukong's start (1.11.) ran without a curtain or a look for the game's own driver
     /// warning. A start that ended or went wrong meanwhile ends the watch; one that went wrong
     /// without a question is the watch's own business (`none`).
+    /// The choice of saves is a sheet in Nightforge's own window, under the curtain: only that takes it away.
+    nonisolated static func steamAsksOnCurtain(savesToChoose: Bool) -> Bool { !savesToChoose }
+
+    enum SteamOnCurtain: Equatable { case wait, lieUnder(Int), giveUp }
+
+    /// How long the curtain stands without Steam's window on it before it goes as it used to, so a
+    /// question nobody can see never holds the start.
+    nonisolated static let steamWindowPatience: TimeInterval = 8
+
+    /// `lowest`: the backmost of Steam's windows on screen, which the curtain lies right under.
+    nonisolated static func steamOnCurtainStep(lowest: Int?, sinceSeen: TimeInterval, savesToChoose: Bool) -> SteamOnCurtain {
+        if savesToChoose { return .giveUp }
+        if let lowest { return .lieUnder(lowest) }
+        return sinceSeen >= steamWindowPatience ? .giveUp : .wait
+    }
+
+    private func steamWindowsOnScreen(_ game: Game) async -> [Int] {
+        if game.platform == .mac {
+            let pids = MacSteam.windowPids
+            return await Engine.offMain { GameProcesses.steamWindows(pids: pids) }
+        }
+        return await SteamWindow.onScreen()
+    }
+
+    /// How far an update is, for the thin bar on the curtain; nil without a figure.
+    nonisolated static func curtainProgress(phase: LaunchPhase?) -> Double? {
+        guard case .updating(let fraction?)? = phase else { return nil }
+        return min(max(fraction, 0), 1)
+    }
+
+    /// The line under the bar: how fast and how long once that's known, and until then what's going on.
+    nonisolated static func curtainHint(progress: Double?, speed: String?, launchHint: String?) -> String? {
+        progress == nil ? launchHint : speed ?? launchHint
+    }
+
     nonisolated static func steamTurn(asks: Bool, asked: Bool, startGoesOn: Bool, wentWrong: Bool) -> SteamTurn {
         if asks, !wentWrong { return !startGoesOn ? .over : asked ? .wait : .away }
         if asked { return startGoesOn && !wentWrong ? .back : .over }
@@ -1722,9 +1795,12 @@ final class LibraryModel: ObservableObject {
     private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
                               macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
+        let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
                                                   asks: asks, macOSAsks: macOSAsks),
-                               detail: Self.curtainDetail(launchHint: launchHint ?? curtainNote, asks: asks || macOSAsks, macOSOpen: macOSOpen))
+                               detail: Self.curtainDetail(launchHint: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: launchHint ?? curtainNote),
+                                                  asks: asks || macOSAsks, macOSOpen: macOSOpen),
+                               progress: progress)
     }
 
     /// The curtain's second line: none under a question it waits for (`asks`), else the start's

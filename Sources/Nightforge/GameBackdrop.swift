@@ -31,6 +31,10 @@ enum GameBackdrop {
         @Published var tip: LaunchTip?
         /// The way out of a curtain with no game under it yet (CurtainEscape), in the tip's place.
         @Published var wayOut: LaunchTip?
+        /// How far an update is, 0 to 1 (the thin bar under the step); nil without one.
+        @Published var progress: Double?
+        /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
+        @Published var steamAsks = false
     }
 
     enum Stage: Equatable {
@@ -89,11 +93,16 @@ enum GameBackdrop {
 
     /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
     /// a quick start stays calm and a long one doesn't look stuck.
-    static func setStatus(_ step: String?, detail: String?) {
+    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil) {
         guard state.stage == .starting else { return }
         if state.step != step { state.step = step }
+        if state.progress != progress { state.progress = progress }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
+    }
+
+    static func setSteamAsks(_ asks: Bool) {
+        if state.steamAsks != asks { state.steamAsks = asks }
     }
 
     static func setWayOut(_ tip: LaunchTip?) {
@@ -311,6 +320,8 @@ enum GameBackdrop {
             state.detail = nil
             state.tip = tip
             state.wayOut = nil
+            state.progress = nil
+            state.steamAsks = false
         }
         state.stage = stage
         self.gameOn = gameOn
@@ -491,12 +502,23 @@ private final class CurtainPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private struct BackdropView: View {
+struct BackdropView: View {
     @ObservedObject var state: GameBackdrop.State
 
     var body: some View {
         ZStack {
             BrandNight()
+            if state.stage == .starting && state.steamAsks {
+                SteamQuestionFrame(game: state.game, wayOut: state.wayOut)
+            } else {
+                page
+            }
+        }
+        .clipped()
+        .ignoresSafeArea()
+    }
+
+    private var page: some View {
             VStack(spacing: 0) {
                 BrandMark(moving: state.stage.raised)
                 // The banner's wordmark, and under it the game in the blue of its tagline.
@@ -519,13 +541,14 @@ private struct BackdropView: View {
                 .foregroundStyle(Theme.muted)
                 .animation(.easeInOut(duration: 0.4), value: status)
                 .padding(.top, 34)
+                // In the gap above the second line, which is there anyway: nothing moves when it comes.
+                UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
                 // Its own fade only, nothing else on the page moves with it.
                 Text(state.stage == .starting ? state.detail ?? " " : " ")
                     .font(size: 14)
                     .foregroundStyle(Theme.muted.opacity(0.75))
                     .lineLimit(2)
                     .frame(maxWidth: 560)
-                    .padding(.top, 14)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
                 // A tip for new players, quiet, in the banner's blue.
@@ -546,9 +569,6 @@ private struct BackdropView: View {
             }
             .multilineTextAlignment(.center)
             .padding(Theme.gutter)
-        }
-        .clipped()
-        .ignoresSafeArea()
     }
 
     private var status: String {
@@ -556,6 +576,60 @@ private struct BackdropView: View {
         case .starting: return state.step ?? L10n.t("Starting …")
         case .behind: return L10n.t("Nightforge waits here until you're done.")
         case .returning: return L10n.t("Back to Nightforge …")
+        }
+    }
+}
+
+/// How far an update is: a thin line in the seam's blue, in a gap that's there with or without it.
+private struct UpdateBar: View {
+    let fraction: Double?
+    static let width: CGFloat = 420
+    static let height: CGFloat = 4
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Capsule().fill(.white.opacity(0.12))
+            Capsule().fill(Color(nsColor: BrandArt.seamBlue))
+                .frame(width: Self.width * (fraction ?? 0))
+        }
+        .frame(width: Self.width, height: Self.height)
+        .opacity(fraction == nil ? 0 : 1)
+        .animation(.linear(duration: 0.4), value: fraction)
+        .frame(height: 14)
+    }
+}
+
+/// Steam's question on the curtain: its window stands where Steam puts it, so the mark gives way, the
+/// game's name goes to the top, and a bar at the bottom says how to answer and how to leave.
+private struct SteamQuestionFrame: View {
+    let game: String
+    let wayOut: LaunchTip?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spaced(text: game.uppercased(with: L10n.locale) + " · " + L10n.t("Steam is asking something").uppercased(with: L10n.locale), kern: 6)
+                .fontWidth(.expanded)
+                .font(size: 18)
+                .foregroundStyle(Color(nsColor: BrandArt.tagline))
+                .lineLimit(1)
+                .padding(.top, 48)
+            Spacer()
+            HStack(spacing: 48) {
+                Text(L10n.t("Answer with the mouse or trackpad"))
+                // Without a controller there's no B to name, and Esc goes to Steam's window.
+                if let wayOut, !wayOut.symbols.isEmpty {
+                    HStack(spacing: 10) {
+                        ForEach(Array(wayOut.symbols.enumerated()), id: \.offset) { _, symbol in PadGlyph(symbol, size: 20) }
+                        Text(wayOut.text)
+                    }
+                }
+            }
+            .font(size: 17)
+            .foregroundStyle(Color(nsColor: BrandArt.tagline))
+            .frame(maxWidth: .infinity)
+            .frame(height: 96)
+            .background(Color(red: 6 / 255, green: 8 / 255, blue: 11 / 255).opacity(0.72))
+            .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 1) }
         }
     }
 }

@@ -76,8 +76,8 @@ Die Ursachen sind aus Log und Code geschlossen, keine ist am laufenden Spiel beo
 | V2 „Willkommen zurück“ geht verloren | kein Fehler. Es geht nur verloren, wenn ein neuer Start den Vorhang übernimmt, und dort gehört es nicht hin. | – |
 | V3 `hide` bei Steam Helper | unverändert, nur live prüfbar. | – |
 | B2 Ausweg ohne Spielprozess | Logik gebaut (`CurtainEscape`): nach 30 s wirken B und Esc, nach 90 s fragt ein stilles Steam von selbst, ein laufendes Update nie. Texte vorläufig. | fe39773, da7e91b |
-| B3 Steams Frage auf dem Vorhang | Entschieden, dass sie kommt. Das Aussehen wartet auf die Wahl auf dem Board `Vorhang.dc.html`. | – |
-| B4 Epic und GOG früher unter den Vorhang | gebaut. B bricht das Update sofort ab (es läuft beim nächsten Mal weiter). Ein Spielstand-Abgleich wird nicht abgeschossen: Er läuft zu Ende, und das Spiel startet nicht. Die Fortschrittszeile hat noch das bisherige Aussehen, die Wahl steht auf dem Board. | cb2223c |
+| B3 Steams Frage auf dem Vorhang | gebaut (Wahl C): Steams Fenster steht auf dem Vorhang, Leiste unten, B führt sofort zurück. Antworten nur mit Maus oder Trackpad, bis der Touchpad-Zeiger da ist. Nur die Spielstand-Wahl, ein Sheet in Nightforges Fenster, nimmt den Vorhang noch weg. | 6d8d789 |
+| B4 Epic und GOG früher unter den Vorhang | gebaut. B bricht das Update sofort ab (es läuft beim nächsten Mal weiter). Ein Spielstand-Abgleich wird nicht abgeschossen: Er läuft zu Ende, und das Spiel startet nicht. Fortschritt als dünner Balken (Wahl B, 6d8d789). Texte des Auswegs: Wahl A. | cb2223c |
 
 Ausgeräumt mit einer Probe (Stand-in abseits des Bildschirms): Ein direktes Setzen von `alphaValue` stoppt eine laufende Überblendung. Ein Vorhang, der mitten in
 seinem Ausblenden neu hochkommt, bleibt also sichtbar.

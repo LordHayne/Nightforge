@@ -43,6 +43,13 @@ enum SteamWindow {
         for app in await helperApps() where app.isHidden { app.unhide() }
     }
 
+    /// Steam's windows on screen, front to back (`GameProcesses.steamWindows`).
+    @MainActor
+    static func onScreen() async -> [Int] {
+        let pids = await helpers()
+        return await Engine.offMain { GameProcesses.steamWindows(pids: pids) }
+    }
+
     /// Steam's browser processes, which show its windows.
     @MainActor
     private static func helpers() async -> Set<pid_t> {

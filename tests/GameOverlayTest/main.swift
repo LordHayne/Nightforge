@@ -551,6 +551,42 @@ struct GameOverlayTest {
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
 
+        // Steam's question on the curtain (the board's variant C).
+        check(LibraryModel.steamAsksOnCurtain(savesToChoose: false), "Steam's question or its sign-in: the curtain stays")
+        check(!LibraryModel.steamAsksOnCurtain(savesToChoose: true), "the saves' sheet is in Nightforge's window, under the curtain: it goes")
+        func onCurtain(_ lowest: Int? = nil, since: TimeInterval = 1, saves: Bool = false) -> LibraryModel.SteamOnCurtain {
+            LibraryModel.steamOnCurtainStep(lowest: lowest, sinceSeen: since, savesToChoose: saves)
+        }
+        check(onCurtain(401) == .lieUnder(401), "its window is there: right under it")
+        check(onCurtain() == .wait, "unhidden just now, it needs a moment")
+        check(onCurtain(since: LibraryModel.steamWindowPatience) == .giveUp, "no window to be found: the curtain goes as it used to, nothing hangs on it")
+        check(onCurtain(401, since: 100) == .lieUnder(401), "there after all: the time doesn't count")
+        check(onCurtain(401, saves: true) == .giveUp, "the saves' sheet comes up as well: the page has to show")
+        func steam(_ number: Int, owner: Int32 = 7, _ width: Int = 700, _ height: Int = 440, layer: Int = 0, alpha: Double = 1) -> [String: Any] {
+            [kCGWindowNumber as String: number as NSNumber, kCGWindowOwnerPID as String: NSNumber(value: owner), kCGWindowLayer as String: layer as NSNumber,
+             kCGWindowAlpha as String: alpha as NSNumber,
+             kCGWindowBounds as String: ["X": 0 as NSNumber, "Y": 0 as NSNumber, "Width": width as NSNumber, "Height": height as NSNumber]]
+        }
+        check(GameProcesses.steamWindows([steam(1), steam(2, 380, 200), steam(3, owner: 9)], pids: [7]) == [1, 2], "Steam's windows, front to back, nobody else's")
+        check(GameProcesses.steamWindows([steam(1, 40, 20), steam(2, 300, 60)], pids: [7]).isEmpty, "its tiny menu windows don't count")
+        check(GameProcesses.steamWindows([steam(1, alpha: 0)], pids: [7]).isEmpty, "an invisible one neither")
+        check(GameProcesses.steamWindows([steam(1, layer: 1000)], pids: [7]).isEmpty, "nothing at a level the curtain can't lie under")
+        var bar = PadSymbols()
+        bar.back = "b.circle.fill"
+        check(CurtainEscape.Reason.steamAsks.atOnce, "B goes back at once from Steam's question")
+        check(CurtainEscape.tip(.steamAsks, pad: bar).symbols == ["b.circle.fill"] && CurtainEscape.tip(.steamAsks, pad: bar).text == L10n.t("Back to Nightforge"), "the bar names B")
+        check(CurtainEscape.tip(.steamAsks, pad: nil).symbols.isEmpty, "no controller: the bar leaves B out")
+
+        // The thin bar and the line under it.
+        check(LibraryModel.curtainProgress(phase: .updating(0.42)) == 0.42, "how far the update is")
+        check(LibraryModel.curtainProgress(phase: .updating(nil)) == nil, "no figure, no bar")
+        check(LibraryModel.curtainProgress(phase: .startingSteam) == nil, "no update, no bar")
+        check(LibraryModel.curtainProgress(phase: nil) == nil, "no phase, no bar")
+        check(LibraryModel.curtainProgress(phase: .updating(1.2)) == 1 && LibraryModel.curtainProgress(phase: .updating(-1)) == 0, "never past its ends")
+        check(LibraryModel.curtainHint(progress: 0.4, speed: "18 MB/s", launchHint: "hint") == "18 MB/s", "with the bar: the speed under it")
+        check(LibraryModel.curtainHint(progress: 0.4, speed: nil, launchHint: "hint") == "hint", "no speed yet: what's going on")
+        check(LibraryModel.curtainHint(progress: nil, speed: "18 MB/s", launchHint: "hint") == "hint", "no bar: the hint as before")
+
         // What takes the curtain away now that it's up from Play on (`launchMac`, `launch`).
         func asks(confirm: Bool = false, phase: LaunchPhase? = nil, saves: Bool = false) -> Bool {
             LibraryModel.startAsksPlayer(needsConfirmation: confirm, phase: phase, savesToChoose: saves)

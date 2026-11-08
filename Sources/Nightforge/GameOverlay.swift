@@ -832,6 +832,25 @@ enum GameProcesses {
         return (number, frame.size)
     }
 
+    /// Steam's windows on the Space shown, front to back, its tiny menu windows left out: what its
+    /// question on the curtain is (`pids`: the processes that show them).
+    nonisolated static func steamWindows(_ windows: [[String: Any]], pids: Set<pid_t>) -> [Int] {
+        windows.filter { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  questionLevel((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let frame = bounds(window)
+            else { return false }
+            return frame.width >= 200 && frame.height >= 100
+        }.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    nonisolated static func steamWindows(pids: Set<pid_t>) -> [Int] {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return steamWindows(windows, pids: pids)
+    }
+
     /// The levels a question can be at: normal up to a modal panel, and winecx's own for a topmost
     /// window – just above the Dock (cocoa_app.m, adjustWindowLevels: kCGDockWindowLevel + 1). There
     /// Black Myth: Wukong's driver warning stood in both game tests on 2.11. (286×251 L21), under the
