@@ -390,6 +390,22 @@ struct SteamSwitchTest {
         await switcher.waitForSaves(.mac, limit: 60) { Date().timeIntervalSince(started) < 1 }
         check(Date().timeIntervalSince(started) < 10, "waiting stops when it's no longer wanted")
 
+        // MARK: A Mac version has the account: the Windows Steam doesn't sign in under it (Valheim, 8.11. 16:08:52)
+        check(Engine.holdsBack(arguments: ["-silent"], heldBack: true), "a start nobody waits for holds back")
+        check(!Engine.holdsBack(arguments: ["-silent"], heldBack: false), "with the account free it goes ahead")
+        check(!Engine.holdsBack(arguments: ["-shutdown"], heldBack: true) && !Engine.holdsBack(arguments: [], heldBack: true)
+              && !Engine.holdsBack(arguments: ["-applaunch", "1"], heldBack: true),
+              "its end, the player's own window and a game's start aren't held back")
+        let turn = SteamSwitch()
+        check(!turn.macHasAccount && !Engine.windowsSteamHeldBack, "nothing is held back before a Mac version")
+        turn.macTakesAccount()
+        check(turn.macHasAccount && Engine.windowsSteamHeldBack, "a Mac version's start takes it")
+        let lastStart = Engine.lastSteamStart?.at
+        check((try? Engine.startSteam(URL(fileURLWithPath: "/nowhere/bin/wine"), arguments: ["-silent"])) != nil
+              && Engine.lastSteamStart?.at == lastStart, "a background start meanwhile does nothing at all")
+        turn.macGivesAccountBack()
+        check(!turn.macHasAccount && !Engine.windowsSteamHeldBack, "handed back, the Windows Steam may come")
+
         // MARK: The first start
         check(MacSteamPrep.decide(macAccount: nil, windowsAccount: "1", macVersions: 12) == .signIn, "Mac versions: the second code")
         check(MacSteamPrep.decide(macAccount: nil, windowsAccount: "1", macVersions: 0) == .notNeeded, "none: no second code")
