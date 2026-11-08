@@ -32,6 +32,7 @@ Nightforge 0.3.2 bringt Overwatch auf den Mac, ein neues Menü für deine Launch
 - **Schnellmenü:** Ein langer Klick auf eine Spielkarte, der Knopf „···“ auf dem Cover oder ☰ gehalten am Controller öffnet die Aktionen des Spiels, dieselben wie im Rechtsklick.
 - **Später spielen:** Über das Schnellmenü merkst du dir Spiele vor. In der Bibliothek erscheint dazu ein eigener Filter.
 - Der Aktualisieren-Knopf oben ist weg: Die Bibliothek frischt sich selbst auf. ⌘R und „Bibliothek neu einlesen“ im Menü bleiben.
+- **Von der Startseite nehmen:** Im Schnellmenü nimmst du ein Spiel von der Startseite, ohne es aus der Bibliothek auszublenden. Es kommt zurück, sobald du es wieder spielst oder anheftest.
 - **Zwei Controller:** Die Leiste unten zeigt jeden verbundenen Controller mit seinem Akku, nicht nur den, der gerade bedient.
 
 ### Spielen
@@ -75,6 +76,7 @@ Nightforge 0.3.2 brings Overwatch to the Mac, a new menu for your launchers and 
 - **Quick menu:** a long click on a game card, the "···" button on the cover or ☰ held on a controller opens the game's actions, the same as the right-click menu.
 - **Play Later:** mark games for later from the quick menu. The library gets a filter of its own for them.
 - The refresh button at the top is gone: the library refreshes by itself. ⌘R and "Rescan Library" in the menu stay.
+- **Remove from Home:** in the quick menu you take a game off Home without hiding it from your library. It comes back once you play it again or pin it.
 - **Two controllers:** the bar at the bottom shows every connected controller with its battery, not only the one in use.
 
 ### Playing

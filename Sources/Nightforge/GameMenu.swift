@@ -5,7 +5,7 @@ import Foundation
 /// in `GameMenu.actions`, its title and symbol, and what it does in `LibraryModel.perform`.
 enum GameAction: String, CaseIterable {
     case geforceNow, switchToGame, play, download, addForFree, storePage, tryAnyway
-    case addLater, removeLater, pin, unpin, move, reveal, hide, unhide
+    case addLater, removeLater, pin, unpin, removeFromHome, move, reveal, hide, unhide
     case uninstall, cancelDownload
 
     func title(_ game: Game) -> String {
@@ -22,6 +22,7 @@ enum GameAction: String, CaseIterable {
         case .removeLater: return L10n.t("Remove from Play Later")
         case .pin: return L10n.t("Pin to Home")
         case .unpin: return L10n.t("Unpin from Home")
+        case .removeFromHome: return L10n.t("Remove from Home")
         case .move: return L10n.t("Move to …")
         case .reveal: return L10n.t("Show game folder in Finder")
         case .hide: return L10n.t("Hide from library")
@@ -42,6 +43,7 @@ enum GameAction: String, CaseIterable {
         case .removeLater: return "bookmark.slash"
         case .pin: return "pin"
         case .unpin: return "pin.slash"
+        case .removeFromHome: return "minus.circle"
         case .move: return "externaldrive"
         case .reveal: return "folder"
         case .hide: return "eye.slash"
@@ -63,6 +65,8 @@ enum GameMenu {
         var canMarkLater = false
         var pinned = false
         var canPin = false
+        /// On Home's rail now: it can be taken off there (until it's played again).
+        var onHome = false
         var hidden = false
         var canMove = false
         var canUninstall = false
@@ -91,6 +95,7 @@ enum GameMenu {
         }
         if state.later { list.append(.removeLater) } else if state.canMarkLater { list.append(.addLater) }
         if state.pinned { list.append(.unpin) } else if state.canPin { list.append(.pin) }
+        if state.onHome { list.append(.removeFromHome) }
         if state.canMove { list.append(.move) }
         if game.hasFolder { list.append(.reveal) }
         if game.install != .inStore { list.append(state.hidden ? .unhide : .hide) }
@@ -128,7 +133,7 @@ extension LibraryModel {
     /// What the list shows for `game` right now.
     func menuState(for game: Game) -> GameMenu.State {
         GameMenu.State(running: isRunning(game), later: isLater(game), canMarkLater: canMarkLater(game),
-                       pinned: isPinned(game), canPin: canPin(game), hidden: isHidden(game),
+                       pinned: isPinned(game), canPin: canPin(game), onHome: isOnHome(game), hidden: isHidden(game),
                        canMove: canMove(game), canUninstall: canUninstall(game))
     }
 
@@ -180,6 +185,7 @@ extension LibraryModel {
         case .storePage: openStorePage(game)
         case .addLater, .removeLater: toggleLater(game)
         case .pin, .unpin: togglePinned(game)
+        case .removeFromHome: removeFromHome(game)
         case .move: requestMove(game)
         case .hide, .unhide: toggleHidden(game)
         case .uninstall, .cancelDownload: requestUninstall(game)

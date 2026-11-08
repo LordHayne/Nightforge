@@ -1136,6 +1136,8 @@ enum L10n {
         "Unpin from Home (P)": "Von der Startseite lösen (P)",
         "Pinned to Home": "An die Startseite geheftet",
         "Pin to Home": "An die Startseite heften",
+        "Remove from Home": "Von der Startseite nehmen",
+        "%@ is off Home until you play it again": "%@ ist von der Startseite, bis du es wieder spielst",
         "Unpin from Home": "Von der Startseite lösen",
         "Hide from library": "Aus der Bibliothek ausblenden",
         "Show in library again": "Wieder in der Bibliothek zeigen",

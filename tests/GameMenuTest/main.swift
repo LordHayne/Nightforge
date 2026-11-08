@@ -128,6 +128,10 @@ struct GameMenuTest {
         let missing = game(2, "Anno 2070", .notInstalled)
 
         check(list(installed) == [.play, .addLater, .pin, .reveal, .hide, .uninstall], "installed: \(list(installed))")
+        var onHome = usual
+        onHome.onHome = true
+        check(list(installed, onHome) == [.play, .addLater, .pin, .removeFromHome, .reveal, .hide, .uninstall],
+              "on Home: taken off there right after pinning: \(list(installed, onHome))")
         var everything = usual
         everything.canMove = true
         check(list(installed, everything) == [.play, .addLater, .pin, .move, .reveal, .hide, .uninstall], "the order: \(list(installed, everything))")

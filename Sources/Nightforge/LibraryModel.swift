@@ -83,6 +83,8 @@ final class LibraryModel: ObservableObject {
     /// Games hidden from the library, pinned to Home and on the Play Later list (GameMarks).
     @Published private(set) var hiddenGames = GameMarks.load(.hidden)
     @Published private(set) var pinnedGames = GameMarks.load(.pinned)
+    /// Taken off Home until played again (HomeRemovals).
+    @Published private(set) var offHome = HomeRemovals.load()
     @Published private(set) var laterGames = GameMarks.load(.later)
     /// The library shows only the hidden games, to bring them back.
     @Published private(set) var showingHidden = false
@@ -2893,7 +2895,7 @@ final class LibraryModel: ObservableObject {
         selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.holds(previous) }) ?? first
         if words.isEmpty && !showingHidden {
             let shown = games
-            let stage = HomeRail.stage(shown, pinned: pinnedGames) { StarterPicks.order(shown, facts: starterFacts) }
+            let stage = HomeRail.stage(shown, pinned: pinnedGames, off: offHome) { StarterPicks.order(shown, facts: starterFacts) }
             homeRail = stage.rail
             homeStartersFrom = stage.startersFrom
         } else {
@@ -3264,10 +3266,41 @@ final class LibraryModel: ObservableObject {
                            })
     }
 
+    /// On Home's rail right now.
+    func isOnHome(_ game: Game) -> Bool { homeRail.contains { games.indices.contains($0) && games[$0].id == game.id } }
+
+    /// Off Home until it's played again (a pinned one is unpinned too); the library keeps it. With Undo.
+    func removeFromHome(_ game: Game) {
+        let wasPinned = isPinned(game)
+        var removals = offHome
+        game.gameIDs.forEach { removals[$0] = Date() }
+        setOffHome(removals)
+        mark(game.gameIDs, pinned: wasPinned ? false : nil)
+        Toasts.shared.show(L10n.t("%@ is off Home until you play it again", game.name),
+                           action: .init(label: L10n.t("Undo")) { [weak self] in
+                               guard let self else { return }
+                               var back = self.offHome
+                               game.gameIDs.forEach { back[$0] = nil }
+                               self.setOffHome(back)
+                               self.mark(game.gameIDs, pinned: wasPinned ? true : nil)
+                           })
+    }
+
+    private func setOffHome(_ removals: [GameID: Date]) {
+        offHome = removals
+        HomeRemovals.save(removals)
+    }
+
     /// P: stays on Home's rail even when it hasn't been played for a while.
     func togglePinned(_ game: Game) {
         guard canPin(game) || isPinned(game) else { return }
         let pin = !isPinned(game)
+        // Pinned is on Home again, whenever it was taken off.
+        if pin, game.gameIDs.contains(where: { offHome[$0] != nil }) {
+            var removals = offHome
+            game.gameIDs.forEach { removals[$0] = nil }
+            setOffHome(removals)
+        }
         mark(game.gameIDs, pinned: pin)
         Toasts.shared.show(pin ? L10n.t("%@ stays on Home – even when you haven't played it for a while", game.name)
                                : L10n.t("%@ is no longer pinned", game.name))

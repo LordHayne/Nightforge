@@ -79,9 +79,11 @@ enum HomeRail {
     /// unplugged, which plays once it's back (`Game.shelfState`). A game from several
     /// stores goes by what its card shows (`Game.shown`) and is pinned when one of them is.
     /// `fill`: with fewer than `minimum`, other installed games fill up (Home's stage fills with
-    /// StarterPicks instead).
-    static func pick(_ games: [Game], pinned: Set<GameID> = [], now: Date = Date(), fill: Bool = true) -> [Int] {
+    /// StarterPicks instead). `off`: games the player took off Home, gone until played again (HomeRemovals).
+    static func pick(_ games: [Game], pinned: Set<GameID> = [], off: [GameID: Date] = [:], now: Date = Date(),
+                     fill: Bool = true) -> [Int] {
         let onMac = games.indices.filter { index in
+            guard !HomeRemovals.isOff(games[index], in: off) else { return false }
             switch games[index].shown.shelfState {
             case .installed, .downloading: return true
             case .notInstalled, .inStore: return false
