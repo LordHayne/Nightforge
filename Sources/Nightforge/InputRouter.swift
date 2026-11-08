@@ -668,6 +668,7 @@ final class InputRouter {
             .contains { $0.isPressed }
             || abs(pad.dpad.xAxis.value) > 0.5 || abs(pad.dpad.yAxis.value) > 0.5
         defer { anyDown = down }
+        if down, !anyDown, DisplayWake.wakes(freshPress: true, displayAsleep: DisplayWake.displayAsleep) { DisplayWake.declareUse() }
         guard down, !anyDown, now - lastWake > 2, let model, model.signingIn == nil,
               Self.wakes(inFront: NSApp.isActive, overlayOpen: GameOverlay.isOpen, gameOn: model.gameOnScreen,
                          frontIsGame: Self.frontAppIsGame())
