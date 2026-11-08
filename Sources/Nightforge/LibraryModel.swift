@@ -903,12 +903,17 @@ final class LibraryModel: ObservableObject {
     }
 
     /// What the Steam switch goes by, now.
-    private var steamFacts: SteamSwitch.Facts {
+    /// A Mac version downloads through Steam for Mac.
+    var macDownloading: Bool {
+        allGames.contains { game in
+            (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
+        }
+    }
+
+    var steamFacts: SteamSwitch.Facts {
         SteamSwitch.Facts(
             macSteamRunning: MacSteam.isRunning, macSteamOurs: MacSteam.startedByNightforge, macGameBusy: macSteamBusy,
-            macDownload: allGames.contains { game in
-                (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
-            },
+            macDownload: macDownloading,
             windowsSteamRunning: Engine.isSteamRunning,
             windowsGameBusy: anyRunning(.windows) || allGames.contains { $0.id == launchingID && $0.platform == .windows },
             moving: move != nil)
@@ -3626,7 +3631,7 @@ final class LibraryModel: ObservableObject {
                                                     restartWindows: { await self.restartWindowsSteam() })
                 launchPhase = nil
             }
-            if viaSteam, game.bottle.isBuiltIn { wakeSteam() }
+            if viaSteam, game.bottle.isBuiltIn { wakeSteam(forStart: true) }
             if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value

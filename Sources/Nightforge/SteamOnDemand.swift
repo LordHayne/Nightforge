@@ -27,6 +27,8 @@ struct SteamOnDemand {
         var gameBusy = false
         /// One of Nightforge's Steam's games is downloading.
         var downloading = false
+        /// A Mac version downloads through Steam for Mac, which this Steam signing in would sign out.
+        var macDownload = false
         /// A game within the last five minutes: Steam may still be uploading its cloud saves.
         var gameRanRecently = false
         /// Steam's own update is going in; cut off, it would start over.
@@ -57,7 +59,8 @@ struct SteamOnDemand {
                 asleep = false
                 return .keep
             }
-            guard facts.inFront || !facts.onBattery else { return .keep }
+            // Not under a game (a start of Steam takes 3 cores or more), nor over a Mac version's download.
+            guard facts.inFront || !facts.onBattery, !facts.gameBusy, !facts.macDownload else { return .keep }
             asleep = false
             return .wake
         }
@@ -74,10 +77,34 @@ struct SteamOnDemand {
         return .sleep
     }
 
+    /// The end of a look that said `.sleep`, once Steam's windows have been looked at, which takes a
+    /// moment: false when the player came back meanwhile, or is using one of them.
+    mutating func confirmSleep(windowOpen: Bool) -> Bool {
+        guard asleep else { return false }
+        if windowOpen { postpone() }
+        return !windowOpen
+    }
+
+    /// It was woken, and something in the way (`wakeWay`) keeps it down for now: a later look wakes it.
+    mutating func stayAsleep(now: Date = Date()) {
+        asleep = true
+        sleptAt = sleptAt ?? now
+    }
+
     /// A window of Steam's turned up on the screen: the player is using it, the wait begins anew.
     mutating func postpone() {
         asleep = false
         quietSince = nil
+    }
+
+    enum WakeWay: Equatable { case stay, start, quitMacFirst }
+
+    /// How it comes back, with Steam for Mac in mind (SteamSwitch): whichever signs in last signs the other
+    /// out, and that cuts off a save on its way to the cloud or a download. A Windows game's start
+    /// (`forStart`) goes ahead of a Mac download, as with the Steams changing over.
+    static func wakeWay(macGameBusy: Bool, macDownload: Bool, macRunning: Bool, macOurs: Bool, forStart: Bool) -> WakeWay {
+        if macGameBusy || (macDownload && !forStart) { return .stay }
+        return macRunning && macOurs && !macDownload ? .quitMacFirst : .start
     }
 
     /// The player or a game wants Steam now. True if it was asleep and has to start.
@@ -96,6 +123,7 @@ extension LibraryModel {
         var facts = SteamOnDemand.Facts(onBattery: power.onBattery, inFront: NSApp.isActive,
                                         gameBusy: !running.isEmpty || launchingID != nil || awaitingSteam || launchNeedsConfirmation,
                                         downloading: downloads.contains { $0.provider == .steam && $0.platform == .windows },
+                                        macDownload: macDownloading,
                                         gameRanRecently: Engine.gameRanRecently,
                                         otherWork: move != nil || uninstallingID != nil || GameTest.active || !SetupModel.isComplete
                                             || macSteamBusy)
@@ -110,13 +138,11 @@ extension LibraryModel {
         case .keep:
             break
         case .wake:
-            startSteamAgain()
+            startSteamAgain(forStart: false)
         case .sleep:
             // Checked last, it asks the window server: the player may be using Steam's own window.
-            if await SteamWindow.isOpen() {
-                steamOnDemand.postpone()
-                return
-            }
+            let windowOpen = await SteamWindow.isOpen()
+            guard steamOnDemand.confirmSleep(windowOpen: windowOpen) else { return }
             GameLog.note("Steam sleeps: on battery, nothing has needed it for \(Int(SteamOnDemand.awayFor / 60)) minutes")
             let previous = steamStartup
             steamStartup = Task {
@@ -127,18 +153,29 @@ extension LibraryModel {
         }
     }
 
-    /// Steam back up if it's asleep: the player came back, or wants to play.
-    func wakeSteam() {
-        if steamOnDemand.wakeNow() { startSteamAgain() }
+    /// Steam back up if it's asleep: the player came back, or wants to play (`forStart`).
+    func wakeSteam(forStart: Bool = false) {
+        if steamOnDemand.wakeNow() { startSteamAgain(forStart: forStart) }
     }
 
     /// Queued like any other start of Steam, so a game's start waits for it.
-    private func startSteamAgain() {
-        GameLog.note("Steam wakes")
+    private func startSteamAgain(forStart: Bool) {
         let previous = steamStartup
         steamStartup = Task {
             await previous?.value
-            guard let wine = await Engine.installedWine(), !macSteamBusy else { return }
+            guard let wine = await Engine.installedWine() else { return }
+            let facts = steamFacts
+            switch SteamOnDemand.wakeWay(macGameBusy: macSteamBusy, macDownload: facts.macDownload, macRunning: facts.macSteamRunning,
+                                         macOurs: facts.macSteamOurs, forStart: forStart) {
+            case .stay:
+                steamOnDemand.stayAsleep()
+                return
+            case .quitMacFirst:
+                await MacSteam.quit()  // quit, it finishes its cloud sync; signed out by this Steam, it wouldn't
+            case .start:
+                break
+            }
+            GameLog.note("Steam wakes")
             try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
             watchWokenSteam(wine)
         }

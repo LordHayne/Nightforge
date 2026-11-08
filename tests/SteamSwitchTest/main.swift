@@ -85,6 +85,37 @@ struct SteamSwitchTest {
         _ = postponed.step(idle, now: start)
         postponed.postpone()
         check(postponed.step(idle, now: at(away)) == .keep, "its window was open: the wait begins anew")
+
+        // What it comes back into (audit 0.3.3, B2).
+        for (name, facts) in [("a game runs", F(onBattery: false, signInKept: true, gameBusy: true)),
+                              ("a game runs, Nightforge in front", F(onBattery: true, inFront: true, signInKept: true, gameBusy: true)),
+                              ("a Mac version downloads", F(onBattery: false, signInKept: true, macDownload: true))] {
+            var asleep = state
+            check(asleep.step(facts, now: at(away + 200)) == .keep && asleep.asleep, "\(name): it stays asleep for now")
+        }
+        typealias W = SteamOnDemand
+        check(W.wakeWay(macGameBusy: true, macDownload: false, macRunning: true, macOurs: true, forStart: false) == .stay, "a Mac game has the sign-in")
+        check(W.wakeWay(macGameBusy: false, macDownload: true, macRunning: true, macOurs: true, forStart: false) == .stay, "so has a Mac download")
+        check(W.wakeWay(macGameBusy: false, macDownload: true, macRunning: true, macOurs: true, forStart: true) == .start, "a Windows game's start goes ahead of it")
+        check(W.wakeWay(macGameBusy: false, macDownload: false, macRunning: true, macOurs: true, forStart: false) == .quitMacFirst,
+              "a Steam for Mac Nightforge left running goes first, its saves on their way")
+        check(W.wakeWay(macGameBusy: false, macDownload: false, macRunning: true, macOurs: false, forStart: false) == .start, "the player's own isn't quit")
+        check(W.wakeWay(macGameBusy: false, macDownload: false, macRunning: false, macOurs: false, forStart: false) == .start, "none there: just starts")
+
+        var held = state
+        check(held.wakeNow(), "woken")
+        held.stayAsleep(now: at(away + 300))
+        check(held.asleep, "something in the way: asleep again")
+        var later = F(onBattery: true, signInKept: true)
+        later.inFront = true
+        check(held.step(later, now: at(away + 400)) == .wake, "and a later look wakes it")
+
+        var slept = state
+        check(slept.confirmSleep(windowOpen: false), "nothing changed during the look at the windows: it sleeps")
+        var windowUp = state
+        check(!windowUp.confirmSleep(windowOpen: true) && !windowUp.asleep, "a window of Steam's: no sleep")
+        var cameBack = state
+        check(cameBack.wakeNow() && !cameBack.confirmSleep(windowOpen: false), "the player came back during the look: no stop behind the wake")
     }
 
     static func main() async {
