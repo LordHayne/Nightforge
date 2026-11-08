@@ -21,6 +21,7 @@ struct SmallLogicTest {
         ratings()
         testDays()
         moving()
+        damagedLogNumbers()
         print(failures == 0 ? "✓ Small logic" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -90,6 +91,30 @@ struct SmallLogicTest {
             check(ProfileOrigin.daysAgo(calendar.date(byAdding: .day, value: 3, to: day)!, now: day) == "today", "a day ahead of the clock: not “in 3 days”")
             UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
         }
+    }
+
+    /// Numbers in Steam's logs as a damaged file holds them: read, not a crash at the next look.
+    static func damagedLogNumbers() {
+        let digits = String(repeating: "9", count: 400)
+        let now = Date()
+        func stamp(_ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            return formatter.string(from: date)
+        }
+        let line = "[\(stamp(now.addingTimeInterval(-30)))] Current download rate: \(digits) Mbps"
+        check(MacSteamProgress.received(since: now.addingTimeInterval(-60), log: line, now: now) >= 0, "a download rate past any number")
+        let run = "[\(stamp(now))] AppID 7 update started : download 9223372036854775807/9223372036854775807, x\n[\(stamp(now))] AppID 7 App update changed : Downloading,"
+        let found = MacSteamProgress.currentRun(appID: 7, log: run)
+        check((found?.done ?? 0) + 9_000_000 > 0, "a run's numbers leave room to add to them: \(String(describing: found))")
+        check(found?.total == Game.largestSize, "and stay what they are otherwise: \(String(describing: found))")
+        check(Double.infinity.clampedBytes == Game.largestSize || Double.infinity.clampedBytes == 0, "inf")
+        check(Double.nan.clampedBytes == 0, "nan")
+        check((-1.0).clampedBytes == 0, "below zero")
+        check(1e30.clampedBytes == Game.largestSize, "past the ceiling")
+        check(Legendary.progress(inLog: "Download size: \(digits) MiB").downloadSize != nil, "legendary's size past any number is read")
+        check(Legendary.progress(inLog: "Download size: 99999999999999999999 MiB").downloadSize == Game.largestSize, "and one past Int64 stops at the ceiling")
     }
 
     static func moving() {
