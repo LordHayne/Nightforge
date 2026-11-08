@@ -619,6 +619,11 @@ final class LibraryModel: ObservableObject {
                 if warning != chargerWarning { chargerWarning = warning }
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
+                if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
+                                              gameOn: gameOnScreen, firstStart: showsFirstStart, padUsedLast: InputRouter.padUsedLast) {
+                    askedAboutNotifications = true
+                    MacIntegration.askIfUndecided()
+                }
                 let pause = Duration.seconds(goneFor > 0 ? 1 : busy ? 3 : 10)
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
@@ -672,6 +677,7 @@ final class LibraryModel: ObservableObject {
     private var batteryLooked = Date.distantPast
     private var goneSince = Date.distantPast
     private var idleLooks = 0
+    private var askedAboutNotifications = false
     /// The game whose start is still judged by its first seconds (`survivesFirstSeconds`), and when
     /// that start began: should it end now, the start tells what's next – another way under the same
     /// curtain, or Nightforge with what happened. Control (Epic) crashed on every way on 2.11., and

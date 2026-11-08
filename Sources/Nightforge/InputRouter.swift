@@ -752,7 +752,7 @@ final class InputRouter {
         }
     }
 
-    private static var padUsedLast: Bool {
+    static var padUsedLast: Bool {
         PadRules.padUsedLast(padAgo: padUse.map { ProcessInfo.processInfo.systemUptime - $0 }, mouseAgo: mouseIdle)
     }
 
