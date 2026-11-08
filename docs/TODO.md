@@ -95,9 +95,18 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - Andere Controller (Nutzer, 8.11.): eine Tastatur, die Eingabe je nach Controller. Ohne Touchpad steuert jeder Stick einen Zeiger auf seiner Hälfte, L2/R2 tippen; als Maus dient der rechte Stick. DualShock 4 wie DualSense. Haptik, wo vorhanden.
 - **Spieler 1 und 2 unterscheiden** (Nutzer, 8.11.): In Nightforge zeigen, welcher Controller welcher Spieler ist (`GCController.playerIndex`, Lichtleiste am DualSense, Kapseln unten mit Nummer). Für Windows-Spiele prüfen, ob die Reihenfolge in winebus/XInput steuerbar ist; bisher ungetestet, Test mit Sonic Mania.
 - **Live-Abschlusstests 8.11.:** Neues Spiel (REANIMAL), Overwatch, Steam ↔ Steam für Mac, Control/Wukong/OxyRail/ABZU und die Leistungsanzeige laufen.
-- **Beim Beenden von Overwatch und ABZU** kurz ein falsches Bild, der Vorhang kommt manchmal von der Seite herein, dabei ist der Desktop zu sehen (Nutzer: Ladescreen-Session).
 - **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`). Verdacht: SDL in winebus sperrt die System-Gesten der Controller. Prüfen, ob das schon in 0.3.1 so war.
-- **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): Flackern beim Start und Beenden von Overwatch, beim erneuten Start von Valheim direkt nach The Forest war kurz der Desktop zu sehen. Für 0.3.2 reicht der jetzige Stand. Grundlage: `docs/AUDIT-LADESCREEN.md`.
+- **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): gebaut auf `claude/ruhiger-ladescreen-033`, in Tests grün, am echten Spiel noch ungeprüft. Stand und Ursachen: `docs/AUDIT-LADESCREEN.md`, „Für 0.3.3“.
+  **Live prüfen** (nach jedem Punkt die Zeilen in `wine.log` ansehen):
+  1. **Overwatch starten und beenden, je einmal übers Overlay und übers Spielmenü.** Der Vorhang bleibt stehen, kein Schwarz dazwischen, kein Flackern. Im Log `The curtain goes over a captured display's shield` nur, wenn der Vorhang wechselt.
+  2. **ABZU im Spielmenü beenden.** Sofort der Vorhang, kein anderes Fenster davor. Im Log `The game's picture went` oder `A game's process ended`, kein `fetching ABZU back` sichtbar auf dem Schirm.
+  3. **Spiel, das die Auflösung wechselt (ABZU in 1920×1200, Control):** Der Vorhang deckt beim Start und beim Ende den ganzen Schirm, nichts kommt von der Seite, kein Desktop daneben. Im Log `The page follows the screen`.
+  4. **The Forest beenden, sofort Valheim starten.** Kein Desktop beim Wechsel in Valheims Vollbild.
+  5. **Valheim im Spielmenü beenden** (nicht übers Overlay). Der Vorhang steht, bevor die Spaces gleiten; danach kein Steam-Fenster.
+  6. **Gegenprobe:** In einem Vollbild-Spiel mit ⌘-Tab zu einer anderen App und zurück, und im Spiel die Grafikeinstellungen ändern. Kein Vorhang beim ⌘-Tab; bei den Einstellungen höchstens kurz der Vorhang, der von selbst wieder geht. Während das Spiel läuft, liegt die Seite nie über dem Bild (im Log kein `the page lay over`).
+  7. **„Startet nicht?“ über dem Vorhang** bei einem Windows-Spiel, das hängt: Das Overlay liegt oben und ist bedienbar. ⌘-Tab funktioniert, die Leiste selbst ist unter dem Vorhang nicht zu sehen.
+  8. **GOG-Spiel mit fehlendem Windows-Teil** (wenn es sich ergibt): Der Vorhang bleibt, der Hinweis wartet danach auf der Seite.
+  **Entscheidungen offen** (nichts davon festgelegt): B3 Steams Frage auf dem Vorhang statt ohne ihn, braucht ein Board. B2 ein Ausweg bei Steam ohne Spielprozess, braucht einen eigenen Text. B4 Epic und GOG früher unter den Vorhang, kostet das Abbrechen mit B.
 
 ## 8.11. mittags (staging-032, nicht gepusht)
 
