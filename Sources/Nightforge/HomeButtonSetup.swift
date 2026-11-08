@@ -33,8 +33,13 @@ enum HomeButtonSetup {
     /// (NSIntegerMax) reaches the app as well. 0 keeps macOS's own handling, -1 can't be read.
     static func appMayHave(inAppAction: Int) -> Bool { inAppAction == 1 || inAppAction == Int.max }
 
-    /// A short press belongs to Nightforge only while it's in front and no game or overlay is.
-    static func takesButton(exists: Bool, active: Bool, overlay: Bool) -> Bool { exists && active && !overlay }
+    /// A short press belongs to Nightforge only while it's in front, no game runs and the player
+    /// wants it. Asking for the button is what makes macOS ask ("… möchte das Systemverhalten
+    /// überschreiben", Allow/Don't Allow, from gamecontrollerd, and it stays until answered, also
+    /// over a game: 8.11.). So never before it's allowed or the player asked for it in Settings.
+    static func takesButton(exists: Bool, active: Bool, overlay: Bool, gameOn: Bool, allowed: Bool, asked: Bool) -> Bool {
+        exists && active && !overlay && !gameOn && (allowed || asked)
+    }
 
     /// Held longer it's the system's long press.
     static func isShortPress(held: TimeInterval) -> Bool { held < 0.5 }

@@ -40,8 +40,12 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    private var parking = PointerParking()
+    private var parkingLook: TimeInterval = -.infinity
     /// When the PS or Xbox button went down, in Nightforge.
     private var homeDown: TimeInterval?
+    private var homeButtonAllowed = false
+    private var homeButtonTaken = false
     private let haptics = PadHaptics()
     /// The on-screen keyboard: its pad and the look at it, 60 times a second while it's open.
     private var keyboardTimer: Timer?
@@ -56,7 +60,11 @@ final class InputRouter {
         GameOverlay.padIdle = {
             GCController.controllers().allSatisfy { controller in controller.extendedGamepad.map { !Self.inUse($0) } ?? true }
         }
-        pointer.works = { [weak self] in self?.pointerWorks ?? false }
+        pointer.works = { [weak self] in
+            guard let self, self.pointerWorks else { return false }
+            self.model?.reachWindowOverGame()  // a finger on the touchpad: the window's app gets the front
+            return true
+        }
         pointer.stickWorks = { [weak self] in self?.stickIsPointer ?? false }
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -108,10 +116,14 @@ final class InputRouter {
             MainActor.assumeIsolated {
                 self?.letGo()
                 Self.takeViewButton()
+                self?.takeHomeButton(lookAgain: true)
             }
         })
-        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { Self.takeViewButton() }
+        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                Self.takeViewButton()
+                self?.takeHomeButton(lookAgain: true)
+            }
         })
         // A sheet or dialog opened while the pad is in use shows its highlight at once, on its safe
         // default answer (PadFocus.Item.preferred), so the first A already answers.
@@ -453,7 +465,9 @@ final class InputRouter {
         // SDL saw crashes when it was set before.
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
         Self.takeViewButton()
+        takeHomeButton(lookAgain: true)
         pointer.attach(pad)
+        pointerAfterConnecting()
         if HomeButtonSetup.exists, let home = pad.controller?.physicalInputProfile.buttons[GCInputButtonHome] {
             home.pressedChangedHandler = { [weak self] _, _, pressed in
                 MainActor.assumeIsolated { self?.homeButton(pressed) }
@@ -606,6 +620,7 @@ final class InputRouter {
         if Self.inUse(pad) {
             Self.padUse = now
             GameOverlay.padHeard()
+            parkPointerIfDue(padInUse: true)
         }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
         // moves, as on a console. In a game it's the game's.
@@ -735,7 +750,6 @@ final class InputRouter {
     /// ⧉ is Nightforge's while it's in front (PadRules.takesViewButton): a system gesture on it (a
     /// DualSense's screenshot) waits until Nightforge isn't. Only buttons the system has a gesture on.
     static func takeViewButton() {
-        takeHomeButton()
         let takes = PadRules.takesViewButton(active: NSApp.isActive, overlay: GameOverlay.isOpen)
         for controller in GCController.controllers() {
             guard let view = controller.extendedGamepad?.buttonOptions, view.isBoundToSystemGesture else { continue }
@@ -744,16 +758,33 @@ final class InputRouter {
         }
     }
 
-    /// macOS 27: the PS or Xbox button is Nightforge's while it's in front, if System Settings lets the
-    /// app decide (HomeButtonSetup). Asked for here, as macOS's header says, and given back for a game.
-    private static func takeHomeButton() {
-        guard HomeButtonSetup.exists else { return }
-        let takes = HomeButtonSetup.takesButton(exists: true, active: NSApp.isActive, overlay: GameOverlay.isOpen)
-        for controller in GCController.controllers() {
+    /// macOS 27: the PS or Xbox button is Nightforge's while it's in front and no game runs, once
+    /// it's allowed (HomeButtonSetup). Asked for here, as macOS's header says, and given back for a game.
+    /// `lookAgain`: what System Settings say may have changed. Called every few seconds too, for a game that starts.
+    func takeHomeButton(lookAgain: Bool = false) {
+        guard HomeButtonSetup.exists, let model else { return }
+        let controllers = GCController.controllers()
+        guard !controllers.isEmpty else { return }
+        if lookAgain { homeButtonAllowed = HomeButtonSetup.appMayHaveButton() }
+        let takes = HomeButtonSetup.takesButton(exists: true, active: NSApp.isActive, overlay: GameOverlay.isOpen, gameOn: model.gameOnScreen,
+                                                allowed: homeButtonAllowed, asked: UserDefaults.standard.bool(forKey: Prefs.Keys.homeButtonAsked))
+        homeButtonTaken = takes
+        for controller in controllers {
             guard let home = controller.physicalInputProfile.buttons[GCInputButtonHome], home.isBoundToSystemGesture else { continue }
             let state: GCControllerElement.SystemGestureState = takes ? .disabled : .enabled
             if home.preferredSystemGestureState != state { home.preferredSystemGestureState = state }
         }
+    }
+
+    /// Settings' Set Up: the first time it asks for the button, and macOS puts its question then, with
+    /// the player at the Mac. Refused or never answered, the page in System Settings is the way.
+    func askForHomeButton() {
+        if UserDefaults.standard.bool(forKey: Prefs.Keys.homeButtonAsked), !HomeButtonSetup.appMayHaveButton() {
+            HomeButtonSetup.openSettings(.shortPress)
+            return
+        }
+        UserDefaults.standard.set(true, forKey: Prefs.Keys.homeButtonAsked)
+        takeHomeButton(lookAgain: true)
     }
 
     /// A short press on the PS or Xbox button in Nightforge: to Home, where L1 would go too. Held,
@@ -765,11 +796,48 @@ final class InputRouter {
             return
         }
         defer { homeDown = nil }
-        guard let down = homeDown, HomeButtonSetup.isShortPress(held: now - down), !GameBackdrop.isRaised, let model,
+        guard homeButtonTaken, let down = homeDown, HomeButtonSetup.isShortPress(held: now - down), !GameBackdrop.isRaised, let model,
               Self.section(for: .l1, route: model.route, inFront: reach == .app, dialog: dialog != nil || panelOpen,
                            firstStart: model.showsFirstStart) == .home
         else { return }
         model.goHome()
+    }
+
+    /// A controller came: the pointer goes as it does when the pad is used, unless the mouse is in hand.
+    private func pointerAfterConnecting() {
+        guard Self.mouseIdle >= PointerParking.mouseQuiet, !pointer.isMouse else { return }
+        if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: true) { NSCursor.setHiddenUntilMouseMoves(true) }
+        parkPointerIfDue(padInUse: true)
+    }
+
+    /// The curtain went down on the game and the pad was used last: the pointer leaves the picture
+    /// without waiting for the next press.
+    func parkPointerForGame() { parkPointerIfDue(padInUse: Self.padUsedLast) }
+
+    /// The pad in use with a game in front: the pointer out of the picture (PointerParking). At most
+    /// twice a second, as this runs beside a game: a stick reports hundreds of times.
+    private func parkPointerIfDue(padInUse: Bool) {
+        guard padInUse, let model else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - parkingLook >= 0.5 else { return }
+        parkingLook = now
+        guard parking.parksNow(padInUse: true, now: now, mouseAgo: Self.mouseIdle,
+                               pointerInUse: pointer.isMouse || pointer.touchedRecently(now: now), setting: Prefs.parkPointer,
+                               overGame: reach == .none && model.gamePlaying && !GameBackdrop.isRaised && Self.gameHasTheFront(model),
+                               question: model.windowsQuestion != nil || model.overGame != nil || PadPointer.macOSAsks),
+              let location = CGEvent(source: nil)?.location
+        else { return }
+        var display: CGDirectDisplayID = 0
+        var count: UInt32 = 0
+        guard CGGetDisplaysWithPoint(location, 1, &display, &count) == .success, count == 1 else { return }
+        CGWarpMouseCursorPosition(PointerParking.place(on: CGDisplayBounds(display)))
+        GameLog.note("Pointer: moved out of the game's picture, the pad is in use")
+    }
+
+    /// The app in front is a game, or the one Nightforge runs (a Mac game needn't say that it's one).
+    private static func gameHasTheFront(_ model: LibraryModel) -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return false }
+        return frontAppIsGame() || model.running.values.contains(front)
     }
 
     /// ☰ down or up (MenuHold): with a card selected it waits to see whether it's held.
@@ -979,7 +1047,8 @@ final class InputRouter {
         guard let model else { return false }
         return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: model.padKeyboard != nil, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                      curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
-                                     frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks)
+                                     frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks,
+                                     windowOverGame: model.overGame != nil)
     }
 
     private var stickIsPointer: Bool {

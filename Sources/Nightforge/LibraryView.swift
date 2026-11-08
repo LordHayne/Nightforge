@@ -74,8 +74,14 @@ struct LibraryView: View {
             }
 
             if let session = model.padKeyboard {
-                PadKeyboardPanel(session: session, layout: model.padSymbols.layout)
+                PadKeyboardPanel(session: session, layout: model.padSymbols.layout,
+                                 onBarFrame: { model.searchBarTarget = $0 }, onDone: { model.closePadKeyboard() })
                     .transition(.opacity.combined(with: .offset(y: 16)))
+            }
+
+            if model.searchBarFloats, model.searchFieldFrame != .zero, model.searchBarTarget != .zero {
+                PadSearchBar(text: model.searchText, from: model.searchFieldFrame, to: model.searchBarTarget, raised: model.searchBarRaised,
+                             close: { model.closePadKeyboard() })
             }
 
             if model.launcherMenuOpen {
@@ -101,6 +107,7 @@ struct LibraryView: View {
             ToastHost()
                 .padReachable(false)
         }
+        .coordinateSpace(.named(PadSearchBar.space))  // the search field and its bar over the keyboard
         .animation(.easeOut(duration: 0.2), value: model.lightbox)
         // A list a chip of the library's row opened, under that chip and over the grid.
         .overlayPreferenceValue(LibraryMenuAnchors.self) { anchors in

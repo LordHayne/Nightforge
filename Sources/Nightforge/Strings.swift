@@ -556,7 +556,7 @@ enum L10n {
         "Button labels": "Tastensymbole",
         "Open Nightforge with the controller's button": "Nightforge mit der Controller-Taste öffnen",
         "A short press goes to Home": "Kurzer Druck führt zur Startseite",
-        "While Nightforge is in front. In System Settings, choose once that the app may decide. In a game the button stays with macOS.": "Solange Nightforge vorn ist. In den Systemeinstellungen stellst du einmal ein, dass die App entscheiden darf. Im Spiel bleibt die Taste bei macOS.",
+        "While Nightforge is in front. macOS asks once whether Nightforge may have the button: choose Allow. In a game it stays with macOS.": "Solange Nightforge vorn ist. macOS fragt einmal, ob Nightforge die Taste verwenden darf: Wähle „Erlauben“. Im Spiel bleibt sie bei macOS.",
         "Works – a short press goes to Home here, in a game it's macOS's": "Funktioniert – ein kurzer Druck führt hier zur Startseite, im Spiel gehört sie macOS",
         "Hold the PS or Xbox button to open Nightforge. You choose that once in System Settings.": "PS- oder Xbox-Taste lange drücken öffnet Nightforge. Das wählst du einmal in den Systemeinstellungen.",
         "Like my controller": "Wie mein Controller",

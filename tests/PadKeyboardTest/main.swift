@@ -23,6 +23,7 @@ struct PadKeyboardTest {
         sticks()
         dpad()
         geometry()
+        searchBar()
         print(failures == 0 ? "✓ PadKeyboard" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -60,6 +61,25 @@ struct PadKeyboardTest {
         check(abs(t.width - z.width) < 0.5, "a key is the same width on both halves")
         let inside = g.point(CGPoint(x: 1.5, y: 1.5)), key = g.rect(board.key(id: "w")!)
         check(key.contains(inside), "a pointer in the middle of a key is drawn on that key")
+    }
+
+    static func searchBar() {
+        let window = CGSize(width: 1440, height: 880)
+        let g = PadKeyboardGeometry.fitting(width: 1100, windowHeight: window.height)
+        check(g.keyHeight == 53, "in a window this low the keys are flatter, for the hits above")
+        check(PadKeyboardGeometry.fitting(width: 1100, windowHeight: 400).keyHeight == 40, "never less than readable")
+        let bar = g.searchBarFrame(window: window, bottomMargin: 22)
+        check(abs(bar.midX - window.width / 2) <= 1, "the bar stands in the middle")
+        check(bar.maxY + PadKeyboardGeometry.searchBarGap + g.panelHeight + 22 == window.height, "right above the keyboard")
+        check(bar.width > 300 && bar.height > 38, "and larger than the field up in the corner")
+        check(PadKeyboardGeometry.gridRoom(gridBottom: 800, barTop: 400) == 408, "the grid ends above the bar")
+        check(PadKeyboardGeometry.gridRoom(gridBottom: 300, barTop: 400) == 0, "already above it: nothing to do")
+
+        var board = PadKeyboard()
+        _ = board.tap("q")
+        check(board.text == "q", "a key clicked with the mouse types like a thumb")
+        check(board.tap("done") == [.submit], "and Done works too")
+        check(board.tap("nothing").isEmpty, "no such key: nothing")
     }
 
     static func layout() {

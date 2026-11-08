@@ -54,6 +54,7 @@ struct TouchpadPointerTest {
         fingers()
         clicks()
         rules()
+        overGame()
         driver()
         print(failures == 0 ? "✓ TouchpadPointer" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -149,6 +150,8 @@ struct TouchpadPointerTest {
         check(!works(playing: true), "a game on screen has its touchpad")
         check(!works(frontIsGame: true), "so has a game Nightforge didn't start")
         check(works(playing: true, asks: true), "unless macOS asks something over it")
+        check(PadPointerRules.works(setting: true, keyboardOpen: false, inFront: false, overlay: false, curtain: false, gamePlaying: true,
+                                    frontIsGame: true, macOSAsks: false, windowOverGame: true), "Steam's window over a game: the pointer works")
         check(!works(setting: false, inFront: true), "the switch in Settings turns it off")
         check(!works(keyboard: true, inFront: true), "with the keyboard open the touchpad types")
         var asked = false
@@ -176,6 +179,36 @@ struct TouchpadPointerTest {
         check(fast.dx > slow.dx * 3, "growing with the square")
         check(PadPointerRules.stickVelocity(x: 0, y: 1).dy < 0, "stick up is pointer up")
         check(PadPointerRules.screenScale(width: 3840) == 2 && PadPointerRules.screenScale(width: 800) == 0.75, "within reason")
+    }
+
+    static func window(_ owner: pid_t, number: Int, width: CGFloat = 1000, height: CGFloat = 700, layer: Int = 0, alpha: Double = 1) -> [String: Any] {
+        [kCGWindowOwnerPID as String: NSNumber(value: owner), kCGWindowNumber as String: NSNumber(value: number),
+         kCGWindowLayer as String: NSNumber(value: layer), kCGWindowAlpha as String: NSNumber(value: alpha),
+         kCGWindowBounds as String: CGRect(x: 0, y: 0, width: width, height: height).dictionaryRepresentation]
+    }
+
+    static func overGame() {
+        let game: Set<pid_t> = [10]
+        func over(_ windows: [[String: Any]]) -> PadPointerRules.OverGame? {
+            PadPointerRules.windowOverGame(windows, game: game, ignoring: [1])
+        }
+        check(over([window(20, number: 5), window(10, number: 6)])?.owner == 20, "Steam's window above the game's picture")
+        check(over([window(10, number: 6), window(20, number: 5)]) == nil, "under the game: nothing to reach")
+        check(over([window(20, number: 5)]) == nil, "no picture of the game under it: not over a game")
+        check(over([window(1, number: 2), window(10, number: 6), window(20, number: 5)]) == nil, "Nightforge's own panels don't count")
+        check(over([window(30, number: 4, width: 100, height: 50), window(10, number: 6)]) == nil, "a sliver isn't a window to answer")
+        check(over([window(30, number: 4, layer: 25), window(10, number: 6)]) == nil, "the menu bar's level isn't a window")
+        check(over([window(30, number: 4, alpha: 0), window(10, number: 6)]) == nil, "an invisible one neither")
+        check(PadPointerRules.windowOverGame([window(20, number: 5), window(10, number: 6)], game: [], ignoring: []) == nil, "the game not known: nothing assumed")
+
+        typealias Over = PadPointerRules.OverGame
+        let big = Over(owner: 20, number: 5, size: CGSize(width: 1000, height: 700)), small = Over(owner: 20, number: 7, size: CGSize(width: 300, height: 150))
+        check(PadPointerRules.handsFront(over: big, gameFront: true, alreadyHanded: nil, touched: false), "a big window gets the front at once: the mouse works then")
+        check(!PadPointerRules.handsFront(over: small, gameFront: true, alreadyHanded: nil, touched: false), "a small one may be only a notice")
+        check(PadPointerRules.handsFront(over: small, gameFront: true, alreadyHanded: nil, touched: true), "unless the player reaches for it")
+        check(!PadPointerRules.handsFront(over: big, gameFront: true, alreadyHanded: 5, touched: true), "once per window, no fight with the player")
+        check(!PadPointerRules.handsFront(over: big, gameFront: false, alreadyHanded: nil, touched: true), "it has the front already")
+        check(!PadPointerRules.handsFront(over: nil, gameFront: true, alreadyHanded: nil, touched: true), "nothing over the game")
     }
 
     @MainActor

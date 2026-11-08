@@ -57,6 +57,12 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var searchFocusRequest = 0
     /// The keyboard for the controller while it's open.
     @Published private(set) var padKeyboard: PadKeyboardSession?
+    /// The search stands as the bar over the keyboard, or is on its way there or back (PadSearchBar).
+    @Published private(set) var searchBarFloats = false
+    @Published private(set) var searchBarRaised = false
+    /// Where the search field is in the header, and where the bar goes.
+    @Published var searchFieldFrame = CGRect.zero
+    @Published var searchBarTarget = CGRect.zero
     /// A focus request the field hasn't taken yet: it may only appear with the library.
     private var searchFocusPending = false
     /// Home, the library grid, or a game's page.
@@ -782,6 +788,7 @@ final class LibraryModel: ObservableObject {
                 if warning != chargerWarning { chargerWarning = warning }
                 await lookAtSteamOnDemand()
                 offerFullScreenIfDue()
+                input.takeHomeButton()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
@@ -976,6 +983,10 @@ final class LibraryModel: ObservableObject {
     /// The game on stage as of the stage watch's last list.
     private var stagePids = Set<pid_t>()
     private var stageAskers = Set<pid_t>()
+    /// Another app's window over the game's picture, as of the stage watch's last look.
+    private(set) var overGame: PadPointerRules.OverGame?
+    private var overGameFront = false
+    private var overGameHanded: Int?
 
     /// A game's process ended: the curtain now, in the same moment, not at the look it cuts short. A Mac
     /// game in its own Space starts sliding away at once, and the page behind it slid in from the side
@@ -1002,7 +1013,7 @@ final class LibraryModel: ObservableObject {
               CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil)
         else { return }
         let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
-                                  handsOff: GameOverlay.isOpen || stageAskers.contains(front),
+                                  handsOff: GameOverlay.isOpen || stageAskers.contains(front) || overGame != nil,
                                   playerActed: Self.playerActed(within: GameStage.leftWithin) || GameBackdrop.spaceJustChanged,
                                   guarded: curtainGuards, now: Date())
         guard stage.pictureWent(look) else { return }
@@ -1657,6 +1668,7 @@ final class LibraryModel: ObservableObject {
             case .lower:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
+                input.parkPointerForGame()
                 loweredAt = Date()
                 curtainGuards = true
                 stage.pictureSeen()
@@ -1737,10 +1749,25 @@ final class LibraryModel: ObservableObject {
                 GameBackdrop.playing()
                 GameLog.note("Stage: \(game.name) \(gameFront && windows.here ? "is back" : "runs on without its picture"), the curtain goes behind it")
             }
+            // Another app's window over the game (Steam's store from its menu): the stage leaves it be, and
+            // once it's gone, however it was closed, the game is brought back.
+            let over = await Task.detached(priority: .utility) { () -> PadPointerRules.OverGame? in
+                let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+                return PadPointerRules.windowOverGame(list, game: known, ignoring: [getpid()])
+            }.value
+            let windowWent = overGame != nil && over == nil
+            overGame = over
+            overGameFront = gameFront
+            if windowWent {
+                stage.again()
+                overGameHanded = nil
+                GameLog.note("Stage: the window over \(game.name) has gone")
+            }
+            reachWindowOverGame(touched: false)
             let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
-                                                 handsOff: GameOverlay.isOpen || askerFront,
+                                                 handsOff: GameOverlay.isOpen || askerFront || over != nil,
                                                  // A swipe to another Space moves no key and no click.
-                                                 playerActed: Self.playerActed() || GameBackdrop.spaceJustChanged,
+                                                 playerActed: !windowWent && (Self.playerActed() || GameBackdrop.spaceJustChanged),
                                                  guarded: curtainGuards, now: Date()))
             let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
             let look = "\(name) in front, picture \(windows.here ? "here" : windows.anywhere ? "elsewhere" : "none")"
@@ -2082,6 +2109,31 @@ final class LibraryModel: ObservableObject {
         // Its coming forward brings the pointer back (Switch to Game, 1.11.), and that stays: taking
         // a game's keys to hide it costs its full screen (watchCurtain).
         return app.isActive
+    }
+
+    /// The app of the window over the game gets the front, when that's due (PadPointerRules.handsFront):
+    /// while the game has it, the game keeps the mouse for itself. `touched`: a finger on the touchpad.
+    func reachWindowOverGame(touched: Bool = true) {
+        guard PadPointerRules.handsFront(over: overGame, gameFront: overGameFront, alreadyHanded: overGameHanded, touched: touched),
+              let over = overGame, let app = NSRunningApplication(processIdentifier: over.owner)
+        else { return }
+        overGameHanded = over.number
+        GameLog.note("Stage: \(app.localizedName ?? "another app")'s window stands over the game, it gets the front")
+        Task {
+            GameBackdrop.handingOver = true  // the page stays while Nightforge has the front for this
+            defer { GameBackdrop.handingOver = false }
+            if !NSApp.isActive {
+                NSApp.activate(ignoringOtherApps: true)
+                for _ in 0..<6 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+                if !NSApp.isActive {  // macOS ignores `activate` from behind (handFocus)
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.activates = true
+                    _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                }
+            }
+            NSApp.yieldActivation(to: app)
+            app.activate(from: .current, options: [.activateAllWindows])
+        }
     }
 
     /// A game to be fetched back (`again`) needs a real change of the active app, and Nightforge's own
@@ -3606,6 +3658,8 @@ final class LibraryModel: ObservableObject {
         offersFullScreen = true
     }
 
+    func askForHomeButton() { input.askForHomeButton() }
+
     func acceptFullScreen() {
         offersFullScreen = false
         FullScreen.toggle()
@@ -3636,11 +3690,36 @@ final class LibraryModel: ObservableObject {
         guard !allGames.isEmpty else { return nil }
         if route != .library { goLibrary() }
         let session = PadKeyboardSession(text: searchText)
-        padKeyboard = session
+        searchBarFloats = true
+        searchBarRaised = false
+        withAnimation(searchBarMotion) { padKeyboard = session }
+        // A beat for the field to be measured, coming from Home; then it moves.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            guard padKeyboard === session else { return }
+            withAnimation(searchBarMotion) { searchBarRaised = true }
+        }
         return session
     }
 
-    func closePadKeyboard() { padKeyboard = nil }
+    /// The bar goes back to its place as the keyboard leaves; the field takes over once it's there.
+    func closePadKeyboard() {
+        guard padKeyboard != nil else { return }
+        withAnimation(searchBarMotion) {
+            padKeyboard = nil
+            searchBarRaised = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(searchBarMotion == nil ? 0 : 340))
+            if padKeyboard == nil { searchBarFloats = false }
+        }
+    }
+
+    /// Short and quiet, once there and once back; none with Reduce Motion.
+    private var searchBarMotion: Animation? {
+        Prefs.reduceMotion(system: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                           stored: UserDefaults.standard.string(forKey: Prefs.Keys.reduceMotion) ?? "") ? nil : .smooth(duration: 0.32)
+    }
 
     /// The search field takes a focus request once, when it's asked or when it appears.
     func takeSearchFocus() -> Bool {
