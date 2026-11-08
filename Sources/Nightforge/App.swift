@@ -8,6 +8,8 @@ struct NightforgeApp: App {
     @StateObject private var model = LibraryModel()
     /// Views read strings through L10n, so the window content is rebuilt when this changes.
     @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.system.rawValue
+    /// The margins differ on a TV: rebuilt with them, like the language.
+    @ObservedObject private var tv = TVLayout.shared
 
     init() {
         LegacyMigration.run()  // before anything reads settings or the data folder
@@ -19,7 +21,7 @@ struct NightforgeApp: App {
     var body: some Scene {
         Window("Nightforge", id: "main") {
             LibraryView()
-                .id(language)
+                .id(language + (tv.isOn ? ".tv" : ""))
                 .environmentObject(model)
                 .modifier(AccessibilityFromSettings())
                 .frame(minWidth: 980, minHeight: 640)
@@ -57,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         GameDisplay.follow()
+        TVLayout.shared.start()
         GameOverlay.resumeLeftovers()
         MacIntegration.setUp(delegate: self)
         // Game apps an older Nightforge wrote get the key that lets their link start the game.

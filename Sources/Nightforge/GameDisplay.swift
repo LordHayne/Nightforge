@@ -386,6 +386,13 @@ enum GameDisplay {
         }
     }
 
+    /// Whether an NSScreen is a TV (Candidate.isTV).
+    static func isTV(_ screen: NSScreen) -> Bool {
+        guard let display = id(screen) else { return false }
+        return Candidate(id: display, name: screen.localizedName, builtIn: CGDisplayIsBuiltin(display) != 0, pixels: 0,
+                         inches: inches(CGDisplayScreenSize(display))).isTV
+    }
+
     /// A screen's size in millimetres (from its EDID, all zero when it gives none) as a diagonal.
     nonisolated static func inches(_ millimetres: CGSize) -> CGFloat? {
         guard millimetres.width > 0, millimetres.height > 0 else { return nil }

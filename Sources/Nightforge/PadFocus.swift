@@ -232,8 +232,8 @@ private struct PadFocusModifier: ViewModifier {
             .overlay {
                 if ring && focus.focused == id {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Theme.sodium, lineWidth: 3)
-                        .padding(-5)
+                        .stroke(Theme.sodium, lineWidth: Theme.focusRing)
+                        .padding(-(Theme.focusRing + 2))
                         .shadow(color: Theme.sodium.opacity(0.5), radius: 8)
                         .allowsHitTesting(false)
                 }
