@@ -17,7 +17,7 @@ enum EpicSignIn {
 
     /// The code from the page Epic ends with: `{"redirectUrl": …, "authorizationCode": "…", …}`.
     nonisolated static func code(fromPage text: String) -> String? {
-        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
+        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end,
               let object = try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8)) as? [String: Any],
               let code = object["authorizationCode"] as? String,
               !code.isEmpty, code.allSatisfy({ $0.isLetter || $0.isNumber })

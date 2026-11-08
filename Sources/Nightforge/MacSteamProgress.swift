@@ -59,7 +59,7 @@ enum MacSteamProgress {
                let date = date(line),
                let numbers = text.range(of: "download ").map({ text[$0.upperBound...].prefix { $0 != "," } }) {
                 let parts = numbers.split(separator: "/").compactMap { Int64($0) }
-                if parts.count == 2 { run = (date, parts[0], parts[1]) }
+                if parts.count == 2 { run = (date, min(parts[0], Game.largestSize), min(parts[1], Game.largestSize)) }
             } else if text.contains("App update changed :") {
                 downloading = text.contains("Downloading")
             }
@@ -86,7 +86,7 @@ enum MacSteamProgress {
             total += b.date.timeIntervalSince(a.date) * b.bytesPerSecond
         }
         total += min(now.timeIntervalSince(last.date), 90) * last.bytesPerSecond
-        return Int64(total)
+        return total.clampedBytes
     }
 
     /// What a process has received over the network since it started (`nettop`).

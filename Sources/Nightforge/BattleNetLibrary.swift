@@ -162,7 +162,7 @@ enum BattleNetLibrary {
         game.listID = "Battle.net#\(game.gameID.key)"
         if !title.antiCheat.isEmpty { game.antiCheatBlock = AntiCheatBlock(antiCheat: title.antiCheat, geforceNow: nil) }
         // The client updates it before it starts; what's left of that, 0 while it hasn't worked it out.
-        if !install.playable || !install.updateComplete { game.pendingUpdate = Int64(clamping: install.remainingBytes) }
+        if !install.playable || !install.updateComplete { game.pendingUpdate = min(Int64(clamping: install.remainingBytes), Game.largestSize) }
         return game
     }
 

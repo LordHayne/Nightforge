@@ -1425,7 +1425,7 @@ private struct GameDetail: View {
             }
             if let needed = game.downloadNeedsSpace {
                 Label(L10n.t("Not enough space: Steam needs %@ to download this game, your Mac has %@ free. Make some room, then continue.",
-                             Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: game.installDir.deletingLastPathComponent()))),
+                             Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: SpaceCheck.existingFolder(for: game.installDir)))),
                       systemImage: "externaldrive.badge.exclamationmark")
                     .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)

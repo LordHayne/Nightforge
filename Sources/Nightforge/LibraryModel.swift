@@ -1808,6 +1808,15 @@ final class LibraryModel: ObservableObject {
     private var scanInFlight = false
     private var scanAgain = false
 
+    /// A scan the caller waits for, one at a time like any other. Past `reload`, it ran beside a scan under way, and
+    /// whichever ended first let a third begin.
+    private func scanInLine() async {
+        while scanInFlight { try? await Task.sleep(for: .milliseconds(50)) }
+        scanInFlight = true
+        await rescan()
+        while scanInFlight { try? await Task.sleep(for: .milliseconds(50)) }  // one asked for meanwhile
+    }
+
     /// Reads every store's library from the Mac and shows what it found.
     private func rescan() async {
         antiCheatBlocks = await ProfileStore.shared.antiCheatBlocks()
@@ -1874,8 +1883,8 @@ final class LibraryModel: ObservableObject {
     /// any more ("Failed to get list of download sources"). With downloads waiting in both, the
     /// signed-in one finishes first, then the other is signed in – not while a game runs or starts.
     private var lastSignInSwitch = Date.distantPast
-    /// How far the Mac downloads had got when Steam for Mac last got its turn.
-    private var lastMacTurnProgress: Double?
+    /// How far each Mac download had got when Steam for Mac last got its turn.
+    private var lastMacTurnProgress: [String: Double]?
 
     private func takeTurnsDownloading() {
         // Not while a game moves to another drive: that stops and starts its Steam itself.
@@ -1883,16 +1892,23 @@ final class LibraryModel: ObservableObject {
         let macDownload = allGames.contains { game in
             (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
         }
-        let windowsDownload = allGames.contains { $0.platform == .windows && $0.bottle.isBuiltIn && Self.isDownloading($0.install) }
+        let windowsDownload = allGames.contains { SteamSwitch.usesWindowsSteam($0) && Self.isDownloading($0.install) }
+        guard macDownload || windowsDownload else { return }
         // A Mac download that got nowhere in its last turn (Steam for Mac finds no download
         // servers, say) doesn't get another: Steam for Mac would come up and sign the Wine Steam out
         // every few minutes for nothing. Any progress lets it take turns again.
         // What the scan measured (it asks nettop off the main thread); asking again here would block the window.
-        let macProgress = allGames.compactMap { game in
-            Self.downloadFraction(game.macPending) ?? (game.platform == .mac && game.provider == .steam ? Self.downloadFraction(game.install) : nil)
-        }.reduce(0, +)
-        let macStalled = lastMacTurnProgress.map { macProgress <= $0 } ?? false
-        if macDownload, MacSteam.isReady, !MacSteam.signedIn, !(windowsDownload && Engine.steamSignedIn), !macStalled {
+        let macProgress = Dictionary(allGames.compactMap { game -> (String, Double)? in
+            (Self.downloadFraction(game.macPending) ?? (game.platform == .mac && game.provider == .steam ? Self.downloadFraction(game.install) : nil))
+                .map { (game.id, $0) }
+        }, uniquingKeysWith: max)
+        let turn = SteamSwitch.downloadTurn(SteamSwitch.DownloadFacts(
+            macDownload: macDownload, windowsDownload: windowsDownload, macReady: macDownload && MacSteam.isReady,
+            macSignedIn: macDownload && MacSteam.signedIn, windowsSignedIn: windowsDownload && Engine.steamSignedIn,
+            macStalled: SteamSwitch.macDownloadsStalled(macProgress, since: lastMacTurnProgress),
+            windowsRunning: windowsDownload && Engine.isSteamRunning, windowsReplaced: windowsDownload && Engine.sessionReplaced(),
+            windowsStopped: steamSwitch.windowsStopped))
+        if turn == .mac {
             lastSignInSwitch = Date()
             lastMacTurnProgress = macProgress
             steamSwitch.stopWindowsForMacDownload()
@@ -1900,8 +1916,7 @@ final class LibraryModel: ObservableObject {
                 if MacSteam.isRunning { await MacSteam.quit() }
                 MacSteam.start()
             }
-        } else if windowsDownload, Engine.isSteamRunning ? Engine.sessionReplaced() : steamSwitch.windowsStopped,
-                  !(macDownload && MacSteam.signedIn) {
+        } else if turn == .windows {
             lastSignInSwitch = Date()
             Task {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { _ in }, restartWindows: { await self.restartWindowsSteam() })
@@ -2525,7 +2540,8 @@ final class LibraryModel: ObservableObject {
     /// manifest and restart that Steam, which then carries on – by itself it never tries again.
     func resumeDownload(_ game: Game) {
         guard let needed = game.downloadNeedsSpace else { return }
-        let free = Self.freeSpace(at: game.installDir.deletingLastPathComponent())
+        // The nearest folder there is: a library's first download may have no steamapps/common yet, and that isn't "0 free".
+        let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: game.installDir))
         guard free >= needed else {
             errorMessage = L10n.t("There's still not enough space: Steam needs %@ for %@, your Mac has %@ free.",
                                   Format.bytes(needed), game.name, Format.bytes(free))
@@ -2896,7 +2912,7 @@ final class LibraryModel: ObservableObject {
         MacHealth.fail(game.appID)
         NSApp.activate()
         Task {
-            await rescan()  // after the Mac launch has wound down: one launch at a time
+            await scanInLine()  // after the Mac launch has wound down: one launch at a time
             guard let windows = allGames.first(where: { $0.gameID == game.gameID && $0.platform == .windows }) else { return }
             if windows.isInstalled {
                 launch(windows)

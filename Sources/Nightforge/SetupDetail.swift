@@ -146,7 +146,7 @@ enum SetupDetail {
         if let earlier = lines.last(where: { last.date.timeIntervalSince($0.date) >= 3 }), last.done > earlier.done {
             rate = (last.done - earlier.done) * 1024 / last.date.timeIntervalSince(earlier.date)
         }
-        return (Int64(last.done * 1024), Int64(last.total * 1024), rate)
+        return ((last.done * 1024).clampedBytes, (last.total * 1024).clampedBytes, rate)
     }
 
     private static let stamps: DateFormatter = {
