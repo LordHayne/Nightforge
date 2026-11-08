@@ -220,6 +220,19 @@ struct QuitScriptTest {
             check(result.calls.isEmpty, "a paused and a running download: the running one counts: \(result.calls)")
         }
 
+        // A download whose Steam no longer runs (it ended when Steam for Mac took over) holds nothing: it
+        // kept Steam for Mac and the script waiting for 12 hours (It Takes Two, 8.11.).
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(100, "/usr/sbin/cfprefsd agent")])
+            world.download(1426210, flags: 1026)
+            let result = world.run(limit: 3600)
+            check(!result.timedOut && result.status == 0, "a stopped Steam's download: the script ended")
+            check(result.calls.contains("wineserver -k") && !sleeps(world).contains("10"),
+                  "… without waiting for it, and the session ended: \(result.calls), \(sleeps(world))")
+        }
+
         // A game that runs holds the script – and Nightforge isn't opened again after the limit.
         do {
             let world = World()

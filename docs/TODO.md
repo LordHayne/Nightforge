@@ -95,6 +95,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   `wineserver -k`, die Wine-Helfer und zuletzt `open` auf Nightforge. Nach einem Spiel in den letzten fünf Minuten
   bleiben die 30 s für die Cloud-Spielstände. Gesperrt, solange ein Spiel läuft. **Live prüfen:** Neustart ohne Spiel,
   einmal mit hängendem Mac-Steam-Dialog (Drawful 2), danach startet Nightforge von selbst und Steam frisch.
+- **Beenden-Skript wartete auf einen toten Download** (8.11.): It Takes Two lud im Windows-Steam, das für Mac-Steam beendet wurde; `downloading/1426210` mit StateFlags 1026 zählte weiter, Skript und Mac-Steam warteten bis zu 12 h. Ein Download zählt jetzt nur, solange sein Steam läuft. Nebenbei: Der It-Takes-Two-Download steht still, solange Mac-Steam angemeldet ist.
 - **Mac-Spiele mit mehreren Startarten** (Drawful 2: „Standalone“ oder Jackbox-Megapicker): Mac-Steam fragte, und
   sein Fenster kam trotz `MacSteam.show()` nicht nach vorn („Bestätige im Steam-Fenster“, nichts zu sehen). Jetzt
   `steam://launch/<id>/Option2` (Steams erste Mac-Option, wenn kein anderer ihren Typ hat; `steamui.dylib` kennt die

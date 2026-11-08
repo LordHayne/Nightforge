@@ -1097,10 +1097,13 @@ enum Engine {
           done
           return 1
         }
+        # A download counts only while its Steam runs: one Steam ends when the other takes over (one sign-in
+        # per account), and its download stops there. Counted anyway, it kept the script and Steam for Mac
+        # waiting for 12 hours (It Takes Two, 8.11.).
         busy() {
           if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
-          [ -n "$WINE" ] && downloading_in "$STEAMAPPS" && return 0
-          [ -n "$MAC_STEAMAPPS" ] && downloading_in "$MAC_STEAMAPPS" && return 0
+          [ -n "$WINE" ] && steam_running && downloading_in "$STEAMAPPS" && return 0
+          [ -n "$MAC_STEAMAPPS" ] && pgrep -qx steam_osx && downloading_in "$MAC_STEAMAPPS" && return 0
           return 1
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
