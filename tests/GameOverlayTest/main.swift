@@ -305,6 +305,9 @@ struct GameOverlayTest {
         check(GameBackdrop.shouldFollow(visible: true, frame: small, screen: big), "the mode changed: the page follows")
         check(!GameBackdrop.shouldFollow(visible: true, frame: big, screen: big), "the same size: nothing to do")
         check(!GameBackdrop.shouldFollow(visible: false, frame: small, screen: big), "not up: nothing to follow")
+        check(GameBackdrop.holdsInFront(raised: true, underQuestion: false), "up: kept in front while a Space comes")
+        check(!GameBackdrop.holdsInFront(raised: true, underQuestion: true), "under a question it stays under it")
+        check(!GameBackdrop.holdsInFront(raised: false, underQuestion: false), "down: never in front of the game")
         // ABZU's mode on a 1512×982 Mac: the page's frame from the display itself, before NSScreen knows.
         check(GameBackdrop.appKitFrame(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1200), mainHeight: 1200) == CGRect(x: 0, y: 0, width: 1920, height: 1200),
               "the main display in a new mode: all of it")
