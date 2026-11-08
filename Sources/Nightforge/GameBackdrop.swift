@@ -130,15 +130,36 @@ enum GameBackdrop {
     /// 1512×982 Mac; the mode restored as it ends): the page keeps to the screen, or it covers only
     /// a corner of it, as the overlay did on 4.11. before it followed.
     static func followScreen() {
-        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main,
-              shouldFollow(visible: window.isVisible, frame: window.frame, screen: screen.frame)
-        else { return }
-        GameLog.note("The page follows the screen: \(Int(screen.frame.width))×\(Int(screen.frame.height))")
-        window.setFrame(screen.frame, display: true)
+        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main else { return }
+        let frame = currentFrame(of: screen)
+        guard shouldFollow(visible: window.isVisible, frame: window.frame, screen: frame) else { return }
+        GameLog.note("The page follows the screen: \(Int(frame.width))×\(Int(frame.height))")
+        window.setFrame(frame, display: true)
     }
 
     nonisolated static func shouldFollow(visible: Bool, frame: CGRect, screen: CGRect) -> Bool {
         visible && frame != screen
+    }
+
+    /// A display's place in AppKit's coordinates from its bounds in Core Graphics' (y down, the main
+    /// display's height the turning point).
+    nonisolated static func appKitFrame(bounds: CGRect, mainHeight: CGFloat) -> CGRect {
+        CGRect(x: bounds.minX, y: mainHeight - bounds.maxY, width: bounds.width, height: bounds.height)
+    }
+
+    /// The screen as it is this moment. NSScreen only learns of a new mode with its notification, a while
+    /// after the display has it: until then a page sized by NSScreen covered a corner, the desktop beside it.
+    private static func currentFrame(of screen: NSScreen) -> CGRect {
+        guard let display = GameDisplay.id(screen) else { return screen.frame }
+        return appKitFrame(bounds: CGDisplayBounds(display), mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
+    }
+
+    /// Told of a new display mode right as it's set, before NSScreen's notification.
+    private static func listenToDisplays() {
+        CGDisplayRegisterReconfigurationCallback({ _, flags, _ in
+            guard !flags.contains(.beginConfigurationFlag) else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { GameBackdrop.followScreen() } }
+        }, nil)
     }
 
     /// The page was found over the game's picture (GameProcesses.pageCovers): behind every window.
@@ -258,6 +279,7 @@ enum GameBackdrop {
                                                           object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { GameBackdrop.nightforgeInFront() }
         }
+        if self.window == nil { listenToDisplays() }
         let window = self.window ?? make(screen.frame)
         self.window = window
         // A curtain is ordered into the Space shown; after a switch of Spaces (Nightforge's full
@@ -297,7 +319,7 @@ enum GameBackdrop {
             }
         }
         let appearing = !window.isVisible
-        window.setFrame(screen.frame, display: true)
+        window.setFrame(currentFrame(of: screen), display: true)
         window.alphaValue = appearing ? 0 : 1
         arrange(window)
         // Faded in where it wasn't up; from behind the game it's there at once, as it covers its end.

@@ -305,6 +305,11 @@ struct GameOverlayTest {
         check(GameBackdrop.shouldFollow(visible: true, frame: small, screen: big), "the mode changed: the page follows")
         check(!GameBackdrop.shouldFollow(visible: true, frame: big, screen: big), "the same size: nothing to do")
         check(!GameBackdrop.shouldFollow(visible: false, frame: small, screen: big), "not up: nothing to follow")
+        // ABZU's mode on a 1512×982 Mac: the page's frame from the display itself, before NSScreen knows.
+        check(GameBackdrop.appKitFrame(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1200), mainHeight: 1200) == CGRect(x: 0, y: 0, width: 1920, height: 1200),
+              "the main display in a new mode: all of it")
+        check(GameBackdrop.appKitFrame(bounds: CGRect(x: 1512, y: 100, width: 3840, height: 2160), mainHeight: 982) == CGRect(x: 1512, y: -1278, width: 3840, height: 2160),
+              "a TV beside it, its top 100 lower: y turned at the main display's height")
 
         // The overlay over ABZU (DXMT, macOS's Game Mode on, 3.11.): opened, never seen – behind the
         // game's window – and the game frozen under it. The panel goes above whatever covers the

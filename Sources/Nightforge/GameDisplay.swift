@@ -371,7 +371,7 @@ enum GameDisplay {
 
     // MARK: - Screens
 
-    private static func id(_ screen: NSScreen) -> CGDirectDisplayID? {
+    static func id(_ screen: NSScreen) -> CGDirectDisplayID? {
         screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
     }
 
