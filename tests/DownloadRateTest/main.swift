@@ -68,6 +68,18 @@ struct DownloadRateTest {
         check(Format.relative(start.addingTimeInterval(-120), now: start) == "2 minutes ago",
               "two minutes ago: \(Format.relative(start.addingTimeInterval(-120), now: start))")
 
+        // What keeps the Mac awake: a download something can be fetching, not one that only stands in a file.
+        func awake(_ provider: Provider, _ platform: Platform = .windows, builtIn: Bool = true, steam: Bool = false, mac: Bool = false, blizzard: Bool = false) -> Bool {
+            KeepAwake.counts(provider: provider, platform: platform, builtIn: builtIn, steamRunning: steam, macSteamRunning: mac, battleNetRunning: blizzard)
+        }
+        check(awake(.steam, steam: true), "Steam runs: its download counts")
+        check(!awake(.steam), "Steam has ended: its half-done download holds nothing up")
+        check(!awake(.steam, mac: true), "the Windows Steam goes by the Windows Steam, not by Steam for Mac")
+        check(awake(.steam, .mac, mac: true) && !awake(.steam, .mac, steam: true), "a Mac version goes by Steam for Mac")
+        check(awake(.steam, builtIn: false), "a Steam in a bottle of the player's can't be looked at: as before")
+        check(awake(.battlenet, blizzard: true) && !awake(.battlenet), "Battle.net's by its client")
+        check(awake(.epic) && awake(.gog), "Epic's and GOG's are Nightforge's own jobs")
+
         print(failures == 0 ? "✓ DownloadRate" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
