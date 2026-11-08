@@ -198,6 +198,14 @@ struct SteamProgramTest {
                        Entry(executable: "mpLauncher.sh", type: "option1", description: "in the Jackbox Games Megapicker"),
                        Entry(executable: "launch_megapicker", arguments: "product/drawful-2", type: "option1", betaKey: "latest")]
         check(SteamProgram.macLaunchType(drawful) == "Option2", "Drawful 2 on the Mac: its standalone option, by type")
+        let untyped = [Entry(executable: "Game.app", type: "none"), Entry(executable: "Editor.app", type: "none")]
+        check(SteamProgram.macNeedsApplaunch(untyped, hasArguments: false), "several options of type none: -applaunch, steam://launch has no name for them")
+        check(SteamProgram.macNeedsApplaunch([Entry(executable: "Game.app"), Entry(executable: "Server.app")], hasArguments: false), "no type at all: the same")
+        check(!SteamProgram.macNeedsApplaunch(drawful, hasArguments: false), "Drawful 2 has a name: steam://launch stays")
+        check(SteamProgram.macNeedsApplaunch(drawful, hasArguments: true), "with the player's arguments, which steam://launch doesn't carry: -applaunch")
+        check(!SteamProgram.macNeedsApplaunch(Array(untyped.prefix(1)), hasArguments: true), "one option: Steam doesn't ask")
+        check(!SteamProgram.macNeedsApplaunch([untyped[0], Entry(executable: "Beta.app", type: "none", betaKey: "beta")], hasArguments: false),
+              "an option only for a beta branch doesn't count")
         check(SteamProgram.macLaunchType(Array(drawful.prefix(1))) == nil, "one option: Steam doesn't ask, steam://run as before")
         check(SteamProgram.macLaunchType([drawful[0], drawful[2]]) == nil, "an option only for a beta branch doesn't count")
         check(SteamProgram.macLaunchType([Entry(executable: "Game.app", type: "default"), drawful[1]]) == nil,

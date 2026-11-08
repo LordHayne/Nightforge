@@ -352,6 +352,7 @@ final class LibraryModel: ObservableObject {
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.wakeSteam()
                 self?.reload(quiet: true)
                 self?.refreshStores()
                 self?.refreshLaunchers()
@@ -613,6 +614,7 @@ final class LibraryModel: ObservableObject {
                 if reading.source != power { power = reading.source }
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
+                await lookAtSteamOnDemand()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 let pause = Duration.seconds(goneFor > 0 ? 1 : busy ? 3 : 10)
@@ -892,7 +894,7 @@ final class LibraryModel: ObservableObject {
     /// Steam for Mac is busy for a Mac version: one is running or starting. The Wine Steam stays
     /// out of the way then – signing in, it would sign Steam for Mac out (one sign-in per account),
     /// and the game's saves would no longer reach Steam Cloud.
-    private var macSteamBusy: Bool {
+    var macSteamBusy: Bool {
         anyRunning(.mac) || allGames.contains { $0.id == launchingID && $0.platform == .mac && $0.provider == .steam }
     }
 
@@ -2048,7 +2050,9 @@ final class LibraryModel: ObservableObject {
     /// Keeps Nightforge's own Steam running hidden once it's set up.
     /// The engine check and Steam (re)start at app launch; game launches wait for it so a pending
     /// Steam restart can't cut off a game that was just started.
-    private var steamStartup: Task<Void, Never>?
+    var steamStartup: Task<Void, Never>?
+    /// Steam only when something needs it, on battery.
+    var steamOnDemand = SteamOnDemand()
 
     func startBackgroundSteam() {
         // onAppear can fire more than once; one start per app run is enough.
@@ -2098,6 +2102,9 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(60))
         }
     }
+
+    /// A Steam woken by SteamOnDemand is watched like one started with Nightforge.
+    func watchWokenSteam(_ wine: URL) { Task { await watchSteamStart(wine) } }
 
     /// Steam hangs now and then while starting under Wine (see Engine.steamLooksStuck), and one
     /// restart fixes it. Watched for the first two minutes, ideally before anyone presses Play.
@@ -2796,18 +2803,29 @@ final class LibraryModel: ObservableObject {
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
             let appID = game.appID
-            let launchType = await Task.detached(priority: .userInitiated) { () -> String? in
+            let macLaunch = await Task.detached(priority: .userInitiated) { () -> [SteamCatalog.LaunchEntry] in
                 ControllerCompatibility.prepare(installDir: installDir)
                 MacGameHUD.prepare(folder: installDir)
-                return SteamProgram.macLaunchType(SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root))
+                return SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root)
             }.value
+            let launchType = SteamProgram.macLaunchType(macLaunch)
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             // With several launch options Steam asks which one, in a window that didn't come forward
             // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
             // first straight away; it passes no arguments, so with the player's own Steam asks as before.
             let command = launchType.flatMap { arguments.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
-            let run = { MacSteam.open(command) }
+            // Options steam://launch has no name for ("none", no type), or the player's own arguments:
+            // -applaunch starts the first and takes arguments, with no question. Tried once; a resend
+            // (Steam didn't note it) goes the old way, where Steam may ask.
+            var handOver = SteamProgram.macNeedsApplaunch(macLaunch, hasArguments: !arguments.isEmpty)
+            let run = {
+                if handOver {
+                    handOver = false
+                    if MacSteam.applaunch(appID, arguments: Launcher.splitArguments(arguments)) { return }
+                }
+                MacSteam.open(command)
+            }
             raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)
@@ -3649,6 +3667,7 @@ final class LibraryModel: ObservableObject {
                                                     restartWindows: { await self.restartWindowsSteam() })
                 launchPhase = nil
             }
+            if viaSteam, game.bottle.isBuiltIn { wakeSteam() }
             if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value
