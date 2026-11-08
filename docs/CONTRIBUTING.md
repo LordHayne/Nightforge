@@ -129,6 +129,12 @@ Most checks on `mac.json` run in `scripts/build-profiles.py` itself: it stops wi
 
 The check doesn't look at every field. The app skips a field it can't read without a word – `"retina": "yes"` simply does nothing –, keeps `frameLimit` within 0–240 and `vulkanSamplers` within 1–128, and writes only `REG_SZ` and `REG_DWORD` registry values. So test the profile in the app as well.
 
+## New components and helpers
+
+Nightforge's Windows path runs under Rosetta, and macOS 28 limits Rosetta (`docs/ENTWURF-ARM64.md`). So nothing new
+should depend on x86_64 without need: a new entry in `components/sources.json` says what it is built for with `arch`
+(`x86_64`, `arm64` or `universal`), and a new `clang -arch x86_64` needs a reason. `tests/test_no_new_x86_only.py` checks both.
+
 ## Test before you open the pull request
 
 1. **Try the setting by hand.** In Nightforge, open the game's options and try the graphics route, arguments and the frame limit there, without a profile, then play for a few minutes. DXMT writes the frame rate to `~/Library/Application Support/Nightforge/Logs/wine.log` every so often, in lines like `[nightforge-dxmt] Game: 58.2 FPS over 60 s, …`; D3DMetal writes none. Compare with the game on Automatic.
