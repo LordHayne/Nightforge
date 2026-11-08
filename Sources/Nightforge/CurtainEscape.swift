@@ -108,3 +108,59 @@ enum CurtainEscape {
         }
     }
 }
+
+/// A curtain nobody will take away. Tomb Raider, 8.11. at 22:28: quit through the overlay, Nightforge back
+/// in front with "Welcome back", and then Steam Helper coming forward looked like the game's picture going.
+/// The curtain came up for a game that had ended, and stayed: B did nothing, the player had to go to the Mac.
+extension CurtainEscape {
+    /// Who is going to take a raised curtain away.
+    struct Owners: Equatable {
+        /// A start is in progress, or is judged by its first seconds.
+        var starting = false
+        /// The curtain's watch runs.
+        var watching = false
+        /// A game Nightforge follows: its end brings Nightforge back (`playingOwns`).
+        var playing = false
+        /// Nightforge is on its way back, and takes the curtain with it.
+        var comingBack = false
+
+        var anyone: Bool { starting || watching || playing || comingBack }
+    }
+
+    /// How long a raised curtain stands with nobody to take it away: longer than the moment one hands it to
+    /// the next, short enough that nobody goes looking for the Mac.
+    static let orphanAfter: TimeInterval = 5
+    /// A game still running holds a curtain over it only this long: longer than a game takes to end.
+    static let playingHoldsFor: TimeInterval = 30
+    /// Nightforge's way back takes a few seconds at most, however macOS hands over the front.
+    static let comingBackHoldsFor: TimeInterval = 12
+
+    static func playingOwns(gamePlaying: Bool, upFor: TimeInterval) -> Bool { gamePlaying && upFor < playingHoldsFor }
+
+    /// Sees how long a raised curtain has been without an owner.
+    struct Orphan {
+        private var since: Date?
+
+        /// True at the look where it has stood long enough and should go.
+        mutating func look(raised: Bool, owners: Owners, now: Date) -> Bool {
+            guard raised, !owners.anyone else {
+                since = nil
+                return false
+            }
+            guard let since else {
+                self.since = now
+                return false
+            }
+            guard now.timeIntervalSince(since) >= orphanAfter else { return false }
+            self.since = nil
+            return true
+        }
+    }
+
+    /// Whether a game's picture going or its process ending may still raise the curtain: only for a game
+    /// being played, and not once Nightforge is on its way back.
+    static func mayRaiseForEnd(gamePlaying: Bool, comingBack: Bool) -> Bool { gamePlaying && !comingBack }
+
+    /// Whether B and Esc lead out: a way out offered for this start, or a curtain nobody owns, at once.
+    static func wayOutOpen(raised: Bool, offered: Bool, owners: Owners) -> Bool { raised && (offered || !owners.anyone) }
+}
