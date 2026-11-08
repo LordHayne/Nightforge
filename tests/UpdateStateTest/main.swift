@@ -362,6 +362,11 @@ struct UpdateStateTest {
         check(LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first)) == nil, "another size: the full scan")
         try downloading(["UpdateResult": "12"])
         check(LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first)) == nil, "Steam's full disk: the full scan")
+        // Paused: 0x602 is what Steam logged for it, "Update Required,Update Paused,Update Started" (26.10.).
+        check(!first.downloadPaused, "a download going on isn't paused")
+        try downloading(["StateFlags": "1538"])
+        check(LibraryScanner.downloadLook(first)?.downloadPaused == true, "Steam's paused mark is read")
+        check(LibraryScanner.takeLook(first, fresh: LibraryScanner.downloadLook(first)) == nil, "paused: the full scan, which lets the Mac sleep")
         try fm.removeItem(at: oxySteam.appendingPathComponent("appmanifest_3907790.acf"))
         check(LibraryScanner.downloadLook(first) == nil && LibraryScanner.takeLook(first, fresh: nil) == nil, "its manifest gone: the full scan")
         check(LibraryScanner.takeLook(oxyRail, fresh: first) == nil, "a game that wasn't downloading: the full scan")

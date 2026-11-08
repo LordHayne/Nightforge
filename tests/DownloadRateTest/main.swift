@@ -69,9 +69,13 @@ struct DownloadRateTest {
               "two minutes ago: \(Format.relative(start.addingTimeInterval(-120), now: start))")
 
         // What keeps the Mac awake: a download something can be fetching, not one that only stands in a file.
-        func awake(_ provider: Provider, _ platform: Platform = .windows, builtIn: Bool = true, steam: Bool = false, mac: Bool = false, blizzard: Bool = false) -> Bool {
-            KeepAwake.counts(provider: provider, platform: platform, builtIn: builtIn, steamRunning: steam, macSteamRunning: mac, battleNetRunning: blizzard)
+        func awake(_ provider: Provider, _ platform: Platform = .windows, builtIn: Bool = true, paused: Bool = false,
+                   steam: Bool = false, mac: Bool = false, blizzard: Bool = false) -> Bool {
+            KeepAwake.counts(provider: provider, platform: platform, builtIn: builtIn, paused: paused, steamRunning: steam, macSteamRunning: mac, battleNetRunning: blizzard)
         }
+        check(!awake(.steam, paused: true, steam: true), "paused in a running Steam: the Mac may sleep")
+        check(!awake(.steam, .mac, paused: true, mac: true), "paused in Steam for Mac too")
+        check(!awake(.steam, builtIn: false, paused: true), "and in a bottle of the player's, where the mark is just as good")
         check(awake(.steam, steam: true), "Steam runs: its download counts")
         check(!awake(.steam), "Steam has ended: its half-done download holds nothing up")
         check(!awake(.steam, mac: true), "the Windows Steam goes by the Windows Steam, not by Steam for Mac")
