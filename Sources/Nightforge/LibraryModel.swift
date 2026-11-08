@@ -159,6 +159,8 @@ final class LibraryModel: ObservableObject {
     @Published var showingSettings = false
     /// Waiting for the user to confirm removing this game (or its download).
     @Published var pendingUninstall: Game?
+    @Published var offersFullScreen = false
+    private var fullScreenOffered = false
     /// Sleeping the Mac or quitting, waiting for its "are you sure" (PowerMenu).
     @Published var pendingPower: PowerMenu.Entry?
     /// Waiting for the user to confirm removing the Windows version of a game that now runs its Mac one.
@@ -623,6 +625,7 @@ final class LibraryModel: ObservableObject {
                                 reason: L10n.t("Nightforge keeps the Mac awake for a while, as set in its settings"))
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
+                offerFullScreenIfDue()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
@@ -3072,6 +3075,22 @@ final class LibraryModel: ObservableObject {
         if route != .library { goLibrary() }
         searchFocusPending = true
         searchFocusRequest += 1
+    }
+
+    /// A controller at the MacBook: the full screen is offered, once per start (FullScreenOffer).
+    private func offerFullScreenIfDue() {
+        guard let window = NSApp.windows.first(where: { $0.title == "Nightforge" }) else { return }
+        let open = window.attachedSheet != nil || NSApp.modalWindow != nil || launcherMenuOpen || quickMenu != nil || padKeyboard != nil
+        guard FullScreenOffer.offers(alreadyOffered: fullScreenOffered, padConnected: controllerConnected, inFront: NSApp.isActive,
+                                     fullScreen: FullScreen.isOn, onBuiltInScreen: window.screen.map(GameDisplay.isBuiltIn) ?? false,
+                                     firstStart: showsFirstStart, gameOn: gameOnScreen, somethingOpen: open) else { return }
+        fullScreenOffered = true
+        offersFullScreen = true
+    }
+
+    func acceptFullScreen() {
+        offersFullScreen = false
+        FullScreen.toggle()
     }
 
     /// The keyboard for the controller, over the library: the hits show above it.

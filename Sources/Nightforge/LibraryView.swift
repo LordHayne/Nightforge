@@ -211,6 +211,19 @@ struct LibraryView: View {
                     .padFocus("power.confirm", cornerRadius: 21, activate: { model.confirmPower() })
             }
         }
+        .sheet(isPresented: $model.offersFullScreen) {
+            GlassQuestion(L10n.t("Full screen for the controller?"),
+                          message: L10n.t("Nightforge fills the screen and the Mac's desktop goes out of the way. ⌃⌘F switches back."),
+                          id: "fullScreenOffer") {
+                Button(L10n.t("Not Now")) { model.offersFullScreen = false }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("fullScreenOffer.no", cornerRadius: 21, activate: { model.offersFullScreen = false })
+                Button(L10n.t("Full Screen")) { model.acceptFullScreen() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("fullScreenOffer.yes", cornerRadius: 21, preferred: true, activate: { model.acceptFullScreen() })
+            }
+        }
         .sheet(item: $model.pendingUninstall) { game in
             GlassQuestion(game.isInstalled ? L10n.t("Uninstall %@?", game.name) : L10n.t("Cancel the download of %@?", game.name),
                           message: game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")
