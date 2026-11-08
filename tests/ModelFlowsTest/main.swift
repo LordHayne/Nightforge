@@ -303,6 +303,8 @@ import Foundation
     // Steam stopped the download for lack of room, and there's enough now.
     let disk = LibraryModel.freeSpace(at: ModelWorld.steamapps)
     ModelWorld.steamGame(82, "Paused For Room", flags: 1026 | 512, size: 4096, toDownload: 4096, downloaded: 1, updateResult: 12)
+    // A library's first download: Steam stopped before it made any folder for it.
+    try? FileManager.default.removeItem(at: ModelWorld.steamapps.appendingPathComponent("common"))
     await ModelWorld.scan(model)
     guard let paused = game(model, "Paused For Room") else { return check(false, "the paused download is listed") }
     if let needed = paused.downloadNeedsSpace {
@@ -453,6 +455,65 @@ import Foundation
     try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
 }
 
+/// Removing a game for good, the keys on each level, and "Download Again" for a game on a drive that's gone.
+@MainActor func removingAndKeys() async {
+    clean()
+    try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
+    let folder = GOGDL.windowsGamesDir.appendingPathComponent("On The Mac", isDirectory: true)
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try? Data("game".utf8).write(to: folder.appendingPathComponent("game.exe"))
+    ModelWorld.gogLibrary([("1207700010", "On The Mac"), ("1207700011", "Enormous Later")])
+    try? FileManager.default.createDirectory(at: GOGDL.configDir, withIntermediateDirectories: true)
+    try? Data("{}".utf8).write(to: GOGDL.authFile)
+    let big: Int64 = 400_000_000_000_000
+    let sizes = ["1207700011.windows": GOGSize(build: "1", download: big, install: big, language: "en-US", folder: "Enormous Later")]
+    try? JSONEncoder().encode(sizes).write(to: ModelWorld.gogFolder.appendingPathComponent("sizes.json"))
+    let drive = URL(fileURLWithPath: "/Volumes/NightforgeNoSuchDrive/Nightforge Games/GOG/Enormous Later", isDirectory: true)
+    let installs = ["1207700010": GOGInstall(id: "1207700010", path: folder, platform: .windows, build: "1", language: "en-US", size: 1000),
+                    "1207700011": GOGInstall(id: "1207700011", path: drive, platform: .windows, build: "1", language: "en-US", size: big)]
+    try? JSONEncoder().encode(installs).write(to: ModelWorld.gogFolder.appendingPathComponent("installed.json"))
+
+    let model = LibraryModel()
+    ModelWorld.steamGame(110, "Next To It", lastPlayed: 1_700_000_000)
+    await ModelWorld.scan(model)
+    guard let onMac = game(model, "On The Mac"), onMac.isInstalled else { return check(false, "the GOG game is on the Mac") }
+
+    // The keys: the library's A opens the page, Home's last tile the library.
+    model.goLibrary()
+    model.activate()
+    check(model.route.isDetail, "A in the library opens the game's page, it doesn't start it")
+    model.back()
+    model.goHome()
+    model.selectOnHome(place: model.homeRail.count)
+    check(model.homeOnAllGames && model.heroGame == nil, "the All games tile selects no game")
+    model.openDetail()
+    check(model.route == .home, "and has no page")
+    model.activate()
+    check(model.route == .library, "A on it opens the library")
+
+    // Removing asks first, then the folder and the record go; the game stays in the account.
+    model.requestUninstall(onMac)
+    check(model.pendingUninstall?.id == onMac.id, "asked first")
+    check(FileManager.default.fileExists(atPath: folder.path), "and nothing's gone yet")
+    model.confirmUninstall()
+    for _ in 0..<120 where FileManager.default.fileExists(atPath: folder.path) { await ModelWorld.settle(25) }
+    await ModelWorld.settle(100)
+    check(!FileManager.default.fileExists(atPath: folder.path), "the folder goes")
+    check(model.uninstallingID == nil, "and it's over")
+    await ModelWorld.scan(model)
+    check(game(model, "On The Mac")?.install == .notInstalled, "still in the account, to download again: \(String(describing: game(model, "On The Mac")?.install))")
+    check(model.errorMessage == nil, "without a word: \(String(describing: model.errorMessage))")
+
+    // Download Again: forgotten on the drive, then asked like any download.
+    guard let away = game(model, "Enormous Later"), away.onUnpluggedDrive else { return check(false, "the game on the drive that's gone") }
+    model.redownload(away)
+    for _ in 0..<200 where model.pendingSpace == nil { await ModelWorld.settle(25) }
+    check(model.pendingSpace?.game.name == "Enormous Later", "Download Again ends in the same question as any download: \(String(describing: model.errorMessage))")
+    model.closeAllSheets()
+    try? FileManager.default.removeItem(at: GOGDL.authFile)
+    try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
+}
+
 /// Saves on their way to the cloud hold a switch of the Steams up, not longer than they have to.
 @MainActor func savesBeforeSwitch() async {
     clean()
@@ -521,6 +582,7 @@ func scansInLine() {
         await gogGames()
         await savesBeforeSwitch()
         await hugeSizes()
+        await removingAndKeys()
         scansInLine()
         await MainActor.run {
             if failures == 0 { print("✓ The model's flows: downloads, marks, two stores, moves, questions") } else { print("✗ \(failures) failures") }

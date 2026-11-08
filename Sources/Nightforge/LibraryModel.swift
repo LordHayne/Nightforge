@@ -2540,7 +2540,8 @@ final class LibraryModel: ObservableObject {
     /// manifest and restart that Steam, which then carries on – by itself it never tries again.
     func resumeDownload(_ game: Game) {
         guard let needed = game.downloadNeedsSpace else { return }
-        let free = Self.freeSpace(at: game.installDir.deletingLastPathComponent())
+        // The nearest folder there is: a library's first download may have no steamapps/common yet, and that isn't "0 free".
+        let free = Self.freeSpace(at: SpaceCheck.existingFolder(for: game.installDir))
         guard free >= needed else {
             errorMessage = L10n.t("There's still not enough space: Steam needs %@ for %@, your Mac has %@ free.",
                                   Format.bytes(needed), game.name, Format.bytes(free))
