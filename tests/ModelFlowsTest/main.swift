@@ -395,6 +395,64 @@ import Foundation
     try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
 }
 
+/// A manifest whose sizes are nonsense (a bad write, a damaged disk): whatever adds sizes up goes on working. Every
+/// download press adds up what the others still need, and Settings › Storage adds up all games.
+@MainActor func hugeSizes() async {
+    clean()
+    try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
+    ModelWorld.gogLibrary([("1207700005", "Sane GOG Game")])
+    try? FileManager.default.createDirectory(at: GOGDL.configDir, withIntermediateDirectories: true)
+    try? Data("{}".utf8).write(to: GOGDL.authFile)
+    let sizes = ["1207700005.windows": GOGSize(build: "1", download: 400_000_000_000_000, install: 400_000_000_000_000, language: "en-US", folder: "Sane")]
+    try? JSONEncoder().encode(sizes).write(to: ModelWorld.gogFolder.appendingPathComponent("sizes.json"))
+    let model = LibraryModel()
+    func damaged(_ appID: Int, _ name: String, _ size: String, downloading: Bool) {
+        let dir = ModelWorld.steamapps.appendingPathComponent("common/\(name)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let text = """
+        "AppState"
+        {
+        \t"appid"\t\t"\(appID)"
+        \t"name"\t\t"\(name)"
+        \t"StateFlags"\t\t"\(downloading ? 1026 : 4)"
+        \t"installdir"\t\t"\(name)"
+        \t"SizeOnDisk"\t\t"\(size)"
+        \t"BytesToDownload"\t\t"\(downloading ? size : "0")"
+        \t"BytesDownloaded"\t\t"0"
+        }
+
+        """
+        try? text.write(to: ModelWorld.steamapps.appendingPathComponent("appmanifest_\(appID).acf"), atomically: true, encoding: .utf8)
+    }
+    damaged(100, "Huge One", "9223372036854775807", downloading: false)
+    damaged(101, "Huge Two", "9223372036854775000", downloading: false)
+    damaged(102, "Huge Down", "9223372036854775807", downloading: true)
+    damaged(103, "Huge Exp", "1e300", downloading: true)
+    damaged(104, "Below Zero", "-5", downloading: false)
+    await ModelWorld.scan(model)
+    check(model.allGames.count >= 5, "the damaged ones are listed: \(model.allGames.map(\.name))")
+    let total = model.allGames.reduce(Int64(0)) { $0 + $1.sizeOnDisk }  // what Settings › Storage does
+    check(total > 0, "adding every game up")
+    check(model.allGames.allSatisfy { $0.sizeOnDisk >= 0 }, "no size below zero: \(model.allGames.map(\.sizeOnDisk))")
+    for game in model.allGames { _ = SpaceCheck.remaining(game) }
+    _ = SpaceCheck.committed(by: model.allGames, except: model.allGames[0]) { _ in true }
+
+    model.goLibrary()
+    guard let index = model.games.firstIndex(where: { $0.name == "Sane GOG Game" }) else { return check(false, "the sane game is shown") }
+    model.select(index)
+    model.primaryAction()
+    await ModelWorld.settle(50)
+    check(model.pendingSpace != nil, "Download still asks: \(String(describing: model.errorMessage))")
+    if let request = model.pendingSpace {
+        _ = SpaceCheck.preselect(request.candidates, shortfall: request.shortfall)
+        _ = request.required
+    }
+    model.closeAllSheets()
+    check(!Format.bytes(total).isEmpty, "and they can be shown")
+    try? FileManager.default.removeItem(at: GOGDL.authFile)
+    try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
+}
+
 /// Saves on their way to the cloud hold a switch of the Steams up, not longer than they have to.
 @MainActor func savesBeforeSwitch() async {
     clean()
@@ -453,6 +511,7 @@ import Foundation
         await unpluggedAndFull()
         await gogGames()
         await savesBeforeSwitch()
+        await hugeSizes()
         await MainActor.run {
             if failures == 0 { print("✓ The model's flows: downloads, marks, two stores, moves, questions") } else { print("✗ \(failures) failures") }
             exit(failures == 0 ? 0 : 1)

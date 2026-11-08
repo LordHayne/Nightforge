@@ -220,7 +220,7 @@ enum Legendary {
     }
 
     private static func mebibytes(_ text: Substring) -> Int64? {
-        Double(text.prefix { $0.isNumber || $0 == "." }).map { Int64($0 * 1_048_576) }
+        Double(text.prefix { $0.isNumber || $0 == "." }).map { ($0 * 1_048_576).clampedBytes }
     }
 
     /// What `legendary launch <app> --json` hands over, as Nightforge starts it under Wine.
