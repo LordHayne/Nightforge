@@ -179,6 +179,29 @@ import Foundation
     model.toggleLater(onHome)
     check(!model.filters.later && model.games.count == 2, "its last game gone, the whole library")
 
+    // The pinned games' order (Settings › Home), and what happens to it.
+    ModelWorld.steamGame(52, "Third", lastPlayed: 1_700_000_300)
+    await ModelWorld.scan(model)
+    for name in ["Other", "Third"] where !model.isPinned(game(model, name)!) { model.togglePinned(game(model, name)!) }
+    func pinned() -> [String] { model.pinnedHomeGames.map(\.name) }
+    check(pinned() == ["Marked", "Other", "Third"], "pinned games by name to begin with: \(pinned())")
+    model.movePin(game(model, "Third")!, by: -1)
+    check(pinned() == ["Marked", "Third", "Other"], "a place up: \(pinned())")
+    model.movePin(game(model, "Marked")!, by: -1)
+    check(pinned() == ["Marked", "Third", "Other"], "past the top nothing happens: \(pinned())")
+    check(model.homeRail.prefix(3).map { model.games[$0].name } == ["Marked", "Third", "Other"], "Home goes by that order: \(model.homeRail.map { model.games[$0].name })")
+    let sameOrder = LibraryModel()
+    await ModelWorld.scan(sameOrder)
+    check(sameOrder.pinnedHomeGames.map(\.name) == ["Marked", "Third", "Other"], "it's there at the next start")
+    model.togglePinned(game(model, "Third")!)
+    model.togglePinned(game(model, "Third")!)
+    check(pinned() == ["Marked", "Other", "Third"], "pinned again it goes behind, not to a place it once had: \(pinned())")
+    model.setHomeSource(.pinned, false)
+    check(model.homeSources.isOn(.pinned) == false, "the source goes off")
+    model.setHomeSource(.pinned, true)
+    model.togglePinned(game(model, "Other")!)
+    model.togglePinned(game(model, "Third")!)
+
     // They stay.
     model.toggleHidden(game(model, "Other")!)
     let later = LibraryModel()

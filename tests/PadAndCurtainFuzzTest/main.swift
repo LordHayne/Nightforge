@@ -161,6 +161,17 @@ func keyboardLayouts() {
             check(overlapping.isEmpty, "keys don't lie on each other (\(page)): \(overlapping.map { layout.keys[$0.0].id + "/" + layout.keys[$0.1].id })")
         }
     }
+    // Typed to the end: the limit holds, and what doesn't fit isn't reported as typed.
+    var full = PadKeyboard()
+    var press = PadKeyboard.Input()
+    var typed = 0
+    for tick in 0..<200 {
+        press.now += 0.05
+        press.r1 = tick % 2 == 0
+        for event in full.feed(press) { if case .typed = event { typed += 1 } }
+    }
+    check(full.text.count == PadKeyboard.limit, "the text stops at the limit: \(full.text.count)")
+    check(typed == PadKeyboard.limit, "and no key past it says it went in: \(typed)")
     // A long text, as a saved search might be: never longer than the limit, and the last key doesn't half fit.
     check(PadKeyboard(text: String(repeating: "x", count: 500)).text.count == PadKeyboard.limit, "text from elsewhere is cut to the limit")
     check(PadKeyboard(text: String(repeating: "🇩🇪", count: 100)).text.count == PadKeyboard.limit, "by characters, not bytes")
