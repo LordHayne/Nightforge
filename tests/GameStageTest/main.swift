@@ -120,9 +120,41 @@ struct GameStageTest {
               "its full-screen window above the page, an old one under it: all well")
     }
 
+    /// A game ending: ABZU at 16:05 on 8.11. and the ways that look like it and aren't.
+    static func ending() {
+        let on = playing()
+        func went(front: Bool = false, here: Bool = false, handsOff: Bool = false, acted: Bool = false, guarded: Bool = false) -> Bool {
+            on.pictureWent(look(1, front: front, here: here, handsOff: handsOff, acted: acted, guarded: guarded))
+        }
+        check(went(), "Steam's Wine in front, the picture gone: the curtain comes")
+        check(!went(front: true), "still the active app with its window gone (The Forest minimised): it gets fetched, no curtain")
+        check(!went(here: true), "another app in front, the picture still there: nothing ended")
+        check(!went(acted: true), "⌘-Tab or a click elsewhere: the player went")
+        check(!went(handsOff: true), "the overlay is open: the player has the front for a reason")
+        check(!went(guarded: true), "the curtain's watch still guards the front")
+        check(!GameStage().pictureWent(look(1, front: false)), "no picture yet: no end of one")
+        var left = playing()
+        left.playerLeft()
+        check(!left.pictureWent(look(1, front: false)), "Go to Nightforge: the game is left alone")
+
+        check(GameStage.curtainEnds(cameBack: true, waited: 1), "back with its picture: the curtain goes at once")
+        check(!GameStage.curtainEnds(cameBack: false, waited: GameStage.endingPatience - 1), "still ending: the curtain stays")
+        check(GameStage.curtainEnds(cameBack: false, waited: GameStage.endingPatience), "not ending after all: never stuck")
+
+        func exit(curtainUp: Bool = false, sawPicture: Bool = true, judged: Bool = false, others: Bool = false) -> Bool {
+            LibraryModel.exitRaisesCurtain(curtainUp: curtainUp, sawPicture: sawPicture, judged: judged, othersRunning: others)
+        }
+        check(exit(), "the game's process ended behind the page: the curtain at once")
+        check(!exit(curtainUp: true), "the curtain is up already, its stage stays what it is")
+        check(!exit(sawPicture: false), "before its first picture: a launcher handing over, the start's own curtain")
+        check(!exit(judged: true), "an early end is the start's to tell")
+        check(!exit(others: true), "another game still runs")
+    }
+
     static func main() {
         stage()
         page()
+        ending()
         print(failures == 0 ? "GameStageTest: all good" : "GameStageTest: \(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

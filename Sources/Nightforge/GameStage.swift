@@ -41,6 +41,28 @@ struct GameStage {
     /// How long it stays in front after being brought back before the tries count from zero.
     static let settled: TimeInterval = 10
 
+    /// How recent a ⌘ or a click must be to count as the player leaving when the picture goes. Leaving
+    /// is ⌘-Tab or a click on another window, and the front moves within a moment of it. A click on the
+    /// game's own Quit comes well before its window closes.
+    static let leftWithin: TimeInterval = 0.5
+    /// How long the curtain raised for a picture that went stays with the game's process still there.
+    /// A game ending takes a few seconds; one still there after this runs on, and the stage has it.
+    static let endingPatience: TimeInterval = 10
+
+    /// The game's picture went and another app has the front, nobody having asked for it: what a game
+    /// looks like as it ends, its process lingering (ABZU at 16:05 on 8.11.: Steam's Wine in front, the
+    /// window off the screen, three seconds until a fetch, then "Back to Nightforge"). The curtain comes
+    /// right then, not when the process has gone. What's shown is the curtain instead of whatever lay
+    /// under the game, so a game that's only rebuilding its window costs a moment of curtain.
+    func pictureWent(_ look: Look) -> Bool {
+        sawPicture && !left && !look.handsOff && !look.playerActed && !look.guarded && !look.gameFront && !look.windowHere
+    }
+
+    /// Whether that curtain goes again: the game is back in front with its picture, or it has had its time.
+    static func curtainEnds(cameBack: Bool, waited: TimeInterval) -> Bool {
+        cameBack || waited >= endingPatience
+    }
+
     private(set) var sawPicture = false
     /// The player went elsewhere, or the tries ran out: nothing until the game is in front again.
     private(set) var left = false

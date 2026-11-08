@@ -349,6 +349,7 @@ final class LibraryModel: ObservableObject {
             guard let self else { return false }
             return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
         }
+        GameBackdrop.frontMoved = { [weak self] front in self?.frontMoved(to: front) }
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -636,7 +637,12 @@ final class LibraryModel: ObservableObject {
         }
         for pid in pids where exitWatches[pid] == nil {
             let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
-            source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.nap?.cancel() } }
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.gameProcessExited(pid)
+                    self?.nap?.cancel()
+                }
+            }
             source.resume()
             exitWatches[pid] = source
         }
@@ -721,8 +727,9 @@ final class LibraryModel: ObservableObject {
         startedHere.subtract(playing)
         guard !playing.isEmpty else { return }
         if playing.contains(where: { found[$0] != nil }) {
-            if goneFor > 0 { GameBackdrop.playing() }  // a launcher handed over to the game after all
+            if goneFor > 0 || raisedForExit { GameBackdrop.playing() }  // a launcher handed over to the game after all
             goneFor = 0
+            raisedForExit = false
             return
         }
         // A start whose first seconds are still judged: its end is the start's to tell, under the
@@ -782,6 +789,45 @@ final class LibraryModel: ObservableObject {
         // "Welcome back" once the curtain is gone, not under it while the Spaces change.
         let summary = sessions.max { $0.minutes < $1.minutes }
         comeBack(to: route) { [weak self] in self?.sessionSummary = summary }
+    }
+
+    /// The curtain came for a process that ended, before the look that finds out what that means.
+    private var raisedForExit = false
+    /// The curtain came for a picture that went (`GameStage.pictureWent`), the game's process still there.
+    private var pictureWentAt: Date?
+    /// The game on stage as of the stage watch's last list.
+    private var stagePids = Set<pid_t>()
+    private var stageAskers = Set<pid_t>()
+
+    /// A game's process ended: the curtain now, in the same moment, not at the look it cuts short. A Mac
+    /// game in its own Space starts sliding away at once, and the page behind it slid in from the side
+    /// with the desktop beside it. The look after it says whether that was the end.
+    private func gameProcessExited(_ pid: pid_t) {
+        guard Self.exitRaisesCurtain(curtainUp: GameBackdrop.isRaised, sawPicture: stage.sawPicture, judged: startJudgesEnd(),
+                                     othersRunning: playing.contains { running[$0] != nil && running[$0] != pid })
+        else { return }
+        GameLog.note("A game's process ended: the curtain comes at once, at \(GameLog.clock())")
+        raisedForExit = true
+        GameBackdrop.returning()
+    }
+
+    /// Before its first picture the curtain is up already, and an early end is the start's to tell.
+    nonisolated static func exitRaisesCurtain(curtainUp: Bool, sawPicture: Bool, judged: Bool, othersRunning: Bool) -> Bool {
+        !curtainUp && sawPicture && !judged && !othersRunning
+    }
+
+    /// Another app came to the front over the page: if the game's picture went with it and nobody asked
+    /// for that, the curtain comes this moment (`GameStage.pictureWent`).
+    private func frontMoved(to front: pid_t) {
+        guard pictureWentAt == nil, !stagePids.isEmpty else { return }
+        let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
+                                  handsOff: GameOverlay.isOpen || stageAskers.contains(front),
+                                  playerActed: Self.playerActed(within: GameStage.leftWithin) || GameBackdrop.spaceJustChanged,
+                                  guarded: curtainGuards, now: Date())
+        guard stage.pictureWent(look) else { return }
+        pictureWentAt = Date()
+        GameLog.note("The game's picture went, the front moved on: the curtain comes at once, at \(GameLog.clock())")
+        GameBackdrop.returning()
     }
 
     /// `page`: the page the player comes back to, set already. `then`: once the curtain is gone.
@@ -949,6 +995,10 @@ final class LibraryModel: ObservableObject {
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
         if !GameBackdrop.isRaised { macOSQuestionsBefore = nil }
         GameBackdrop.mayCapture = false  // until this start's game runs (watchCurtain)
+        raisedForExit = false
+        pictureWentAt = nil
+        stagePids = []
+        stageAskers = []
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
@@ -1300,7 +1350,9 @@ final class LibraryModel: ObservableObject {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(stage.left ? 5 : 1))  // nothing to do meanwhile but see it return
             guard !Task.isCancelled, goesOn() else { return }
-            guard !GameBackdrop.isRaised else { continue }
+            // The curtain that came for a picture that went is this watch's own to take away again.
+            if pictureWentAt != nil, !GameBackdrop.isReturning { pictureWentAt = nil }
+            guard !GameBackdrop.isRaised || pictureWentAt != nil else { continue }
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let inFront = front.map(pids.contains) ?? false
             if !inFront || Date().timeIntervalSince(listed) > 30 {
@@ -1308,6 +1360,7 @@ final class LibraryModel: ObservableObject {
                     GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
                 }).value else { continue }
                 (pids, companion, askers) = (look.pids, look.companion, look.askers)
+                (stagePids, stageAskers) = (pids, askers)
                 listed = Date()
             }
             let page = GameBackdrop.pageNumber
@@ -1319,6 +1372,11 @@ final class LibraryModel: ObservableObject {
             }
             let gameFront = (front.map(pids.contains) ?? false) || companion
             let askerFront = front.map(askers.contains) ?? false
+            if let went = pictureWentAt, GameStage.curtainEnds(cameBack: gameFront && windows.here, waited: Date().timeIntervalSince(went)) {
+                pictureWentAt = nil
+                GameBackdrop.playing()
+                GameLog.note("Stage: \(game.name) \(gameFront && windows.here ? "is back" : "runs on without its picture"), the curtain goes behind it")
+            }
             let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
                                                  handsOff: GameOverlay.isOpen || askerFront,
                                                  // A swipe to another Space moves no key and no click.
