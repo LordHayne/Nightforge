@@ -20,11 +20,7 @@
  "games": {
   "550": {
    "name": "Left 4 Dead 2",
-   "arguments": [
-    "+windows_speaker_config",
-    "2"
-   ],
-   "note": "Tested 2026-11-07 on M5, macOS 27.0, winecx 4.7.3, WineD3D: with four speakers (windows_speaker_config 4, what the game picks under winecx) loading a map hangs right after 'Redownloading all lightmaps' while it loads its sounds; in stereo, or with -nosound, Dead Center loads in seconds. Not the cause: graphics backend (OpenGL or Vulkan), CSMT, mat_queue_mode, msync, Rosetta's AVX hint, CX_APPLEGPTK_LIBD3DSHARED_PATH. 2026-10-26: DXVK fails (MoltenVK rejects its buffers), -vulkan (Valve's DXVK) doesn't start.",
+   "note": "Tested 2026-11-08 on M5, macOS 27.0, winecx 4.7.3, WineD3D: loading a map hung right after 'Redownloading all lightmaps' whenever sound was on. The game opens the microphone there, winecx asks macOS for it, and macOS refused because Nightforge's helper had no NSMicrophoneUsageDescription (tccd, all 12 runs with sound on 7./8.11.); -nosound skips that step and loaded. Not the cause: windows_speaker_config (4 is stereo, 2 mono), graphics backend (OpenGL or Vulkan), CSMT, mat_queue_mode, msync, Rosetta's AVX hint, CX_APPLEGPTK_LIBD3DSHARED_PATH. 2026-10-26: DXVK fails (MoltenVK rejects its buffers), -vulkan (Valve's DXVK) doesn't start.",
    "source": "mac"
   },
   "1930": {
