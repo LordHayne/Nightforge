@@ -34,9 +34,9 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - **Nach 0.3.0** (Nutzer, 31.10.): Mafia II flüssig und ohne Knacken. Ursache ist OpenGL im WoW64 für 32-Bit-Spiele
     (zwei bis drei volle CPU-Threads). APEX, DirectSound, Schatten, Geometrie und AO helfen nicht. Der Weg ist DXVK
     auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
-    Gebaut und mit einem Testprogramm belegt (Zweig `claude/quirky-clarke-81fd65`, siehe „Vulkan-Layer und winecx“ ›
-    KosmicKrisp). Offen: Live-Test mit Mafia II, L4D2 und einem dritten DX9-Spiel, danach die Profile; zum Ausliefern
-    `kosmickrisp.yml` auf `main` laufen lassen. Plan dort unter „Live-Test“ (Stand 3.11., nach dem Rebase auf 29e458a).
+    Der Code ist seit 0.3.1 auf `main`, aber aus: `kosmickrisp` steht nicht in der Komponentenliste (9a6157e, am 4.11.
+    Stopps von 3–7,7 s und dunkle Rechtecke in Mafia II). Offen: Live-Test mit Mafia II, L4D2 und einem dritten DX9-Spiel,
+    Anleitung in `docs/LIVE-TEST-KOSMICKRISP.md`.
   - Landingpage und README.
   - **Kleine Anzeigefehler kommen in späteren Releases** (Nutzer, 1.11. abends: „diese kleinen anzeige bugs …
     können wir in weiteren releases dann auch beheben. der grundstein ist gelegt“). Damit gemeint sind:
@@ -2651,21 +2651,10 @@ wird angepasst.
     - Die Lösung ist ausprobiert und typgeprüft: `kosmickrisp-staging-merge.diff` in den Session-Notizen.
     - Dabei aufgefallen: `CX_ACTIVE_GRAPHICS_BACKEND` ist auf Staging ein Schalter, den ein Spiel setzen darf
       (`GameEnvironment`). Auf MoltenVK bleibt der Wert des Spiels stehen. KosmicKrisp braucht „wined3d“ und setzt es.
-  - **Live-Test** (nach dem Neustart des Macs; Anleitung `kosmickrisp-dx9.md` in den Session-Notizen):
-    1. Komponenten bereitstellen: `tests/kosmickrisp/stage-live-test.sh` mit einem Testbau, der
-       `NightforgeManifestURL ""` hat. Am Ende `--undo`.
-    2. Mafia II (GOG), Grafik Automatisch, am MacBook-Display (das Vollbild am Fernseher ist eine eigene Baustelle).
-       Erwartet:
-       - DXVK auf KosmicKrisp: In `wine.log` steht das Gerät „KosmicKrisp“, und der Layer loggt FPS.
-       - Kein Rückfall auf WineD3D.
-       - Ruckler beim ersten Durchgang sind ohne Graphics Pipeline Library zu erwarten.
-       - `tests/kosmickrisp/thread-cpu.py <pid> 5` zeigt, welcher Thread voll läuft.
-    3. Left 4 Dead 2 (Steam): dasselbe. Auf WineD3D stürzte es nach etwa einer Minute ab.
-    4. Ein drittes DX9-Spiel, etwa Portal, Team Fortress 2 oder Garry's Mod.
-    5. Gegenprobe nach `--undo`: D3D9-Spiele starten nur mit WineD3D, ohne DXVK-Versuch.
-    6. Ruckelt Mafia II stark: A/B mit DXVK-macOS 1.10.3-async auf KosmicKrisp (zeichnet laut Probe).
-    7. Danach die Profile (50130, gog.1816059595, 550) auf `graphics: dxvk` stellen. Zum Ausliefern muss
-       `kosmickrisp.yml` auf `main` laufen; das braucht das OK des Nutzers.
+  - **Live-Test:** `docs/LIVE-TEST-KOSMICKRISP.md` (Mafia II, Left 4 Dead 2 nur Einzelspieler wegen VAC, The Stanley
+    Parable). `tests/kosmickrisp/stage-live-test.sh` nennt KosmicKrisp jetzt in der eigenen Liste eines Testbaus, weil eine
+    geänderte `Components/manifest.json` seit den signierten Listen nicht mehr zählt. Der erste Lauf vom 4.11. (Mafia II):
+    46–60 FPS, Stopps von 3–7,7 s, dunkle Rechtecke, GPU ~1 %, leerer Mesa-Cache.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit
