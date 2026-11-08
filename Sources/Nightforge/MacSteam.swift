@@ -398,6 +398,8 @@ enum MacSteam {
         for app in windowApps { app.hide() }
     }
 
+    static var windowPids: Set<pid_t> { Set(windowApps.map(\.processIdentifier)) }
+
     /// The Steam processes whose windows the player sees: the client and its web view.
     private static var windowApps: [NSRunningApplication] {
         clientApps + (isTestHome ? [] : NSRunningApplication.runningApplications(withBundleIdentifier: helperBundleID))
