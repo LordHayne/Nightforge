@@ -24,7 +24,7 @@ Nach den Korrekturen erneut grün: `TextScaleTest`, `StringsTest`, `D3DMetalTest
 - **Beleg:** `D3DMetalSupply.swift:3` („It isn't fetched with the engine“), `Engine.swift:2312` („It comes with D3DMetal“), Notiz vom 7.11. in `nightforge-engine-04` („Needs D3DMetal set up“, nur diese eine Variable zählt). Auf dem Test-Mac ist D3DMetal eingerichtet, deshalb fiel es dort nicht auf.
 - **Zweite Hälfte:** Wird D3DMetal eingerichtet, während das Hintergrund-Steam läuft, behält Steam seine alte Umgebung, und `steamConfigSignature` kennt die Variable nicht. Der erste Start nach der Einrichtung hätte trotzdem gehangen.
 - **Korrektur:** `D3DMetalSupply.needed(…, game:)` kennt die Spiele, die Apples Bibliothek brauchen (`needsRosettaLibrary`, bisher nur Overwatch über Steam). Nightforge fragt jetzt vor dem Start wie bei einem DirectX-12-Spiel. Die Signatur enthält nun, ob die Bibliothek da ist, und `finishD3DMetal` startet Steam dafür neu, bevor das Spiel startet.
-- **Für 0.3.3:** Ein Profilfeld statt der festen Liste. Das ist neu und blieb deshalb draußen.
+- **In 0.3.3 (`claude/audit-033`):** Profilfeld `needsRosettaLibrary` statt der festen Liste.
 
 ## Hoch
 
@@ -62,13 +62,13 @@ Nach den Korrekturen erneut grün: `TextScaleTest`, `StringsTest`, `D3DMetalTest
 |---|---|---|---|
 | A6 | GOG-Suche fragt immer in Euro. Außerhalb des Euro-Raums liefert GOG dann keinen Preis (gemessen: US+EUR `null`, US+USD `$79.99`, GB+GBP, CH+CHF richtig). | `GOGSearch.swift:93` | behoben, Währung aus dem Locale |
 | A7 | Release Notes: Die Leistungsanzeige kommt aus den Einstellungen, nicht aus den Optionen. Die Optionen haben den Schalter nur für CrossOver-Flaschen. | `v0.3.2.md:10`, `:53` | behoben |
-| A8 | Ein „Startet nicht“ aus 0.3.1 hat kein `profileNote`. Hat das Spiel ein Profil mit Notiz, verfällt die Bewertung schon beim Update. Folge nur: Das Zeichen zeigt wieder die Einschätzung des Profils. | `Compatibility.swift:87` | kann warten |
-| A9 | `codesign --deep` signiert den Helper noch einmal, das `-r` geht verloren. Installiert steht `certificate root` statt `certificate leaf`. Bei einem selbstsignierten Zertifikat ist das dasselbe. Der Kommentar in `codesign-app.sh` stimmt aber nicht. | `codesign-app.sh:41-49` | kann warten |
-| A10 | Die Karte „Dieses Spiel“ zeigt für Mac-Versionen beim HUD „–“, obwohl es jetzt dort läuft. | `ThisGameCard.swift:110` | kann warten |
-| A11 | Neustart innerhalb von fünf Minuten nach einem Spiel: 30 s Wartezeit für die Cloud-Spielstände, ohne Anzeige. Wer in der Zeit Nightforge selbst öffnet, bricht den Neustart ab. | `Engine.swift:1134` | kann warten; eine Anzeige wäre neu |
-| A12 | Der D3DMetal-Dialog sagt bei Overwatch „zeichnet mit DirectX 12“. Stimmt nur halb (das Profil nimmt DXMT), der Weg ist aber richtig. | `D3DMetalFlow.swift:347` | kann warten |
+| A8 | Ein „Startet nicht“ aus 0.3.1 hat kein `profileNote`. Hat das Spiel ein Profil mit Notiz, verfällt die Bewertung schon beim Update. Folge nur: Das Zeichen zeigt wieder die Einschätzung des Profils. | `Compatibility.swift:87` | gilt auf 0.3.2 nicht mehr: Das Release ist draußen, die alten Bewertungen sind schon verfallen. Zurückgeholt stünde „Startet nicht“ wieder an inzwischen behobenen Spielen wie Overwatch. Bleibt so, `MacSourcesTest` hält es fest. |
+| A9 | `codesign --deep` signiert den Helper noch einmal, das `-r` geht verloren. Installiert steht `certificate root` statt `certificate leaf`. Bei einem selbstsignierten Zertifikat ist das dasselbe. Der Kommentar in `codesign-app.sh` stimmt aber nicht. | `codesign-app.sh:41-49` | behoben in 0.3.3 (`claude/audit-033`) |
+| A10 | Die Karte „Dieses Spiel“ zeigt für Mac-Versionen beim HUD „–“, obwohl es jetzt dort läuft. | `ThisGameCard.swift:110` | behoben in 0.3.3 (`claude/audit-033`) |
+| A11 | Neustart innerhalb von fünf Minuten nach einem Spiel: 30 s Wartezeit für die Cloud-Spielstände, ohne Anzeige. Wer in der Zeit Nightforge selbst öffnet, bricht den Neustart ab. | `Engine.swift:1134` | behoben in 0.3.3 (`claude/audit-033`): Nightforge wartet jetzt selbst und zeigt die Sekunden, nur noch den Rest der 30 s |
+| A12 | Der D3DMetal-Dialog sagt bei Overwatch „zeichnet mit DirectX 12“. Stimmt nur halb (das Profil nimmt DXMT), der Weg ist aber richtig. | `D3DMetalFlow.swift:347` | behoben in 0.3.3 (`claude/audit-033`) |
 | A14 | `TypoCover` setzt seine Schrift fest, „Größerer Text“ erreicht sie nicht; deshalb war `TextScaleTest` rot. | `TypoCover.swift:35`, `:44` | behoben |
-| A13 | Liefert Epics letzte Seite keinen Code oder scheitert eine Seite nach dem Laden (`didFail`), dreht die Bühne weiter. B und Esc führen hinaus. | `EpicSignIn.swift`, `SignInStage.swift` | kann warten |
+| A13 | Liefert Epics letzte Seite keinen Code oder scheitert eine Seite nach dem Laden (`didFail`), dreht die Bühne weiter. B und Esc führen hinaus. | `EpicSignIn.swift`, `SignInStage.swift` | behoben in 0.3.3 (`claude/audit-033`) |
 
 ## Release Notes und Version
 

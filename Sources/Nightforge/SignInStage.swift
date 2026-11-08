@@ -279,10 +279,18 @@ class SignInPageWatcher: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if Self.failed(error) { changed(.failed) }
+    }
+
+    /// Went wrong after it began to load: the stage says so instead of turning for good.
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        if Self.failed(error) { changed(.failed) }
+    }
+
+    /// A page that's called off is no failure: the address with the code stops there on purpose.
+    nonisolated static func failed(_ error: Error) -> Bool {
         let error = error as NSError
-        // A page that's called off is no failure: the address with the code stops there on purpose.
-        guard error.domain == NSURLErrorDomain, error.code != NSURLErrorCancelled else { return }
-        changed(.failed)
+        return error.domain == NSURLErrorDomain && error.code != NSURLErrorCancelled
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,

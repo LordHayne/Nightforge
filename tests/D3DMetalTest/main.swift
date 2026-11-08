@@ -477,9 +477,28 @@ struct D3DMetalTest {
               && !Supply.needed(by: nil, picked: .automatic), "other games don't ask, nor one not yet looked at")
         check(Supply.needed(by: analysis([.d3d11]), picked: .d3dmetal) && Supply.needed(by: nil, picked: .d3dmetal), "the player's own pick does")
         // Overwatch draws on DXMT, but hangs at the start without Apple's library, which comes with D3DMetal.
-        check(Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, game: .steam(2_357_570)), "Overwatch asks")
-        check(!Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, game: .steam(550)), "another game with both doesn't")
-        check(!Supply.needed(by: analysis([.d3d11]), picked: .dxmt, game: .battlenet("pro")), "Battle.net's copy doesn't start from Nightforge at all")
+        func profile(_ json: String) -> GameProfile? { try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        check(Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, profile: profile(#"{"needsRosettaLibrary": true}"#)),
+              "a profile that says so asks, whatever the game draws with")
+        check(!Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, profile: profile(#"{"needsRosettaLibrary": false}"#))
+              && !Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, profile: profile("{}")), "other profiles don't")
+        check(!Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, profile: profile(#"{"needsRosettaLibrary": "yes"}"#)), "not a Bool: no")
+        // The real list: Overwatch has it, in both files (0.3.2 had it in the code).
+        for file in ["profiles/mac.json", "profiles/profiles.json"] {
+            let list = (try? Data(contentsOf: URL(fileURLWithPath: file))).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+            let games = list?["games"] as? [String: [String: Any]]
+            check(games?["2357570"]?["needsRosettaLibrary"] as? Bool == true, "Overwatch in \(file)")
+        }
+        // What the question says: "draws with DirectX 12" isn't true of Overwatch on DXMT (audit A12).
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            check(!Supply.reason("X", library: true).contains("DirectX") && !Supply.whyNotStarted("X", library: true).contains("DirectX"),
+                  "only Apple's files: no word of DirectX 12 (\(language))")
+            check(Supply.reason("X", library: false).contains("DirectX 12") && Supply.whyNotStarted("X", library: false).contains("DirectX 12"),
+                  "a DirectX 12 game as before (\(language))")
+            check(Supply.reason("X", library: true).contains("D3DMetal"), "Apple's D3DMetal is named (\(language))")
+        }
+        UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 
     // MARK: Versions

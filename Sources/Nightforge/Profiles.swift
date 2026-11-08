@@ -72,6 +72,10 @@ struct GameProfile: Decodable, Equatable {
     /// false: Unity's configuration window before the game asks something that matters here, so
     /// Nightforge leaves "Play!" to the player (UnityDialog).
     var skipUnityDialog: Bool?
+    /// true: the game hangs at its start without CX_APPLEGPTK_LIBD3DSHARED_PATH (Engine.environment),
+    /// whatever it draws with. That names Apple's libd3dshared.dylib, which comes with D3DMetal, so
+    /// without D3DMetal set up its start asks first (D3DMetalSupply.needed). Overwatch, 7.11.
+    var needsRosettaLibrary: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -131,6 +135,7 @@ struct GameProfile: Decodable, Equatable {
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
         case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog
+        case needsRosettaLibrary
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -181,6 +186,7 @@ struct GameProfile: Decodable, Equatable {
         environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
             .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
         skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
+        needsRosettaLibrary = try? container.decodeIfPresent(Bool.self, forKey: .needsRosettaLibrary)
     }
 
     // MARK: What a list may ask for at a start

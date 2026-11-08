@@ -961,6 +961,13 @@ enum Engine {
 
     static func noteGameActivity(_ date: Date = Date()) { lastGameActivity = date }
 
+    /// How long a restart of Nightforge still waits for the cloud saves of a game that just ended: what's
+    /// left of the 30 s the quit script gives them, counted from when a game last ran.
+    static func cloudSaveWait(since last: Date?, now: Date = Date()) -> TimeInterval {
+        guard let last else { return 0 }
+        return max(0, 30 - now.timeIntervalSince(last))
+    }
+
     /// A game ran, or was asked to start, within the last five minutes (the quit script's `recent_game`).
     static var gameRanRecently: Bool { lastGameActivity.map { Date().timeIntervalSince($0) < 300 } ?? false }
 
@@ -1021,8 +1028,8 @@ enum Engine {
         SANDBOX="$9"; PROFILE="${10}"
         # RESTART is 1 for "Restart Nightforge": no game or download is waited for (Nightforge offers it only
         # with no game running; a hung one ends with the session), Steam for Mac goes too, and Nightforge
-        # opens again once everything is down. A game that ran in the last five minutes still gets its 30 s
-        # for the cloud saves.
+        # opens again once everything is down. The cloud saves of a game that just ended were waited for
+        # in Nightforge, where it shows (LibraryModel.restartNightforge).
         RESTART="${11:-0}"
         finish() { [ "$RESTART" = 1 ] && [ -n "$APP" ] && open "$APP"; exit 0; }
         # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
@@ -1172,7 +1179,7 @@ enum Engine {
         # game with it.
         while true; do
           while true; do
-            if [ "$RESTART" = 1 ]; then recent_game && sleep 30; break; fi
+            if [ "$RESTART" = 1 ]; then break; fi
             while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0

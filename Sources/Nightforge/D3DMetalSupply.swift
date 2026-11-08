@@ -200,16 +200,24 @@ enum D3DMetalSupply {
     /// for the game, or its profile names it for a game with a DirectX 12 program of its own
     /// (Control: its DirectX 11 program crashes on DXMT and DXVK). A profile that only prefers it
     /// for a game that draws both with one program isn't asked about: that game runs without.
-    /// `game`: one on `needsRosettaLibrary` needs Apple's files whatever it draws with.
-    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer, profile: GameProfile? = nil, game: GameID? = nil) -> Bool {
-        game.map(needsRosettaLibrary.contains) == true || picked == .d3dmetal || analysis?.onlyD3D12 == true
+    /// Or its profile says it needs Apple's files whatever it draws with (`GameProfile.needsRosettaLibrary`).
+    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer, profile: GameProfile? = nil) -> Bool {
+        profile?.needsRosettaLibrary == true || picked == .d3dmetal || analysis?.onlyD3D12 == true
             || (analysis?.d3d12Program != nil && profile?.graphics == .d3dmetal)
     }
 
-    /// Games that hang at the start without CX_APPLEGPTK_LIBD3DSHARED_PATH (Engine.environment), even on
-    /// DXMT: the variable names Apple's libd3dshared.dylib, which comes with D3DMetal. Overwatch through
-    /// Steam (7.11.); without D3DMetal set up it would hang with no window and no question.
-    static let needsRosettaLibrary: Set<GameID> = [.steam(2_357_570)]
+    /// Why a game's start waits for D3DMetal. `library`: it only needs Apple's files to start and draws
+    /// another way (Overwatch on DXMT), where "draws with DirectX 12" wouldn't be true.
+    static func reason(_ name: String, library: Bool) -> String {
+        library ? L10n.t("%@ needs Apple's D3DMetal to start on a Mac, even though it draws another way.", name)
+                : L10n.t("%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.", name)
+    }
+
+    /// The same, once the player left the question unanswered.
+    static func whyNotStarted(_ name: String, library: Bool) -> String {
+        library ? L10n.t("%@ needs Apple's D3DMetal to start on a Mac. Without it the game doesn't start – set it up in Settings.", name)
+                : L10n.t("%@ needs DirectX 12, which runs through Apple's D3DMetal. Without it the game doesn't start – set it up in Settings.", name)
+    }
 
     // MARK: Importing Apple's toolkit
 

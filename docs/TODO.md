@@ -120,7 +120,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 ## Audit 0.3.2 (8.11., `docs/AUDIT-0.3.2.md`)
 
 Behoben auf `claude/audit-032-723be8`: Overwatch ohne D3DMetal (fragt jetzt vor dem Start), Neustart bei hängendem Steam, „Spiel neu starten“ gegen das Spielende, Controller-Hinweis beim nächsten Spiel, signierter Helper, GOG-Preise außerhalb des Euro-Raums, feste Schrift auf `TypoCover`.
-**Für 0.3.3:** Profilfeld statt `D3DMetalSupply.needsRosettaLibrary`; A8–A13 aus dem Audit.
+**0.3.3 (`claude/audit-033`):** Profilfeld `needsRosettaLibrary`, A9–A13 behoben, A8 bleibt bewusst so. Die Profiländerung braucht die signierte Liste (`scripts/sign-lists.sh`), sonst verliert 0.3.3 bei Overwatch die Frage nach D3DMetal.
 
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
 
