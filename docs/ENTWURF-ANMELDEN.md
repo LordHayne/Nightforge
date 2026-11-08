@@ -1,7 +1,15 @@
 # Entwurf: Anmelden am Sofa ohne Tastatur
 
 Stand 8.11.2026, gelesen auf `origin/main` 2276ccb. Ein Bericht, nichts ist gebaut. Das Board dazu heißt
-`Anmelden.dc.html` und liegt im Notizordner. Für 0.3.3 oder später, je nach Wahl.
+`Anmelden.dc.html` und liegt im Notizordner.
+
+**Entschieden am 8.11. und auf diesem Zweig gebaut:** GOG mit Variante A, Epic mit Variante C, die Texte für Steam und
+Battle.net, Punkt G1 ohne zweiten Schritt. Abweichend vom Entwurf unten:
+- Die Verbindung zwischen Handy und Mac bleibt einfaches HTTP, ohne Verschlüsselung im Browser. Wer im selben WLAN mitliest,
+  könnte den Einmal-Code sehen. Er gilt einmal, und Nightforge löst ihn sofort ein.
+- GOG startet nur dann mit dem QR-Code, wenn ein Controller verbunden ist. Sonst kommt wie bisher die Seite, und ein Knopf
+  wechselt zum Handy. So öffnet am Schreibtisch niemand ohne Grund einen Port.
+- Der Einmal-Token gilt 10 Minuten. Danach bietet die Bühne einen neuen Code an.
 
 **Wie die Aussagen belegt sind:**
 - **[Code]** Datei und Zeile im Stand oben. **[SDK]** Header aus `MacOSX26.5.sdk`.
@@ -163,8 +171,10 @@ Noch nicht geprüft, keine Anmeldung und keine GUI in dieser Runde.
 2. **GOG auf dem Handy:** Geht die Seite mit `layout=galaxy`, und bleibt die Adresse mit dem Code kopierbar?
 3. **Steam:** Ist der QR-Code auf dem Fernseher vom Sofa aus lesbar, in beiden Steam-Fenstern?
 4. **Battle.net für Mac:** Bietet das Fenster einen Passkey an, und lässt sich dabei das Handy nutzen?
-5. **Nur A:** Erreicht das Handy den Port, auch bei eingeschalteter macOS-Firewall?
-6. **Nur B:** Kommt der Dialog beim Lesen der Ablage wirklich jedes Mal, und ist er mit dem Touchpad-Zeiger bedienbar?
+5. **GOG mit dem Handy:** Erreicht das Handy den Port, auch bei eingeschalteter macOS-Firewall? Fragt macOS beim ersten
+   Mal nach? Geht es durch, bis GOG verbunden ist, und ist die Seite danach weg?
+6. **Warnungen im Browser:** Warnt Safari oder Chrome auf dem Handy vor der HTTP-Seite („Immer sichere Verbindungen“)?
+7. **Controller auf der Bühne:** X wechselt zwischen Handy und Tastatur, bei Epic führt A zu „Später anmelden“.
 
 ## Quellen
 

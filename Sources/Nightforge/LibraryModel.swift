@@ -240,8 +240,18 @@ final class LibraryModel: ObservableObject {
     @Published var managedLauncher: Provider?
     /// The store signing in on the curtain (SignInStage).
     @Published var signingIn: Provider? {
-        didSet { if signingIn != oldValue { refreshLaunchers() } }
+        didSet {
+            if signingIn != oldValue { refreshLaunchers() }
+            if oldValue == .gog, signingIn != .gog {
+                phoneSignIn.close()
+                signInOnPhone = false
+            }
+        }
     }
+    /// GOG's sign-in from the phone: its small page on the local network, while the stage shows it.
+    let phoneSignIn = PhoneSignIn()
+    /// GOG's stage shows the QR code and not the page for a keyboard.
+    @Published var signInOnPhone = false
     /// Waits for a client's own window to be through.
     var signInWatch: Task<Void, Never>?
     private var storeChanges: [AnyCancellable] = []
@@ -455,6 +465,7 @@ final class LibraryModel: ObservableObject {
             gog.connecting = true
             Task { await GOGDL.prepare() }
         }
+        signInOnPhone = controllerConnected
         signingIn = .gog
     }
 

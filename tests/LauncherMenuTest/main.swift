@@ -277,7 +277,7 @@ struct LauncherMenuTest {
 
     /// Nightforge never sees a password: the sign-in has no field of its own, wherever it opens.
     static func noFieldOfOurOwn() {
-        let files = ["SignInStage", "LauncherViews", "Launchers", "EpicSignIn", "GOGSignIn"]
+        let files = ["SignInStage", "LauncherViews", "Launchers", "EpicSignIn", "GOGSignIn", "PhoneSignIn", "PhoneSignInServer", "PhoneSignInView"]
         for file in files {
             guard let text = try? String(contentsOfFile: "Sources/Nightforge/\(file).swift", encoding: .utf8) else {
                 check(false, "\(file).swift can be read")

@@ -131,8 +131,8 @@ final class InputRouter {
                 model.cancelSignIn()
                 return true
             }
-            if (code == 36 || code == 76) && provider.signsInInItsOwnWindow {
-                model.showSignInWindow(provider)
+            if (code == 36 || code == 76) && (provider.signsInInItsOwnWindow || model.phoneSignInShown) {
+                model.signInPrimary()
                 return true
             }
             return false
@@ -416,6 +416,10 @@ final class InputRouter {
         pad.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
+                if self?.model?.signingIn != nil {
+                    self?.model?.switchSignInWay()
+                    return
+                }
                 guard self?.levelsFree == true else { return }
                 self?.model?.openDetail()
             }
@@ -425,10 +429,10 @@ final class InputRouter {
         pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                // On the stage A brings a client's own window back, and is nothing else: the row under
-                // it keeps its highlight.
-                if let provider = self?.model?.signingIn {
-                    if provider.signsInInItsOwnWindow { self?.model?.showSignInWindow(provider) }
+                // On the stage A is the stage's own (SignInStage), and nothing else: the row under it
+                // keeps its highlight.
+                if self?.model?.signingIn != nil {
+                    self?.model?.signInPrimary()
                     return
                 }
                 guard self?.reach != Reach.none else { return }

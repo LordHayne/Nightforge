@@ -19,7 +19,9 @@ struct SignInStage: View {
             let gap = min(96, max(32, room - 340))
             VStack(spacing: 0) {
                 HStack(spacing: gap) {
-                    words.frame(width: min(500, room - gap))
+                    SignInStageWords(provider: provider, controller: model.controllerConnected, onPhone: model.phoneSignInShown,
+                                     confirm: model.padSymbols.confirm) { model.cancelSignIn() }
+                        .frame(width: min(500, room - gap))
                     slot
                         .frame(width: Self.slotWidth, height: min(Self.slotHeight, geo.size.height - 120))
                 }
@@ -43,40 +45,10 @@ struct SignInStage: View {
                               startRadius: 0, endRadius: corner * 0.62)
     }
 
-    private var words: some View {
-        VStack(spacing: 24) {
-            StageMark()
-            VStack(spacing: 10) {
-                // Still centred: the space after the last letter is made up for on the left.
-                Text(verbatim: "NIGHTFORGE")
-                    .kerning(8)
-                    .padding(.leading, 8)
-                    .fontWidth(.expanded)
-                    .font(size: 22, weight: .light)
-                    .foregroundStyle(Color(nsColor: BrandArt.wordmark))
-                Text(verbatim: provider.label.uppercased(with: L10n.locale))
-                    .kerning(4)
-                    .padding(.leading, 4)
-                    .fontWidth(.expanded)
-                    .font(size: 13)
-                    .foregroundStyle(Color(nsColor: BrandArt.tagline))
-            }
-            Text(L10n.t("Sign in once"))
-                .displayFont(30)
-                .foregroundStyle(Theme.ink)
-                .padding(.top, 12)
-                .accessibilityAddTraits(.isHeader)
-            Text(SignInWords.line(provider))
-                .font(size: 15)
-                .lineSpacing(4)
-                .foregroundStyle(Theme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .multilineTextAlignment(.center)
-    }
-
     @ViewBuilder private var slot: some View {
         switch provider {
+        case .gog where model.signInOnPhone:
+            PhoneSignInSlot(phone: model.phoneSignIn)
         case .epic, .gog:
             StoreSignInSlot(provider: provider) { model.signInPageDone(provider, code: $0) }
         case .steam, .battlenet:
@@ -97,8 +69,99 @@ struct SignInStage: View {
             if provider.signsInInItsOwnWindow {
                 Hint(model.controllerConnected ? .pad(model.padSymbols.confirm) : .key("↵"), text: L10n.t("Show Window Again"))
             }
+            if provider == .gog { otherWay }
             Spacer()
         }
+    }
+
+    /// From the phone to the keyboard and back.
+    @ViewBuilder private var otherWay: some View {
+        let title = model.signInOnPhone ? L10n.t("Sign In Here with a Keyboard") : L10n.t("Sign in with your phone")
+        if model.controllerConnected {
+            Button { model.switchSignInWay() } label: {
+                Hint(.pad(model.padSymbols.details), text: title).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button(title) { model.switchSignInWay() }
+                .buttonStyle(GlassTextButtonStyle(small: true))
+        }
+    }
+}
+
+/// The left side of the stage: the mark, the store, and what's about to happen.
+struct SignInStageWords: View {
+    let provider: Provider
+    /// A controller's connected: the player may well be on the sofa.
+    let controller: Bool
+    let onPhone: Bool
+    let confirm: String
+    let later: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            StageMark()
+            VStack(spacing: 10) {
+                // Still centred: the space after the last letter is made up for on the left.
+                Text(verbatim: "NIGHTFORGE")
+                    .kerning(8)
+                    .padding(.leading, 8)
+                    .fontWidth(.expanded)
+                    .font(size: 22, weight: .light)
+                    .foregroundStyle(Color(nsColor: BrandArt.wordmark))
+                Text(verbatim: provider.label.uppercased(with: L10n.locale))
+                    .kerning(4)
+                    .padding(.leading, 4)
+                    .fontWidth(.expanded)
+                    .font(size: 13)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline))
+            }
+            Text(SignInWords.title(provider, controller: controller, onPhone: onPhone))
+                .displayFont(30)
+                .foregroundStyle(Theme.ink)
+                .padding(.top, 12)
+                .accessibilityAddTraits(.isHeader)
+            if onPhone {
+                steps
+            } else {
+                Text(SignInWords.line(provider, controller: controller))
+                    .font(size: 15)
+                    .lineSpacing(4)
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if SignInWords.saysKeyboard(provider, controller: controller) {
+                Button(action: later) {
+                    HStack(spacing: 7) {
+                        Image(systemName: confirm)
+                        Text(L10n.t("Sign In Later"))
+                    }
+                }
+                .buttonStyle(GlassTextButtonStyle(small: true))
+                // A presses this one, so it's the one marked, as on the board.
+                .overlay(Capsule().strokeBorder(Theme.sodium, lineWidth: 2).padding(-4))
+            }
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    private var steps: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(SignInWords.phoneSteps(provider).enumerated()), id: \.offset) { number, step in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(verbatim: "\(number + 1)")
+                        .font(size: 15, weight: .bold)
+                        .foregroundStyle(Theme.sodium)
+                        .frame(width: 12, alignment: .leading)
+                    Text(step)
+                        .font(size: 15)
+                        .lineSpacing(3)
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .multilineTextAlignment(.leading)
     }
 }
 
@@ -109,12 +172,37 @@ extension Provider {
 
 /// The words on the stage, by what comes after the sign-in.
 enum SignInWords {
-    static func line(_ provider: Provider) -> String {
+    /// Epic on the sofa: there's no way round a keyboard there, and that's said first.
+    static func saysKeyboard(_ provider: Provider, controller: Bool) -> Bool { provider == .epic && controller }
+
+    static func title(_ provider: Provider, controller: Bool, onPhone: Bool) -> String {
+        if onPhone { return L10n.t("Sign in with your phone") }
+        return saysKeyboard(provider, controller: controller) ? L10n.t("%@ needs a keyboard once", provider.label) : L10n.t("Sign in once")
+    }
+
+    static func line(_ provider: Provider, controller: Bool = false) -> String {
+        if saysKeyboard(provider, controller: controller) {
+            return L10n.t("You type your password right on %@'s page. A Bluetooth keyboard is enough, or sign in later.", provider.label)
+        }
         switch provider {
         case .steam: return L10n.t("Your password only goes to %@. After that, %@ runs invisibly in the background.", "Valve", provider.label)
         case .battlenet: return L10n.t("Your password only goes to %@. After that, %@ runs invisibly in the background.", "Blizzard", provider.label)
         case .epic, .gog: return L10n.t("Your password only goes to %@. After that, Nightforge downloads and starts your games itself.", provider.label)
         }
+    }
+
+    /// What the phone is for, one step at a time.
+    static func phoneSteps(_ provider: Provider) -> [String] {
+        [L10n.t("Scan the QR code with your phone, on the same network as this Mac."),
+         L10n.t("Sign in on %@'s own page. Only %@ sees your password.", provider.label, provider.label),
+         L10n.t("Paste the address %@ ends on into the page on your phone.", provider.label)]
+    }
+
+    /// What it takes in a client's own window.
+    static func window(_ provider: Provider) -> String {
+        provider == .battlenet
+            ? L10n.t("Battle.net needs a keyboard once: mail address and password go into Blizzard's window, not through Nightforge.")
+            : L10n.t("Scan the QR code in Steam's window with the Steam app on your phone. No typing needed.")
     }
 
     /// Who's window it is: "Blizzard's window is open".
@@ -182,7 +270,7 @@ private struct ClientWindowSlot: View {
             Text(L10n.t("%@'s window is open", SignInWords.windowOwner(provider)))
                 .displayFont(19)
                 .foregroundStyle(Theme.ink)
-            Text(L10n.t("Sign in there, with two-factor too. Nightforge only lays it on the curtain."))
+            Text(SignInWords.window(provider))
                 .font(size: 13, weight: .medium)
                 .lineSpacing(4)
                 .foregroundStyle(Theme.muted)
