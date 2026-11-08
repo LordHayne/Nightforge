@@ -558,7 +558,8 @@ final class LibraryModel: ObservableObject {
         let arguments = Launcher.splitArguments(GameOptionsStore.load(game.gameID).extraArgs)
         launchTask = Task {
             defer { endLaunch(number) }
-            guard await beforeGOGStart(game) else { return }
+            await leftStartEnded()
+            guard !Task.isCancelled, await beforeGOGStart(game) else { return }
             let installDir = game.installDir
             await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
             raiseCurtain(for: game)
@@ -2855,8 +2856,11 @@ final class LibraryModel: ObservableObject {
             // Steam's windows coming up (8.11.). It says what's happening, and goes for what the player
             // has to answer (`steamAsks`).
             raiseCurtain(for: game)
+            await leftStartEnded()
+            if Task.isCancelled { return }
             // The Windows Steam goes (one sign-in per account on a Mac), once its last game's save is up.
             await steamSwitch.makeWayForMac(facts: steamFacts, phase: { self.launchPhase = $0 })
+            if Task.isCancelled { return }  // the player went back: no Steam for Mac started for it
             let steamStarted = Date()
             if !MacSteam.isRunning {
                 launchPhase = .startingSteamForMac
@@ -2892,6 +2896,7 @@ final class LibraryModel: ObservableObject {
             awaitingSteam = false
             launchPhase = nil
             await waitForSteamCloud(MacSteam.root)
+            if Task.isCancelled { return }  // no saves taken along for a start that's over
             // steam://run/<id>//<arguments>: the extra part goes to the game.
             let extra = arguments.isEmpty ? ""
                 : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
@@ -3720,8 +3725,17 @@ final class LibraryModel: ObservableObject {
     /// up), so it's over for Nightforge now: its number moves on, and its own end changes nothing later.
     private func abandonLaunch() {
         launchTask?.cancel()
+        leftStart = launchTask
         endLaunch(launchNumber)
         launchNumber += 1
+    }
+
+    private var leftStart: Task<Void, Never>?
+
+    /// A start the player left may still be winding down. The next one waits for it under its own
+    /// curtain, so that two never work on Steam or the saves at once.
+    private func leftStartEnded() async {
+        await leftStart?.value
     }
 
     /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
@@ -3755,6 +3769,8 @@ final class LibraryModel: ObservableObject {
             // The curtain at once for a game through Steam, as for a Mac version (`launchMac`): Steam for
             // Mac going and this Steam coming up happen under it, not behind the page.
             if viaSteam { raiseCurtain(for: game) }
+            await leftStartEnded()
+            if Task.isCancelled { return }
             if viaSteam, game.bottle.isBuiltIn {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
@@ -3785,6 +3801,7 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
+            if Task.isCancelled { return }  // no saves taken along, and no question about them, for a start that's over
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
             if game.provider == .epic, game.pendingUpdate != nil {
