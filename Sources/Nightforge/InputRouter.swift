@@ -473,6 +473,7 @@ final class InputRouter {
             guard pressed else { return }
             MainActor.assumeIsolated {
                 if self?.keyboardHasPad == true { return }
+                if self?.answerQuestion(.ok) == true { return }
                 // On the stage A brings a client's own window back, and is nothing else: the row under
                 // it keeps its highlight.
                 if let provider = self?.model?.signingIn {
@@ -500,6 +501,7 @@ final class InputRouter {
         pad.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
+                if self?.answerQuestion(.cancel) == true { return }
                 // A store's own window has the front while it signs in: B still takes the stage down.
                 guard let self, let model = self.model, self.reach != .none || model.signingIn != nil, !self.keyboardHasPad else { return }
                 let main = Self.mainWindow
@@ -616,6 +618,14 @@ final class InputRouter {
                 self.watchHold(pad)
             }
         }
+    }
+
+    /// A or B, when a Windows game stands at a question (PadAnswer).
+    private func answerQuestion(_ choice: PadAnswer.Choice) -> Bool {
+        guard let model, PadAnswer.takes(asking: model.windowsQuestion != nil, helperThere: PadAnswerRun.available, overlay: reach == .overlay)
+        else { return false }
+        model.answerQuestion(choice)
+        return true
     }
 
     private func openKeyboard(_ pad: GCExtendedGamepad) {

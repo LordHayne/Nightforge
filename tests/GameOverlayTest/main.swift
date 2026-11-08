@@ -654,6 +654,8 @@ struct GameOverlayTest {
         check(line(shaders: true, runs: true, window: true) == nil, "its window is there: nothing more to say")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true)
               == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: true, gameRuns: true, windowShown: false, asks: true, padAnswers: ("✕", "○"))?.hasSuffix(L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", "✕", "○")) == true,
+              "with a pad and the helper, the curtain says A and B answer")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true,
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),

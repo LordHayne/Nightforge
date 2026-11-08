@@ -160,6 +160,9 @@ final class LibraryModel: ObservableObject {
     /// Waiting for the user to confirm removing this game (or its download).
     @Published var pendingUninstall: Game?
     @Published var offersFullScreen = false
+    /// The Windows game that stands at a question now: A and B answer it (PadAnswer).
+    private(set) var windowsQuestion: Game?
+    private var padAnswered: Date?
     private var fullScreenOffered = false
     /// Sleeping the Mac or quitting, waiting for its "are you sure" (PowerMenu).
     @Published var pendingPower: PowerMenu.Entry?
@@ -1004,7 +1007,8 @@ final class LibraryModel: ObservableObject {
         var askedSince: Date?
         var askedInFront = false
         func answeredNow() -> Bool {
-            Self.answered(inputBefore: Self.sinceInput(), shownFor: askedSince.map { Date().timeIntervalSince($0) } ?? 0, inFront: askedInFront)
+            if let padAnswered, Date().timeIntervalSince(padAnswered) < 5 { return true }
+            return Self.answered(inputBefore: Self.sinceInput(), shownFor: askedSince.map { Date().timeIntervalSince($0) } ?? 0, inFront: askedInFront)
         }
         /// The curtain away for a question of Steam's (`steamAsks`), until it's answered.
         var steamAsked = false
@@ -1031,7 +1035,10 @@ final class LibraryModel: ObservableObject {
         }
         GameLog.note("Curtain watch for \(game.name) begins")
         GameLog.note("  at \(GameLog.clock())")
-        defer { curtainGuards = false }
+        defer {
+            curtainGuards = false
+            windowsQuestion = nil
+        }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
@@ -1189,6 +1196,7 @@ final class LibraryModel: ObservableObject {
             let asks = loweredAt == nil && !here
                 && asking.map { Self.takenAsQuestion($0.size, standing: Date().timeIntervalSince(questionSeen?.since ?? Date()),
                                                      helperPresses: helperPresses) } == true
+            windowsQuestion = asks && game.bottle.isBuiltIn ? game : nil
             if asks {
                 if lastAsked == nil { askedSince = Date() }
                 lastAsked = Date()
@@ -1427,7 +1435,9 @@ final class LibraryModel: ObservableObject {
                               macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown,
-                                                  asks: asks, macOSAsks: macOSAsks),
+                                                  asks: asks, macOSAsks: macOSAsks,
+                                                  padAnswers: controllerConnected && PadAnswerRun.available
+                                                      ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil),
                                detail: Self.curtainDetail(launchHint: launchHint, asks: asks || macOSAsks, macOSOpen: macOSOpen))
     }
 
@@ -1442,8 +1452,10 @@ final class LibraryModel: ObservableObject {
     /// else the start's own (`phase`, "Starting Steam …") while it has one, then what the game does
     /// until its window shows. Nil: "Starting …".
     nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool,
-                                          asks: Bool = false, macOSAsks: Bool = false) -> String? {
+                                          asks: Bool = false, macOSAsks: Bool = false,
+                                          padAnswers: (ok: String, cancel: String)? = nil) -> String? {
         if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
+        if asks, let padAnswers { return L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", padAnswers.ok, padAnswers.cancel) }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
         guard gameRuns, !windowShown else { return nil }
@@ -3091,6 +3103,26 @@ final class LibraryModel: ObservableObject {
     func acceptFullScreen() {
         offersFullScreen = false
         FullScreen.toggle()
+    }
+
+    /// A or B on a Windows game's question: the helper presses the button in it.
+    func answerQuestion(_ choice: PadAnswer.Choice) {
+        guard windowsQuestion != nil else { return }
+        Task {
+            // The engine Steam runs on: the helper has to join the game's Wine session.
+            var engine = Engine.lastSteamStart?.wine
+            if engine == nil { engine = await Engine.installedWine() }
+            guard let wine = engine else { return }
+            padAnswered = Date()
+            PadAnswerRun.send(choice, wine: wine) { status in
+                GameLog.note("The pad answered a game's question (\(choice.rawValue)): exit \(status)")
+                guard PadAnswer.needsPointer(exit: status) else { return }
+                Task { @MainActor in
+                    GameHint.show(title: L10n.t("This question needs the pointer"),
+                                  detail: L10n.t("Use the touchpad as a mouse, or the right stick and R2."), on: GameDisplay.gameScreen)
+                }
+            }
+        }
     }
 
     /// The keyboard for the controller, over the library: the hits show above it.

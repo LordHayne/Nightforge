@@ -75,6 +75,19 @@ else
   cp wrapper/unity-play.exe "$OUT/Contents/Resources/unity-play.exe"
 fi
 
+# Presses the button a Windows game's question means, for A and B on the pad (wrapper/pad-answer.c,
+# PadAnswerRun.swift). The same rule as above: only a build whose SHA-256 lies beside it. Until
+# pad-answer.yml has produced one, a Mac without mingw-w64 makes an app without it, and the pad's A and
+# B simply leave such a question to the touchpad.
+if [ -n "$MINGW" ]; then
+  "$MINGW" -O2 -Wall -Wextra -municode -mwindows -static \
+    -o "$OUT/Contents/Resources/pad-answer.exe" wrapper/pad-answer.c
+elif [ -f wrapper/pad-answer.exe ] && (cd wrapper && shasum -a 256 -c -s pad-answer.exe.sha256); then
+  cp wrapper/pad-answer.exe "$OUT/Contents/Resources/pad-answer.exe"
+else
+  echo "▸ No pad-answer.exe yet: A and B won't answer a game's questions in this build."
+fi
+
 # Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
