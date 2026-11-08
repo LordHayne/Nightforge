@@ -100,7 +100,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 - **Mac-Spiele mit mehreren Startarten** (Drawful 2: „Standalone“ oder Jackbox-Megapicker): Mac-Steam fragte, und
   sein Fenster kam trotz `MacSteam.show()` nicht nach vorn („Bestätige im Steam-Fenster“, nichts zu sehen). Jetzt
   `steam://launch/<id>/Option2` (Steams erste Mac-Option, wenn kein anderer ihren Typ hat; `steamui.dylib` kennt die
-  Namen). **Offen:** warum Steams Frage-Fenster unter macOS nicht nach vorn kommt; betrifft andere Fragen weiter.
+  Namen). Warum Steams Frage-Fenster nicht nach vorn kam: Seine Fenster gehören „Steam Helper“ (`com.valvesoftware.steam.helper`, Agent-App), nicht `steam_osx`, und seit macOS 14 kommt eine App nur nach vorn, wenn die aktive ihr den Vortritt lässt. `MacSteam.show`/`ask` holen jetzt den Prozess mit Steams Fenster per `yieldActivation` + `activate` (wie bei Spielen). **Live prüfen:** Drawful 2 mit eigenen Startparametern in den Optionen (dann `steam://run`, Steam fragt) – das Fenster muss vorn sein.
   **Live prüfen:** Drawful 2 startet ohne Frage.
 
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
