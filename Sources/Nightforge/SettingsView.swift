@@ -363,6 +363,7 @@ private struct ControllerSettings: View {
     /// Bumped when a controller comes or goes, or its battery may have changed.
     @State private var refresh = 0
     @State private var pairing = false
+    @State private var homeButton = HomeButtonSetup.State.unavailable
 
     private static let bluetoothSettings = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!
 
@@ -393,6 +394,32 @@ private struct ControllerSettings: View {
                     .font(size: 10)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // macOS 27: the PS or Xbox button held opens Nightforge. Only the player can set that.
+            if HomeButtonSetup.exists, !pads.isEmpty {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Open Nightforge with the controller's button"))
+                            .font(size: 12)
+                        Text(L10n.t("Hold the PS or Xbox button to open Nightforge. You choose that once in System Settings."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if homeButton == .opensNightforge {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    } else {
+                        Button(L10n.t("Set Up …")) { HomeButtonSetup.openSettings() }
+                            .padFocus("settings.homeButton", cornerRadius: 15, activate: { HomeButtonSetup.openSettings() })
+                    }
+                }
+                .onAppear { homeButton = HomeButtonSetup.current() }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    homeButton = HomeButtonSetup.current()
+                }
             }
 
             SectionTitle(L10n.t("Button labels"))
