@@ -105,6 +105,16 @@ enum MacIntegration {
         }
     }
 
+    /// macOS's one question about notifications, if it's still open (NotificationMoment says when).
+    static func askIfUndecided() {
+        guard available else { return }
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else { return }
+            center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        }
+    }
+
     /// A click on the notification or its Play button.
     nonisolated static func handle(_ response: UNNotificationResponse) {
         let game = (response.notification.request.content.userInfo["game"] as? String).flatMap(GameID.init(key:))

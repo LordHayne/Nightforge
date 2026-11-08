@@ -24,6 +24,7 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        static let padHaptics = "padHaptics"
         static let padPointer = "padPointer"
         /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
         static let launchTipShown = "launchTipShown"
@@ -55,6 +56,11 @@ enum Prefs {
     /// The pad as the Mac's pointer where a mouse is needed (PadPointer). On by default.
     static var padPointer: Bool {
         UserDefaults.standard.object(forKey: Keys.padPointer) as? Bool ?? true
+    }
+
+    /// The pad's motors answering in Nightforge (PadHapticRules). On by default.
+    static var padHaptics: Bool {
+        UserDefaults.standard.object(forKey: Keys.padHaptics) as? Bool ?? true
     }
 
     /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.

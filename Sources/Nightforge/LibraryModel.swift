@@ -745,7 +745,11 @@ final class LibraryModel: ObservableObject {
                 // Every few seconds while it matters (Nightforge in front, a game running or starting),
                 // otherwise less often: nothing waits on it then, and the Mac stays quieter. A game
                 // that just ended is looked after quickest: the player waits to be back in Nightforge.
-                if controllerConnected && NSApp.isActive { input.refreshBattery() }
+                // Also with a game in front, every few minutes: a pad running low says so.
+                if controllerConnected, NSApp.isActive || Date().timeIntervalSince(batteryLooked) > 180 {
+                    batteryLooked = Date()
+                    input.refreshBattery()
+                }
                 let reading = PowerSource.reading()
                 if reading.source != power { power = reading.source }
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
@@ -753,6 +757,11 @@ final class LibraryModel: ObservableObject {
                 await lookAtSteamOnDemand()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
+                if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
+                                              gameOn: gameOnScreen, firstStart: showsFirstStart, padUsedLast: InputRouter.padUsedLast) {
+                    askedAboutNotifications = true
+                    MacIntegration.askIfUndecided()
+                }
                 let pause = Duration.seconds(goneFor > 0 ? 1 : busy ? 3 : 10)
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
@@ -810,8 +819,10 @@ final class LibraryModel: ObservableObject {
     /// The "Welcome back" sheet after a real session (a minute or more).
     @Published var sessionSummary: SessionSummary?
     private var goneFor = 0
+    private var batteryLooked = Date.distantPast
     private var goneSince = Date.distantPast
     private var idleLooks = 0
+    private var askedAboutNotifications = false
     /// The game whose start is still judged by its first seconds (`survivesFirstSeconds`), and when
     /// that start began: should it end now, the start tells what's next – another way under the same
     /// curtain, or Nightforge with what happened. Control (Epic) crashed on every way on 2.11., and
@@ -3915,6 +3926,7 @@ final class LibraryModel: ObservableObject {
 
     func launchSelected() {
         guard let game = selected else { return }
+        input.feel(.gameStart)
         launch(game)
     }
 

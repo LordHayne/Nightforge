@@ -40,6 +40,8 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    private let haptics = PadHaptics()
+    private var notices = ControllerNotices(started: ProcessInfo.processInfo.systemUptime)
     /// The pad as the Mac's pointer: touchpad, or the right stick on a pad without one.
     private let pointer = PadPointer()
 
@@ -87,6 +89,7 @@ final class InputRouter {
             MainActor.assumeIsolated {
                 self?.letGo()
                 self?.pointer.controllerLeft()
+                self?.haptics.forgetGone()
                 self?.refreshConnected()
             }
         })
@@ -394,6 +397,7 @@ final class InputRouter {
     /// ("1 · DualSense · 80 %"). By player number, so the capsules keep their places (8.11.).
     func refreshBattery() {
         let pads = GCController.controllers().filter { $0.extendedGamepad != nil }
+        sayWhatChanged(pads)
         let players = ControllerPlayers.shared.seat(pads, gameOnScreen: model?.gameOnScreen ?? false)
         let statuses = ControllerStatus.inPlayerOrder(pads.map { pad -> ControllerStatus in
             let battery = pad.battery.flatMap { $0.batteryState == .unknown ? nil : $0 }
@@ -401,6 +405,30 @@ final class InputRouter {
                                     charging: battery?.batteryState == .charging, player: players[ObjectIdentifier(pad)])
         })
         if model?.controllerStatuses != statuses { model?.controllerStatuses = statuses }
+    }
+
+    /// A controller came, went or runs low: said once, also over a game (ControllerNotices).
+    private func sayWhatChanged(_ controllers: [GCController]) {
+        let pads = controllers.map { pad in
+            ControllerNotices.Pad(id: ObjectIdentifier(pad), name: ControllerStatus.shortName(pad.vendorName ?? pad.productCategory),
+                                  battery: pad.battery.flatMap { $0.batteryState == .unknown ? nil : $0.batteryLevel },
+                                  charging: pad.battery?.batteryState == .charging)
+        }
+        for notice in notices.update(pads, now: ProcessInfo.processInfo.systemUptime) {
+            let title: String, detail: String
+            switch notice {
+            case let .connected(name, battery):
+                title = L10n.t("%@ connected", name)
+                detail = battery.map { L10n.t("Battery %ld %%", $0) } ?? ""
+            case let .lost(name):
+                title = L10n.t("%@ disconnected", name)
+                detail = L10n.t("Turn it on again to carry on.")
+            case let .low(name, percent):
+                title = L10n.t("%@: battery at %ld %%", name, percent)
+                detail = L10n.t("Time to charge it soon.")
+            }
+            GameHint.show(title: title, detail: detail, on: GameDisplay.gameScreen)
+        }
     }
 
     private func attach(_ controller: GCController?) {
@@ -436,7 +464,7 @@ final class InputRouter {
         }
         // A presses the highlighted control (PadFocus). Otherwise, in a dialog or sheet, A and B
         // are its Return and Esc: confirm, or cancel and close.
-        pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
+        pad.buttonA.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
                 // On the stage A brings a client's own window back, and is nothing else: the row under
@@ -446,6 +474,7 @@ final class InputRouter {
                     return
                 }
                 guard self?.reach != Reach.none else { return }
+                self?.feel(.confirm, on: pad?.controller)
                 // The overlay has A to itself, not the big screenshot under it.
                 if self?.reach != .overlay, self?.model?.lightbox != nil, self?.dialog == nil {
                     self?.model?.lightbox = nil  // A on a big screenshot: back to the page
@@ -561,8 +590,15 @@ final class InputRouter {
         if pad.buttonOptions?.isPressed == true && pad.buttonMenu.isPressed { viewChorded = true }
         let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
                                         menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
+        let held = overlayHold.since != nil
         if overlayHold.update(pressed: pressed, now: now) {
+            haptics.stopHold()
+            feel(.overlayOpens, on: pad.controller)
             if GameOverlay.isOpen { GameOverlay.resume() } else { openOverlay() }
+        } else if !held, overlayHold.since != nil {
+            feel(.overlayHold, on: pad.controller)
+        } else if held, overlayHold.since == nil {
+            haptics.stopHold()
         }
         // Nothing changes on the pad while buttons are only held: a look when two seconds are up.
         holdTimer?.invalidate()
@@ -575,6 +611,13 @@ final class InputRouter {
                 self.watchHold(pad)
             }
         }
+    }
+
+    /// A moment on the pad's motors, if it's one to feel now (PadHapticRules). `controller`: nil for the one last used.
+    func feel(_ moment: PadHapticRules.Moment, on controller: GCController? = nil) {
+        guard PadHapticRules.plays(moment, setting: Prefs.padHaptics, inFront: reach == .app, overlay: reach == .overlay,
+                                   padUsedLast: Self.padUsedLast) else { return }
+        haptics.play(moment, on: controller)
     }
 
     /// ⧉ down or up: let go on its own, it opens or closes the small launcher menu (PadRules.viewButton).
@@ -674,6 +717,7 @@ final class InputRouter {
             .contains { $0.isPressed }
             || abs(pad.dpad.xAxis.value) > 0.5 || abs(pad.dpad.yAxis.value) > 0.5
         defer { anyDown = down }
+        if down, !anyDown, DisplayWake.wakes(freshPress: true, displayAsleep: DisplayWake.displayAsleep) { DisplayWake.declareUse() }
         guard down, !anyDown, now - lastWake > 2, let model, model.signingIn == nil,
               Self.wakes(inFront: NSApp.isActive, overlayOpen: GameOverlay.isOpen, gameOn: model.gameOnScreen,
                          frontIsGame: Self.frontAppIsGame())
@@ -730,7 +774,7 @@ final class InputRouter {
         }
     }
 
-    private static var padUsedLast: Bool {
+    static var padUsedLast: Bool {
         PadRules.padUsedLast(padAgo: padUse.map { ProcessInfo.processInfo.systemUptime - $0 }, mouseAgo: mouseIdle)
     }
 

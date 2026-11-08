@@ -553,6 +553,8 @@ enum L10n {
         "PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings.":
             "PlayStation: PS und Create halten, bis das Licht blinkt. Xbox: die Kopplungstaste oben halten, bis das Logo blinkt. Nintendo: die Sync-Taste halten. Dann in den Bluetooth-Einstellungen auswählen.",
         "Button labels": "Tastensymbole",
+        "Open Nightforge with the controller's button": "Nightforge mit der Controller-Taste öffnen",
+        "Hold the PS or Xbox button to open Nightforge. You choose that once in System Settings.": "PS- oder Xbox-Taste lange drücken öffnet Nightforge. Das wählst du einmal in den Systemeinstellungen.",
         "Like my controller": "Wie mein Controller",
         "No account. No telemetry. No background service.": "Kein Konto. Keine Telemetrie. Kein Hintergrunddienst.",
         "Nightforge sends nothing by itself. A problem report opens on GitHub, filled in with the game and its settings – GitHub gets that as the page opens, it's public only once you submit it. Error lines stay on your clipboard until you paste them.":
@@ -869,6 +871,11 @@ enum L10n {
         "Hold: this menu": "Halten: dieses Menü",
         "Both sticks pressed": "Beide Sticks gedrückt",
         "In a game": "Im Spiel",
+        "%@ connected": "%@ verbunden",
+        "%@ disconnected": "%@ getrennt",
+        "Turn it on again to carry on.": "Schalte ihn wieder ein, dann geht es weiter.",
+        "%@: battery at %ld %%": "%@: Akku bei %ld %%",
+        "Time to charge it soon.": "Bald aufladen.",
         "Press both sticks and hold them for 2 seconds: Nightforge's menu comes over the game – continue, quit the game (also one that hangs) or go to Nightforge.":
             "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
@@ -1426,6 +1433,8 @@ enum L10n {
         "Hold %@ – both sticks pressed – for 2 seconds: continue, quit the game (also one that hangs) or go to Nightforge.":
             "%@ – beide Sticks gedrückt – 2 Sekunden halten: weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "Tip: hold %@ to open the menu in a game": "Tipp: %@ halten öffnet im Spiel das Menü",
+        "Vibration": "Vibration",
+        "A short tap when you confirm or start a game, and while the overlay's buttons are held.": "Ein kurzer Ruck beim Bestätigen und beim Spielstart und während die Overlay-Tasten gehalten werden.",
         "Every button": "Alle Tasten",
         "Swipe and pinch": "Wischen und Zoomen",
         "Two fingers sideways go back. In the library, two fingers apart or together make the covers bigger or smaller.":
