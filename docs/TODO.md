@@ -96,8 +96,23 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 - **Spieler 1 und 2 unterscheiden** (Nutzer, 8.11.): In Nightforge zeigen, welcher Controller welcher Spieler ist (`GCController.playerIndex`, Lichtleiste am DualSense, Kapseln unten mit Nummer). Für Windows-Spiele prüfen, ob die Reihenfolge in winebus/XInput steuerbar ist; bisher ungetestet, Test mit Sonic Mania.
 - **Live-Abschlusstests 8.11.:** Neues Spiel (REANIMAL), Overwatch, Steam ↔ Steam für Mac, Control/Wukong/OxyRail/ABZU und die Leistungsanzeige laufen.
 - **Beim Beenden von Overwatch und ABZU** kurz ein falsches Bild, der Vorhang kommt manchmal von der Seite herein, dabei ist der Desktop zu sehen (Nutzer: Ladescreen-Session).
-- **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`). Verdacht: SDL in winebus sperrt die System-Gesten der Controller. Prüfen, ob das schon in 0.3.1 so war.
+- **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`).
+  - **Im Code geklärt (8.11.): SDL in winebus ist es nicht.** Unser `libSDL2-2.0.0.dylib` (Gcenx/MacPorts, 2.32.8) bindet `GameController.framework` nicht ein und enthält `preferredSystemGestureState` nicht. Nur der MFi-Treiber in SDLs Quelltext sperrt die Gesten (`SDL_mfijoystick.m:1039`), und der ist in diesem Build nicht drin. HIDAPI öffnet das Gerät ohne Exklusiv-Recht (`hid.c:842`, `kIOHIDOptionsTypeNone`). Auch `winebus.so`, `winemac.so`, `ntdll.so`, `libd3dshared.dylib`, D3DMetal und Steam für Mac enthalten nichts davon.
+  - **Der einzige Code in der Kette, der die Geste anfasst, ist unser eigener:** `InputRouter.takeViewButton`, neu seit 4744f22 (0.3.2). In v0.3.1 gibt es keinen Aufruf, und das Gamepad-Paket ist in beiden dasselbe (4.7.3-15). Die Home-Taste, die Nightforge nicht anfasst, öffnet im Windows-Spiel weiter Apples Overlay. Das spricht für uns als Ursache, ist aber nicht bewiesen.
+  - **Verdacht:** Nightforge setzt `.enabled` erst in `didResignActive`, also wenn es schon im Hintergrund ist. Vielleicht kommt das bei macOS nicht mehr an, und `.disabled` bleibt stehen.
+  - **Fix-Vorschlag (nur Nightforge, kein Grafik-Paket):** die Taste in `willResignActive` freigeben, solange Nightforge noch vorn ist, `didResignActive` bleibt als Absicherung. Erst nach dem Live-Test unten bauen.
+  - **Live prüfen, entscheidet die Frage:** (1) Nightforge läuft im Hintergrund, Finder vorn, Create drücken: Bildschirmfoto? (2) Nightforge beendet, ein Spiel aus Steam starten, Create drücken: Bildschirmfoto? Kommt es bei (2), aber nicht mit Nightforge im Hintergrund, liegt es an `takeViewButton`. Kommt es auch bei (2) nicht, ist es macOS oder Wine, und der Vorschlag hilft nicht. Apples Header nennt als Beispiel einen langen Druck, also jeweils kurz und lang drücken.
 - **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): Flackern beim Start und Beenden von Overwatch, beim erneuten Start von Valheim direkt nach The Forest war kurz der Desktop zu sehen. Für 0.3.2 reicht der jetzige Stand. Grundlage: `docs/AUDIT-LADESCREEN.md`.
+
+## 0.3.3: Regedit nur bei Änderung, msync je Spiel (Zweig `claude/engine-regedit-msync-033`)
+
+- **Regedit:** `applyGameSettings` ruft `regedit` nur noch, wenn sich etwas geändert hat (`GameRegistryRecord`, je Programmname, Stempel `.nightforge-game-registry` im Prefix). Der Stempel zählt erst, wenn `user.reg` mindestens so neu ist: Ein hart beendeter wineserver verliert sonst, was regedit gerade schrieb. Die vier Profile mit eigenem `registry` schreiben weiter bei jedem Start, weil ein Spiel diese Werte selbst ändern kann.
+- **msync:** Profilfeld `"msync": false` (`Engine.msyncWanted`). Standard bleibt an, noch kein Profil nutzt es. Wechselt der Wert, startet Steam mit neuer Wine-Sitzung. Ein Spiel neben einem laufenden Windows-Spiel nimmt die Sitzung, wie sie ist.
+- **Live prüfen:**
+  - Zweimal dasselbe Spiel starten, mindestens 30 s Abstand: beim zweiten Mal steht im `wine.log` „Game settings as the prefix has them: no regedit“, und das Spiel läuft wie vorher. Wie viele Sekunden das spart, ist nicht gemessen.
+  - In den Optionen die Grafik des Spiels wechseln: Die neue gilt beim nächsten Start.
+  - msync: `"msync": false` probeweise in einem Testprofil, Start: `wine.log` „msync off from this Wine session on“, Steam kommt neu hoch, Spiel läuft. Danach ein Spiel ohne das Feld: wieder „msync on“.
+  - Dasselbe mit einem Spiel aus Epic oder GOG.
 
 ## 8.11. mittags (staging-032, nicht gepusht)
 
