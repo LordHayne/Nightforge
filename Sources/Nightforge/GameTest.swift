@@ -80,7 +80,7 @@ enum GameTest {
             case .macOSAsks: return "macOS fragt um Erlaubnis"
             case .stopped: return "Test vorher angehalten"
             case .gone: return "nicht mehr installiert"
-            case .battleNet: return "Battle.net-Spiele starten noch nicht aus Nightforge"
+            case .battleNet: return "Battle.net-Spiele prüft der Spieletest nicht"
             }
         }
     }

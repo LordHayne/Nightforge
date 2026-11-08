@@ -25,11 +25,14 @@ enum GameOverlay {
         @Published var paused = false
         /// What the blocks are given, as it was when the overlay opened.
         @Published var context = OverlayContext()
-        /// "Not starting?" in the middle of the screen, for as long as the overlay is up.
+        /// A question about a start, with no picture to keep: in the middle of the screen, for as long
+        /// as the overlay is up.
         @Published var centered = false
         @Published var symbols = PadSymbols()
         /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
         @Published var soundStaysOn: String?
+        /// What's said about a start on the curtain that looks stuck (`.stuck`).
+        @Published var stuck: CurtainEscape.Words?
         /// A controller came after the game started without one (LibraryModel.padArrivedLate):
         /// the menu offers a restart first, once.
         @Published var lateController = false
@@ -71,7 +74,9 @@ enum GameOverlay {
     /// The panel may take the keys at all (OverlayPanel).
     static var mayTakeKeys: Bool { takesKeys(openedFor) }
     /// Open with "Not starting?" (or the question it led to).
-    static var asksAboutStart: Bool { isOpen && state.step == .notStarting }
+    static var asksAboutStart: Bool { isOpen && (state.step == .notStarting || state.step == .stuck) }
+    /// Open with the way out of a curtain with no game under it (CurtainEscape).
+    static var asksWayOut: Bool { isOpen && state.step == .stuck }
     /// The panel, while it's up: the pad's input goes there (InputRouter).
     static var window: NSWindow? { isOpen ? panel : nil }
 
@@ -81,15 +86,16 @@ enum GameOverlay {
     /// `soundStaysOn`: the device a Windows game still plays to after the default output changed.
     /// `context`: what the side bar's blocks show.
     static func open(_ game: String, pids: [pid_t], pause: Bool, on screen: NSScreen?, symbols: PadSymbols,
-                     step: OverlayStep = .menu, soundStaysOn: String? = nil, context: OverlayContext = OverlayContext(),
-                     actions: Actions) {
+                     step: OverlayStep = .menu, soundStaysOn: String? = nil, stuck: CurtainEscape.Words? = nil,
+                     context: OverlayContext = OverlayContext(), actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         runningOn?.cancel()  // opened again before the fingers were off: the game simply stays stopped
         runningOn = nil
         self.actions = actions
         openedFor = step
-        state.centered = step == .notStarting
+        state.centered = takesKeys(step)
         state.context = context
+        state.stuck = stuck
         state.game = game
         state.soundStaysOn = soundStaysOn
         state.symbols = symbols
@@ -106,7 +112,8 @@ enum GameOverlay {
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).
         let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
-        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
+        // The curtain may lie above a captured display's shield: the panel over that too.
+        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: [coverLevel, GameBackdrop.raisedLevel].compactMap { $0 }.max()))
         panel.orderFrontRegardless()
         if Self.takesKeys(step) { panel.makeKey() }
         focusDefault()
@@ -193,17 +200,20 @@ enum GameOverlay {
     /// the player but a game out of its full screen. The pad reaches Nightforge without them and the
     /// mouse works through a panel that doesn't need them; the keyboard answers only "Not starting?",
     /// where no picture is lost. The overlay opens only with the pad, so there's one in the hand.
-    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting }
+    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting || step == .stuck }
 
     /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
     /// the screen should that lie higher.
     nonisolated static func panelLevel(coverLevel: Int?) -> Int {
-        max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1)
+        min(max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1), highestLevel)
     }
+
+    /// No window goes higher; one at the top already gets the panel at its level, ordered in front.
+    nonisolated static var highestLevel: Int { Int(CGWindowLevelForKey(.maximumWindow)) }
 
     /// The panel's level for a second try: above every window found in front of it.
     nonisolated static func raisedLevel(_ level: Int, covering: [[String: Any]]) -> Int {
-        max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1)
+        min(max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1), highestLevel)
     }
 
     /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
@@ -273,9 +283,9 @@ enum GameOverlay {
     nonisolated static func transition(_ step: OverlayStep, _ event: OverlayEvent) -> (OverlayStep, Effect) {
         switch (step, event) {
         case (.quitting, _): return (.quitting, .none)
-        case (.menu, .back), (.notStarting, .back), (_, .resume): return (step, .close)
+        case (.menu, .back), (.notStarting, .back), (.stuck, .back), (_, .resume): return (step, .close)
         case (.menu, .askQuit), (.notStarting, .askQuit): return (.confirmQuit, .none)
-        case (.menu, .nightforge), (.notStarting, .nightforge): return (step, .nightforge)
+        case (.menu, .nightforge), (.notStarting, .nightforge), (.stuck, .nightforge): return (step, .nightforge)
         case (.confirmQuit, .back): return (.menu, .none)
         case (.confirmQuit, .quit): return (.quitting, .quit)
         case (.menu, .restart): return (.quitting, .restart)
@@ -352,7 +362,7 @@ enum GameOverlay {
     nonisolated static func defaultButton(_ step: OverlayStep) -> String? {
         switch step {
         case .menu: return "overlay.continue"
-        case .notStarting: return "overlay.wait"
+        case .notStarting, .stuck: return "overlay.wait"
         case .confirmQuit: return "overlay.cancel"
         case .quitting: return nil
         }
@@ -395,7 +405,7 @@ enum GameOverlay {
     }
 }
 
-enum OverlayStep: Equatable { case menu, notStarting, confirmQuit, quitting }
+enum OverlayStep: Equatable { case menu, notStarting, stuck, confirmQuit, quitting }
 
 enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart }
 
@@ -430,6 +440,13 @@ struct OverlayHold {
     static func chord(leftStick: Bool?, rightStick: Bool?, menu: Bool, view: Bool) -> Bool {
         if let leftStick, let rightStick { return leftStick && rightStick }
         return menu && view
+    }
+
+    /// Whether the buttons are still down, at an event from any pad. Each pad reports by itself, and a second
+    /// player's moving stick counted as the first one letting go: in a game for two the hold never got
+    /// to its two seconds. The other pads are looked at only while a hold is under way, not at every event.
+    static func stillHeld(thisPad: Bool, holdUnderWay: Bool, anyPad: @autoclosure () -> Bool) -> Bool {
+        thisPad || (holdUnderWay && anyPad())
     }
 
     /// When the hold began; nil while nothing is held.
@@ -738,6 +755,25 @@ enum GameProcesses {
         return (number, frame.size)
     }
 
+    /// Steam's windows on the Space shown, front to back, its tiny menu windows left out: what its
+    /// question on the curtain is (`pids`: the processes that show them).
+    nonisolated static func steamWindows(_ windows: [[String: Any]], pids: Set<pid_t>) -> [Int] {
+        windows.filter { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
+                  questionLevel((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let frame = bounds(window)
+            else { return false }
+            return frame.width >= 200 && frame.height >= 100
+        }.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+    }
+
+    nonisolated static func steamWindows(pids: Set<pid_t>) -> [Int] {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return steamWindows(windows, pids: pids)
+    }
+
     /// The levels a question can be at: normal up to a modal panel, and winecx's own for a topmost
     /// window – just above the Dock (cocoa_app.m, adjustWindowLevels: kCGDockWindowLevel + 1). There
     /// Black Myth: Wukong's driver warning stood in both game tests on 2.11. (286×251 L21), under the
@@ -905,12 +941,23 @@ enum GameProcesses {
         return onlyShield(windows, pids: pids)
     }
 
-    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it.
-    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?) -> (here: Bool, anywhere: Bool, pageOver: Bool) {
+    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it;
+    /// `level`: the level of its window over the screen shown (`screen`), when it has one.
+    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?, screen: CGRect?) -> (here: Bool, anywhere: Bool, pageOver: Bool, level: Int?) {
         guard !pids.isEmpty, let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
-        else { return (false, false, false) }
+        else { return (false, false, false, nil) }
         let here = showsWindow(shown, pids: pids)
-        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false)
+        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false,
+                screen.flatMap { pictureLevel(shown, pids: pids, screen: $0) })
+    }
+
+    /// The highest level of a window of `pids` over most of `screen`, the black shield aside.
+    nonisolated static func pictureLevel(_ windows: [[String: Any]], pids: Set<pid_t>, screen: CGRect) -> Int? {
+        windows.filter { window in
+            (window[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false
+                && covers(window, screen) && !isShield(level: (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)
+        }
+        .map { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 }.max()
     }
 
     /// Whether Nightforge's page lies over the game's picture and none of it in front (`windows`:
@@ -937,7 +984,14 @@ enum GameProcesses {
     /// A display taken by a game for a mode change: its shield window lies above every other.
     nonisolated static func screenCaptured() -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        return screenCaptured(windows, me: getpid())
+    }
+
+    /// `me`'s own windows don't count: the curtain and the overlay may lie above a shield themselves.
+    nonisolated static func screenCaptured(_ windows: [[String: Any]], me: pid_t) -> Bool {
         let shield = Int(CGShieldingWindowLevel())
-        return windows.contains { ($0[kCGWindowLayer as String] as? Int ?? 0) >= shield }
+        return windows.contains {
+            ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= shield && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != me
+        }
     }
 }

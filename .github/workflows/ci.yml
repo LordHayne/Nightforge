@@ -51,6 +51,10 @@ jobs:
       - name: Code signing script
         run: python3 -m unittest tests/test_codesign_app.py
 
+      # What may stay x86_64 only, the arm64 build of Nightforge's helpers, and what the ARM64 preparation keeps.
+      - name: Processor rules
+        run: python3 -m unittest tests/test_component_arch.py tests/test_no_new_x86_only.py tests/test_helper_architectures.py tests/test_wine_folders.py tests/test_game_test_baseline.py tests/test_arm64_watchlist.py tests/test_macos28_probe.py tests/test_rosetta_notice.py
+
       # A shell script a workflow runs as a command has to be executable in git: enginefix.yml's never ran (2.11.).
       - name: Workflow scripts
         run: python3 -m unittest tests/test_workflow_scripts.py

@@ -398,6 +398,8 @@ enum MacSteam {
         for app in windowApps { app.hide() }
     }
 
+    static var windowPids: Set<pid_t> { Set(windowApps.map(\.processIdentifier)) }
+
     /// The Steam processes whose windows the player sees: the client and its web view.
     private static var windowApps: [NSRunningApplication] {
         clientApps + (isTestHome ? [] : NSRunningApplication.runningApplications(withBundleIdentifier: helperBundleID))
@@ -473,6 +475,24 @@ enum MacSteam {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activate
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: configuration)
+    }
+
+    /// The running Steam starts the game's first launch option, without asking which: a second
+    /// steam_osx hands the command over and ends. False with no Steam running to take it (a start
+    /// of Steam from here would stay Nightforge's child), or without its program.
+    @discardableResult
+    static func applaunch(_ appID: Int, arguments: [String]) -> Bool {
+        let command = ["-applaunch", String(appID)] + arguments
+        if isTestHome {
+            TestSteam.launch(command)
+            return true
+        }
+        let program = root.appendingPathComponent("Steam.AppBundle/Steam/Contents/MacOS/steam_osx")
+        guard isRunning, FileManager.default.isExecutableFile(atPath: program.path) else { return false }
+        let process = DetachedProcess()
+        process.executableURL = program
+        process.arguments = command
+        return (try? process.run()) != nil
     }
 
     /// Asks Steam to quit (it saves its state and cloud files) and ends it the hard way after 20 s.

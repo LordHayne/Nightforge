@@ -98,7 +98,7 @@ def build(source: dict) -> dict | None:
         digest = asset.get("digest") or ""
         sha256 = digest.removeprefix("sha256:") if digest.startswith("sha256:") else hash_url(url)[0]
 
-    return {
+    component = {
         "id": source["id"],
         "kind": source["kind"],
         "version": version,
@@ -108,6 +108,9 @@ def build(source: dict) -> dict | None:
         "license": license_id,
         "source": f"https://github.com/{repo}",
     }
+    if "arch" in source:
+        component["arch"] = source["arch"]
+    return component
 
 
 def propose_newer(sources: list[dict]) -> list[tuple[str, str, str]]:

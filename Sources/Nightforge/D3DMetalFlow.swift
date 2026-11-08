@@ -32,12 +32,16 @@ struct D3DMetalDialog: Identifiable {
     /// Changing what is set up: what is in the engine now ("D3DMetal 4.0 beta 3, from Nightforge").
     var installed: String?
     var installedIsBeta = false
+    /// The game only needs Apple's files to start and draws another way (D3DMetalSupply.reason).
+    var library = false
 }
 
 /// What is going on behind the dialog.
 struct D3DMetalRun {
     var task: Task<Void, Never>?
     var game: Game?
+    /// As in the dialog (`D3DMetalDialog.library`), for what's said when it's left unanswered.
+    var library = false
     /// The answer on file when the question was opened; what stands if it is cancelled.
     var choiceBefore: D3DMetalSupply.Choice?
     /// An answer was recorded that goes away again with a cancel.
@@ -54,17 +58,12 @@ extension LibraryModel {
         guard game.bottle.isBuiltIn, game.platform == .windows, d3dMetalDialog == nil, !Engine.d3dMetalReady,
               Engine.installedWineNow().map({ Engine.isGPTKCapable(wine: $0) }) == true else { return false }
         let picked = GameOptionsStore.load(game.gameID).graphics
-        if let analysis = insights[game.gameID]?.analysis, analysis.d3d12Program == nil {
-            guard D3DMetalSupply.needed(by: analysis, picked: picked, game: game.gameID) else { return false }
-            askAboutD3DMetal(for: game)
-            return true
-        }
-        // Not looked at yet – or a DirectX 12 program of its own, where the profile decides: look, then decide.
+        // The profile decides too (a DirectX 12 program of its own, Apple's files for its start): look, then decide.
         Task {
             let insight = await self.insight(of: game)
             let profile = await ProfileStore.shared.profile(for: game.gameID)
-            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked, profile: profile, game: game.gameID) {
-                askAboutD3DMetal(for: game)
+            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked, profile: profile) {
+                askAboutD3DMetal(for: game, library: profile?.needsRosettaLibrary == true)
             } else {
                 launch(game, d3dMetalChecked: true)
             }
@@ -75,12 +74,12 @@ extension LibraryModel {
     /// Opens the question – or, when it was answered before and D3DMetal only isn't in the engine
     /// (a new engine, a download that failed), goes straight to setting it up. `change`: Settings'
     /// "Change …" for a D3DMetal that is set up.
-    func askAboutD3DMetal(for game: Game?, change: Bool = false) {
+    func askAboutD3DMetal(for game: Game?, change: Bool = false, library: Bool = false) {
         guard d3dMetalDialog == nil, change || !Engine.d3dMetalReady else { return }
         let choice = D3DMetalSupply.choice()
-        d3dMetalRun = D3DMetalRun(game: game, choiceBefore: choice)
+        d3dMetalRun = D3DMetalRun(game: game, library: library, choiceBefore: choice)
         var dialog = D3DMetalDialog(game: game, licenseAccepted: choice != nil,
-                                    downloadable: D3DMetalSupply.canDownload(ComponentStore.localManifest()))
+                                    downloadable: D3DMetalSupply.canDownload(ComponentStore.localManifest()), library: library)
         if change, Engine.d3dMetalReady {
             dialog.installed = d3dMetalStatus
             dialog.installedIsBeta = d3dMetalIsBeta
@@ -273,7 +272,7 @@ extension LibraryModel {
             if let before = run.choiceBefore { D3DMetalSupply.save(before) } else { D3DMetalSupply.forget() }
         }
         if let game = run.game {
-            Toasts.shared.show(L10n.t("%@ needs DirectX 12, which runs through Apple's D3DMetal. Without it the game doesn't start – set it up in Settings.", game.name))
+            Toasts.shared.show(D3DMetalSupply.whyNotStarted(game.name, library: run.library))
         }
     }
 
@@ -347,7 +346,7 @@ struct D3DMetalSheet: View {
             Text(L10n.t("A new one replaces it only once it is complete and checked."))
                 .modifier(BodyText(muted: true))
         } else {
-            Text(dialog.game.map { L10n.t("%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.", $0.name) }
+            Text(dialog.game.map { D3DMetalSupply.reason($0.name, library: dialog.library) }
                  ?? L10n.t("DirectX 12 games run on a Mac through Apple's D3DMetal."))
                 .modifier(BodyText())
         }

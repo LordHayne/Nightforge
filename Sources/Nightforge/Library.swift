@@ -28,6 +28,9 @@ struct Game: Identifiable, Hashable {
     let steamExeWindowsPath: String
     let installDir: URL
     let sizeOnDisk: Int64
+    /// Far more than any game, and low enough that sizes can be added up: a damaged manifest's Int64.max took
+    /// Download (what the others still need is added up at each press) and Settings › Storage down with it.
+    static let largestSize: Int64 = 1 << 56
     var lastPlayed: Date?
     var playtimeMinutes: Int?
     var install: InstallState = .installed
@@ -121,7 +124,7 @@ struct Game: Identifiable, Hashable {
         self.steamRoot = steamRoot
         self.steamExeWindowsPath = steamExeWindowsPath
         self.installDir = installDir
-        self.sizeOnDisk = sizeOnDisk
+        self.sizeOnDisk = min(max(sizeOnDisk, 0), Self.largestSize)
         self.lastPlayed = lastPlayed
         self.playtimeMinutes = playtimeMinutes
     }
@@ -878,10 +881,10 @@ enum StagingSizes {
 }
 
 extension Double {
-    /// A byte count from a manifest as a whole number: 0 up to Int64's largest. `Int64(_:)` traps past it,
+    /// A byte count from a manifest as a whole number: 0 up to `Game.largestSize`. `Int64(_:)` traps past Int64,
     /// and on nan and inf (Double("inf") parses), so one damaged file would crash every scan.
     var clampedBytes: Int64 {
         guard isFinite, self > 0 else { return 0 }
-        return self >= 9.2e18 ? .max : Int64(self)
+        return self >= Double(Game.largestSize) ? Game.largestSize : Int64(self)
     }
 }

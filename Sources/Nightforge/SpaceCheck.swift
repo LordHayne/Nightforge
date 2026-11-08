@@ -48,7 +48,7 @@ enum SpaceCheck {
         switch game.install {
         case .downloading(let fraction):
             let size = max(game.sizeOnDisk, game.installedSize ?? 0, 0)
-            return Int64(Double(size) * (1 - min(max(fraction ?? 0, 0), 1)))
+            return (Double(size) * (1 - min(max(fraction ?? 0, 0), 1))).clampedBytes
         case .installed:
             return max(game.pendingUpdate ?? 0, 0)
         case .notInstalled, .inStore:

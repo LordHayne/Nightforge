@@ -108,6 +108,9 @@ private struct ChecklistPage: View {
             Note(L10n.t("Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license."))
             SetupButton(title: L10n.t("Install Rosetta"), symbol: "arrow.down.circle", preferred: true) { setup.installRosetta() }
 
+        case .rosettaGone:
+            Note(RosettaSupport.notice, isError: true)
+
         case .waitingForSignIn:
             Button(L10n.t("Show Steam window again")) { setup.reopenSteam() }
                 .buttonStyle(GlassTextButtonStyle())
@@ -304,7 +307,7 @@ private struct StepList: View {
         if setup.isFinished(step) { return .done }
         guard setup.currentStep() == step else { return .pending }
         switch setup.phase {
-        case .failed: return .failed
+        case .failed, .rosettaGone: return .failed
         case .needsRosetta, .waitingForSignIn: return .waiting
         default: return .active
         }

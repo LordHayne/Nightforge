@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The overlay over a game: a side bar on the right, the game left in view – no dimming and no blur,
-/// nothing that moves. "Not starting?" has no picture to keep, so it stays a question in the middle.
+/// nothing that moves. A question about a start ("Not starting?", the way out of a curtain with no
+/// game under it) has no picture to keep, so it stays in the middle.
 struct OverlayView: View {
     @ObservedObject var state: GameOverlay.State
 
@@ -132,6 +133,7 @@ struct OverlayView: View {
             VStack(spacing: 14) {
                 switch state.step {
                 case .notStarting: notStarting
+                case .stuck: stuck
                 case .confirmQuit: question(title: 22, detail: 14, metrics: nil)
                 case .quitting: Text(L10n.t("Quitting %@ …", state.game)).font(size: 20, weight: .semibold)
                 default: EmptyView()
@@ -157,6 +159,20 @@ struct OverlayView: View {
             choice("overlay.wait", L10n.t("Keep Waiting"), tint: Theme.sodium, preferred: true, nil) { GameOverlay.resume() }
             choice("overlay.nightforge", L10n.t("Go to Nightforge"), nil) { GameOverlay.toNightforge() }
             choice("overlay.quit", L10n.t("Quit Game"), nil) { GameOverlay.askQuit() }
+        }
+        .padding(.top, 10)
+    }
+
+    /// No game under the curtain yet: nothing to quit, so no Quit Game.
+    @ViewBuilder private var stuck: some View {
+        Text(state.stuck?.title ?? state.game)
+            .font(size: 22, weight: .semibold)
+        Text(state.stuck?.text ?? "")
+            .font(size: 14)
+            .foregroundStyle(Theme.muted)
+        VStack(spacing: 12) {
+            choice("overlay.wait", L10n.t("Keep Waiting"), tint: Theme.sodium, preferred: true, nil) { GameOverlay.resume() }
+            choice("overlay.nightforge", L10n.t("Go to Nightforge"), nil) { GameOverlay.toNightforge() }
         }
         .padding(.top, 10)
     }

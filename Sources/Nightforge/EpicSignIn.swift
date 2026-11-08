@@ -17,7 +17,7 @@ enum EpicSignIn {
 
     /// The code from the page Epic ends with: `{"redirectUrl": …, "authorizationCode": "…", …}`.
     nonisolated static func code(fromPage text: String) -> String? {
-        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
+        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end,
               let object = try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8)) as? [String: Any],
               let code = object["authorizationCode"] as? String,
               !code.isEmpty, code.allSatisfy({ $0.isLetter || $0.isNumber })
@@ -32,9 +32,13 @@ enum EpicSignIn {
                 return super.webView(webView, didFinish: navigation)
             }
             webView.evaluateJavaScript("document.body.innerText") { [weak self] result, _ in
-                guard let text = result as? String, let code = EpicSignIn.code(fromPage: text) else { return }
-                MainActor.assumeIsolated { self?.found(code) }
+                MainActor.assumeIsolated { self?.lastPage(result as? String) }
             }
+        }
+
+        /// What Epic's last page says: its code, or the stage says the page didn't answer, not a spinner for good.
+        func lastPage(_ text: String?) {
+            if let code = text.flatMap(EpicSignIn.code(fromPage:)) { found(code) } else { changed(.failed) }
         }
     }
 }

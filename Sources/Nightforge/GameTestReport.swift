@@ -75,6 +75,7 @@ extension GameTest {
 
     struct Report: Codable, Equatable {
         static let format = 1
+        static let underRosetta = "x86_64 under Rosetta"
 
         var formatVersion = Report.format
         var started: Date
@@ -86,6 +87,9 @@ extension GameTest {
         var engine: [String]?
         /// Chip and macOS.
         var mac: String
+        /// How Wine ran, so a later engine's run isn't compared with this one blindly. Missing in reports
+        /// from before 8.11.2026, which all ran under Rosetta.
+        var runsOn: String? = Report.underRosetta
         var pictureWait: Double
         var playSeconds: Double
         /// Minutes the run waited for a locked screen.

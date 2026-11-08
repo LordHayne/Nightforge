@@ -173,10 +173,19 @@ enum Engine {
         set { launchSettings.withLock { $0.environment = newValue } }
     }
 
-    /// Both, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
+    /// Whether the Wine session has msync: the switch's for the engine test (`msyncSwitch`) unless the
+    /// game about to start says otherwise (`msyncWanted`). Every process of a session has to agree
+    /// with its wineserver, so it's in `environment` and `steamConfigSignature`; `applyMsyncMode`
+    /// ends a session started the other way.
+    static var msync: Bool {
+        get { launchSettings.withLock { $0.msync } }
+        set { launchSettings.withLock { $0.msync = newValue } }
+    }
+
+    /// All of them, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
     /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
     /// Dictionary read while it's being replaced can crash.
-    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool)>(([:], false))
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool, msync: Bool)>(([:], false, msyncSwitch))
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -194,11 +203,12 @@ enum Engine {
     /// Vulkan goes to (`vulkanDriver`), nil leaves the one Steam has. `vulkanLoader`: the engine
     /// test's loader (vulkanLoaderEnvironment), over those – never with KosmicKrisp, which gives way
     /// to it (`kosmicKrispReady`). Once its switch is off, what it left in the session goes too, unless
-    /// the game's own switches set it. True when the running Steam has to restart.
+    /// the game's own switches set it. `msyncWanted`: nil leaves the session as it is, as a game
+    /// joining a running one has to. True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
                                          vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
-                                         defaults: UserDefaults = .standard) -> Bool {
+                                         msyncWanted: Bool? = nil, defaults: UserDefaults = .standard) -> Bool {
         let launch = launchSettings.withLock { $0 }
         var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
@@ -231,8 +241,9 @@ enum Engine {
             for name in vulkanLoaderNames + ["CX_ACTIVE_GRAPHICS_BACKEND"] where environment[name] == nil { wanted[name] = nil }
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
-        launchSettings.withLock { [wanted] in $0 = (wanted, retina) }
-        return wanted != launch.environment || retina != launch.retina
+        let session = msyncWanted ?? launch.msync
+        launchSettings.withLock { [wanted] in $0 = (wanted, retina, session) }
+        return wanted != launch.environment || retina != launch.retina || session != launch.msync
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
@@ -728,7 +739,7 @@ enum Engine {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
         let fm = FileManager.default
         return fm.fileExists(atPath: lib.appendingPathComponent("external/libd3dshared.dylib").path)
-            && (try? fm.destinationOfSymbolicLink(atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d12.so").path)) != nil
+            && (try? fm.destinationOfSymbolicLink(atPath: lib.appendingPathComponent("wine/\(WineFolders.unix)/d3d12.so").path)) != nil
     }
 
     /// Makes sure the engine and graphics layer from the current component list are installed –
@@ -961,6 +972,13 @@ enum Engine {
 
     static func noteGameActivity(_ date: Date = Date()) { lastGameActivity = date }
 
+    /// How long a restart of Nightforge still waits for the cloud saves of a game that just ended: what's
+    /// left of the 30 s the quit script gives them, counted from when a game last ran.
+    static func cloudSaveWait(since last: Date?, now: Date = Date()) -> TimeInterval {
+        guard let last else { return 0 }
+        return max(0, 30 - now.timeIntervalSince(last))
+    }
+
     /// A game ran, or was asked to start, within the last five minutes (the quit script's `recent_game`).
     static var gameRanRecently: Bool { lastGameActivity.map { Date().timeIntervalSince($0) < 300 } ?? false }
 
@@ -1021,8 +1039,8 @@ enum Engine {
         SANDBOX="$9"; PROFILE="${10}"
         # RESTART is 1 for "Restart Nightforge": no game or download is waited for (Nightforge offers it only
         # with no game running; a hung one ends with the session), Steam for Mac goes too, and Nightforge
-        # opens again once everything is down. A game that ran in the last five minutes still gets its 30 s
-        # for the cloud saves.
+        # opens again once everything is down. The cloud saves of a game that just ended were waited for
+        # in Nightforge, where it shows (LibraryModel.restartNightforge).
         RESTART="${11:-0}"
         finish() { [ "$RESTART" = 1 ] && [ -n "$APP" ] && open "$APP"; exit 0; }
         # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
@@ -1172,7 +1190,7 @@ enum Engine {
         # game with it.
         while true; do
           while true; do
-            if [ "$RESTART" = 1 ]; then recent_game && sleep 30; break; fi
+            if [ "$RESTART" = 1 ]; then break; fi
             while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0
@@ -1328,7 +1346,7 @@ enum Engine {
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine", isDirectory: true)
         let top = graphicsTop(dxmtDir)
 
-        for arch in ["x86_64-windows", "i386-windows", "x86_64-unix"] {
+        for arch in [WineFolders.windows, WineFolders.windows32, WineFolders.unix] {
             let source = top.appendingPathComponent(arch, isDirectory: true)
             let target = lib.appendingPathComponent(arch, isDirectory: true)
             guard let files = try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) else { continue }
@@ -1352,7 +1370,7 @@ enum Engine {
     private static func graphicsTop(_ dir: URL) -> URL {
         let fm = FileManager.default
         return ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
-            .first { fm.fileExists(atPath: $0.appendingPathComponent("x86_64-windows").path) } ?? dir
+            .first { fm.fileExists(atPath: $0.appendingPathComponent(WineFolders.windows).path) } ?? dir
     }
 
     /// DXMT's Direct3D DLLs as natives in the prefix (64-bit → system32, 32-bit → syswow64), for
@@ -1361,7 +1379,7 @@ enum Engine {
     static func installDXMTNatives(_ dxmtDir: URL, windows: URL = prefix.appendingPathComponent("drive_c/windows", isDirectory: true)) throws {
         let fm = FileManager.default
         let top = graphicsTop(dxmtDir)
-        for (arch, folder) in [("x86_64-windows", "system32"), ("i386-windows", "syswow64")] {
+        for (arch, folder) in [(WineFolders.windows, "system32"), (WineFolders.windows32, "syswow64")] {
             let target = windows.appendingPathComponent(folder, isDirectory: true)
             guard fm.fileExists(atPath: target.path),
                   let files = try? fm.contentsOfDirectory(at: top.appendingPathComponent(arch), includingPropertiesForKeys: nil)
@@ -1376,7 +1394,7 @@ enum Engine {
     /// Wine's own Direct3D 12, which D3DMetal took the place of in the engine (kept as *.wine), as
     /// natives in system32: for games on DXMT or DXVK that look for Direct3D 12 (`layerOverrides`).
     static func installWineD3D12Natives(wine: URL, windows: URL = prefix.appendingPathComponent("drive_c/windows", isDirectory: true)) throws {
-        let engine = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine/x86_64-windows")
+        let engine = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib/wine/\(WineFolders.windows)")
         for name in ["d3d12.dll", "d3d12core.dll"] {
             guard let original = try? Data(contentsOf: engine.appendingPathComponent(name + ".wine")) else { continue }
             try writeAsNative(original, to: windows.appendingPathComponent("system32/\(name)"))
@@ -1413,15 +1431,15 @@ enum Engine {
             throw SetupError.engineBroken
         }
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
-        let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
-        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let windows = lib.appendingPathComponent("wine/\(WineFolders.windows)", isDirectory: true)
+        let unix = lib.appendingPathComponent("wine/\(WineFolders.unix)", isDirectory: true)
 
         // Apple's front ends are the DLLs with a unix half; a toolkit that brings no unix folder
         // (the bridges are only links anyway) has nothing but them.
-        let payloadUnix = payload.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let payloadUnix = payload.appendingPathComponent("wine/\(WineFolders.unix)", isDirectory: true)
         let bridged = Set(((try? fm.contentsOfDirectory(atPath: payloadUnix.path)) ?? []).filter { $0.hasSuffix(".so") }
             .map { String($0.dropLast(3)) })
-        let frontEnds = ((try? fm.contentsOfDirectory(at: payload.appendingPathComponent("wine/x86_64-windows"),
+        let frontEnds = ((try? fm.contentsOfDirectory(at: payload.appendingPathComponent("wine/\(WineFolders.windows)"),
                                                       includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "dll" && (bridged.isEmpty || bridged.contains($0.deletingPathExtension().lastPathComponent)) }
         // DLSS → MetalFX: Apple's readme has nvngx-on-metalfx installed under NVIDIA's name, nvngx.
@@ -1484,8 +1502,8 @@ enum Engine {
     static func removeD3DMetal(from wine: URL) {
         let fm = FileManager.default
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
-        let windows = lib.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
-        let unix = lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let windows = lib.appendingPathComponent("wine/\(WineFolders.windows)", isDirectory: true)
+        let unix = lib.appendingPathComponent("wine/\(WineFolders.unix)", isDirectory: true)
         let links = ((try? fm.contentsOfDirectory(atPath: unix.path)) ?? []).filter {
             (try? fm.destinationOfSymbolicLink(atPath: unix.appendingPathComponent($0).path)) == "../../external/libd3dshared.dylib"
         }
@@ -1510,7 +1528,7 @@ enum Engine {
         else { throw SetupError.engineBroken }
         let package = bus.deletingLastPathComponent().deletingLastPathComponent()
         let lib = wine.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("lib", isDirectory: true)
-        let pairs = [(bus, lib.appendingPathComponent("wine/x86_64-unix/winebus.so")),
+        let pairs = [(bus, lib.appendingPathComponent("wine/\(WineFolders.unix)/winebus.so")),
                      (package.appendingPathComponent("lib/libSDL2-2.0.0.dylib"), lib.appendingPathComponent("libSDL2-2.0.0.dylib"))]
         for (source, target) in pairs where fm.fileExists(atPath: source.path) {
             if target.lastPathComponent == "winebus.so", fm.fileExists(atPath: target.path) {
@@ -1543,7 +1561,7 @@ enum Engine {
     static func installEngineFix(_ packageDir: URL?, into wine: URL) throws -> Bool {
         let fm = FileManager.default
         let unix = wine.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+            .appendingPathComponent("lib/wine/\(WineFolders.unix)", isDirectory: true)
         let package = packageDir.flatMap(engineFixPackage(in:))
         let originals = package.map(engineFixOriginals(in:)) ?? [:]
         // The engine's own file: the copy kept of it, or – before anything went over it – the file itself.
@@ -1552,7 +1570,7 @@ enum Engine {
             return fm.fileExists(atPath: kept.path) ? kept : unix.appendingPathComponent(name)
         }
         let fits = !originals.isEmpty && originals.allSatisfy { name, sha256 in
-            package.map { fm.fileExists(atPath: $0.appendingPathComponent("x86_64-unix/\(name)").path) } == true
+            package.map { fm.fileExists(atPath: $0.appendingPathComponent("\(WineFolders.unix)/\(name)").path) } == true
                 && (try? ComponentStore.sha256(of: own(name))) == sha256
         }
         func swap(_ source: URL, over target: URL) throws {
@@ -1568,7 +1586,7 @@ enum Engine {
             let kept = target.appendingPathExtension("engine")
             if fits, let package, originals[name] != nil {
                 if !fm.fileExists(atPath: kept.path) { try fm.copyItem(at: target, to: kept) }
-                try swap(package.appendingPathComponent("x86_64-unix/\(name)"), over: target)
+                try swap(package.appendingPathComponent("\(WineFolders.unix)/\(name)"), over: target)
             } else if fm.fileExists(atPath: kept.path) {
                 try swap(kept, over: target)
             }
@@ -1603,7 +1621,7 @@ enum Engine {
         guard let files = fm.enumerator(at: dir, includingPropertiesForKeys: nil, options: [.skipsPackageDescendants]) else { return nil }
         for case let file as URL in files where file.lastPathComponent == "libd3dshared.dylib" {
             let root = file.deletingLastPathComponent().deletingLastPathComponent()
-            if fm.fileExists(atPath: root.appendingPathComponent("wine/x86_64-windows/d3d12.dll").path) { return root }
+            if fm.fileExists(atPath: root.appendingPathComponent("wine/\(WineFolders.windows)/d3d12.dll").path) { return root }
         }
         return nil
     }
@@ -1640,7 +1658,7 @@ enum Engine {
         let fm = FileManager.default
         let root = wine.deletingLastPathComponent().deletingLastPathComponent()
         let pairs = [
-            (msyncDir.appendingPathComponent("x86_64-unix/ntdll.so"), root.appendingPathComponent("lib/wine/x86_64-unix/ntdll.so")),
+            (msyncDir.appendingPathComponent("\(WineFolders.unix)/ntdll.so"), root.appendingPathComponent("lib/wine/\(WineFolders.unix)/ntdll.so")),
             (msyncDir.appendingPathComponent("bin/wineserver"), wine.deletingLastPathComponent().appendingPathComponent("wineserver")),
         ]
         let available = matchesEngine && pairs.allSatisfy { fm.fileExists(atPath: $0.0.path) }
@@ -1939,8 +1957,9 @@ enum Engine {
     }
 
     /// Per-program settings for a game's executables (Wine's AppDefaults): the Direct3D layer, the
-    /// profile's DLL overrides and Windows version. Rewritten in full at every launch, so a changed
-    /// choice or profile never leaves stale entries. The profile's registry entries go in as well.
+    /// profile's DLL overrides and Windows version. Rewritten in full when anything in them differs
+    /// from what the prefix holds (GameRegistryRecord), so a changed choice or profile never leaves
+    /// stale entries. The profile's registry entries go in as well, at every launch.
     static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL) {
         let layer = choice == .automatic ? (profile?.graphics ?? defaultGraphics) : choice
         let d3dMetalEngine = isGPTKCapable(wine: wine)
@@ -1950,7 +1969,7 @@ enum Engine {
         // D3DMetal 3.0 presents itself as an AMD card whose driver Unreal warns about.
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
-        var sections = [crashDialogOff]
+        var sections = [GameRegistryRecord.Section(key: "WineDbg", text: crashDialogOff)]
         for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
@@ -1961,11 +1980,20 @@ enum Engine {
                     .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
             }
             section += "\n[\(app)]\n\"Version\"=" + (profile?.windowsVersion.map(regString) ?? "-")
-            sections.append(section)
+            sections.append(GameRegistryRecord.Section(key: exe, text: section))
         }
-        sections += (profile?.registry ?? []).compactMap(regSection)
-        importRegistry(sections.joined(separator: "\n\n"), wine: wine)
+        let imported = gameSettingsLock.withLock {
+            GameRegistryRecord.importIfChanged(sections, unrecorded: (profile?.registry ?? []).compactMap(regSection),
+                                               record: stamp(in: prefix, name: "game-registry"),
+                                               userRegistry: prefix.appendingPathComponent("user.reg")) {
+                importRegistry($0, wine: wine)
+            }
+        }
+        if !imported { GameLog.note("Game settings as the prefix has them: no regedit") }
     }
+
+    /// One start at a time compares with the record, imports and notes what it wrote.
+    private static let gameSettingsLock = NSLock()
 
     // MARK: - Unreal's driver warning
 
@@ -2143,7 +2171,7 @@ enum Engine {
     static func installGameBundle(wine: URL) -> URL? {
         let fm = FileManager.default
         let root = wine.deletingLastPathComponent().deletingLastPathComponent()  // …/Resources/wine
-        let unix = root.appendingPathComponent("lib/wine/x86_64-unix", isDirectory: true)
+        let unix = root.appendingPathComponent("lib/wine/\(WineFolders.unix)", isDirectory: true)
         let bundle = root.appendingPathComponent(gameBundleName, isDirectory: true)
         let macOS = bundle.appendingPathComponent("Contents/MacOS", isDirectory: true)
         let resources = bundle.appendingPathComponent("Contents/Resources", isDirectory: true)
@@ -2182,14 +2210,14 @@ enum Engine {
                 let name = file.lastPathComponent
                 let target = macOS.appendingPathComponent(name)
                 if (try? file.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    try fm.createSymbolicLink(atPath: target.path, withDestinationPath: "../../../lib/wine/x86_64-unix/\(name)")
+                    try fm.createSymbolicLink(atPath: target.path, withDestinationPath: "../../../lib/wine/\(WineFolders.unix)/\(name)")
                 } else {
                     try fm.linkItem(at: file, to: target)
                 }
             }
             // Wine looks for its other folders next to the loader's.
-            try fm.createSymbolicLink(atPath: macOS.appendingPathComponent("x86_64-unix").path, withDestinationPath: ".")
-            for arch in ["x86_64-windows", "i386-windows"] {
+            try fm.createSymbolicLink(atPath: macOS.appendingPathComponent(WineFolders.unix).path, withDestinationPath: ".")
+            for arch in [WineFolders.windows, WineFolders.windows32] {
                 try fm.createSymbolicLink(atPath: macOS.appendingPathComponent(arch).path, withDestinationPath: "../../../lib/wine/\(arch)")
             }
             // Libraries are found at @loader_path/../../, i.e. the bundle folder itself.
@@ -2321,25 +2349,38 @@ enum Engine {
 
     /// msync for every Wine session, unless an engine test turns it off with `defaults write
     /// io.github.lordhayne.nightforge msync -bool false` (docs/TODO.md › Engine-Tests; there's no
-    /// switch in the app). Read once per app run: every process of a session has to agree with its
-    /// wineserver, and `applyMsyncMode` ends a session started the other way.
-    static let msync = UserDefaults.standard.object(forKey: "msync") as? Bool ?? true
+    /// switch in the app). Read once per app run.
+    static let msyncSwitch = UserDefaults.standard.object(forKey: "msync") as? Bool ?? true
+
+    /// What a game wants of its session: msync, unless its profile says no. The engine test's "off"
+    /// stands for every game.
+    static func msyncWanted(profile: GameProfile?, switchedOn: Bool = msyncSwitch) -> Bool {
+        switchedOn && profile?.msync != false
+    }
+
+    private static let msyncSessionKey = "msyncSession"
 
     /// Whether a session started with msync as `session` says (nil: before this was noted, when
     /// every session had it) has to end for one that wants it as `wanted`.
     static func msyncSessionEnds(wanted: Bool, session: Bool?) -> Bool { (session ?? true) != wanted }
 
-    /// Ends the Wine session when it began with msync the other way round from `msync`. Not under
-    /// a running game – the caller makes sure of that.
+    /// The Wine session as last begun has msync the other way round from `msync`.
+    static func msyncSessionDiffers(defaults: UserDefaults = .standard) -> Bool {
+        msyncSessionEnds(wanted: msync, session: defaults.object(forKey: msyncSessionKey) as? Bool)
+    }
+
+    /// Ends the Wine session when it began with msync the other way round from `msync`. Never under
+    /// a running game, nor when that can't be told. Before anything else starts in the new session:
+    /// a Wine program that disagrees with its wineserver about msync doesn't work with it.
     static func applyMsyncMode(_ wine: URL, defaults: UserDefaults = .standard) {
-        let key = "msyncSession"
-        guard msyncSessionEnds(wanted: msync, session: defaults.object(forKey: key) as? Bool) else { return }
+        guard msyncSessionDiffers(defaults: defaults), windowsGameRunningKnown == false else { return }
         // Not known whether a session runs (no process list): it isn't ended, and the switch isn't noted as
         // if it had been – the next start looks again.
         guard let session = ownProcessesKnown() else { return }
         if !session.isEmpty { stopAll(wine) }
-        defaults.set(msync, forKey: key)
-        GameLog.note("msync \(msync ? "on" : "off") from this Wine session on (engine test switch)")
+        let wanted = msync
+        defaults.set(wanted, forKey: msyncSessionKey)
+        GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
     }
 
     static func environment(wine: URL) -> [String: String] {
@@ -2451,7 +2492,10 @@ enum Engine {
             guard !current, !busy else { return }
             try await restartSteamInBackground(wine)
         } else {
-            if !busy { applyRetinaMode(wine) }
+            if !busy {
+                applyMsyncMode(wine)
+                applyRetinaMode(wine)
+            }
             try startSteam(wine, arguments: ["-silent"])
         }
         UserDefaults.standard.set(steamConfigSignature, forKey: key)
@@ -2461,7 +2505,8 @@ enum Engine {
     /// from the game's working folder – the game is started by the already running Steam, so
     /// environment variables don't reach it. Written next to every program of the game, since some
     /// start from a subfolder; a config the game ships itself is left alone.
-    static func writeGameConfigs(installDir: URL, frameLimit: Int, upscaling: Bool, vulkanSamplers: Int? = nil, hdr: Bool = false) {
+    static func writeGameConfigs(installDir: URL, frameLimit: Int, upscaling: Bool, vulkanSamplers: Int? = nil, hdr: Bool = false,
+                                 defaults: UserDefaults = .standard) {
         var dxvk = ["dxvk.enableAsync = True"]
         if Prefs.performanceHUD { dxvk.append("dxvk.hud = fps,frametimes,gpuload") }
         var dxmt: [String] = []
@@ -2475,13 +2520,15 @@ enum Engine {
             // factor DXMT upscales to exactly the window's Retina pixels.
             dxmt.append("d3d11.metalSpatialUpscale = True")
         }
+        let programs = executableFiles(in: installDir)
+        if ShaderCaches.translatesEarly(programs: programs, defaults: defaults) { dxmt.append("d3d11.prepareShaders = 1") }
         // Read by Nightforge's Vulkan layer (wrapper/nightforge-vulkan-layer.c), for games that draw
         // through Vulkan themselves or via DXVK.
         var vulkan = vulkanSamplers.map { ["maxPerStageDescriptorSamplers = \($0)"] } ?? []
         if hdr { vulkan.append("hdr = on") }
         if upscaling { vulkan.append("upscale = on") }  // MetalFX, as DXMT does it
         var folders = Set([installDir.standardizedFileURL])
-        for exe in executableFiles(in: installDir) { folders.insert(exe.deletingLastPathComponent().standardizedFileURL) }
+        for exe in programs { folders.insert(exe.deletingLastPathComponent().standardizedFileURL) }
         for folder in folders {
             writeConfig(folder.appendingPathComponent("dxvk.conf"), lines: dxvk)
             writeConfig(folder.appendingPathComponent("dxmt.conf"), lines: dxmt)
@@ -2665,6 +2712,7 @@ enum Engine {
     /// Quits Steam politely (so it saves its state) and starts it again hidden.
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
+        applyMsyncMode(wine)
         applyRetinaMode(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
@@ -2680,6 +2728,7 @@ enum Engine {
             waited += 1
         }
         await offMain { stopAll(wine) }
+        applyMsyncMode(wine)
         applyRetinaMode(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")

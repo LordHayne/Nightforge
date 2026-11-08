@@ -196,6 +196,51 @@ final class SteamSwitch {
         stoppedByNightforge ? !running : running && replaced
     }
 
+    // MARK: - Whose downloads go on
+
+    /// What decides whose downloads go on (LibraryModel.takeTurnsDownloading), read fresh each time.
+    struct DownloadFacts: Equatable {
+        var macDownload = false
+        /// A Windows game downloads through Nightforge's Steam (not Epic's or GOG's: they need no Steam).
+        var windowsDownload = false
+        var macReady = false
+        var macSignedIn = false
+        var windowsSignedIn = false
+        var macStalled = false
+        var windowsRunning = false
+        /// Steam for Mac signed the Windows Steam out.
+        var windowsReplaced = false
+        /// Nightforge quit the Windows Steam for Steam for Mac.
+        var windowsStopped = false
+    }
+
+    enum DownloadTurn: Equatable { case mac, windows }
+
+    /// The game comes through Nightforge's Windows Steam. Epic's and GOG's games live in the same bottle, without it.
+    nonisolated static func usesWindowsSteam(_ game: Game) -> Bool {
+        game.provider == .steam && game.platform == .windows && game.bottle.isBuiltIn
+    }
+
+    /// Whose turn it is now, nil to leave things as they are: the signed-in Steam finishes first, then
+    /// the other is signed in.
+    nonisolated static func downloadTurn(_ facts: DownloadFacts) -> DownloadTurn? {
+        if facts.macDownload, facts.macReady, !facts.macSignedIn, !(facts.windowsDownload && facts.windowsSignedIn), !facts.macStalled {
+            return .mac
+        }
+        if facts.windowsDownload, facts.windowsRunning ? facts.windowsReplaced : facts.windowsStopped, !(facts.macDownload && facts.macSignedIn) {
+            return .windows
+        }
+        return nil
+    }
+
+    /// Whether the Mac downloads got nowhere since their last turn (`lastTurn`: each one's progress then). Each by
+    /// itself: a download that finished, or one that only just began, says nothing about the others. As a sum, the
+    /// one that finished took its share away, and whatever came after it counted as stuck for the rest of the session.
+    nonisolated static func macDownloadsStalled(_ progress: [String: Double], since lastTurn: [String: Double]?) -> Bool {
+        guard let lastTurn else { return false }
+        return progress.allSatisfy { id, fraction in lastTurn[id].map { fraction <= $0 } ?? false }
+    }
+
     // MARK: - Saves on their way to the cloud
 
     /// A game ended: its Steam uploads its save now, which a switch must not cut off.

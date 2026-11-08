@@ -408,6 +408,8 @@ struct GameTestTest {
                                      engine: ["winecx@4.7.3", "dxmt@0.80"], mac: "Apple M5 · macOS 26.1",
                                      pictureWait: 120, playSeconds: 60)
         report.load = GameTest.Load(average: 2.04, cores: 10)
+        let written = (try? JSONSerialization.jsonObject(with: GameTest.json(report))) as? [String: Any]
+        check(written?["runsOn"] as? String == "x86_64 under Rosetta", "a report says how Wine ran")
         report.basket = .init(generated: "2026-11-02T21:23:38Z", entries: 239, installed: 4)
         var dialog = GameTest.Entry(candidate("steam.3132990", "Black Myth: Wukong Benchmark Tool", .steam), outcome: .dialog)
         dialog.way = "d3dmetal"

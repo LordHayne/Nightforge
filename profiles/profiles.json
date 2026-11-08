@@ -4792,6 +4792,7 @@
   "2357570": {
    "name": "Overwatch",
    "graphics": "dxmt",
+   "needsRosettaLibrary": true,
    "dllOverrides": {
     "nvapi64": "",
     "nvngx": ""
@@ -5915,5 +5916,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-07T21:50:08Z"
+ "generated": "2026-11-08T20:00:00Z"
 }

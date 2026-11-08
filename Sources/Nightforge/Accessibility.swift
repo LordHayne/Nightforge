@@ -29,12 +29,13 @@ struct AccessibilityFromSettings: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var system
     @AppStorage(Prefs.Keys.reduceMotion) private var stored = ""
     @AppStorage(Prefs.Keys.largerText) private var largerText = false
+    @ObservedObject private var tv = TVLayout.shared
 
     func body(content: Content) -> some View {
         content
             // Text without a size of its own (Settings' rows, text fields) is macOS's 13 pt body.
             .font(size: 13)
-            .environment(\.textScale, largerText ? TextScale.larger : 1)
+            .environment(\.textScale, TVRules.usesLargerText(setting: largerText, onTV: tv.isOn) ? TextScale.larger : 1)
             .environment(\.reduceMotion, Prefs.reduceMotion(system: system, stored: stored))
     }
 }

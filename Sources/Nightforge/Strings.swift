@@ -52,6 +52,7 @@ enum L10n {
         "%ld games": "%ld Spiele",
         "Rescan Library": "Bibliothek neu einlesen",
         "Restart Nightforge": "Nightforge neu starten",
+        "Nightforge restarts in %ld s, once your game's cloud saves are through.": "Nightforge startet in %ld s neu, sobald die Cloud-Spielstände deines Spiels durch sind.",
         "Quit the game first, then restart Nightforge.": "Beende zuerst das Spiel, dann starte Nightforge neu.",
         "Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs.":
             "Beendet Steam, Wine und alles, was Nightforge im Hintergrund laufen lässt, und startet Nightforge dann neu. Hilft, wenn etwas hängt.",
@@ -203,6 +204,21 @@ enum L10n {
         "Battle.net has to run and be signed in to start it: it needs internet.": "Battle.net muss laufen und angemeldet sein, damit es startet: Es braucht Internet.",
         "Battle.net installs and removes its games itself: do that in Battle.net.": "Battle.net installiert und entfernt seine Spiele selbst: Bitte dort erledigen.",
         "%@ can't start from Nightforge yet: start it in Battle.net.": "%@ startet noch nicht aus Nightforge: Bitte in Battle.net starten.",
+        "%@ starts through Battle.net for Mac, which isn't on this Mac any more.": "%@ startet über Battle.net für den Mac, das auf diesem Mac nicht mehr da ist.",
+        "%@ has an update waiting. Battle.net is open: update it there, then press Play here.": "Für %@ wartet ein Update. Battle.net ist offen: Aktualisiere es dort und drücke dann hier auf Spielen.",
+        "Battle.net didn't take the request.": "Battle.net hat die Anfrage nicht angenommen.",
+        "Battle.net isn't signed in, so %@ didn't start. Sign in there and press Play again.": "Battle.net ist nicht angemeldet, darum ist %@ nicht gestartet. Melde dich dort an und drücke noch einmal auf Spielen.",
+        "Battle.net didn't get ready, so %@ didn't start. Please try again.": "Battle.net ist nicht bereit geworden, darum ist %@ nicht gestartet. Bitte versuch es noch einmal.",
+        "Battle.net couldn't start %@. Its window says why.": "Battle.net konnte %@ nicht starten. Sein Fenster sagt, warum.",
+        "Battle.net called off the start of %@. Press Play again to try once more.": "Battle.net hat den Start von %@ abgebrochen. Drücke noch einmal auf Spielen, um es erneut zu versuchen.",
+        "Battle.net closed before %@ started. Please try again.": "Battle.net wurde beendet, bevor %@ gestartet ist. Bitte versuch es noch einmal.",
+        "Battle.net didn't start %@. Press Play in its window: Nightforge notices the game by itself.": "Battle.net hat %@ nicht gestartet. Drücke in seinem Fenster auf Spielen: Nightforge merkt das Spiel von selbst.",
+        "Starting Battle.net …": "Battle.net startet …",
+        "Sign in in the Battle.net window": "Melde dich im Battle.net-Fenster an",
+        "Battle.net is waiting for you": "Battle.net wartet auf dich",
+        "Blizzard's games start through Battle.net, which runs in the background.": "Blizzards Spiele starten über Battle.net, das im Hintergrund läuft.",
+        "Battle.net needs you to sign in. Its window is open.": "Battle.net möchte, dass du dich anmeldest. Sein Fenster ist offen.",
+        "Its window is open: answer there, or press Play in it.": "Sein Fenster ist offen: Antworte dort, oder drücke dort auf Spielen.",
 
         // Mac versions through Steam for Mac
         "Version": "Version",
@@ -347,6 +363,7 @@ enum L10n {
         "Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license.":
             "Windows-Spiele brauchen Rosetta von Apple. macOS fragt einmal nach deinem Passwort, um es zu installieren; mit der Installation akzeptierst du Apples Rosetta-Lizenz.",
         "Install Rosetta": "Rosetta installieren",
+        "Windows games can't run on this version of macOS: Rosetta, which they need, isn't available here.": "Windows-Spiele können auf dieser macOS-Version nicht laufen: Rosetta, das sie brauchen, gibt es hier nicht.",
         "Sign in in the Steam window – with the QR code from the Steam app on your phone or with your password. Nightforge never sees your login.":
             "Melde dich im Steam-Fenster an – mit dem QR-Code aus der Steam-App auf deinem Handy oder mit deinem Passwort. Nightforge sieht deine Anmeldedaten nie.",
         "Show Steam window again": "Steam-Fenster wieder zeigen",
@@ -537,6 +554,11 @@ enum L10n {
         "PlayStation: hold PS and Create until the light flashes. Xbox: hold the pair button on top until the logo flashes. Nintendo: hold the sync button. Then choose it in the Bluetooth settings.":
             "PlayStation: PS und Create halten, bis das Licht blinkt. Xbox: die Kopplungstaste oben halten, bis das Logo blinkt. Nintendo: die Sync-Taste halten. Dann in den Bluetooth-Einstellungen auswählen.",
         "Button labels": "Tastensymbole",
+        "Open Nightforge with the controller's button": "Nightforge mit der Controller-Taste öffnen",
+        "A short press goes to Home": "Kurzer Druck führt zur Startseite",
+        "While Nightforge is in front. In System Settings, choose once that the app may decide. In a game the button stays with macOS.": "Solange Nightforge vorn ist. In den Systemeinstellungen stellst du einmal ein, dass die App entscheiden darf. Im Spiel bleibt die Taste bei macOS.",
+        "Works – a short press goes to Home here, in a game it's macOS's": "Funktioniert – ein kurzer Druck führt hier zur Startseite, im Spiel gehört sie macOS",
+        "Hold the PS or Xbox button to open Nightforge. You choose that once in System Settings.": "PS- oder Xbox-Taste lange drücken öffnet Nightforge. Das wählst du einmal in den Systemeinstellungen.",
         "Like my controller": "Wie mein Controller",
         "No account. No telemetry. No background service.": "Kein Konto. Keine Telemetrie. Kein Hintergrunddienst.",
         "Nightforge sends nothing by itself. A problem report opens on GitHub, filled in with the game and its settings – GitHub gets that as the page opens, it's public only once you submit it. Error lines stay on your clipboard until you paste them.":
@@ -557,6 +579,10 @@ enum L10n {
         "Setting Up DirectX 12": "DirectX 12 wird eingerichtet",
         "Download from Apple": "Bei Apple laden",
         "DirectX 12 isn't set up": "DirectX 12 ist nicht eingerichtet",
+        "%@ needs Apple's D3DMetal to start on a Mac, even though it draws another way.":
+            "%@ braucht Apples D3DMetal, um auf dem Mac zu starten, auch wenn es anders zeichnet.",
+        "%@ needs Apple's D3DMetal to start on a Mac. Without it the game doesn't start – set it up in Settings.":
+            "%@ braucht Apples D3DMetal, um auf dem Mac zu starten. Ohne startet das Spiel nicht – richte es in den Einstellungen ein.",
         "%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.":
             "%@ zeichnet mit DirectX 12, das ein Mac über Apples D3DMetal ausführt.",
         "DirectX 12 games run on a Mac through Apple's D3DMetal.": "DirectX-12-Spiele laufen auf dem Mac über Apples D3DMetal.",
@@ -641,6 +667,23 @@ enum L10n {
         "Tool": "Werkzeug",
 
         "The download is done.": "Der Download ist fertig.",
+        "Open when you log in": "Beim Anmelden öffnen",
+        "Nightforge is there as soon as the Mac is. macOS tells you once that it's set.": "Nightforge ist da, sobald der Mac da ist. macOS weist einmal darauf hin.",
+        "Confirm in System Settings …": "In den Systemeinstellungen bestätigen …",
+        "Put the Mac to sleep": "Mac schlafen legen",
+        "Put the Mac to sleep?": "Mac schlafen legen?",
+        "Sleep": "Schlafen",
+        "Quit": "Beenden",
+        "Quit Nightforge?": "Nightforge beenden?",
+        "It wakes with a key, the lid or the trackpad.": "Wach wird er mit Taste, Deckel oder Trackpad.",
+        "Steam shuts down as usual.": "Steam fährt danach wie gewohnt herunter.",
+        "Keep the Mac awake": "Mac wach halten",
+        "Plugged in, the Mac stays awake this long after the last input, so the controller finds it ready. The screen may still go dark. Never on battery.": "Am Netzteil bleibt der Mac so lange nach der letzten Eingabe wach, damit der Controller ihn bereit findet. Der Bildschirm darf trotzdem ausgehen. Auf Akku nie.",
+        "Let it sleep as usual": "Schlafen wie gewohnt",
+        "1 hour": "1 Stunde",
+        "%ld hours": "%ld Stunden",
+        "%ld minutes": "%ld Minuten",
+        "Nightforge keeps the Mac awake for a while, as set in its settings": "Nightforge hält den Mac eine Weile wach, wie in seinen Einstellungen gewählt",
         "Notify me when downloads finish": "Mitteilung, wenn Downloads fertig sind",
         "A macOS notification with a Play button while Nightforge is in the background. Your last five games are in the Dock menu, too.":
             "Eine macOS-Mitteilung mit „Spielen“-Knopf, während Nightforge im Hintergrund ist. Deine letzten fünf Spiele stehen auch im Dock-Menü.",
@@ -802,12 +845,37 @@ enum L10n {
         "It runs, but hasn't shown a picture yet. Some games take long the first time.":
             "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
         "Keep Waiting": "Weiter warten",
+        "Stuck? Esc takes you back to Nightforge": "Hängt es? Mit Esc zurück zu Nightforge",
+        "Stuck? Back to Nightforge": "Hängt es? Zurück zu Nightforge",
+        "%@ isn't answering": "%@ antwortet gerade nicht",
+        "Esc stops for now, the update carries on next time": "Esc hält an, das Update läuft beim nächsten Mal weiter",
+        "Stop for now, the update carries on next time": "Anhalten, das Update läuft beim nächsten Mal weiter",
+        "Esc takes you back to Nightforge": "Mit Esc zurück zu Nightforge",
+        "Steam is asking something": "Steam fragt etwas",
+        "Answer with the mouse or trackpad": "Antworten mit Maus oder Trackpad",
+        "Back to Nightforge": "Zurück zu Nightforge",
+        "%@ – the update comes from %@ first, the game starts by itself when it's done.":
+            "%@ – das Update kommt zuerst von %@, das Spiel startet danach von selbst.",
+        "Steam is updating %@": "Steam aktualisiert %@",
+        "The update of %@ isn't moving": "Das Update von %@ kommt nicht voran",
+        "%@ hasn't started yet. You can keep waiting or go back to Nightforge. Going back breaks nothing.":
+            "%@ ist noch nicht gestartet. Du kannst weiter warten oder zu Nightforge zurückgehen. Dabei geht nichts kaputt.",
+        "That can take a while. You can go back to Nightforge: Steam keeps updating and starts the game by itself afterwards.":
+            "Das kann dauern. Du kannst zu Nightforge zurückgehen: Steam aktualisiert weiter und startet das Spiel danach von selbst.",
+        "Steam hasn't got any further for a while. You can go back to Nightforge: the update carries on once Steam can, and your saves stay as they are.":
+            "Steam kommt seit einer Weile nicht weiter. Du kannst zu Nightforge zurückgehen: Das Update läuft weiter, sobald Steam kann, und deine Spielstände bleiben, wie sie sind.",
         "Waiting for the first picture …": "Warte auf das erste Bild …",
+        "The game is asking something – %@ confirms, %@ cancels, or use the mouse.": "Das Spiel fragt etwas – %@ bestätigt, %@ bricht ab, oder nimm die Maus.",
+        "This question needs the pointer": "Diese Frage braucht den Zeiger",
+        "Use the touchpad as a mouse, or the right stick and R2.": "Nimm das Touchpad als Maus, oder rechten Stick und R2.",
         "The game is asking something – answer it with the mouse or trackpad.": "Das Spiel fragt etwas – antworte mit Maus oder Trackpad.",
         "macOS is asking for permission – answer it with the mouse or trackpad.": "macOS fragt um Erlaubnis – antworte mit Maus oder Trackpad.",
         "macOS still has a question open.": "macOS hat noch eine Frage offen.",
         "Preparing shaders for the first start …": "Shader werden beim ersten Start vorbereitet …",
         "Full Screen": "Vollbild",
+        "Full screen for the controller?": "Vollbild für den Controller?",
+        "Not Now": "Nicht jetzt",
+        "Nightforge fills the screen and the Mac's desktop goes out of the way. ⌃⌘F switches back.": "Nightforge füllt den Bildschirm, der Schreibtisch tritt zurück. ⌃⌘F wechselt zurück.",
         "Nightforge waits here until you're done.": "Nightforge wartet hier, bis du fertig bist.",
         "Back to Nightforge …": "Zurück zu Nightforge …",
         "Sound now comes from %@": "Ton kommt jetzt aus %@",
@@ -831,6 +899,17 @@ enum L10n {
         "Hold: this menu": "Halten: dieses Menü",
         "Both sticks pressed": "Beide Sticks gedrückt",
         "In a game": "Im Spiel",
+        "Keyboard": "Tastatur",
+        "%@ %@ type": "%@ %@ tippen",
+        "%@ delete": "%@ löschen",
+        "%@ space": "%@ Leerzeichen",
+        "%@ to the games": "%@ zu den Spielen",
+        "%@ back": "%@ zurück",
+        "%@ connected": "%@ verbunden",
+        "%@ disconnected": "%@ getrennt",
+        "Turn it on again to carry on.": "Schalte ihn wieder ein, dann geht es weiter.",
+        "%@: battery at %ld %%": "%@: Akku bei %ld %%",
+        "Time to charge it soon.": "Bald aufladen.",
         "Press both sticks and hold them for 2 seconds: Nightforge's menu comes over the game – continue, quit the game (also one that hangs) or go to Nightforge.":
             "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",
@@ -1356,7 +1435,16 @@ enum L10n {
         "To the games": "Zu den Spielen",
         "Browse": "Blättern",
         "Works – it belongs to macOS, Nightforge leaves it alone": "Funktioniert – sie gehört macOS, Nightforge lässt sie in Ruhe",
-        "Works – Nightforge doesn't need the touchpad, games do": "Funktioniert – Nightforge braucht das Touchpad nicht, Spiele schon",
+        "Moves the pointer where a mouse is needed – in games it's the game's": "Bewegt den Mauszeiger, wo eine Maus nötig ist – im Spiel gehört es dem Spiel",
+        "One click needs your OK first": "Dieser Klick braucht erst deine Erlaubnis",
+        "Allow it once in Settings › Controller, with a mouse or trackpad.": "Erlaube es einmal unter Einstellungen › Controller, mit Maus oder Trackpad.",
+        "As a mouse": "Als Maus",
+        "Controller as a mouse": "Controller als Maus",
+        "Touchpad: one finger moves the pointer, press to click, two fingers scroll, press with two for a right click. Other controllers: right stick and R2 while another app is in front.": "Touchpad: Ein Finger bewegt den Zeiger, Drücken klickt, zwei Finger scrollen, mit zwei Fingern drücken ist der Rechtsklick. Andere Controller: rechter Stick und R2, solange ein anderes Programm vorn ist.",
+        "Clicks in other windows": "Klicks in anderen Fenstern",
+        "Allowed. The controller reaches Steam's windows and questions from macOS.": "Erlaubt. Der Controller erreicht Steams Fenster und Fragen von macOS.",
+        "Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa.": "Steams Fenster und Fragen von macOS brauchen das Recht „Bedienungshilfen“. Schalte es einmal mit Maus oder Trackpad ein, danach geht es vom Sofa aus.",
+        "Allow …": "Erlauben …",
         "Paused while Steam waits for you to sign in": "Pausiert, solange Steam auf deine Anmeldung wartet",
 
         // First start: the tips while Steam installs
@@ -1379,6 +1467,8 @@ enum L10n {
         "Hold %@ – both sticks pressed – for 2 seconds: continue, quit the game (also one that hangs) or go to Nightforge.":
             "%@ – beide Sticks gedrückt – 2 Sekunden halten: weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "Tip: hold %@ to open the menu in a game": "Tipp: %@ halten öffnet im Spiel das Menü",
+        "Vibration": "Vibration",
+        "A short tap when you confirm or start a game, and while the overlay's buttons are held.": "Ein kurzer Ruck beim Bestätigen und beim Spielstart und während die Overlay-Tasten gehalten werden.",
         "Every button": "Alle Tasten",
         "Swipe and pinch": "Wischen und Zoomen",
         "Two fingers sideways go back. In the library, two fingers apart or together make the covers bigger or smaller.":
@@ -1455,8 +1545,8 @@ enum L10n {
         "Your Steam library, Mac and Windows versions alike": "Deine Steam-Bibliothek, Mac- und Windows-Versionen",
         "Your Epic games, Nightforge downloads them itself": "Deine Epic-Spiele, Nightforge lädt sie selbst",
         "Games without copy protection, Nightforge downloads them itself": "Spiele ohne Kopierschutz, Nightforge lädt sie selbst",
-        "Shows what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.":
-            "Zeigt, was Battle.net für den Mac installiert hat: WoW, Hearthstone und mehr. Overwatch läuft über Steam.",
+        "Starts what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.":
+            "Startet, was Battle.net für den Mac installiert hat: WoW, Hearthstone und mehr. Overwatch läuft über Steam.",
         "Sign In to %@": "Bei %@ anmelden",
         "Sign In": "Anmelden",
         "Manage": "Verwalten",
@@ -1474,14 +1564,58 @@ enum L10n {
         "Your password only goes to %@. After that, Nightforge downloads and starts your games itself.":
             "Dein Passwort geht nur an %@. Danach lädt und startet Nightforge deine Spiele selbst.",
         "%@'s window is open": "Das Fenster von %@ ist offen",
-        "Sign in there, with two-factor too. Nightforge only lays it on the curtain.":
-            "Melde dich dort an, auch mit Zwei-Faktor. Nightforge legt es nur auf den Vorhang.",
+        "Scan the QR code in Steam's window with the Steam app on your phone. No typing needed.":
+            "Scanne den QR-Code in Steams Fenster mit der Steam-App auf dem Handy. Tippen musst du nichts.",
+        "Battle.net needs a keyboard once: mail address and password go into Blizzard's window, not through Nightforge.":
+            "Battle.net braucht einmal eine Tastatur: Mail-Adresse und Passwort gehen in Blizzards Fenster, nicht durch Nightforge.",
+        "%@ needs a keyboard once": "Dafür braucht %@ einmal eine Tastatur",
+        "You type your password right on %@'s page. A Bluetooth keyboard is enough, or sign in later.":
+            "Dein Passwort tippst du direkt auf der Seite von %@. Eine Bluetooth-Tastatur genügt, oder du meldest dich später an.",
+        "Sign In Later": "Später anmelden",
+        "Sign in with your phone": "Mit dem Handy anmelden",
+        "Sign In Here with a Keyboard": "Mit Tastatur hier anmelden",
+        "Scan the QR code with your phone, on the same network as this Mac.":
+            "Scanne den QR-Code mit dem Handy, im selben Netz wie dieser Mac.",
+        "Sign in on %@'s own page. Only %@ sees your password.":
+            "Melde dich auf der Seite von %@ an. Dein Passwort sieht nur %@.",
+        "Paste the address %@ ends on into the page on your phone.":
+            "Füge die Adresse, auf der %@ endet, in die Seite auf dem Handy ein.",
+        "QR code for signing in on your phone": "QR-Code zum Anmelden auf dem Handy",
+        "Valid for %ld minutes, and only on this network.": "Gilt %ld Minuten und nur in diesem Netz.",
+        "The code has run out.": "Der Code ist abgelaufen.",
+        "New Code": "Neuer Code",
+        "Your phone can't reach this Mac: it isn't on a home or office network. You can still sign in here with a keyboard.":
+            "Das Handy erreicht diesen Mac nicht, er hängt in keinem Heim- oder Büronetz. Mit einer Tastatur kannst du dich hier anmelden.",
+        "Connect %@": "%@ verbinden",
+        "Sign in at %@": "Bei %@ anmelden",
+        "You give your password only on %@'s page. Nightforge never sees it.":
+            "Dein Passwort gibst du nur auf der Seite von %@ ein. Nightforge sieht es nicht.",
+        "Paste the address": "Adresse einfügen",
+        "When %@ is through, copy the whole address from the address bar, come back to this tab and paste it here.":
+            "Wenn %@ fertig ist, kopiere die ganze Adresse aus der Adresszeile, komm zurück in diesen Tab und füge sie hier ein.",
+        "That wasn't %@'s address. Copy the whole address of the page %@ ended on.":
+            "Das war nicht die Adresse von %@. Kopiere die ganze Adresse der Seite, auf der %@ gelandet ist.",
+        "All done": "Geschafft",
+        "Nightforge carries on from here, you can put your phone down.":
+            "Nightforge macht jetzt weiter, du kannst das Handy weglegen.",
         "Show Window Again": "Fenster wieder zeigen",
         "%@'s sign-in page doesn't answer. Check your internet connection.":
             "Die Anmeldeseite von %@ antwortet nicht. Prüfe deine Internetverbindung.",
         "Cancel, back to the launcher menu": "Abbrechen, zurück zum Launcher-Menü",
         "Opens and closes the launcher menu – in games it's the game's": "Öffnet und schließt das Launcher-Menü – in Spielen gehört sie dem Spiel",
         "Sign in to %@": "Bei %@ anmelden",
+
+        // Settings › Home
+        "Pinned games": "Angeheftete Spiele",
+        "Downloads in progress": "Laufende Downloads",
+        "the last %ld days": "die letzten %ld Tage",
+        "Suggestions to start with": "Vorschläge zum Start",
+        "fills up a short Home": "füllt eine kurze Startseite auf",
+        "Nothing pinned yet: a game's quick menu pins it.": "Noch nichts angeheftet: Das Schnellmenü eines Spiels heftet es an.",
+        "Pinned · change the order with ↑ ↓": "Angeheftet · Reihenfolge mit ↑ ↓",
+        "Pinned": "Angeheftet",
+        "Move %@ up": "%@ nach oben",
+        "Move %@ down": "%@ nach unten",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

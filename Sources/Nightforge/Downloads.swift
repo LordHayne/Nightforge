@@ -8,6 +8,31 @@ enum KeepAwake {
     private static var assertion: IOPMAssertionID = 0
     private static var holding = false
 
+    /// Whether anything can be fetching this game now. A download counts by what its store left on disk, and
+    /// that stays when the store isn't running: the Mac then never slept for as long as Nightforge was open,
+    /// which a start at login makes all day. Epic's and GOG's are Nightforge's own jobs, gone when they end;
+    /// a Steam in a bottle of the player's can't be looked at.
+    nonisolated static func counts(provider: Provider, platform: Platform, builtIn: Bool,
+                                   steamRunning: Bool, macSteamRunning: Bool, battleNetRunning: Bool) -> Bool {
+        switch provider {
+        case .steam: return platform == .mac ? macSteamRunning : (!builtIn || steamRunning)
+        case .battlenet: return battleNetRunning
+        case .epic, .gog: return true
+        }
+    }
+
+    /// Of these downloads, the ones that keep the Mac awake.
+    static func fetched(_ games: [Game]) -> [Game] {
+        guard !games.isEmpty else { return [] }  // the usual case: no process list asked for
+        let steam = Engine.steamRunningKnown ?? true  // not known: as before
+        let mac = MacSteam.isRunning
+        let battleNet = !NSRunningApplication.runningApplications(withBundleIdentifier: BattleNetClient.bundleID).isEmpty
+        return games.filter {
+            counts(provider: $0.provider, platform: $0.platform, builtIn: $0.bottle.isBuiltIn,
+                   steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet)
+        }
+    }
+
     static func update(downloading names: [String]) {
         if names.isEmpty {
             guard holding else { return }

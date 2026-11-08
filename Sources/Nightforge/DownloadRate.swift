@@ -46,6 +46,14 @@ struct DownloadRate: Equatable {
         return L10n.t("%@ · %@ left", speed, Self.duration(seconds))
     }
 
+    /// The same line from what a store's own downloader reports.
+    static func label(speed: Double?, secondsLeft: Int?) -> String? {
+        guard let speed, speed > 0 else { return nil }
+        let text = Format.bytes(speed.clampedBytes) + "/s"  // a damaged log's number can be inf
+        guard let secondsLeft else { return text }
+        return L10n.t("%@ · %@ left", text, duration(Double(secondsLeft)))
+    }
+
     static func duration(_ seconds: Double) -> String {
         if seconds < 60 { return L10n.t("under a minute") }
         let formatter = DateComponentsFormatter()

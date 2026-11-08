@@ -16,6 +16,47 @@ enum ShaderCaches {
         return URL(fileURLWithPath: String(cString: buffer), isDirectory: true)
     }
 
+    /// The setting that turns early translation off; there's no switch in the app:
+    /// `defaults write io.github.lordhayne.nightforge dxmtEarlyShaders -bool false`.
+    static let earlyTranslationKey = "dxmtEarlyShaders"
+
+    /// Programs DXMT doesn't translate early for. Overwatch: a change to the graphics layer can look
+    /// suspicious to its anti-cheat and the player's account is at stake, so it waits for the user's OK.
+    static let noEarlyTranslation: Set<String> = ["overwatch.exe"]
+
+    /// Whether DXMT translates a game's shaders as soon as the game creates them, so that the first
+    /// round waits less (`d3d11.prepareShaders`, engine/patches/dxmt-0.80-prepare-shaders.patch).
+    /// A d3d11.dll from before that patch stores the unknown line in dxmt.conf and never asks for it.
+    static func translatesEarly(programs: [URL], defaults: UserDefaults = .standard) -> Bool {
+        (defaults.object(forKey: earlyTranslationKey) as? Bool ?? true)
+            && !programs.contains { noEarlyTranslation.contains($0.lastPathComponent.lowercased()) }
+    }
+
+    /// Above this the file all games share goes before the next start. Translating early writes every
+    /// shader a game creates: Recall's file reached about 1 GB after one short session of Overwatch.
+    static let translationLimit: Int64 = 4 * 1024 * 1024 * 1024
+
+    /// Removes DXMT's translations when they've outgrown `limit`, and returns the bytes that went.
+    /// A game still running keeps writing to its open file, which is simply gone when it ends.
+    @discardableResult
+    static func limitTranslations(in folder: URL = Engine.shaderCache, limit: Int64 = translationLimit,
+                                  defaults: UserDefaults = .standard) -> Int64 {
+        let fm = FileManager.default
+        let files = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("shaders_") }
+        let bytes = files.reduce(Int64(0)) { $0 + ((try? fm.attributesOfItem(atPath: $1.path))?[.size] as? Int64 ?? 0) }
+        guard bytes > limit else { return 0 }
+        for file in files { try? fm.removeItem(at: file) }
+        forgetPreparedGames(defaults)
+        return bytes
+    }
+
+    /// `limitTranslations` before a game starts, with a line in the game log when it cleared the file.
+    static func limitTranslationsBeforeStart() {
+        let freed = limitTranslations()
+        if freed > 0 { GameLog.note("DXMT's translated shaders had reached \(freed / (1024 * 1024)) MB and were cleared") }
+    }
+
     /// Folders whose contents can go; only the ones there.
     static func folders(steamapps: [URL],
                         dxmt: URL = Engine.shaderCache,
@@ -48,11 +89,15 @@ enum ShaderCaches {
                 if (try? fm.removeItem(at: item)) != nil { freed += bytes }
             }
         }
-        // The next start of each game says again that it prepares shaders (1.1).
+        forgetPreparedGames(defaults)
+        return freed
+    }
+
+    /// The next start of each game says again that it prepares shaders (1.1).
+    private static func forgetPreparedGames(_ defaults: UserDefaults) {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("shaders.") {
             defaults.removeObject(forKey: key)
         }
-        return freed
     }
 
     /// A plain file's size (folderSize counts what's inside folders).

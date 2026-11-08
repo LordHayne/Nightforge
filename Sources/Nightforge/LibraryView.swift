@@ -56,7 +56,7 @@ struct LibraryView: View {
 
                 HintBar()
                     .padding(.horizontal, Theme.gutter)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, Theme.margins.bottom)
             }
 
             if model.showingDownloads {
@@ -67,10 +67,15 @@ struct LibraryView: View {
                     .onTapGesture { model.showingDownloads = false }
                 DownloadsPanel()
                     .padZone(.panel)
-                    .padding(.top, 84)  // below the top bar (36 + 38), right under the downloads ring
+                    .padding(.top, Theme.margins.top + 48)  // below the top bar (its margin + 38), right under the downloads ring
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .transition(.opacity.combined(with: .offset(y: -8)))
+            }
+
+            if let session = model.padKeyboard {
+                PadKeyboardPanel(session: session, layout: model.padSymbols.layout)
+                    .transition(.opacity.combined(with: .offset(y: 16)))
             }
 
             if model.launcherMenuOpen {
@@ -81,7 +86,7 @@ struct LibraryView: View {
                     .onTapGesture { model.closeLauncherMenu() }
                 LauncherMenu()
                     .padZone(.panel)
-                    .padding(.top, 82)  // right under its pill
+                    .padding(.top, Theme.margins.top + 46)  // right under its pill
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .transition(.opacity.combined(with: .offset(y: -8)))
@@ -190,6 +195,33 @@ struct LibraryView: View {
                     .buttonStyle(GlassTextButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
                     .padFocus("cloud.continue", cornerRadius: 21, preferred: true, activate: { model.confirmCloud() })
+            }
+        }
+        .sheet(item: $model.pendingPower) { entry in
+            GlassQuestion(entry == .sleepMac ? L10n.t("Put the Mac to sleep?") : L10n.t("Quit Nightforge?"),
+                          message: entry == .sleepMac ? L10n.t("It wakes with a key, the lid or the trackpad.") : L10n.t("Steam shuts down as usual."),
+                          id: "power") {
+                // The safe answer has the highlight, as in every question.
+                Button(L10n.t("Cancel")) { model.pendingPower = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("power.cancel", cornerRadius: 21, preferred: true, activate: { model.pendingPower = nil })
+                Button(entry == .sleepMac ? L10n.t("Sleep") : L10n.t("Quit")) { model.confirmPower() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .padFocus("power.confirm", cornerRadius: 21, activate: { model.confirmPower() })
+            }
+        }
+        .sheet(isPresented: $model.offersFullScreen) {
+            GlassQuestion(L10n.t("Full screen for the controller?"),
+                          message: L10n.t("Nightforge fills the screen and the Mac's desktop goes out of the way. ⌃⌘F switches back."),
+                          id: "fullScreenOffer") {
+                Button(L10n.t("Not Now")) { model.offersFullScreen = false }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("fullScreenOffer.no", cornerRadius: 21, activate: { model.offersFullScreen = false })
+                Button(L10n.t("Full Screen")) { model.acceptFullScreen() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("fullScreenOffer.yes", cornerRadius: 21, preferred: true, activate: { model.acceptFullScreen() })
             }
         }
         .sheet(item: $model.pendingUninstall) { game in
@@ -1167,7 +1199,7 @@ private struct TopBar: View {
             .background(GlassBackground(glass: .regular, shape: Capsule()))
         }
         .padding(.horizontal, Theme.gutter)
-        .padding(.top, 36)
+        .padding(.top, Theme.margins.top)
     }
 
 }
@@ -1425,7 +1457,7 @@ private struct GameDetail: View {
             }
             if let needed = game.downloadNeedsSpace {
                 Label(L10n.t("Not enough space: Steam needs %@ to download this game, your Mac has %@ free. Make some room, then continue.",
-                             Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: game.installDir.deletingLastPathComponent()))),
+                             Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: SpaceCheck.existingFolder(for: game.installDir)))),
                       systemImage: "externaldrive.badge.exclamationmark")
                     .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)

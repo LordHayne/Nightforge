@@ -74,14 +74,16 @@ enum HomeRail {
     /// With fewer games than this to continue (a new library), other installed games fill up.
     static let minimum = 3
 
-    /// Indices into `games`: pinned games first (by name), then downloads, then installed games
+    /// Indices into `games`: pinned games first (in the player's order, else by name), then downloads, then installed games
     /// played in the last 90 days, the latest first. Only what's on this Mac – or on a drive that's
     /// unplugged, which plays once it's back (`Game.shelfState`). A game from several
     /// stores goes by what its card shows (`Game.shown`) and is pinned when one of them is.
     /// `fill`: with fewer than `minimum`, other installed games fill up (Home's stage fills with
     /// StarterPicks instead). `off`: games the player took off Home, gone until played again (HomeRemovals).
+    /// `sources`, `pinOrder`, `later`: what Settings › Home says. A pinned game whose source is off is
+    /// an ordinary game; Play Later comes last and also shows what isn't downloaded yet.
     static func pick(_ games: [Game], pinned: Set<GameID> = [], off: [GameID: Date] = [:], now: Date = Date(),
-                     fill: Bool = true) -> [Int] {
+                     fill: Bool = true, sources: HomeSources = HomeSources(), pinOrder: [GameID] = [], later: Set<GameID> = []) -> [Int] {
         let onMac = games.indices.filter { index in
             guard !HomeRemovals.isOff(games[index], in: off) else { return false }
             switch games[index].shown.shelfState {
@@ -106,13 +108,23 @@ enum HomeRail {
             }
         }
 
-        let pins = onMac.filter { games[$0].isMarked(in: pinned) }.sorted(by: byName)
-        let rest = onMac.filter { !games[$0].isMarked(in: pinned) }
-        let downloads = rest.filter { downloading(games[$0]) }.sorted(by: byRecency)
-        let lately = rest.filter { !downloading(games[$0]) && recent(games[$0]) }.sorted(by: byRecency)
+        let pins = sources.isOn(.pinned)
+            ? HomePinOrder.sorted(onMac.filter { games[$0].isMarked(in: pinned) }, in: games, order: pinOrder) : []
+        let rest = onMac.filter { !pins.contains($0) }
+        let downloads = sources.isOn(.downloads) ? rest.filter { downloading(games[$0]) }.sorted(by: byRecency) : []
+        let lately = sources.isOn(.recent) ? rest.filter { !downloading(games[$0]) && recent(games[$0]) }.sorted(by: byRecency) : []
         var rail = pins + downloads + lately
-        if fill && rail.count < minimum {
-            rail += rest.filter { !rail.contains($0) }.sorted(by: byRecency).prefix(minimum - rail.count)
+        if sources.isOn(.later), !later.isEmpty {
+            rail += games.indices.filter { index in
+                guard games[index].isMarked(in: later), !rail.contains(index), !HomeRemovals.isOff(games[index], in: off) else { return false }
+                if case .inStore = games[index].shown.shelfState { return false }
+                return true
+            }.sorted(by: byName)
+        }
+        // Filling up is a suggestion too.
+        if fill && sources.isOn(.starters) && rail.count < minimum {
+            let others = rest.filter { !rail.contains($0) && (sources.isOn(.downloads) || !downloading(games[$0])) }
+            rail += others.sorted(by: byRecency).prefix(minimum - rail.count)
         }
         return Array(rail.prefix(limit))
     }

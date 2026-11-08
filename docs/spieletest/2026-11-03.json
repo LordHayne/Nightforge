@@ -1,0 +1,110 @@
+{
+  "basket" : {
+    "entries" : 239,
+    "generated" : "2026-11-02T21:23:38Z",
+    "installed" : 2
+  },
+  "engine" : [
+    "winecx@4.7.3",
+    "d3dmetal@apple-3.0",
+    "dxvk-macos@1.10.3-20230507",
+    "gamepad@4.7.3-15",
+    "graphics@11.18-dxmt0.80-17",
+    "moltenvk@1.4.2"
+  ],
+  "finished" : "2026-11-03T06:47:35Z",
+  "formatVersion" : 1,
+  "games" : [
+    {
+      "files" : [
+        "steam.242760.log",
+        "steam.242760.sample.txt"
+      ],
+      "game" : "The Forest",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 6.5,
+        "cores" : 10,
+        "low" : false
+      },
+      "outcome" : "hang",
+      "platform" : "windows",
+      "result" : "no-start",
+      "secondsToProcess" : 3.1,
+      "stack" : [
+        "??? (in <unknown binary>) [0x7ff898126b80] 131875",
+        "??? (in Rosetta Runtime Routines) [0x7ff7ffde3ed0] 2356",
+        "??? (in <unknown binary>) [0x7ff8981266d8] 15"
+      ],
+      "startedAt" : "2026-11-03T06:40:22Z",
+      "store" : "steam",
+      "storeID" : "242760",
+      "way" : "dxmt",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "hang",
+          "way" : "dxmt"
+        }
+      ]
+    },
+    {
+      "files" : [
+        "epic.Curry.log",
+        "epic.Curry.sample.txt"
+      ],
+      "frames" : {
+        "average" : 56.6,
+        "low" : 40.9,
+        "periods" : 11
+      },
+      "game" : "ABZU",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 4.8,
+        "cores" : 10,
+        "low" : true
+      },
+      "outcome" : "hang",
+      "platform" : "windows",
+      "result" : "no-start",
+      "secondsToProcess" : 2.1,
+      "stack" : [
+        "??? (in <unknown binary>) [0x7ff898126b80] 11874",
+        "??? (in Rosetta Runtime Routines) [0x7ff7ffc34ed0] 3958"
+      ],
+      "standsFor" : [
+        "steam.1426210",
+        "steam.548430",
+        "steam.1144200",
+        "steam.1149460"
+      ],
+      "startedAt" : "2026-11-03T06:43:49Z",
+      "store" : "epic",
+      "storeID" : "Curry",
+      "way" : "dxmt -dx11",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "hang",
+          "way" : "dxmt -dx11"
+        }
+      ]
+    }
+  ],
+  "load" : {
+    "average" : 6.5,
+    "cores" : 10,
+    "low" : false
+  },
+  "mac" : "Apple M5 · macOS 27.0",
+  "nightforge" : "0.3.0",
+  "pictureWait" : 120,
+  "playSeconds" : 60,
+  "started" : "2026-11-03T06:35:15Z",
+  "stopped" : false
+}

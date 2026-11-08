@@ -1,0 +1,110 @@
+{
+  "basket" : {
+    "entries" : 239,
+    "generated" : "2026-11-02T21:23:38Z",
+    "installed" : 2
+  },
+  "engine" : [
+    "winecx@4.7.3",
+    "d3dmetal@apple-3.0",
+    "dxvk-macos@1.10.3-20230507",
+    "gamepad@4.7.3-15",
+    "graphics@11.18-dxmt0.80-17",
+    "moltenvk@1.4.2"
+  ],
+  "finished" : "2026-11-03T07:03:45Z",
+  "formatVersion" : 1,
+  "games" : [
+    {
+      "files" : [
+        "steam.242760.log",
+        "steam.242760.sample.txt"
+      ],
+      "game" : "The Forest",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 4.5,
+        "cores" : 10,
+        "low" : true
+      },
+      "notes" : [
+        "das Spiel zeigte vor dem Bild ein Fenster mit einer Frage",
+        "letzter Blick des Vorhangs: 1 processes, in front Nightforge Game (21202, the game's), windows 464×438 L0, 5 hidden, picture none, asks yes, curtain under the question"
+      ],
+      "outcome" : "hang",
+      "platform" : "windows",
+      "result" : "no-start",
+      "secondsToProcess" : 3.3,
+      "stack" : [
+        "??? (in <unknown binary>) [0x7ff898126b80] 121628",
+        "??? (in Rosetta Runtime Routines) [0x7ff7fff88ed0] 2135",
+        "??? (in <unknown binary>) [0x7ff8981266d8] 9",
+        "??? (in <unknown binary>) [0x20d913194] 8",
+        "??? (in Rosetta JIT) [0x20095e1dc] 8",
+        "??? (in Rosetta JIT) [0x20093c4c8] 7"
+      ],
+      "startedAt" : "2026-11-03T06:51:37Z",
+      "store" : "steam",
+      "storeID" : "242760",
+      "way" : "dxmt",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "hang",
+          "way" : "dxmt"
+        }
+      ]
+    },
+    {
+      "frames" : {
+        "average" : 58.3,
+        "low" : 41.6,
+        "periods" : 13
+      },
+      "game" : "ABZU",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 4.8,
+        "cores" : 10,
+        "low" : true
+      },
+      "outcome" : "picture",
+      "platform" : "windows",
+      "result" : "good",
+      "secondsToPicture" : 183.1,
+      "secondsToProcess" : 2.1,
+      "standsFor" : [
+        "steam.1426210",
+        "steam.548430",
+        "steam.1144200",
+        "steam.1149460"
+      ],
+      "startedAt" : "2026-11-03T06:59:10Z",
+      "store" : "epic",
+      "storeID" : "Curry",
+      "way" : "dxmt -dx11",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "picture",
+          "way" : "dxmt -dx11"
+        }
+      ]
+    }
+  ],
+  "load" : {
+    "average" : 4.5,
+    "cores" : 10,
+    "low" : true
+  },
+  "mac" : "Apple M5 · macOS 27.0",
+  "nightforge" : "0.3.0",
+  "pictureWait" : 300,
+  "playSeconds" : 60,
+  "started" : "2026-11-03T06:48:47Z",
+  "stopped" : false
+}

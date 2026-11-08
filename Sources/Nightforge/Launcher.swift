@@ -24,6 +24,9 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        static let keepAwakeMinutes = "keepAwakeMinutes"
+        static let padHaptics = "padHaptics"
+        static let padPointer = "padPointer"
         /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
         static let launchTipShown = "launchTipShown"
         static let notifyDownloads = "notifyDownloads"
@@ -50,6 +53,19 @@ enum Prefs {
     static var notifyDownloads: Bool {
         UserDefaults.standard.object(forKey: Keys.notifyDownloads) as? Bool ?? true
     }
+
+    /// The pad as the Mac's pointer where a mouse is needed (PadPointer). On by default.
+    static var padPointer: Bool {
+        UserDefaults.standard.object(forKey: Keys.padPointer) as? Bool ?? true
+    }
+
+    /// The pad's motors answering in Nightforge (PadHapticRules). On by default.
+    static var padHaptics: Bool {
+        UserDefaults.standard.object(forKey: Keys.padHaptics) as? Bool ?? true
+    }
+
+    /// How long after the last input Nightforge keeps the Mac awake, plugged in. 0, the default: never (IdleAwake).
+    static var keepAwakeMinutes: Int { IdleAwake.minutes(stored: UserDefaults.standard.integer(forKey: Keys.keepAwakeMinutes)) }
 
     /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.
     static var padGlyphs: PadSymbols.Style {
@@ -523,12 +539,15 @@ enum Launcher {
         let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
         let route = game.bottle.isBuiltIn ? SteamProgram.route(game, layer: layer, options: options, profile: profile) : .standard
         if game.bottle.isBuiltIn {
+            ShaderCaches.limitTranslationsBeforeStart()
             Engine.writeGameConfigs(installDir: game.installDir,
                                     frameLimit: frameLimit,
                                     upscaling: options.effectiveUpscaling(profile: profile),
                                     vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
             Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
             Engine.applyIniSettings(profile?.iniSettings ?? [])
+            // Before regedit: it would join what's left of a session with msync the other way.
+            if Engine.steamRunningKnown == false { Engine.applyMsyncMode(runner) }
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
             // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
@@ -604,6 +623,7 @@ enum Launcher {
             throw LaunchError.runnerMissing(runnerPath)
         }
         let runner = URL(fileURLWithPath: runnerPath)
+        ShaderCaches.limitTranslationsBeforeStart()
         Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
                                 upscaling: options.effectiveUpscaling(profile: profile),
                                 vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)

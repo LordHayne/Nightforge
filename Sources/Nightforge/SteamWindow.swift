@@ -21,6 +21,14 @@ enum SteamWindow {
         return nil
     }
 
+    /// A window of Steam's stands on the screen: the player is using it (SteamOnDemand).
+    @MainActor
+    static func isOpen() async -> Bool {
+        let helpers = await helpers()
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        return owner(of: windows, helpers: helpers) != nil
+    }
+
     /// Steam's windows out of sight, as ⌘H would – nothing quits, its question is answered. Opened
     /// for a question before a start, Steam's window stayed and came forward when the game ended,
     /// before Nightforge's curtain (1.11., Black Myth: Wukong).
@@ -33,6 +41,13 @@ enum SteamWindow {
     @MainActor
     static func reveal() async {
         for app in await helperApps() where app.isHidden { app.unhide() }
+    }
+
+    /// Steam's windows on screen, front to back (`GameProcesses.steamWindows`).
+    @MainActor
+    static func onScreen() async -> [Int] {
+        let pids = await helpers()
+        return await Engine.offMain { GameProcesses.steamWindows(pids: pids) }
     }
 
     /// Steam's browser processes, which show its windows.

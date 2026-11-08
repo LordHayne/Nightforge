@@ -25,6 +25,17 @@ struct ProfileFilesTest {
         let temp = fm.temporaryDirectory.appendingPathComponent("profile-files-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: temp) }
 
+        // The fields this build reads have to reach it. A list kept from before wins over the app's own at the same
+        // stamp (SignedLists.isOlder), and a hand edit doesn't move the stamp: Overwatch lost its question about D3DMetal.
+        if let list = try? Data(contentsOf: URL(fileURLWithPath: "profiles/profiles.json")) {
+            let lastSignedWithout = Data(#"{"generated": "2026-11-07T21:50:08Z"}"#.utf8)
+            check(SignedLists.isOlder(lastSignedWithout, than: list), "the list with needsRosettaLibrary is newer than the last one signed without it")
+            let text = String(decoding: list, as: UTF8.self)
+            check(text.contains("\"needsRosettaLibrary\": true"), "Overwatch's field is in the list that ships")
+        } else {
+            check(false, "profiles/profiles.json not found from the repository's root")
+        }
+
         // MARK: Decoding
         let decoded = profile("""
             {"retina": true,
@@ -183,6 +194,28 @@ struct ProfileFilesTest {
         check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true),
               "a game without it restarts it again")
         check(!Engine.launchRetina && Engine.steamConfigSignature == plain, "and the signature is as before Retina")
+
+        // MARK: msync per game: a whole session has it or doesn't
+        check(profile(#"{"msync": false}"#)?.msync == false && profile(#"{"name": "Game"}"#)?.msync == nil
+              && profile(#"{"msync": "no"}"#)?.msync == nil, "a profile can say no; nothing or something odd says nothing")
+        check(Engine.msyncWanted(profile: nil) && Engine.msyncWanted(profile: profile(#"{"name": "Game"}"#))
+              && Engine.msyncWanted(profile: profile(#"{"msync": true}"#)), "without a no from the profile, every game keeps it")
+        check(!Engine.msyncWanted(profile: profile(#"{"msync": false}"#)), "the profile's no counts")
+        check(!Engine.msyncWanted(profile: profile(#"{"msync": true}"#), switchedOn: false)
+              && !Engine.msyncWanted(profile: nil, switchedOn: false), "the engine test's off stands for every game")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: true),
+              "a game that keeps msync restarts nothing")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: false),
+              "a game without it restarts Steam")
+        check(!Engine.msync && Engine.steamConfigSignature == plain + "-nomsync"
+              && Engine.environment(wine: URL(fileURLWithPath: "/nowhere/bin/wine"))["WINEMSYNC"] == "0",
+              "and the session's programs and Steam's signature say so")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: nil) && !Engine.msync,
+              "a game joining that session leaves it as it is")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: true)
+              && Engine.msync && Engine.steamConfigSignature == plain, "the next game with it starts afresh, signature as before")
+
+        gameRegistryRecord(temp)
 
         // MARK: D3DMetal profiles need the engine that carries it
         let components = temp.appendingPathComponent("Components", isDirectory: true)
@@ -468,5 +501,68 @@ struct ProfileFilesTest {
               "once it can be read: exactly the other version's saves, nothing beside them (\(again))")
         check(SaveTransfer.PartlyTaken(backup: secondBackup, reason: "x").errorDescription?.contains(secondBackup.path) == true,
               "a switch that stopped while changing a folder names the backup")
+    }
+
+    /// regedit only when the prefix doesn't hold the settings yet (Engine.applyGameSettings).
+    static func gameRegistryRecord(_ temp: URL) {
+        let fm = FileManager.default
+        let folder = temp.appendingPathComponent("record", isDirectory: true)
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let record = folder.appendingPathComponent(".nightforge-game-registry")
+        let userRegistry = folder.appendingPathComponent("user.reg")
+        typealias Section = GameRegistryRecord.Section
+        var imports: [String] = []
+        var answer = true
+        func run(_ sections: [Section], unrecorded: [String] = []) -> Bool {
+            GameRegistryRecord.importIfChanged(sections, unrecorded: unrecorded, record: record, userRegistry: userRegistry) {
+                imports.append($0)
+                return answer
+            }
+        }
+        /// As a wineserver does it: the registry saved after the import.
+        func saved() {
+            fm.createFile(atPath: userRegistry.path, contents: Data())
+            try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: userRegistry.path)
+        }
+        let gameA = [Section(key: "WineDbg", text: "dbg"), Section(key: "Game.exe", text: "a"), Section(key: "Crash.exe", text: "dxmt")]
+
+        check(run(gameA) && imports == ["dbg\n\na\n\ndxmt"], "a prefix without a record gets the settings, whole and in order")
+        check(run(gameA) && imports.count == 2, "regedit's work isn't trusted until the registry was saved after it")
+        saved()
+        check(!run(gameA) && imports.count == 2, "saved, the same settings run no regedit")
+        check(!run([Section(key: "GAME.EXE", text: "a")]), "a program's name counts without regard to case")
+        check(!run([Section(key: "Game.exe", text: "a")], unrecorded: []) && imports.count == 2, "a part of what's recorded needs nothing")
+
+        check(run([Section(key: "Game.exe", text: "b")]) && imports.last == "b", "a changed choice goes in")
+        saved()
+        check(run(gameA) && imports.last?.contains("a") == true, "and the choice before it goes back in")
+        saved()
+        // Another game with a program of the same name: the last to start decides what the name holds.
+        let gameB = [Section(key: "WineDbg", text: "dbg"), Section(key: "Crash.exe", text: "dxvk")]
+        check(run(gameB), "another game's setting for a shared program goes in")
+        saved()
+        check(run(gameA), "and the first game's goes back in afterwards, though its own record never changed")
+        saved()
+        let before = imports.count
+        check(run(gameA, unrecorded: ["[HKEY_CURRENT_USER\\Software\\Game]"]) && imports.count == before + 1
+              && imports.last?.hasSuffix("[HKEY_CURRENT_USER\\Software\\Game]") == true,
+              "a profile's own values are set again at every start")
+        saved()
+
+        answer = false
+        let failing = [Section(key: "Game.exe", text: "c")]
+        check(run(failing), "a failed import ran")
+        saved()
+        answer = true
+        check(run(failing) && imports.last == "c", "and isn't noted: the next start tries again")
+        saved()
+        check(!run(failing), "until it went in")
+
+        try? "not json".write(to: record, atomically: true, encoding: .utf8)
+        saved()
+        check(run(failing), "a damaged record counts as none")
+        saved()
+        try? fm.removeItem(at: userRegistry)
+        check(run(failing), "no registry on disk: nothing is taken for granted")
     }
 }

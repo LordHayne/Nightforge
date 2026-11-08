@@ -13,6 +13,13 @@ struct EngineLayoutTest {
         }
     }
 
+    /// The names Wine's install has on disk; this test's layouts below spell them out on their own.
+    static func folderNames() {
+        check(WineFolders.unix == "x86_64-unix", "Unix halves' folder")
+        check(WineFolders.windows == "x86_64-windows", "64-bit modules' folder")
+        check(WineFolders.windows32 == "i386-windows", "32-bit modules' folder")
+    }
+
     /// A DLL-sized file, builtin-marked like Wine's own when `builtin`.
     static func dll(_ tag: String, builtin: Bool = false) -> Data {
         var bytes = Data(count: 0x100)
@@ -39,6 +46,7 @@ struct EngineLayoutTest {
 
     static func main() {
         TestDefaults.useWorkFolder()
+        folderNames()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 
@@ -565,6 +573,25 @@ struct EngineLayoutTest {
         let dxvkConf = (try? String(contentsOf: configs.appendingPathComponent("dxvk.conf"), encoding: .utf8)) ?? ""
         check(dxvkConf.contains("dxgi.maxFrameRate = 60") && dxvkConf.contains("d3d9.maxFrameRate = 60"),
               "the frame limit reaches DXVK's Direct3D 9 as well as its DirectX 10/11")
+        func dxmtConfig(_ folder: URL) -> String { (try? String(contentsOf: folder.appendingPathComponent("dxmt.conf"), encoding: .utf8)) ?? "" }
+        check(dxmtConfig(configs).contains("d3d11.prepareShaders = 1"), "a game gets early shader translation")
+
+        let earlyOff = TestDefaults.suite("early-translation-off")
+        earlyOff.set(false, forKey: ShaderCaches.earlyTranslationKey)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, defaults: earlyOff)
+        check(!dxmtConfig(configs).contains("prepareShaders") && dxmtConfig(configs).contains("preferredMaxFrameRate = 60"),
+              "the hidden setting takes the line out again, the others stay")
+
+        let overwatch = work.appendingPathComponent("configs/Overwatch", isDirectory: true)
+        write(Data("exe".utf8), overwatch.appendingPathComponent("_retail_/Overwatch.exe"))
+        Engine.writeGameConfigs(installDir: overwatch, frameLimit: 60, upscaling: false)
+        check(!dxmtConfig(overwatch).contains("prepareShaders"), "Overwatch doesn't get early translation")
+        check(!dxmtConfig(overwatch.appendingPathComponent("_retail_")).contains("prepareShaders"), "nor next to its program")
+
+        let ownConfig = work.appendingPathComponent("configs/Own", isDirectory: true)
+        write(Data("d3d11.preferredMaxFrameRate = 30\n".utf8), ownConfig.appendingPathComponent("dxmt.conf"))
+        Engine.writeGameConfigs(installDir: ownConfig, frameLimit: 60, upscaling: false)
+        check(dxmtConfig(ownConfig) == "d3d11.preferredMaxFrameRate = 30\n", "a dxmt.conf the game ships itself stays as it is")
 
         // MARK: Settings files
         let settings = game.appendingPathComponent("b1/Saved/Config/Windows/GameUserSettings.ini")
