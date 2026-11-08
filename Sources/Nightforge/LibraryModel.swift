@@ -612,12 +612,14 @@ final class LibraryModel: ObservableObject {
             guard let log = await readyBattleNet(for: game) else { return }
             BattleNetClient.hide()  // up from its sign-in, or open from before: the curtain has the screen
             raiseCurtain(for: game)
+            // From before the command goes out: handing it over takes a moment, and what the client answers meanwhile counts.
+            let follower = BattleNetStart.LogFollower(file: log)
             let sent = await Task.detached(priority: .userInitiated) { (try? BattleNetClient.send(command)) != nil }.value
             guard sent else {
                 errorMessage = L10n.t("%@ couldn't start: %@", game.name, L10n.t("Battle.net didn't take the request."))
                 return
             }
-            let failure = await waitForBattleNetStart(game, command: command, log: log)
+            let failure = await waitForBattleNetStart(game, command: command, follower: follower)
             launchPhase = nil
             if Task.isCancelled { return }
             if let failure {
@@ -668,9 +670,9 @@ final class LibraryModel: ObservableObject {
 
     /// Follows the start until the game's process is there (or it's called off in Nightforge): nil
     /// then, otherwise what stopped it.
-    private func waitForBattleNetStart(_ game: Game, command: String, log: URL) async -> BattleNetStart.Watch.Failure? {
+    private func waitForBattleNetStart(_ game: Game, command: String, follower: BattleNetStart.LogFollower) async -> BattleNetStart.Watch.Failure? {
         let folders = Self.processFolders([game])
-        var follower = BattleNetStart.LogFollower(file: log)
+        var follower = follower
         var watch = BattleNetStart.Watch()
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(1))
