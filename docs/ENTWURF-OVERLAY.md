@@ -14,6 +14,7 @@ Belege: **[Code]** Datei:Zeile auf `origin/main` (2276ccb), **[Wine]** winecx-Qu
 - **Anforderung des Nutzers (8.11.): Solange das Overlay offen ist, bekommt das Spiel keine Controller-Eingaben.**
   - **Windows-Spiele: geht sauber,** über eine stille Eingabe in `winebus`, an einer einzigen Stelle unseres eigenen Treibers. Noch nicht gebaut, in Quelltext und Bauweg belegt, Verhalten live zu prüfen.
   - **Mac-Versionen: kein sauberer, belegter Weg.** Vorschlag: anhalten wie bei Windows, nach einer Probe; exklusive Belegung des Pads als nächster Kandidat. Reine Online-Spiele auf dem Mac bekommen eine Kurzform, die es offen sagt.
+- **PS-Taste (macOS 27):** Der lange Druck als „App öffnen“ nimmt dem Spiel den Fokus, bevor Nightforge etwas erfährt, und Unity- und Unreal-Spiele minimieren sich. Ohne Fokusverlust ginge es, wenn die System-Aktion aus ist und Nightforge die Taste im Hintergrund selbst hört. Das klärt nur eine Probe, bis dahin bleibt L3 + R3.
 - **Beim Lesen gefunden, schon heute falsch:** „Weiterspielen“ löst beim *Drücken* aus. Das Spiel läuft wieder an, während A noch unten ist, und sieht den Druck (Abschnitt 4).
 - Empfehlung fürs Board: **Variante A, Seitenleiste**. Der Spieler wählt.
 
@@ -227,7 +228,42 @@ Es gibt zwei Arten, und Nightforge unterscheidet sie schon (`ControllerCompatibi
 - **Komplett mit dem Pad.** Steuerkreuz und linker Stick führen, A wählt, B geht zurück und schließt zuletzt.
 - **Lesbar auf 3 m:** Maße aus `docs/ENTWURF-KONSOLE.md`, Abschnitt 3: Text mindestens 24 pt bei 1080p, Haupttext 28–30 pt, Rand 5 %, Rahmen 6 pt statt 3 pt.
 - **Eine 1920×1080-Fläche**, die aufs Display skaliert wird. Das ist eine Transformation, und `followDisplay` zieht schon mit, wenn ein Spiel den Modus wechselt. Ob `PadFocus` dabei richtig rechnet, klärt K3 **[Vermutung]**.
-- **Auslöser bleibt L3 + R3.** Die PS-Taste gehört macOS, Apples Overlay bleibt dort erreichbar und stört nicht. Nightforge fängt nichts ab.
+- **Auslöser bleibt L3 + R3.** Die PS-Taste gehört macOS, Apples Overlay bleibt dort erreichbar und stört nicht. Nightforge fängt nichts ab. Die PS-Taste als möglicher Zusatz steht im nächsten Abschnitt.
+
+### Die PS-Taste als Auslöser (macOS 27)
+
+**Die Frage:** Kann der lange Druck auf die PS-Taste im Spiel das Overlay öffnen, ohne dass sich das Spiel minimiert?
+
+**Antwort: Über „App öffnen“ nicht sicher. Über einen anderen Schalter im selben SDK wohl ja, das klärt nur eine Probe.** L3 + R3 bleibt in jedem Fall.
+
+**Was das SDK sagt** (`GCControllerHomeButtonSettingsManager.h`, SDK 27.2):
+
+- Der Nutzer kann dem langen Druck eine App zuweisen. Eine App darf den Stand lesen und die Einstellungsseite öffnen, setzen darf sie ihn nicht, und alles nur, solange ein Controller verbunden ist.
+- Die System-Aktion gilt „outside of contexts where an action of the front-most app takes priority“. Ob das ein Spiel im Vordergrund einschließt, sagt der Header nicht **[Live]**.
+- Neu: `…SystemActionDisabled`, nur macOS 27: Der Druck löst im System nichts mehr aus.
+- `GCExtendedGamepad.h`, `buttonHome`: „If the system does not consume button home events, they will be passed to your application.“
+
+**Warum „App öffnen“ das Spiel trifft:** macOS holt Nightforge nach vorne, bevor Nightforge irgendetwas erfährt. Das nicht aktivierende Panel hilft da nicht mehr, denn die Aktivierung kommt vom System. Das Spiel verliert die Front, Wine meldet das sofort (`windowDidResignKey`, `cocoa_window.m:2922`; `applicationDidResignActive`, `cocoa_app.m:2513`), setzt das Vordergrundfenster auf den Desktop (`window.c:2042, 2074`) und ein Unity- oder Unreal-Spiel minimiert sich (`GameStage.swift:7–10`). Das ist derselbe Weg wie am 6.11. bei The Forest.
+
+| Weg | Was passiert | Minimiert es sich? | Belegt | Nur live |
+|---|---|---|---|---|
+| **A. Langer Druck öffnet Nightforge,** das gibt die Front sofort zurück (`handFocus`) und öffnet das Panel | Kurzer Fokusverlust bei jedem Öffnen | **Unity und Unreal: ja.** Wine holt das Fenster zurück, sobald das Spiel wieder aktiv wird (`unminimizeWindowIfNoneVisible`, `cocoa_app.m:2492`) | Wine-Quelltext, `GameStage` | Wie lange das dauert, was man sieht, ob jedes Spiel zurückkommt |
+| **B. Wie A, dazu ein `winemac`-Patch:** Verlust an Nightforge wird dem Spiel nicht gemeldet. Wine hat den Schalter dafür schon an genau den zwei Stellen (`temporarilyIgnoreResignEventsForDialog`, `cocoa_app.m:2520`, `cocoa_window.m:2927`), gebaut wird `winemac.so` in `graphics.yml` | Windows-Spiel hört nichts | Nein, erwartet | Die Stellen und der Bauweg | Weil Nightforge vorher nichts weiß, müsste die Regel ständig gelten. Merkt ein Spiel dann Cmd-Tab nicht mehr? Nightforges Seite schiebt sich über das Bild? Für Mac-Versionen wirkt es gar nicht |
+| **C. System-Aktion aus, Nightforge hört die Taste selbst** (`…SystemActionDisabled`, oder „Nightforge Game“ auf Apples Liste der Home-Tasten-Ausnahmen, ein Eintrag für alle Windows-Spiele) | **Kein App-Wechsel**, das Panel öffnet sich wie bei L3 + R3 | **Nein** | Schalter und `buttonHome` im SDK, Ausnahmen laut Apple **[Quelle 14]** | **Der entscheidende Punkt:** Bekommt eine App im Hintergrund `buttonHome` überhaupt? Das Fehlen der System-Aktion allein sagt das nicht. Und: Greift der Eintrag bei Spielen, die über SDL lesen? |
+
+**Empfehlung: C ist das Ziel, wenn die Probe es trägt.**
+
+- **Warum C:** Es ist der einzige Weg ohne Fokusverlust, und das Halten von L3 + R3 fiele weg, also auch die 2 s, die das Spiel heute sieht.
+- **Was es kostet:** Der Nutzer stellt es einmal in den Systemeinstellungen ein (Nightforge öffnet die Seite). Die PS-Taste öffnet dann nicht mehr Apples Overlay, das bleibt mit ⌘Esc erreichbar **[Quelle 1]**.
+- **Windows-Spiele:** Sie sehen die Taste kaum, `XInputGetState` blendet sie aus (`xinput1_3/main.c:884`), und solange das Overlay offen ist, sind sie ohnehin stumm. Nur macOS 27, auf macOS 26 bleibt es L3 + R3.
+- **A nur als Zwischenlösung außerhalb von Spielen:** Der lange Druck ist gut für „Nightforge holen“ (K9 im Konsolen-Entwurf). **Läuft ein Spiel, behandeln wir ihn vorerst nicht als Overlay-Auslöser.** B wäre ein größerer Eingriff für weniger Gewinn.
+
+**Probe, vor jedem Bau, mit einem Pad und einem kleinen Testprogramm:**
+
+1. System-Aktion aus, ein anderes Programm vorne: Kommt `buttonHome` beim Testprogramm an, kurz und lang?
+2. Dasselbe mit einem Windows-Spiel vorne, einmal mit und einmal ohne den Eintrag auf der Ausnahmeliste.
+3. Zum Vergleich A: langer Druck in The Forest und in einem Spiel, das sich nicht minimiert. Was passiert, wie lange?
+4. Lässt sich der lange Druck von Cmd-Tab unterscheiden (`applicationShouldHandleReopen`, heute nicht genutzt)?
 
 ---
 
@@ -265,7 +301,7 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 
 1. **Sofort, unabhängig vom Board:** Weiterspielen beim Loslassen; `canBecomeKey` an `takesKeys` binden.
 2. **`winebus` still** bauen und ausliefern (Patch, `gamepad.yml`, neues Paket); auch für Wine 11.18, falls das noch im Einsatz ist.
-3. **GameController-Testprogramm**, danach Entscheidung für Mac-Versionen.
+3. **GameController-Testprogramm**, danach Entscheidung für Mac-Versionen. Im selben Lauf die Probe zur PS-Taste.
 4. **Nach der Wahl:** Bausteinaufbau und Stufe 1 mit TV-Maßstab.
 5. **Live-Runde** aus Abschnitt 4, dann Stufe 2, je nach Merge der drei Zweige.
 6. **Stufe 3**, Bildschirmfoto mit Ursachenklärung zuerst.
@@ -296,3 +332,4 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 11. Apple, `seizeDevice()`: https://developer.apple.com/documentation/corehid/hiddeviceclient/seizedevice() ; SDK `IOHIDKeys.h`.
 12. winecx, Commit `e0aa380`, derselbe wie in `gamepad.yml`: https://github.com/dappermint/winecx/tree/e0aa380780b73e20fabcfe78fd42713b94929a53 (`dlls/winebus.sys/*`, `dlls/xinput1_3/main.c`, `dlls/hidclass.sys/device.c`).
 13. Apple IOHIDFamily: https://github.com/apple-oss-distributions/IOHIDFamily (`IOHIDLibUserClient.cpp` wörtlich; zu `IOHIDDevice.cpp::handleOpen` nur eine Zusammenfassung, die Datei kam gekürzt an).
+14. Apple, Wireless-Controller und Home-Tasten-Ausnahmen: https://support.apple.com/en-sa/111099 ; SDK 27.2: `GCControllerHomeButtonSettingsManager.h`, `GCExtendedGamepad.h`, `GCControllerElement.h`.
