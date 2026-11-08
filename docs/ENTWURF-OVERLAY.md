@@ -231,6 +231,7 @@ Es gibt zwei Arten, und Nightforge unterscheidet sie schon (`ControllerCompatibi
 
 - **Komplett mit dem Pad.** Steuerkreuz und linker Stick führen, A wählt, B geht zurück und schließt zuletzt.
 - **Lesbar auf 3 m:** Maße aus `docs/ENTWURF-KONSOLE.md`, Abschnitt 3: Text mindestens 24 pt bei 1080p, Haupttext 28–30 pt, Rand 5 %, Rahmen 6 pt statt 3 pt.
+- **Größe nach Sitzplatz (Live-Test 8.11.: „ein wenig zu groß für Full HD und auf dem Mac dann sowieso“):** Am Fernseher (`GameDisplay.isTV`) bleibt die Schrift bei den Maßen oben, nur die Karte drumherum schrumpft: 480 statt 600 pt breit bei 1080 Punkten Höhe, Überschrift und Uhr etwas kleiner. Am Mac-Bildschirm oder Monitor ist alles 55 % davon, die Karte also 330 pt breit, die kleinste Schrift 13 pt. Gerechnet wird nach Punkten: Ein 4K-Fernseher mit 1920×1080 Punkten sieht aus wie Full HD; mit 3840×2160 Punkten ist am Fernseher alles doppelt so groß, am Schreibtisch 1,5-mal.
 - **Eine 1920×1080-Fläche**, die aufs Display skaliert wird. Das ist eine Transformation, und `followDisplay` zieht schon mit, wenn ein Spiel den Modus wechselt. Ob `PadFocus` dabei richtig rechnet, klärt K3 **[Vermutung]**.
 - **Auslöser bleibt L3 + R3.** Die PS-Taste gehört macOS, Apples Overlay bleibt dort erreichbar und stört nicht. Nightforge fängt nichts ab. Die PS-Taste als möglicher Zusatz steht im nächsten Abschnitt.
 

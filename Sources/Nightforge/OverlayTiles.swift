@@ -51,15 +51,46 @@ enum OverlayZone: Int, Comparable {
     static func < (a: OverlayZone, b: OverlayZone) -> Bool { a.rawValue < b.rawValue }
 }
 
-/// The overlay's measures, drawn for a 1920×1080 screen and scaled to the one the game is on: the
-/// same picture on the TV and the MacBook, and sizes rather than a transformation, which PadFocus's
-/// frames couldn't follow.
+/// Who looks at the overlay, and from how far.
+enum OverlaySeat: Equatable {
+    /// A TV, read from three metres.
+    case sofa
+    /// The Mac's own screen or a monitor, an arm's length away.
+    case desk
+}
+
+/// The overlay's measures, written in the board's 1080p points and sized for the seat: on a TV the
+/// text stays at the board's size (24 at the least) and only the card around it shrinks, on a desk all
+/// of it does. Sizes rather than a transformation, which PadFocus's frames couldn't follow.
+///
+/// By points, never pixels: a 4K TV that macOS runs at 1920×1080 points is a 1080p screen here. One
+/// run at 3840×2160 points gets twice everything, so it fills the same share of the picture.
 struct OverlayMetrics: Equatable {
+    let seat: OverlaySeat
     let unit: CGFloat
 
-    init(height: CGFloat) { unit = min(max(height / 1080, 0.7), 2) }
+    init(height: CGFloat, seat: OverlaySeat) {
+        self.seat = seat
+        switch seat {
+        case .sofa:
+            unit = min(max(height / 1080, 0.7), 2)
+        case .desk:
+            // A point on a desk is much the same size from one screen to the next, so more points
+            // ask for less growth than on a TV: 1.5 times at 2160, a 4K monitor without Retina scaling.
+            unit = min(max((height + 1080) / 2160, 1), 2)
+        }
+    }
 
-    func callAsFunction(_ points: CGFloat) -> CGFloat { points * unit }
+    /// The card, its gaps and whatever is drawn.
+    func callAsFunction(_ points: CGFloat) -> CGFloat { points * unit * (seat == .sofa ? 0.8 : 0.55) }
+    /// What is read, and the focus ring, which has to be seen from as far.
+    func text(_ points: CGFloat) -> CGFloat { points * unit * (seat == .sofa ? 1 : 0.55) }
+    /// The game's name, the clock, a question: big on the board, so there is room to give on a TV.
+    func heading(_ points: CGFloat) -> CGFloat { points * unit * (seat == .sofa ? 0.82 : 0.55) }
+
+    /// From the screen's edge: the board's 5 % on a TV, whose picture can run past its frame.
+    var top: CGFloat { (seat == .sofa ? 54 : 24) * unit }
+    var trailing: CGFloat { (seat == .sofa ? 96 : 24) * unit }
 }
 
 /// One thing the overlay can show. A new one is a new type and an entry in `OverlayTiles.all`.
@@ -136,7 +167,7 @@ private struct OverlayClockTile: OverlayTile {
     @MainActor func view(in context: OverlayContext, metrics m: OverlayMetrics) -> AnyView {
         AnyView(TimelineView(.everyMinute) { time in
             Text(time.date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(L10n.locale)))
-                .font(size: m(34), weight: .bold)
+                .font(size: m.heading(34), weight: .bold)
         })
     }
 }
@@ -152,12 +183,12 @@ private struct OverlaySessionTile: OverlayTile {
         AnyView(VStack(alignment: .leading, spacing: m(10)) {
             TimelineView(.everyMinute) { time in
                 Text(OverlayRules.sessionLine(context.stillness, startedAt: context.startedAt, now: time.date))
-                    .font(size: m(26))
+                    .font(size: m.text(26))
                     .foregroundStyle(Theme.muted)
             }
             if context.stillness == .hearsPad {
                 Text(L10n.t("This game still gets your controller input."))
-                    .font(size: m(24), weight: .medium)
+                    .font(size: m.text(24), weight: .medium)
                     .foregroundStyle(Theme.sodium)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -191,7 +222,7 @@ private struct OverlayPadRow: View {
         let m = metrics
         HStack(spacing: m(14)) {
             Image(systemName: "gamecontroller.fill")
-                .font(size: m(24))
+                .font(size: m.text(24))
                 .foregroundStyle(Theme.muted)
             Text(ControllerStatus.shortName(pad.name))
                 .lineLimit(1)
@@ -199,16 +230,16 @@ private struct OverlayPadRow: View {
             if let battery = pad.battery {
                 if pad.charging {
                     Image(systemName: "bolt.fill")
-                        .font(size: m(22))
+                        .font(size: m.text(22))
                         .foregroundStyle(Theme.sodium)
                 }
                 OverlayBattery(level: CGFloat(battery), low: low, metrics: m)
                 Text("\(Int((battery * 100).rounded())) %")
-                    .frame(minWidth: m(78), alignment: .trailing)
+                    .frame(minWidth: m.text(78), alignment: .trailing)
                     .foregroundStyle(low ? Theme.sodium : Theme.ink)
             }
         }
-        .font(size: m(26), weight: .semibold)
+        .font(size: m.text(26), weight: .semibold)
         .accessibilityElement(children: .combine)
     }
 }
