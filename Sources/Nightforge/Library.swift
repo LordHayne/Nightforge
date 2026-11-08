@@ -39,6 +39,8 @@ struct Game: Identifiable, Hashable {
     /// Steam stopped its download for lack of disk space: the space it needs for it (download and
     /// unpacking). Steam leaves such a download paused for good, so it waits for the player.
     var downloadNeedsSpace: Int64?
+    /// Steam's download of it is paused (StateFlags 512), by the player or by Steam.
+    var downloadPaused = false
     /// Installed in a Steam library on a drive that isn't connected (its name, "T7"): plays once
     /// it's plugged in, and must not be downloaded again meanwhile.
     var missingDrive: String?
@@ -564,6 +566,7 @@ enum LibraryScanner {
             game.pendingUpdate = UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
                                              targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string).pending
         }
+        game.downloadPaused = flags & 512 != 0
         // UpdateResult 12: Steam's "not enough disk space".
         if flags & 4 == 0, state["updateresult"]?.string == "12" {
             game.downloadNeedsSpace = max(toDownload, toStage).clampedBytes
@@ -636,10 +639,11 @@ enum LibraryScanner {
 
     /// A downloads' look at `old` with what its manifest says now (`fresh`): the new progress while
     /// it's still downloading the same; nil – a full scan – once anything else changed: done, gone,
-    /// its size worked out, out of room.
+    /// its size worked out, out of room, paused or going on (the full scan decides whether the Mac may sleep).
     static func takeLook(_ old: Game, fresh: Game?) -> Game? {
         guard let fresh, case .downloading = old.install, case .downloading = fresh.install,
-              fresh.sizeOnDisk == old.sizeOnDisk, fresh.downloadNeedsSpace == old.downloadNeedsSpace
+              fresh.sizeOnDisk == old.sizeOnDisk, fresh.downloadNeedsSpace == old.downloadNeedsSpace,
+              fresh.downloadPaused == old.downloadPaused
         else { return nil }
         var game = old
         game.install = fresh.install

@@ -10,10 +10,11 @@ enum KeepAwake {
 
     /// Whether anything can be fetching this game now. A download counts by what its store left on disk, and
     /// that stays when the store isn't running: the Mac then never slept for as long as Nightforge was open,
-    /// which a start at login makes all day. Epic's and GOG's are Nightforge's own jobs, gone when they end;
-    /// a Steam in a bottle of the player's can't be looked at.
-    nonisolated static func counts(provider: Provider, platform: Platform, builtIn: Bool,
+    /// which a start at login makes all day. Paused means the Mac may sleep, with no grace period (the user, 8.11.).
+    /// Epic's and GOG's are Nightforge's own jobs, gone when they end; a Steam in a bottle of the player's can't be looked at.
+    nonisolated static func counts(provider: Provider, platform: Platform, builtIn: Bool, paused: Bool,
                                    steamRunning: Bool, macSteamRunning: Bool, battleNetRunning: Bool) -> Bool {
+        guard !paused else { return false }
         switch provider {
         case .steam: return platform == .mac ? macSteamRunning : (!builtIn || steamRunning)
         case .battlenet: return battleNetRunning
@@ -28,7 +29,7 @@ enum KeepAwake {
         let mac = MacSteam.isRunning
         let battleNet = !NSRunningApplication.runningApplications(withBundleIdentifier: BattleNetClient.bundleID).isEmpty
         return games.filter {
-            counts(provider: $0.provider, platform: $0.platform, builtIn: $0.bottle.isBuiltIn,
+            counts(provider: $0.provider, platform: $0.platform, builtIn: $0.bottle.isBuiltIn, paused: $0.downloadPaused,
                    steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet)
         }
     }
