@@ -55,7 +55,7 @@ extension LibraryModel {
               Engine.installedWineNow().map({ Engine.isGPTKCapable(wine: $0) }) == true else { return false }
         let picked = GameOptionsStore.load(game.gameID).graphics
         if let analysis = insights[game.gameID]?.analysis, analysis.d3d12Program == nil {
-            guard D3DMetalSupply.needed(by: analysis, picked: picked) else { return false }
+            guard D3DMetalSupply.needed(by: analysis, picked: picked, game: game.gameID) else { return false }
             askAboutD3DMetal(for: game)
             return true
         }
@@ -63,7 +63,7 @@ extension LibraryModel {
         Task {
             let insight = await self.insight(of: game)
             let profile = await ProfileStore.shared.profile(for: game.gameID)
-            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked, profile: profile) {
+            if D3DMetalSupply.needed(by: insight?.analysis, picked: picked, profile: profile, game: game.gameID) {
                 askAboutD3DMetal(for: game)
             } else {
                 launch(game, d3dMetalChecked: true)
@@ -212,6 +212,9 @@ extension LibraryModel {
             D3DMetalSupply.pruneImports(keeping: choice?.source == .apple ? choice?.version : nil)
             d3dMetalDialog = nil
             Toasts.shared.show(L10n.t("DirectX 12 is ready"))
+            // A Steam that runs still has the environment from before (CX_APPLEGPTK_LIBD3DSHARED_PATH):
+            // it restarts first, and the start below waits for that (steamStartup).
+            applySteamSettings()
             if let game { launch(allGames.first { $0.id == game.id } ?? game, d3dMetalChecked: true) }
         } else if !running.isEmpty {
             // A game runs: the engine's files wait until it ends (ensureEngine). What was chosen stays.

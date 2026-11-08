@@ -15,9 +15,9 @@ Nightforge 0.3.2 bringt Overwatch auf den Mac, ein neues Menü für deine Launch
 **Voraussetzung** wie bisher: ein Mac mit Apple silicon und macOS 26 (Tahoe) oder neuer.
 
 ### Spiele
-- **Overwatch läuft** über Steam, auf DXMT. Bisher hing es beim Start ohne Fenster. Der Hinweis „Startet noch nicht“ ist weg.
+- **Overwatch läuft** über Steam, auf DXMT. Bisher hing es beim Start ohne Fenster. Der Hinweis „Startet noch nicht“ ist weg. Beim ersten Start richtet Nightforge dafür einmal Apples D3DMetal ein.
 - **Left 4 Dead 2 lädt seine Karten wieder.** Es hing beim Laden einer Karte, weil Wine ihm vier Lautsprecher meldete. Jetzt startet es in Stereo.
-- **Leistungsanzeige auch in Mac-Versionen:** Die Metal-Leistungsanzeige aus den Optionen erscheint jetzt auch in Mac-Spielen und verschwindet wieder, wenn du sie abschaltest.
+- **Leistungsanzeige auch in Mac-Versionen:** Die Metal-Leistungsanzeige aus den Einstellungen erscheint jetzt auch in Mac-Spielen und verschwindet wieder, wenn du sie abschaltest.
 - **Das Löschen der Shader-Caches ist gründlicher:** Es leert jetzt auch DXMTs Metal-Zwischenspeicher für jedes Spiel.
 - Hast du ein Spiel als „Startet nicht“ markiert und bringt sein Spielprofil später eine Korrektur, probiert Nightforge es wieder ganz normal.
 
@@ -59,9 +59,9 @@ Nightforge 0.3.2 brings Overwatch to the Mac, a new menu for your launchers and 
 **Requirements** as before: a Mac with Apple silicon and macOS 26 (Tahoe) or later.
 
 ### Games
-- **Overwatch runs** through Steam, on DXMT. Until now it hung at the start without a window. The "Doesn't start yet" note is gone.
+- **Overwatch runs** through Steam, on DXMT. Until now it hung at the start without a window. The "Doesn't start yet" note is gone. On its first start Nightforge sets up Apple's D3DMetal for it, once.
 - **Left 4 Dead 2 loads its maps again.** It hung loading a map because Wine reported four speakers to it. Now it starts in stereo.
-- **Performance HUD in Mac versions too:** the Metal performance HUD from the options now shows in Mac games as well, and goes away again when you switch it off.
+- **Performance HUD in Mac versions too:** the Metal performance HUD from Settings now shows in Mac games as well, and goes away again when you switch it off.
 - **Clearing the shader caches goes deeper:** it now also empties DXMT's Metal caches for each game.
 - If you marked a game "Didn't start" and its game profile later brings a fix, Nightforge tries it the normal way again.
 

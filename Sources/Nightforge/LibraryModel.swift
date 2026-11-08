@@ -656,6 +656,8 @@ final class LibraryModel: ObservableObject {
     private var playing: Set<String> = []
     /// Windows games started while no controller was connected (padArrivedLate).
     private var padlessStarts: Set<String> = []
+    /// "Restart Game" was pressed: the game to start again once its end is seen.
+    private var restartAfterEnd: Game?
     /// When each of them started running, and the play time Steam had for it then.
     private var sessionStarts: [String: (date: Date, totalBefore: Int)] = [:]
     /// The way each Windows game's last start took (`LaunchAttempt.id`), for "How did it run?".
@@ -745,6 +747,7 @@ final class LibraryModel: ObservableObject {
         let ended = playing
         playing = []
         goneFor = 0
+        GameOverlay.gameEnded()
         // The processes went a moment ago; a margin for the save Steam is still writing.
         let endedAt = Date().addingTimeInterval(-10)
         let endedGames = allGames.filter { ended.contains($0.id) }
@@ -761,6 +764,14 @@ final class LibraryModel: ObservableObject {
             if game.provider == .gog { afterGOGSession(game, minutes: minutes) }
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt, way: game.platform == .mac ? "mac" : waysUsed[game.gameID]) : nil
+        }
+        // "Restart Game" (the overlay): its start follows here, under the same curtain. Coming back first
+        // took that curtain away and laid "Welcome back" over the new start.
+        if let game = restartAfterEnd, Self.endRestarts(game.id, ended: ended) {
+            restartAfterEnd = nil
+            if let id = judging?.id, ended.contains(id) { judging = nil }
+            play(game)
+            return
         }
         if judged { return }
         // An end like any other while the start still judges (the player quit, it showed a picture):
@@ -1623,6 +1634,7 @@ final class LibraryModel: ObservableObject {
                 nightforge: { [weak self] in await self?.leaveGame(Set(pids)) },
                 restart: { [weak self] in
                     LaunchHealth.playerQuit(game.gameID)
+                    self?.restartAfterEnd = game
                     await Task.detached(priority: .userInitiated) {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
                     }.value
@@ -1658,11 +1670,19 @@ final class LibraryModel: ObservableObject {
         if !Quit.now(by: "Restart Nightforge") { Engine.restarting = false }
     }
 
-    /// The overlay's restart: once the game's processes are gone, it starts again.
+    /// The overlay's restart: `watchForGameEnd` starts the game again when it sees its end. Here only
+    /// for a game it doesn't watch (not started from Nightforge), or one that doesn't end in 30 s.
     func startAgainWhenEnded(_ game: Game) async {
-        for _ in 0..<60 where running[game.id] != nil { try? await Task.sleep(for: .milliseconds(500)) }
+        for _ in 0..<60 where restartAfterEnd?.id == game.id && (playing.contains(game.id) || running[game.id] != nil) {
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        guard restartAfterEnd?.id == game.id else { return }
+        restartAfterEnd = nil
         play(game)
     }
+
+    /// The end just seen is that of the game "Restart Game" asked to start again.
+    nonisolated static func endRestarts(_ restart: String, ended: Set<String>) -> Bool { ended.contains(restart) }
 
     /// Brings the running game's window to the front.
     func switchToGame(_ game: Game) {

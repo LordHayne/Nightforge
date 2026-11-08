@@ -82,7 +82,9 @@ actor GOGSearch {
 
     // MARK: - Requests
 
+    /// `currency`: the region's. GOG shows no price for a pair it doesn't sell in (US with EUR, 8.11.).
     static func url(_ term: String, region: String = Locale.current.region?.identifier ?? "US",
+                    currency: String = Locale.current.currency?.identifier ?? "EUR",
                     german: Bool = AppLanguage.current.resolved == .german) -> URL? {
         var components = URLComponents(string: "https://catalog.gog.com/v1/catalog")!
         components.queryItems = [
@@ -90,7 +92,7 @@ actor GOGSearch {
             URLQueryItem(name: "productType", value: "in:game,pack"),
             URLQueryItem(name: "countryCode", value: region),
             URLQueryItem(name: "locale", value: german ? "de-DE" : "en-US"),
-            URLQueryItem(name: "currencyCode", value: "EUR"),
+            URLQueryItem(name: "currencyCode", value: currency),
             URLQueryItem(name: "limit", value: String(asked)),
             URLQueryItem(name: "page", value: "1"),
         ]

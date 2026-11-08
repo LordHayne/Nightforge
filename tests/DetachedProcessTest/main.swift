@@ -77,6 +77,8 @@ struct DetachedProcessTest {
         let stamp = try? Data(contentsOf: app.appendingPathComponent("Contents/Resources/helper.sha256"))
         check(stamp?.count == 64, "helper stamp")
 
+        shippedHelper(app: app, home: home, helper: helper)
+
         // Output, working folder, environment, exit code.
         let log = home.appendingPathComponent("out.log")
         try? "old\n".write(to: log, atomically: true, encoding: .utf8)
@@ -230,6 +232,50 @@ struct DetachedProcessTest {
             kill(pids[1], SIGTERM)
             for _ in 0..<50 where !lsappinfoRecord(for: app).isEmpty { Thread.sleep(forTimeInterval: 0.1) }
         }
+    }
+
+    /// The signed helper inside Nightforge.app, copied out: when it's missing or another one lies there, and
+    /// into a data folder that isn't there yet. `helper` is put back last, for the checks after this.
+    static func shippedHelper(app: URL, home: URL, helper: URL) {
+        let fm = FileManager.default
+        let shipped = home.appendingPathComponent("shipped/\(DetachedProcess.helperName)", isDirectory: true)
+        func write(_ text: String, _ path: String, in bundle: URL) {
+            let file = bundle.appendingPathComponent(path)
+            try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data(text.utf8).write(to: file)
+        }
+        write("signed helper", "Contents/MacOS/nightforge-helper", in: shipped)
+        write("seal", "Contents/_CodeSignature/CodeResources", in: shipped)
+        // Another pointer to the program: the helper is worked out anew.
+        func prepare(_ name: String) -> URL? {
+            let program = home.appendingPathComponent(name)
+            try? fm.copyItem(at: helper, to: program)
+            DetachedProcess.helperProgram = program
+            return DetachedProcess.helperApp()
+        }
+        func program(of bundle: URL) -> String? {
+            try? String(contentsOf: bundle.appendingPathComponent("Contents/MacOS/nightforge-helper"), encoding: .utf8)
+        }
+        let dataFolder = DetachedProcess.home
+        defer {
+            DetachedProcess.shippedHelper = URL(fileURLWithPath: "/nowhere")
+            DetachedProcess.home = dataFolder
+            DetachedProcess.helperProgram = helper
+            _ = DetachedProcess.helperApp()
+        }
+        DetachedProcess.shippedHelper = shipped
+        check(prepare("p1").flatMap(program) == "signed helper", "the shipped helper replaces the one made here")
+        // An older Nightforge built its own over it: the copy itself counts, not a note beside it.
+        write("ad hoc helper", "Contents/MacOS/nightforge-helper", in: app)
+        check(prepare("p2").flatMap(program) == "signed helper", "another helper there is replaced")
+        // Unchanged: left alone.
+        let before = try? fm.attributesOfItem(atPath: app.appendingPathComponent("Contents/MacOS/nightforge-helper").path)[.creationDate] as? Date
+        _ = prepare("p3")
+        let after = try? fm.attributesOfItem(atPath: app.appendingPathComponent("Contents/MacOS/nightforge-helper").path)[.creationDate] as? Date
+        check(before != nil && before == after, "the same helper isn't copied again")
+        // The very first start: no data folder yet.
+        DetachedProcess.home = home.appendingPathComponent("fresh/Nightforge", isDirectory: true)
+        check(prepare("p4").flatMap(program) == "signed helper", "a data folder that isn't there yet is made")
     }
 
     static func lsappinfoRecord(for app: URL) -> String {

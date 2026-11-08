@@ -103,6 +103,11 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   Namen). Warum Steams Frage-Fenster nicht nach vorn kam: Seine Fenster gehören „Steam Helper“ (`com.valvesoftware.steam.helper`, Agent-App), nicht `steam_osx`, und seit macOS 14 kommt eine App nur nach vorn, wenn die aktive ihr den Vortritt lässt. `MacSteam.show`/`ask` holen jetzt den Prozess mit Steams Fenster per `yieldActivation` + `activate` (wie bei Spielen). **Live 8.11.:** Drawful 2 startet ohne Frage (12:54, `steam://launch/442070/Option2`). Mit eigenen Startparametern (`steam://run`, Steam fragt) kam Steams Store nach vorn, aber keine Frage zu sehen: `open/main` legte den Store über das kleine Fenster. Jetzt bleibt `open/main` weg, wenn Steam auf die Startart wartet und ein kleines Steam-Fenster da ist; `show` schreibt Steams Fenster ins wine.log. **Für 0.3.3 prüfen:** Mac-Spiele mit mehreren Startarten vom Typ `none`/leer (Project Zomboid, Golf With Your Friends, Amnesia, Arma 3, 7 Days to Die) fragen weiter, `steam://launch` kennt dafür keinen Namen. Kandidat: `steam_osx -applaunch <id>`, das auch Argumente nimmt.
   **Live prüfen:** Drawful 2 startet ohne Frage.
 
+## Audit 0.3.2 (8.11., `docs/AUDIT-0.3.2.md`)
+
+Behoben auf `claude/audit-032-723be8`: Overwatch ohne D3DMetal (fragt jetzt vor dem Start), Neustart bei hängendem Steam, „Spiel neu starten“ gegen das Spielende, Controller-Hinweis beim nächsten Spiel, signierter Helper, GOG-Preise außerhalb des Euro-Raums, feste Schrift auf `TypoCover`.
+**Für 0.3.3:** Profilfeld statt `D3DMetalSupply.needsRosettaLibrary`; A8–A13 aus dem Audit.
+
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
 
 Gebaut und mit Stand-ins getestet (`tests/SubprocessTest`, `tests/QuitScriptTest`, `tests/CompleteRemovalTest`), noch nicht in der
