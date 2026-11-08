@@ -423,7 +423,7 @@ func steamAfterMacGame() {
     now = now.addingTimeInterval(5)
     check(steam.step(facts, now: now) == .wake && !steam.asleep, "and wakes once that's over")
     let source = (try? String(contentsOfFile: "Sources/Nightforge/SteamOnDemand.swift", encoding: .utf8)) ?? ""
-    check(source.contains("guard !macSteamBusy else { return }  // it sleeps on"), "coming to the front under a Mac version doesn't use up the wake")
+    check(source.contains("steamOnDemand.stayAsleep()") && source.contains("if macGameBusy || (macDownload && !forStart) { return .stay }"), "coming to the front under a Mac version doesn't use up the wake")
 }
 
 @main struct Main {
