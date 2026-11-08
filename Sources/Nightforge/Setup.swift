@@ -56,6 +56,8 @@ final class SetupModel: ObservableObject {
         case idle
         case running(Step)
         case needsRosetta
+        /// Past macOS 27 without Rosetta: nothing to install, nothing to press (RosettaSupport).
+        case rosettaGone
         case waitingForSignIn
         case done
         case failed(Step, String)
@@ -185,7 +187,7 @@ final class SetupModel: ObservableObject {
             case .needsRosetta: return .installRosetta
             case .waitingForSignIn: return .showSteam
             case .failed: return .retry
-            case .idle, .running, .done: return nil
+            case .idle, .running, .done, .rosettaGone: return nil
             }
         case .launchers: return nil  // the card that's selected has Return and A
         case .checking: return nil
@@ -243,7 +245,7 @@ final class SetupModel: ObservableObject {
     private static func step(of phase: Phase) -> Step? {
         switch phase {
         case .running(let step), .failed(let step, _): return step
-        case .needsRosetta: return .rosetta
+        case .needsRosetta, .rosettaGone: return .rosetta
         case .waitingForSignIn: return .signIn
         case .idle, .done: return nil
         }
@@ -301,7 +303,7 @@ final class SetupModel: ObservableObject {
         do {
             phase = .running(.rosetta)
             guard Engine.isRosettaInstalled else {
-                phase = .needsRosetta
+                phase = Self.phaseWithoutRosetta(macOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
                 return
             }
             summaries[.rosetta] = SetupDetail.mac(freeBytes: LibraryModel.freeSpace(at: FileManager.default.homeDirectoryForCurrentUser))
@@ -395,6 +397,11 @@ final class SetupModel: ObservableObject {
             progress = nil
             phase = .failed(step, error.localizedDescription)
         }
+    }
+
+    /// Rosetta is missing: offered for install as ever, unless this macOS is past the last one that has it.
+    nonisolated static func phaseWithoutRosetta(macOSMajor: Int) -> Phase {
+        RosettaSupport.isGone(macOSMajor: macOSMajor, translates: { false }) ? .rosettaGone : .needsRosetta
     }
 
     /// Opens the password prompt macOS uses for system installs; Rosetta itself comes from Apple.

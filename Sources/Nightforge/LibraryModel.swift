@@ -3590,6 +3590,11 @@ final class LibraryModel: ObservableObject {
             if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
             return
         }
+        // Past macOS 27 Rosetta may be gone, and nothing below can start a Windows game without it.
+        if RosettaSupport.isGoneHere {
+            errorMessage = RosettaSupport.notice
+            return
+        }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
         let viaSteam = game.provider == .steam
