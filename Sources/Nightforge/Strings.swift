@@ -203,6 +203,21 @@ enum L10n {
         "Battle.net has to run and be signed in to start it: it needs internet.": "Battle.net muss laufen und angemeldet sein, damit es startet: Es braucht Internet.",
         "Battle.net installs and removes its games itself: do that in Battle.net.": "Battle.net installiert und entfernt seine Spiele selbst: Bitte dort erledigen.",
         "%@ can't start from Nightforge yet: start it in Battle.net.": "%@ startet noch nicht aus Nightforge: Bitte in Battle.net starten.",
+        "%@ starts through Battle.net for Mac, which isn't on this Mac any more.": "%@ startet über Battle.net für den Mac, das auf diesem Mac nicht mehr da ist.",
+        "%@ has an update waiting. Battle.net is open: update it there, then press Play here.": "Für %@ wartet ein Update. Battle.net ist offen: Aktualisiere es dort und drücke dann hier auf Spielen.",
+        "Battle.net didn't take the request.": "Battle.net hat die Anfrage nicht angenommen.",
+        "Battle.net isn't signed in, so %@ didn't start. Sign in there and press Play again.": "Battle.net ist nicht angemeldet, darum ist %@ nicht gestartet. Melde dich dort an und drücke noch einmal auf Spielen.",
+        "Battle.net didn't get ready, so %@ didn't start. Please try again.": "Battle.net ist nicht bereit geworden, darum ist %@ nicht gestartet. Bitte versuch es noch einmal.",
+        "Battle.net couldn't start %@. Its window says why.": "Battle.net konnte %@ nicht starten. Sein Fenster sagt, warum.",
+        "Battle.net called off the start of %@. Press Play again to try once more.": "Battle.net hat den Start von %@ abgebrochen. Drücke noch einmal auf Spielen, um es erneut zu versuchen.",
+        "Battle.net closed before %@ started. Please try again.": "Battle.net wurde beendet, bevor %@ gestartet ist. Bitte versuch es noch einmal.",
+        "Battle.net didn't start %@. Press Play in its window: Nightforge notices the game by itself.": "Battle.net hat %@ nicht gestartet. Drücke in seinem Fenster auf Spielen: Nightforge merkt das Spiel von selbst.",
+        "Starting Battle.net …": "Battle.net startet …",
+        "Sign in in the Battle.net window": "Melde dich im Battle.net-Fenster an",
+        "Battle.net is waiting for you": "Battle.net wartet auf dich",
+        "Blizzard's games start through Battle.net, which runs in the background.": "Blizzards Spiele starten über Battle.net, das im Hintergrund läuft.",
+        "Battle.net needs you to sign in. Its window is open.": "Battle.net möchte, dass du dich anmeldest. Sein Fenster ist offen.",
+        "Its window is open: answer there, or press Play in it.": "Sein Fenster ist offen: Antworte dort, oder drücke dort auf Spielen.",
 
         // Mac versions through Steam for Mac
         "Version": "Version",
@@ -1453,8 +1468,8 @@ enum L10n {
         "Your Steam library, Mac and Windows versions alike": "Deine Steam-Bibliothek, Mac- und Windows-Versionen",
         "Your Epic games, Nightforge downloads them itself": "Deine Epic-Spiele, Nightforge lädt sie selbst",
         "Games without copy protection, Nightforge downloads them itself": "Spiele ohne Kopierschutz, Nightforge lädt sie selbst",
-        "Shows what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.":
-            "Zeigt, was Battle.net für den Mac installiert hat: WoW, Hearthstone und mehr. Overwatch läuft über Steam.",
+        "Starts what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.":
+            "Startet, was Battle.net für den Mac installiert hat: WoW, Hearthstone und mehr. Overwatch läuft über Steam.",
         "Sign In to %@": "Bei %@ anmelden",
         "Sign In": "Anmelden",
         "Manage": "Verwalten",
