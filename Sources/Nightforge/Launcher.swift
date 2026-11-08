@@ -543,6 +543,7 @@ enum Launcher {
             Engine.writeGameConfigs(installDir: game.installDir,
                                     frameLimit: frameLimit,
                                     upscaling: options.effectiveUpscaling(profile: profile),
+                                    antiCheat: ShaderCaches.hasAntiCheat(profile: profile, block: game.antiCheatBlock, installDir: game.installDir),
                                     vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
             Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
             Engine.applyIniSettings(profile?.iniSettings ?? [])
@@ -626,6 +627,7 @@ enum Launcher {
         ShaderCaches.limitTranslationsBeforeStart()
         Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
                                 upscaling: options.effectiveUpscaling(profile: profile),
+                                antiCheat: ShaderCaches.hasAntiCheat(profile: profile, block: game.antiCheatBlock, installDir: game.installDir),
                                 vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
         Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
         Engine.applyIniSettings(profile?.iniSettings ?? [])

@@ -1097,7 +1097,7 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
 
 - **Shader auf dem DXMT-Weg früher übersetzen** (Plan und Stand `docs/ENTWURF-SHADER.md`, für 0.3.3).
   - Stufe 0 gemessen (7.11.): Die erste Runde ist die Lücke, die zweite fast sauber. Stufe 1 liegt als `engine/patches/dxmt-0.80-prepare-shaders.patch` auf dem Zweig, Standard aus, nicht gemessen.
-  - LGPL vom Nutzer freigegeben (8.11., `docs/ENTSCHEIDUNG-DXMT-LGPL.md`). App schreibt die Option für alle Spiele außer Overwatch (`ShaderCaches.translatesEarly`). Offen: Kurztest vor dem Merge, Messung ABZU als späterer Beleg. Overwatch nur mit OK.
+  - LGPL vom Nutzer freigegeben (8.11., `docs/ENTSCHEIDUNG-DXMT-LGPL.md`). App schreibt die Option für alle Spiele außer Overwatch und Spielen mit Anti-Cheat (`ShaderCaches.hasAntiCheat`). Offen: Kurztest vor dem Merge, Messung ABZU als späterer Beleg. Overwatch nur mit OK.
   - `ShaderCaches.folders` kennt `C/dxmt/<exe>/com.apple.metal` nicht: „Shader löschen“ lässt Metals Cache stehen.
 - **Die Optionen eines Steam-Spiels lesen `appinfo.vdf` auf dem Main-Thread** (Release-Review C4, für 0.3.2).
   - **Teilweise erledigt (8.11., f0d1adc):** Die Datei wird nur noch einmal pro Änderung gelesen (bis 64 MB im

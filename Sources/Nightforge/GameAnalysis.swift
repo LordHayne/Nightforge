@@ -154,12 +154,20 @@ extension GameAnalysis {
             || fm.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path) {
             analysis.engine = .unreal
         }
-        analysis.antiCheat = [("Easy Anti-Cheat", "easyanticheat"), ("BattlEye", "battleye")]
-            .filter { contents.hasItem(named: $0.1) }.map(\.0)
+        analysis.antiCheat = antiCheatFiles.filter { contents.hasItem(named: $0.1) }.map(\.0)
         analysis.launcher = launchers.first { $0.paths.contains(where: contents.has) }?.name
         analysis.usesWebView2 = contents.hasItem(named: "webview2loader.dll")
         analysis.usesDLSS = contents.hasItem(named: "nvngx_dlss.dll")
         return analysis
+    }
+
+    /// Anti-cheat recognised by what it leaves in the game folder.
+    private static let antiCheatFiles = [("Easy Anti-Cheat", "easyanticheat"), ("BattlEye", "battleye")]
+
+    /// Whether anti-cheat lies in the game folder, for a game no list knows about.
+    static func hasAntiCheatFiles(in installDir: URL) -> Bool {
+        let contents = scan(installDir)
+        return antiCheatFiles.contains { contents.hasItem(named: $0.1) }
     }
 
     /// Launchers of other stores, recognised by files they leave in the game folder (paths are
