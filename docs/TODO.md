@@ -106,7 +106,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   6. **Gegenprobe:** In einem Vollbild-Spiel mit ⌘-Tab zu einer anderen App und zurück, und im Spiel die Grafikeinstellungen ändern. Kein Vorhang beim ⌘-Tab; bei den Einstellungen höchstens kurz der Vorhang, der von selbst wieder geht. Während das Spiel läuft, liegt die Seite nie über dem Bild (im Log kein `the page lay over`).
   7. **„Startet nicht?“ über dem Vorhang** bei einem Windows-Spiel, das hängt: Das Overlay liegt oben und ist bedienbar. ⌘-Tab funktioniert, die Leiste selbst ist unter dem Vorhang nicht zu sehen.
   8. **GOG-Spiel mit fehlendem Windows-Teil** (wenn es sich ergibt): Der Vorhang bleibt, der Hinweis wartet danach auf der Seite.
-  **Entscheidungen offen** (nichts davon festgelegt): B3 Steams Frage auf dem Vorhang statt ohne ihn, braucht ein Board. B2 ein Ausweg bei Steam ohne Spielprozess, braucht einen eigenen Text. B4 Epic und GOG früher unter den Vorhang, kostet das Abbrechen mit B.
+  9. **Ausweg ohne Spielprozess (B2):** Bei einem Steam-Update oder hängendem Steam steht nach 30 s die Zeile „Hängt es? Zurück zu Nightforge“ auf dem Vorhang, B oder Esc fragt. „Weiter warten“ lässt alles laufen. „Zu Nightforge“ führt auf die Spielseite, Steam und sein Update laufen weiter, und ein Spiel, das Steam danach noch startet, wird bis zum Ende begleitet. Danach sofort wieder „Spielen“: Der neue Start läuft sauber unter seinem Vorhang.
+  **Offen:** B3 (Steams Frage auf dem Vorhang) wartet auf die Wahl auf dem Board `Vorhang.dc.html`, die Texte von B2 auch (gebaut ist Vorschlag A). B4 ist noch nicht entschieden.
 
 ## 8.11. mittags (staging-032, nicht gepusht)
 

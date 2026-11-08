@@ -75,7 +75,9 @@ Die Ursachen sind aus Log und Code geschlossen, keine ist am laufenden Spiel beo
 | V1 Steam Helper behält die Front | behoben, Beleg Valheim 16:09: Nightforge fragt erneut, auch direkt bevor der Vorhang geht. | aa46157 |
 | V2 „Willkommen zurück“ geht verloren | kein Fehler. Es geht nur verloren, wenn ein neuer Start den Vorhang übernimmt, und dort gehört es nicht hin. | – |
 | V3 `hide` bei Steam Helper | unverändert, nur live prüfbar. | – |
-| B2, B3, B4 | offen, brauchen eine Entscheidung (`docs/TODO.md`). | – |
+| B2 Ausweg ohne Spielprozess | Logik gebaut (`CurtainEscape`): nach 30 s wirken B und Esc, nach 90 s fragt ein stilles Steam von selbst, ein laufendes Update nie. Texte vorläufig. | fe39773, da7e91b |
+| B3 Steams Frage auf dem Vorhang | Entschieden, dass sie kommt. Das Aussehen wartet auf die Wahl auf dem Board `Vorhang.dc.html`. | – |
+| B4 Epic und GOG früher unter den Vorhang | nicht entschieden, nicht gebaut. | – |
 
 Ausgeräumt mit einer Probe (Stand-in abseits des Bildschirms): Ein direktes Setzen von `alphaValue` stoppt eine laufende Überblendung. Ein Vorhang, der mitten in
 seinem Ausblenden neu hochkommt, bleibt also sichtbar.
