@@ -1874,8 +1874,8 @@ final class LibraryModel: ObservableObject {
     /// any more ("Failed to get list of download sources"). With downloads waiting in both, the
     /// signed-in one finishes first, then the other is signed in – not while a game runs or starts.
     private var lastSignInSwitch = Date.distantPast
-    /// How far the Mac downloads had got when Steam for Mac last got its turn.
-    private var lastMacTurnProgress: Double?
+    /// How far each Mac download had got when Steam for Mac last got its turn.
+    private var lastMacTurnProgress: [String: Double]?
 
     private func takeTurnsDownloading() {
         // Not while a game moves to another drive: that stops and starts its Steam itself.
@@ -1883,16 +1883,23 @@ final class LibraryModel: ObservableObject {
         let macDownload = allGames.contains { game in
             (game.platform == .mac && game.provider == .steam && Self.isDownloading(game.install)) || Self.isDownloading(game.macPending)
         }
-        let windowsDownload = allGames.contains { $0.platform == .windows && $0.bottle.isBuiltIn && Self.isDownloading($0.install) }
+        let windowsDownload = allGames.contains { SteamSwitch.usesWindowsSteam($0) && Self.isDownloading($0.install) }
+        guard macDownload || windowsDownload else { return }
         // A Mac download that got nowhere in its last turn (Steam for Mac finds no download
         // servers, say) doesn't get another: Steam for Mac would come up and sign the Wine Steam out
         // every few minutes for nothing. Any progress lets it take turns again.
         // What the scan measured (it asks nettop off the main thread); asking again here would block the window.
-        let macProgress = allGames.compactMap { game in
-            Self.downloadFraction(game.macPending) ?? (game.platform == .mac && game.provider == .steam ? Self.downloadFraction(game.install) : nil)
-        }.reduce(0, +)
-        let macStalled = lastMacTurnProgress.map { macProgress <= $0 } ?? false
-        if macDownload, MacSteam.isReady, !MacSteam.signedIn, !(windowsDownload && Engine.steamSignedIn), !macStalled {
+        let macProgress = Dictionary(allGames.compactMap { game -> (String, Double)? in
+            (Self.downloadFraction(game.macPending) ?? (game.platform == .mac && game.provider == .steam ? Self.downloadFraction(game.install) : nil))
+                .map { (game.id, $0) }
+        }, uniquingKeysWith: max)
+        let turn = SteamSwitch.downloadTurn(SteamSwitch.DownloadFacts(
+            macDownload: macDownload, windowsDownload: windowsDownload, macReady: macDownload && MacSteam.isReady,
+            macSignedIn: macDownload && MacSteam.signedIn, windowsSignedIn: windowsDownload && Engine.steamSignedIn,
+            macStalled: SteamSwitch.macDownloadsStalled(macProgress, since: lastMacTurnProgress),
+            windowsRunning: windowsDownload && Engine.isSteamRunning, windowsReplaced: windowsDownload && Engine.sessionReplaced(),
+            windowsStopped: steamSwitch.windowsStopped))
+        if turn == .mac {
             lastSignInSwitch = Date()
             lastMacTurnProgress = macProgress
             steamSwitch.stopWindowsForMacDownload()
@@ -1900,8 +1907,7 @@ final class LibraryModel: ObservableObject {
                 if MacSteam.isRunning { await MacSteam.quit() }
                 MacSteam.start()
             }
-        } else if windowsDownload, Engine.isSteamRunning ? Engine.sessionReplaced() : steamSwitch.windowsStopped,
-                  !(macDownload && MacSteam.signedIn) {
+        } else if turn == .windows {
             lastSignInSwitch = Date()
             Task {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { _ in }, restartWindows: { await self.restartWindowsSteam() })
