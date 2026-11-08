@@ -24,6 +24,25 @@ struct SteamBackgroundTest {
     static let temp = fm.temporaryDirectory.appendingPathComponent("SteamBackgroundTest-\(UUID().uuidString)", isDirectory: true)
 
     static func main() {
+
+        // Steam's once-per-game notes before a first start stay black under Wine (REANIMAL, 8.11.): ticked for good.
+        do {
+            let checkbox = "Deck_ConfiguratorInterstitialsCheckbox_CurrentGamepadSteamInputOptIn"
+            let apps = "Deck_ConfiguratorInterstitialApps_CurrentGamepadSteamInputOptIn"
+            let seen = "Deck_ConfiguratorInterstitialsVersionSeen_CurrentGamepadSteamInputOptIn"
+            let file = "\"UserLocalConfigStore\"\n{\n\t\"friends\"\n\t{\n\t\t\"\(checkbox)\"\t\t\"0\"\n\t}\n\t\"WebStorage\"\n\t{\n\t\t\"CachedStorePreferences\"\t\t\"{\\\"a\\\":0}\"\n\t\t\"\(seen)\"\t\t\"1\"\n\t\t\"\(checkbox)\"\t\t\"0\"\n\t\t\"\(apps)\"\t\t\"[3907790]\"\n\t}\n}\n"
+            let settled = SteamStartNotes.settled(file)
+            check(settled?.contains("\"\(checkbox)\"\t\t\"1\"") == true, "the note's box is ticked in WebStorage")
+            check(settled?.contains("\t\"friends\"\n\t{\n\t\t\"\(checkbox)\"\t\t\"0\"") == true, "the same key elsewhere stays as it was")
+            check(settled?.contains("\"\(apps)\"\t\t\"[3907790]\"") == true, "games already seen stay")
+            check(settled?.contains("\"CachedStorePreferences\"\t\t\"{\\\"a\\\":0}\"") == true, "the rest as Steam wrote it")
+            check(settled?.contains("Deck_ConfiguratorInterstitialsCheckbox_GamepadRecommended\"\t\t\"1\"") == true, "the other notes that come once per game too")
+            check(settled.flatMap(SteamStartNotes.settled) == nil, "nothing left to do the second time")
+            let fresh = SteamStartNotes.settled("\"UserLocalConfigStore\"\n{\n\t\"a\"\t\t\"b\"\n}\n")
+            check(fresh?.contains("\n\t\"WebStorage\"\n\t{\n\t\t\"Deck_ConfiguratorInterstitialsVersionSeen_GamepadRecommended\"\t\t\"1\"") == true, "an account without the section gets it")
+            check(fresh.flatMap { VDF.parse($0) }?["UserLocalConfigStore"]?["WebStorage"]?[checkbox]?.string == "1", "and Steam's format stays readable")
+            check(SteamStartNotes.settled("not a config") == nil && SteamStartNotes.settled("\"a\"\n{\n") == nil, "a broken file is left alone")
+        }
         // No real process list: a hanging ps on this Mac doesn't stop the series (tests/Shared/FakeProcesses.swift).
         FakeProcesses.installEmpty()
         // The child startEnvironment reads (not a system program: macOS hides their environment).

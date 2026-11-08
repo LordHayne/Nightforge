@@ -37,6 +37,7 @@ Nightforge 0.3.2 bringt Overwatch auf den Mac, ein neues Menü für deine Launch
 
 ### Spielen
 - **Spiele bleiben vorne:** Manche Unity- und Unreal-Spiele, etwa The Forest, verschwanden kurz nach dem Ladebildschirm ins Dock, weil Nightforge ihnen einen Moment lang die Tastatur nahm. Das passiert nicht mehr, und verschwindet ein Spiel trotzdem, holt Nightforge es zurück.
+- **Der erste Start eines Spiels bleibt nicht mehr hängen:** Steams einmaliger Hinweis zum Controller blieb schwarz und hielt den Start auf. Nightforge setzt dafür jetzt Steams eigenes „Nicht mehr anzeigen“.
 - **Controller zu spät eingeschaltet:** Schaltest du den Controller erst ein, wenn ein Windows-Spiel schon läuft, erscheint ein kurzer Hinweis über dem Spiel, und im Controller-Menü steht der Neustart des Spiels ganz oben.
 - **Nightforge neu starten:** Im Menü „Nightforge“ und in den Einstellungen beendet „Nightforge neu starten“ Steam, Wine und alles, was im Hintergrund läuft, und startet Nightforge frisch. Das hilft, wenn etwas hängt.
 - **Steam geht nach dem Beenden wieder mit:** Ein abgebrochener Download eines Steam, das gar nicht mehr lief, hielt Steam für Mac bis zu zwölf Stunden offen.
@@ -81,6 +82,7 @@ Nightforge 0.3.2 brings Overwatch to the Mac, a new menu for your launchers and 
 
 ### Playing
 - **Games stay in front:** some Unity and Unreal games, like The Forest, slipped into the Dock right after the loading screen, because Nightforge took their keyboard for a moment. That no longer happens, and if a game disappears anyway, Nightforge brings it back.
+- **A game's first start no longer stops:** Steam's one-time note about the controller stayed black and held the start up. Nightforge now sets Steam's own "Don't show again" for it.
 - **Controller switched on late:** if you switch your controller on after a Windows game started, a short note shows over the game, and restarting the game comes first in the controller menu.
 - **Restart Nightforge:** in the Nightforge menu and in Settings, "Restart Nightforge" ends Steam, Wine and everything running in the background, and starts Nightforge fresh. It helps when something hangs.
 - **Steam goes again when you quit:** a stopped download of a Steam that no longer ran kept Steam for Mac open for up to twelve hours.
