@@ -60,7 +60,11 @@ final class InputRouter {
         GameOverlay.padIdle = {
             GCController.controllers().allSatisfy { controller in controller.extendedGamepad.map { !Self.inUse($0) } ?? true }
         }
-        pointer.works = { [weak self] in self?.pointerWorks ?? false }
+        pointer.works = { [weak self] in
+            guard let self, self.pointerWorks else { return false }
+            self.model?.reachWindowOverGame()  // a finger on the touchpad: the window's app gets the front
+            return true
+        }
         pointer.stickWorks = { [weak self] in self?.stickIsPointer ?? false }
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -820,7 +824,7 @@ final class InputRouter {
         guard parking.parksNow(padInUse: true, now: now, mouseAgo: Self.mouseIdle,
                                pointerInUse: pointer.isMouse || pointer.touchedRecently(now: now), setting: Prefs.parkPointer,
                                overGame: reach == .none && model.gamePlaying && !GameBackdrop.isRaised && Self.gameHasTheFront(model),
-                               question: model.windowsQuestion != nil || PadPointer.macOSAsks),
+                               question: model.windowsQuestion != nil || model.overGame != nil || PadPointer.macOSAsks),
               let location = CGEvent(source: nil)?.location
         else { return }
         var display: CGDirectDisplayID = 0
@@ -1043,7 +1047,8 @@ final class InputRouter {
         guard let model else { return false }
         return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: model.padKeyboard != nil, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                      curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
-                                     frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks)
+                                     frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks,
+                                     windowOverGame: model.overGame != nil)
     }
 
     private var stickIsPointer: Bool {

@@ -981,6 +981,10 @@ final class LibraryModel: ObservableObject {
     /// The game on stage as of the stage watch's last list.
     private var stagePids = Set<pid_t>()
     private var stageAskers = Set<pid_t>()
+    /// Another app's window over the game's picture, as of the stage watch's last look.
+    private(set) var overGame: PadPointerRules.OverGame?
+    private var overGameFront = false
+    private var overGameHanded: Int?
 
     /// A game's process ended: the curtain now, in the same moment, not at the look it cuts short. A Mac
     /// game in its own Space starts sliding away at once, and the page behind it slid in from the side
@@ -1004,7 +1008,7 @@ final class LibraryModel: ObservableObject {
     private func frontMoved(to front: pid_t) {
         guard pictureWentAt == nil, !stagePids.isEmpty else { return }
         let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
-                                  handsOff: GameOverlay.isOpen || stageAskers.contains(front),
+                                  handsOff: GameOverlay.isOpen || stageAskers.contains(front) || overGame != nil,
                                   playerActed: Self.playerActed(within: GameStage.leftWithin) || GameBackdrop.spaceJustChanged,
                                   guarded: curtainGuards, now: Date())
         guard stage.pictureWent(look) else { return }
@@ -1709,10 +1713,25 @@ final class LibraryModel: ObservableObject {
                 GameBackdrop.playing()
                 GameLog.note("Stage: \(game.name) \(gameFront && windows.here ? "is back" : "runs on without its picture"), the curtain goes behind it")
             }
+            // Another app's window over the game (Steam's store from its menu): the stage leaves it be, and
+            // once it's gone, however it was closed, the game is brought back.
+            let over = await Task.detached(priority: .utility) { () -> PadPointerRules.OverGame? in
+                let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+                return PadPointerRules.windowOverGame(list, game: known, ignoring: [getpid()])
+            }.value
+            let windowWent = overGame != nil && over == nil
+            overGame = over
+            overGameFront = gameFront
+            if windowWent {
+                stage.again()
+                overGameHanded = nil
+                GameLog.note("Stage: the window over \(game.name) has gone")
+            }
+            reachWindowOverGame(touched: false)
             let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
-                                                 handsOff: GameOverlay.isOpen || askerFront,
+                                                 handsOff: GameOverlay.isOpen || askerFront || over != nil,
                                                  // A swipe to another Space moves no key and no click.
-                                                 playerActed: Self.playerActed() || GameBackdrop.spaceJustChanged,
+                                                 playerActed: !windowWent && (Self.playerActed() || GameBackdrop.spaceJustChanged),
                                                  guarded: curtainGuards, now: Date()))
             let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
             let look = "\(name) in front, picture \(windows.here ? "here" : windows.anywhere ? "elsewhere" : "none")"
@@ -2054,6 +2073,31 @@ final class LibraryModel: ObservableObject {
         // Its coming forward brings the pointer back (Switch to Game, 1.11.), and that stays: taking
         // a game's keys to hide it costs its full screen (watchCurtain).
         return app.isActive
+    }
+
+    /// The app of the window over the game gets the front, when that's due (PadPointerRules.handsFront):
+    /// while the game has it, the game keeps the mouse for itself. `touched`: a finger on the touchpad.
+    func reachWindowOverGame(touched: Bool = true) {
+        guard PadPointerRules.handsFront(over: overGame, gameFront: overGameFront, alreadyHanded: overGameHanded, touched: touched),
+              let over = overGame, let app = NSRunningApplication(processIdentifier: over.owner)
+        else { return }
+        overGameHanded = over.number
+        GameLog.note("Stage: \(app.localizedName ?? "another app")'s window stands over the game, it gets the front")
+        Task {
+            GameBackdrop.handingOver = true  // the page stays while Nightforge has the front for this
+            defer { GameBackdrop.handingOver = false }
+            if !NSApp.isActive {
+                NSApp.activate(ignoringOtherApps: true)
+                for _ in 0..<6 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+                if !NSApp.isActive {  // macOS ignores `activate` from behind (handFocus)
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.activates = true
+                    _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                }
+            }
+            NSApp.yieldActivation(to: app)
+            app.activate(from: .current, options: [.activateAllWindows])
+        }
     }
 
     /// A game to be fetched back (`again`) needs a real change of the active app, and Nightforge's own

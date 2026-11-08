@@ -147,10 +147,44 @@ enum PadPointerRules {
     /// from macOS (the microphone in Left 4 Dead 2, 8.11.) comes first. Never while the keyboard is
     /// open: the touchpad types there.
     static func works(setting: Bool, keyboardOpen: Bool, inFront: Bool, overlay: Bool, curtain: Bool, gamePlaying: Bool,
-                      frontIsGame: Bool, macOSAsks: @autoclosure () -> Bool) -> Bool {
+                      frontIsGame: Bool, macOSAsks: @autoclosure () -> Bool, windowOverGame: Bool = false) -> Bool {
         guard setting, !keyboardOpen else { return false }
-        if inFront || overlay || curtain { return true }
+        if inFront || overlay || curtain || windowOverGame { return true }
         return !gamePlaying && !frontIsGame || macOSAsks()
+    }
+
+    /// Another app's window standing over the game's picture: Steam's store, opened from a game's
+    /// menu (Tomb Raider's downloadable content, 8.11.).
+    struct OverGame: Equatable {
+        var owner: pid_t
+        var number: Int
+        var size: CGSize
+    }
+
+    /// The topmost ordinary window, if it's another app's and the game's picture lies under it.
+    /// `windows`: front to back, as CGWindowList gives them. `ignoring`: Nightforge's own.
+    static func windowOverGame(_ windows: [[String: Any]], game: Set<pid_t>, ignoring: Set<pid_t>) -> OverGame? {
+        let highest = Int(CGWindowLevelForKey(.modalPanelWindow))
+        let ordinary = windows.compactMap { window -> OverGame? in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, !ignoring.contains(owner),
+                  let number = (window[kCGWindowNumber as String] as? NSNumber)?.intValue,
+                  (0...highest).contains((window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? -1),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds), frame.width >= 200, frame.height >= 100
+            else { return nil }
+            return OverGame(owner: owner, number: number, size: frame.size)
+        }
+        guard let top = ordinary.first, !game.contains(top.owner), ordinary.contains(where: { game.contains($0.owner) }) else { return nil }
+        return top
+    }
+
+    /// Whether that window's app gets the front: while the game has it, its hold on the mouse makes the
+    /// window out of reach, for the real mouse too. A big window at once, a small one (which may be
+    /// only a notice) when the player puts a finger on the touchpad. Once per window.
+    static func handsFront(over: OverGame?, gameFront: Bool, alreadyHanded: Int?, touched: Bool) -> Bool {
+        guard let over, gameFront, over.number != alreadyHanded else { return false }
+        return touched || (over.size.width >= 600 && over.size.height >= 400)
     }
 
     /// Pads without a touchpad use the right stick and R2, but only where Nightforge doesn't need
