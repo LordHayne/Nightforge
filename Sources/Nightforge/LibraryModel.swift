@@ -2598,7 +2598,10 @@ final class LibraryModel: ObservableObject {
                 : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
-            await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            await Task.detached(priority: .userInitiated) {
+                ControllerCompatibility.prepare(installDir: installDir)
+                MacGameHUD.prepare(folder: installDir)
+            }.value
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             let run = { MacSteam.open("run/\(game.appID)" + extra) }
