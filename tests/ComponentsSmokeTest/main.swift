@@ -83,6 +83,16 @@ let entries = [
 let mixed = #"{"schemaVersion":1,"generated":"now","components":["# + entries.joined(separator: ",") + "]}"
 let lenient = try JSONDecoder().decode(ComponentManifest.self, from: Data(mixed.utf8))
 check(lenient.components.map(\.id) == ["good"], "only the usable entry is kept (\(lenient.components.map(\.id)))")
+// A list that names processors: no field and x86_64 and universal are what this Nightforge takes.
+func archEntry(_ id: String, _ arch: String) -> String {
+    String(entry(id).dropLast()) + #","arch":"\#(arch)"}"#
+}
+let archList = #"{"schemaVersion":1,"generated":"now","components":["#
+    + [entry("plain"), archEntry("intel", "x86_64"), archEntry("both", "universal"), archEntry("wine-arm64", "arm64"), archEntry("odd", "riscv")].joined(separator: ",") + "]}"
+let byArch = try JSONDecoder().decode(ComponentManifest.self, from: Data(archList.utf8))
+check(byArch.components.map(\.id) == ["plain", "intel", "both"], "only what runs under Rosetta is kept (\(byArch.components.map(\.id)))")
+check(byArch.component("plain")?.arch == nil, "no field stays no field")
+
 let bundled = try JSONDecoder().decode(ComponentManifest.self, from: Data(contentsOf: URL(fileURLWithPath: "components/manifest.json")))
 let raw = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "components/manifest.json"))) as? [String: Any]
 check(bundled.components.count == (raw?["components"] as? [Any])?.count, "every component of the shipped list is kept")

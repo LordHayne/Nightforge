@@ -9,6 +9,8 @@ from pathlib import Path
 MANIFEST = Path(__file__).resolve().parent.parent / "components" / "manifest.json"
 KINDS = {"engine", "graphics", "tool"}
 FIELDS = {"id", "kind", "version", "url", "sha256", "size", "license", "source"}
+# Optional; no field means x86_64. Older apps ignore it, so an arm64 build needs an id they don't look for.
+ARCHES = {"x86_64", "arm64", "universal"}
 
 
 def main() -> None:
@@ -34,6 +36,11 @@ def main() -> None:
             errors.append(f"{name}: sha256 is not 64 hex characters")
         if not isinstance(c["size"], int) or c["size"] <= 0:
             errors.append(f"{name}: size must be a positive integer")
+        arch = c.get("arch", "x86_64")
+        if arch not in ARCHES:
+            errors.append(f"{name}: unknown arch {arch}")
+        if arch == "arm64" and not name.endswith("-arm64"):
+            errors.append(f"{name}: an arm64 build needs an id ending in -arm64, older apps would take it for theirs")
 
     if errors:
         sys.exit("\n".join(errors))

@@ -15,6 +15,15 @@ struct Component: Codable, Identifiable, Hashable {
     let size: Int64
     let license: String
     let source: URL
+    /// The processor the component's code is for: "x86_64" (also when the list doesn't say), "arm64" or
+    /// "universal". Older Nightforges ignore the field and would take an arm64 build for theirs, so one
+    /// goes under an id of its own, "<id>-arm64" (scripts/validate-manifest.py).
+    var arch: String? = nil
+
+    /// Everything this Nightforge starts runs as x86_64 under Rosetta.
+    var fitsThisNightforge: Bool {
+        ["x86_64", "universal"].contains(arch ?? "x86_64")
+    }
 
     /// id, version and the file name become paths under Application Support and the url is
     /// downloaded: a changed list may not point them elsewhere (`..`) or at a plain-HTTP or local file.
@@ -45,7 +54,7 @@ struct ComponentManifest: Codable {
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         generated = (try? container.decode(String.self, forKey: .generated)) ?? ""
         components = try container.decode([Lenient<Component>].self, forKey: .components)
-            .compactMap(\.value).filter(\.isSafeToInstall)
+            .compactMap(\.value).filter { $0.isSafeToInstall && $0.fitsThisNightforge }
     }
 
     func component(_ id: String) -> Component? {
