@@ -2,7 +2,7 @@
 
 Stand 8.11.2026, Konzept ohne App-Code. Das Board `Overlay.dc.html` zeigt drei Varianten, der Nutzer wählt, danach wird gebaut.
 
-Belege: **[Code]** Datei:Zeile auf `origin/main` (2276ccb), **[Wine]** Quelltext von Wine upstream (`master`, nicht unser winecx-Stand),
+Belege: **[Code]** Datei:Zeile auf `origin/main` (2276ccb), **[Wine]** winecx-Quelltext `e0aa380` (`dappermint/winecx`, der Stand aus `gamepad.yml`),
 **[SDK]** macOS-SDK 26, **[Quelle n]** Liste am Ende, **[Vermutung]** nicht belegt, **[Live]** nur am echten Gerät zu klären.
 
 ---
@@ -11,7 +11,9 @@ Belege: **[Code]** Datei:Zeile auf `origin/main` (2276ccb), **[Wine]** Quelltext
 
 - Das heutige Panel wird zur Fläche aus **Bausteinen**. Jeder Baustein sagt selbst, ob er für dieses Spiel und diesen Mac geht. Neue Funktionen kommen dazu, ohne das Overlay umzubauen.
 - Es bleibt ein **eigenes Fenster über dem Spiel**. Nichts wird ins Spiel geladen, das Spiel behält die Tastatur.
-- **Die wichtigste Frage ist beantwortet, nur nicht gelöst:** Das Spiel bekommt die Eingaben immer mit, macOS kann sie ihm nicht nehmen. Windows-Spiele hält heute nur `SIGSTOP` an, Mac-Spiele laufen und reagieren. Das ist tragbar, solange man kurz im Overlay ist. Das große Overlay lädt zum Verweilen ein, deshalb braucht es zwei Dinge: Schließen erst beim Loslassen (klein) und für Online-Spiele eine stille Eingabe in `winebus` statt der Pause (mittel).
+- **Anforderung des Nutzers (8.11.): Solange das Overlay offen ist, bekommt das Spiel keine Controller-Eingaben.**
+  - **Windows-Spiele: geht sauber,** über eine stille Eingabe in `winebus`, an einer einzigen Stelle unseres eigenen Treibers. Noch nicht gebaut, in Quelltext und Bauweg belegt, Verhalten live zu prüfen.
+  - **Mac-Versionen: kein sauberer, belegter Weg.** Vorschlag: anhalten wie bei Windows, nach einer Probe; exklusive Belegung des Pads als nächster Kandidat. Reine Online-Spiele auf dem Mac bekommen eine Kurzform, die es offen sagt.
 - **Beim Lesen gefunden, schon heute falsch:** „Weiterspielen“ löst beim *Drücken* aus. Das Spiel läuft wieder an, während A noch unten ist, und sieht den Druck (Abschnitt 4).
 - Empfehlung fürs Board: **Variante A, Seitenleiste**. Der Spieler wählt.
 
@@ -79,7 +81,7 @@ Warum zuerst: alles liegt schon vor, kein Recht, keine Engine, und es macht aus 
 | Akku je Controller | `ControllerStatus` aus `InputRouter.refreshBattery` (`:387`) | S | Wird heute nur gelesen, wenn Nightforge aktiv ist (`LibraryModel.swift:611`), also beim Öffnen einmal anstoßen. `.unknown` zeigt nichts statt einer falschen Zahl |
 | Weiterspielen, Beenden, Zu Nightforge | vorhanden | S | Beenden behält die Rückfrage |
 
-Dazu gehören drei Grundlagen (Abschnitt 4): Weiterspielen beim Loslassen, `canBecomeKey` fest verdrahten, TV-Maßstab.
+Dazu gehören vier Grundlagen (Abschnitt 4): stille Eingabe in `winebus`, Weiterspielen beim Loslassen, `canBecomeKey` fest verdrahten, TV-Maßstab.
 
 ### Stufe 2: Was man im Spiel wirklich ändert
 
@@ -132,53 +134,83 @@ Bleibt so: `.nonactivatingPanel`, kein `makeKey` über einem Spiel mit Bild. Dar
 
 - **Keine Textfelder im Overlay**, auch keine fremden Controls, die das Panel zum Key-Fenster machen. Heute verhindert das nur `becomesKeyOnlyIfNeeded`, `canBecomeKey` steht fest auf `true` (`GameOverlay.swift:347`). **Vorschlag:** wie bei `HintPanel` an `takesKeys` binden, dann kann es gar nicht passieren.
 - **Regler selbst zeichnen** und mit `PadFocus` bedienen, nicht über `Slider`.
-- Nightforge zu aktivieren wäre der einfache Weg, dem Spiel den Pad zu nehmen (Abschnitt unten), ist aber genau das Verbotene.
+- Nightforge zu aktivieren wäre bei Mac-Versionen der einfache Weg, dem Spiel den Pad zu nehmen, verstößt aber gegen diese Regel (Abschnitt unten).
 
-**Anti-Cheat:** Nichts wird geladen oder versteckt, das Overlay ist ein normales Fenster eines normalen Programms. `SIGSTOP` kommt von außen und gilt nur für Spiele, die Nightforge selbst gestartet hat. Die Leistungsanzeige sitzt in der Engine (`winemetal.so`), nicht als Einspritzung. Spiele mit Anti-Cheat bleiben bei den bestehenden Regeln.
+**Anti-Cheat:** Nichts wird geladen oder versteckt, das Overlay ist ein normales Fenster eines normalen Programms. `SIGSTOP` kommt von außen und gilt nur für Spiele, die Nightforge selbst gestartet hat. Die Leistungsanzeige sitzt in der Engine (`winemetal.so`), nicht als Einspritzung. Die stille Eingabe sitzt in Wines Treiber, für das Spiel ist das, als hätte der Spieler den Pad losgelassen. Nichts davon wird versteckt. Spiele mit Anti-Cheat bleiben bei den bestehenden Regeln.
 
-### Bekommt das Spiel die Eingaben, während das Overlay offen ist?
+### Anforderung: Das Spiel bekommt keine Controller-Eingaben, solange das Overlay offen ist
 
-**Ja, immer. Nur ob es sie verarbeitet, ist verschieden.**
+Festgelegt vom Nutzer am 8.11. („das spiel sollte die controller eingabe nicht mehr bekommen“). Grenze: nichts ins Spiel laden, keine Spieldatei ändern, nichts vor Anti-Cheat verstecken.
 
-| Spiel | Weg der Eingabe | Was passiert | Beleg |
-|---|---|---|---|
-| Windows | SDL in `winebus` (läuft in `winedevice.exe`) liest das Pad, unabhängig von Fenster oder Fokus. `hidclass` puffert, XInput liest im Prozess des Spiels | Spiel steht wegen `SIGSTOP`, `winedevice` läuft weiter und sammelt | [Code] `GameOverlay.swift:11–16, 307, 702`, `LibraryModel.swift:1689`; [Wine] `sdl_bus_wait`, `hid_update_thread_proc` |
-| Mac-Version | GameController liefert an die App vorne, und das bleibt das Spiel | **Spiel läuft und reagiert mit**, der Spieler geht mit | [Code] `GameOverlay.swift:14–16`; [SDK] `GCController.h:161–169` |
-| Nightforge | `shouldMonitorBackgroundEvents` | Hört das Pad, auch wenn das Spiel vorne ist | [Code] `InputRouter.swift:402, 118` |
+**Heute ist das nicht erfüllt.** macOS kann dem Spiel das Pad nicht nehmen, auch während Nightforge es mithört (`GameOverlay.swift:11`, `InputRouter.swift:402`).
 
-**Zeitlich genauer:**
-
-| Moment | Windows-Spiel | Mac-Version |
+| Moment | Windows-Spiel heute | Mac-Version heute |
 |---|---|---|
 | Die 2 s Halten | Sieht L3 + R3 | Sieht L3 + R3 |
-| Panel offen bis zur Pause (300 ms, wegen ABZU) | Sieht alles | Sieht alles |
-| Overlay offen | Steht, nichts passiert | Läuft, reagiert |
-| Weiterspielen mit A oder B | **Läuft an, solange die Taste unten ist** | wie bisher |
-| Danach | Holt die gepufferten Reports nach | – |
+| Panel offen bis zur Pause (300 ms wegen ABZU) | Sieht alles | Sieht alles |
+| Overlay offen | Steht wegen `SIGSTOP`, `winedevice` sammelt weiter (`GameOverlay.swift:307, 702`) | **Läuft und reagiert** (`LibraryModel.swift:1689`) |
+| Weiterspielen mit A oder B | **Läuft an, während die Taste unten ist** (`InputRouter.swift:426, 452`), und der Puffer kommt nach: bis zu 32 Reports, älteste zuerst [Wine: `hidclass/device.c:89`, `hid_queue_pop_report`] | wie bisher |
 
-**Der Fehler von heute:** Die Pad-Handler reagieren auf das Drücken (`InputRouter.swift:426, 452`), „Weiterspielen“ ruft also sofort `cont()`. Die Taste ist dabei noch unten, das Spiel sieht A oder B. Beim Schließen durch erneutes Halten sind es die Stick-Tasten. Dazu kommt ein Nachlauf: `hidclass` hält pro Handle bis zu 32 Reports und gibt den ältesten zuerst [Wine: `hid_queue_create`, `hid_queue_pop_report`]. XInput arbeitet sie ab und gibt immer den letzten Zustand aus, nur aus dem Zustandsvergleich entstehen Tastendrücke [Wine: `get_current_state`, `check_for_keystroke`]. Das erklärt, warum das meist gutgeht, aber nicht immer **[Vermutung, Live]**.
+**Der Fehler von heute** steckt in der letzten Zeile. Das Schließen beim Erneuten Halten hat ihn genauso, dann mit den Stick-Tasten.
 
-**Eine größere Schwachstelle:** `pauses` gilt für jedes Windows-Spiel, ohne Rücksicht auf Online (`LibraryModel.swift:1689`). Das kleine Menü verlässt man in Sekunden. Im großen Overlay schaut man länger, und bei Overwatch kann eine längere Pause die Verbindung trennen **[Vermutung, Live]**. `docs/TODO.md:953` warnt schon davor.
+#### Windows-Spiele: stille Eingabe in `winebus`
 
-**Lösungswege:**
+**Urteil: Geht sauber und für alle Windows-Spiele.** Das Pad erreicht ein Windows-Spiel nur über Wines Treiber, und der gehört uns.
 
-| # | Weg | Für | Aufwand | Bewertung |
+**Belegt, in unserem winecx-Stand `e0aa380`:**
+
+- **Es gibt genau eine Stelle.** Nightforge setzt `DisableHidraw=1` (`Engine.swift:145`), damit steigt `iohid_driver_init` aus (`main.c:1300`) und nur der SDL-Bus bleibt. Jeder Controller-Stand geht dort durch `bus_event_queue_input_report` (`unixlib.c:394`, Aufrufe in `bus_sdl.c:832–918`).
+- **Sie liegt außerhalb des Spiels.** Der Bus läuft in `winedevice.exe`, und `GameProcesses.targets` lässt diesen Prozess schon heute aus (`GameOverlay.swift:702`). XInput im Spiel liest nur per HID hinter diesem Bus (`xinput1_3/main.c:339`). Für DirectInput und Raw Input gilt dasselbe, gelesen habe ich nur XInput **[Vermutung]**.
+- **Neutralstellung ist einfach ein genullter Report.** Sticks gehen von −32768 bis 32767, Trigger von 0 bis 32767 (`hid.c:373–376`), Steuerkreuz 0 heißt Mitte (`hatswitch_decompose`, `hid.c:1532`).
+- **Der Bauweg steht:** `gamepad.yml` baut genau dieses `winebus.so` aus diesem Commit, unsere Patches liegen unter `engine/patches/winebus-winecx-*.patch`.
+
+**Der Patch, wie er sein soll** (noch nicht gebaut):
+
+1. `sdl_bus_wait` (`bus_sdl.c:1207`) sieht bei jedem Durchlauf, spätestens alle 10 ms, auf den Stand einer Darwin-Notification, wie beim HUD-Schalter (`notify_get_state`).
+2. **Beim Sperren:** für jedes Gerät in `device_list` ein genullter Report, danach gehen keine Reports mehr hinaus. `report_buf` läuft weiter mit.
+3. **Beim Freigeben:** einmal der echte Stand.
+4. **Sicherung gegen Abstürze:** kein Schalter, sondern eine Frist. Nightforge schreibt eine Ablaufzeit (monotone Uhr in ns, nicht `mach_absolute_time`, das unter Rosetta anders läuft) und erneuert sie alle 2 s, sie gilt 5 s. Stürzt Nightforge ab, hat das Spiel sein Pad nach 5 s wieder.
+
+**Was das löst:** Gesperrt wird schon beim Öffnen, das 300-ms-Loch ist weg. Es sammelt sich nichts mehr im Puffer, also auch keine Nachzügler. Und ein reines Online-Spiel kann ohne Pause weiterlaufen und bekommt trotzdem nichts.
+
+**Schließen:** Die Frist läuft weiter, bis nichts mehr gedrückt ist, höchstens 1 s, dann frei.
+
+**Was offen bleibt, und das ist ehrlich so:** Die 2 s Halten sieht das Spiel weiter, Nightforge weiß ja erst danach, was gemeint war. Möglich wäre, schon nach 0,4 s mit beiden Stick-Tasten zu sperren und beim Loslassen freizugeben. Das kostet nichts Spürbares, muss sich aber bewähren **[Live]**.
+
+**Nur live zu klären:** Bleibt das Spiel bei „nichts kommt mehr“ ruhig, oder meldet es den Pad als getrennt? Spiele mit Steam Input? Vibriert das Pad weiter, wenn das Spiel gerade Rumble gesetzt hatte? Nimmt das Spiel nach dem Freigeben sauber wieder auf?
+
+#### Mac-Versionen: kein sauberer, belegter Weg
+
+**Urteil: Hier fehlt uns der Hebel.** Es gibt keinen Treiber in unserer Hand und ins Spiel laden wir nichts. Auf diesem Mac ist derzeit keine Mac-Version installiert, ich konnte also auch keine statisch ansehen.
+
+Es gibt zwei Arten, und Nightforge unterscheidet sie schon (`ControllerCompatibility.needsSyntheticPad`): Spiele mit GameController oder modernem SDL, und ältere, die direkt HID lesen.
+
+| Weg | Greift bei | Was belegt ist | Was nur live geht | Bewertung |
 |---|---|---|---|---|
-| 1 | **Weiterlaufen erst beim Loslassen**: `cont()` wartet, bis nichts mehr gedrückt ist, höchstens 1 s | Windows | S | Sofort, auch fürs heutige Overlay |
-| 2 | **Stille Eingabe in `winebus`**: Eine Darwin-Notification (wie beim HUD-Schalter) lässt `winebus` Neutralstellung melden und Reports zurückhalten. Beim Schließen einmal der echte Stand | Windows, besonders online | M | **Der richtige Weg.** Spiel und Ton laufen weiter, das Spiel „sieht“ den Pad nicht mehr, kein Nachlauf. Sitzt in `winedevice.exe`, nicht im Spiel. `sdl_bus_wait` → `bus_event_queue_input_report` ist die Stelle [Wine]. Patch für beide Engines wie `winebus-*-xbox360-ids.patch`, Workflow-Build nötig |
-| 3 | Mac-Spiele auch anhalten | Mac | S | Laut Kommentar kämen die Events danach gesammelt. Das ist unbelegt, Spiele, die den Zustand abfragen, träfe es nicht **[Vermutung]**. Erst eine kleine Probe (GameController-Testprogramm, `SIGSTOP`, drücken, `SIGCONT`, loggen) |
-| 4 | Mac-Spiele laufen lassen und es sagen | Mac | S | **Vorläufig so.** Eine Zeile: „Das Spiel läuft mit“ |
-| 5 | Pad exklusiv belegen (`kIOHIDOptionsTypeSeizeDevice`, CoreHID `seizeDevice`) | beide | L | **Nein.** Laut SDK empfangen dann „the system and other clients“ nichts, also vermutlich auch Nightforges eigenes GameController. Nightforge müsste DualSense- und Xbox-Reports selbst lesen. Was Wine dabei tut, ist offen **[SDK, Quelle 11]** |
-| 6 | Nightforge aktivieren: das Spiel ist nicht mehr vorne, GameController liefert ihm nichts mehr | Mac | S | **Verboten**, nimmt dem Spiel die Tastatur, kann Space wechseln oder das Spiel minimieren |
+| **1. Anhalten** mit `SIGSTOP`, weiter beim Loslassen, wie bei Windows | allen | Die Technik selbst. Der Kommentar `GameOverlay.swift:14–16` behauptet, die Events kämen danach gesammelt, das ist aber nie gemessen worden | Staut sich etwas? Probe ohne Spiel: GameController-Testprogramm, anhalten, drücken, weiter, protokollieren. Dazu ein Spiel mit HID | **Erster Schritt** |
+| **2. Pad exklusiv belegen** (`kIOHIDOptionsTypeSeizeDevice`) nur solange offen | allen | SDK: „prevent the system and other clients“. IOHIDFamily: Admin braucht es nur für Tastaturen, Clients setzen aus und kommen beim Schließen zurück (`IOHIDLibUserClient::open`, `messageGated`) | Wird `gamecontrollerd` dabei still? Meldet das Spiel den Pad als getrennt? | **Bester Kandidat danach.** Aber Nightforge hört dann selbst nichts mehr über GameController und müsste Reports von DualSense und Xbox selbst lesen: **L** |
+| **3. Nightforge kurz nach vorne** | nur GameController | Header: Eine App, die nicht vorne ist, bekommt nichts (`GCController.h:161–169`) | Space-Wechsel, Verhalten des Spiels | Verstößt gegen die Regel, dass das Spiel die Tastatur behält. Deren Grund ist für Wine belegt (`GameStage.swift:7–10`), für Mac-Versionen unbekannt. **Nur mit ausdrücklicher Freigabe** |
 
-**Nur live zu klären:**
+**Ausgeschlossen:** alles, was ins Spiel lädt oder Spieldateien ändert, und Filter über die private `IOHIDEventSystem`-Schnittstelle, die Apple nur mit eigenen Berechtigungen zulässt **[Vermutung]**.
 
-1. Mac-Version: Reagiert sie wirklich auf alle Drücke (Valheim, Batman)?
-2. Testprogramm: Kommt nach `SIGCONT` ein Stau an?
-3. Windows-Spiel: 30-mal drücken im Overlay, weiterspielen. Passiert danach etwas?
-4. Overwatch: Wie lange trägt eine Pause?
-5. `winebus` still: Sehen Spiele den Pad noch, wenn nichts mehr kommt? Spiele mit Steam Input?
-6. Was tut das Spiel in den 2 s Halten?
+#### Was das Overlay wo tut
+
+| Spiel | Eingabe | Anhalten | Das Overlay zeigt |
+|---|---|---|---|
+| Windows, Einzelspieler oder unbekannt | gesperrt in `winebus` | ja, wie heute: die Zeit steht | Alles, „Pausiert“ |
+| Windows, nur online (`onlineOnly`, `Library.swift:205`) | gesperrt in `winebus` | **nein** | Alles, „Läuft weiter“ |
+| Mac, Einzelspieler oder unbekannt | Anhalten, später Weg 2 | ja | Alles, „Pausiert“ |
+| Mac, nur online | **nicht sauber möglich** | nein, die Verbindung ginge verloren | **Kurzform:** Stand und die drei Wege, kein Verweilen, dazu der Satz „Dieses Spiel bekommt deine Eingaben weiter.“ |
+
+**Bis der Patch ausgeliefert ist,** bleibt es bei Windows beim Anhalten mit Loslassen-Regel. Das hält die Figur still, die Nachzügler bleiben möglich.
+
+**Die Live-Runde, in dieser Reihenfolge:**
+
+1. GameController-Testprogramm: Stau nach `SIGCONT`?
+2. Windows-Spiel mit Patch: Figur steht bei offenem Overlay, nach dem Schließen keine Geisterdrücke.
+3. Online-Spiel mit Patch und ohne Pause: Verbindung bleibt, die Figur bewegt sich nicht.
+4. Absturz von Nightforge bei offenem Overlay: Pad nach 5 s zurück.
+5. Eine installierte Mac-Version: Stillstand, dann Weiterspielen.
 
 ### Das Spiel darf keine Bilder verlieren
 
@@ -232,10 +264,10 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 ## 7. Reihenfolge
 
 1. **Sofort, unabhängig vom Board:** Weiterspielen beim Loslassen; `canBecomeKey` an `takesKeys` binden.
-2. **Nach der Wahl:** Bausteinaufbau und Stufe 1 mit TV-Maßstab.
-3. **Live-Runde** (Liste oben, Punkte 1, 3, 6), dazu das GameController-Testprogramm.
-4. **`winebus` still**, Patch für beide Engines; danach Regel für Online-Spiele.
-5. **Stufe 2**, je nach Merge der drei Zweige.
+2. **`winebus` still** bauen und ausliefern (Patch, `gamepad.yml`, neues Paket); auch für Wine 11.18, falls das noch im Einsatz ist.
+3. **GameController-Testprogramm**, danach Entscheidung für Mac-Versionen.
+4. **Nach der Wahl:** Bausteinaufbau und Stufe 1 mit TV-Maßstab.
+5. **Live-Runde** aus Abschnitt 4, dann Stufe 2, je nach Merge der drei Zweige.
 6. **Stufe 3**, Bildschirmfoto mit Ursachenklärung zuerst.
 
 ---
@@ -243,7 +275,7 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 ## 8. Fragen an den Nutzer
 
 1. **Welche Variante?** Empfehlung A.
-2. **Online-Spiele:** bis `winebus` still da ist wie heute pausieren, oder lieber weiterlaufen lassen, auch wenn die Figur mitgeht? Empfehlung: weiter pausieren und kurz im Overlay bleiben.
+2. **Mac-Versionen:** In Ordnung, dass sie erst einmal anhalten und reine Online-Spiele dort die Kurzform bekommen? Oder soll Nightforge bei Mac-Versionen kurz nach vorne gehen dürfen (Weg 3), also die Tastatur-Regel dort lockern? Empfehlung: anhalten, die Regel bleibt.
 3. **Leistungsanzeige:** Alle DXMT-Spiele mit verstecktem HUD starten, damit der Schalter immer geht? Empfehlung: erst messen, was es kostet.
 4. **Bildschirmfoto:** Wäre „Bedienungshilfen“ als einmaliges Recht in Ordnung, falls Create nicht zu retten ist?
 
@@ -262,4 +294,5 @@ Alle zeigen dieselben Bausteine. Das Board stellt jede bei 1080p dar, in Stufe 2
 9. GOG, Statistics and Achievements: https://docs.gog.com/sdk-stats-and-achievements/
 10. timendum/gog_achievements (inoffiziell): https://awesome.ecosyste.ms/projects/github.com%2Ftimendum%2Fgog_achievements
 11. Apple, `seizeDevice()`: https://developer.apple.com/documentation/corehid/hiddeviceclient/seizedevice() ; SDK `IOHIDKeys.h`.
-12. Wine upstream: `dlls/winebus.sys/bus_sdl.c`, `dlls/xinput1_3/main.c`, `dlls/hidclass.sys/device.c` (https://github.com/wine-mirror/wine, `master`, nicht winecx e0aa380).
+12. winecx, Commit `e0aa380`, derselbe wie in `gamepad.yml`: https://github.com/dappermint/winecx/tree/e0aa380780b73e20fabcfe78fd42713b94929a53 (`dlls/winebus.sys/*`, `dlls/xinput1_3/main.c`, `dlls/hidclass.sys/device.c`).
+13. Apple IOHIDFamily: https://github.com/apple-oss-distributions/IOHIDFamily (`IOHIDLibUserClient.cpp` wörtlich; zu `IOHIDDevice.cpp::handleOpen` nur eine Zusammenfassung, die Datei kam gekürzt an).
