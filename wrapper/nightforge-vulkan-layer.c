@@ -29,7 +29,7 @@
 // Inside the "Nightforge Game" bundle the Vulkan loader finds it as an implicit layer in
 // Contents/Resources/vulkan/implicit_layer.d (see Engine.installVulkanLayer).
 //
-// Build (x86_64, like Wine): clang -arch x86_64 -dynamiclib -fvisibility=hidden -fobjc-arc
+// Build (x86_64 for Wine, arm64 for later): clang -arch x86_64 -arch arm64 -dynamiclib -fvisibility=hidden -fobjc-arc
 //     -I vulkan-headers -framework Metal -framework MetalFX -framework QuartzCore -framework CoreGraphics
 //     -o nightforge-vulkan-layer.dylib nightforge-vulkan-layer.c nightforge-vulkan-metalfx.m
 
