@@ -39,6 +39,8 @@ struct PadRulesTest {
         check(PadRules.back(Open(highlight: true, gamePage: true, curtain: true)) == .nothing, "nor changes the page hidden under it")
         check(PadRules.back(Open(overlay: true, curtain: true)) == .overlay, "\"Not starting?\" over the curtain takes B")
         check(PadRules.back(Open(awaitingSteam: true)) == .cancelLaunch, "without the curtain a waiting start is still called off")
+        check(PadRules.back(Open(awaitingSteam: true, curtain: true, curtainEscape: true)) == .curtainEscape, "no game under it for a while: B asks")
+        check(PadRules.back(Open(overlay: true, curtain: true, curtainEscape: true)) == .overlay, "the question open: B steps back in it")
 
         // The launcher menus.
         check(PadRules.back(Open(highlight: true, launcherMenu: true)) == .launcherMenu, "the small menu closes in one press")

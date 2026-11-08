@@ -29,6 +29,8 @@ enum GameBackdrop {
         @Published var detail: String?
         /// A tip for new players under it, on their first starts (LaunchTip).
         @Published var tip: LaunchTip?
+        /// The way out of a curtain with no game under it yet (CurtainEscape), in the tip's place.
+        @Published var wayOut: LaunchTip?
     }
 
     enum Stage: Equatable {
@@ -92,6 +94,10 @@ enum GameBackdrop {
         if state.step != step { state.step = step }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
+    }
+
+    static func setWayOut(_ tip: LaunchTip?) {
+        if state.wayOut != tip { state.wayOut = tip }
     }
 
     /// The curtain's level: just under the overlay – or, `overShield`, above a captured display's shield
@@ -304,6 +310,7 @@ enum GameBackdrop {
             state.step = nil
             state.detail = nil
             state.tip = tip
+            state.wayOut = nil
         }
         state.stage = stage
         self.gameOn = gameOn
@@ -522,7 +529,7 @@ private struct BackdropView: View {
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
                 // A tip for new players, quiet, in the banner's blue.
-                if state.stage == .starting, let tip = state.tip {
+                if state.stage == .starting, let tip = state.wayOut ?? state.tip {
                     HStack(spacing: 12) {
                         HStack(spacing: 6) {
                             ForEach(Array(tip.symbols.enumerated()), id: \.offset) { index, symbol in

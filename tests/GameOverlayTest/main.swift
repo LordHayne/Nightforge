@@ -26,6 +26,7 @@ struct GameOverlayTest {
         windows()
         curtain()
         wayBack()
+        wayOut()
         curtainLines()
         brandArt()
         standIn()
@@ -118,6 +119,13 @@ struct GameOverlayTest {
         expect(.notStarting, .nightforge, (.notStarting, .nightforge), "Go to Nightforge")
         expect(.notStarting, .askQuit, (.confirmQuit, .none), "Quit Game asks first here too")
         expect(.notStarting, .quit, (.notStarting, .none), "no quitting without the question")
+        expect(.stuck, .back, (.stuck, .close), "no game yet, B: keep waiting")
+        expect(.stuck, .resume, (.stuck, .close), "Keep Waiting")
+        expect(.stuck, .nightforge, (.stuck, .nightforge), "Go to Nightforge")
+        expect(.stuck, .askQuit, (.stuck, .none), "nothing to quit")
+        expect(.stuck, .quit, (.stuck, .none), "nothing to quit, ever")
+        check(GameOverlay.defaultButton(.stuck) == "overlay.wait", "the safe answer first")
+        check(GameOverlay.takesKeys(.stuck), "no picture to lose: Esc and the arrows work")
         // The highlight starts on the safe answer, by its id: the first press already answers.
         check(GameOverlay.defaultButton(.menu) == "overlay.continue", "the choice: Continue Playing")
         check(GameOverlay.defaultButton(.notStarting) == "overlay.wait", "\"Not starting?\": Keep Waiting")
@@ -656,6 +664,39 @@ struct GameOverlayTest {
         check(LibraryModel.macOSAsksNow([301], before: []), "came up during the start: it waits")
         check(LibraryModel.macOSAsksNow([297, 301], before: [297]), "a new one beside the old one: it waits for that")
         check(!LibraryModel.macOSAsksNow([], before: [297]), "the old one answered meanwhile: nothing")
+    }
+
+    /// The way out of a curtain with no game under it: a Steam that hangs, an update without a limit.
+    static func wayOut() {
+        typealias L = CurtainEscape.Look
+        func look(runs: Bool = false, goesOn: Bool = true, question: Bool = false, waited: TimeInterval = 40, updating: Bool = false,
+                  still: TimeInterval? = nil, asked: TimeInterval? = nil) -> L {
+            L(gameRuns: runs, startGoesOn: goesOn, questionUp: question, waited: waited, updating: updating, updateStillFor: still, askedAgo: asked)
+        }
+        check(CurtainEscape.reason(look(waited: 29)) == nil, "a cold Steam's first half minute: no way out offered yet")
+        check(CurtainEscape.reason(look()) == .steamQuiet, "half a minute with no process: B works")
+        check(CurtainEscape.reason(look(runs: true)) == nil, "the game runs or its curtain is down: B stays out")
+        check(CurtainEscape.reason(look(goesOn: false)) == nil, "a start that's over has nothing to leave")
+        check(CurtainEscape.reason(look(question: true)) == nil, "macOS asks: that comes first")
+        check(CurtainEscape.reason(look(updating: true, still: 10)) == .updating, "an update that moves")
+        check(CurtainEscape.reason(look(updating: true)) == .updating, "an update without figures counts as moving")
+        check(CurtainEscape.reason(look(updating: true, still: CurtainEscape.updateStuckAfter)) == .updateStuck, "an update that stopped moving")
+
+        check(!CurtainEscape.asks(look(waited: CurtainEscape.askAfter - 1)), "silent, not long enough to ask")
+        check(CurtainEscape.asks(look(waited: CurtainEscape.askAfter)), "silent for a minute and a half: the question comes by itself")
+        check(!CurtainEscape.asks(look(waited: 600, asked: CurtainEscape.askAgainAfter - 1)), "just answered: it doesn't come back at once")
+        check(CurtainEscape.asks(look(waited: 600, asked: CurtainEscape.askAgainAfter)), "still nothing: asked again")
+        check(!CurtainEscape.asks(look(waited: 3600, updating: true, still: 5)), "a long update that moves never interrupts by itself")
+        check(!CurtainEscape.asks(look(waited: 3600, updating: true)), "nor one without figures, there's nothing to say it hangs")
+        check(CurtainEscape.asks(look(waited: 600, updating: true, still: CurtainEscape.updateStuckAfter)), "a stuck update asks")
+        check(CurtainEscape.askAfter < 120, "before Nightforge's own limit gives up on Steam")
+
+        var pad = PadSymbols()
+        pad.back = "b.circle.fill"
+        check(CurtainEscape.tip(pad: pad).symbols == ["b.circle.fill"], "with a controller: its B drawn")
+        check(CurtainEscape.tip(pad: nil).symbols.isEmpty, "without one: Esc in words")
+        let title = CurtainEscape.title(.updating, game: "Valheim")
+        check(title.contains("Valheim"), "the update's title names the game")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes

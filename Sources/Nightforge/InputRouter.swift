@@ -160,7 +160,10 @@ final class InputRouter {
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
             // On the curtain as with the pad's B (PadRules.back): calling the start off here only
             // stops Nightforge's wait, Steam starts the game anyway, without a curtain.
-            if GameBackdrop.isRaised { return true }
+            if GameBackdrop.isRaised {
+                if model.curtainEscapeOpen { model.askAboutStuckStart() }
+                return true
+            }
             if model.awaitingSteam { model.cancelLaunch(); return true }
             if model.back() { return true }
             // Nothing to go back from: Esc leaves full screen, as in macOS's.
@@ -452,7 +455,7 @@ final class InputRouter {
             guard pressed else { return }
             MainActor.assumeIsolated {
                 // A store's own window has the front while it signs in: B still takes the stage down.
-                guard let self, let model = self.model, self.reach != .none || model.signingIn != nil else { return }
+                guard let self, let model = self.model, self.reach != .none || model.signingIn != nil || model.curtainEscapeOpen else { return }
                 let main = Self.mainWindow
                 let highlight = NSApp.keyWindow.map { $0 === main && PadFocus.shared.focusedItem(in: $0) != nil } ?? false
                 // One press, one level: the innermost thing open goes first.
@@ -460,7 +463,7 @@ final class InputRouter {
                                          lightbox: model.lightbox != nil, list: model.libraryMenu != nil,
                                          downloads: model.showingDownloads, options: model.showingOptions, highlight: highlight,
                                          gamePage: model.route.isDetail || model.showsLauncherCards, awaitingSteam: model.awaitingSteam,
-                                         curtain: GameBackdrop.isRaised, quickMenu: model.quickMenu != nil,
+                                         curtain: GameBackdrop.isRaised, curtainEscape: model.curtainEscapeOpen, quickMenu: model.quickMenu != nil,
                                          launcherMenu: model.launcherMenuOpen, signIn: model.signingIn != nil)
                 switch PadRules.back(open) {
                 case .overlay: GameOverlay.back()
@@ -482,6 +485,7 @@ final class InputRouter {
                     }
                 case .cancelLaunch: model.cancelLaunch()  // stop waiting for a game Steam hasn't started
                 case .level: model.back()  // like Esc: a level up, a search dropped first
+                case .curtainEscape: model.askAboutStuckStart()
                 case .nothing: break  // the curtain is up
                 }
             }

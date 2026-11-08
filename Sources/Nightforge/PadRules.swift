@@ -21,6 +21,8 @@ enum PadRules {
         var awaitingSteam = false
         /// Nightforge's curtain is up (GameBackdrop): a game starting, or one that ended on its way back.
         var curtain = false
+        /// That curtain has no game under it yet and has stood a while: B asks whether to leave.
+        var curtainEscape = false
         /// A game's quick menu.
         var quickMenu = false
         /// The small launcher menu.
@@ -30,7 +32,7 @@ enum PadRules {
     }
 
     /// What B does: the innermost thing open goes, one per press.
-    enum Back: Equatable { case overlay, signIn, quickMenu, launcherMenu, lightbox, list, downloads, highlight, options, sheet, cancelLaunch, level, nothing }
+    enum Back: Equatable { case overlay, signIn, quickMenu, launcherMenu, lightbox, list, downloads, highlight, options, sheet, cancelLaunch, curtainEscape, level, nothing }
 
     static func back(_ open: Open) -> Back {
         if open.overlay { return .overlay }
@@ -38,7 +40,8 @@ enum PadRules {
         // the start off there took the curtain away (1.11.) and stopped only Nightforge's wait –
         // the store had the game already and started it, with nobody watching – and otherwise B
         // changed the page hidden under it.
-        if open.curtain { return .nothing }
+        // With no game under it for a while there's nothing to call off behind the player's back (CurtainEscape).
+        if open.curtain { return open.curtainEscape ? .curtainEscape : .nothing }
         let overLevels = !open.sheet && !open.modal
         if overLevels && open.signIn { return .signIn }
         if overLevels && open.quickMenu { return .quickMenu }
