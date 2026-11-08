@@ -77,7 +77,7 @@ Die Ursachen sind aus Log und Code geschlossen, keine ist am laufenden Spiel beo
 | V3 `hide` bei Steam Helper | unverändert, nur live prüfbar. | – |
 | B2 Ausweg ohne Spielprozess | Logik gebaut (`CurtainEscape`): nach 30 s wirken B und Esc, nach 90 s fragt ein stilles Steam von selbst, ein laufendes Update nie. Texte vorläufig. | fe39773, da7e91b |
 | B3 Steams Frage auf dem Vorhang | Entschieden, dass sie kommt. Das Aussehen wartet auf die Wahl auf dem Board `Vorhang.dc.html`. | – |
-| B4 Epic und GOG früher unter den Vorhang | nicht entschieden, nicht gebaut. | – |
+| B4 Epic und GOG früher unter den Vorhang | gebaut. B bricht das Update sofort ab (es läuft beim nächsten Mal weiter). Ein Spielstand-Abgleich wird nicht abgeschossen: Er läuft zu Ende, und das Spiel startet nicht. Die Fortschrittszeile hat noch das bisherige Aussehen, die Wahl steht auf dem Board. | cb2223c |
 
 Ausgeräumt mit einer Probe (Stand-in abseits des Bildschirms): Ein direktes Setzen von `alphaValue` stoppt eine laufende Überblendung. Ein Vorhang, der mitten in
 seinem Ausblenden neu hochkommt, bleibt also sichtbar.

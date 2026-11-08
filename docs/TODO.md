@@ -113,7 +113,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   7. **„Startet nicht?“ über dem Vorhang** bei einem Windows-Spiel, das hängt: Das Overlay liegt oben und ist bedienbar. ⌘-Tab funktioniert, die Leiste selbst ist unter dem Vorhang nicht zu sehen.
   8. **GOG-Spiel mit fehlendem Windows-Teil** (wenn es sich ergibt): Der Vorhang bleibt, der Hinweis wartet danach auf der Seite.
   9. **Ausweg ohne Spielprozess (B2):** Bei einem Steam-Update oder hängendem Steam steht nach 30 s die Zeile „Hängt es? Zurück zu Nightforge“ auf dem Vorhang, B oder Esc fragt. „Weiter warten“ lässt alles laufen. „Zu Nightforge“ führt auf die Spielseite, Steam und sein Update laufen weiter, und ein Spiel, das Steam danach noch startet, wird bis zum Ende begleitet. Danach sofort wieder „Spielen“: Der neue Start läuft sauber unter seinem Vorhang.
-  **Offen:** B3 (Steams Frage auf dem Vorhang) wartet auf die Wahl auf dem Board `Vorhang.dc.html`, die Texte von B2 auch (gebaut ist Vorschlag A). B4 ist noch nicht entschieden.
+  10. **Epic oder GOG mit wartendem Update (B4):** Vorhang sofort beim Druck auf „Spielen“, darauf Prozent, Tempo und Restzeit. B oder Esc bricht sofort ab und führt auf die Spielseite; beim nächsten „Spielen“ läuft das Update weiter, wo es stand. B während „Spielstand holen“: Der Start ist weg, das Spiel startet nicht, und der Abgleich läuft unsichtbar zu Ende.
+  **Offen:** Auf dem Board `Vorhang.dc.html` wartet die Wahl für B3 (Steams Frage auf dem Vorhang), für die Texte von B2 und für die Fortschrittszeile (gebaut ist jeweils Vorschlag A).
 
 ## 8.11. mittags (staging-032, nicht gepusht)
 

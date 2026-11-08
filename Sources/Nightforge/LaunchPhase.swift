@@ -96,8 +96,9 @@ enum LaunchPhase: Equatable {
     /// While Steam starts the game itself, the first time with new graphics: shaders are built then.
     static var shaderHint: String { L10n.t("First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.") }
     /// `updating` for an Epic or GOG game: legendary or gogdl fetches the update, not Steam.
-    static func storeUpdateHint(_ provider: Provider) -> String {
-        L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label)
+    static func storeUpdateHint(_ provider: Provider, speed: String? = nil) -> String {
+        guard let speed else { return L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label) }
+        return L10n.t("%@ – the update comes from %@ first, the game starts by itself when it's done.", speed, provider.label)
     }
     /// `updating` through Steam once its speed is known (`UpdateProgress`).
     static func steamUpdateHint(speed: String) -> String {

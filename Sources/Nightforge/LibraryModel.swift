@@ -127,7 +127,7 @@ final class LibraryModel: ObservableObject {
         guard launchingID != nil else { return nil }
         if launchNeedsConfirmation { return LaunchPhase.confirmHint }
         let provider = allGames.first { $0.id == launchingID }?.provider
-        if case .updating? = launchPhase, let provider, provider != .steam { return LaunchPhase.storeUpdateHint(provider) }
+        if case .updating? = launchPhase, let provider, provider != .steam { return LaunchPhase.storeUpdateHint(provider, speed: updateSpeed) }
         if case .updating? = launchPhase, let updateSpeed { return LaunchPhase.steamUpdateHint(speed: updateSpeed) }
         if launchPhase == .syncingSaves, provider == .gog { return LaunchPhase.gogSavesHint }
         if let launchPhase { return launchPhase.hint }
@@ -510,18 +510,21 @@ final class LibraryModel: ObservableObject {
         if game.pendingUpdate != nil, gog.isSignedIn {
             launchPhase = .updating(nil)
             awaitingSteam = true
-            let outcome = await gog.update(game) { [weak self] fraction in self?.launchPhase = .updating(fraction) }
+            let outcome = await gog.update(game, speed: { [weak self] in self?.showUpdateSpeed($0) }) { [weak self] fraction in
+                self?.launchPhase = .updating(fraction)
+            }
             awaitingSteam = false
             launchPhase = nil
+            updateSpeed = nil
             if Task.isCancelled { return false }
             switch outcome {
             case .updated, .addOnFailed:
                 analyses[game.gameID] = nil  // its files changed
                 reload(quiet: true)
             case .skipped(.offline):
-                Toasts.shared.show(L10n.t("%@ can't be reached – %@ starts without its update.", Provider.gog.label, game.name))
+                noteDuringStart(L10n.t("%@ can't be reached – %@ starts without its update.", Provider.gog.label, game.name))
             case .skipped(.busy):
-                Toasts.shared.show(L10n.t("Another %@ download is running – %@ starts now and updates next time.", Provider.gog.label, game.name))
+                noteDuringStart(L10n.t("Another %@ download is running – %@ starts now and updates next time.", Provider.gog.label, game.name))
             case .failed(let reason):
                 errorMessage = L10n.t("The update of %@ stopped: %@. Press Play again to carry on where it stopped.", game.name, reason)
                 reload(quiet: true)
@@ -562,11 +565,11 @@ final class LibraryModel: ObservableObject {
         let arguments = Launcher.splitArguments(GameOptionsStore.load(game.gameID).extraArgs)
         launchTask = Task {
             defer { endLaunch(number) }
+            raiseCurtain(for: game)  // the update and the save under it, with their progress and B to stop
             await leftStartEnded()
             guard !Task.isCancelled, await beforeGOGStart(game) else { return }
             let installDir = game.installDir
             await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
-            raiseCurtain(for: game)
             do {
                 try await gog.launchMac(game, extraArguments: arguments)
             } catch {
@@ -1132,36 +1135,53 @@ final class LibraryModel: ObservableObject {
 
     /// The curtain's watch at each look: B and Esc lead out from now on, and the curtain says so.
     private func offerWayOut(_ game: Game, reason: CurtainEscape.Reason?) {
-        let had = curtainEscape != nil
+        let had = curtainEscape?.reason
         curtainEscape = reason.map { (game, $0) }
-        guard had != (reason != nil) else { return }
+        guard had != reason else { return }
         let pad = GCController.controllers().contains { $0.extendedGamepad != nil } ? padSymbols : nil
-        GameBackdrop.setWayOut(reason == nil ? nil : CurtainEscape.tip(pad: pad))
+        GameBackdrop.setWayOut(reason.map { CurtainEscape.tip($0, pad: pad) })
         GameLog.note(reason.map { "Curtain over \(game.name): no process of it for a while (\($0)), B and Esc lead out" }
                      ?? "Curtain over \(game.name): the way out is closed again")
     }
 
-    /// B or Esc on such a curtain, or the watch by itself: wait on, or back to Nightforge.
+    /// B or Esc on such a curtain, or the watch by itself: wait on, or back to Nightforge. Epic's and GOG's
+    /// update and save end at once, as from the Play button: the update carries on from where it stopped.
     func askAboutStuckStart() {
         guard let (game, reason) = curtainEscape, !GameOverlay.isOpen else { return }
+        if reason.atOnce { return leaveStuckStart(game, handedOver: false) }
         stuckAskedAt = Date()
-        let actions = GameOverlay.Actions(quit: {}, nightforge: { [weak self] in self?.leaveStuckStart(game) })
-        GameOverlay.open(game.name, pids: [], pause: false, on: GameDisplay.gameScreen, symbols: padSymbols, step: .stuck, stuck: reason, actions: actions)
+        let actions = GameOverlay.Actions(quit: {}, nightforge: { [weak self] in self?.leaveStuckStart(game, handedOver: true) })
+        GameOverlay.open(game.name, pids: [], pause: false, on: GameDisplay.gameScreen, symbols: padSymbols, step: .stuck,
+                         stuck: CurtainEscape.words(reason, game: game.name, store: game.provider.label), actions: actions)
     }
 
     /// Back to Nightforge from a start that has no game yet. Only Nightforge's waiting ends: Steam and its
     /// update are left alone, a Steam that hangs is dealt with at the next Play, and a game Steam still
-    /// starts afterwards is followed to its end like any other.
-    private func leaveStuckStart(_ game: Game) {
+    /// starts afterwards is followed to its end like any other. `handedOver`: a store has the game
+    /// already and may still start it.
+    private func leaveStuckStart(_ game: Game, handedOver: Bool) {
         GameLog.note("Curtain over \(game.name): the player went back to Nightforge, at \(GameLog.clock())")
         curtainWatch?.cancel()
         stageWatch?.cancel()
         abandonLaunch()
-        startedHere.insert(game.id)
+        if handedOver { startedHere.insert(game.id) }
         curtainEscape = nil
         GameBackdrop.returning()
         if game.inLibrary, reveal(game), !route.isDetail { openDetail() }
         comeBack(to: route)
+    }
+
+    /// A store's update or save said how fast it goes (`updateSpeed`, on the curtain's second line).
+    private func showUpdateSpeed(_ speed: String?) {
+        if updateSpeed != speed { updateSpeed = speed }
+    }
+
+    /// What used to be only a toast, which would go by unseen under the curtain: on its second line too.
+    private var curtainNote: String?
+
+    private func noteDuringStart(_ text: String) {
+        Toasts.shared.show(text)
+        if GameBackdrop.isRaised { curtainNote = text }
     }
 
     /// A word to the player in a start that goes on ("It starts anyway"): it waits on Nightforge's page,
@@ -1382,8 +1402,11 @@ final class LibraryModel: ObservableObject {
             } else {
                 updateProgress = nil
             }
+            let ownStore = game.provider != .steam
             let stuck = CurtainEscape.Look(gameRuns: noProcessSince == nil, startGoesOn: launchingID == game.id, questionUp: macOSAsks,
-                                           waited: noProcessSince.map { Date().timeIntervalSince($0) } ?? 0, updating: updateProgress != nil,
+                                           waited: noProcessSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                           updating: !ownStore && updateProgress != nil, ownUpdate: ownStore && updateProgress != nil,
+                                           ownSaves: ownStore && launchPhase == .syncingSaves,
                                            updateStillFor: updateProgress.flatMap { $0.fraction == nil ? nil : Date().timeIntervalSince($0.movedAt) },
                                            askedAgo: stuckAskedAt.map { Date().timeIntervalSince($0) })
             let stuckReason = CurtainEscape.reason(stuck)
@@ -1688,7 +1711,7 @@ final class LibraryModel: ObservableObject {
         let phase = launchingID == nil ? nil : launchPhase?.title
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
                                                   asks: asks, macOSAsks: macOSAsks),
-                               detail: Self.curtainDetail(launchHint: launchHint, asks: asks || macOSAsks, macOSOpen: macOSOpen))
+                               detail: Self.curtainDetail(launchHint: launchHint ?? curtainNote, asks: asks || macOSAsks, macOSOpen: macOSOpen))
     }
 
     /// The curtain's second line: none under a question it waits for (`asks`), else the start's
@@ -3927,6 +3950,7 @@ final class LibraryModel: ObservableObject {
     private func beginLaunch(_ game: Game) -> Int {
         launchNumber += 1
         launchingID = game.id
+        curtainNote = nil
         startsAgain = false
         GameDisplay.enterGame()
         launchNeedsConfirmation = false
@@ -3997,7 +4021,8 @@ final class LibraryModel: ObservableObject {
             defer { finishJudging(game, current: number == launchNumber && !Task.isCancelled) }
             // The curtain at once for a game through Steam, as for a Mac version (`launchMac`): Steam for
             // Mac going and this Steam coming up happen under it, not behind the page.
-            if viaSteam { raiseCurtain(for: game) }
+            // Epic's and GOG's update and save too, with their progress and B to stop them (CurtainEscape).
+            raiseCurtain(for: game)
             await leftStartEnded()
             if Task.isCancelled { return }
             if viaSteam, game.bottle.isBuiltIn {
@@ -4042,6 +4067,7 @@ final class LibraryModel: ObservableObject {
                 launchPhase = .syncingSaves
                 await epic.syncSaves(game, upload: false)
                 launchPhase = nil
+                if Task.isCancelled { return }  // it ran to its end, nothing is left half done, and the game doesn't start
             }
             // GOG: the same, an update first and then the newest save.
             if game.provider == .gog { guard await beforeGOGStart(game) else { return } }
@@ -4530,18 +4556,21 @@ final class LibraryModel: ObservableObject {
     private func updateEpic(_ game: Game) async -> Bool {
         launchPhase = .updating(nil)
         awaitingSteam = true
-        let outcome = await epic.update(game) { [weak self] fraction in self?.launchPhase = .updating(fraction) }
+        let outcome = await epic.update(game, speed: { [weak self] in self?.showUpdateSpeed($0) }) { [weak self] fraction in
+            self?.launchPhase = .updating(fraction)
+        }
         awaitingSteam = false
         launchPhase = nil
+        updateSpeed = nil
         if Task.isCancelled { return false }
         switch outcome {
         case .updated:
             analyses[game.gameID] = nil  // its files changed
             reload(quiet: true)
         case .skipped(.offline):
-            Toasts.shared.show(L10n.t("Epic Games can't be reached – %@ starts without its update.", game.name))
+            noteDuringStart(L10n.t("Epic Games can't be reached – %@ starts without its update.", game.name))
         case .skipped(.busy):
-            Toasts.shared.show(L10n.t("Another Epic download is running – %@ starts now and updates next time.", game.name))
+            noteDuringStart(L10n.t("Another Epic download is running – %@ starts now and updates next time.", game.name))
         case .failed(let reason):
             errorMessage = L10n.t("The update of %@ stopped: %@. Press Play again to carry on where it stopped.", game.name, reason)
             reload(quiet: true)

@@ -23,8 +23,8 @@ enum GameOverlay {
         @Published var symbols = PadSymbols()
         /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
         @Published var soundStaysOn: String?
-        /// Why the start on the curtain looks stuck (`.stuck`).
-        @Published var stuck: CurtainEscape.Reason?
+        /// What's said about a start on the curtain that looks stuck (`.stuck`).
+        @Published var stuck: CurtainEscape.Words?
         /// A controller came after the game started without one (LibraryModel.padArrivedLate):
         /// the menu offers a restart first, once.
         @Published var lateController = false
@@ -69,7 +69,7 @@ enum GameOverlay {
     /// `.notStarting` for a game that runs but shows nothing (LibraryModel's curtain).
     /// `soundStaysOn`: the device a Windows game still plays to after the default output changed.
     static func open(_ game: String, pids: [pid_t], pause: Bool, on screen: NSScreen?, symbols: PadSymbols,
-                     step: OverlayStep = .menu, soundStaysOn: String? = nil, stuck: CurtainEscape.Reason? = nil, actions: Actions) {
+                     step: OverlayStep = .menu, soundStaysOn: String? = nil, stuck: CurtainEscape.Words? = nil, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
         state.stuck = stuck
@@ -459,10 +459,9 @@ private struct OverlayView: View {
 
     /// No game under the curtain yet: nothing to quit, so no Quit Game.
     @ViewBuilder private var stuck: some View {
-        let reason = state.stuck ?? .steamQuiet
-        Text(CurtainEscape.title(reason, game: state.game))
+        Text(state.stuck?.title ?? state.game)
             .font(size: 22, weight: .semibold)
-        Text(CurtainEscape.text(reason, game: state.game))
+        Text(state.stuck?.text ?? "")
             .font(size: 14)
             .foregroundStyle(Theme.muted)
         VStack(spacing: 12) {

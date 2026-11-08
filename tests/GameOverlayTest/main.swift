@@ -674,7 +674,7 @@ struct GameOverlayTest {
             L(gameRuns: runs, startGoesOn: goesOn, questionUp: question, waited: waited, updating: updating, updateStillFor: still, askedAgo: asked)
         }
         check(CurtainEscape.reason(look(waited: 29)) == nil, "a cold Steam's first half minute: no way out offered yet")
-        check(CurtainEscape.reason(look()) == .steamQuiet, "half a minute with no process: B works")
+        check(CurtainEscape.reason(look()) == .storeQuiet, "half a minute with no process: B works")
         check(CurtainEscape.reason(look(runs: true)) == nil, "the game runs or its curtain is down: B stays out")
         check(CurtainEscape.reason(look(goesOn: false)) == nil, "a start that's over has nothing to leave")
         check(CurtainEscape.reason(look(question: true)) == nil, "macOS asks: that comes first")
@@ -693,10 +693,35 @@ struct GameOverlayTest {
 
         var pad = PadSymbols()
         pad.back = "b.circle.fill"
-        check(CurtainEscape.tip(pad: pad).symbols == ["b.circle.fill"], "with a controller: its B drawn")
-        check(CurtainEscape.tip(pad: nil).symbols.isEmpty, "without one: Esc in words")
-        let title = CurtainEscape.title(.updating, game: "Valheim")
-        check(title.contains("Valheim"), "the update's title names the game")
+        check(CurtainEscape.tip(.storeQuiet, pad: pad).symbols == ["b.circle.fill"], "with a controller: its B drawn")
+        check(CurtainEscape.tip(.storeQuiet, pad: nil).symbols.isEmpty, "without one: Esc in words")
+        check(CurtainEscape.title(.updating, game: "Valheim", store: "Steam").contains("Valheim"), "the update's title names the game")
+        check(CurtainEscape.title(.storeQuiet, game: "Control", store: "Epic Games").contains("Epic Games"), "whose start it is, not always Steam")
+
+        // Epic's and GOG's update and save, which Nightforge runs itself.
+        func own(update: Bool = false, saves: Bool = false, runs: Bool = false, goesOn: Bool = true, question: Bool = false, waited: TimeInterval = 0) -> L {
+            L(gameRuns: runs, startGoesOn: goesOn, questionUp: question, waited: waited, ownUpdate: update, ownSaves: saves)
+        }
+        check(CurtainEscape.reason(own(update: true)) == .ownUpdate, "their update: B works from the first moment")
+        check(CurtainEscape.reason(own(saves: true)) == .ownSaves, "their save: B works from the first moment")
+        check(CurtainEscape.Reason.ownUpdate.atOnce && CurtainEscape.Reason.ownSaves.atOnce, "both end at once, as from the Play button")
+        check(!CurtainEscape.Reason.storeQuiet.atOnce && !CurtainEscape.Reason.updating.atOnce, "what a store has already gets the question first")
+        check(CurtainEscape.reason(own(update: true, runs: true)) == nil, "the game runs: B is the game's")
+        check(CurtainEscape.reason(own(update: true, goesOn: false)) == nil, "a start that's over")
+        check(CurtainEscape.reason(own(saves: true, question: true)) == nil, "macOS asks: that comes first")
+        check(!CurtainEscape.asks(own(update: true, waited: 3600)), "a long Epic update never interrupts by itself")
+        check(!CurtainEscape.asks(own(saves: true, waited: 3600)), "nor a save")
+
+        // The progress on the curtain's line.
+        check(LibraryModel.curtainStatus(phase: LaunchPhase.updating(0.42).title, shaders: false, gameRuns: false) == L10n.t("Updating … %ld %%", 42),
+              "how far it is, on the curtain's line")
+        check(LibraryModel.curtainStatus(phase: LaunchPhase.updating(nil).title, shaders: false, gameRuns: false) == L10n.t("Updating …"), "no figure yet: still says what's going on")
+        check(LaunchPhase.storeUpdateHint(.epic, speed: "18 MB/s").contains("18 MB/s"), "the speed on the second line")
+        check(LaunchPhase.storeUpdateHint(.gog).contains("GOG"), "before the speed is known: still whose update it is")
+        check(DownloadRate.label(speed: nil, secondsLeft: 60) == nil, "no speed reported: nothing to say")
+        check(DownloadRate.label(speed: 0, secondsLeft: 60) == nil, "standing still is no speed")
+        check(DownloadRate.label(speed: 2_000_000, secondsLeft: nil)?.hasSuffix("/s") == true, "the speed alone while the time isn't known")
+        check(DownloadRate.label(speed: 2_000_000, secondsLeft: 600)?.contains("·") == true, "speed and time left")
     }
 
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes
