@@ -810,6 +810,17 @@ enum L10n {
         "It runs, but hasn't shown a picture yet. Some games take long the first time.":
             "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.",
         "Keep Waiting": "Weiter warten",
+        "Stuck? Esc takes you back to Nightforge": "Hängt es? Mit Esc zurück zu Nightforge",
+        "Stuck? Back to Nightforge": "Hängt es? Zurück zu Nightforge",
+        "Steam isn't answering": "Steam antwortet gerade nicht",
+        "Steam is updating %@": "Steam aktualisiert %@",
+        "The update of %@ isn't moving": "Das Update von %@ kommt nicht voran",
+        "%@ hasn't started yet. You can keep waiting or go back to Nightforge. Going back breaks nothing.":
+            "%@ ist noch nicht gestartet. Du kannst weiter warten oder zu Nightforge zurückgehen. Dabei geht nichts kaputt.",
+        "That can take a while. You can go back to Nightforge: Steam keeps updating and starts the game by itself afterwards.":
+            "Das kann dauern. Du kannst zu Nightforge zurückgehen: Steam aktualisiert weiter und startet das Spiel danach von selbst.",
+        "Steam hasn't got any further for a while. You can go back to Nightforge: the update carries on once Steam can, and your saves stay as they are.":
+            "Steam kommt seit einer Weile nicht weiter. Du kannst zu Nightforge zurückgehen: Das Update läuft weiter, sobald Steam kann, und deine Spielstände bleiben, wie sie sind.",
         "Waiting for the first picture …": "Warte auf das erste Bild …",
         "The game is asking something – answer it with the mouse or trackpad.": "Das Spiel fragt etwas – antworte mit Maus oder Trackpad.",
         "macOS is asking for permission – answer it with the mouse or trackpad.": "macOS fragt um Erlaubnis – antworte mit Maus oder Trackpad.",

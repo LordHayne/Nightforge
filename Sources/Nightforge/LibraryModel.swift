@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import GameController
 import SwiftUI
 
 @MainActor
@@ -352,6 +353,7 @@ final class LibraryModel: ObservableObject {
             guard let self else { return false }
             return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
         }
+        GameBackdrop.frontMoved = { [weak self] front in self?.frontMoved(to: front) }
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -547,9 +549,9 @@ final class LibraryModel: ObservableObject {
         if showStatus { launchPhase = nil }
         guard showStatus, !outcome.failed.isEmpty else { return }
         let parts = outcome.failed.joined(separator: ", ")
-        errorMessage = outcome.retried
+        hintDuringStart(outcome.retried
             ? L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.", game.name, parts)
-            : L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.", game.name, parts)
+            : L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.", game.name, parts))
     }
 
     /// A GOG game's Mac version: no Steam and no Wine – its update and save first, then the app
@@ -560,7 +562,8 @@ final class LibraryModel: ObservableObject {
         let arguments = Launcher.splitArguments(GameOptionsStore.load(game.gameID).extraArgs)
         launchTask = Task {
             defer { endLaunch(number) }
-            guard await beforeGOGStart(game) else { return }
+            await leftStartEnded()
+            guard !Task.isCancelled, await beforeGOGStart(game) else { return }
             let installDir = game.installDir
             await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
             raiseCurtain(for: game)
@@ -641,7 +644,12 @@ final class LibraryModel: ObservableObject {
         }
         for pid in pids where exitWatches[pid] == nil {
             let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
-            source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.nap?.cancel() } }
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.gameProcessExited(pid)
+                    self?.nap?.cancel()
+                }
+            }
             source.resume()
             exitWatches[pid] = source
         }
@@ -728,8 +736,9 @@ final class LibraryModel: ObservableObject {
         startedHere.subtract(playing)
         guard !playing.isEmpty else { return }
         if playing.contains(where: { found[$0] != nil }) {
-            if goneFor > 0 { GameBackdrop.playing() }  // a launcher handed over to the game after all
+            if goneFor > 0 || raisedForExit { GameBackdrop.playing() }  // a launcher handed over to the game after all
             goneFor = 0
+            raisedForExit = false
             return
         }
         // A start whose first seconds are still judged: its end is the start's to tell, under the
@@ -789,6 +798,45 @@ final class LibraryModel: ObservableObject {
         // "Welcome back" once the curtain is gone, not under it while the Spaces change.
         let summary = sessions.max { $0.minutes < $1.minutes }
         comeBack(to: route) { [weak self] in self?.sessionSummary = summary }
+    }
+
+    /// The curtain came for a process that ended, before the look that finds out what that means.
+    private var raisedForExit = false
+    /// The curtain came for a picture that went (`GameStage.pictureWent`), the game's process still there.
+    private var pictureWentAt: Date?
+    /// The game on stage as of the stage watch's last list.
+    private var stagePids = Set<pid_t>()
+    private var stageAskers = Set<pid_t>()
+
+    /// A game's process ended: the curtain now, in the same moment, not at the look it cuts short. A Mac
+    /// game in its own Space starts sliding away at once, and the page behind it slid in from the side
+    /// with the desktop beside it. The look after it says whether that was the end.
+    private func gameProcessExited(_ pid: pid_t) {
+        guard Self.exitRaisesCurtain(curtainUp: GameBackdrop.isRaised, sawPicture: stage.sawPicture, judged: startJudgesEnd(),
+                                     othersRunning: playing.contains { running[$0] != nil && running[$0] != pid })
+        else { return }
+        GameLog.note("A game's process ended: the curtain comes at once, at \(GameLog.clock())")
+        raisedForExit = true
+        GameBackdrop.returning()
+    }
+
+    /// Before its first picture the curtain is up already, and an early end is the start's to tell.
+    nonisolated static func exitRaisesCurtain(curtainUp: Bool, sawPicture: Bool, judged: Bool, othersRunning: Bool) -> Bool {
+        !curtainUp && sawPicture && !judged && !othersRunning
+    }
+
+    /// Another app came to the front over the page: if the game's picture went with it and nobody asked
+    /// for that, the curtain comes this moment (`GameStage.pictureWent`).
+    private func frontMoved(to front: pid_t) {
+        guard pictureWentAt == nil, !stagePids.isEmpty else { return }
+        let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
+                                  handsOff: GameOverlay.isOpen || stageAskers.contains(front),
+                                  playerActed: Self.playerActed(within: GameStage.leftWithin) || GameBackdrop.spaceJustChanged,
+                                  guarded: curtainGuards, now: Date())
+        guard stage.pictureWent(look) else { return }
+        pictureWentAt = Date()
+        GameLog.note("The game's picture went, the front moved on: the curtain comes at once, at \(GameLog.clock())")
+        GameBackdrop.returning()
     }
 
     /// `page`: the page the player comes back to, set already. `then`: once the curtain is gone.
@@ -948,6 +996,59 @@ final class LibraryModel: ObservableObject {
     /// they came before it and don't hold it (`macOSAsksNow`).
     private var macOSQuestionsBefore: Set<Int>?
 
+    /// The start on the curtain the player may leave, and why (CurtainEscape).
+    private var curtainEscape: (game: Game, reason: CurtainEscape.Reason)?
+    private var stuckAskedAt: Date?
+
+    var curtainEscapeOpen: Bool { curtainEscape != nil && GameBackdrop.isRaised }
+
+    /// The curtain's watch at each look: B and Esc lead out from now on, and the curtain says so.
+    private func offerWayOut(_ game: Game, reason: CurtainEscape.Reason?) {
+        let had = curtainEscape != nil
+        curtainEscape = reason.map { (game, $0) }
+        guard had != (reason != nil) else { return }
+        let pad = GCController.controllers().contains { $0.extendedGamepad != nil } ? padSymbols : nil
+        GameBackdrop.setWayOut(reason == nil ? nil : CurtainEscape.tip(pad: pad))
+        GameLog.note(reason.map { "Curtain over \(game.name): no process of it for a while (\($0)), B and Esc lead out" }
+                     ?? "Curtain over \(game.name): the way out is closed again")
+    }
+
+    /// B or Esc on such a curtain, or the watch by itself: wait on, or back to Nightforge.
+    func askAboutStuckStart() {
+        guard let (game, reason) = curtainEscape, !GameOverlay.isOpen else { return }
+        stuckAskedAt = Date()
+        let actions = GameOverlay.Actions(quit: {}, nightforge: { [weak self] in self?.leaveStuckStart(game) })
+        GameOverlay.open(game.name, pids: [], pause: false, on: GameDisplay.gameScreen, symbols: padSymbols, step: .stuck, stuck: reason, actions: actions)
+    }
+
+    /// Back to Nightforge from a start that has no game yet. Only Nightforge's waiting ends: Steam and its
+    /// update are left alone, a Steam that hangs is dealt with at the next Play, and a game Steam still
+    /// starts afterwards is followed to its end like any other.
+    private func leaveStuckStart(_ game: Game) {
+        GameLog.note("Curtain over \(game.name): the player went back to Nightforge, at \(GameLog.clock())")
+        curtainWatch?.cancel()
+        stageWatch?.cancel()
+        abandonLaunch()
+        startedHere.insert(game.id)
+        curtainEscape = nil
+        GameBackdrop.returning()
+        if game.inLibrary, reveal(game), !route.isDetail { openDetail() }
+        comeBack(to: route)
+    }
+
+    /// A word to the player in a start that goes on ("It starts anyway"): it waits on Nightforge's page,
+    /// and the curtain stays. As an error it took the curtain away for a start that was fine.
+    private var startHint: String?
+
+    private func hintDuringStart(_ text: String) {
+        startHint = text
+        errorMessage = text
+    }
+
+    nonisolated static func startWentWrong(message: String?, hint: String?, failed: Bool) -> Bool {
+        failed || (message != nil && message != hint)
+    }
+
     /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
     /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
     /// error or a start that didn't take take it away; a game that runs but shows nothing for a
@@ -957,6 +1058,12 @@ final class LibraryModel: ObservableObject {
         // The tip for new players on a curtain that comes up for this start, not again for each way it tries.
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
         if !GameBackdrop.isRaised { macOSQuestionsBefore = nil }
+        GameBackdrop.mayCapture = false  // until this start's game runs (watchCurtain)
+        raisedForExit = false
+        pictureWentAt = nil
+        stuckAskedAt = nil
+        stagePids = []
+        stageAskers = []
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
@@ -1010,6 +1117,10 @@ final class LibraryModel: ObservableObject {
         var lastLook = ""
         /// Looks in a row without a process list.
         var blindLooks = 0
+        /// Since when the curtain has stood with no process of the game's (CurtainEscape).
+        var noProcessSince: Date?
+        /// Steam's update: how far it was at the last move, and when that was.
+        var updateProgress: (fraction: Double?, movedAt: Date)?
         func end(_ why: String) { GameLog.note("Curtain watch for \(game.name) ends: \(why)") }
         /// The curtain over everything again – under macOS's questions on screen still, which have to show.
         func curtainUp() {
@@ -1018,18 +1129,24 @@ final class LibraryModel: ObservableObject {
         }
         GameLog.note("Curtain watch for \(game.name) begins")
         GameLog.note("  at \(GameLog.clock())")
-        defer { curtainGuards = false }
+        defer {
+            curtainGuards = false
+            offerWayOut(game, reason: nil)
+        }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
             if Task.isCancelled { return end("a new start or Go to Nightforge") }
             if GameBackdrop.isReturning { return end("the game ended") }
-            let wentWrong = errorMessage != nil || failedLaunch != nil
+            let wentWrong = Self.startWentWrong(message: errorMessage, hint: startHint, failed: failedLaunch != nil)
             let startGoesOn = launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id)
             if loweredAt == nil {
                 switch Self.steamTurn(asks: steamAsks, asked: steamAsked, startGoesOn: startGoesOn, wentWrong: wentWrong) {
                 case .away:
                     steamAsked = true
+                    noProcessSince = nil  // the question's time isn't the game's
+                    offerWayOut(game, reason: nil)
+                    if GameOverlay.asksWayOut { GameOverlay.close() }
                     GameBackdrop.hide(after: .zero)
                     GameLog.note("Curtain away for \(game.name): Steam asks something")
                     continue
@@ -1077,6 +1194,8 @@ final class LibraryModel: ObservableObject {
             }
             blindLooks = 0
             seenOnce = seenOnce || !pids.isEmpty
+            if !pids.isEmpty, game.platform != .mac { GameBackdrop.expectCapture() }
+            if loweredAt == nil { GameBackdrop.keepOverShield() }
             // macOS asks the player something – Tomb Raider's access to its drive (2.11.), a password,
             // an app from the internet: the curtain lies under its window as under a question of the
             // game's, so it shows over everything, and the watch goes on looking for the game – one
@@ -1129,8 +1248,22 @@ final class LibraryModel: ObservableObject {
             if loweredAt == nil, let lowest = macOSQuestions.last { GameBackdrop.makeWay(under: lowest) }
             let macOSAsks = turn == .makeWay
             let macOSOpen = !macOSQuestions.isEmpty && !macOSAsks
+            noProcessSince = pids.isEmpty && loweredAt == nil ? (noProcessSince ?? Date()) : nil
+            if case .updating(let fraction)? = launchPhase {
+                if updateProgress == nil || updateProgress?.fraction != fraction { updateProgress = (fraction, Date()) }
+            } else {
+                updateProgress = nil
+            }
+            let stuck = CurtainEscape.Look(gameRuns: noProcessSince == nil, startGoesOn: launchingID == game.id, questionUp: macOSAsks,
+                                           waited: noProcessSince.map { Date().timeIntervalSince($0) } ?? 0, updating: updateProgress != nil,
+                                           updateStillFor: updateProgress.flatMap { $0.fraction == nil ? nil : Date().timeIntervalSince($0.movedAt) },
+                                           askedAgo: stuckAskedAt.map { Date().timeIntervalSince($0) })
+            let stuckReason = CurtainEscape.reason(stuck)
+            offerWayOut(game, reason: stuckReason)
+            if stuckReason == nil, GameOverlay.asksWayOut { GameOverlay.close() }
+            if CurtainEscape.asks(stuck), !GameOverlay.isOpen { askAboutStuckStart() }
             if pids.isEmpty {
-                sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+                sayOnCurtain(gameRuns: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
             }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
@@ -1222,7 +1355,7 @@ final class LibraryModel: ObservableObject {
                 madeWay = false
                 curtainUp()
             }
-            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks,
+            sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks,
                          macOSAsks: macOSAsks, macOSOpen: macOSOpen)
             pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
@@ -1306,7 +1439,9 @@ final class LibraryModel: ObservableObject {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(stage.left ? 5 : 1))  // nothing to do meanwhile but see it return
             guard !Task.isCancelled, goesOn() else { return }
-            guard !GameBackdrop.isRaised else { continue }
+            // The curtain that came for a picture that went is this watch's own to take away again.
+            if pictureWentAt != nil, !GameBackdrop.isReturning { pictureWentAt = nil }
+            guard !GameBackdrop.isRaised || pictureWentAt != nil else { continue }
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let inFront = front.map(pids.contains) ?? false
             if !inFront || Date().timeIntervalSince(listed) > 30 {
@@ -1314,17 +1449,25 @@ final class LibraryModel: ObservableObject {
                     GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
                 }).value else { continue }
                 (pids, companion, askers) = (look.pids, look.companion, look.askers)
+                (stagePids, stageAskers) = (pids, askers)
                 listed = Date()
             }
             let page = GameBackdrop.pageNumber
             let known = pids
-            let windows = await Task.detached(priority: .utility) { GameProcesses.onStage(known, page: page) }.value
+            let screen = GameDisplay.gameScreen.map { GameProcesses.cgRect($0.frame) }
+            let windows = await Task.detached(priority: .utility) { GameProcesses.onStage(known, page: page, screen: screen) }.value
             if windows.pageOver {
                 GameBackdrop.stepAside()
                 GameLog.note("Stage: the page lay over \(game.name)'s picture, it goes behind")
             }
             let gameFront = (front.map(pids.contains) ?? false) || companion
+            if gameFront, windows.here { GameBackdrop.keepUnderGame(at: windows.level) }
             let askerFront = front.map(askers.contains) ?? false
+            if let went = pictureWentAt, GameStage.curtainEnds(cameBack: gameFront && windows.here, waited: Date().timeIntervalSince(went)) {
+                pictureWentAt = nil
+                GameBackdrop.playing()
+                GameLog.note("Stage: \(game.name) \(gameFront && windows.here ? "is back" : "runs on without its picture"), the curtain goes behind it")
+            }
             let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
                                                  handsOff: GameOverlay.isOpen || askerFront,
                                                  // A swipe to another Space moves no key and no click.
@@ -1410,10 +1553,10 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
+    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
                               macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
-        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown,
+        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
                                                   asks: asks, macOSAsks: macOSAsks),
                                detail: Self.curtainDetail(launchHint: launchHint, asks: asks || macOSAsks, macOSOpen: macOSOpen))
     }
@@ -1428,12 +1571,13 @@ final class LibraryModel: ObservableObject {
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
     /// else the start's own (`phase`, "Starting Steam …") while it has one, then what the game does
     /// until its window shows. Nil: "Starting …".
-    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool,
+    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool,
                                           asks: Bool = false, macOSAsks: Bool = false) -> String? {
         if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
-        guard gameRuns, !windowShown else { return nil }
+        // Its window there, the curtain up a moment longer: the line stays, it doesn't jump back to "Starting …".
+        guard gameRuns else { return nil }
         return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
     }
 
@@ -2765,8 +2909,11 @@ final class LibraryModel: ObservableObject {
             // Steam's windows coming up (8.11.). It says what's happening, and goes for what the player
             // has to answer (`steamAsks`).
             raiseCurtain(for: game)
+            await leftStartEnded()
+            if Task.isCancelled { return }
             // The Windows Steam goes (one sign-in per account on a Mac), once its last game's save is up.
             await steamSwitch.makeWayForMac(facts: steamFacts, phase: { self.launchPhase = $0 })
+            if Task.isCancelled { return }  // the player went back: no Steam for Mac started for it
             let steamStarted = Date()
             if !MacSteam.isRunning {
                 launchPhase = .startingSteamForMac
@@ -2802,6 +2949,7 @@ final class LibraryModel: ObservableObject {
             awaitingSteam = false
             launchPhase = nil
             await waitForSteamCloud(MacSteam.root)
+            if Task.isCancelled { return }  // no saves taken along for a start that's over
             // steam://run/<id>//<arguments>: the extra part goes to the game.
             let extra = arguments.isEmpty ? ""
                 : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
@@ -2831,6 +2979,7 @@ final class LibraryModel: ObservableObject {
                 }
                 MacSteam.open(command)
             }
+            if Task.isCancelled { return }  // the player went back while the saves came along
             raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)
@@ -2925,10 +3074,10 @@ final class LibraryModel: ObservableObject {
             do {
                 try await Engine.offMain { try SaveTransfer.takeNewer(to: platform, rules: rules, places: places, backup: backup) }
             } catch let error as SaveTransfer.PartlyTaken {
-                errorMessage = L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
-                                      error.reason, error.backup.path)
+                hintDuringStart(L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
+                                       error.reason, error.backup.path))
             } catch {
-                errorMessage = L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name)
+                hintDuringStart(L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name))
             }
         }
         _ = await Task.detached(priority: .userInitiated) {
@@ -3664,6 +3813,23 @@ final class LibraryModel: ObservableObject {
         launchBuildsShaders = false
     }
 
+    /// The player left a start on the curtain. What it waits for may not be interruptible (Steam coming
+    /// up), so it's over for Nightforge now: its number moves on, and its own end changes nothing later.
+    private func abandonLaunch() {
+        launchTask?.cancel()
+        leftStart = launchTask
+        endLaunch(launchNumber)
+        launchNumber += 1
+    }
+
+    private var leftStart: Task<Void, Never>?
+
+    /// A start the player left may still be winding down. The next one waits for it under its own
+    /// curtain, so that two never work on Steam or the saves at once.
+    private func leftStartEnded() async {
+        await leftStart?.value
+    }
+
     /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
     func launch(_ game: Game, d3dMetalChecked: Bool = false) {
         guard game.isInstalled, Self.mayStart(launching: launchingID != nil, startsAgain: startsAgain) else { return }
@@ -3695,6 +3861,8 @@ final class LibraryModel: ObservableObject {
             // The curtain at once for a game through Steam, as for a Mac version (`launchMac`): Steam for
             // Mac going and this Steam coming up happen under it, not behind the page.
             if viaSteam { raiseCurtain(for: game) }
+            await leftStartEnded()
+            if Task.isCancelled { return }
             if viaSteam, game.bottle.isBuiltIn {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
@@ -3726,6 +3894,7 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
+            if Task.isCancelled { return }  // no saves taken along, and no question about them, for a start that's over
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
             if game.provider == .epic, game.pendingUpdate != nil {

@@ -29,6 +29,8 @@ enum GameBackdrop {
         @Published var detail: String?
         /// A tip for new players under it, on their first starts (LaunchTip).
         @Published var tip: LaunchTip?
+        /// The way out of a curtain with no game under it yet (CurtainEscape), in the tip's place.
+        @Published var wayOut: LaunchTip?
     }
 
     enum Stage: Equatable {
@@ -47,6 +49,8 @@ enum GameBackdrop {
     /// Whether the game being played still shows its window (LibraryModel sets it): with the page
     /// over Nightforge's window, Nightforge coming to the front decides by it where the page goes.
     static var gameShowsWindow: @MainActor () -> Bool = { true }
+    /// Another app came to the front with the page behind the game (LibraryModel looks whether its picture went).
+    static var frontMoved: @MainActor (pid_t) -> Void = { _ in }
     private static var settling: Task<Void, Never>?
     /// The player quit the game: the curtain stays up, whatever its processes do, until Nightforge
     /// is in front (`hide(once:)`).
@@ -92,19 +96,78 @@ enum GameBackdrop {
         if state.detail != shown { state.detail = shown }
     }
 
+    static func setWayOut(_ tip: LaunchTip?) {
+        if state.wayOut != tip { state.wayOut = tip }
+    }
+
+    /// The curtain's level: just under the overlay – or, `overShield`, above a captured display's shield
+    /// and the game over it (L…628, the game L…629 or L…630). Under it, each change of the display mode
+    /// turned the curtain black and back (Overwatch's start and end, 8.11.). Not for good: up there it
+    /// would cover ⌘-Tab and macOS's own alerts.
+    nonisolated static func curtainLevel(overShield: Bool) -> Int {
+        overShield ? Int(CGShieldingWindowLevel()) + 3 : NSWindow.Level.screenSaver.rawValue - 1
+    }
+
+    /// The curtain's level while it's up, for the overlay to go above it.
+    static var raisedLevel: Int? { isRaised ? window?.level.rawValue : nil }
+
+    /// The curtain lies under a question: not moved over anything until that's over.
+    private static var underQuestion = false
+
+    /// A Windows game runs: Wine may take the display at any moment, and a curtain that only follows the
+    /// shield goes black for as long as it takes to see it. So over it beforehand, from the game's first
+    /// process to its end. A Mac game that takes the display is noticed at the next look.
+    static var mayCapture = false
+
+    static func expectCapture() {
+        mayCapture = true
+        keepOverShield()
+    }
+
+    /// A game took the display or let it go: the curtain stays over it, the same window, not redrawn.
+    static func keepOverShield() {
+        guard let window, isRaised, !underQuestion else { return }
+        let level = curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured())
+        guard window.level.rawValue != level else { return }
+        window.level = NSWindow.Level(rawValue: level)
+        toFront(window)
+        GameLog.note("The curtain goes \(level > NSWindow.Level.screenSaver.rawValue ? "over" : "back under") a captured display's shield")
+    }
+
     /// The screens changed while the page is up (a game setting its display mode, 1920×1200 on a
     /// 1512×982 Mac; the mode restored as it ends): the page keeps to the screen, or it covers only
     /// a corner of it, as the overlay did on 4.11. before it followed.
     static func followScreen() {
-        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main,
-              shouldFollow(visible: window.isVisible, frame: window.frame, screen: screen.frame)
-        else { return }
-        GameLog.note("The page follows the screen: \(Int(screen.frame.width))×\(Int(screen.frame.height))")
-        window.setFrame(screen.frame, display: true)
+        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main else { return }
+        let frame = currentFrame(of: screen)
+        guard shouldFollow(visible: window.isVisible, frame: window.frame, screen: frame) else { return }
+        GameLog.note("The page follows the screen: \(Int(frame.width))×\(Int(frame.height))")
+        window.setFrame(frame, display: true)
     }
 
     nonisolated static func shouldFollow(visible: Bool, frame: CGRect, screen: CGRect) -> Bool {
         visible && frame != screen
+    }
+
+    /// A display's place in AppKit's coordinates from its bounds in Core Graphics' (y down, the main
+    /// display's height the turning point).
+    nonisolated static func appKitFrame(bounds: CGRect, mainHeight: CGFloat) -> CGRect {
+        CGRect(x: bounds.minX, y: mainHeight - bounds.maxY, width: bounds.width, height: bounds.height)
+    }
+
+    /// The screen as it is this moment. NSScreen only learns of a new mode with its notification, a while
+    /// after the display has it: until then a page sized by NSScreen covered a corner, the desktop beside it.
+    private static func currentFrame(of screen: NSScreen) -> CGRect {
+        guard let display = GameDisplay.id(screen) else { return screen.frame }
+        return appKitFrame(bounds: CGDisplayBounds(display), mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
+    }
+
+    /// Told of a new display mode right as it's set, before NSScreen's notification.
+    private static func listenToDisplays() {
+        CGDisplayRegisterReconfigurationCallback({ _, flags, _ in
+            guard !flags.contains(.beginConfigurationFlag) else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { GameBackdrop.followScreen() } }
+        }, nil)
     }
 
     /// The page was found over the game's picture (GameProcesses.pageCovers): behind every window.
@@ -112,6 +175,25 @@ enum GameBackdrop {
     static func stepAside() {
         guard let window, window.isVisible, !state.stage.raised else { return }
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        window.orderFrontRegardless()
+    }
+
+    /// The page's level right under a game that covers the screen in front (`level`: the game's), when
+    /// it's above every normal window. There the page hides what the player shouldn't see as the game's
+    /// window closes: Steam's windows, the browser, the desktop. Nil for a game at the normal level, which
+    /// the page mustn't get in front of.
+    nonisolated static func pageLevel(underGameAt level: Int?) -> Int? {
+        let highestUnder = NSWindow.Level.statusBar.rawValue
+        guard let level, level > highestUnder else { return nil }
+        return highestUnder
+    }
+
+    /// The stage watch at each look, while the game has the front with its picture.
+    static func keepUnderGame(at level: Int?) {
+        guard let window, window.isVisible, !state.stage.raised, let wanted = pageLevel(underGameAt: level),
+              window.level.rawValue != wanted
+        else { return }
+        window.level = NSWindow.Level(rawValue: wanted)
         window.orderFrontRegardless()
     }
 
@@ -138,6 +220,7 @@ enum GameBackdrop {
     /// game's window coming over it in front lowers it as ever.
     static func makeWay(under question: Int) {
         guard let window, isRaised else { return }
+        underQuestion = true
         window.level = .normal
         window.ignoresMouseEvents = false
         window.order(.below, relativeTo: question)
@@ -184,14 +267,22 @@ enum GameBackdrop {
             if let ready {
                 // While Spaces change underneath, the curtain is put in front again and again: the
                 // one shown next has it from its first frame on.
-                for _ in 0..<60 where !ready() {
+                for look in 0..<60 where !ready() {
                     if isRaised { window.orderFrontRegardless() }
+                    if asksFrontAgain(look: look), !NSApp.isActive { NSApp.comeToFront() }
                     try? await Task.sleep(for: .milliseconds(50))
                 }  // up to 3 s
                 if isRaised { window.orderFrontRegardless() }
             }
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
+            // Steam Helper took the front back in that moment (Valheim's end, 16:09 on 8.11.): the curtain
+            // would go over Steam's window.
+            if let ready, !ready() {
+                NSApp.comeToFront()
+                for _ in 0..<20 where !ready() { try? await Task.sleep(for: .milliseconds(50)) }
+                guard !Task.isCancelled else { return }
+            }
             held = false
             await NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
@@ -205,6 +296,10 @@ enum GameBackdrop {
         }
     }
 
+    /// On the way back Nightforge asks for the front once, and macOS may give it to Steam Helper as a
+    /// game ends: asked again after half a second and after one and a half, not at every look.
+    nonisolated static func asksFrontAgain(look: Int) -> Bool { look == 10 || look == 30 }
+
     private static func put(_ game: String, on screen: NSScreen?, stage: Stage, tip: LaunchTip? = nil,
                             gameOn: @escaping @MainActor () -> Bool) {
         guard let screen = screen ?? NSScreen.main else { return }
@@ -215,6 +310,7 @@ enum GameBackdrop {
             state.step = nil
             state.detail = nil
             state.tip = tip
+            state.wayOut = nil
         }
         state.stage = stage
         self.gameOn = gameOn
@@ -223,6 +319,7 @@ enum GameBackdrop {
                                                           object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { GameBackdrop.nightforgeInFront() }
         }
+        if self.window == nil { listenToDisplays() }
         let window = self.window ?? make(screen.frame)
         self.window = window
         // A curtain is ordered into the Space shown; after a switch of Spaces (Nightforge's full
@@ -233,7 +330,7 @@ enum GameBackdrop {
                 MainActor.assumeIsolated {
                     GameBackdrop.spaceChanged = Date()
                     guard GameBackdrop.isRaised else { return }
-                    GameBackdrop.window?.orderFrontRegardless()
+                    GameBackdrop.holdInFront(for: afterSpaceChange)
                     GameLog.note("Space changed under the curtain")
                 }
             }
@@ -251,10 +348,13 @@ enum GameBackdrop {
                     if other, !GameBackdrop.isRaised {
                         // After the curtain too, in wine.log: who takes the front from a game.
                         if GameBackdrop.window?.isVisible == true, GameBackdrop.gameOn() { GameLog.note("In front over the page: \(app)") }
-                        return GameBackdrop.otherAppInFront()
+                        GameBackdrop.otherAppInFront()
+                        if let front = running?.processIdentifier { GameBackdrop.frontMoved(front) }
+                        return
                     }
                     guard GameBackdrop.isRaised else { return }
                     GameLog.note("In front under the curtain: \(app)")
+                    if other { GameBackdrop.holdInFront(for: afterActivation) }
                     // On the way back each app coming forward brought the pointer back. The start
                     // hides it once the game has had the front a moment (LibraryModel.watchCurtain).
                     if GameBackdrop.isReturning { InputRouter.hidePointerSoon() }
@@ -262,7 +362,7 @@ enum GameBackdrop {
             }
         }
         let appearing = !window.isVisible
-        window.setFrame(screen.frame, display: true)
+        window.setFrame(currentFrame(of: screen), display: true)
         window.alphaValue = appearing ? 0 : 1
         arrange(window)
         // Faded in where it wasn't up; from behind the game it's there at once, as it covers its end.
@@ -272,6 +372,33 @@ enum GameBackdrop {
                 window.animator().alphaValue = 1
             }
         }
+    }
+
+    /// How long the curtain is put in front again and again after another app comes forward under it, and
+    /// after the Space changes. Valheim's own full-screen Space (8.11.) came about a second after its
+    /// activation, with the desktop showing until the curtain was ordered into it (`Space changed …`).
+    nonisolated static let afterActivation: TimeInterval = 4
+    nonisolated static let afterSpaceChange: TimeInterval = 1
+    private static var holding: Task<Void, Never>?
+
+    /// Never over a question it lies under (`makeWay`), where the player has to see the question.
+    nonisolated static func holdsInFront(raised: Bool, underQuestion: Bool) -> Bool { raised && !underQuestion }
+
+    private static func holdInFront(for seconds: TimeInterval) {
+        holding?.cancel()
+        let until = Date().addingTimeInterval(seconds)
+        holding = Task {
+            while !Task.isCancelled, Date() < until, holdsInFront(raised: isRaised, underQuestion: underQuestion), let window {
+                toFront(window)
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
+    }
+
+    /// With the curtain at the top level the overlay shares it: the panel is ordered back above it.
+    private static func toFront(_ window: NSWindow) {
+        window.orderFrontRegardless()
+        if GameOverlay.isOpen { GameOverlay.window?.orderFrontRegardless() }
     }
 
     /// Nightforge came to the front with the page behind a game. The game gone: the page goes. The
@@ -309,8 +436,9 @@ enum GameBackdrop {
     /// Nightforge is in front.
     private static func arrange(_ window: NSWindow, nightforgeFront: Bool? = nil) {
         window.ignoresMouseEvents = true  // taken under a question (makeWay)
+        underQuestion = false
         if state.stage.raised {
-            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
+            window.level = NSWindow.Level(rawValue: curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured()))  // the overlay above it
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         } else {
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
@@ -324,7 +452,7 @@ enum GameBackdrop {
             }
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         }
-        window.orderFrontRegardless()
+        toFront(window)
     }
 
     /// The brand's pictures (BrandArt), drawn once per size and scale: sharp on a 4K TV as on the
@@ -401,7 +529,7 @@ private struct BackdropView: View {
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
                 // A tip for new players, quiet, in the banner's blue.
-                if state.stage == .starting, let tip = state.tip {
+                if state.stage == .starting, let tip = state.wayOut ?? state.tip {
                     HStack(spacing: 12) {
                         HStack(spacing: 6) {
                             ForEach(Array(tip.symbols.enumerated()), id: \.offset) { index, symbol in

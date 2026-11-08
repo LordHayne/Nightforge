@@ -26,6 +26,7 @@ struct GameOverlayTest {
         windows()
         curtain()
         wayBack()
+        wayOut()
         curtainLines()
         brandArt()
         standIn()
@@ -118,6 +119,13 @@ struct GameOverlayTest {
         expect(.notStarting, .nightforge, (.notStarting, .nightforge), "Go to Nightforge")
         expect(.notStarting, .askQuit, (.confirmQuit, .none), "Quit Game asks first here too")
         expect(.notStarting, .quit, (.notStarting, .none), "no quitting without the question")
+        expect(.stuck, .back, (.stuck, .close), "no game yet, B: keep waiting")
+        expect(.stuck, .resume, (.stuck, .close), "Keep Waiting")
+        expect(.stuck, .nightforge, (.stuck, .nightforge), "Go to Nightforge")
+        expect(.stuck, .askQuit, (.stuck, .none), "nothing to quit")
+        expect(.stuck, .quit, (.stuck, .none), "nothing to quit, ever")
+        check(GameOverlay.defaultButton(.stuck) == "overlay.wait", "the safe answer first")
+        check(GameOverlay.takesKeys(.stuck), "no picture to lose: Esc and the arrows work")
         // The highlight starts on the safe answer, by its id: the first press already answers.
         check(GameOverlay.defaultButton(.menu) == "overlay.continue", "the choice: Continue Playing")
         check(GameOverlay.defaultButton(.notStarting) == "overlay.wait", "\"Not starting?\": Keep Waiting")
@@ -305,6 +313,21 @@ struct GameOverlayTest {
         check(GameBackdrop.shouldFollow(visible: true, frame: small, screen: big), "the mode changed: the page follows")
         check(!GameBackdrop.shouldFollow(visible: true, frame: big, screen: big), "the same size: nothing to do")
         check(!GameBackdrop.shouldFollow(visible: false, frame: small, screen: big), "not up: nothing to follow")
+        check(GameBackdrop.holdsInFront(raised: true, underQuestion: false), "up: kept in front while a Space comes")
+        check(!GameBackdrop.holdsInFront(raised: true, underQuestion: true), "under a question it stays under it")
+        check(!GameBackdrop.holdsInFront(raised: false, underQuestion: false), "down: never in front of the game")
+        check(LibraryModel.startWentWrong(message: "Steam couldn't start it", hint: nil, failed: false), "a real error: the curtain goes")
+        check(LibraryModel.startWentWrong(message: nil, hint: nil, failed: true), "a start that failed: the curtain goes")
+        check(!LibraryModel.startWentWrong(message: "It starts anyway", hint: "It starts anyway", failed: false), "a word to the player: the curtain stays")
+        check(LibraryModel.startWentWrong(message: "Steam couldn't start it", hint: "It starts anyway", failed: false), "an error after a word: the curtain goes")
+        check(!LibraryModel.startWentWrong(message: nil, hint: "It starts anyway", failed: false), "the word read and gone: nothing")
+        check([10, 30].allSatisfy(GameBackdrop.asksFrontAgain) && !GameBackdrop.asksFrontAgain(look: 0) && !GameBackdrop.asksFrontAgain(look: 11),
+              "the front asked for again twice on the way back, not at every look")
+        // ABZU's mode on a 1512×982 Mac: the page's frame from the display itself, before NSScreen knows.
+        check(GameBackdrop.appKitFrame(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1200), mainHeight: 1200) == CGRect(x: 0, y: 0, width: 1920, height: 1200),
+              "the main display in a new mode: all of it")
+        check(GameBackdrop.appKitFrame(bounds: CGRect(x: 1512, y: 100, width: 3840, height: 2160), mainHeight: 982) == CGRect(x: 1512, y: -1278, width: 3840, height: 2160),
+              "a TV beside it, its top 100 lower: y turned at the main display's height")
 
         // The overlay over ABZU (DXMT, macOS's Game Mode on, 3.11.): opened, never seen – behind the
         // game's window – and the game frozen under it. The panel goes above whatever covers the
@@ -431,6 +454,18 @@ struct GameOverlayTest {
         check(!LibraryModel.fetchesFrontItself(again: false, active: false), "a plain handover doesn't go through Launch Services")
         check(!LibraryModel.fetchesFrontItself(again: true, active: true), "Nightforge in front already: it hands over as ever")
         check(LibraryModel.fetchesFrontItself(again: true, active: false), "fetching a game back from behind needs a real round through the front")
+        check(GameBackdrop.curtainLevel(overShield: false) < Int(CGShieldingWindowLevel()), "no capture: under ⌘-Tab and macOS's alerts")
+        check(GameBackdrop.curtainLevel(overShield: true) > Int(CGShieldingWindowLevel()) + 2, "over the shield and the game above it (L…630)")
+        check(GameBackdrop.curtainLevel(overShield: true) <= GameOverlay.highestLevel, "no level above the highest there is")
+        check(GameOverlay.panelLevel(coverLevel: GameBackdrop.curtainLevel(overShield: true)) == GameOverlay.highestLevel,
+              "the overlay over a curtain at the top: at the top too, ordered in front")
+        func captureWindow(_ pid: Int32, _ layer: Int) -> [String: Any] {
+            [kCGWindowOwnerPID as String: NSNumber(value: pid), kCGWindowLayer as String: NSNumber(value: layer)]
+        }
+        let shieldLevel = Int(CGShieldingWindowLevel())
+        check(GameProcesses.screenCaptured([captureWindow(7000, shieldLevel)], me: 401), "a game's shield: captured")
+        check(!GameProcesses.screenCaptured([captureWindow(401, shieldLevel + 3)], me: 401), "Nightforge's own curtain over a shield is no capture")
+        check(!GameProcesses.screenCaptured([captureWindow(7000, 0)], me: 401), "a normal window: no capture")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
               "only the black shield on screen: its real window is fetched")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,
@@ -631,6 +666,39 @@ struct GameOverlayTest {
         check(!LibraryModel.macOSAsksNow([], before: [297]), "the old one answered meanwhile: nothing")
     }
 
+    /// The way out of a curtain with no game under it: a Steam that hangs, an update without a limit.
+    static func wayOut() {
+        typealias L = CurtainEscape.Look
+        func look(runs: Bool = false, goesOn: Bool = true, question: Bool = false, waited: TimeInterval = 40, updating: Bool = false,
+                  still: TimeInterval? = nil, asked: TimeInterval? = nil) -> L {
+            L(gameRuns: runs, startGoesOn: goesOn, questionUp: question, waited: waited, updating: updating, updateStillFor: still, askedAgo: asked)
+        }
+        check(CurtainEscape.reason(look(waited: 29)) == nil, "a cold Steam's first half minute: no way out offered yet")
+        check(CurtainEscape.reason(look()) == .steamQuiet, "half a minute with no process: B works")
+        check(CurtainEscape.reason(look(runs: true)) == nil, "the game runs or its curtain is down: B stays out")
+        check(CurtainEscape.reason(look(goesOn: false)) == nil, "a start that's over has nothing to leave")
+        check(CurtainEscape.reason(look(question: true)) == nil, "macOS asks: that comes first")
+        check(CurtainEscape.reason(look(updating: true, still: 10)) == .updating, "an update that moves")
+        check(CurtainEscape.reason(look(updating: true)) == .updating, "an update without figures counts as moving")
+        check(CurtainEscape.reason(look(updating: true, still: CurtainEscape.updateStuckAfter)) == .updateStuck, "an update that stopped moving")
+
+        check(!CurtainEscape.asks(look(waited: CurtainEscape.askAfter - 1)), "silent, not long enough to ask")
+        check(CurtainEscape.asks(look(waited: CurtainEscape.askAfter)), "silent for a minute and a half: the question comes by itself")
+        check(!CurtainEscape.asks(look(waited: 600, asked: CurtainEscape.askAgainAfter - 1)), "just answered: it doesn't come back at once")
+        check(CurtainEscape.asks(look(waited: 600, asked: CurtainEscape.askAgainAfter)), "still nothing: asked again")
+        check(!CurtainEscape.asks(look(waited: 3600, updating: true, still: 5)), "a long update that moves never interrupts by itself")
+        check(!CurtainEscape.asks(look(waited: 3600, updating: true)), "nor one without figures, there's nothing to say it hangs")
+        check(CurtainEscape.asks(look(waited: 600, updating: true, still: CurtainEscape.updateStuckAfter)), "a stuck update asks")
+        check(CurtainEscape.askAfter < 120, "before Nightforge's own limit gives up on Steam")
+
+        var pad = PadSymbols()
+        pad.back = "b.circle.fill"
+        check(CurtainEscape.tip(pad: pad).symbols == ["b.circle.fill"], "with a controller: its B drawn")
+        check(CurtainEscape.tip(pad: nil).symbols.isEmpty, "without one: Esc in words")
+        let title = CurtainEscape.title(.updating, game: "Valheim")
+        check(title.contains("Valheim"), "the update's title names the game")
+    }
+
     /// The way back: the curtain goes only once Nightforge is in front on the page the player comes
     /// back to (the monitor test on 1.11.: Home showed for a moment before the game's page).
     static func wayBack() {
@@ -643,18 +711,17 @@ struct GameOverlayTest {
 
     /// The curtain's line follows the start: its own step while it has one, then the game's.
     static func curtainLines() {
-        func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false, window: Bool = false) -> String? {
-            LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs, windowShown: window)
+        func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false) -> String? {
+            LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs)
         }
         check(line() == nil, "nothing known yet: \"Starting …\"")
         check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
         check(line(runs: true) == L10n.t("Waiting for the first picture …"), "the game runs, no window yet")
         check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
-        check(line(shaders: true, runs: true, window: true) == nil, "its window is there: nothing more to say")
-        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true)
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
               == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
-        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true,
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true,
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),
               "macOS asks: said, before the game's question and any step")

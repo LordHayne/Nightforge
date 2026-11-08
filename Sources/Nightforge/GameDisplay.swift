@@ -113,6 +113,7 @@ enum GameDisplay {
                     GameLog.note("Screens changed under the curtain\(connected ? ", one connected" : "")\(plugged ? ", a new TV" : "")")
                 }
                 GameBackdrop.followScreen()
+                GameBackdrop.keepOverShield()
                 followSound(plugged ? .plugged : nil)  // also when a TV goes, or mirroring starts or ends
                 Task { await leaveFullScreenOffTV() }
                 guard connected else { return }
@@ -372,7 +373,7 @@ enum GameDisplay {
 
     // MARK: - Screens
 
-    private static func id(_ screen: NSScreen) -> CGDirectDisplayID? {
+    static func id(_ screen: NSScreen) -> CGDirectDisplayID? {
         screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
     }
 

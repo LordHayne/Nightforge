@@ -23,6 +23,8 @@ enum GameOverlay {
         @Published var symbols = PadSymbols()
         /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
         @Published var soundStaysOn: String?
+        /// Why the start on the curtain looks stuck (`.stuck`).
+        @Published var stuck: CurtainEscape.Reason?
         /// A controller came after the game started without one (LibraryModel.padArrivedLate):
         /// the menu offers a restart first, once.
         @Published var lateController = false
@@ -56,7 +58,9 @@ enum GameOverlay {
     /// The player went back to the game from here (LibraryModel, GameStage).
     static var resumed: (@MainActor () -> Void)?
     /// Open with "Not starting?" (or the question it led to).
-    static var asksAboutStart: Bool { isOpen && state.step == .notStarting }
+    static var asksAboutStart: Bool { isOpen && (state.step == .notStarting || state.step == .stuck) }
+    /// Open with the way out of a curtain with no game under it (CurtainEscape).
+    static var asksWayOut: Bool { isOpen && state.step == .stuck }
     /// The panel, while it's up: the pad's input goes there (InputRouter).
     static var window: NSWindow? { isOpen ? panel : nil }
 
@@ -65,9 +69,10 @@ enum GameOverlay {
     /// `.notStarting` for a game that runs but shows nothing (LibraryModel's curtain).
     /// `soundStaysOn`: the device a Windows game still plays to after the default output changed.
     static func open(_ game: String, pids: [pid_t], pause: Bool, on screen: NSScreen?, symbols: PadSymbols,
-                     step: OverlayStep = .menu, soundStaysOn: String? = nil, actions: Actions) {
+                     step: OverlayStep = .menu, soundStaysOn: String? = nil, stuck: CurtainEscape.Reason? = nil, actions: Actions) {
         guard !isOpen, let screen = screen ?? NSScreen.main else { return }
         self.actions = actions
+        state.stuck = stuck
         state.game = game
         state.soundStaysOn = soundStaysOn
         state.symbols = symbols
@@ -84,7 +89,8 @@ enum GameOverlay {
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).
         let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
-        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
+        // The curtain may lie above a captured display's shield: the panel over that too.
+        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: [coverLevel, GameBackdrop.raisedLevel].compactMap { $0 }.max()))
         panel.orderFrontRegardless()
         if Self.takesKeys(step) { panel.makeKey() }
         focusDefault()
@@ -171,17 +177,20 @@ enum GameOverlay {
     /// the player but a game out of its full screen. The pad reaches Nightforge without them and the
     /// mouse works through a panel that doesn't need them; the keyboard answers only "Not starting?",
     /// where no picture is lost. The overlay opens only with the pad, so there's one in the hand.
-    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting }
+    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting || step == .stuck }
 
     /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
     /// the screen should that lie higher.
     nonisolated static func panelLevel(coverLevel: Int?) -> Int {
-        max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1)
+        min(max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1), highestLevel)
     }
+
+    /// No window goes higher; one at the top already gets the panel at its level, ordered in front.
+    nonisolated static var highestLevel: Int { Int(CGWindowLevelForKey(.maximumWindow)) }
 
     /// The panel's level for a second try: above every window found in front of it.
     nonisolated static func raisedLevel(_ level: Int, covering: [[String: Any]]) -> Int {
-        max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1)
+        min(max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1), highestLevel)
     }
 
     /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
@@ -251,9 +260,9 @@ enum GameOverlay {
     nonisolated static func transition(_ step: OverlayStep, _ event: OverlayEvent) -> (OverlayStep, Effect) {
         switch (step, event) {
         case (.quitting, _): return (.quitting, .none)
-        case (.menu, .back), (.notStarting, .back), (_, .resume): return (step, .close)
+        case (.menu, .back), (.notStarting, .back), (.stuck, .back), (_, .resume): return (step, .close)
         case (.menu, .askQuit), (.notStarting, .askQuit): return (.confirmQuit, .none)
-        case (.menu, .nightforge), (.notStarting, .nightforge): return (step, .nightforge)
+        case (.menu, .nightforge), (.notStarting, .nightforge), (.stuck, .nightforge): return (step, .nightforge)
         case (.confirmQuit, .back): return (.menu, .none)
         case (.confirmQuit, .quit): return (.quitting, .quit)
         case (.menu, .restart): return (.quitting, .restart)
@@ -295,7 +304,7 @@ enum GameOverlay {
     nonisolated static func defaultButton(_ step: OverlayStep) -> String? {
         switch step {
         case .menu: return "overlay.continue"
-        case .notStarting: return "overlay.wait"
+        case .notStarting, .stuck: return "overlay.wait"
         case .confirmQuit: return "overlay.cancel"
         case .quitting: return nil
         }
@@ -338,7 +347,7 @@ enum GameOverlay {
     }
 }
 
-enum OverlayStep: Equatable { case menu, notStarting, confirmQuit, quitting }
+enum OverlayStep: Equatable { case menu, notStarting, stuck, confirmQuit, quitting }
 
 enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart }
 
@@ -359,6 +368,7 @@ private struct OverlayView: View {
                 switch state.step {
                 case .menu: menu
                 case .notStarting: notStarting
+                case .stuck: stuck
                 case .confirmQuit: question
                 case .quitting:
                     Text(L10n.t("Quitting %@ …", state.game))
@@ -443,6 +453,21 @@ private struct OverlayView: View {
             choice("overlay.wait", L10n.t("Keep Waiting"), tint: Theme.sodium, preferred: true) { GameOverlay.resume() }
             choice("overlay.nightforge", L10n.t("Go to Nightforge")) { GameOverlay.toNightforge() }
             choice("overlay.quit", L10n.t("Quit Game")) { GameOverlay.askQuit() }
+        }
+        .padding(.top, 10)
+    }
+
+    /// No game under the curtain yet: nothing to quit, so no Quit Game.
+    @ViewBuilder private var stuck: some View {
+        let reason = state.stuck ?? .steamQuiet
+        Text(CurtainEscape.title(reason, game: state.game))
+            .font(size: 22, weight: .semibold)
+        Text(CurtainEscape.text(reason, game: state.game))
+            .font(size: 14)
+            .foregroundStyle(Theme.muted)
+        VStack(spacing: 12) {
+            choice("overlay.wait", L10n.t("Keep Waiting"), tint: Theme.sodium, preferred: true) { GameOverlay.resume() }
+            choice("overlay.nightforge", L10n.t("Go to Nightforge")) { GameOverlay.toNightforge() }
         }
         .padding(.top, 10)
     }
@@ -975,12 +1000,23 @@ enum GameProcesses {
         return onlyShield(windows, pids: pids)
     }
 
-    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it.
-    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?) -> (here: Bool, anywhere: Bool, pageOver: Bool) {
+    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it;
+    /// `level`: the level of its window over the screen shown (`screen`), when it has one.
+    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?, screen: CGRect?) -> (here: Bool, anywhere: Bool, pageOver: Bool, level: Int?) {
         guard !pids.isEmpty, let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
-        else { return (false, false, false) }
+        else { return (false, false, false, nil) }
         let here = showsWindow(shown, pids: pids)
-        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false)
+        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false,
+                screen.flatMap { pictureLevel(shown, pids: pids, screen: $0) })
+    }
+
+    /// The highest level of a window of `pids` over most of `screen`, the black shield aside.
+    nonisolated static func pictureLevel(_ windows: [[String: Any]], pids: Set<pid_t>, screen: CGRect) -> Int? {
+        windows.filter { window in
+            (window[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false
+                && covers(window, screen) && !isShield(level: (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)
+        }
+        .map { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 }.max()
     }
 
     /// Whether Nightforge's page lies over the game's picture and none of it in front (`windows`:
@@ -1007,7 +1043,14 @@ enum GameProcesses {
     /// A display taken by a game for a mode change: its shield window lies above every other.
     nonisolated static func screenCaptured() -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        return screenCaptured(windows, me: getpid())
+    }
+
+    /// `me`'s own windows don't count: the curtain and the overlay may lie above a shield themselves.
+    nonisolated static func screenCaptured(_ windows: [[String: Any]], me: pid_t) -> Bool {
         let shield = Int(CGShieldingWindowLevel())
-        return windows.contains { ($0[kCGWindowLayer as String] as? Int ?? 0) >= shield }
+        return windows.contains {
+            ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= shield && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != me
+        }
     }
 }
