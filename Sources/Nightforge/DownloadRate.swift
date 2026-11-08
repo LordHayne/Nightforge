@@ -49,7 +49,7 @@ struct DownloadRate: Equatable {
     /// The same line from what a store's own downloader reports.
     static func label(speed: Double?, secondsLeft: Int?) -> String? {
         guard let speed, speed > 0 else { return nil }
-        let text = Format.bytes(Int64(speed)) + "/s"
+        let text = Format.bytes(speed.clampedBytes) + "/s"  // a damaged log's number can be inf
         guard let secondsLeft else { return text }
         return L10n.t("%@ · %@ left", text, duration(Double(secondsLeft)))
     }
