@@ -75,6 +75,23 @@ class CodesignApp(unittest.TestCase):
         self.assertIn(f"--verify --deep --strict {self.app}", calls)
         self.assertIn(CERT, result.stdout)
 
+    def test_the_helper_keeps_its_requirement(self):
+        """Audit A9: --deep signs the helper too, without its requirement. So it's signed by name after that."""
+        helper = self.app / "Contents/Helpers/Nightforge Helper.app"
+        (helper / "Contents").mkdir(parents=True)
+        (helper / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "io.github.lordhayne.nightforge.helper"}))
+        (self.fake / "identities").write_text(f'  1) {CERT} "Nightforge Code Signing" (CSSMERR_TP_NOT_TRUSTED)\n     1 identities found\n')
+        result, calls = self.sign()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        named = f'designated => identifier "io.github.lordhayne.nightforge.helper" and certificate leaf = H"{CERT}"'
+        app = f'designated => identifier "io.github.lordhayne.nightforge" and certificate leaf = H"{CERT}"'
+        deep = calls.index(f"--force --deep --timestamp=none --sign {CERT} {self.app}")
+        by_name = calls.index(f"--force --timestamp=none --sign {CERT} -r={named} {helper}")
+        last = calls.index(f"--force --timestamp=none --sign {CERT} -r={app} {self.app}")
+        self.assertLess(deep, by_name)
+        self.assertLess(by_name, last)
+        self.assertIn(f"--display -r - {helper}", calls)
+
     def test_only_the_pinned_certificate_counts(self):
         """Review: another "Nightforge Code Signing" would give the app another requirement, and macOS would ask."""
         other = "F" * 40

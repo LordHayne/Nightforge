@@ -105,10 +105,11 @@ struct ThisGameCard: View {
         return options.preset.label + " · " + attempts[LaunchHealth.current(game.gameID, attempts).index].graphics.shortLabel
     }
 
-    /// Nightforge's own games get the HUD from Settings; CrossOver's from their options.
+    /// Nightforge's own games and the Mac versions it starts get the HUD from Settings; CrossOver's from
+    /// their options.
     private func hud(_ options: GameOptions) -> String {
-        guard game.platform == .windows else { return "–" }
-        return (game.bottle.isBuiltIn ? Prefs.performanceHUD : options.metalHUD) ? L10n.t("On") : L10n.t("Off")
+        guard game.platform == .windows || MacGameHUD.reaches(game) else { return "–" }
+        return (game.platform == .mac || game.bottle.isBuiltIn ? Prefs.performanceHUD : options.metalHUD) ? L10n.t("On") : L10n.t("Off")
     }
 
     private var engine: String {

@@ -153,9 +153,14 @@ struct QuitScriptTest {
             check(shutDown(result.calls), "restart: Steam and the wineserver were ended: \(result.calls)")
             check(result.calls.last == "open \(world.app)", "restart: Nightforge opens again, last: \(result.calls)")
             check(!sleeps(world).contains("10"), "restart: no waiting for the game or the download: \(sleeps(world))")
+            // Right after a game Nightforge has waited already, where it shows (audit A11).
             let recent = world.run(lastGame: now(), restart: true)
-            check(sleeps(world).contains("30") && recent.calls.last == "open \(world.app)",
-                  "restart right after a game: 30 s for the cloud saves first, then Nightforge: \(sleeps(world))")
+            check(!sleeps(world).contains("30") && recent.calls.last == "open \(world.app)",
+                  "restart right after a game: no silent half minute here: \(sleeps(world))")
+            check(Engine.cloudSaveWait(since: nil) == 0, "no game: no wait")
+            let moment = Date()
+            check(Engine.cloudSaveWait(since: moment, now: moment.addingTimeInterval(10)) == 20, "what's left of the 30 s")
+            check(Engine.cloudSaveWait(since: moment, now: moment.addingTimeInterval(45)) == 0, "half a minute on: none")
         }
 
         // A Steam that doesn't answer: the restart goes on all the same and Nightforge comes back (audit 8.11.).

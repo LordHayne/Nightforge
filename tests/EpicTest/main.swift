@@ -388,6 +388,22 @@ struct EpicTest {
         check(EpicSignIn.code(fromPage: #"{"authorizationCode": null}"#) == nil, "no code yet")
         check(EpicSignIn.code(fromPage: #"{"authorizationCode": "a b;rm"}"#) == nil, "only a plain code goes to legendary")
         check(EpicSignIn.signInURL.absoluteString.hasPrefix("https://www.epicgames.com/id/login?redirectUrl="), "Epic's own sign-in page")
+
+        // Epic's last page without a code, or a page that fails after it began: said, no spinner for good (audit A13).
+        MainActor.assumeIsolated {
+            let watcher = EpicSignIn.PageWatcher()
+            var phases: [StoreSignInPage.Phase] = [], codes: [String] = []
+            watcher.changed = { phases.append($0) }
+            watcher.found = { codes.append($0) }
+            watcher.lastPage(page)
+            check(codes == ["0a1b2c3d4e"] && phases.isEmpty, "a code goes on")
+            watcher.lastPage(#"{"authorizationCode": null}"#)
+            watcher.lastPage(nil)
+            check(codes.count == 1 && phases == [.failed, .failed], "no code: the page says it didn't answer")
+        }
+        check(SignInPageWatcher.failed(NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)), "no connection counts")
+        check(!SignInPageWatcher.failed(NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)), "a page called off doesn't")
+        check(!SignInPageWatcher.failed(NSError(domain: "WebKitErrorDomain", code: 102)), "nor the address with the code stopped on purpose")
     }
 
     /// A drive that's gone (Sonic Mania on the old stick): its games leave legendary's list with their manifests, the

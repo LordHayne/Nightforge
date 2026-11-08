@@ -656,6 +656,8 @@ final class LibraryModel: ObservableObject {
     private var playing: Set<String> = []
     /// Windows games started while no controller was connected (padArrivedLate).
     private var padlessStarts: Set<String> = []
+    /// "Restart Nightforge" waits for a game's cloud saves.
+    private var restartWait: Task<Void, Never>?
     /// "Restart Game" was pressed: the game to start again once its end is seen.
     private var restartAfterEnd: Game?
     /// When each of them started running, and the play time Steam had for it then.
@@ -1752,6 +1754,29 @@ final class LibraryModel: ObservableObject {
             errorMessage = L10n.t("Quit the game first, then restart Nightforge.")
             return
         }
+        guard restartWait == nil else { return }  // counting down already
+        let wait = Engine.cloudSaveWait(since: Engine.lastGameActivity)
+        guard wait > 0 else { return restartNow() }
+        // Right after a game: its cloud saves first, with Nightforge still there to say so. Gone already,
+        // nothing would show for half a minute, and opening it again called the restart off (audit A11).
+        restartWait = Task {
+            defer { restartWait = nil }
+            var left = Int(wait.rounded(.up))
+            while left > 0 {
+                Toasts.shared.show(L10n.t("Nightforge restarts in %ld s, once your game's cloud saves are through.", left))
+                let step = min(left, 2)  // the message stays for 2.8 s
+                try? await Task.sleep(for: .seconds(step))
+                left -= step
+            }
+            guard running.isEmpty, launchingID == nil else {
+                GameLog.note("Restart called off: a game started while it waited")
+                return
+            }
+            restartNow()
+        }
+    }
+
+    private func restartNow() {
         GameLog.note("Restart asked for: Steam, Wine and the helpers end, then Nightforge opens again")
         Engine.restarting = true
         if !Quit.now(by: "Restart Nightforge") { Engine.restarting = false }

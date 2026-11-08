@@ -52,6 +52,7 @@ enum L10n {
         "%ld games": "%ld Spiele",
         "Rescan Library": "Bibliothek neu einlesen",
         "Restart Nightforge": "Nightforge neu starten",
+        "Nightforge restarts in %ld s, once your game's cloud saves are through.": "Nightforge startet in %ld s neu, sobald die Cloud-Spielstände deines Spiels durch sind.",
         "Quit the game first, then restart Nightforge.": "Beende zuerst das Spiel, dann starte Nightforge neu.",
         "Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs.":
             "Beendet Steam, Wine und alles, was Nightforge im Hintergrund laufen lässt, und startet Nightforge dann neu. Hilft, wenn etwas hängt.",
@@ -557,6 +558,10 @@ enum L10n {
         "Setting Up DirectX 12": "DirectX 12 wird eingerichtet",
         "Download from Apple": "Bei Apple laden",
         "DirectX 12 isn't set up": "DirectX 12 ist nicht eingerichtet",
+        "%@ needs Apple's D3DMetal to start on a Mac, even though it draws another way.":
+            "%@ braucht Apples D3DMetal, um auf dem Mac zu starten, auch wenn es anders zeichnet.",
+        "%@ needs Apple's D3DMetal to start on a Mac. Without it the game doesn't start – set it up in Settings.":
+            "%@ braucht Apples D3DMetal, um auf dem Mac zu starten. Ohne startet das Spiel nicht – richte es in den Einstellungen ein.",
         "%@ draws with DirectX 12, which a Mac runs through Apple's D3DMetal.":
             "%@ zeichnet mit DirectX 12, das ein Mac über Apples D3DMetal ausführt.",
         "DirectX 12 games run on a Mac through Apple's D3DMetal.": "DirectX-12-Spiele laufen auf dem Mac über Apples D3DMetal.",

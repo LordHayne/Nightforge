@@ -4792,6 +4792,7 @@
   "2357570": {
    "name": "Overwatch",
    "graphics": "dxmt",
+   "needsRosettaLibrary": true,
    "dllOverrides": {
     "nvapi64": "",
     "nvngx": ""
