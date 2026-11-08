@@ -120,6 +120,25 @@ struct GameStageTest {
               "its full-screen window above the page, an old one under it: all well")
     }
 
+    /// The page right under a game over the whole screen, and nowhere near one in a window.
+    static func underGame() {
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let game: Set<pid_t> = [7]
+        let shieldLevel = Int(CGShieldingWindowLevel())
+        check(GameProcesses.pictureLevel([window(20, owner: 7, 1512, 982, layer: 26)], pids: game, screen: screen) == 26, "ABZU's window over the screen, L26")
+        check(GameProcesses.pictureLevel([window(20, owner: 7, 1512, 982, layer: shieldLevel + 2), window(21, owner: 7, 1512, 982, layer: shieldLevel)],
+                                         pids: game, screen: screen) == shieldLevel + 2, "Overwatch over its shield: its window's level, not the shield's")
+        check(GameProcesses.pictureLevel([window(21, owner: 7, 1512, 982, layer: shieldLevel)], pids: game, screen: screen) == nil, "only the shield: no picture to lie under")
+        check(GameProcesses.pictureLevel([window(20, owner: 7, 900, 500, layer: 26)], pids: game, screen: screen) == nil, "a small window doesn't cover the screen")
+        check(GameProcesses.pictureLevel([window(20, owner: 9, 1512, 982, layer: 26)], pids: game, screen: screen) == nil, "another program's window says nothing")
+        let statusBar = NSWindow.Level.statusBar.rawValue
+        check(GameBackdrop.pageLevel(underGameAt: 26) == statusBar, "right under Wine's full-screen level, over every normal window")
+        check(GameBackdrop.pageLevel(underGameAt: shieldLevel + 2) == statusBar, "the same with a shield: there when the shield goes")
+        check(GameBackdrop.pageLevel(underGameAt: 0) == nil, "a Mac game or a window at the normal level: the page stays out of it")
+        check(GameBackdrop.pageLevel(underGameAt: statusBar) == nil, "not at the game's own level")
+        check(GameBackdrop.pageLevel(underGameAt: nil) == nil, "no window over the screen: nothing changes")
+    }
+
     /// A game ending: ABZU at 16:05 on 8.11. and the ways that look like it and aren't.
     static func ending() {
         let on = playing()
@@ -154,6 +173,7 @@ struct GameStageTest {
     static func main() {
         stage()
         page()
+        underGame()
         ending()
         print(failures == 0 ? "GameStageTest: all good" : "GameStageTest: \(failures) failed")
         exit(failures == 0 ? 0 : 1)

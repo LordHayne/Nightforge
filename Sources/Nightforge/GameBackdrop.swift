@@ -172,6 +172,25 @@ enum GameBackdrop {
         window.orderFrontRegardless()
     }
 
+    /// The page's level right under a game that covers the screen in front (`level`: the game's), when
+    /// it's above every normal window. There the page hides what the player shouldn't see as the game's
+    /// window closes: Steam's windows, the browser, the desktop. Nil for a game at the normal level, which
+    /// the page mustn't get in front of.
+    nonisolated static func pageLevel(underGameAt level: Int?) -> Int? {
+        let highestUnder = NSWindow.Level.statusBar.rawValue
+        guard let level, level > highestUnder else { return nil }
+        return highestUnder
+    }
+
+    /// The stage watch at each look, while the game has the front with its picture.
+    static func keepUnderGame(at level: Int?) {
+        guard let window, window.isVisible, !state.stage.raised, let wanted = pageLevel(underGameAt: level),
+              window.level.rawValue != wanted
+        else { return }
+        window.level = NSWindow.Level(rawValue: wanted)
+        window.orderFrontRegardless()
+    }
+
     /// The game is in front: the curtain fades and stays behind it.
     static func lower() {
         guard let window, window.isVisible, state.stage.raised else { return }

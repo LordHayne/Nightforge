@@ -979,12 +979,23 @@ enum GameProcesses {
         return onlyShield(windows, pids: pids)
     }
 
-    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it.
-    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?) -> (here: Bool, anywhere: Bool, pageOver: Bool) {
+    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it;
+    /// `level`: the level of its window over the screen shown (`screen`), when it has one.
+    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?, screen: CGRect?) -> (here: Bool, anywhere: Bool, pageOver: Bool, level: Int?) {
         guard !pids.isEmpty, let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
-        else { return (false, false, false) }
+        else { return (false, false, false, nil) }
         let here = showsWindow(shown, pids: pids)
-        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false)
+        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false,
+                screen.flatMap { pictureLevel(shown, pids: pids, screen: $0) })
+    }
+
+    /// The highest level of a window of `pids` over most of `screen`, the black shield aside.
+    nonisolated static func pictureLevel(_ windows: [[String: Any]], pids: Set<pid_t>, screen: CGRect) -> Int? {
+        windows.filter { window in
+            (window[kCGWindowOwnerPID as String] as? NSNumber).map { pids.contains($0.int32Value) } ?? false
+                && covers(window, screen) && !isShield(level: (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)
+        }
+        .map { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 }.max()
     }
 
     /// Whether Nightforge's page lies over the game's picture and none of it in front (`windows`:

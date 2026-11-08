@@ -1365,12 +1365,14 @@ final class LibraryModel: ObservableObject {
             }
             let page = GameBackdrop.pageNumber
             let known = pids
-            let windows = await Task.detached(priority: .utility) { GameProcesses.onStage(known, page: page) }.value
+            let screen = GameDisplay.gameScreen.map { GameProcesses.cgRect($0.frame) }
+            let windows = await Task.detached(priority: .utility) { GameProcesses.onStage(known, page: page, screen: screen) }.value
             if windows.pageOver {
                 GameBackdrop.stepAside()
                 GameLog.note("Stage: the page lay over \(game.name)'s picture, it goes behind")
             }
             let gameFront = (front.map(pids.contains) ?? false) || companion
+            if gameFront, windows.here { GameBackdrop.keepUnderGame(at: windows.level) }
             let askerFront = front.map(askers.contains) ?? false
             if let went = pictureWentAt, GameStage.curtainEnds(cameBack: gameFront && windows.here, waited: Date().timeIntervalSince(went)) {
                 pictureWentAt = nil
