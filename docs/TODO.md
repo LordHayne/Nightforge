@@ -789,8 +789,8 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - **Abgemeldeter Store:** Die Karte bietet nur „Erneut anmelden“, „Trennen“ gibt es erst danach wieder über „Verwalten“.
 - **Keine Store-Logos in der App:** Die Kacheln zeigen den Buchstaben mit Farbring in einem eigenen Ton je Store (Canvas 7.11.,
   `LauncherState.tint`). Spiele ohne Cover zeigen die Typo-Karte (`TypoCover.swift`), ohne fremde Bilder.
-- **Offen, Bilder über Steam-Zwillinge:** Overwatch, Diablo IV und Call of Duty aus Battle.net holen ihr Logo weiter von Steams
-  CDN (`steamTwin` in `Artwork.remoteURLs`), wie vor dem Launcher-Menü. Ob das nach der Rechtsprüfung bleiben darf, entscheidet der Nutzer.
+- **Entschieden (8.11., Nutzer: bleibt), Bilder über Steam-Zwillinge:** Overwatch, Diablo IV und Call of Duty aus Battle.net holen ihr Logo weiter von Steams
+  CDN (`steamTwin` in `Artwork.remoteURLs`), wie vor dem Launcher-Menü.
 - **⧉ öffnet das kleine Menü (live offen):** View bzw. Create. Beim DualSense ist Create eine Bildschirmfoto-Geste von macOS.
   Nightforge setzt sie nur ab, solange es selbst vorn ist (`preferredSystemGestureState = .disabled`), und gibt sie beim
   Wechsel ins Spiel zurück. Der Header sagt, das sei „not guaranteed to be respected“: am DualSense prüfen, ob Create in

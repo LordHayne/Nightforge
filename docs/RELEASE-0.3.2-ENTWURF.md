@@ -141,6 +141,6 @@ Signieren macht der Nutzer im Mac-Terminal, aus `.claude/worktrees/release-main`
   automatisiertem Zugriff ist laut TODO unbestätigt. Entscheidet der Nutzer dagegen, ist die Stelle zum Abschalten
   `GOGStore.search`, und in den Notes fällt „und GOG“ weg.
 - **Battle.net-Bilder über Steam-Zwillinge:** Overwatch, Diablo IV und Call of Duty aus Battle.net holen ihr Logo weiter von
-  Steams CDN (`steamTwin` in `Artwork.remoteURLs`). Ob das nach der Rechtsprüfung bleiben darf, entscheidet der Nutzer.
+  Steams CDN (`steamTwin` in `Artwork.remoteURLs`). **Entschieden (8.11., Nutzer): Das bleibt so.**
 - Wartet auch aufs OK, ist aber kein Release-Blocker: Battle.nets Fenster in Nightforges Rahmen legen (`CGWindowListCopyWindowInfo`, TODO
   „Launcher-Menü“).
