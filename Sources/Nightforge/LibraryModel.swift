@@ -619,6 +619,8 @@ final class LibraryModel: ObservableObject {
                 }
                 let reading = PowerSource.reading()
                 if reading.source != power { power = reading.source }
+                IdleAwake.apply(IdleAwake.holds(minutes: Prefs.keepAwakeMinutes, onBattery: reading.source.onBattery, idle: InputRouter.secondsSinceUse),
+                                reason: L10n.t("Nightforge keeps the Mac awake for a while, as set in its settings"))
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil

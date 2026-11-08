@@ -841,6 +841,12 @@ final class InputRouter {
         }
     }
 
+    /// Seconds since anyone touched the pad, the mouse or the keyboard.
+    static var secondsSinceUse: TimeInterval {
+        let any = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!)
+        return min(any, padUse.map { ProcessInfo.processInfo.systemUptime - $0 } ?? .infinity)
+    }
+
     static var padUsedLast: Bool {
         PadRules.padUsedLast(padAgo: padUse.map { ProcessInfo.processInfo.systemUptime - $0 }, mouseAgo: mouseIdle)
     }

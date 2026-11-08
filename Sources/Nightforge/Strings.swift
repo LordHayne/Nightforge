@@ -653,6 +653,13 @@ enum L10n {
         "Quit Nightforge?": "Nightforge beenden?",
         "It wakes with a key, the lid or the trackpad.": "Wach wird er mit Taste, Deckel oder Trackpad.",
         "Steam shuts down as usual.": "Steam fährt danach wie gewohnt herunter.",
+        "Keep the Mac awake": "Mac wach halten",
+        "Plugged in, the Mac stays awake this long after the last input, so the controller finds it ready. The screen may still go dark. Never on battery.": "Am Netzteil bleibt der Mac so lange nach der letzten Eingabe wach, damit der Controller ihn bereit findet. Der Bildschirm darf trotzdem ausgehen. Auf Akku nie.",
+        "Let it sleep as usual": "Schlafen wie gewohnt",
+        "1 hour": "1 Stunde",
+        "%ld hours": "%ld Stunden",
+        "%ld minutes": "%ld Minuten",
+        "Nightforge keeps the Mac awake for a while, as set in its settings": "Nightforge hält den Mac eine Weile wach, wie in seinen Einstellungen gewählt",
         "Notify me when downloads finish": "Mitteilung, wenn Downloads fertig sind",
         "A macOS notification with a Play button while Nightforge is in the background. Your last five games are in the Dock menu, too.":
             "Eine macOS-Mitteilung mit „Spielen“-Knopf, während Nightforge im Hintergrund ist. Deine letzten fünf Spiele stehen auch im Dock-Menü.",
