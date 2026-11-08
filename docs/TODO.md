@@ -89,6 +89,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 
 ## 0.3.3: ganz oben
 
+- **DualSense-Touchpad als Mauszeiger** (Wunsch des Nutzers, 8.11.: „das brauchen wir unbedingt“): für alles, was heute noch Maus braucht, etwa Fenster von Steam und macOS-Fragen. `GCDualSenseGamepad` liefert Touchpad und Klick. Muss auch über fremden Fenstern wirken; Bedienungshilfen-Recht prüfen.
+- **Bildschirmtastatur für die Suche** bei erkanntem Controller (Nutzer, 8.11.; siehe `docs/ENTWURF-KONSOLE.md` auf `claude/konsolen-gefuehl-835e2e`, „Pad-Tastatur“). Erst Boards auf der Zeichenfläche.
 - **Live-Abschlusstests 8.11.:** Neues Spiel (REANIMAL), Overwatch, Steam ↔ Steam für Mac, Control/Wukong/OxyRail/ABZU und die Leistungsanzeige laufen.
 - **Beim Beenden von Overwatch und ABZU** kurz ein falsches Bild, der Vorhang kommt manchmal von der Seite herein, dabei ist der Desktop zu sehen (Nutzer: Ladescreen-Session).
 - **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`). Verdacht: SDL in winebus sperrt die System-Gesten der Controller. Prüfen, ob das schon in 0.3.1 so war.
