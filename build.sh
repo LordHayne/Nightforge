@@ -105,6 +105,7 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
 	<key>CFBundleIconFile</key><string>AppIcon</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>LSUIElement</key><true/>
+	<key>NSMicrophoneUsageDescription</key><string>Voice chat in your games uses the microphone.</string>
 </dict>
 </plist>
 PLIST

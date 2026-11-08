@@ -70,6 +70,7 @@ struct DetachedProcessTest {
         let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
         check(info?["CFBundleIdentifier"] as? String == "io.github.lordhayne.nightforge.helper", "helper bundle ID")
         check(info?["LSUIElement"] as? Bool == true, "helper stays out of the Dock")
+        check((info?["NSMicrophoneUsageDescription"] as? String)?.isEmpty == false, "helper says why a game wants the microphone")
         check(FileManager.default.isExecutableFile(atPath: app.appendingPathComponent("Contents/MacOS/nightforge-helper").path),
               "helper executable")
         let quarantine = getxattr(app.appendingPathComponent("Contents/MacOS/nightforge-helper").path, "com.apple.quarantine", nil, 0, 0, 0)

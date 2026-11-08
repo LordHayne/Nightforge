@@ -230,6 +230,10 @@ final class DetachedProcess: @unchecked Sendable {
             "CFBundlePackageType": "APPL",
             // Never a window or a Dock icon of its own; the programs it starts show theirs.
             "LSUIElement": true,
+            // macOS holds the helper responsible for the games it starts. Without this text it refuses a
+            // game's question for the microphone, and winecx then waits for an answer that doesn't come:
+            // Left 4 Dead 2 hung loading every map, where Source opens the microphone (8.11.).
+            "NSMicrophoneUsageDescription": "Voice chat in your games uses the microphone.",
         ]
         guard let plist = try? PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0) else { return nil }
         let stamp = Data(SHA256.hash(data: binary + plist).map { String(format: "%02x", $0) }.joined().utf8)
