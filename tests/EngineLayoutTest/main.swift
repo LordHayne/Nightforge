@@ -561,7 +561,7 @@ struct EngineLayoutTest {
         // MARK: Layer configs
         let configs = work.appendingPathComponent("configs/Game", isDirectory: true)
         try? fm.createDirectory(at: configs, withIntermediateDirectories: true)
-        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, antiCheat: false)
         let dxvkConf = (try? String(contentsOf: configs.appendingPathComponent("dxvk.conf"), encoding: .utf8)) ?? ""
         check(dxvkConf.contains("dxgi.maxFrameRate = 60") && dxvkConf.contains("d3d9.maxFrameRate = 60"),
               "the frame limit reaches DXVK's Direct3D 9 as well as its DirectX 10/11")
@@ -570,19 +570,23 @@ struct EngineLayoutTest {
 
         let earlyOff = TestDefaults.suite("early-translation-off")
         earlyOff.set(false, forKey: ShaderCaches.earlyTranslationKey)
-        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, defaults: earlyOff)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, antiCheat: false, defaults: earlyOff)
         check(!dxmtConfig(configs).contains("prepareShaders") && dxmtConfig(configs).contains("preferredMaxFrameRate = 60"),
               "the hidden setting takes the line out again, the others stay")
 
         let overwatch = work.appendingPathComponent("configs/Overwatch", isDirectory: true)
         write(Data("exe".utf8), overwatch.appendingPathComponent("_retail_/Overwatch.exe"))
-        Engine.writeGameConfigs(installDir: overwatch, frameLimit: 60, upscaling: false)
+        Engine.writeGameConfigs(installDir: overwatch, frameLimit: 60, upscaling: false, antiCheat: false)
         check(!dxmtConfig(overwatch).contains("prepareShaders"), "Overwatch doesn't get early translation")
         check(!dxmtConfig(overwatch.appendingPathComponent("_retail_")).contains("prepareShaders"), "nor next to its program")
 
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, antiCheat: true)
+        check(!dxmtConfig(configs).contains("prepareShaders") && dxmtConfig(configs).contains("preferredMaxFrameRate = 60"),
+              "a game with anti-cheat doesn't get early translation, its other settings stay")
+
         let ownConfig = work.appendingPathComponent("configs/Own", isDirectory: true)
         write(Data("d3d11.preferredMaxFrameRate = 30\n".utf8), ownConfig.appendingPathComponent("dxmt.conf"))
-        Engine.writeGameConfigs(installDir: ownConfig, frameLimit: 60, upscaling: false)
+        Engine.writeGameConfigs(installDir: ownConfig, frameLimit: 60, upscaling: false, antiCheat: false)
         check(dxmtConfig(ownConfig) == "d3d11.preferredMaxFrameRate = 30\n", "a dxmt.conf the game ships itself stays as it is")
 
         // MARK: Settings files

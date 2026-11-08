@@ -196,5 +196,5 @@ ABZU, dieselbe Probe-DLL, Schalter abwechselnd aus und an, je Block eine kalte u
 ### Was noch fehlt
 
 - Probe in einem Spiel, Workflow-Lauf, Spieletest mit Korb.
-- Einschalten (Beschluss 8.11., erst nach dem Kurztest bei Spielern): `writeGameConfigs` schreibt `d3d11.prepareShaders = 1` für alle DXMT-Spiele außer Overwatch (`ShaderCaches.translatesEarly`). Ausweg ohne Schalter in der App: `defaults write io.github.lordhayne.nightforge dxmtEarlyShaders -bool false`. Eine ältere `d3d11.dll` speichert die unbekannte Zeile nur und fragt sie nie ab.
+- Einschalten (Beschluss 8.11., erst nach dem Kurztest bei Spielern): `writeGameConfigs` schreibt `d3d11.prepareShaders = 1` für alle DXMT-Spiele außer Overwatch und außer Spielen mit Anti-Cheat (`ShaderCaches.hasAntiCheat`: `antiCheat` oder `antiCheatOnline` im Profil, auch leer, Sperrliste des Stores, oder EasyAntiCheat/BattlEye im Spielordner; Entscheidung des Nutzers 8.11.). Ausweg ohne Schalter in der App: `defaults write io.github.lordhayne.nightforge dxmtEarlyShaders -bool false`. Eine ältere `d3d11.dll` speichert die unbekannte Zeile nur und fragt sie nie ab.
 - Die gemeinsame Übersetzungs-Datei geht vor einem Spielstart weg, wenn sie 4 GB überschreitet (`ShaderCaches.limitTranslations`). Ein Deckel je Programm fehlt.

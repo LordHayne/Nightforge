@@ -20,15 +20,23 @@ enum ShaderCaches {
     /// `defaults write io.github.lordhayne.nightforge dxmtEarlyShaders -bool false`.
     static let earlyTranslationKey = "dxmtEarlyShaders"
 
-    /// Programs DXMT doesn't translate early for. Overwatch: a change to the graphics layer can look
-    /// suspicious to its anti-cheat and the player's account is at stake, so it waits for the user's OK.
+    /// Programs DXMT doesn't translate early for though no anti-cheat is on record for them. Overwatch:
+    /// a change to the graphics layer can look suspicious to it and the player's account is at stake.
     static let noEarlyTranslation: Set<String> = ["overwatch.exe"]
+
+    /// Whether anything says the game has anti-cheat; such a game doesn't translate early (the user,
+    /// 8.11.2026: no risk). Its profile, even with an empty list ("it runs after all", but there is
+    /// anti-cheat), what the stores' lists say, and for a game without a profile its own folder.
+    static func hasAntiCheat(profile: GameProfile?, block: AntiCheatBlock?, installDir: URL) -> Bool {
+        profile?.antiCheat != nil || profile?.antiCheatOnline != nil || block != nil
+            || GameAnalysis.hasAntiCheatFiles(in: installDir)
+    }
 
     /// Whether DXMT translates a game's shaders as soon as the game creates them, so that the first
     /// round waits less (`d3d11.prepareShaders`, engine/patches/dxmt-0.80-prepare-shaders.patch).
     /// A d3d11.dll from before that patch stores the unknown line in dxmt.conf and never asks for it.
-    static func translatesEarly(programs: [URL], defaults: UserDefaults = .standard) -> Bool {
-        (defaults.object(forKey: earlyTranslationKey) as? Bool ?? true)
+    static func translatesEarly(programs: [URL], antiCheat: Bool, defaults: UserDefaults = .standard) -> Bool {
+        !antiCheat && (defaults.object(forKey: earlyTranslationKey) as? Bool ?? true)
             && !programs.contains { noEarlyTranslation.contains($0.lastPathComponent.lowercased()) }
     }
 

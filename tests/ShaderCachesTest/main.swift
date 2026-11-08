@@ -63,16 +63,35 @@ struct ShaderCachesTest {
         // MARK: Early translation
         let programs = { (names: [String]) in names.map { URL(fileURLWithPath: "/Games/X/\($0)") } }
         let early = TestDefaults.suite("early-translation")
-        check(ShaderCaches.translatesEarly(programs: programs(["AbzuGame-Win64-Shipping.exe"]), defaults: early), "on without any setting")
-        check(ShaderCaches.translatesEarly(programs: [], defaults: early), "also when no program was found")
+        check(ShaderCaches.translatesEarly(programs: programs(["AbzuGame-Win64-Shipping.exe"]), antiCheat: false, defaults: early), "on without any setting")
+        check(ShaderCaches.translatesEarly(programs: [], antiCheat: false, defaults: early), "also when no program was found")
         for name in ["Overwatch.exe", "OVERWATCH.EXE", "overwatch.exe"] {
-            check(!ShaderCaches.translatesEarly(programs: programs(["Launcher.exe", name]), defaults: early), "off for \(name)")
+            check(!ShaderCaches.translatesEarly(programs: programs(["Launcher.exe", name]), antiCheat: false, defaults: early), "off for \(name)")
         }
-        check(ShaderCaches.translatesEarly(programs: programs(["NotOverwatch.exe"]), defaults: early), "only the program of that name")
+        check(ShaderCaches.translatesEarly(programs: programs(["NotOverwatch.exe"]), antiCheat: false, defaults: early), "only the program of that name")
         early.set(false, forKey: ShaderCaches.earlyTranslationKey)
-        check(!ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), defaults: early), "the hidden setting turns it off")
+        check(!ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), antiCheat: false, defaults: early), "the hidden setting turns it off")
         early.set(true, forKey: ShaderCaches.earlyTranslationKey)
-        check(ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), defaults: early), "and on again")
+        check(ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), antiCheat: false, defaults: early), "and on again")
+
+        // MARK: Anti-cheat
+        early.removeObject(forKey: ShaderCaches.earlyTranslationKey)
+        check(!ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), antiCheat: true, defaults: early), "off with anti-cheat, even without a setting")
+        func profile(_ json: String) -> GameProfile? { try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let plainGame = root.appendingPathComponent("Games/Plain", isDirectory: true)
+        write(plainGame.appendingPathComponent("Game.exe"))
+        check(!ShaderCaches.hasAntiCheat(profile: nil, block: nil, installDir: plainGame), "no profile and no anti-cheat files: none")
+        check(!ShaderCaches.hasAntiCheat(profile: nil, block: nil, installDir: root.appendingPathComponent("Games/Gone")), "a folder that isn't there: none, no trouble")
+        check(profile("{}") != nil && !ShaderCaches.hasAntiCheat(profile: profile("{}"), block: nil, installDir: plainGame), "a profile without the fields: none")
+        check(ShaderCaches.hasAntiCheat(profile: profile(#"{"antiCheat":["BattlEye"]}"#), block: nil, installDir: plainGame), "antiCheat in the profile")
+        check(ShaderCaches.hasAntiCheat(profile: profile(#"{"antiCheatOnline":["Easy Anti-Cheat"]}"#), block: nil, installDir: plainGame), "antiCheatOnline in the profile")
+        check(ShaderCaches.hasAntiCheat(profile: profile(#"{"antiCheat":[]}"#), block: nil, installDir: plainGame), "an empty list still means there is anti-cheat")
+        check(ShaderCaches.hasAntiCheat(profile: nil, block: AntiCheatBlock(antiCheat: ["EAC"], geforceNow: nil), installDir: plainGame), "what a store's list says")
+        for (folder, marker) in [("Eac", "EasyAntiCheat/settings.json"), ("Be", "bin/BattlEye/BEClient_x64.dll")] {
+            let game = root.appendingPathComponent("Games/\(folder)", isDirectory: true)
+            write(game.appendingPathComponent(marker))
+            check(ShaderCaches.hasAntiCheat(profile: nil, block: nil, installDir: game), "no profile, but \(marker) in the folder")
+        }
 
         // MARK: Upper limit
         let shared = root.appendingPathComponent("limit/dxmt", isDirectory: true)
