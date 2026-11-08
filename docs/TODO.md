@@ -79,6 +79,14 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     `main` (0.2.0) lädt D3DMetal bis zum Release noch von dort.
   - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
 
+## Erledigt in der Nacht 7./8.11. (staging-032, nicht gepusht)
+
+- Aktualisieren-Knopf aus der oberen Leiste (aadd1d9); ⌘R und „Bibliothek neu einlesen“ bleiben.
+- „Shader löschen“ leert auch Metals DXMT-Caches je Programm, `$DARWIN_USER_CACHE_DIR/dxmt/<exe>` (ca8961d).
+- Ein „startet nicht“ des Spielers verfällt, sobald das Profil des Spiels eine neue Notiz bringt (f0d1adc).
+- HUD in Mac-Versionen über Apples `MetalForceHudEnabled` je Spiel (7d33975). **Live prüfen mit Valheim.**
+- Left 4 Dead 2 lädt in Stereo (`+windows_speaker_config 2`, 8ecb223). **Offen:** warum winecx vier Kanäle meldet.
+
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
 
 Gebaut und mit Stand-ins getestet (`tests/SubprocessTest`, `tests/QuitScriptTest`, `tests/CompleteRemovalTest`), noch nicht in der
@@ -959,6 +967,8 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
 ## Darstellung und Leistung
 
 - **Die Optionen eines Steam-Spiels lesen `appinfo.vdf` auf dem Main-Thread** (Release-Review C4, für 0.3.2).
+  - **Teilweise erledigt (8.11., f0d1adc):** Die Datei wird nur noch einmal pro Änderung gelesen (bis 64 MB im
+    Speicher), nicht mehr für jedes Spiel neu. Das Auswerten je Spiel läuft weiter auf dem Main-Thread.
   - `SettingsViews` holt `SteamProgram.storeProgram` im `init`.
   - `SteamCatalog.cachedAppInfo` merkt sich das Ergebnis je App-ID, liest die Datei für jedes andere Spiel also ganz
     neu.
