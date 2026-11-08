@@ -948,6 +948,7 @@ final class LibraryModel: ObservableObject {
         // The tip for new players on a curtain that comes up for this start, not again for each way it tries.
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
         if !GameBackdrop.isRaised { macOSQuestionsBefore = nil }
+        GameBackdrop.mayCapture = false  // until this start's game runs (watchCurtain)
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
@@ -1068,6 +1069,8 @@ final class LibraryModel: ObservableObject {
             }
             blindLooks = 0
             seenOnce = seenOnce || !pids.isEmpty
+            if !pids.isEmpty, game.platform != .mac { GameBackdrop.expectCapture() }
+            if loweredAt == nil { GameBackdrop.keepOverShield() }
             // macOS asks the player something – Tomb Raider's access to its drive (2.11.), a password,
             // an app from the internet: the curtain lies under its window as under a question of the
             // game's, so it shows over everything, and the watch goes on looking for the game – one

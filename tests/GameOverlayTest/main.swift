@@ -431,6 +431,18 @@ struct GameOverlayTest {
         check(!LibraryModel.fetchesFrontItself(again: false, active: false), "a plain handover doesn't go through Launch Services")
         check(!LibraryModel.fetchesFrontItself(again: true, active: true), "Nightforge in front already: it hands over as ever")
         check(LibraryModel.fetchesFrontItself(again: true, active: false), "fetching a game back from behind needs a real round through the front")
+        check(GameBackdrop.curtainLevel(overShield: false) < Int(CGShieldingWindowLevel()), "no capture: under ⌘-Tab and macOS's alerts")
+        check(GameBackdrop.curtainLevel(overShield: true) > Int(CGShieldingWindowLevel()) + 2, "over the shield and the game above it (L…630)")
+        check(GameBackdrop.curtainLevel(overShield: true) <= GameOverlay.highestLevel, "no level above the highest there is")
+        check(GameOverlay.panelLevel(coverLevel: GameBackdrop.curtainLevel(overShield: true)) == GameOverlay.highestLevel,
+              "the overlay over a curtain at the top: at the top too, ordered in front")
+        func captureWindow(_ pid: Int32, _ layer: Int) -> [String: Any] {
+            [kCGWindowOwnerPID as String: NSNumber(value: pid), kCGWindowLayer as String: NSNumber(value: layer)]
+        }
+        let shieldLevel = Int(CGShieldingWindowLevel())
+        check(GameProcesses.screenCaptured([captureWindow(7000, shieldLevel)], me: 401), "a game's shield: captured")
+        check(!GameProcesses.screenCaptured([captureWindow(401, shieldLevel + 3)], me: 401), "Nightforge's own curtain over a shield is no capture")
+        check(!GameProcesses.screenCaptured([captureWindow(7000, 0)], me: 401), "a normal window: no capture")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
               "only the black shield on screen: its real window is fetched")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,

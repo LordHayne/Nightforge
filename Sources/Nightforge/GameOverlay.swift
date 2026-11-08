@@ -84,7 +84,8 @@ enum GameOverlay {
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).
         let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
-        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
+        // The curtain may lie above a captured display's shield: the panel over that too.
+        panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: [coverLevel, GameBackdrop.raisedLevel].compactMap { $0 }.max()))
         panel.orderFrontRegardless()
         if Self.takesKeys(step) { panel.makeKey() }
         focusDefault()
@@ -176,12 +177,15 @@ enum GameOverlay {
     /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
     /// the screen should that lie higher.
     nonisolated static func panelLevel(coverLevel: Int?) -> Int {
-        max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1)
+        min(max(Int(CGWindowLevelForKey(.screenSaverWindow)), (coverLevel ?? 0) + 1), highestLevel)
     }
+
+    /// No window goes higher; one at the top already gets the panel at its level, ordered in front.
+    nonisolated static var highestLevel: Int { Int(CGWindowLevelForKey(.maximumWindow)) }
 
     /// The panel's level for a second try: above every window found in front of it.
     nonisolated static func raisedLevel(_ level: Int, covering: [[String: Any]]) -> Int {
-        max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1)
+        min(max(level, (covering.compactMap { ($0[kCGWindowLayer as String] as? NSNumber)?.intValue }.max() ?? level - 1) + 1), highestLevel)
     }
 
     /// The pad heard while the panel is up, once (InputRouter): "Not starting?" took no presses on
@@ -1007,7 +1011,14 @@ enum GameProcesses {
     /// A display taken by a game for a mode change: its shield window lies above every other.
     nonisolated static func screenCaptured() -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        return screenCaptured(windows, me: getpid())
+    }
+
+    /// `me`'s own windows don't count: the curtain and the overlay may lie above a shield themselves.
+    nonisolated static func screenCaptured(_ windows: [[String: Any]], me: pid_t) -> Bool {
         let shield = Int(CGShieldingWindowLevel())
-        return windows.contains { ($0[kCGWindowLayer as String] as? Int ?? 0) >= shield }
+        return windows.contains {
+            ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= shield && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != me
+        }
     }
 }

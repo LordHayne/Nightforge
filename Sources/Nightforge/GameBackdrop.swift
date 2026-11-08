@@ -92,6 +92,40 @@ enum GameBackdrop {
         if state.detail != shown { state.detail = shown }
     }
 
+    /// The curtain's level: just under the overlay – or, `overShield`, above a captured display's shield
+    /// and the game over it (L…628, the game L…629 or L…630). Under it, each change of the display mode
+    /// turned the curtain black and back (Overwatch's start and end, 8.11.). Not for good: up there it
+    /// would cover ⌘-Tab and macOS's own alerts.
+    nonisolated static func curtainLevel(overShield: Bool) -> Int {
+        overShield ? Int(CGShieldingWindowLevel()) + 3 : NSWindow.Level.screenSaver.rawValue - 1
+    }
+
+    /// The curtain's level while it's up, for the overlay to go above it.
+    static var raisedLevel: Int? { isRaised ? window?.level.rawValue : nil }
+
+    /// The curtain lies under a question: not moved over anything until that's over.
+    private static var underQuestion = false
+
+    /// A Windows game runs: Wine may take the display at any moment, and a curtain that only follows the
+    /// shield goes black for as long as it takes to see it. So over it beforehand, from the game's first
+    /// process to its end. A Mac game that takes the display is noticed at the next look.
+    static var mayCapture = false
+
+    static func expectCapture() {
+        mayCapture = true
+        keepOverShield()
+    }
+
+    /// A game took the display or let it go: the curtain stays over it, the same window, not redrawn.
+    static func keepOverShield() {
+        guard let window, isRaised, !underQuestion else { return }
+        let level = curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured())
+        guard window.level.rawValue != level else { return }
+        window.level = NSWindow.Level(rawValue: level)
+        window.orderFrontRegardless()
+        GameLog.note("The curtain goes \(level > NSWindow.Level.screenSaver.rawValue ? "over" : "back under") a captured display's shield")
+    }
+
     /// The screens changed while the page is up (a game setting its display mode, 1920×1200 on a
     /// 1512×982 Mac; the mode restored as it ends): the page keeps to the screen, or it covers only
     /// a corner of it, as the overlay did on 4.11. before it followed.
@@ -138,6 +172,7 @@ enum GameBackdrop {
     /// game's window coming over it in front lowers it as ever.
     static func makeWay(under question: Int) {
         guard let window, isRaised else { return }
+        underQuestion = true
         window.level = .normal
         window.ignoresMouseEvents = false
         window.order(.below, relativeTo: question)
@@ -309,8 +344,9 @@ enum GameBackdrop {
     /// Nightforge is in front.
     private static func arrange(_ window: NSWindow, nightforgeFront: Bool? = nil) {
         window.ignoresMouseEvents = true  // taken under a question (makeWay)
+        underQuestion = false
         if state.stage.raised {
-            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
+            window.level = NSWindow.Level(rawValue: curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured()))  // the overlay above it
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         } else {
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
