@@ -40,6 +40,7 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    private let haptics = PadHaptics()
     private var notices = ControllerNotices(started: ProcessInfo.processInfo.systemUptime)
     /// The pad as the Mac's pointer: touchpad, or the right stick on a pad without one.
     private let pointer = PadPointer()
@@ -88,6 +89,7 @@ final class InputRouter {
             MainActor.assumeIsolated {
                 self?.letGo()
                 self?.pointer.controllerLeft()
+                self?.haptics.forgetGone()
                 self?.refreshConnected()
             }
         })
@@ -458,7 +460,7 @@ final class InputRouter {
         }
         // A presses the highlighted control (PadFocus). Otherwise, in a dialog or sheet, A and B
         // are its Return and Esc: confirm, or cancel and close.
-        pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
+        pad.buttonA.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
                 // On the stage A brings a client's own window back, and is nothing else: the row under
@@ -468,6 +470,7 @@ final class InputRouter {
                     return
                 }
                 guard self?.reach != Reach.none else { return }
+                self?.feel(.confirm, on: pad?.controller)
                 // The overlay has A to itself, not the big screenshot under it.
                 if self?.reach != .overlay, self?.model?.lightbox != nil, self?.dialog == nil {
                     self?.model?.lightbox = nil  // A on a big screenshot: back to the page
@@ -582,8 +585,15 @@ final class InputRouter {
         if pad.buttonOptions?.isPressed == true && pad.buttonMenu.isPressed { viewChorded = true }
         let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
                                         menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
+        let held = overlayHold.since != nil
         if overlayHold.update(pressed: pressed, now: now) {
+            haptics.stopHold()
+            feel(.overlayOpens, on: pad.controller)
             if GameOverlay.isOpen { GameOverlay.resume() } else { openOverlay() }
+        } else if !held, overlayHold.since != nil {
+            feel(.overlayHold, on: pad.controller)
+        } else if held, overlayHold.since == nil {
+            haptics.stopHold()
         }
         // Nothing changes on the pad while buttons are only held: a look when two seconds are up.
         holdTimer?.invalidate()
@@ -596,6 +606,13 @@ final class InputRouter {
                 self.watchHold(pad)
             }
         }
+    }
+
+    /// A moment on the pad's motors, if it's one to feel now (PadHapticRules). `controller`: nil for the one last used.
+    func feel(_ moment: PadHapticRules.Moment, on controller: GCController? = nil) {
+        guard PadHapticRules.plays(moment, setting: Prefs.padHaptics, inFront: reach == .app, overlay: reach == .overlay,
+                                   padUsedLast: Self.padUsedLast) else { return }
+        haptics.play(moment, on: controller)
     }
 
     /// ⧉ down or up: let go on its own, it opens or closes the small launcher menu (PadRules.viewButton).

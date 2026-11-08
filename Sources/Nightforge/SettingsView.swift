@@ -357,6 +357,7 @@ private struct PadGuideGlyph: View {
 private struct ControllerSettings: View {
     @EnvironmentObject private var model: LibraryModel
     @AppStorage(Prefs.Keys.padGlyphs) private var padGlyphs = PadSymbols.Style.automatic.rawValue
+    @AppStorage(Prefs.Keys.padHaptics) private var padHaptics = true
     @AppStorage(Prefs.Keys.padPointer) private var padPointer = true
     /// Looked up again whenever Nightforge comes back, from System Settings for example.
     @State private var pointerAllowed = PadPointerAccess.granted
@@ -476,6 +477,17 @@ private struct ControllerSettings: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Toggle(isOn: $padHaptics) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.t("Vibration"))
+                    Text(L10n.t("A short tap when you confirm or start a game, and while the overlay's buttons are held."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padFocus("settings.padHaptics", toggle: $padHaptics)
 
             // Every button, to look up any time. Each row takes the pad's highlight, so ↓ walks the
             // list and it scrolls along.

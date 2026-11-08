@@ -3532,6 +3532,7 @@ final class LibraryModel: ObservableObject {
 
     func launchSelected() {
         guard let game = selected else { return }
+        input.feel(.gameStart)
         launch(game)
     }
 

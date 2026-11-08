@@ -1396,6 +1396,8 @@ enum L10n {
         "Hold %@ – both sticks pressed – for 2 seconds: continue, quit the game (also one that hangs) or go to Nightforge.":
             "%@ – beide Sticks gedrückt – 2 Sekunden halten: weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "Tip: hold %@ to open the menu in a game": "Tipp: %@ halten öffnet im Spiel das Menü",
+        "Vibration": "Vibration",
+        "A short tap when you confirm or start a game, and while the overlay's buttons are held.": "Ein kurzer Ruck beim Bestätigen und beim Spielstart und während die Overlay-Tasten gehalten werden.",
         "Every button": "Alle Tasten",
         "Swipe and pinch": "Wischen und Zoomen",
         "Two fingers sideways go back. In the library, two fingers apart or together make the covers bigger or smaller.":
