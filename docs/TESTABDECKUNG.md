@@ -4,6 +4,105 @@ Stand 31.10.2026. Gemessen auf `claude/ux-roadmap-next` 159acfa (GOG gemergt), d
 aufsetzt. Zum Vergleich steht auch 001a3e0 da, der Stand vor dem GOG-Merge. Die Prozentzahlen sind Zeilenabdeckung
 laut `llvm-cov`.
 
+## Stand 8.11.2026 (0.3.2)
+
+Gemessen auf `claude/staging-032` 6698647. Vorher sind die 66 Reihen von staging, nachher alle 84. Beide Zahlen
+kommen aus demselben Lauf, jeweils mit `llvm-cov` über die Profile der einen oder der anderen Menge, sie sind also
+direkt vergleichbar. Gemessen mit einer Kopie von `scripts/coverage.sh` mit `-P 2`: das Skript fährt fest vier
+Reihen gleichzeitig (Vorschlag unten).
+
+| Gesamt | vorher | nachher |
+|---|---|---|
+| Zeilen | 33,36 % | **33,49 %** |
+| Regionen | 43,28 % | **43,54 %** |
+| Funktionen | 45,02 % | **45,19 %** |
+
+Die Gesamtzahl bewegt sich wenig, das ist erwartbar. Die großen Blöcke (`LibraryModel`, `LibraryView`, `InputRouter`,
+`SettingsView`, `Setup`) lassen sich ohne Umbau nicht testen, und die neuen Reihen sollten Fehler finden, keine Zeilen
+abhaken. Viele prüfen Code, der schon lief, mit schlimmeren Eingaben, oder Regeln, die keine Zeilen messen (Skript,
+Übersetzungen, Controller). Gestiegen sind vor allem:
+
+| Datei | Zeilen | vorher | nachher |
+|---|---|---|---|
+| `LaunchPhase.swift` | 70 | 54,3 % | 90,0 % |
+| `ProfileOrigin.swift` | 36 | 0,0 % | 44,4 % |
+| `Downloads.swift` | 484 | 1,0 % | 3,7 % |
+| `SaveTransfer.swift` | 217 | 96,8 % | 99,1 % |
+| `SteamStartCheck.swift` | 51 | 94,1 % | 98,0 % |
+| `BattleNetLibrary.swift` | 133 | 98,5 % | 99,3 % |
+
+### Befunde
+
+Alle acht sind auf `claude/staging-032` behoben (d98cb64 und 4990b22); die zugehörigen Reihen waren vorher rot und
+sind jetzt grün. Sie bleiben als Regressionstests. Die Zeilen nennen den Stand beim Fund (c475580).
+
+| # | Fehler | Ablauf | Test | trifft 0.3.2 |
+|---|---|---|---|---|
+| 1 | `Engine.steamShutdownScript` kannte nur die erste Bibliothek jeder Steam (`$STEAMAPPS`, `$MAC_STEAMAPPS`). | Mac-Spiel aus einer Bibliothek auf externer Platte läuft, Nightforge wird beendet: `osascript … quit` für Steam for Mac unter dem laufenden Spiel. Ein Download in eine Bibliothek auf der Platte zählte nicht: Steam endet, der Download stoppt. | `BugQuitExternalLibrariesTest` | ja (nicht neu), mit externer Platte |
+| 2 | `GameMenu.swift:85`: Das Schnellmenü bot „Herunterladen“ für ein Spiel auf abgesteckter Platte. | Eintrag tut nichts (`primaryAction` kehrt zurück); `Game.missingDrive` verbietet das sogar. | `BugMenuMissingDriveTest` | ja, neu |
+| 3 | `BattleNetLibrary.games`: `progress` aus product.db ungeprüft. | inf oder 1e300 erreicht `Int(fraction * 100)` in `LibraryView.swift:1845` und `Downloads.swift:219`: Absturz. | `BugBattleNetProgressTest` | neu, braucht kaputte Datei |
+| 4 | `UpdateState.pending` (`Library.swift:818`): `Int64(Double)` ohne Grenze. | Zahl über Int64 in einem Manifest: Absturz beim Einlesen, bei jedem Start. | `BugManifestNumbersTest` (Exit 133) | alt, braucht kaputte Datei |
+| 5 | `Downloads.swift:78`: Schließen-Knopf nur mit `.help`, ohne `accessibilityLabel`. | VoiceOver hat keinen Namen dafür; alle anderen solchen Knöpfe haben beides. | `AccessibilityRulesTest` | ja, klein |
+| 6 | `SaveTransfer.takeNewer`: `Set(ours).subtracting(theirs)` vergleicht Namen exakt. | Mac `Save1.dat`, Windows `SAVE1.DAT` auf case-insensitivem APFS: der rename ersetzt die Datei, das Entfernen löscht sie wieder. Der Ordner ist leer. Die Kopie der anderen Version und das Backup bleiben. | `BugSaveNamesTest` | ja, wenn ein Port die Namen anders schreibt |
+| 7 | `SaveTransfer.files`: Muster `*` trifft Finders `.DS_Store`. | Ein Ordner mit nur `.DS_Store` gilt als „hat Spielstände“, `carryOver` überträgt nichts. | `BugSaveNamesTest` | selten |
+| 8 | `LaunchWatcher.poll`: Offset rückt auch hinter eine halbe Zeile. | Steam schreibt eine Zeile in zwei Teilen: Die Zeile ist verloren, etwa „waiting for user response“. | `BugLaunchWatcherPartialLineTest` | theoretisch |
+
+Nur notiert, nicht als Test: `ProfileStore.decode` nutzt `Dictionary(uniqueKeysWithValues:)` mit `Int(key)`. „570“ und
+„0570“ in einer Liste wären ein Absturz, nur über eine signierte Liste erreichbar (Fehler des Maintainers).
+
+### Neue Reihen
+
+In eigenen Reihen, damit der Merge mit den Audits keine Konflikte bringt:
+
+- `QuitDrivesTest` (Spiele auf externen Platten aus allen Stores, Pfade mit Leerzeichen und Umlauten, kaputte
+  Manifeste; Helfer `tests/Shared/QuitWorld.swift`)
+- `GameMenuMatrixTest` (jede Kombination aus Spielzustand, Anti-Cheat und Menüzustand gegen die Regeln, beide
+  Sprachen, Platzierung über viele Fenstergrößen)
+- `BattleNetDamageTest` (product.db an jedem Byte abgeschnitten, 6000 Bitfehler mit festem Seed, Dateiarten,
+  Pfade, Logs mit Bytes, die kein Text sind)
+- `LauncherStatesMatrixTest`, `LaunchEdgeTest`, `StoreCardsEdgeTest`, `SaveTransferEdgeTest` (Hilfe
+  `tests/Shared/SaveWorld.swift`), `SmallLogicTest`
+- Regeln über alle Quellen, gebaut wie `TextScaleTest` (Skripte `check.py`, Scanner `tests/Shared/swift_views.py`):
+  `StringRulesTest` (Platzhalter und Argumente aller `L10n.t`, Deutsch gegen Englisch, keine rohen englischen Texte),
+  `ControllerRulesTest` (jede Schaltfläche hat `.padFocus` oder steht mit Begründung in der Liste, keine doppelten
+  Pad-Namen), `AccessibilityRulesTest`, `BuildLayoutTest` (`build.sh`, `codesign-app.sh` und `Detached.swift` sagen
+  dasselbe über die Helper-App, Release Notes zur Version in `Info.plist`)
+
+### Gegenprobe
+
+In einer Kopie im Scratchpad, die eingebauten Fehler dort sind wieder weg. Alle Reihen schlugen an:
+
+| Eingebauter Fehler | Reihe |
+|---|---|
+| `grep` im Skript unterscheidet Groß/klein (`\Steam\steam.exe` nicht mehr gefunden) | `QuitDrivesTest` |
+| Menü zeigt Play auch während das Spiel läuft | `GameMenuMatrixTest` |
+| `..` in Pfaden wird gefolgt | `BattleNetDamageTest` |
+| Deutsch: `%ld` durch `%@` ersetzt | `StringRulesTest` (mit diesem Fehler stürzt sogar `LauncherStatesMatrixTest` ab: die Crash-Klasse, die die Regel verhindern soll) |
+| `.padFocus` der Download-Liste entfernt | `ControllerRulesTest` |
+| Anmeldung läuft: Button statt keiner | `LauncherStatesMatrixTest` |
+| Neues, kürzeres Log wird nicht von vorn gelesen | `LaunchEdgeTest` |
+| Store-Treffer unsortiert | `StoreCardsEdgeTest` |
+
+Und umgekehrt: Mit den passenden kleinen Fixes in der Kopie wurden `BugMenuMissingDriveTest`, `BugManifestNumbersTest`
+und `BugBattleNetProgressTest` grün.
+
+### Lücken und kleinster Umbau
+
+- `LibraryModel.swift` (5374 Zeilen, 2 %): Startablauf, wer gerade laden darf, Neustart, Ende einer Sitzung. Hängt an
+  einem `ObservableObject` mit echten Steams. Kleinster Schritt: die Entscheidungen als `static func` über
+  `Facts`-Structs herausziehen, wie bei `SteamSwitch`, zuerst `takeTurnsDownloading` und `otherSteamFree`.
+- `DriveMoves.swift` (412 Zeilen, 0 %) und `SteamSwitch.swift` (51 %, `makeWayForMac`, `makeWayForWindows`,
+  `stopWindowsForMacDownload`): rufen echte Steams. Die Aufrufe als Closures hereinreichen, wie `restartWindows` es tut.
+- `InputRouter.swift` (5 %): Controller-Abläufe. Die Regel oben prüft nur, dass jede Schaltfläche erreichbar ist.
+- `D3DMetalFlow.swift` (555 Zeilen, 0 %): der Ablauf auf einem frischen Mac ohne D3DMetal; bräuchte seine
+  Download- und Installationsschritte als Closures.
+- `Setup.swift` (17 %), `MacSteam.swift` (22 %), `Launchers.swift` (32 %): die Teile, die echte Clients ansprechen.
+- SwiftUI-Ansichten: bewusst nur über die Regeln oben.
+- Vorschlag für `scripts/coverage.sh`: `-P` wie in `run-tests.sh`, weil vier Reihen gleichzeitig über dem liegen, was
+  auf dem Rechner des Nutzers erlaubt ist.
+
+Die Abschnitte darunter sind der Stand vom 31.10.
+
 ## Messen
 
 ```bash
