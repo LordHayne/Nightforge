@@ -364,6 +364,7 @@ func steamOnDemand(seed: UInt64) {
         if random.coin(2) { next.otherWork.toggle() }
         if random.coin(1) { next.signInKept.toggle() }
         if random.coin(4) { next.steamRunning.toggle() }
+        if random.coin(4) { next.macBusy.toggle() }
         facts = next
         let wasAsleep = steam.asleep
         let unneeded = SteamOnDemand.unneeded(facts)
@@ -380,6 +381,7 @@ func steamOnDemand(seed: UInt64) {
         case .wake:
             check(wasAsleep && !steam.asleep, "only what slept wakes \(label)")
             check(facts.inFront || !facts.onBattery, "and only for the player or the cable \(label)")
+            check(!facts.macBusy, "and not under a Mac version \(label)")
             facts.steamRunning = true
         case .keep:
             break
@@ -391,6 +393,26 @@ func steamOnDemand(seed: UInt64) {
             if had { facts.steamRunning = true }
         }
     }
+}
+
+/// A Mac version started while Steam slept (the Dock's menu, a link): Steam stays down for it, and comes back after it.
+func steamAfterMacGame() {
+    var steam = SteamOnDemand()
+    var now = Date(timeIntervalSince1970: 1_800_000_000)
+    var facts = SteamOnDemand.Facts(onBattery: true, inFront: false, steamRunning: true, signInKept: true)
+    _ = steam.step(facts, now: now)
+    now = now.addingTimeInterval(SteamOnDemand.awayFor + 1)
+    check(steam.step(facts, now: now) == .sleep && steam.asleep, "it sleeps")
+    facts.steamRunning = false
+    facts.inFront = true
+    facts.macBusy = true
+    now = now.addingTimeInterval(5)
+    check(steam.step(facts, now: now) == .keep && steam.asleep, "the player's here, but a Mac version needs Steam for Mac: it sleeps on")
+    facts.macBusy = false
+    now = now.addingTimeInterval(5)
+    check(steam.step(facts, now: now) == .wake && !steam.asleep, "and wakes once that's over")
+    let source = (try? String(contentsOfFile: "Sources/Nightforge/SteamOnDemand.swift", encoding: .utf8)) ?? ""
+    check(source.contains("guard !macSteamBusy else { return }  // it sleeps on"), "coming to the front under a Mac version doesn't use up the wake")
 }
 
 @main struct Main {
@@ -409,6 +431,7 @@ func steamOnDemand(seed: UInt64) {
             pointerRules()
             curtainEscape()
             startNumbers()
+            steamAfterMacGame()
         }
         print(failures == 0 ? "✓ Pad, keyboard, player numbers, the curtain's way out and Steam only when needed" : "✗ \(failures) failures")
         exit(failures == 0 ? 0 : 1)

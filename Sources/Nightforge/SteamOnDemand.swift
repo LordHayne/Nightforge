@@ -34,6 +34,8 @@ struct SteamOnDemand {
         /// Something else that has to do with Steam: a game moving or being removed, the first
         /// start's setup, a game test.
         var otherWork = false
+        /// A Mac version runs or starts: the Windows Steam stays out of its way (one sign-in per account).
+        var macBusy = false
     }
 
     enum Step: Equatable { case keep, sleep, wake }
@@ -57,7 +59,8 @@ struct SteamOnDemand {
                 asleep = false
                 return .keep
             }
-            guard facts.inFront || !facts.onBattery else { return .keep }
+            // Not under a Mac version: refused then, it would count as awake, and nothing would start it afterwards.
+            guard facts.inFront || !facts.onBattery, !facts.macBusy else { return .keep }
             asleep = false
             return .wake
         }
@@ -98,7 +101,8 @@ extension LibraryModel {
                                         downloading: downloads.contains { $0.provider == .steam && $0.platform == .windows },
                                         gameRanRecently: Engine.gameRanRecently,
                                         otherWork: move != nil || uninstallingID != nil || GameTest.active || !SetupModel.isComplete
-                                            || macSteamBusy)
+                                            || macSteamBusy,
+                                        macBusy: macSteamBusy)
         let engine = await Engine.offMain {
             (running: Engine.isSteamRunning, kept: Engine.steamSignedIn && OfflineReadiness.accountRemembered(steamRoot: Engine.steamRoot),
              updating: SteamBootstrap(steamRoot: Engine.steamRoot) == .installing)
@@ -129,6 +133,7 @@ extension LibraryModel {
 
     /// Steam back up if it's asleep: the player came back, or wants to play.
     func wakeSteam() {
+        guard !macSteamBusy else { return }  // it sleeps on; the look after that Mac version wakes it
         if steamOnDemand.wakeNow() { startSteamAgain() }
     }
 
