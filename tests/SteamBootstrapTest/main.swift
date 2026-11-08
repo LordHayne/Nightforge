@@ -279,6 +279,11 @@ struct SteamBootstrapTest {
         check(!Engine.startArguments(clientInstalled: false).contains("-noverifyfiles"), "before the client: Steam verifies (and so fetches it)")
         check(Engine.startArguments(clientInstalled: true).contains("-noverifyfiles"), "with the client: never again")
         check(Engine.startArguments(clientInstalled: false).contains("-cef-disable-gpu"), "the browser's arguments stay")
+        for installed in [false, true] {
+            let arguments = Engine.startArguments(clientInstalled: installed)
+            check(arguments.contains("-nofriendsui") && arguments.contains("-nochatui"),
+                  "Steam starts without friends and chat, which Nightforge never shows: \(arguments)")
+        }
         check(Engine.steamShutdownScript.contains("-noverifyfiles -shutdown"), "the quit script doesn't verify either")
     }
 
