@@ -411,7 +411,10 @@ struct LaunchWatcher {
         let size = (try? handle.seekToEnd()) ?? 0
         if size < offset { offset = 0 }  // Steam started a fresh log
         try? handle.seek(toOffset: offset)
-        let data = (try? handle.readToEnd()) ?? Data()
+        let read = (try? handle.readToEnd()) ?? Data()
+        // Whole lines only: the rest of one being written is read again at the next look.
+        guard let lastLine = read.lastIndex(of: 0x0A) else { return nil }
+        let data = read[read.startIndex...lastLine]
         offset += UInt64(data.count)
 
         var event: Event?

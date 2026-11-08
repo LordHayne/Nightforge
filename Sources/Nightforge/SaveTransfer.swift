@@ -163,7 +163,10 @@ enum SaveTransfer {
                     }
                     copied += 1
                 }
-                for relative in Set(ours).subtracting(theirs) {
+                // By case-insensitive name: on the usual Mac volume "Save1.dat" and "SAVE1.DAT" are one file, and
+                // the rename above has just put the other version's save there (8.11.).
+                let taken = Set(theirs.map { $0.lowercased() })
+                for relative in Set(ours) where !taken.contains(relative.lowercased()) {
                     try fm.removeItem(at: pair.target.appendingPathComponent(relative))
                 }
             } catch {
@@ -196,9 +199,15 @@ enum SaveTransfer {
     }
 
     private static func same(_ a: [String], in folderA: URL, as b: [String], in folderB: URL) -> Bool {
-        guard Set(a) == Set(b) else { return false }
-        return a.allSatisfy { FileManager.default.contentsEqual(atPath: folderA.appendingPathComponent($0).path,
-                                                               andPath: folderB.appendingPathComponent($0).path) }
+        // A port can spell a save's name differently: compared without case, as on the usual Mac volume.
+        let others = Dictionary(b.map { ($0.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        guard a.count == b.count, Set(a.map { $0.lowercased() }) == Set(others.keys) else { return false }
+        return a.allSatisfy { name in
+            others[name.lowercased()].map {
+                FileManager.default.contentsEqual(atPath: folderA.appendingPathComponent(name).path,
+                                                  andPath: folderB.appendingPathComponent($0).path)
+            } ?? false
+        }
     }
 
     /// A Windows root inside the Wine prefix. Folders that still lead out of it (a user folder
@@ -260,7 +269,8 @@ enum SaveTransfer {
         for case let url as URL in entries {
             guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
                   fnmatch(pattern, url.lastPathComponent, 0) == 0,
-                  url.lastPathComponent != "steam_autocloud.vdf"
+                  url.lastPathComponent != "steam_autocloud.vdf",
+                  url.lastPathComponent != ".DS_Store"  // Finder's, in any folder someone opened: no save
             else { continue }
             let path = url.standardizedFileURL.path
             if path.hasPrefix(base) { result.append(String(path.dropFirst(base.count))) }
