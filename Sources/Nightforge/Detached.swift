@@ -203,9 +203,13 @@ final class DetachedProcess: @unchecked Sendable {
     /// Set when the helper didn't start a program; the rest of this run does without it.
     private static var helperFailed = false
 
-    /// The helper as an app of its own in Nightforge's data folder, made here rather than shipped
-    /// inside Nightforge.app: a copy from the download would carry its quarantine flag, and macOS
-    /// would ask for "Open Anyway" all over again. Rebuilt when the helper or its Info.plist change.
+    /// The finished helper app inside Nightforge.app (build.sh), signed with Nightforge's certificate.
+    static var shippedHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/Helpers/\(helperName)", isDirectory: true)
+
+    /// The helper as an app of its own in Nightforge's data folder. Copied from the signed one inside
+    /// Nightforge.app when there is one: macOS knows it by the certificate then and asks for a permission
+    /// (removable volumes) once, not again after every build (8.11.). The copy's quarantine flag goes,
+    /// it isn't part of the signature. Else made here from the program and signed ad hoc, as before.
     static func helperApp() -> URL? {
         appLock.withLock {
             guard !helperFailed else { return nil }
@@ -215,6 +219,7 @@ final class DetachedProcess: @unchecked Sendable {
     }
 
     private static func makeHelperApp() -> URL? {
+        if FileManager.default.fileExists(atPath: shippedHelper.path), let app = copyShippedHelper() { return app }
         let fm = FileManager.default
         guard let helperProgram, let binary = try? Data(contentsOf: helperProgram) else { return nil }
         let info: [String: Any] = [
@@ -258,6 +263,35 @@ final class DetachedProcess: @unchecked Sendable {
             } else {
                 try fm.moveItem(at: fresh, to: app)
             }
+            return app
+        } catch {
+            try? fm.removeItem(at: fresh)
+            return nil
+        }
+    }
+
+    /// The shipped, signed helper copied into the data folder; again only when it changed.
+    private static func copyShippedHelper() -> URL? {
+        let fm = FileManager.default
+        let app = home.appendingPathComponent(helperName, isDirectory: true)
+        let stampFile = home.appendingPathComponent(".helper.sha256")
+        guard let binary = try? Data(contentsOf: shippedHelper.appendingPathComponent("Contents/MacOS/nightforge-helper")),
+              let seal = try? Data(contentsOf: shippedHelper.appendingPathComponent("Contents/_CodeSignature/CodeResources"))
+        else { return nil }
+        let stamp = Data(SHA256.hash(data: binary + seal).map { String(format: "%02x", $0) }.joined().utf8)
+        if fm.fileExists(atPath: app.path), (try? Data(contentsOf: stampFile)) == stamp { return app }
+        // Copied beside the old one and swapped in: a helper still running from it keeps its files.
+        let fresh = home.appendingPathComponent(".\(helperName)-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try fm.copyItem(at: shippedHelper, to: fresh)
+            let items = [fresh] + ((fm.enumerator(at: fresh, includingPropertiesForKeys: nil)?.allObjects as? [URL]) ?? [])
+            for item in items { removexattr(item.path, "com.apple.quarantine", XATTR_NOFOLLOW) }
+            if fm.fileExists(atPath: app.path) {
+                _ = try fm.replaceItemAt(app, withItemAt: fresh)
+            } else {
+                try fm.moveItem(at: fresh, to: app)
+            }
+            try? stamp.write(to: stampFile)
             return app
         } catch {
             try? fm.removeItem(at: fresh)

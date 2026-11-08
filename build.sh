@@ -85,9 +85,29 @@ clang -arch x86_64 -mmacosx-version-min=11.0 -O2 -Wall \
   -o "$OUT/Contents/Resources/nightforge-sandbox" wrapper/nightforge-sandbox.c
 
 # Starts Steam, Wine, games and downloads apart from Nightforge, so a quit Nightforge leaves the Dock
-# (wrapper/nightforge-helper.c; Nightforge makes an app of it at runtime, see Detached.swift).
+# (wrapper/nightforge-helper.c; below also as a signed app that Nightforge copies out, see Detached.swift).
 clang -arch arm64 -mmacosx-version-min=14.0 -O2 -Wall \
   -o "$OUT/Contents/Resources/nightforge-helper" wrapper/nightforge-helper.c
+# The same helper as a finished app inside Nightforge, so codesign-app.sh signs it with Nightforge's
+# certificate: macOS then knows it by that, and asks for a permission (removable volumes) only once
+# instead of again after every build (8.11.). Nightforge copies it out at runtime (Detached.swift).
+HELPER_APP="$OUT/Contents/Library/Helpers/Nightforge Helper.app"
+mkdir -p "$HELPER_APP/Contents/MacOS" "$HELPER_APP/Contents/Resources"
+cp "$OUT/Contents/Resources/nightforge-helper" "$HELPER_APP/Contents/MacOS/nightforge-helper"
+cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key><string>nightforge-helper</string>
+	<key>CFBundleIdentifier</key><string>io.github.lordhayne.nightforge.helper</string>
+	<key>CFBundleName</key><string>Nightforge Helper</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>LSUIElement</key><true/>
+</dict>
+</plist>
+PLIST
 
 # Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX (x86_64,
 # loaded by Wine's Vulkan loader).
@@ -107,6 +127,8 @@ if [ -f Resources/AppIcon.png ]; then
   iconutil -c icns "$ICONSET" -o "$OUT/Contents/Resources/AppIcon.icns"
   rm -rf "$ICONSET"
 fi
+# The helper app shows Nightforge's icon too (assembled above, before the icon existed).
+[ -f "$OUT/Contents/Resources/AppIcon.icns" ] && cp "$OUT/Contents/Resources/AppIcon.icns" "$HELPER_APP/Contents/Resources/"
 
 # Nightforge's own code signing identity when there is one, else ad hoc (scripts/codesign-app.sh).
 scripts/codesign-app.sh "$OUT"
