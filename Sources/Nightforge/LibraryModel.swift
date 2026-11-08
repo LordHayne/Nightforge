@@ -608,7 +608,11 @@ final class LibraryModel: ObservableObject {
                 // Every few seconds while it matters (Nightforge in front, a game running or starting),
                 // otherwise less often: nothing waits on it then, and the Mac stays quieter. A game
                 // that just ended is looked after quickest: the player waits to be back in Nightforge.
-                if controllerConnected && NSApp.isActive { input.refreshBattery() }
+                // Also with a game in front, every few minutes: a pad running low says so.
+                if controllerConnected, NSApp.isActive || Date().timeIntervalSince(batteryLooked) > 180 {
+                    batteryLooked = Date()
+                    input.refreshBattery()
+                }
                 let reading = PowerSource.reading()
                 if reading.source != power { power = reading.source }
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
@@ -665,6 +669,7 @@ final class LibraryModel: ObservableObject {
     /// The "Welcome back" sheet after a real session (a minute or more).
     @Published var sessionSummary: SessionSummary?
     private var goneFor = 0
+    private var batteryLooked = Date.distantPast
     private var goneSince = Date.distantPast
     private var idleLooks = 0
     /// The game whose start is still judged by its first seconds (`survivesFirstSeconds`), and when

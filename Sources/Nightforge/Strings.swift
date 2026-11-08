@@ -832,6 +832,11 @@ enum L10n {
         "Hold: this menu": "Halten: dieses Menü",
         "Both sticks pressed": "Beide Sticks gedrückt",
         "In a game": "Im Spiel",
+        "%@ connected": "%@ verbunden",
+        "%@ disconnected": "%@ getrennt",
+        "Turn it on again to carry on.": "Schalte ihn wieder ein, dann geht es weiter.",
+        "%@: battery at %ld %%": "%@: Akku bei %ld %%",
+        "Time to charge it soon.": "Bald aufladen.",
         "Press both sticks and hold them for 2 seconds: Nightforge's menu comes over the game – continue, quit the game (also one that hangs) or go to Nightforge.":
             "Beide Sticks drücken und 2 Sekunden halten: Nightforges Menü kommt über das Spiel – weiterspielen, das Spiel beenden (auch wenn es hängt) oder zu Nightforge.",
         "%@ this time · %@ in total": "%@ diesmal · %@ insgesamt",

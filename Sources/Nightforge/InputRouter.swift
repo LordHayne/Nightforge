@@ -40,6 +40,7 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    private var notices = ControllerNotices(started: ProcessInfo.processInfo.systemUptime)
     /// The pad as the Mac's pointer: touchpad, or the right stick on a pad without one.
     private let pointer = PadPointer()
 
@@ -390,12 +391,38 @@ final class InputRouter {
     /// Every connected controller and its battery, for the hint bar ("DualSense · 80 %"). In the order
     /// macOS lists them, so the capsules keep their places when the other controller is used (8.11.).
     func refreshBattery() {
-        let statuses = GCController.controllers().filter { $0.extendedGamepad != nil }.map { pad -> ControllerStatus in
+        let controllers = GCController.controllers().filter { $0.extendedGamepad != nil }
+        sayWhatChanged(controllers)
+        let statuses = controllers.map { pad -> ControllerStatus in
             let battery = pad.battery.flatMap { $0.batteryState == .unknown ? nil : $0 }
             return ControllerStatus(name: pad.vendorName ?? pad.productCategory, battery: battery?.batteryLevel,
                                     charging: battery?.batteryState == .charging)
         }
         if model?.controllerStatuses != statuses { model?.controllerStatuses = statuses }
+    }
+
+    /// A controller came, went or runs low: said once, also over a game (ControllerNotices).
+    private func sayWhatChanged(_ controllers: [GCController]) {
+        let pads = controllers.map { pad in
+            ControllerNotices.Pad(id: ObjectIdentifier(pad), name: ControllerStatus.shortName(pad.vendorName ?? pad.productCategory),
+                                  battery: pad.battery.flatMap { $0.batteryState == .unknown ? nil : $0.batteryLevel },
+                                  charging: pad.battery?.batteryState == .charging)
+        }
+        for notice in notices.update(pads, now: ProcessInfo.processInfo.systemUptime) {
+            let title: String, detail: String
+            switch notice {
+            case let .connected(name, battery):
+                title = L10n.t("%@ connected", name)
+                detail = battery.map { L10n.t("Battery %ld %%", $0) } ?? ""
+            case let .lost(name):
+                title = L10n.t("%@ disconnected", name)
+                detail = L10n.t("Turn it on again to carry on.")
+            case let .low(name, percent):
+                title = L10n.t("%@: battery at %ld %%", name, percent)
+                detail = L10n.t("Time to charge it soon.")
+            }
+            GameHint.show(title: title, detail: detail, on: GameDisplay.gameScreen)
+        }
     }
 
     private func attach(_ controller: GCController?) {
