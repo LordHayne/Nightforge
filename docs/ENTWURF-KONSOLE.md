@@ -97,10 +97,18 @@ Obere Leiste und Hinweisleiste liegen damit im äußeren 5-%-Rand, den manche Fe
 
 **Vorschlag:**
 - **Klein, 0.3.3:** Am Fernseher (`Candidate.isTV`) „Größere Schrift“ von selbst an, Ränder auf 5 %, Rahmen dicker.
-- **Größeres Stück:** eine richtige TV-Stufe, etwa 1,5- bis 2-fach, mit weniger auf einmal (Hinweisleiste höchstens
-  vier Einträge, Bühne ohne Nebenspalte). Der Hauptrahmen lässt sich vielleicht als Ganzes skalieren
-  (`scaleEffect` auf einer 1280×720-Fläche), das kostet nur eine Transformation. Ob Text scharf bleibt und `PadFocus`
-  mit den transformierten Rahmen rechnet, ist **[Vermutung]**; eine Sonde klärt es vor den Boards.
+- **Größeres Stück:** eine richtige TV-Stufe, etwa 1,5-fach, mit weniger auf einmal (Hinweisleiste höchstens
+  vier Einträge, Bühne ohne Nebenspalte).
+- **Sonde dazu (8.11., außerhalb des Bildschirms, ohne Nightforge):** Das ganze Fenster mit `scaleEffect` zu skalieren geht
+  nicht, der Text wird unscharf. Maß ist der Anteil weicher Randpixel an den vollen Pixeln: 19,5 pt direkt gezeichnet 0,26,
+  13 pt mit `scaleEffect` 1,5 dagegen 0,61 und damit auf die Stelle genau wie die gestreckten Pixel von 13 pt (Kontrolle).
+  Lage und Treffer stimmen dabei: Die Rahmen der AppKit-Ansichten kommen skaliert an, Klicks treffen, `PadFocus` würde also
+  richtig rechnen. `drawingGroup` macht den Text wieder scharf (0,27), taugt aber nicht fürs Ganze: Es zeichnet keine
+  AppKit-Ansichten (Rollflächen, Textfelder, `PadAnchor`) und wäre ein Vollbild-Effekt gegen das Budget. Eine auf 1280×720
+  gesetzte `NSView`-Bounds-Fläche zeigt die Rahmen richtig, Klicks treffen aber nicht. **Also:** die TV-Stufe über die
+  Schriftgröße (`TextScale`, alle Größen laufen schon durch `.font(size:)`), etwa 1,5-fach. Dagegen stehen 107 feste
+  Rahmenmaße im Code, von denen nur vier die Schrift mitrechnen: Die Boards müssen zeigen, was am Fernseher wegfällt, und
+  dann die Layouts folgen. **Live, eine Minute:** ob der Fernseher die Unschärfe auch so zeigt, entscheidet die Sonde nicht.
 
 **macOS-Grenze:** Die Overscan-Stellung des Fernsehers lässt sich nicht verlässlich abfragen. In IOKit stehen nur Schlüssel,
 keine App-Schnittstelle **[SDK]**. Also feste Ränder.
