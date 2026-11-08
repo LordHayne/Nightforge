@@ -1483,7 +1483,7 @@ final class LibraryModel: ObservableObject {
     /// once it's answered: left open, it came forward when the game ended, before the curtain (1.11.).
     private func hideSteamWindow(for game: Game) {
         if game.provider == .battlenet {
-            BattleNetClient.hide()
+            if Self.hidesBattleNetWindow(messageUp: errorMessage != nil) { BattleNetClient.hide() }
         } else if game.platform == .mac {
             MacSteam.hide()
         } else if steamWindowShown {
@@ -1491,6 +1491,10 @@ final class LibraryModel: ObservableObject {
             Task { await SteamWindow.hide() }
         }
     }
+
+    /// Not when the start ended with a message: those send the player to the client ("Press Play in its
+    /// window", "Its window says why", sayBattleNetFailed), and the window went half a second after it came.
+    nonisolated static func hidesBattleNetWindow(messageUp: Bool) -> Bool { !messageUp }
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
     private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
