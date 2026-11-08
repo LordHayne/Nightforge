@@ -1,5 +1,6 @@
 import AppKit
 import GameController
+import ServiceManagement
 import SwiftUI
 
 /// Settings in tabs: where the games come from, how they run, the controller, and what
@@ -167,10 +168,17 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.Keys.gameMode) private var gameMode = true
     @AppStorage(Prefs.Keys.sharpAndSmooth) private var sharpAndSmooth = true
     @AppStorage(Prefs.Keys.notifyDownloads) private var notifyDownloads = true
+    @State private var loginItem = LoginItem.state(of: SMAppService.mainApp.status)
     @AppStorage(Prefs.Keys.saveBattery) private var saveBattery = false
     @AppStorage(Prefs.Keys.reduceMotion) private var reduceMotionSetting = ""
     @AppStorage(Prefs.Keys.largerText) private var largerText = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+
+    /// On while it's registered, also while macOS still waits for its OK.
+    private var startsAtLogin: Binding<Bool> {
+        Binding(get: { loginItem != .off },
+                set: { loginItem = LoginItem.set($0, service: SMAppService.mainApp, note: { GameLog.note($0) }) })
+    }
 
     var body: some View {
         Form {
@@ -228,6 +236,22 @@ private struct GeneralSettings: View {
                     }
                 }
                 .padFocus("settings.notify", toggle: $notifyDownloads)
+                Toggle(isOn: startsAtLogin) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Open when you log in"))
+                        Text(L10n.t("Nightforge is there as soon as the Mac is. macOS tells you once that it's set."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padFocus("settings.loginItem", toggle: startsAtLogin)
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    loginItem = LoginItem.state(of: SMAppService.mainApp.status)
+                }
+                if loginItem == .needsApproval {
+                    Button(L10n.t("Confirm in System Settings …")) { SMAppService.openSystemSettingsLoginItems() }
+                        .padFocus("settings.loginItemApprove", cornerRadius: 15, activate: { SMAppService.openSystemSettingsLoginItems() })
+                }
                 Picker(L10n.t("After Launch"), selection: $afterLaunch) {
                     ForEach(AfterLaunch.allCases) { option in
                         Text(option.label).tag(option.rawValue)
