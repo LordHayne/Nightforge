@@ -382,14 +382,16 @@ final class InputRouter {
         refreshBattery()
     }
 
-    /// Every connected controller and its battery, for the hint bar ("DualSense · 80 %"). In the order
-    /// macOS lists them, so the capsules keep their places when the other controller is used (8.11.).
+    /// Every connected controller, its player number and its battery, for the hint bar
+    /// ("1 · DualSense · 80 %"). By player number, so the capsules keep their places (8.11.).
     func refreshBattery() {
-        let statuses = GCController.controllers().filter { $0.extendedGamepad != nil }.map { pad -> ControllerStatus in
+        let pads = GCController.controllers().filter { $0.extendedGamepad != nil }
+        let players = ControllerPlayers.shared.seat(pads, gameOnScreen: model?.gameOnScreen ?? false)
+        let statuses = ControllerStatus.inPlayerOrder(pads.map { pad -> ControllerStatus in
             let battery = pad.battery.flatMap { $0.batteryState == .unknown ? nil : $0 }
             return ControllerStatus(name: pad.vendorName ?? pad.productCategory, battery: battery?.batteryLevel,
-                                    charging: battery?.batteryState == .charging)
-        }
+                                    charging: battery?.batteryState == .charging, player: players[ObjectIdentifier(pad)])
+        })
         if model?.controllerStatuses != statuses { model?.controllerStatuses = statuses }
     }
 
@@ -1126,13 +1128,21 @@ struct ControllerStatus: Equatable {
     /// 0…1; nil when the controller doesn't say.
     let battery: Float?
     var charging = false
+    /// Which player it is (PlayerSlots); nil past the fourth.
+    var player: Int?
 
-    /// "DualSense · 80 %" – the name shortened to its last word for the long ones Apple reports
+    /// "1 · DualSense · 80 %" – the name shortened to its last word for the long ones Apple reports
     /// ("DualSense Wireless Controller" → "DualSense").
     var label: String {
-        let short = Self.shortName(name)
-        guard let battery else { return short }
-        return "\(short) · \(Int((battery * 100).rounded())) %"
+        var parts = [Self.shortName(name)]
+        if let player { parts.insert(String(player), at: 0) }
+        if let battery { parts.append("\(Int((battery * 100).rounded())) %") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Player 1 first; pads without a number last, in the order they came.
+    static func inPlayerOrder(_ statuses: [ControllerStatus]) -> [ControllerStatus] {
+        statuses.enumerated().sorted { ($0.element.player ?? .max, $0.offset) < ($1.element.player ?? .max, $1.offset) }.map(\.element)
     }
 
     static func shortName(_ name: String) -> String {
