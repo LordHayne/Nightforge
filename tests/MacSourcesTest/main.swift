@@ -192,6 +192,14 @@ struct MacSourcesTest {
         let old = try JSONDecoder().decode(GameRating.self, from: Data(#"{"good": false, "issues": ["stutters"], "date": 0}"#.utf8))
         check(old.didntStart == nil && old.way == nil && old.issues == [.stutters], "an answer saved by 0.3.0 still reads")
         check(Compatibility.rate(Compatibility.Facts(ownRating: noStart)).level == .no, "Didn't start: the player's own word")
+        // A fix in the profile comes with a new note: the old "didn't start" no longer counts (L4D2, 7.11.).
+        let fixed = try JSONDecoder().decode(GameProfile.self, from: Data(#"{"note": "Starts in stereo"}"#.utf8))
+        check(Compatibility.rate(Compatibility.Facts(profile: fixed, ownRating: noStart)).level != .no,
+              "a profile note newer than the answer gives the game a new chance")
+        var noStartSince = noStart
+        noStartSince.profileNote = "Starts in stereo"
+        check(Compatibility.rate(Compatibility.Facts(profile: fixed, ownRating: noStartSince)).level == .no,
+              "the same note as when it didn't start: the answer still counts")
         check(Compatibility.rate(Compatibility.Facts(antiCheatBlock: AntiCheatBlock(antiCheat: [], geforceNow: nil, notYet: "x"), ownRating: well)).level == .notYet,
               "a reason Nightforge knows still beats it")
 

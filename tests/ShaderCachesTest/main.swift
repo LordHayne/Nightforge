@@ -35,6 +35,7 @@ struct ShaderCachesTest {
         write(mesa.appendingPathComponent("mesa_shader_cache_db/kosmickrisp/index"))
         write(userCache.appendingPathComponent("io.github.lordhayne.nightforge.game/com.apple.metal/16777235_339/functions.data"))
         write(userCache.appendingPathComponent("org.winehq.wine/com.apple.gpuarchiver/archive.bin"))
+        write(userCache.appendingPathComponent("dxmt/Overwatch.exe/com.apple.metal/16777235_339/functions.data"))
         // … and what must stay.
         let game = steamapps.appendingPathComponent("common/Left 4 Dead 2/left4dead2.exe")
         let manifest = steamapps.appendingPathComponent("appmanifest_550.acf")
@@ -44,15 +45,15 @@ struct ShaderCachesTest {
 
         let folders = ShaderCaches.folders(steamapps: [steamapps, external, root.appendingPathComponent("gone/steamapps")],
                                            dxmt: dxmt, mesa: mesa, userCache: userCache)
-        check(folders.count == 6, "the six cache folders that are there, nothing for a missing library: \(folders.map(\.lastPathComponent))")
-        check(ShaderCaches.size(folders) >= 6 * 4096, "their size: \(ShaderCaches.size(folders))")
+        check(folders.count == 7, "the seven cache folders that are there, nothing for a missing library: \(folders.map(\.lastPathComponent))")
+        check(ShaderCaches.size(folders) >= 7 * 4096, "their size: \(ShaderCaches.size(folders))")
 
         let defaults = TestDefaults.suite("shaders")
         defaults.set("winecx|dxmt", forKey: "shaders.550")
         defaults.set(true, forKey: "library.hidden")
         let freed = ShaderCaches.clear(folders, defaults: defaults)
 
-        check(freed >= 6 * 4096, "freed what was there: \(freed)")
+        check(freed >= 7 * 4096, "freed what was there: \(freed)")
         check(ShaderCaches.size(folders) == 0, "the caches are empty")
         check(folders.allSatisfy(exists), "the folders themselves stay for whoever writes there next")
         check([game, manifest, appUICache, otherApp].allSatisfy(exists), "games, manifests, Nightforge's own UI cache and other apps stay")

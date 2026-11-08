@@ -236,15 +236,29 @@ enum SteamCatalog {
         }
     }
 
+    /// The game's macOS launch options in Steam's order, from Steam for Mac's appinfo (SteamProgram.macLaunchType).
+    static func macLaunchEntries(appID: Int, steamRoot: URL) -> [LaunchEntry] {
+        launchOptions(appID: appID, steamRoot: steamRoot, os: "macos").map { option in
+            LaunchEntry(executable: option["executable"]?.string ?? "", arguments: option["arguments"]?.string ?? "",
+                        type: option["type"]?.string ?? "", description: option["description"]?.string ?? "",
+                        betaKey: option["config"]?.object?["betakey"]?.string ?? "")
+        }
+    }
+
     /// The game's launch options that apply to Windows, in Steam's order.
     private static func windowsLaunchOptions(appID: Int, steamRoot: URL) -> [[String: BinaryKV]] {
+        launchOptions(appID: appID, steamRoot: steamRoot, os: "windows")
+    }
+
+    /// The game's launch options that apply to `os` ("windows", "macos"), in Steam's order.
+    private static func launchOptions(appID: Int, steamRoot: URL, os target: String) -> [[String: BinaryKV]] {
         guard let launch = cachedAppInfo(appID: appID, steamRoot: steamRoot)?["config"]?.object?["launch"]?.object
         else { return [] }
         return launch
             .compactMap { key, value -> (index: Int, option: [String: BinaryKV])? in
                 guard let index = Int(key), let option = value.object else { return nil }
                 let os = option["config"]?.object?["oslist"]?.string ?? ""
-                return os.isEmpty || os.contains("windows") ? (index, option) : nil
+                return os.isEmpty || os.contains(target) ? (index, option) : nil
             }
             .sorted { $0.index < $1.index }
             .map(\.option)
@@ -262,11 +276,21 @@ enum SteamCatalog {
         appInfoLock.lock()
         defer { appInfoLock.unlock() }
         if let cached = appInfoCache[key], cached.modified == modified { return cached.info }
-        guard let bytes = try? Data(contentsOf: file) else { return nil }
-        let info = appInfo(Array(bytes), appID: appID)
+        // The file itself is read once per change too, not again for each other game (release review C4).
+        let bytes: [UInt8]
+        if let file = appInfoFile[steamRoot.path], file.modified == modified {
+            bytes = file.bytes
+        } else {
+            guard let data = try? Data(contentsOf: file) else { return nil }
+            bytes = Array(data)
+            // Kept only up to 64 MB, so a huge library doesn't hold its whole appinfo in memory for good.
+            appInfoFile[steamRoot.path] = bytes.count <= 64 << 20 ? (modified, bytes) : nil
+        }
+        let info = appInfo(bytes, appID: appID)
         appInfoCache[key] = (modified, info)
         return info
     }
+    private static var appInfoFile: [String: (modified: Date, bytes: [UInt8])] = [:]
 
     /// The "appinfo" section of one app in appinfo.vdf.
     private static func appInfo(_ bytes: [UInt8], appID wanted: Int) -> [String: BinaryKV]? {

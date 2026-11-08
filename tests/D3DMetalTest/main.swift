@@ -476,6 +476,10 @@ struct D3DMetalTest {
         check(!Supply.needed(by: analysis([.d3d11]), picked: .automatic) && !Supply.needed(by: analysis([.d3d9]), picked: .dxvk)
               && !Supply.needed(by: nil, picked: .automatic), "other games don't ask, nor one not yet looked at")
         check(Supply.needed(by: analysis([.d3d11]), picked: .d3dmetal) && Supply.needed(by: nil, picked: .d3dmetal), "the player's own pick does")
+        // Overwatch draws on DXMT, but hangs at the start without Apple's library, which comes with D3DMetal.
+        check(Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, game: .steam(2_357_570)), "Overwatch asks")
+        check(!Supply.needed(by: analysis([.d3d11, .d3d12]), picked: .automatic, game: .steam(550)), "another game with both doesn't")
+        check(!Supply.needed(by: analysis([.d3d11]), picked: .dxmt, game: .battlenet("pro")), "Battle.net's copy doesn't start from Nightforge at all")
     }
 
     // MARK: Versions

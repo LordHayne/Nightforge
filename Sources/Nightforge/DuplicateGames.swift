@@ -97,16 +97,17 @@ enum DuplicateGames {
             if let chosen, (a.provider == chosen) != (b.provider == chosen) { return a.provider == chosen }
             if onMac(a) != onMac(b) { return onMac(a) < onMac(b) }
             if onMac(a) < 2, a.lastPlayed != b.lastPlayed { return (a.lastPlayed ?? .distantPast) > (b.lastPlayed ?? .distantPast) }
-            if onMac(a) == 2, (a.platform == .mac) != (b.platform == .mac) { return a.platform == .mac }
+            if onMac(a) == 2, a.hasMacVersion != b.hasMacVersion { return a.hasMacVersion }
             return storeRank(a) < storeRank(b)
         }
     }
 
     /// The player's games among `cards`, each once, without the hidden ones – of one store: a game
-    /// from several stores counts in each.
-    static func count(_ cards: [Game], hidden: Set<GameID>, in provider: Provider? = nil) -> Int {
+    /// from several stores counts in each. `list`: only those on it (Play Later).
+    static func count(_ cards: [Game], hidden: Set<GameID>, in provider: Provider? = nil, on list: Set<GameID>? = nil) -> Int {
         cards.lazy.filter { card in
             card.counted && !card.isMarked(in: hidden) && provider.map(card.providers.contains) ?? true
+                && list.map(card.isMarked) ?? true
         }.count
     }
 
@@ -120,7 +121,11 @@ enum DuplicateGames {
 }
 
 extension Game {
-    /// Hidden or pinned in one of its stores: a game from several stores shares its marks.
+    /// Runs as a Mac version once it's there; a store hit, that its store sells one.
+    fileprivate var hasMacVersion: Bool { platform == .mac || (install == .inStore && macNative) }
+
+    /// Marked (hidden, pinned, to play later) in one of its stores: a game from several stores
+    /// shares its marks.
     func isMarked(in marks: Set<GameID>) -> Bool { gameIDs.contains(where: marks.contains) }
 }
 

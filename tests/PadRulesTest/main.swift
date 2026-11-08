@@ -30,11 +30,43 @@ struct PadRulesTest {
         check(PadRules.back(Open(sheet: true, modal: true, options: true)) == .sheet,
               "a question over the options answers B, not the options behind it")
         check(PadRules.back(Open(overlay: true, sheet: true, downloads: true)) == .overlay, "over a game the overlay has B")
+        check(PadRules.back(Open(list: true, highlight: true, quickMenu: true)) == .quickMenu, "a game's quick menu is innermost")
+        check(PadRules.back(Open(sheet: true, quickMenu: true)) == .sheet, "a sheet over it closes first")
+        check(PadRules.back(Open(overlay: true, quickMenu: true)) == .overlay, "the overlay over it too")
+        check(PadRules.back(Open(curtain: true, quickMenu: true)) == .nothing, "on the curtain B stays out")
         // The curtain while a game loads (1.11.: B took it away, and Steam started the game anyway).
         check(PadRules.back(Open(awaitingSteam: true, curtain: true)) == .nothing, "on the curtain B doesn't call the start off")
         check(PadRules.back(Open(highlight: true, gamePage: true, curtain: true)) == .nothing, "nor changes the page hidden under it")
         check(PadRules.back(Open(overlay: true, curtain: true)) == .overlay, "\"Not starting?\" over the curtain takes B")
         check(PadRules.back(Open(awaitingSteam: true)) == .cancelLaunch, "without the curtain a waiting start is still called off")
+
+        // The launcher menus.
+        check(PadRules.back(Open(highlight: true, launcherMenu: true)) == .launcherMenu, "the small menu closes in one press")
+        check(PadRules.back(Open(list: true, launcherMenu: true)) == .launcherMenu, "over a chip's list too")
+        check(PadRules.back(Open(sheet: true, launcherMenu: true)) == .sheet, "a dialog over it closes first")
+        check(PadRules.back(Open(highlight: true, launcherMenu: true, signIn: true)) == .signIn, "the stage over the menu goes first, the menu stays")
+        check(PadRules.back(Open(sheet: true, signIn: true)) == .sheet, "an error over the stage closes first")
+        check(PadRules.back(Open(curtain: true, signIn: true)) == .nothing, "a game's curtain wins")
+        check(PadRules.back(Open(highlight: true, gamePage: true)) == .level, "the four cards go back at once, as a game's page")
+
+        // ⧉: the small launcher menu.
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: false, cards: false, chorded: false) == .open,
+              "⧉ opens the launcher menu on Home and in the library")
+        check(PadRules.viewButton(menuOpen: true, levelsFree: false, firstStart: false, cards: false, chorded: false) == .close,
+              "and closes it again")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: false, cards: false, chorded: true) == .nothing,
+              "not as part of ☰ + ⧉, the overlay's buttons")
+        check(PadRules.viewButton(menuOpen: true, levelsFree: false, firstStart: false, cards: false, chorded: true) == .nothing,
+              "the chord leaves an open menu open too")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: false, firstStart: false, cards: false, chorded: false) == .nothing,
+              "not over a sheet or another panel")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: true, cards: false, chorded: false) == .nothing,
+              "not in the first start")
+        check(PadRules.viewButton(menuOpen: false, levelsFree: true, firstStart: false, cards: true, chorded: false) == .nothing,
+              "not on the four cards, which are the same thing big")
+        check(PadRules.takesViewButton(active: true, overlay: false), "Nightforge in front: ⧉ is Nightforge's")
+        check(!PadRules.takesViewButton(active: false, overlay: false), "a game in front: its screenshot gesture stays the system's")
+        check(!PadRules.takesViewButton(active: true, overlay: true), "the overlay over a game leaves it to the system too")
 
         // X, Y, ☰ and L2/R2 only with nothing in front of the levels.
         check(PadRules.actsOnGames(inFront: true, sheet: false, panel: false), "the levels free: they act")

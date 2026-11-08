@@ -47,6 +47,9 @@ struct LibraryView: View {
                         }
                     case .library:
                         EmptyView()
+                    case .launchers:
+                        LauncherPage()
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -70,6 +73,20 @@ struct LibraryView: View {
                     .transition(.opacity.combined(with: .offset(y: -8)))
             }
 
+            if model.launcherMenuOpen {
+                // A click beside the menu closes it, like the downloads panel.
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.closeLauncherMenu() }
+                LauncherMenu()
+                    .padZone(.panel)
+                    .padding(.top, 82)  // right under its pill
+                    .padding(.trailing, Theme.gutter)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .transition(.opacity.combined(with: .offset(y: -8)))
+            }
+
             if let lightbox = model.lightbox {
                 ScreenshotLightbox(lightbox: lightbox)
                     .transition(.opacity)
@@ -86,7 +103,19 @@ struct LibraryView: View {
                 LibraryMenuLayer(anchors: anchors)
             }
         }
+        // A game's quick menu, beside its card.
+        .overlayPreferenceValue(GameMenuAnchor.self) { GameMenuLayer(anchor: $0) }
+        // A store's sign-in, over everything in the window.
+        .overlay {
+            if let provider = model.signingIn {
+                SignInStage(provider: provider)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: model.signingIn)
+        .animation(.easeOut(duration: 0.14), value: model.launcherMenuOpen)
         .animation(.easeOut(duration: 0.16), value: model.libraryMenu)
+        .animation(.easeOut(duration: 0.14), value: model.quickMenu)
         .animation(.easeOut(duration: 0.18), value: model.showingDownloads)
         .animation(.easeOut(duration: 0.28), value: model.heroGame?.id)
         .animation(.easeOut(duration: 0.22), value: model.route)
@@ -107,6 +136,11 @@ struct LibraryView: View {
         }
         .sheet(item: $model.pendingMove) { game in
             MoveSheet(game: game, targets: model.moveTargets(for: game))
+        }
+        .sheet(item: $model.managedLauncher, onDismiss: {
+            if model.showsLauncherCards { model.focusLauncherCards() }
+        }) { provider in
+            ManageLauncherSheet(provider: provider)
         }
         // Esc closes it like Cancel: the setup stops.
         .sheet(item: Binding(get: { model.macSetup }, set: { if $0 == nil { model.closeMacSetup() } })) { setup in
@@ -1100,20 +1134,13 @@ private struct TopBar: View {
             } else if let warning = model.chargerWarning {
                 ChargerPill(warning: warning, power: model.power)
             }
-            // Downloads, rescan and settings share one piece of glass.
+            // Downloads and settings share one piece of glass. No rescan button: the library refreshes
+            // by itself (each time Nightforge comes forward); ⌘R and the menu stay for the rare miss (8.11.).
             HStack(spacing: 2) {
                 if !model.downloads.isEmpty || model.move != nil {
                     DownloadsButton()
                     GlassDivider()
                 }
-                Button { model.rescan() } label: {
-                    Image(systemName: "arrow.clockwise").font(size: 13, weight: .semibold, scales: false)
-                }
-                .buttonStyle(GlassGroupButtonStyle())
-                .help(L10n.t("Rescan library (⌘R)"))
-                .accessibilityLabel(L10n.t("Rescan library"))
-                .padFocus("top.rescan", cornerRadius: 15, activate: { model.rescan() })
-                GlassDivider()
                 Button { model.openSettings() } label: {
                     Image(systemName: "gearshape").font(size: 14, weight: .semibold, scales: false)
                 }
@@ -1125,6 +1152,10 @@ private struct TopBar: View {
             .padding(.horizontal, 4)
             .frame(height: 38)
             .background(GlassBackground(glass: .regular, shape: Capsule()))
+
+            if !model.showsFirstStart && model.route != .launchers {
+                LauncherPill()
+            }
 
             TimelineView(.everyMinute) { context in
                 Text(context.date, format: .dateTime.hour().minute().locale(L10n.locale))  // the app's language, not the Mac's
@@ -1210,6 +1241,7 @@ private struct NoResults: View {
             Button(L10n.t("Clear search")) { model.searchText = "" }
                 .buttonStyle(GlassTextButtonStyle())
                 .padFocus("noResults.clear", activate: { model.searchText = "" })
+            EpicSearchLink()
         }
     }
 }
@@ -1401,8 +1433,12 @@ private struct GameDetail: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !compact && game.providers.count > 1 && game.install != .inStore {
-                StoreChoiceRow(game: game)
+            if !compact && game.providers.count > 1 {
+                if game.install == .inStore {
+                    OtherStoresRow(game: game)
+                } else {
+                    StoreChoiceRow(game: game)
+                }
             }
 
             // The round buttons go to a new line rather than squeezing Play's words (a narrow window,
@@ -1549,6 +1585,7 @@ extension PlayButton {
                    noSpace: game.downloadNeedsSpace != nil,
                    demo: game.demoOf != nil,
                    free: game.storeFree,
+                   store: game.provider,
                    update: game.pendingUpdate,
                    compact: compact) {
             model.primaryAction()
@@ -1633,6 +1670,28 @@ private struct StoreChoiceRow: View {
                     .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+    }
+}
+
+/// A store hit more stores sell: the way to the others' pages, with what they ask there.
+private struct OtherStoresRow: View {
+    let game: Game
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        HStack(spacing: 18) {
+            ForEach(game.others) { other in
+                Button { model.openStorePage(other) } label: {
+                    Label(other.storePrice.map { L10n.t("Also in the %@ Store · %@", other.provider.label, $0) }
+                          ?? L10n.t("Also in the %@ Store", other.provider.label),
+                          systemImage: "arrow.up.right.square")
+                        .font(size: 13, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                }
+                .buttonStyle(.plain)
+                .padFocus("detail.otherStore.\(other.provider.rawValue)", activate: { model.openStorePage(other) })
             }
         }
     }
@@ -1756,6 +1815,8 @@ private struct PlayButton: View {
     var demo = false
     /// A store hit that costs nothing: the button adds it instead of opening the store page.
     var free = false
+    /// The store a store hit's page is in.
+    var store = Provider.steam
     /// An update Steam downloads first: its size, 0 when not known yet.
     var update: Int64?
     /// Smaller, for the game bar.
@@ -1783,7 +1844,7 @@ private struct PlayButton: View {
         case .notInstalled: return demo ? L10n.t("Download Demo") : L10n.t("Download")
         case .downloading(let fraction?): return L10n.t("Downloading … %ld %%", Int(fraction * 100))
         case .downloading(nil): return L10n.t("Preparing download …")
-        case .inStore: return free ? L10n.t("Add for Free") : L10n.t("View in Steam Store")
+        case .inStore: return free ? L10n.t("Add for Free") : store.viewInStore
         }
     }
 
@@ -1861,63 +1922,18 @@ struct RoundIconButton: View {
     }
 }
 
-/// Right-click on a cover: the same actions as the big view, without selecting first.
-struct GameContextMenu: ViewModifier {
-    let game: Game
-    let index: Int
-    @EnvironmentObject private var model: LibraryModel
-
-    func body(content: Content) -> some View {
-        content.contextMenu {
-            switch game.install {
-            case _ where game.playsInCloud:
-                Button(L10n.t("Play on GeForce Now")) { select(); model.primaryAction() }
-            case .installed where game.antiCheatBlock == nil || model.isRunning(game):
-                Button(model.isRunning(game) ? L10n.t("Switch to Game") : game.demoOf != nil ? L10n.t("Play Demo") : L10n.t("Play")) {
-                    select(); model.primaryAction()
-                }
-            case .notInstalled where !game.isVROnly && game.antiCheatBlock == nil:
-                Button(game.demoOf != nil ? L10n.t("Download Demo") : L10n.t("Download")) { select(); model.primaryAction() }
-            case .inStore:
-                if game.storeFree {
-                    Button(L10n.t("Add for Free")) { select(); model.primaryAction() }
-                }
-                Button(L10n.t("View in Steam Store")) { model.openStorePage(game) }
-            default:
-                EmptyView()
-            }
-            if game.antiCheatBlock?.notYet != nil, !model.isRunning(game), game.missingDrive == nil,
-               game.install == .installed || game.install == .notInstalled {
-                Button(game.install == .installed ? L10n.t("Play Anyway") : L10n.t("Download Anyway")) { select(); model.tryAnyway() }
-            }
-            if game.hasFolder {
-                Button(L10n.t("Show game folder in Finder")) { select(); model.revealSelected() }
-            }
-            // Onto a drive plugged in, or back to the Mac (DriveMoves).
-            if model.canMove(game) {
-                Button(L10n.t("Move to …")) { model.requestMove(game) }
-            }
-            if model.canUninstall(game) {
-                Divider()
-                Button(game.isInstalled ? L10n.t("Uninstall …") : L10n.t("Cancel Download"), role: .destructive) {
-                    model.requestUninstall(game)
-                }
-            }
-        }
-    }
-
-    private func select() {
-        model.select(index)
-    }
-}
-
 struct CoverCard: View {
     let game: Game
     let isSelected: Bool
     var isRunning = false
     var isPinned = false
+    /// On the Play Later list.
+    var isLater = false
     /// The library's covers change size with a pinch (CoverSize); the rail's stay as they are.
     var width = CoverSize.regular.width
+    /// The line under the name on a cover without art (TypoCover.line).
+    var facts: String?
+    let openMenu: () -> Void
     @State private var cover: NSImage?
     @Environment(\.reduceMotion) private var reduceMotion
 
@@ -1928,12 +1944,8 @@ struct CoverCard: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
-                Text(game.name)
-                    .font(size: 15, weight: .bold).fontWidth(.expanded)
-                    .foregroundStyle(Theme.ink.opacity(0.85))
-                    .multilineTextAlignment(.center)
-                    .padding(14)
+                // The name under the card stays small: this one's the big one.
+                TypoCover(name: game.name, line: facts, width: width, bottomRoom: hasBottomBadge ? 30 : 0)
             }
         }
         .frame(width: width, height: width * 1.5)
@@ -1943,8 +1955,8 @@ struct CoverCard: View {
             // Side by side: a game from several stores can use its Mac version from Steam.
             HStack(spacing: -7) {
                 // Another store than Steam: which one (Steam is where most games come from); a game from
-                // several stores names them all.
-                if game.providers != [.steam] {
+                // several stores names them all. A store's hit always: they come from several.
+                if game.providers != [.steam] || game.install == .inStore {
                     Text(game.providers.map(\.short).joined(separator: " + "))
                         .displayFont(9.5)
                         .lineLimit(1)
@@ -1965,7 +1977,7 @@ struct CoverCard: View {
                         .padding(.vertical, 3)
                         .background(Theme.night.opacity(0.78), in: Capsule())
                         .padding(7)
-                        .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("Steam also has a Mac version"))
+                        .help(game.platform == .mac ? L10n.t("Uses the Mac version") : L10n.t("%@ also has a Mac version", game.provider.label))
                 }
             }
         }
@@ -1985,15 +1997,21 @@ struct CoverCard: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            if isPinned && !isRunning {
-                Image(systemName: "pin.fill")
-                    .font(size: 11, weight: .bold, scales: false)
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 5)
-                    .background(Theme.night.opacity(0.78), in: Capsule())
-                    .padding(7)
-                    .help(L10n.t("Pinned to Home"))
+            if (isPinned || isLater) && !isRunning {
+                HStack(spacing: 6) {
+                    if isPinned {
+                        Image(systemName: "pin.fill").help(L10n.t("Pinned to Home"))
+                    }
+                    if isLater {
+                        Image(systemName: "bookmark.fill").help(L10n.t("On your Play Later list"))
+                    }
+                }
+                .font(size: 11, weight: .bold, scales: false)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(Theme.night.opacity(0.78), in: Capsule())
+                .padding(7)
             }
             if isRunning {
                 HStack(spacing: 5) {
@@ -2007,6 +2025,7 @@ struct CoverCard: View {
                 .padding(8)
             }
         }
+        .modifier(CardMenuButton(open: openMenu))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -2021,6 +2040,7 @@ struct CoverCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spokenDescription)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(named: Text(L10n.t("Quick menu")), openMenu)
         .task(id: game.id) {
             cover = await ArtworkStore.shared.image(for: game, kind: .cover)
         }
@@ -2028,6 +2048,11 @@ struct CoverCard: View {
 
     /// A game from several stores shows what one of them is doing (a download), else the one it starts through.
     private var shown: Game { game.shown }
+
+    /// A badge sits in a bottom corner (controller, download, update, drive): a typo cover's name stays above it.
+    private var hasBottomBadge: Bool {
+        game.controller != .none || shown.install != .installed || game.pendingUpdate != nil
+    }
 
     /// "Steam and Epic Games".
     static func stores(_ game: Game) -> String {
@@ -2042,11 +2067,12 @@ struct CoverCard: View {
         case .downloading: parts.append(L10n.t("Downloading"))
         case .notInstalled where shown.onUnpluggedDrive: parts.append(L10n.t("Connect %@ to Play", shown.missingDrive ?? ""))
         case .notInstalled: parts.append(game.demoOf != nil ? L10n.t("Free demo") : L10n.t("In your library"))
-        case .inStore: parts.append(L10n.t("In the Steam Store"))
+        case .inStore: parts.append(game.provider.inStore)
         }
         if game.platform == .mac { parts.append(L10n.t("Uses the Mac version")) }
         if game.providers != [.steam] { parts.append(L10n.t("From %@", Self.stores(game))) }
         if isPinned { parts.append(L10n.t("Pinned to Home")) }
+        if isLater { parts.append(L10n.t("On your Play Later list")) }
         if game.controller != .none { parts.append(game.controller.help) }
         if isRunning { parts.append(L10n.t("Running")) }
         return parts.joined(separator: ", ")
@@ -2137,15 +2163,19 @@ private struct HintBar: View {
     var body: some View {
         HStack(spacing: 22) {
             // During the first start's checklist the controller test shows the battery itself.
-            if model.controllerConnected, let status = model.controllerStatus,
-               !(model.showsFirstStart && model.setup.stage == .checklist) {
-                Label(status.label, systemImage: status.symbol)
-                    .font(size: 12, weight: .medium).monospacedDigit()
-                    .foregroundStyle(status.isLow ? Theme.sodium : Theme.ink.opacity(0.8))
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
-                    .background(GlassBackground(glass: .regular, shape: Capsule()))
-                    .help(L10n.t("Controller battery"))
+            // One capsule per controller: with two players both show, each with its own battery (8.11.).
+            if model.controllerConnected, !(model.showsFirstStart && model.setup.stage == .checklist) {
+                HStack(spacing: 8) {
+                    ForEach(Array(model.controllerStatuses.prefix(4).enumerated()), id: \.offset) { _, status in
+                        Label(status.label, systemImage: status.symbol)
+                            .font(size: 12, weight: .medium).monospacedDigit()
+                            .foregroundStyle(status.isLow ? Theme.sodium : Theme.ink.opacity(0.8))
+                            .padding(.horizontal, 12)
+                            .frame(height: 32)
+                            .background(GlassBackground(glass: .regular, shape: Capsule()))
+                            .help(L10n.t("Controller battery"))
+                    }
+                }
             }
             Spacer()
             let pad = model.padSymbols
@@ -2154,7 +2184,13 @@ private struct HintBar: View {
             if !controller, let action = toasts.current?.action {
                 Hint(.key("⌘↩"), text: action.label)
             }
-            if controller && focus.focused != nil {
+            if model.showsLauncherCards {
+                LauncherHints()
+            } else if model.launcherMenuOpen {
+                Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Select"))
+                Hint(controller ? .pad(pad.stick) : .key("↑ ↓"), text: L10n.t("Move"))
+                Hint(controller ? .pad(pad.back) : .key("esc"), text: L10n.t("Close"))
+            } else if controller && focus.focused != nil {
                 Hint(.pad(pad.confirm), text: L10n.t("Select"))
                 Hint(.pad(pad.stick), text: L10n.t("Move"))
                 Hint(.pad(pad.back), text: backWithHighlight)
@@ -2172,8 +2208,8 @@ private struct HintBar: View {
                     if let game = model.heroGame {
                         Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Play"))
                         Hint(controller ? .pad(pad.details) : .key("I"), text: L10n.t("Details"))
-                        if controller && game.install != .inStore {
-                            Hint(.pad(pad.menu), text: L10n.t("Options"))
+                        if controller {
+                            Hint(.pad(pad.menu), text: Self.menuHint(game))
                         }
                     } else {
                         Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Open"))
@@ -2182,12 +2218,21 @@ private struct HintBar: View {
                     if !controller {
                         Hint(.key("L"), text: L10n.t("Library"))
                     }
+                    if !controller || pad.view != nil {
+                        Hint(controller ? .pad(pad.view ?? "") : .key("M"), text: L10n.t("Launchers"))
+                    }
                     Hint(controller ? .pad(pad.stick) : .key("← →"), text: L10n.t("Select"))
                 case .library:
                     Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Open"))
                     Hint(controller ? .pad(pad.stick) : .key("← ↑ →"),
                          text: L10n.t("Select"))
                     Hint(controller ? .pad(pad.search) : .key("⌘F"), text: L10n.t("Search"))
+                    if controller, let view = pad.view {
+                        Hint(.pad(view), text: L10n.t("Launchers"))
+                    }
+                    if controller, let game = model.heroGame {
+                        Hint(.pad(pad.menu), text: Self.menuHint(game))
+                    }
                     Hint(controller ? .pad(pad.back) : .key("esc"),
                          text: !model.searchText.isEmpty ? L10n.t("Clear search") : model.showingHidden ? L10n.t("All games") : L10n.t("Home"))
                 case .detail(_, let from):
@@ -2206,20 +2251,27 @@ private struct HintBar: View {
                         Hint(.pad(pad.scroll), text: L10n.t("Scroll"))
                     }
                     Hint(controller ? .pad(pad.back) : .key("esc"), text: from == .home ? L10n.t("Home") : L10n.t("Library"))
+                case .launchers:
+                    EmptyView()  // LauncherHints, above
                 }
             }
         }
-        .opacity(model.games.isEmpty && !model.showsFirstStart ? 0 : 1)
+        .opacity(model.games.isEmpty && !model.showsFirstStart && !model.showsLauncherCards ? 0 : 1)
     }
 
     /// Where B goes with a control highlighted: an open panel closes, a game's page goes back, Home
     /// and the library go back to their games.
     private var backWithHighlight: String {
-        if model.showingDownloads || model.libraryMenu != nil { return L10n.t("Close") }
+        if model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil { return L10n.t("Close") }
         switch model.route {
         case .detail(_, let from): return from == .home ? L10n.t("Home") : L10n.t("Library")
-        case .home, .library: return L10n.t("To the games")
+        case .home, .library, .launchers: return L10n.t("To the games")
         }
+    }
+
+    /// What ☰ does on a selected card: a store hit has no options, only the menu.
+    private static func menuHint(_ game: Game) -> String {
+        game.install == .inStore ? L10n.t("Hold: Quick menu") : L10n.t("Options · Hold: Quick menu")
     }
 }
 
@@ -2392,7 +2444,7 @@ private struct VersionNotes: View {
 
     private var text: String? {
         if game.install == .inStore {
-            return game.macNative ? L10n.t("Steam also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.") : nil
+            return game.macNative ? L10n.t("%@ also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.", game.provider.label) : nil
         }
         guard let reason = game.versionReason else { return nil }
         if game.platform == .mac {

@@ -24,7 +24,7 @@ enum PadPart: String, CaseIterable {
         case .b: return L10n.t("Back, one level up – like Esc")
         case .x: return L10n.t("Opens the selected game's page")
         case .y: return L10n.t("Searches your library")
-        case .start: return L10n.t("Options for the selected game")
+        case .start: return L10n.t("Options for the selected game – held, its quick menu")
         case .l1: return L10n.t("Goes to Home")
         case .r1: return L10n.t("Goes to the library")
         case .l2: return L10n.t("Jumps to the first game")
@@ -35,7 +35,7 @@ enum PadPart: String, CaseIterable {
         case .ls: return L10n.t("Moves the selection, like the d-pad")
         case .rs: return L10n.t("Scrolls pages and lists – in games it's mostly the camera")
         case .l3, .r3: return L10n.t("Works – both sticks held for 2 seconds in a game bring Nightforge's menu")
-        case .select: return L10n.t("Works – Nightforge doesn't need this button, games do")
+        case .select: return L10n.t("Opens and closes the launcher menu – in games it's the game's")
         case .home: return L10n.t("Works – it belongs to macOS, Nightforge leaves it alone")
         case .touch: return L10n.t("Works – Nightforge doesn't need the touchpad, games do")
         }

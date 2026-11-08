@@ -33,6 +33,16 @@ enum SteamLogin {
         rememberedAccount(users: VDF.parse(contentsOf: steamRoot.appendingPathComponent("config/loginusers.vdf"))?["users"])
     }
 
+    /// The name the remembered account shows in Steam; never its login name.
+    static func personaName(steamRoot: URL) -> String? {
+        personaName(users: VDF.parse(contentsOf: steamRoot.appendingPathComponent("config/loginusers.vdf"))?["users"])
+    }
+
+    static func personaName(users: VDF?) -> String? {
+        guard let id = rememberedAccount(users: users), let name = users?[id]?["PersonaName"]?.string, !name.isEmpty else { return nil }
+        return name
+    }
+
     /// "MostRecent" 1 where Steam still writes it, else the one it signs in by itself ("AutoLogin"
     /// 1), else the newest.
     static func rememberedAccount(users: VDF?) -> String? {
@@ -50,6 +60,59 @@ enum SteamLogin {
         let size = (try? handle.seekToEnd()) ?? 0
         try? handle.seek(toOffset: size > 65_536 ? size - 65_536 : 0)
         return String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
+    }
+}
+
+/// A Steam's own first cloud sync after it started, as cloud_log.txt tells it. Valheim, 8.11. 14:55:
+/// Steam for Mac got the game 2 s after it started, while it was bringing down the Steam Controller
+/// Configs (AppID 241100, change 5 → 6) that the Windows Steam had changed. Its background job and the
+/// start's own step collided ("Job Canceled"), and Steam asked "Unable to Sync – Play anyway / Cancel"
+/// (SynchronizingControllerConfig "syncfailed"). Valheim's own saves were in step, and two minutes
+/// later, with nothing to bring down, the same start went through. So a Steam that has only just
+/// started gets the game once that sync is done – never for long, and only a just-started one.
+enum SteamCloudStart {
+    private static let controllerConfigs = "[AppID 241100]"
+    /// How long after its start Steam may still begin that sync (it did within 3 s).
+    nonisolated static let beginsWithin: TimeInterval = 20
+    /// How long after its start the sync may hold a game at all.
+    nonisolated static let finishesWithin: TimeInterval = 30
+
+    static func shouldWait(steamRoot: URL, now: Date = Date()) -> Bool {
+        let url = steamRoot.appendingPathComponent("logs/cloud_log.txt")
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        try? handle.seek(toOffset: size > 262_144 ? size - 262_144 : 0)
+        return shouldWait(log: String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self), now: now)
+    }
+
+    /// `log`: cloud_log.txt; its last "Client version:" line is this Steam's start.
+    static func shouldWait(log: String, now: Date) -> Bool {
+        guard let start = log.range(of: "Client version:", options: .backwards) else { return false }
+        let lineStart = log[..<start.lowerBound].lastIndex(where: \.isNewline).map { log.index(after: $0) } ?? log.startIndex
+        guard let started = date(log[lineStart..<start.lowerBound]) else { return false }
+        let age = now.timeIntervalSince(started)
+        let lines = log[start.upperBound...].split(whereSeparator: \.isNewline).filter { $0.contains(controllerConfigs) }
+        guard !lines.isEmpty else { return age < beginsWithin }
+        var evaluated = false
+        var toFetch = false
+        for line in lines {
+            if line.contains("Starting sync (eval") { evaluated = false }
+            if line.contains("Need to sync from local change number") { toFetch = true }
+            if line.contains("Eval complete") { evaluated = true }
+            if line.contains("Download complete") || line.contains("Successfully synced to ChangeNumber") { toFetch = false }
+        }
+        return (!evaluated || toFetch) && age < finishesWithin
+    }
+
+    /// "[2026-11-08 14:55:37] "
+    private static func date(_ prefix: Substring) -> Date? {
+        guard prefix.hasPrefix("["), let close = prefix.firstIndex(of: "]") else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        return formatter.date(from: String(prefix[prefix.index(after: prefix.startIndex)..<close]))
     }
 }
 
@@ -183,6 +246,7 @@ final class SteamSwitch {
     /// would sign in after it and sign it out. A signed-in (or already signed-out) one goes
     /// alongside: Steam for Mac signing in signs it out anyway, and nothing waits for it.
     func makeWayForMac(facts: Facts, phase: (LaunchPhase) -> Void) async {
+        if afterMac != nil { phase(.startingSteamForMac) }  // a switch back under way: no wait without a word
         await settle()
         var facts = facts
         facts.windowsSteamRunning = Engine.isSteamRunning  // a switch back may have just started it
@@ -192,6 +256,7 @@ final class SteamSwitch {
         }
         guard Self.stopsWindowsForMac(facts), let wine = await Engine.installedWine() else { return }
         windowsStopped = true
+        GameLog.note("Steam switch: the Windows Steam makes way for Steam for Mac at \(GameLog.clock())")
         if Engine.steamSignedIn || Engine.sessionReplaced() {
             Task { try? await Engine.stopSteam(wine) }
         } else {
@@ -215,8 +280,10 @@ final class SteamSwitch {
     /// that Nightforge quit or Steam for Mac signed out starts again – `restartWindows`, which
     /// returns once it has signed in.
     func makeWayForWindows(facts: Facts, phase: (LaunchPhase) -> Void, restartWindows: () async -> Void) async {
+        if afterMac != nil { phase(.startingSteam) }  // a switch back under way: no wait without a word
         await settle()
         if Self.quitsMacForWindows(facts) {
+            GameLog.note("Steam switch: Steam for Mac makes way for the Windows Steam at \(GameLog.clock())")
             if await savesPending(.mac) {
                 phase(.savingToCloud)
                 await waitForSaves(.mac, limit: Self.launchPatience)
@@ -225,6 +292,7 @@ final class SteamSwitch {
             await Task { await MacSteam.quit() }.value
         }
         if Self.restartsWindows(stoppedByNightforge: windowsStopped, running: Engine.isSteamRunning, replaced: false) {
+            GameLog.note("Steam switch: the Windows Steam starts again at \(GameLog.clock())")
             phase(.startingSteam)
             windowsStopped = false
             await restartWindows()

@@ -269,14 +269,93 @@ enum MacSteam {
     static func show(keepFor seconds: TimeInterval = 0) {
         guard isRunning else { return start(visible: true) }
         allowVisible(for: seconds)
-        for app in clientApps { app.unhide() }
-        open("open/main", activate: true)
+        for app in windowApps { app.unhide() }  // `hide` hides the web view too, and with it Steam's dialogs
+        guard asksInADialog else {
+            open("open/main", activate: true)
+            comeForward()
+            return
+        }
+        // Steam's question is a small window of its own: the store, opened on top of it, left nothing
+        // to click (Drawful 2, 8.11.). Unhidden just now, it may need a moment to be on screen.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            let windows = steamWindows()
+            GameLog.note("Steam asks in a dialog of its own, its windows: " + windows.map { "\($0.pid) \(Int($0.width))×\(Int($0.height))\($0.onScreen ? "" : " hidden")" }.joined(separator: ", "))
+            if !windows.contains(where: { $0.onScreen && (200...1000).contains($0.width) && (100...760).contains($0.height) }) {
+                open("open/main", activate: true)
+            }
+            comeForward()
+        }
+    }
+
+    /// The last thing Steam logged about a start is that it waits for an answer in a dialog of its
+    /// own: its main window would only lie over that.
+    private static var asksInADialog: Bool {
+        guard let last = logLines("console_log.txt").last(where: { $0.contains("GameAction [AppID") }),
+              waitsInDialog(last), let date = logDate(last) else { return false }
+        return Date().timeIntervalSince(date) < 600
+    }
+
+    /// Steam's question in `line` has a dialog of its own: a launch option, a licence, a cloud sync
+    /// that failed or conflicts, another session to kick (console_log of both Steams up to 8.11.).
+    /// The two routine steps have none: ShowInterstitials goes on once the main window is shown,
+    /// CreatingProcess by itself.
+    static func waitsInDialog(_ line: Substring) -> Bool {
+        line.contains("waiting for user response to") && !line.contains("to ShowInterstitials") && !line.contains("to CreatingProcess")
     }
 
     /// A Steam dialog the player answers (steam://install/… asks where to install).
     static func ask(_ command: String) {
         allowVisible(for: 300)
         open(command, activate: true)
+        comeForward()
+    }
+
+    /// Steam for Mac's windows belong to "Steam Helper", its web view process (an agent app without a
+    /// Dock icon), not to steam_osx. And since macOS 14 an app comes forward only when the active one
+    /// yields to it: Launch Services' `activates` alone left Steam's launch question behind Nightforge,
+    /// which said "Confirm in Steam's window" over nothing (Drawful 2, 8.11.). So Nightforge yields to
+    /// whichever Steam process shows a window, as it does for games, a few times while Steam opens it.
+    static let helperBundleID = "com.valvesoftware.steam.helper"
+
+    private static func comeForward() {
+        if isTestHome { return }
+        Task { @MainActor in
+            for _ in 0..<8 {
+                try? await Task.sleep(for: .milliseconds(400))
+                bringForward()
+                if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+                   front == bundleID || front == helperBundleID { return }
+            }
+        }
+    }
+
+    @MainActor
+    private static func bringForward() {
+        let steam = NSWorkspace.shared.runningApplications.filter {
+            $0.bundleIdentifier == helperBundleID || $0.executableURL?.lastPathComponent == "steam_osx"
+        }
+        steam.forEach { $0.unhide() }
+        let owners = Set(steamWindows().filter { $0.width > 120 && $0.height > 80 }.map(\.pid))
+        // The one with Steam's window; without a window anywhere yet, the client, which opens one.
+        let target = steam.first { owners.contains($0.processIdentifier) && $0.bundleIdentifier == helperBundleID }
+            ?? steam.first { owners.contains($0.processIdentifier) } ?? clientApps.first
+        guard let target, NSApp.isActive || NSWorkspace.shared.frontmostApplication == target else { return }
+        NSApp.yieldActivation(to: target)
+        target.activate(from: .current, options: [.activateAllWindows])
+    }
+
+    /// Steam's windows of a normal level, on screen or not: whose they are and how big.
+    private static func steamWindows() -> [(pid: pid_t, width: CGFloat, height: CGFloat, onScreen: Bool)] {
+        let steam = Set(NSWorkspace.shared.runningApplications.filter {
+            $0.bundleIdentifier == helperBundleID || $0.executableURL?.lastPathComponent == "steam_osx"
+        }.map(\.processIdentifier))
+        let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        return list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0, let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  steam.contains(pid), let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+            return (pid, bounds["Width"] ?? 0, bounds["Height"] ?? 0, info[kCGWindowIsOnscreen as String] as? Bool ?? false)
+        }
     }
 
     /// Until when Nightforge wants Steam's window up although Steam doesn't log that it waits.
@@ -313,9 +392,15 @@ enum MacSteam {
         return held
     }
 
-    /// Back to the background after the player has dealt with it.
+    /// Back to the background after the player has dealt with it. Steam Helper too: its windows are
+    /// nearly all of Steam's (`helperBundleID`), so hiding the client alone left them up.
     static func hide() {
-        for app in clientApps { app.hide() }
+        for app in windowApps { app.hide() }
+    }
+
+    /// The Steam processes whose windows the player sees: the client and its web view.
+    private static var windowApps: [NSRunningApplication] {
+        clientApps + (isTestHome ? [] : NSRunningApplication.runningApplications(withBundleIdentifier: helperBundleID))
     }
 
     /// Keeps Steam for Mac out of sight while Nightforge runs. Its window comes up when it starts,
@@ -326,7 +411,10 @@ enum MacSteam {
     @MainActor
     static func guardWindows() async {
         while !Task.isCancelled {
-            if clientApps.contains(where: { !$0.isHidden }), !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
+            // By a window on screen for the web view: it may not be hideable at all, and then
+            // `waitingForPlayer` (two logs read) would run every second for nothing.
+            let shows = clientApps.contains { !$0.isHidden } || (isRunning && steamWindows().contains { $0.onScreen && $0.width > 120 && $0.height > 80 })
+            if shows, !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
                 hide()
             }
             try? await Task.sleep(for: .seconds(1))

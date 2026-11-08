@@ -4,6 +4,8 @@ import Foundation
 /// Back (Esc, B) always goes one level up, to where the page was opened from.
 enum Route: Equatable {
     case home, library
+    /// The four launcher cards, where Settings › Stores and the small menu lead.
+    case launchers
     case detail(gameID: String, from: Level)
 
     enum Level: Equatable { case home, library }
@@ -11,7 +13,7 @@ enum Route: Equatable {
     /// The section the top bar shows: a game's page belongs to where it was opened from.
     var level: Level {
         switch self {
-        case .home: return .home
+        case .home, .launchers: return .home
         case .library: return .library
         case .detail(_, let from): return from
         }
@@ -26,7 +28,7 @@ enum Route: Equatable {
     var parent: Route? {
         switch self {
         case .home: return nil
-        case .library, .detail(_, .home): return .home
+        case .library, .launchers, .detail(_, .home): return .home
         case .detail(_, .library): return .library
         }
     }
@@ -77,9 +79,11 @@ enum HomeRail {
     /// unplugged, which plays once it's back (`Game.shelfState`). A game from several
     /// stores goes by what its card shows (`Game.shown`) and is pinned when one of them is.
     /// `fill`: with fewer than `minimum`, other installed games fill up (Home's stage fills with
-    /// StarterPicks instead).
-    static func pick(_ games: [Game], pinned: Set<GameID> = [], now: Date = Date(), fill: Bool = true) -> [Int] {
+    /// StarterPicks instead). `off`: games the player took off Home, gone until played again (HomeRemovals).
+    static func pick(_ games: [Game], pinned: Set<GameID> = [], off: [GameID: Date] = [:], now: Date = Date(),
+                     fill: Bool = true) -> [Int] {
         let onMac = games.indices.filter { index in
+            guard !HomeRemovals.isOff(games[index], in: off) else { return false }
             switch games[index].shown.shelfState {
             case .installed, .downloading: return true
             case .notInstalled, .inStore: return false

@@ -9,7 +9,7 @@ enum GridGroup: CaseIterable {
         case .installed: return L10n.t("Installed")
         case .downloading: return L10n.t("Downloading")
         case .library: return L10n.t("In your library")
-        case .store: return L10n.t("In the Steam Store")
+        case .store: return L10n.t("In the Stores")
         }
     }
 
@@ -17,6 +17,24 @@ enum GridGroup: CaseIterable {
         switch (self, state) {
         case (.installed, .installed), (.downloading, .downloading), (.library, .notInstalled), (.store, .inStore): return true
         default: return false
+        }
+    }
+}
+
+/// A search's quiet last line: Epic's store can't be searched from here (`StoreHits.epicSearch`), so
+/// its own search opens in the browser.
+struct EpicSearchLink: View {
+    @EnvironmentObject private var model: LibraryModel
+
+    var body: some View {
+        if model.offersEpicSearch {
+            Button(action: model.openEpicSearch) {
+                Label(L10n.t("Search Epic Games in your browser"), systemImage: "arrow.up.right.square")
+                    .font(size: 13, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+            }
+            .buttonStyle(.plain)
+            .padFocus("search.epic", activate: model.openEpicSearch)
         }
     }
 }
@@ -113,20 +131,28 @@ struct LibraryGrid: View {
                                     ForEach(section.items, id: \.game.id) { item in
                                         GridCard(game: item.game, isSelected: item.index == model.selectedIndex,
                                                  isRunning: model.isRunning(item.game), isPinned: model.isPinned(item.game),
-                                                 compatibility: model.compatibility(of: item.game), width: cardWidth)
-                                            .id(item.game.id)
-                                            .modifier(GameContextMenu(game: item.game, index: item.index))
-                                            .onTapGesture {
-                                                if item.index == model.selectedIndex {
-                                                    model.openDetail()
-                                                } else {
-                                                    model.selectedIndex = item.index
-                                                }
+                                                 isLater: model.isLater(item.game),
+                                                 compatibility: model.compatibility(of: item.game), width: cardWidth,
+                                                 facts: TypoCover.line(model.info(for: item.game))) {
+                                            model.openQuickMenu(at: item.index)
+                                        }
+                                        .id(item.game.id)
+                                        .modifier(GameCardMenu(game: item.game))
+                                        .onTapGesture {
+                                            guard model.quickMenu == nil else { return }  // a long click that opened it, let go
+                                            if item.index == model.selectedIndex {
+                                                model.openDetail()
+                                            } else {
+                                                model.selectedIndex = item.index
                                             }
+                                        }
+                                        .modifier(LongClick { model.openQuickMenu(at: item.index) })
                                     }
                                 }
                             }
                         }
+                        EpicSearchLink()
+                            .padReachable(false)  // the pad's steps stay with the games and the top row
                     }
                     .padding(.horizontal, Theme.gutter)
                     .padding(.vertical, 20)
@@ -165,12 +191,16 @@ private struct GridCard: View {
     let isSelected: Bool
     var isRunning = false
     var isPinned = false
+    var isLater = false
     let compatibility: Compatibility
     var width = CoverSize.regular.width
+    var facts: String?
+    let openMenu: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned, width: width)
+            CoverCard(game: game, isSelected: isSelected, isRunning: isRunning, isPinned: isPinned, isLater: isLater, width: width,
+                      facts: facts, openMenu: openMenu)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 // The level's own icon (each has a different one), named for VoiceOver and on hover.
                 Image(systemName: compatibility.level.symbol)

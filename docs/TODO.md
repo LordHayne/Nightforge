@@ -79,6 +79,49 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     `main` (0.2.0) lädt D3DMetal bis zum Release noch von dort.
   - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
 
+## Erledigt in der Nacht 7./8.11. (staging-032, nicht gepusht)
+
+- Aktualisieren-Knopf aus der oberen Leiste (aadd1d9); ⌘R und „Bibliothek neu einlesen“ bleiben.
+- „Shader löschen“ leert auch Metals DXMT-Caches je Programm, `$DARWIN_USER_CACHE_DIR/dxmt/<exe>` (ca8961d).
+- Ein „startet nicht“ des Spielers verfällt, sobald das Profil des Spiels eine neue Notiz bringt (f0d1adc).
+- HUD in Mac-Versionen über Apples `MetalForceHudEnabled` je Spiel (7d33975). **Live prüfen mit Valheim.**
+- Left 4 Dead 2: **Der Hänger nach „Redownloading all lightmaps“ hängt an der Mikrofon-Anfrage.** Beim Verbinden mit der Karte öffnet Source das Mikrofon (`Voice_Init`), winecx fragt macOS und wartet ohne Zeitlimit (`dispatch_semaphore_wait`), und macOS verweigerte die Frage, weil `Nightforge Helper` kein `NSMicrophoneUsageDescription` hatte (tccd: alle 12 Läufe mit Ton am 7./8.11., im `-nosound`-Lauf keiner). Der „Stereo-Fix“ 8ecb223 war ein Ablesefehler: „Lord Hayne“ stammt aus dem `-nosound`-Lauf, `windows_speaker_config` 4 ist Stereo, 2 ist Mono. Korrektur: Nutzungstext in Helper und App, Schalter raus aus dem Profil. **Offen:** Live-Test (ohne besondere Startparameter Dead Center laden, die Frage von macOS beantworten, einmal „Erlauben“ oder „Nicht erlauben“); erst danach die Zeile in `docs/release-notes/v0.3.2.md` und im Entwurf ändern. Das Pad kann macOS' Frage nicht beantworten, bei gesenktem Vorhang steht auch kein Hinweis da.
+
+## 0.3.3: ganz oben
+
+- **DualSense-Touchpad als Mauszeiger** (Wunsch des Nutzers, 8.11.: „das brauchen wir unbedingt“): für alles, was heute noch Maus braucht, etwa Fenster von Steam und macOS-Fragen. `GCDualSenseGamepad` liefert Touchpad und Klick. Muss auch über fremden Fenstern wirken; Bedienungshilfen-Recht prüfen.
+- **Bildschirmtastatur für die Suche** bei erkanntem Controller (Nutzer, 8.11.; siehe `docs/ENTWURF-KONSOLE.md` auf `claude/konsolen-gefuehl-835e2e`, „Pad-Tastatur“). Erst Boards auf der Zeichenfläche.
+  - Vorbild Steam (Nutzer: „keine hakelige Tastatur“): Tippen mit zwei Daumen auf dem Trackpad, je Daumen ein Zeiger, Taste löst beim Herunterdrücken aus, Haptik je Taste, Schulter-Trigger als Klick (`TrackpadTypingTriggerAsClick`), Empfindlichkeit einstellbar. Auf dem DualSense: `touchpadPrimary`/`touchpadSecondary`, linke und rechte Hälfte je ein Zeiger, L2/R2 tippen. Löschen und Leerzeichen auf L1/R1, nicht auf X/Y (Steam-Nutzer klagen, dass der Daumen dafür das Trackpad verlässt). Stick und Steuerkreuz als Rückfall, QWERTZ, Treffer schon nach dem ersten Buchstaben.
+  - Andere Controller (Nutzer, 8.11.): eine Tastatur, die Eingabe je nach Controller. Ohne Touchpad steuert jeder Stick einen Zeiger auf seiner Hälfte, L2/R2 tippen; als Maus dient der rechte Stick. DualShock 4 wie DualSense. Haptik, wo vorhanden.
+- **Spieler 1 und 2 unterscheiden** (Nutzer, 8.11.): In Nightforge zeigen, welcher Controller welcher Spieler ist (`GCController.playerIndex`, Lichtleiste am DualSense, Kapseln unten mit Nummer). Für Windows-Spiele prüfen, ob die Reihenfolge in winebus/XInput steuerbar ist; bisher ungetestet, Test mit Sonic Mania.
+- **Live-Abschlusstests 8.11.:** Neues Spiel (REANIMAL), Overwatch, Steam ↔ Steam für Mac, Control/Wukong/OxyRail/ABZU und die Leistungsanzeige laufen.
+- **Beim Beenden von Overwatch und ABZU** kurz ein falsches Bild, der Vorhang kommt manchmal von der Seite herein, dabei ist der Desktop zu sehen (Nutzer: Ladescreen-Session).
+- **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`). Verdacht: SDL in winebus sperrt die System-Gesten der Controller. Prüfen, ob das schon in 0.3.1 so war.
+- **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): Flackern beim Start und Beenden von Overwatch, beim erneuten Start von Valheim direkt nach The Forest war kurz der Desktop zu sehen. Für 0.3.2 reicht der jetzige Stand. Grundlage: `docs/AUDIT-LADESCREEN.md`.
+
+## 8.11. mittags (staging-032, nicht gepusht)
+
+- **Zwei Controller in der Leiste** (d5c0316): je eine Kapsel mit Akku. Live gesehen am 8.11. (DualSense 35 % und 65 %).
+- **Nightforge neu starten** (Menü „Nightforge“, Einstellungen über „Komplett entfernen“): `steam-shutdown.sh` mit
+  `$11 = 1` wartet auf kein Spiel und keinen Download, beendet auch Steam für Mac (wartet bis 20 s), dann
+  `wineserver -k`, die Wine-Helfer und zuletzt `open` auf Nightforge. Nach einem Spiel in den letzten fünf Minuten
+  bleiben die 30 s für die Cloud-Spielstände. Gesperrt, solange ein Spiel läuft. **Live prüfen:** Neustart ohne Spiel,
+  einmal mit hängendem Mac-Steam-Dialog (Drawful 2), danach startet Nightforge von selbst und Steam frisch.
+- **Von der Startseite nehmen** (Variante A vom Board „Startseite gestalten“, vom Nutzer gewählt 8.11.): Schnellmenü-Eintrag auf der Startseite statt „Anheften“ (dort sinnlos, Nutzer 8.11.; in der Bibliothek bleibt „Anheften“/„Lösen“), `HomeRemovals` (`marks.offHome`, Spiel → Zeitpunkt). Zurück, sobald gespielt oder angeheftet; ein angeheftetes wird dabei gelöst; Rückgängig im Hinweis. **Live prüfen:** langer Klick auf ein Cover der Startseite, ☰ gehalten am Pad. **Für 0.3.3:** Variante C (Einstellungen › Startseite: Quellen an/aus, Reihenfolge der angehefteten).
+- **Erster Start jedes Spiels hing an Steams Controller-Hinweis** (8.11., REANIMAL; ShowInterstitials, `CurrentGamepadSteamInputOptIn`): Der Dialog bleibt unter Wine schwarz. Nightforge setzt in `localconfig.vdf`, Abschnitt WebStorage, „Nicht mehr anzeigen“ für die vier Hinweise je Spiel (`SteamStartNotes`), bei Steam-Start und nur mit Steam aus. **Live prüfen:** Nightforge neu starten, dann ein Spiel zum ersten Mal starten.
+- **Spielstände zwischen Mac- und Windows-Version** (Testsession, 8.11.): Dateinamen, die sich nur in der Schreibweise unterscheiden, gelten jetzt als eine Datei; vorher konnte der Ordner danach leer sein. `.DS_Store` zählt nicht mehr als Spielstand.
+- **Beenden-Skript wartete auf einen toten Download** (8.11.): It Takes Two lud im Windows-Steam, das für Mac-Steam beendet wurde; `downloading/1426210` mit StateFlags 1026 zählte weiter, Skript und Mac-Steam warteten bis zu 12 h. Ein Download zählt jetzt nur, solange sein Steam läuft. Nebenbei: Der It-Takes-Two-Download steht still, solange Mac-Steam angemeldet ist.
+- **Mac-Spiele mit mehreren Startarten** (Drawful 2: „Standalone“ oder Jackbox-Megapicker): Mac-Steam fragte, und
+  sein Fenster kam trotz `MacSteam.show()` nicht nach vorn („Bestätige im Steam-Fenster“, nichts zu sehen). Jetzt
+  `steam://launch/<id>/Option2` (Steams erste Mac-Option, wenn kein anderer ihren Typ hat; `steamui.dylib` kennt die
+  Namen). Warum Steams Frage-Fenster nicht nach vorn kam: Seine Fenster gehören „Steam Helper“ (`com.valvesoftware.steam.helper`, Agent-App), nicht `steam_osx`, und seit macOS 14 kommt eine App nur nach vorn, wenn die aktive ihr den Vortritt lässt. `MacSteam.show`/`ask` holen jetzt den Prozess mit Steams Fenster per `yieldActivation` + `activate` (wie bei Spielen). **Live 8.11.:** Drawful 2 startet ohne Frage (12:54, `steam://launch/442070/Option2`). Mit eigenen Startparametern (`steam://run`, Steam fragt) kam Steams Store nach vorn, aber keine Frage zu sehen: `open/main` legte den Store über das kleine Fenster. Jetzt bleibt `open/main` weg, wenn Steam auf die Startart wartet und ein kleines Steam-Fenster da ist; `show` schreibt Steams Fenster ins wine.log. **Für 0.3.3 prüfen:** Mac-Spiele mit mehreren Startarten vom Typ `none`/leer (Project Zomboid, Golf With Your Friends, Amnesia, Arma 3, 7 Days to Die) fragen weiter, `steam://launch` kennt dafür keinen Namen. Kandidat: `steam_osx -applaunch <id>`, das auch Argumente nimmt.
+  **Live prüfen:** Drawful 2 startet ohne Frage.
+
+## Audit 0.3.2 (8.11., `docs/AUDIT-0.3.2.md`)
+
+Behoben auf `claude/audit-032-723be8`: Overwatch ohne D3DMetal (fragt jetzt vor dem Start), Neustart bei hängendem Steam, „Spiel neu starten“ gegen das Spielende, Controller-Hinweis beim nächsten Spiel, signierter Helper, GOG-Preise außerhalb des Euro-Raums, feste Schrift auf `TypoCover`.
+**Für 0.3.3:** Profilfeld statt `D3DMetalSupply.needsRosettaLibrary`; A8–A13 aus dem Audit.
+
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
 
 Gebaut und mit Stand-ins getestet (`tests/SubprocessTest`, `tests/QuitScriptTest`, `tests/CompleteRemovalTest`), noch nicht in der
@@ -230,6 +273,26 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   Klären, ob der 11.18-Weg noch gebraucht wird. Unter winecx meldet das Log bei jedem Steam-Start
   `msync: up and running` (Test vom 28.10.), also ist dessen eigenes msync aktiv. Beide haben denselben Fehler beim
   Thread-Ende (unten „Engine-Arbeit“). Für winecx behebt ihn `enginefix` (Stück B).
+
+## Ladescreen-Audit (8.11.) – Zweig `claude/ladescreen-audit-2f71a4`, live prüfen
+
+Bericht und Live-Liste: `docs/AUDIT-LADESCREEN.md`. Behoben: schwarzes Schutzfenster galt als Bild (Overwatch 13:40), das
+Zeiger-Panel nahm Steam Helper die Tasten, Vorhang ab „Spielen“ auf beiden Steam-Wegen, Steams Store über seinen Dialogen,
+`MacSteam.hide` jetzt mit Helper, der Vorhang folgt dem Anzeigemodus, Esc auf dem Vorhang.
+Für 0.3.3: kein Ausweg vom Vorhang ohne Spielprozess (B2), Steams Frage auf dem Vorhang statt ohne ihn (B3, Board),
+Epic/GOG-Vorlauf unter den Vorhang (B4), Hinweise nehmen den Vorhang weg (B5), `GameStage` holt ein endendes Spiel zurück (B1).
+
+## Vorhang und Bühnenwache (0.3.2) – Zweig `claude/vorhang-032`, live prüfen
+
+- **Was war:** Nightforges Zeiger-Panel (`InputRouter.pointerOverGame`) nahm dem Spiel 50 ms die Tasten. Wine meldet das dem
+  Spiel als verlorenen Fokus, und Unity und Unreal minimieren sich dann im Vollbild (The Forest, 6.11. 21:53). Das Panel läuft
+  jetzt nie über einem Spiel mit Bild; `GameStage`/`LibraryModel.watchStage` holen ein verschwundenes Spiel zurück.
+- **Preis:** Mit dem Pad kann der Zeiger über einem Spiel stehen bleiben, das ihn nicht selbst versteckt, wenn das Bild kam,
+  bevor das Spiel 1 s vorne war. Offen: ein Weg ohne Tastenwegnahme. Anfangen bei `watchCurtain` (Zeiger-Block).
+- **Live offen:** ABZU verschwand erst 10–20 s nach dem Vorhang; nur die Log-Zeilen `Stage …`, `In front over the page`,
+  `Pointer: …` zeigen, ob das dieselbe Ursache war. Valheim: Ob die Seite über dem Spiel lag oder macOS Nightforge die Front
+  gab, ist nicht bewiesen; beide Wege sind jetzt abgefangen.
+- **Direct:** Nach dem Zurückholen stand die Metal-HUD auf Composited (The Forest). Noch nicht angegangen.
 
 ## Engine-Arbeit (ab 0.3.x, seit 2.11.)
 
@@ -730,6 +793,55 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
     erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
+## Launcher-Menü (0.3.2, Zweig `claude/launcher-032`)
+
+- **Gebaut nach dem Canvas vom 7.11.:** `LauncherState` ist der eine Zustand für beide Menüs (`Launchers.swift`), vier Karten und
+  Menü oben rechts in `LauncherViews.swift`, Bühne in `SignInStage.swift`. Tests: `tests/LauncherMenuTest`.
+- **Live offen:** Nichts davon lief in der echten App. Die Ansichten sind nur offscreen gerendert. Zu prüfen: Epic und GOG in
+  der Bühne (Tastatur im `WKWebView`, Zwei-Faktor, „Mit Google anmelden“), Battle.net-Fenster über dem Vorhang, B bei fremdem
+  Fenster vorn, Pad auf Karten und Menü, Erststart mit den Karten nach Steams Anmeldung.
+- **Fremde Fenster liegen, wo sie wollen:** Steam und Battle.net lassen sich ohne Bedienungshilfen-Recht nicht verschieben, ihr
+  echtes Fenster sitzt also nicht genau im Rahmen des Entwurfs. Epic und GOG sitzen genau dort.
+- **Battle.net-Anmeldung:** Der Client verrät sie nur im Log. Angemeldet heißt `Account manager state has changed to: Ready`, auch bei
+  gemerkter Anmeldung ohne Anmeldeseite. `UAuth: browser state changed: Login…` heißt, die Seite fragt; das spätere Wort zählt.
+  „Done“ und „None“ taugen nicht, sie wechseln während der Übergabe (Live-Test 7.11.). Ohne „Angemeldet bleiben“ fragt
+  er beim nächsten Start neu, die Karte zeigt dann „Abgemeldet“. Einen Kontonamen zeigt sie nicht: In den Dateien steht nur die Mail.
+- **Fenster in Nightforge (wartet aufs OK des Nutzers):** `CGWindowListCopyWindowInfo` liefert die Fensterrahmen von Battle.net ohne
+  Bedienungshilfen- und Bildschirmaufnahme-Recht (geprüft 7.11.). Die Bühne könnte ihren Rahmen also dorthin legen, wo das Fenster ist.
+- **Battle.net-Karten starten noch nicht:** Ist der Mac-Client angemeldet, verknüpft Nightforge Battle.net von selbst (wie Steam), bis
+  der Spieler „Trennen“ wählt. Die Spiele stehen dann in der Bibliothek, „Spielen“ verweist auf den Client.
+- **Beendigungen im wine.log:** Seit 7.11. steht jede Beendigung mit Auslöser dort (`[nightforge] Quit by …`, bei Apple Events mit
+  dem Absender, etwa `osascript`). Das Beenden im Live-Test 7.11. 21:20:45 war sauber, aber ohne Spur: vorher wurde nur ein
+  verweigertes Beenden geloggt.
+- **Abgemeldeter Store:** Die Karte bietet nur „Erneut anmelden“, „Trennen“ gibt es erst danach wieder über „Verwalten“.
+- **Keine Store-Logos in der App:** Die Kacheln zeigen den Buchstaben mit Farbring in einem eigenen Ton je Store (Canvas 7.11.,
+  `LauncherState.tint`). Spiele ohne Cover zeigen die Typo-Karte (`TypoCover.swift`), ohne fremde Bilder.
+- **Entschieden (8.11., Nutzer: bleibt), Bilder über Steam-Zwillinge:** Overwatch, Diablo IV und Call of Duty aus Battle.net holen ihr Logo weiter von Steams
+  CDN (`steamTwin` in `Artwork.remoteURLs`), wie vor dem Launcher-Menü.
+- **⧉ öffnet das kleine Menü (live offen):** View bzw. Create. Beim DualSense ist Create eine Bildschirmfoto-Geste von macOS.
+  Nightforge setzt sie nur ab, solange es selbst vorn ist (`preferredSystemGestureState = .disabled`), und gibt sie beim
+  Wechsel ins Spiel zurück. Der Header sagt, das sei „not guaranteed to be respected“: am DualSense prüfen, ob Create in
+  Nightforge das Menü öffnet und im Spiel weiter Bildschirmfotos macht.
+
+## Battle.net (0.3.2, Zweig `claude/battlenet-032`)
+
+- **Schritte 0–2 stehen:** `ProductDB` liest `product.db` nur lesend, `BattleNetLibrary` macht daraus Karten, Mac-Client
+  zuerst, der Windows-Client läuft in `Nightforge/BattleNet/Prefix`, nie in Steams Prefix. Noch startet keine Karte, „Spielen“
+  sagt das. Sichtbar werden die Spiele, sobald der Spieler Battle.net auf seiner Launcher-Karte verbindet (derselbe Schlüssel
+  `battleNetStore`, jetzt `BattleNetStore.link()`).
+- **Echte Daten (6.11.):** Hearthstone lief während des Downloads und danach durch den Parser; die Tests nutzen beide
+  Dateien, ohne Pfade, Sprache und Kontoland (`tests/BattleNetTest/fixtures`). `product.db` hält das Land des Kontos und der
+  IP in Feld 3.11, 3.12 und den Build-Tags: nie loggen. Während des Downloads steht nur `active_operation`, der Rest ist 0,
+  die Karte zeigt dann „Preparing download …“.
+- **Mac-Agent und externe Laufwerke:** Der Agent hat keinen Zugriff auf Wechselmedien und steht nicht in „Dateien und
+  Ordner“; die Installation auf die NVMe endete mit EPERM (BLZBNTAGT000002BF). Blizzards Mac-Spiele bleiben deshalb
+  auf der internen Platte, Nightforge schlägt für sie keinen Umzug vor und sagt das (`Game.moveNote`).
+- **Vor Schritt 4:** `Engine.killLeftovers` beendet jedes Wine-Programm aus Nightforges Engine-Ordnern, auch im eigenen
+  Prefix. Ein Steam-Neustart träfe also den Battle.net-Client: Ausnahme mit Test. „Nightforge vollständig entfernen“ muss
+  den wineserver von Battle.net beenden.
+- **DXMT-Lizenz:** Unser 0.80 (589adb7) steht unter MIT, die Angabe in `THIRD_PARTY_NOTICES.txt` stimmt. DXMTs `main` steht
+  inzwischen unter LGPL-2.1-or-later: Beim nächsten DXMT-Update den Hinweis ändern und die Quellen wie bei Wine mitliefern.
+
 ## Mac-Versionen
 
 - **Windows-Fallback** hat noch nie wirklich ausgelöst (keine Mac-Version ist bisher abgestürzt).
@@ -758,6 +870,22 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
     fällt; dann für Mac-Downloads von Steam nichts mehr anrechnen.
   - `EpicTest` und `GOGTest` liefen für die neue Größe nicht (am 3.11. hing `ps`). Sie haben noch keinen Fall für
     einen laufenden Download.
+
+## Schnellmenü und „Später spielen“ (0.3.2) – Zweig `claude/amazing-archimedes-75496a`, in der echten App prüfen
+
+Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Aktionsliste steht an einer Stelle
+(`GameMenu.swift`), Rechtsklick und Schnellmenü zeigen dieselbe; ein neuer Eintrag ist ein `case` dort. Zu prüfen:
+
+- **Langer Klick** (`LongClick`, 0,45 s): öffnet das Menü auf einer Karte in Bibliothek und Startseite, ein normaler
+  Klick wählt und öffnet weiter wie bisher, und das Loslassen danach löst nichts aus. Synthetische Klicks erreichen
+  SwiftUI-Gesten nicht, das geht nur von Hand.
+- **Knopf auf der Karte:** „···“ unten in der Mitte beim Überfahren, auch auf der kleinsten Größe (116 pt) neben Controller- und
+  Download-Zeichen; auf der Startseite nur auf der vorderen Karte.
+- **Pad:** ☰ gehalten öffnet das Menü, kurz die Optionen (jetzt beim Loslassen), B schließt, der Rahmen bleibt drin und
+  geht danach zurück. Dazu ☰ + ⧉ an einem Pad ohne Stick-Tasten: öffnet das Overlay, nicht das Menü.
+- **Platz:** Menü rechts oder links neben der Karte, am Fensterrand; längste deutsche Zeile in 300 pt.
+- **Chip „Später spielen“** in der Bibliothek: erscheint ab dem ersten Spiel, bleibt beim Filtern stehen, geht aus,
+  wenn das letzte Spiel die Liste verlässt.
 
 ## Controller
 
@@ -882,6 +1010,8 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 ## Darstellung und Leistung
 
 - **Die Optionen eines Steam-Spiels lesen `appinfo.vdf` auf dem Main-Thread** (Release-Review C4, für 0.3.2).
+  - **Teilweise erledigt (8.11., f0d1adc):** Die Datei wird nur noch einmal pro Änderung gelesen (bis 64 MB im
+    Speicher), nicht mehr für jedes Spiel neu. Das Auswerten je Spiel läuft weiter auf dem Main-Thread.
   - `SettingsViews` holt `SteamProgram.storeProgram` im `init`.
   - `SteamCatalog.cachedAppInfo` merkt sich das Ergebnis je App-ID, liest die Datei für jedes andere Spiel also ganz
     neu.
@@ -1876,6 +2006,16 @@ Bekannte Lücken (bewusst, siehe Roadmap 7.3):
   Das GOG-Spiel braucht Steam nicht, aber das Stoppen der Windows-Steam kann die Wine-Sitzung beenden, in der es läuft
   (`Engine.stopSteam` → `stopAll`). Zulassen hieße: Steam für Mac meldet die Windows-Steam ab, ohne sie zu stoppen – und
   ein späterer Neustart der Windows-Steam (`restartStuckSteam`) darf dann das laufende Spiel nicht treffen. Text stimmt nicht.
+
+### Suche über alle Stores (Zweig `claude/zen-wozniak-b16b21`, für 0.3.2)
+
+- **Vor dem Release:** Der Nutzer entscheidet über GOGs Nutzungsbedingungen (die gemeldete Klausel zu automatisiertem
+  Zugriff ist unbestätigt). Abschalten geht an einer Stelle: `GOGStore.search`.
+- **Battle.net:** `claude/battlenet-032` war beim Bau nicht auf `main`. Nach dem Merge dort `search` aus der Titeltabelle
+  in `BattleNetLibrary.swift` ergänzen, ohne Netz.
+- **Kontextmenü:** `GameContextMenu` sagt bei GOG-Treffern noch „Im Steam-Store ansehen“ (die Session `schnellmenue`
+  arbeitet dort). Nach deren Merge `game.provider.viewInStore` nehmen und den Text „View in Steam Store“ streichen.
+- **Live prüfen:** Treffer von GOG im Raster, Doppel-Karte mit „Auch im GOG-Store“, Epic-Link. Bisher nur Testreihe und Build.
 
 ### Trackpad-Gesten (Branch `claude/musing-haslett-71514d`, Roadmap 5.5)
 

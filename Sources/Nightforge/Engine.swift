@@ -49,9 +49,13 @@ enum Engine {
     /// Steam's web UI (CEF) paints a black window under Wine on macOS unless it renders in software
     /// in a single process. The single-process part is done by the steamwebhelper wrapper, which
     /// -noverifyfiles keeps Steam from "repairing" away; the CEF sandbox needs Windows features Wine lacks.
+    /// Friends and chat are web views of their own that Steam keeps up in the background, rendered in
+    /// software like the rest; Nightforge never shows them, so they stay off (-nofriendsui, -nochatui).
+    /// Sign-in, downloads and cloud saves don't go through them. Read at Steam's start only: a Steam that
+    /// runs takes them at its next start, no restart needed.
     static let steamArguments = [
         "-no-cef-sandbox", "-cef-single-process", "-noverifyfiles",
-        "-cef-disable-gpu", "-cef-disable-gpu-compositing",
+        "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-nofriendsui", "-nochatui",
     ]
     /// `steamArguments` for a start of Steam. Before its first update has put the client in place,
     /// without -noverifyfiles: told not to verify, a bootstrapper with nothing installed found
@@ -64,7 +68,7 @@ enum Engine {
 
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
-    static let steamConfigVersion = 9
+    static let steamConfigVersion = 10
     static var gameEnvironment: [String: String] {
         var env = [
             // Compile shaders in the background instead of stalling the frame that first needs them.
@@ -149,6 +153,8 @@ enum Engine {
             + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
+            // Setting D3DMetal up gives Steam a variable it only takes at its start (`environment`).
+            + (d3dMetalReady ? "-rosetta" : "")
     }
 
     /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
@@ -964,9 +970,13 @@ enum Engine {
     /// It gives up if Nightforge is opened again in the meantime. Steam for Mac goes the same way
     /// when Nightforge started it. A game that was running when Nightforge quit brings Nightforge
     /// back when it ends, so the player lands in the launcher again, controller in hand.
-    static func scheduleSteamShutdown() {
+    /// "Restart Nightforge" (LibraryModel.restartNightforge): the script ends everything at once, Steam
+    /// for Mac too, and opens Nightforge again once the session is down.
+    nonisolated(unsafe) static var restarting = false
+
+    static func scheduleSteamShutdown(restart: Bool = false) {
         let wine = isSteamInstalled ? sessionWine() ?? installedWineNow() : nil
-        let macSteam = MacSteam.endsWithNightforge()
+        let macSteam = restart || MacSteam.endsWithNightforge()
         let macLibrary = FileManager.default.fileExists(atPath: MacSteam.steamapps.path) ? MacSteam.steamapps.path : ""
         let script = supportDir.appendingPathComponent("steam-shutdown.sh")
         let text = steamShutdownScript
@@ -978,6 +988,7 @@ enum Engine {
         let sandbox = WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
                              String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))] + sandbox
+            + [restart ? "1" : "0"]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -990,6 +1001,7 @@ enum Engine {
     /// game last ran or was asked to start (`lastGameActivity`, epoch seconds): only within five minutes of
     /// that does it wait 30 s for the cloud saves before it ends Steam. $9 and $10 Wine's sandbox helper and
     /// profile (WineSandbox; review of 3.11.2026: it ran steam.exe from the prefix outside the sandbox).
+    /// $11 "1" for a restart: no waiting for games or downloads, then Nightforge opens again (8.11.).
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
     /// counts a download only if it isn't paused. A game that starts while Steam is being ended (from Steam's
     /// window) sends it back to waiting, never under `wineserver -k`. Its process is in `steam-shutdown.pid`
@@ -1007,12 +1019,30 @@ enum Engine {
         LAST_GAME="${8:-0}"
         recent_game() { [ $(( $(date +%s) - LAST_GAME )) -lt 300 ]; }
         SANDBOX="$9"; PROFILE="${10}"
+        # RESTART is 1 for "Restart Nightforge": no game or download is waited for (Nightforge offers it only
+        # with no game running; a hung one ends with the session), Steam for Mac goes too, and Nightforge
+        # opens again once everything is down. A game that ran in the last five minutes still gets its 30 s
+        # for the cloud saves.
+        RESTART="${11:-0}"
+        finish() { [ "$RESTART" = 1 ] && [ -n "$APP" ] && open "$APP"; exit 0; }
         # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
         # change, so with the switch on it runs inside too, as every other Wine start does. Switched on
         # without the helper, nothing of Windows starts; the session still ends below (wineserver -k).
         wine_program() {
           [ "$SANDBOX" = "-" ] && return 1
           if [ -n "$SANDBOX" ]; then "$SANDBOX" "$PROFILE" "$WINE" "$@"; else "$WINE" "$@"; fi
+        }
+        # A request to a Steam that may not answer: ended after HANG_LIMIT seconds (settable for the test), so
+        # the script goes on to what ends it anyway. Hanging here, it never reached `open` after a restart.
+        HANG_LIMIT="${NIGHTFORGE_HANG_LIMIT:-30}"
+        limited() {
+          local pid watch status
+          "$@" & pid=$!
+          ( /bin/sleep "$HANG_LIMIT"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 & watch=$!
+          wait "$pid"
+          status=$?
+          kill "$watch" 2>/dev/null
+          return "$status"
         }
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
@@ -1063,7 +1093,7 @@ enum Engine {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
           has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
           has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
-          [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
+          [ -n "$MAC_STEAMAPPS" ] && has_process "/steamapps/common/" && return 0         # a Mac game, in any library (Windows paths have backslashes)
           runs_from_game_folder && return 0                                               # one a launcher started
           return 1
         }
@@ -1081,10 +1111,40 @@ enum Engine {
           done
           return 1
         }
+        # Every steamapps folder of a Steam: its own and what its libraryfolders.vdf lists (an external
+        # drive's). Windows paths arrive as Z:\\Volumes\\…, with the backslashes doubled.
+        library_folders() {
+          printf '%s\n' "$1"
+          sed -n 's/.*"path"[[:space:]]*"\(.*\)".*/\1/p' "$1/libraryfolders.vdf" 2>/dev/null | while IFS= read -r path; do
+            case "$path" in
+              /*) ;;
+              *)
+                path="$(printf '%s' "$path" | sed -e 's|\\\\|/|g' -e 's|\\|/|g')"
+                case "$path" in
+                  [zZ]:/*) path="/${path#??/}" ;;
+                  [cC]:/*) path="$PREFIX/drive_c/${path#??/}" ;;
+                  ?:/*) path="$PREFIX/dosdevices/$(printf '%s' "${path%%:*}" | tr 'A-Z' 'a-z'):/${path#??/}" ;;
+                  *) continue ;;
+                esac
+                ;;
+            esac
+            printf '%s\n' "$path/steamapps"
+          done
+        }
+        downloading_anywhere() {
+          local folder IFS=$'\n'
+          for folder in $(library_folders "$1"); do
+            downloading_in "$folder" && return 0
+          done
+          return 1
+        }
+        # A download counts only while its Steam runs: one Steam ends when the other takes over (one sign-in
+        # per account), and its download stops there. Counted anyway, it kept the script and Steam for Mac
+        # waiting for 12 hours (It Takes Two, 8.11.).
         busy() {
           if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
-          [ -n "$WINE" ] && downloading_in "$STEAMAPPS" && return 0
-          [ -n "$MAC_STEAMAPPS" ] && downloading_in "$MAC_STEAMAPPS" && return 0
+          [ -n "$WINE" ] && steam_running && downloading_anywhere "$STEAMAPPS" && return 0
+          [ -n "$MAC_STEAMAPPS" ] && pgrep -qx steam_osx && downloading_anywhere "$MAC_STEAMAPPS" && return 0
           return 1
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
@@ -1093,7 +1153,7 @@ enum Engine {
           for i in $(seq 1 100); do kill -0 "$QUITTING" 2>/dev/null || break; sleep 0.1; done
         fi
         # The game ends: back to Nightforge (gone for three looks, so a launcher handing over doesn't count).
-        if [ -n "$APP" ] && game_running; then
+        if [ "$RESTART" != 1 ] && [ -n "$APP" ] && game_running; then
           gone=0
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
@@ -1112,29 +1172,40 @@ enum Engine {
         # game with it.
         while true; do
           while true; do
+            if [ "$RESTART" = 1 ]; then recent_game && sleep 30; break; fi
             while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0
             busy || break
           done
           if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
-            osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
+            limited osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
+            if [ "$RESTART" = 1 ]; then
+              for i in $(seq 1 20); do pgrep -qx steam_osx || break; sleep 1; done
+              # Still there: it hangs on something (a dialog nobody answers), and that's what the restart is for.
+              if pgrep -qx steam_osx; then
+                pkill -x steam_osx 2>/dev/null
+                for i in $(seq 1 5); do pgrep -qx steam_osx || break; sleep 1; done
+                pkill -9 -x steam_osx 2>/dev/null
+              fi
+            fi
           fi
-          [ -n "$WINE" ] || exit 0
+          [ -n "$WINE" ] || finish
           # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
           # away): asked again before each step that would end the session.
           reopened && exit 0
           if steam_running; then
             # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
-            wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
+            limited wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
             for i in $(seq 1 20); do
               steam_running || break
               reopened && exit 0
-              game_running && continue 2
+              [ "$RESTART" != 1 ] && game_running && continue 2
               sleep 1
             done
           fi
           reopened && exit 0
+          [ "$RESTART" = 1 ] && break
           game_running || break
         done
         "$(dirname "$WINE")/wineserver" -k
@@ -1143,6 +1214,7 @@ enum Engine {
         # Wine's only, which map the engine's files (Nightforge's downloaders work there too).
         is_wine() { lsof -a -p "$1" -d txt -Fn 2>/dev/null | grep -qE '/Components/(winecx|wine|wine-staging)/'; }
         lsof -a -d cwd -Fpn 2>/dev/null           | awk -v root="$PREFIX" '/^p/ { pid = substr($0, 2) } /^n/ { if (index(substr($0, 2), root) == 1) print pid }'           | while read -r pid; do is_wine "$pid" && kill -9 "$pid" 2>/dev/null; done
+        finish
         """#
 
     /// Installed engine binary, if setup has got that far. While the engine the component list
@@ -2145,7 +2217,7 @@ enum Engine {
             }
             let info: [String: Any] = [
                 "CFBundleExecutable": "wine",
-                "CFBundleIdentifier": "io.github.lordhayne.nightforge.game",
+                "CFBundleIdentifier": gameBundleID,
                 "CFBundleName": "Nightforge Game",
                 "CFBundleIconFile": "AppIcon",
                 "CFBundlePackageType": "APPL",
@@ -2206,6 +2278,8 @@ enum Engine {
         }
     }
 
+    /// The bundle Wine's windowed programs run as: every Windows game, and Steam's helpers too.
+    static let gameBundleID = "io.github.lordhayne.nightforge.game"
     private static let gameBundleName = "Nightforge Game.app"
     private static let lsregister = URL(fileURLWithPath:
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
@@ -2283,6 +2357,14 @@ enum Engine {
         // Gecko/Mono installers would otherwise pop up dialogs during setup.
         env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
         env["PATH"] = wine.deletingLastPathComponent().path + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+        // With this, winecx registers every Windows module with Rosetta through Apple's library
+        // (CW HACK 22434, dlls/ntdll/unix/loader.c). CrossOver and Recall set it; without it,
+        // Overwatch's loader hangs at start with no window (7.11.2026). It comes with D3DMetal.
+        let rosettaLibrary = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("lib/external/libd3dshared.dylib")
+        if FileManager.default.fileExists(atPath: rosettaLibrary.path) {
+            env[GameEnvironment.rosettaLibrary] = rosettaLibrary.path
+        }
         return env
     }
 

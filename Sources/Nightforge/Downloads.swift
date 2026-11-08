@@ -82,6 +82,7 @@ struct DownloadsPanel: View {
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(GlassButtonStyle(shape: Circle()))
+                .accessibilityLabel(L10n.t("Close"))
                 .help(L10n.t("Close"))
                 .padFocus("downloads.close", cornerRadius: 14, activate: { model.closeDownloads() })
             }
@@ -229,7 +230,7 @@ private struct DownloadCover: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
+            TypoCover.background(width: 36)
             if let cover {
                 Image(nsImage: cover).resizable().scaledToFill()
             }

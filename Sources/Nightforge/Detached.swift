@@ -203,9 +203,13 @@ final class DetachedProcess: @unchecked Sendable {
     /// Set when the helper didn't start a program; the rest of this run does without it.
     private static var helperFailed = false
 
-    /// The helper as an app of its own in Nightforge's data folder, made here rather than shipped
-    /// inside Nightforge.app: a copy from the download would carry its quarantine flag, and macOS
-    /// would ask for "Open Anyway" all over again. Rebuilt when the helper or its Info.plist change.
+    /// The finished helper app inside Nightforge.app (build.sh), signed with Nightforge's certificate.
+    static var shippedHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/\(helperName)", isDirectory: true)
+
+    /// The helper as an app of its own in Nightforge's data folder. Copied from the signed one inside
+    /// Nightforge.app when there is one: macOS knows it by the certificate then and asks for a permission
+    /// (removable volumes) once, not again after every build (8.11.). The copy's quarantine flag goes,
+    /// it isn't part of the signature. Else made here from the program and signed ad hoc, as before.
     static func helperApp() -> URL? {
         appLock.withLock {
             guard !helperFailed else { return nil }
@@ -215,6 +219,7 @@ final class DetachedProcess: @unchecked Sendable {
     }
 
     private static func makeHelperApp() -> URL? {
+        if FileManager.default.fileExists(atPath: shippedHelper.path), let app = copyShippedHelper() { return app }
         let fm = FileManager.default
         guard let helperProgram, let binary = try? Data(contentsOf: helperProgram) else { return nil }
         let info: [String: Any] = [
@@ -225,6 +230,10 @@ final class DetachedProcess: @unchecked Sendable {
             "CFBundlePackageType": "APPL",
             // Never a window or a Dock icon of its own; the programs it starts show theirs.
             "LSUIElement": true,
+            // macOS holds the helper responsible for the games it starts. Without this text it refuses a
+            // game's question for the microphone, and winecx then waits for an answer that doesn't come:
+            // Left 4 Dead 2 hung loading every map, where Source opens the microphone (8.11.).
+            "NSMicrophoneUsageDescription": "Voice chat in your games uses the microphone.",
         ]
         guard let plist = try? PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0) else { return nil }
         let stamp = Data(SHA256.hash(data: binary + plist).map { String(format: "%02x", $0) }.joined().utf8)
@@ -253,6 +262,41 @@ final class DetachedProcess: @unchecked Sendable {
             for path in [fresh.path, executable.path] { removexattr(path, "com.apple.quarantine", XATTR_NOFOLLOW) }
             // Signed as a bundle, so macOS knows it by its name when it asks for a permission for it.
             Subprocess.run("/usr/bin/codesign", ["--force", "--sign", "-", fresh.path], timeout: 30)
+            if fm.fileExists(atPath: app.path) {
+                _ = try fm.replaceItemAt(app, withItemAt: fresh)
+            } else {
+                try fm.moveItem(at: fresh, to: app)
+            }
+            return app
+        } catch {
+            try? fm.removeItem(at: fresh)
+            return nil
+        }
+    }
+
+    /// What makes a helper app that one: its program and the seal of its signature.
+    private static func helperIdentity(_ app: URL) -> Data? {
+        guard let binary = try? Data(contentsOf: app.appendingPathComponent("Contents/MacOS/nightforge-helper")),
+              let seal = try? Data(contentsOf: app.appendingPathComponent("Contents/_CodeSignature/CodeResources"))
+        else { return nil }
+        return binary + seal
+    }
+
+    /// The shipped, signed helper copied into the data folder; again only when the copy there differs.
+    /// Compared with the copy itself: another Nightforge (an older one still in /Applications) can have
+    /// built its own there since, and macOS would ask again for that one.
+    private static func copyShippedHelper() -> URL? {
+        let fm = FileManager.default
+        let app = home.appendingPathComponent(helperName, isDirectory: true)
+        guard let shipped = helperIdentity(shippedHelper) else { return nil }
+        if helperIdentity(app) == shipped { return app }
+        // Copied beside the old one and swapped in: a helper still running from it keeps its files.
+        let fresh = home.appendingPathComponent(".\(helperName)-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try fm.createDirectory(at: home, withIntermediateDirectories: true)  // a first start may be this early
+            try fm.copyItem(at: shippedHelper, to: fresh)
+            let items = [fresh] + ((fm.enumerator(at: fresh, includingPropertiesForKeys: nil)?.allObjects as? [URL]) ?? [])
+            for item in items { removexattr(item.path, "com.apple.quarantine", XATTR_NOFOLLOW) }
             if fm.fileExists(atPath: app.path) {
                 _ = try fm.replaceItemAt(app, withItemAt: fresh)
             } else {

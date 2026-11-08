@@ -40,6 +40,7 @@ struct GameOptionsSheet: View {
         case .epic: relative = EpicStore.executable(of: game.gameID.id)
         case .gog: relative = GOGStore.executable(of: game.gameID.id, in: game.installDir)
         case .steam: relative = SteamProgram.storeProgram(SteamCatalog.launchEntries(appID: game.appID, steamRoot: game.steamRoot))
+        case .battlenet: relative = nil
         }
         return relative.map { game.installDir.appendingPathComponent($0.replacingOccurrences(of: "\\", with: "/")) }
     }

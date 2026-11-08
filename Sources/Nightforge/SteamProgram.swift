@@ -61,6 +61,17 @@ enum SteamProgram {
         return .program(relative)
     }
 
+    /// The launch option type Steam for Mac starts without asking (steam://launch/<id>/<type>): with more
+    /// than one option for macOS on the public branch, steam://run shows Steam's choice (Drawful 2:
+    /// standalone or the Jackbox Megapicker, 8.11.). Steam's first one, when no other shares its type.
+    /// Nil when Steam wouldn't ask, or the type has no name steam://launch takes ("default", "none").
+    static func macLaunchType(_ entries: [SteamCatalog.LaunchEntry]) -> String? {
+        let offered = entries.filter { $0.betaKey.isEmpty }
+        guard offered.count > 1, let first = offered.first, let type = types[first.type.lowercased()],
+              offered.filter({ $0.type.lowercased() == first.type.lowercased() }).count == 1 else { return nil }
+        return type
+    }
+
     /// steam://launch/<id>/<type>, for Steam's command line.
     static func url(appID: Int, type: String) -> String { "steam://launch/\(appID)/\(type)" }
 

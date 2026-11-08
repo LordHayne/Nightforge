@@ -13,7 +13,7 @@ enum InstallState: Hashable {
     case notInstalled
     /// Steam is downloading it; nil while Steam hasn't worked out the size yet.
     case downloading(Double?)
-    /// Not owned: a hit from the Steam store search.
+    /// Not owned: a hit from a store's search.
     case inStore
 }
 
@@ -96,8 +96,11 @@ struct Game: Identifiable, Hashable {
     /// Store hits only: price as shown in the store, and the Metacritic score.
     var storePrice: String?
     var metascore: Int?
-    /// … and it costs nothing: Steam adds its licence when asked to install it, as for a demo.
+    /// … and it costs nothing: Steam adds its licence when asked to install it, as for a demo. Not
+    /// for another store's hits: those are taken on their store page.
     var storeFree = false
+    /// … and the address of its page, in a store other than Steam (whose pages go by the app ID).
+    var storePage: URL?
     /// A demo, standing in for the game it's the demo of (that game's app ID): the account doesn't own it.
     var demoOf: Int?
     /// … and Steam still has to add the demo's free licence to the account, which takes one click in Steam.
@@ -153,6 +156,8 @@ struct Game: Identifiable, Hashable {
         case .steam: return "\\steamapps\\common\\\(installDirName)\\"
         case .epic: return "\\Epic Games\\\(installDirName)\\"
         case .gog: return "\\GOG Games\\\(installDirName)\\"
+        // Wherever the client put it: `installDirName` is the whole path below the drive (BattleNetLibrary).
+        case .battlenet: return "\\\(installDirName)\\"
         }
     }
     /// Its files are in Nightforge's own folder (the Windows environment, GOG's Mac versions), not
@@ -543,7 +548,7 @@ enum LibraryScanner {
             installDir: steamapps.appendingPathComponent("common/\(installDirName)", isDirectory: true),
             sizeOnDisk: install == .installed
                 ? state["sizeondisk"]?.string.flatMap { Int64($0) } ?? 0
-                : Int64(toDownload),
+                : toDownload.clampedBytes,
             lastPlayed: played(usage[appID], installed: install == .installed,
                                installedAt: state["lastupdated"]?.string.flatMap { Double($0) }
                                    .flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil }),
@@ -551,14 +556,14 @@ enum LibraryScanner {
         )
         game.install = install
         game.installDirName = installDirName
-        if install != .installed, toStage > toDownload { game.installedSize = Int64(toStage) }
+        if install != .installed, toStage > toDownload { game.installedSize = toStage.clampedBytes }
         if install == .installed {
             game.pendingUpdate = UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
                                              targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string).pending
         }
         // UpdateResult 12: Steam's "not enough disk space".
         if flags & 4 == 0, state["updateresult"]?.string == "12" {
-            game.downloadNeedsSpace = Int64(max(toDownload, toStage))
+            game.downloadNeedsSpace = max(toDownload, toStage).clampedBytes
         }
         return game
     }
@@ -810,7 +815,7 @@ struct UpdateState: Equatable {
 
     /// What's left to download for it; 0 while Steam hasn't worked the size out.
     var pending: Int64? {
-        isPending ? Int64(max(0, toDownload - downloaded)) : nil
+        isPending ? (toDownload - downloaded).clampedBytes : nil
     }
 
     /// Steam is downloading or applying it right now.
@@ -869,5 +874,14 @@ enum StagingSizes {
     /// The next look measures again (a test changing a folder's files right after a look).
     static func forget() {
         measured.withLock { $0.removeAll() }
+    }
+}
+
+extension Double {
+    /// A byte count from a manifest as a whole number: 0 up to Int64's largest. `Int64(_:)` traps past it,
+    /// and on nan and inf (Double("inf") parses), so one damaged file would crash every scan.
+    var clampedBytes: Int64 {
+        guard isFinite, self > 0 else { return 0 }
+        return self >= 9.2e18 ? .max : Int64(self)
     }
 }

@@ -6,7 +6,10 @@ import SwiftUI
 final class LibraryModel: ObservableObject {
     /// Everything the scan found: each store's entry of a game on its own.
     @Published private(set) var allGames: [Game] = [] {
-        didSet { mergeCards() }
+        didSet {
+            ownedGames = nil
+            mergeCards()
+        }
     }
     /// One card per game: `allGames` with a game from several stores merged (DuplicateGames).
     @Published private(set) var cards: [Game] = []
@@ -23,6 +26,7 @@ final class LibraryModel: ObservableObject {
         didSet {
             guard searchText != oldValue else { return }
             libraryMenu = nil
+            closeQuickMenu()
             // Hits show in the library, wherever the search started.
             if !searchText.isEmpty, route != .library {
                 rememberSelection()
@@ -32,9 +36,22 @@ final class LibraryModel: ObservableObject {
             searchStore()
         }
     }
-    /// Steam store hits for the current search, games the account doesn't own yet.
+    /// The stores' hits for the current search, each game once.
     @Published private(set) var storeResults: [Game] = []
+    /// Each store's hits, as they came (`searchStore`).
+    private var storeFound: [Provider: [StoreHit]] = [:]
+    /// Steam's info for its hits: their covers and controller support.
+    private var storeInfos: [Int: GameInfo] = [:]
     private var storeSearch: Task<Void, Never>?
+    private var storeCovers: Task<Void, Never>?
+    /// What the player has, once a search has asked: kept while the library doesn't change.
+    private var ownedGames: OwnedGames?
+    private var ownedIndex: OwnedGames {
+        if let ownedGames { return ownedGames }
+        let index = OwnedGames(allGames)
+        ownedGames = index
+        return index
+    }
     /// Bumped to move keyboard focus into the search field in the library's header (⌘F, /).
     @Published private(set) var searchFocusRequest = 0
     /// A focus request the field hasn't taken yet: it may only appear with the library.
@@ -45,7 +62,11 @@ final class LibraryModel: ObservableObject {
             guard route != oldValue else { return }
             history.moved(from: oldValue, to: route, by: historyStep)
             libraryMenu = nil
+            quickMenu = nil
+            quickMenuReturn = nil
             lightbox = nil
+            launcherMenuOpen = false
+            launcherMenuReturn = nil
             // The pad's highlight stays with the level it was on (a chip kept behind a game's page).
             PadFocus.shared.clear()
         }
@@ -59,9 +80,12 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var homeStartersFrom: Int?
     /// On Home, the "All games" tile after the rail is selected instead of a game.
     @Published private(set) var homeOnAllGames = false
-    /// Games hidden from the library and pinned to Home (GameMarks).
+    /// Games hidden from the library, pinned to Home and on the Play Later list (GameMarks).
     @Published private(set) var hiddenGames = GameMarks.load(.hidden)
     @Published private(set) var pinnedGames = GameMarks.load(.pinned)
+    /// Taken off Home until played again (HomeRemovals).
+    @Published private(set) var offHome = HomeRemovals.load()
+    @Published private(set) var laterGames = GameMarks.load(.later)
     /// The library shows only the hidden games, to bring them back.
     @Published private(set) var showingHidden = false
     /// What the library grid shows and how it's ordered (only the library applies them).
@@ -70,6 +94,10 @@ final class LibraryModel: ObservableObject {
     }
     /// The list one of the library's chips opened (stores, order, filters).
     @Published var libraryMenu: LibraryMenu?
+    /// The game (`Game.id`) whose quick menu is open (GameMenu.swift).
+    @Published var quickMenu: String?
+    /// What the pad had highlighted when the quick menu opened.
+    var quickMenuReturn: String?
     /// A game's screenshot shown big over the window.
     @Published var lightbox: Lightbox?
     /// The game each level had selected, so going back to it finds it there again.
@@ -178,8 +206,8 @@ final class LibraryModel: ObservableObject {
     @Published var controllerConnected = false
     /// The buttons of the controller in use, as that controller labels them (InputRouter).
     @Published var padSymbols = PadSymbols()
-    /// The controller in use and its battery (InputRouter), for the hint bar.
-    @Published var controllerStatus: ControllerStatus?
+    /// Every connected controller with its battery, one capsule each in the hint bar.
+    @Published var controllerStatuses: [ControllerStatus] = []
     /// A newer Nightforge release, offered with one click in the top bar.
     @Published private(set) var availableUpdate: AppUpdate?
     @Published private(set) var updating = false
@@ -197,11 +225,33 @@ final class LibraryModel: ObservableObject {
     let macSteamPrep = MacSteamPrep()
     private var setupChanges: AnyCancellable?
 
+    /// The stores as both launcher menus show them (LauncherState), in their own order.
+    @Published var launchers = Provider.allCases.map { LauncherState($0) }
+    var launcherRefresh: Task<Void, Never>?
+    var launcherUpdate: Task<Void, Never>?
+    /// What the two clients' files said last.
+    var launcherClients = LauncherClients()
+    /// The small menu at the top right.
+    @Published var launcherMenuOpen = false
+    var launcherMenuReturn: String?
+    /// The store whose card was last used: the highlight comes back to it.
+    var lastLauncher: Provider?
+    /// "Manage" on a store's card.
+    @Published var managedLauncher: Provider?
+    /// The store signing in on the curtain (SignInStage).
+    @Published var signingIn: Provider? {
+        didSet { if signingIn != oldValue { refreshLaunchers() } }
+    }
+    /// Waits for a client's own window to be through.
+    var signInWatch: Task<Void, Never>?
+    private var storeChanges: [AnyCancellable] = []
+
     /// The stores the library comes from (7.1); a game's own store downloads, removes and starts it.
     let steam = SteamStore()
     let epic = EpicStore()
     let gog = GOGStore()
-    var stores: [StoreProvider] { [steam, epic, gog] }
+    let battleNet = BattleNetStore()
+    var stores: [StoreProvider] { [steam, epic, gog, battleNet] }
 
     func store(for game: Game) -> StoreProvider {
         stores.first { $0.provider == game.provider } ?? steam
@@ -222,6 +272,11 @@ final class LibraryModel: ObservableObject {
             guard let self, self.setup.isActive, !self.setup.isReplay else { return }
             self.macSteamPrep.start()
         }
+        // The four cards after the sign-in: Steam's window had the front.
+        setup.onLaunchers = { [weak self] in
+            self?.comeForward()
+            self?.refreshLaunchers()
+        }
         setup.onClosed = { [weak self] in
             guard let self else { return }
             self.macSteamPrep.abandon()
@@ -233,6 +288,8 @@ final class LibraryModel: ObservableObject {
             }
         }
         setupChanges = setup.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        storeChanges = [epic.objectWillChange.sink { [weak self] _ in self?.storeChanged() },
+                        gog.objectWillChange.sink { [weak self] _ in self?.storeChanged() }]
         epic.changed = { [weak self] in self?.reload(quiet: true) }
         watchDrives()
         epic.downloadFailed = { [weak self] name, reason, addOn in
@@ -284,6 +341,8 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(3))  // after the window and Steam got going
             availableUpdate = await Updater.check()
         }
+        // Continue Playing: whatever the stage gave up on, the player wants the game now.
+        GameOverlay.resumed = { [weak self] in self?.stage.again() }
         // Where the page behind a game goes when Nightforge comes to the front: behind Nightforge's
         // window while the game shows its own, over it a moment longer when the game is ending.
         GameBackdrop.gameShowsWindow = { [weak self] in
@@ -295,9 +354,11 @@ final class LibraryModel: ObservableObject {
             MainActor.assumeIsolated {
                 self?.reload(quiet: true)
                 self?.refreshStores()
+                self?.refreshLaunchers()
             }
         }
         refreshStores()
+        refreshLaunchers()
     }
 
     // MARK: - Stores
@@ -317,30 +378,39 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Epic's sign-in page in its own window; its code goes to legendary.
+    /// Epic's sign-in page on the stage; its code goes to legendary.
     func connectEpic() {
-        guard !epic.connecting else {
-            EpicSignIn.bringToFront()
+        if !epic.connecting {
+            epic.connecting = true
+            Task { await Legendary.prepare() }
+        }
+        signingIn = .epic
+    }
+
+    /// A store's page on the stage is through: its code, or nil when the player called it off.
+    func signInPageDone(_ provider: Provider, code: String?) {
+        signingIn = nil
+        switch provider {
+        case .epic: finishEpicSignIn(code)
+        case .gog: finishGOGSignIn(code)
+        case .steam, .battlenet: break
+        }
+    }
+
+    private func finishEpicSignIn(_ code: String?) {
+        guard let code else {
+            epic.connecting = false
             return
         }
-        epic.connecting = true
-        Task { await Legendary.prepare() }
-        EpicSignIn.present { [weak self] code in
-            guard let self else { return }
-            guard let code else {
-                self.epic.connecting = false
-                return
-            }
-            Task {
-                defer { self.epic.connecting = false }
-                do {
-                    try await self.epic.connect(code: code)
-                    self.storeAsked[.epic] = Date()
-                    self.reload(quiet: true)
-                    Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
-                } catch {
-                    self.errorMessage = error.localizedDescription
-                }
+        Task {
+            defer { epic.connecting = false }
+            do {
+                try await epic.connect(code: code)
+                storeAsked[.epic] = Date()
+                reload(quiet: true)
+                Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -379,30 +449,29 @@ final class LibraryModel: ObservableObject {
 
     // MARK: - GOG
 
-    /// GOG's sign-in page in its own window; its code goes to gogdl.
+    /// GOG's sign-in page on the stage; its code goes to gogdl.
     func connectGOG() {
-        guard !gog.connecting else {
-            GOGSignIn.bringToFront()
+        if !gog.connecting {
+            gog.connecting = true
+            Task { await GOGDL.prepare() }
+        }
+        signingIn = .gog
+    }
+
+    private func finishGOGSignIn(_ code: String?) {
+        guard let code else {
+            gog.connecting = false
             return
         }
-        gog.connecting = true
-        Task { await GOGDL.prepare() }
-        GOGSignIn.present { [weak self] code in
-            guard let self else { return }
-            guard let code else {
-                self.gog.connecting = false
-                return
-            }
-            Task {
-                defer { self.gog.connecting = false }
-                do {
-                    try await self.gog.connect(code: code)
-                    self.storeAsked[.gog] = Date()
-                    self.reload(quiet: true)
-                    Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
-                } catch {
-                    self.errorMessage = error.localizedDescription
-                }
+        Task {
+            defer { gog.connecting = false }
+            do {
+                try await gog.connect(code: code)
+                storeAsked[.gog] = Date()
+                reload(quiet: true)
+                Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -585,6 +654,10 @@ final class LibraryModel: ObservableObject {
     /// Games Nightforge started, from when their process shows up until it ends.
     private var startedHere: Set<String> = []
     private var playing: Set<String> = []
+    /// Windows games started while no controller was connected (padArrivedLate).
+    private var padlessStarts: Set<String> = []
+    /// "Restart Game" was pressed: the game to start again once its end is seen.
+    private var restartAfterEnd: Game?
     /// When each of them started running, and the play time Steam had for it then.
     private var sessionStarts: [String: (date: Date, totalBefore: Int)] = [:]
     /// The way each Windows game's last start took (`LaunchAttempt.id`), for "How did it run?".
@@ -674,6 +747,7 @@ final class LibraryModel: ObservableObject {
         let ended = playing
         playing = []
         goneFor = 0
+        GameOverlay.gameEnded()
         // The processes went a moment ago; a margin for the save Steam is still writing.
         let endedAt = Date().addingTimeInterval(-10)
         let endedGames = allGames.filter { ended.contains($0.id) }
@@ -691,6 +765,14 @@ final class LibraryModel: ObservableObject {
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt, way: game.platform == .mac ? "mac" : waysUsed[game.gameID]) : nil
         }
+        // "Restart Game" (the overlay): its start follows here, under the same curtain. Coming back first
+        // took that curtain away and laid "Welcome back" over the new start.
+        if let game = restartAfterEnd, Self.endRestarts(game.id, ended: ended) {
+            restartAfterEnd = nil
+            if let id = judging?.id, ended.contains(id) { judging = nil }
+            play(game)
+            return
+        }
         if judged { return }
         // An end like any other while the start still judges (the player quit, it showed a picture):
         // Nightforge comes back from here, the start's end adds nothing.
@@ -704,6 +786,7 @@ final class LibraryModel: ObservableObject {
 
     /// `page`: the page the player comes back to, set already. `then`: once the curtain is gone.
     private func comeBack(to page: Route, then: @escaping @MainActor () -> Void = {}) {
+        GameLog.note("Back to Nightforge at \(GameLog.clock())")
         MacSteam.hide()
         Task {
             // The page's change (0.22 s) done first: a switch of Spaces shows the window as it is
@@ -846,6 +929,10 @@ final class LibraryModel: ObservableObject {
     // MARK: - The curtain
 
     private var curtainWatch: Task<Void, Never>?
+    private var stageWatch: Task<Void, Never>?
+    private var stage = GameStage()
+    /// The curtain's watch has the game down and still guards its front (`curtainStep`).
+    private var curtainGuards = false
     /// Nightforge opened Steam's window for a question (`showSteamWindow`) and hasn't hidden it since.
     private var steamWindowShown = false
     /// The questions of macOS's on screen at the first look of this start, for each way it tries:
@@ -864,6 +951,8 @@ final class LibraryModel: ObservableObject {
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
         InputRouter.hidePointerForGame()  // Nightforge in front still
         curtainWatch = Task { await watchCurtain(game) }
+        stageWatch?.cancel()
+        stageWatch = Task { await watchStage(game) }
     }
 
     private func watchCurtain(_ game: Game) async {
@@ -874,6 +963,11 @@ final class LibraryModel: ObservableObject {
         var frontSince: Date?
         var loweredAt: Date?
         var raisedAgain = 0
+        /// Its picture on the Space shown since, and how often its window was fetched back under the curtain.
+        var pictureSince: Date?
+        var broughtBack = 0
+        /// The picture's size on the Space shown, and since when it hasn't changed.
+        var pictureSize: (size: String, since: Date)?
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
@@ -914,6 +1008,8 @@ final class LibraryModel: ObservableObject {
             if let lowest = macOSOnScreen.last { GameBackdrop.makeWay(under: lowest) }
         }
         GameLog.note("Curtain watch for \(game.name) begins")
+        GameLog.note("  at \(GameLog.clock())")
+        defer { curtainGuards = false }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
@@ -931,6 +1027,8 @@ final class LibraryModel: ObservableObject {
                 case .wait:
                     continue
                 case .over:
+                    // Answered with Cancel, or the start went wrong: Steam's window doesn't stay.
+                    hideSteamWindow(for: game)
                     return end("Steam asked, the start is over")
                 case .back:
                     steamAsked = false
@@ -1004,8 +1102,10 @@ final class LibraryModel: ObservableObject {
             case .answered:
                 macOSAskedSince = nil
                 // Down already, the game has the screen: no curtain over it.
-                if loweredAt == nil { curtainUp() }
-                GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
+                if loweredAt == nil {
+                    curtainUp()
+                    GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
+                }
             case .none:
                 if !asksNow {
                     macOSAskedSince = nil
@@ -1048,10 +1148,15 @@ final class LibraryModel: ObservableObject {
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
-            let (here, anywhere, asking, windows) = await Task.detached(priority: .utility) {
+            let (here, anywhere, asking, windows, shieldOnly, size) = await Task.detached(priority: .utility) {
                 (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.questionWindow(pids),
-                 GameProcesses.windowList(pids))
+                 GameProcesses.windowList(pids), GameProcesses.onlyShield(pids), GameProcesses.windowSize(pids))
             }.value
+            if here, let size {
+                if pictureSize?.size != size { pictureSize = (size, Date()) }
+            } else {
+                pictureSize = nil
+            }
             if let asking, asking.number != questionSeen?.number { questionSeen = (asking.number, Date()) }
             if asking == nil { questionSeen = nil }
             let question = asking?.number
@@ -1082,19 +1187,25 @@ final class LibraryModel: ObservableObject {
                 GameLog.note("Curtain look at \(game.name): \(look)")
             }
             // Each app coming to the front brings the pointer back over the curtain (1.11.): another
-            // one (Steam's, Nightforge handing over) hidden again at once, the game once it has had
-            // the front a moment, before the curtain goes – taking its keys for 50 ms while it sets
-            // up its screen could cost it its full screen. Not while it asks something, which takes
-            // the mouse.
+            // one (Steam's, Nightforge handing over) hidden again at once, the game only while it shows
+            // no picture yet. Taking the keys from a game in full screen for those 50 ms tells it that it
+            // lost the focus, and a Unity or Unreal game minimises itself then (The Forest, 6.11.:
+            // gone right after "Curtain down" in the runs with the pad, there in those with the
+            // mouse; GameStage). Not while it asks something, which takes the mouse.
             let newFront = front != pointerFront
             pointerFront = front
             // Nor while macOS asks, nor while one of its askers has the front before its window shows.
             if loweredAt == nil, !asks, !madeWay, !macOSAsks, !(front.map(askers.contains) ?? false) {
-                if gameFront, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
-                    pointerHidden = since
+                switch Self.pointerUnderCurtain(gameFront: gameFront, picture: here || anywhere,
+                                                frontForSecond: frontSince.map { $0 != pointerHidden && Date().timeIntervalSince($0) >= 1 } ?? false,
+                                                newFront: newFront, nightforgeFront: front == getpid()) {
+                case .overGame:
+                    pointerHidden = frontSince
                     InputRouter.hidePointerOverGame()
-                } else if !gameFront, newFront, front != nil {
-                    if front == getpid() { InputRouter.hidePointerForGame() } else { InputRouter.hidePointerOverGame() }
+                case .fromNightforge:
+                    InputRouter.hidePointerForGame()
+                case .leave:
+                    break
                 }
             }
             // Its question answered, no picture yet: the curtain over everything again until there is one.
@@ -1104,16 +1215,25 @@ final class LibraryModel: ObservableObject {
             }
             sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks,
                          macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+            pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
                                     windowHere: here, windowAnywhere: anywhere, asks: asks,
                                     frontFor: frontSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     settle: raisedAgain == 0 ? 1 : Self.settleAgain,
-                                    guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false) {
+                                    guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false,
+                                    pictureFor: pictureSince.map { Date().timeIntervalSince($0) } ?? 0,
+                                    broughtBack: broughtBack, playerActed: Self.playerActed(), shieldOnly: shieldOnly,
+                                    steadyFor: pictureSize.map { Date().timeIntervalSince($0.since) } ?? 0) {
             case .wait:
                 break
             case .handOver:
                 _ = await handFocus(to: pids)
+            case .bringBack:
+                broughtBack += 1
+                frontSince = nil
+                GameLog.note("Curtain: \(game.name) has the front, its window isn't on the screen: fetching it back (\(broughtBack))")
+                _ = await handFocus(to: pids, again: true)
             case .makeWay:
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 if asks, let question { GameBackdrop.makeWay(under: question) }  // again at each look: nothing gets between
@@ -1127,16 +1247,23 @@ final class LibraryModel: ObservableObject {
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
                 loweredAt = Date()
+                curtainGuards = true
+                stage.pictureSeen()
                 madeWay = false
                 LaunchHealth.pictureShown(game.gameID)  // it started, however soon it ends now
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
                 GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
+                GameLog.note("  at \(GameLog.clock())")
+                // Down because it had stood long enough: going up again for the front would only flap.
+                if !gameFront { return end("its picture doesn't stay under the curtain, the stage watch has it") }
             case .raiseAgain:
+                if raisedAgain >= Self.maxRaisedAgain { return end("the front doesn't stay with it, the curtain stays down") }
                 // Another app took the front from the game – Unity builds its window anew for full
                 // screen, and macOS hands the front on meanwhile: back to the game, under the curtain.
                 curtainUp()
                 loweredAt = nil
+                curtainGuards = false
                 frontSince = nil
                 raisedAgain += 1
                 GameLog.note("Curtain up again for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front")
@@ -1149,6 +1276,68 @@ final class LibraryModel: ObservableObject {
             }
         }
         end("a new start or Go to Nightforge")
+    }
+
+    /// From a start to the game's end, once the curtain is down: the game stays where the player can
+    /// reach it (GameStage), and Nightforge's page never lies over it. A look a second, without a
+    /// process list as long as the game is in front (the game's frames come first).
+    private func watchStage(_ game: Game) async {
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        stage = GameStage()
+        var pids = Set<pid_t>()
+        var companion = false
+        var askers = Set<pid_t>()
+        var listed = Date.distantPast
+        var noted = ""
+        func goesOn() -> Bool {
+            launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id) || judging?.id == game.id
+                || GameBackdrop.isRaised
+        }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(stage.left ? 5 : 1))  // nothing to do meanwhile but see it return
+            guard !Task.isCancelled, goesOn() else { return }
+            guard !GameBackdrop.isRaised else { continue }
+            let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let inFront = front.map(pids.contains) ?? false
+            if !inFront || Date().timeIntervalSince(listed) > 30 {
+                guard let look = await Task.detached(priority: .utility, operation: {
+                    GameProcesses.curtainLook(marker: marker, folder: folder, front: front)
+                }).value else { continue }
+                (pids, companion, askers) = (look.pids, look.companion, look.askers)
+                listed = Date()
+            }
+            let page = GameBackdrop.pageNumber
+            let known = pids
+            let windows = await Task.detached(priority: .utility) { GameProcesses.onStage(known, page: page) }.value
+            if windows.pageOver {
+                GameBackdrop.stepAside()
+                GameLog.note("Stage: the page lay over \(game.name)'s picture, it goes behind")
+            }
+            let gameFront = (front.map(pids.contains) ?? false) || companion
+            let askerFront = front.map(askers.contains) ?? false
+            let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
+                                                 handsOff: GameOverlay.isOpen || askerFront,
+                                                 // A swipe to another Space moves no key and no click.
+                                                 playerActed: Self.playerActed() || GameBackdrop.spaceJustChanged,
+                                                 guarded: curtainGuards, now: Date()))
+            let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
+            let look = "\(name) in front, picture \(windows.here ? "here" : windows.anywhere ? "elsewhere" : "none")"
+                + (gameFront ? " (the game's)" : "") + (stage.left ? ", the player went elsewhere" : "")
+            if look != noted, stage.sawPicture {
+                noted = look
+                GameLog.note("Stage of \(game.name): \(look)")
+            }
+            switch step {
+            case .wait:
+                break
+            case .bringBack:
+                GameLog.note("Stage: fetching \(game.name) back (\(stage.tries)), \(name) in front")
+                await handFocus(to: pids, again: true)
+            case .gaveUp:
+                GameLog.note("Stage: \(game.name) didn't come back, the player has the Dock, Switch to Game and the overlay")
+            }
+        }
     }
 
     enum MacOSTurn: Equatable { case none, makeWay, giveUp, answered }
@@ -1175,9 +1364,16 @@ final class LibraryModel: ObservableObject {
         questions.contains { !before.contains($0) }
     }
 
-    /// Steam waits for the player in its window during a start: a question before it (licence,
-    /// ShowInterstitials), or its sign-in after a restart (`restartStuckSteam`).
-    private var steamAsks: Bool { launchNeedsConfirmation || launchPhase == .signInAgain }
+    /// The start waits for the player where the curtain would hide it: Steam's question (licence,
+    /// ShowInterstitials), its sign-in – after a restart (`restartStuckSteam`) or a Steam for Mac that
+    /// lost it (`launchMac`) – or the choice of saves, a sheet in Nightforge's own window.
+    private var steamAsks: Bool {
+        Self.startAsksPlayer(needsConfirmation: launchNeedsConfirmation, phase: launchPhase, savesToChoose: saveChoice != nil)
+    }
+
+    nonisolated static func startAsksPlayer(needsConfirmation: Bool, phase: LaunchPhase?, savesToChoose: Bool) -> Bool {
+        needsConfirmation || savesToChoose || phase == .signInAgain || phase == .signInInSteamWindow
+    }
 
     enum SteamTurn: Equatable { case none, away, wait, back, over }
 
@@ -1280,7 +1476,20 @@ final class LibraryModel: ObservableObject {
         return size.width < thinRatio * size.height || standing >= thinPatience
     }
 
-    enum CurtainStep: Equatable { case wait, handOver, makeWay, lower, raiseAgain, done }
+    enum PointerStep: Equatable { case leave, overGame, fromNightforge }
+
+    /// How the pointer is hidden under the curtain, when at all. Over a game without a picture yet the
+    /// sheer panel may take its keys for 50 ms; Nightforge in front needs no panel. Any other app is
+    /// left alone: the panel took the keys from Steam Helper – as its question came up (Drawful 2,
+    /// 8.11.), five times on the way back – and from Claude, Chrome and Finder.
+    /// The price: while such an app has the front, the pointer can show on the curtain.
+    nonisolated static func pointerUnderCurtain(gameFront: Bool, picture: Bool, frontForSecond: Bool, newFront: Bool,
+                                                nightforgeFront: Bool) -> PointerStep {
+        if gameFront { return !picture && frontForSecond ? .overGame : .leave }
+        return newFront && nightforgeFront ? .fromNightforge : .leave
+    }
+
+    enum CurtainStep: Equatable { case wait, handOver, makeWay, bringBack, lower, raiseAgain, done }
 
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
     /// Space shown, `windowAnywhere` in any (Mafia II's first start opened behind, in another) –
@@ -1293,24 +1502,60 @@ final class LibraryModel: ObservableObject {
     /// the game isn't handed the front – the question may have it, and the keys – but taking it
     /// with its window, it sinks the curtain as ever; down already, the curtain stays down, the
     /// question over the game.
+    ///
+    /// The curtain never stays over a game that runs: its picture shown for `curtainCeiling` seconds,
+    /// it sinks whoever has the front. In front with its window off the screen – shrunk into the Dock,
+    /// or in a Space not shown – it's fetched back (`bringBack`, Wine does nothing for an app that's
+    /// active already), then the curtain sinks anyway (GameStage has it from there). Nightforge
+    /// in front is the player's choice only after a ⌘ or a click (`playerActed`); by itself it's macOS
+    /// handing the front on, and the game gets it back (Valheim, 7.11.: the watch ended there).
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, macOSAsks: Bool = false,
                                         windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
-                                        settle: TimeInterval = 1, guardOver: Bool) -> CurtainStep {
+                                        settle: TimeInterval = 1, guardOver: Bool, pictureFor: TimeInterval = 0,
+                                        broughtBack: Int = 0, playerActed: Bool = false, shieldOnly: Bool = false,
+                                        steadyFor: TimeInterval = .infinity) -> CurtainStep {
         if lowered {
-            if guardOver || nightforgeFront { return .done }
+            if guardOver || (nightforgeFront && playerActed) { return .done }
             return gameFront || macOSAsks ? .wait : .raiseAgain
         }
         let handOver: CurtainStep = macOSAsks ? .wait : .handOver
         if asks, !windowHere { return gameFront ? .makeWay : handOver }
         guard windowHere || windowAnywhere else { return .wait }
+        if windowHere, !macOSAsks, pictureFor >= curtainCeiling { return .lower }
         guard gameFront else { return handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
         // page while the game had the front (1.11.).
-        return windowHere && frontFor >= settle ? .lower : .wait
+        if windowHere { return frontFor >= settle && steadyFor >= pictureSteady ? .lower : .wait }
+        guard !macOSAsks, frontFor >= windowAwayPatience else { return .wait }
+        if broughtBack < maxBroughtBack { return .bringBack }
+        // Only a black shield on screen (Overwatch, 8.11.): sinking would count it as a picture and
+        // never ask. The start stays open, "Not starting?" comes over the shield in its time.
+        return shieldOnly ? .wait : .lower
+    }
+
+    /// How long the picture's size has to stay before the curtain sinks: Overwatch on 8.11. 14:53 showed
+    /// a window of 1392×742, then 1342×710, and only then set its display mode. The curtain sank in
+    /// between, so the page and a black screen flashed up.
+    nonisolated static let pictureSteady: TimeInterval = 2
+    /// How long a picture may stand under the curtain, whatever has the front.
+    nonisolated static let curtainCeiling: TimeInterval = 15
+    /// How long the game has the front with its window off the screen before it's fetched back.
+    nonisolated static let windowAwayPatience: TimeInterval = 4
+    nonisolated static let maxBroughtBack = 2
+
+    /// A ⌘ (⌘-Tab, ⌘H) or a click within `seconds`: the player moved, what came to the front is their
+    /// choice. Not any key: one playing with the keyboard presses them all the time. A click in the
+    /// game just as the front goes counts too – Nightforge leaves it then, the safe side.
+    nonisolated static func playerActed(within seconds: TimeInterval = 1.5) -> Bool {
+        [CGEventType.leftMouseDown, .rightMouseDown, .flagsChanged]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity <= seconds
     }
 
     /// How long after the curtain sinks the game's front is still watched.
     private static let focusGuard: TimeInterval = 8
+    /// How often the curtain comes up again for one start: a game that can't be given the front
+    /// doesn't get the curtain going up and down for ever.
+    private static let maxRaisedAgain = 4
     /// How long the game has to keep the front before the curtain sinks a second time: a game
     /// building its window anew more than once made it come and go (Sonic Mania on 1.11.).
     nonisolated static let settleAgain: TimeInterval = 2.5
@@ -1319,27 +1564,59 @@ final class LibraryModel: ObservableObject {
     /// Mac game's app). Since macOS 14 only the app in front can pass it on – asking from behind
     /// is ignored, and macOS gives the front to whatever app is next – so Nightforge comes to the
     /// front first when it isn't (under the curtain, or from its own page).
+    ///
+    /// `again`: its window is gone though it may be the active app, so an activation that does nothing
+    /// won't do (GameStage). A Mac version gets what a click on the Dock sends; Wine brings a window
+    /// back when it becomes active, so a Windows game loses the front to Nightforge for a moment. Not
+    /// Launch Services for that: Steam's Wine and the game's are the same app to it.
     @discardableResult
-    private func handFocus(to pids: Set<pid_t>) async -> Bool {
+    private func handFocus(to pids: Set<pid_t>, again: Bool = false) async -> Bool {
         guard let app = Self.gameApp(pids) else { return false }
         if app.isHidden { app.unhide() }  // Go to Nightforge hid it (leaveGame)
-        if app.isActive { return true }
+        if again, app.bundleIdentifier != Engine.gameBundleID, let url = app.bundleURL {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            return app.isActive
+        }
+        if app.isActive, !again { return true }
+        GameBackdrop.handingOver = again  // the page stays while Nightforge has the front for this
+        defer { GameBackdrop.handingOver = false }
         if !NSApp.isActive {
-            // Not through Launch Services here: its activation can land after the handover and take
-            // the front back from the game.
+            // Not through Launch Services for a plain handover: its activation can land after it and
+            // take the front back from the game.
             NSApp.activate(ignoringOtherApps: true)
-            for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+            for _ in 0..<(again ? 6 : 20) where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+            if Self.fetchesFrontItself(again: again, active: NSApp.isActive) {
+                // macOS ignores `activate` from behind while the app in front doesn't yield: Overwatch's
+                // three fetches on 8.11. changed nothing (not one activation in wine.log), a click on the
+                // Dock brought it back at once. The Dock sends a reopen event, which Wine answers like
+                // becoming active (unminimizeWindowIfNoneVisible) – but such an event from Nightforge
+                // would ask the player for Automation rights. So a real round: Nightforge in front
+                // through Launch Services, awaited, and then the handover below makes the game active.
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                for _ in 0..<30 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+                guard NSApp.isActive else {
+                    GameLog.note("Fetching the game back: Nightforge didn't get the front to hand it over")
+                    return app.isActive
+                }
+            }
         }
         InputRouter.hidePointerForGame()
         NSApp.yieldActivation(to: app)
         // All its windows: with only the key one, Wine's full-screen window stayed under others.
         app.activate(from: .current, options: [.activateAllWindows])
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
-        // Its coming forward brought the pointer back (Switch to Game, 1.11.). Under the curtain
-        // its watch hides it.
-        if app.isActive, !GameBackdrop.isRaised { InputRouter.hidePointerSoon() }
+        // Its coming forward brings the pointer back (Switch to Game, 1.11.), and that stays: taking
+        // a game's keys to hide it costs its full screen (watchCurtain).
         return app.isActive
     }
+
+    /// A game to be fetched back (`again`) needs a real change of the active app, and Nightforge's own
+    /// `activate` didn't get it the front: it goes through Launch Services.
+    nonisolated static func fetchesFrontItself(again: Bool, active: Bool) -> Bool { again && !active }
 
     /// The game's program with windows among its processes: a Windows game's .exe under Wine, a Mac game's app.
     private static func gameApp(_ pids: Set<pid_t>) -> NSRunningApplication? {
@@ -1352,6 +1629,8 @@ final class LibraryModel: ObservableObject {
     /// which handed it over. Should another app get it, the game shows again – never a third app in
     /// front of a hidden game. Switch to Game shows it again too (handFocus).
     private func leaveGame(_ pids: Set<pid_t>) async {
+        curtainWatch?.cancel()
+        stage.playerLeft()
         let window = NSApp.windows.first { $0.title == "Nightforge" }
         window?.orderFrontRegardless()
         NSApp.comeToFront()
@@ -1420,11 +1699,77 @@ final class LibraryModel: ObservableObject {
                         GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
                     }.value
                 },
-                nightforge: { [weak self] in await self?.leaveGame(Set(pids)) })
+                nightforge: { [weak self] in await self?.leaveGame(Set(pids)) },
+                restart: { [weak self] in
+                    LaunchHealth.playerQuit(game.gameID)
+                    self?.restartAfterEnd = game
+                    await Task.detached(priority: .userInitiated) {
+                        GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+                    }.value
+                    await self?.startAgainWhenEnded(game)
+                })
             GameOverlay.open(game.name, pids: pids, pause: pauses, on: GameDisplay.gameScreen, symbols: padSymbols,
                              soundStaysOn: pauses ? GameAudio.gameStillOn : nil, actions: actions)
         }
     }
+
+    /// A controller came after a Windows game started without one. Only games known to look for pads
+    /// at their start hear about it (Left 4 Dead 2, 7.11.): The Forest and Valheim took one at once on
+    /// 8.11. and were offered a restart all the same. Said once for a few seconds over the game, then
+    /// asked in the overlay.
+    func padArrivedLate() {
+        guard let game = allGames.first(where: { padlessStarts.contains($0.id) && running[$0.id] != nil }) else { return }
+        padlessStarts.remove(game.id)
+        let folder = game.installDir
+        Task {
+            guard await Task.detached(priority: .utility, operation: { Self.readsPadsOnlyAtStart(installDir: folder) }).value,
+                  running[game.id] != nil
+            else { return }
+            GameOverlay.lateController = true
+            GameLog.note("A controller came after \(game.name) started without one: hint shown, the overlay offers a restart")
+            GameHint.show(title: L10n.t("Controller connected"),
+                          detail: L10n.t("%@ may only find it after a restart – the overlay offers one.", game.name),
+                          on: GameDisplay.gameScreen)
+        }
+    }
+
+    /// Whether a game is known to look for controllers only when it starts: Valve's Source engine
+    /// (bin/engine.dll, and gameinfo.txt in its folder or a folder of its content). From outside
+    /// Nightforge can't see whether a game reads a pad, so everything else hears nothing.
+    nonisolated static func readsPadsOnlyAtStart(installDir: URL) -> Bool {
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: installDir.appendingPathComponent("bin/engine.dll").path) else { return false }
+        if manager.fileExists(atPath: installDir.appendingPathComponent("gameinfo.txt").path) { return true }
+        let folders = (try? manager.contentsOfDirectory(at: installDir, includingPropertiesForKeys: nil)) ?? []
+        return folders.contains { manager.fileExists(atPath: $0.appendingPathComponent("gameinfo.txt").path) }
+    }
+
+    /// "Restart Nightforge" (menu, Settings): Nightforge quits, the shutdown script ends Steam (both),
+    /// the Wine session and its helpers at once, then opens Nightforge again – a clean start when
+    /// something in the background hangs (the user, 8.11.). Not while a game runs: the overlay ends it first.
+    func restartNightforge() {
+        guard running.isEmpty else {
+            errorMessage = L10n.t("Quit the game first, then restart Nightforge.")
+            return
+        }
+        GameLog.note("Restart asked for: Steam, Wine and the helpers end, then Nightforge opens again")
+        Engine.restarting = true
+        if !Quit.now(by: "Restart Nightforge") { Engine.restarting = false }
+    }
+
+    /// The overlay's restart: `watchForGameEnd` starts the game again when it sees its end. Here only
+    /// for a game it doesn't watch (not started from Nightforge), or one that doesn't end in 30 s.
+    func startAgainWhenEnded(_ game: Game) async {
+        for _ in 0..<60 where restartAfterEnd?.id == game.id && (playing.contains(game.id) || running[game.id] != nil) {
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        guard restartAfterEnd?.id == game.id else { return }
+        restartAfterEnd = nil
+        play(game)
+    }
+
+    /// The end just seen is that of the game "Restart Game" asked to start again.
+    nonisolated static func endRestarts(_ restart: String, ended: Set<String>) -> Bool { ended.contains(restart) }
 
     /// Brings the running game's window to the front.
     func switchToGame(_ game: Game) {
@@ -1435,7 +1780,8 @@ final class LibraryModel: ObservableObject {
             let pids = await Task.detached(priority: .userInitiated) {
                 Set(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
             }.value
-            await handFocus(to: pids)
+            stage.again()
+            await handFocus(to: pids, again: true)
         }
     }
 
@@ -1880,10 +2226,19 @@ final class LibraryModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    /// Buying happens on Steam's own store page in the browser; Nightforge never sees payment data.
-    /// Once Steam has the new licence, the game shows up in the library with its Download button.
+    /// Buying happens on the store's own page in the browser; Nightforge never sees payment data.
+    /// Once the store has the new licence, the game shows up in the library with its Download button.
     func openStorePage(_ game: Game) {
-        guard let url = URL(string: "https://store.steampowered.com/app/\(game.demoOf ?? game.appID)") else { return }
+        guard let url = game.storePageURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// A search, not among the hidden games: Epic's store is one link away.
+    var offersEpicSearch: Bool { !showingHidden && searchTerm.count >= 2 }
+
+    /// Epic's own search in the player's browser, for what's in the search field.
+    func openEpicSearch() {
+        guard let url = StoreHits.epicSearch(searchTerm) else { return }
         NSWorkspace.shared.open(url)
     }
 
@@ -1915,54 +2270,56 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    // MARK: - Steam store search
+    // MARK: - Store search
 
-    /// Waits for a pause in typing, then asks the store; owned games are left out.
+    private var searchTerm: String { searchText.trimmingCharacters(in: .whitespaces) }
+
+    /// Waits for a pause in typing, then asks every store at once; each one's hits show as they
+    /// come, and until they do those of the last search stay, so nothing blinks while typing on.
     private func searchStore() {
         storeSearch?.cancel()
-        let term = searchText.trimmingCharacters(in: .whitespaces)
+        storeCovers?.cancel()
+        let term = searchTerm
         guard term.count >= 2 else {
+            storeFound = [:]
+            storeInfos = [:]
             if !storeResults.isEmpty { storeResults = []; applyFilter() }
             return
         }
+        let searches: [StoreHits.Query] = stores.map { store in (store.provider, { await store.search(term) }) }
         storeSearch = Task {
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
-            let hits = await StoreSearch.shared.search(term)
-            guard !Task.isCancelled, term == searchText.trimmingCharacters(in: .whitespaces) else { return }
-            storeResults = hits.map { storeGame($0, info: nil) }
-            applyFilter()
-            // Their covers: newer games keep them only at addresses Steam's store-browse API names.
-            let infos = await GameInfoStore.shared.storeInfos(hits.map(\.appID))
-            guard !Task.isCancelled, !infos.isEmpty, term == searchText.trimmingCharacters(in: .whitespaces) else { return }
-            storeResults = hits.map { storeGame($0, info: infos[$0.appID]) }
-            applyFilter()
+            await StoreHits.gather(searches) { provider, hits in
+                guard !Task.isCancelled, term == searchTerm, storeFound[provider] ?? [] != hits else { return }
+                storeFound[provider] = hits
+                showStoreHits()
+                if provider == .steam { askCovers(of: hits) }
+            }
         }
+    }
+
+    /// Steam's covers: newer games keep them only at addresses its store-browse API names.
+    private func askCovers(of hits: [StoreHit]) {
+        let appIDs = hits.compactMap(\.gameID.steamAppID)
+        storeCovers = Task {
+            let infos = await GameInfoStore.shared.storeInfos(appIDs)
+            guard !Task.isCancelled, !infos.isEmpty else { return }
+            storeInfos.merge(infos) { _, new in new }
+            showStoreHits()
+        }
+    }
+
+    private func showStoreHits() {
+        let found = storeFound.mapValues { hits in
+            hits.map { StoreHits.game($0, info: $0.gameID.steamAppID.flatMap { storeInfos[$0] }, blocks: antiCheatBlocks) }
+        }
+        storeResults = StoreHits.cards(found, term: searchTerm)
+        applyFilter()
     }
 
     /// Games whose anti-cheat stops them on a Mac, so the store search can say so before buying.
     private var antiCheatBlocks: [Int: AntiCheatBlock] = [:]
-
-    private func storeGame(_ hit: StoreSearch.Hit, info: GameInfo?) -> Game {
-        var game = Game(
-            appID: hit.appID, name: hit.name, bottle: Engine.bottle, steamRoot: Engine.steamRoot,
-            steamExeWindowsPath: Engine.steamExeWindowsPath,
-            installDir: Engine.steamRoot.appendingPathComponent("steamapps/common", isDirectory: true),
-            sizeOnDisk: 0
-        )
-        game.install = .inStore
-        game.macNative = hit.macNative ?? false
-        game.controller = hit.controller ?? info?.controller ?? .none
-        game.controllerKnown = true
-        game.playModes = info?.modes ?? []
-        if let info { game.art = StoreArt(info) }
-        game.storePrice = hit.price
-        game.storeFree = hit.free
-        game.metascore = hit.metascore
-        // Store hits don't say whether there's single player, so only blocks that always hold.
-        if hit.macNative != true, let block = antiCheatBlocks[hit.appID], !block.onlineOnly { game.antiCheatBlock = block }
-        return game
-    }
 
     /// Hits from the games-only search can lack price and platforms; fetch them once it's selected.
     private var storeDetailsRequested: Set<Int> = []
@@ -2036,7 +2393,7 @@ final class LibraryModel: ObservableObject {
     }
 
     private func loadStoreDetailsIfNeeded() {
-        guard let game = selected, game.install == .inStore, game.storePrice == nil,
+        guard let game = selected, game.provider == .steam, game.install == .inStore, game.storePrice == nil,
               storeDetailsRequested.insert(game.appID).inserted  // once: some games have no price at all
         else { return }
         Task {
@@ -2045,16 +2402,14 @@ final class LibraryModel: ObservableObject {
             storePrices[game.appID] = hit.price
             if hit.free { freeInStore.insert(game.appID) }
             allGames = withStorePrices(allGames)
-            guard let index = storeResults.firstIndex(where: { $0.appID == game.appID }) else {
+            guard let index = storeFound[.steam]?.firstIndex(where: { $0.gameID == game.gameID }) else {
                 applyFilter()
                 return
             }
-            var updated = storeGame(hit, info: nil)
-            updated.metascore = hit.metascore ?? storeResults[index].metascore
-            updated.art = storeResults[index].art  // the cover Steam's store-browse API named
-            updated.playModes = storeResults[index].playModes
-            storeResults[index] = updated
-            applyFilter()
+            var updated = StoreHit(hit)
+            updated.metascore = hit.metascore ?? storeFound[.steam]?[index].metascore
+            storeFound[.steam]?[index] = updated
+            showStoreHits()
         }
     }
 
@@ -2098,7 +2453,7 @@ final class LibraryModel: ObservableObject {
         switch game.provider {
         case .epic: return await epic.size(of: game)?.install
         case .gog: return await gog.size(of: game, stillWanted: stillWanted)?.install
-        case .steam: return nil
+        case .steam, .battlenet: return nil
         }
     }
 
@@ -2271,6 +2626,7 @@ final class LibraryModel: ObservableObject {
         showingSettings = false
         pendingSpace = nil
         pendingMove = nil
+        managedLauncher = nil
         if macSetup != nil { closeMacSetup() }
         errorMessage = nil
         sessionSummary = nil
@@ -2352,6 +2708,10 @@ final class LibraryModel: ObservableObject {
         let arguments = GameOptionsStore.load(game.gameID).extraArgs.trimmingCharacters(in: .whitespaces)
         launchTask = Task {
             defer { endLaunch(number) }
+            // The curtain at once: the Steams changing over took 9–27 s behind Nightforge's page, with
+            // Steam's windows coming up (8.11.). It says what's happening, and goes for what the player
+            // has to answer (`steamAsks`).
+            raiseCurtain(for: game)
             // The Windows Steam goes (one sign-in per account on a Mac), once its last game's save is up.
             await steamSwitch.makeWayForMac(facts: steamFacts, phase: { self.launchPhase = $0 })
             let steamStarted = Date()
@@ -2364,6 +2724,8 @@ final class LibraryModel: ObservableObject {
                 launchPhase = .signingIn
                 await MacSteam.quit()
                 MacSteam.start()
+            } else if !(MacSteam.signedIn && MacSteam.startupFinished) {
+                launchPhase = .startingSteamForMac  // up and still starting: no wait without a word
             }
             // Steam turns commands away until it has signed in and finished starting. It signs in by
             // itself; when it asks instead (its remembered sign-in ran out), its window comes at once,
@@ -2386,15 +2748,25 @@ final class LibraryModel: ObservableObject {
             }
             awaitingSteam = false
             launchPhase = nil
+            await waitForSteamCloud(MacSteam.root)
             // steam://run/<id>//<arguments>: the extra part goes to the game.
             let extra = arguments.isEmpty ? ""
                 : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
-            await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            let appID = game.appID
+            let launchType = await Task.detached(priority: .userInitiated) { () -> String? in
+                ControllerCompatibility.prepare(installDir: installDir)
+                MacGameHUD.prepare(folder: installDir)
+                return SteamProgram.macLaunchType(SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root))
+            }.value
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
-            let run = { MacSteam.open("run/\(game.appID)" + extra) }
+            // With several launch options Steam asks which one, in a window that didn't come forward
+            // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
+            // first straight away; it passes no arguments, so with the player's own Steam asks as before.
+            let command = launchType.flatMap { arguments.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
+            let run = { MacSteam.open(command) }
             raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)
@@ -2439,6 +2811,24 @@ final class LibraryModel: ObservableObject {
                 }
             }
             if !Task.isCancelled { stepBack(behind: game, behavior) }  // a new start has the curtain
+        }
+    }
+
+    /// A Steam that has only just started finishes its own first cloud sync before it gets a game
+    /// (`SteamCloudStart`). Steam then decides for itself as ever; nothing of its cloud is skipped.
+    private func waitForSteamCloud(_ root: URL) async {
+        var waiting = false
+        defer { if waiting { launchPhase = nil } }
+        for _ in 0..<35 {
+            guard !Task.isCancelled,
+                  await Task.detached(priority: .utility, operation: { SteamCloudStart.shouldWait(steamRoot: root) }).value
+            else { return }
+            if !waiting {
+                waiting = true
+                launchPhase = .signingIn
+                GameLog.note("Steam Cloud: Steam finishes its first sync before the game starts, at \(GameLog.clock())")
+            }
+            try? await Task.sleep(for: .seconds(1))
         }
     }
 
@@ -2612,7 +3002,7 @@ final class LibraryModel: ObservableObject {
         // and not during a search: it finds every game, whatever the filters leave out.
         var shelf = cards.filter { isHidden($0) == showingHidden }
         if route.level == .library {
-            if words.isEmpty { shelf = shelf.filter { filters.admits($0) { compatibility(of: $0).level } } }
+            if words.isEmpty { shelf = shelf.filter { filters.admits($0, laterGames: laterGames) { compatibility(of: $0).level } } }
             shelf = showingHidden ? LibraryFilters(sort: .name).sorted(shelf) : filters.sorted(shelf)
         }
         if words.isEmpty {
@@ -2624,17 +3014,20 @@ final class LibraryModel: ObservableObject {
             let ranked = shelf.compactMap { game in
                 game.entries.compactMap { Search.rank(name: $0.name, query: searchText) }.min().map { (game, $0) }
             }
-            // Store hits are games you don't own – in any store: not Overcooked! 2 on Steam when it's in your Epic library.
-            let owned = Set(allGames.map(\.gameID))
-            let ownedOnSteam = Set(allGames.compactMap(\.steamAppID))
-            let storeHits = showingHidden ? [] : storeResults.filter { !owned.contains($0.gameID) && !ownedOnSteam.contains($0.appID) }
-            games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + storeHits
+            // Store hits are games you don't own – in any store: not Overcooked! 2 on Steam when it's
+            // in your Epic library. A hit you do own leads to your game, whatever the library calls it.
+            let hits = (showingHidden ? [] : storeResults).map { (hit: $0, yours: ownedIndex.game(of: $0)) }
+            let yours = Set(hits.compactMap(\.yours))
+            let listed = Set(ranked.map(\.0.id))
+            let reached = yours.isEmpty ? [] : shelf.filter { !listed.contains($0.id) && $0.gameIDs.contains(where: yours.contains) }
+            games = (0...2).flatMap { rank in ranked.filter { $0.1 == rank }.map(\.0) } + reached
+                + hits.filter { $0.yours == nil }.map(\.hit)
         }
         let first = route.level == .library ? gridLayout.order.first ?? 0 : 0
         selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.holds(previous) }) ?? first
         if words.isEmpty && !showingHidden {
             let shown = games
-            let stage = HomeRail.stage(shown, pinned: pinnedGames) { StarterPicks.order(shown, facts: starterFacts) }
+            let stage = HomeRail.stage(shown, pinned: pinnedGames, off: offHome) { StarterPicks.order(shown, facts: starterFacts) }
             homeRail = stage.rail
             homeStartersFrom = stage.startersFrom
         } else {
@@ -2650,6 +3043,8 @@ final class LibraryModel: ObservableObject {
         default:
             break
         }
+        if quickMenu != nil, quickMenuGame == nil { closeQuickMenu() }  // its game is gone
+        storeChanged()  // the launchers' game counts; this runs at every key of a search too
     }
 
     /// The search lives in the library's header: from Home or a game's page it opens the library.
@@ -2672,7 +3067,7 @@ final class LibraryModel: ObservableObject {
 
     /// The game shown big: on Home nil while the "All games" tile is selected, or the first start shows.
     var heroGame: Game? {
-        route == .home && (homeOnAllGames || setup.isActive) ? nil : selected
+        route == .launchers || (route == .home && (homeOnAllGames || setup.isActive)) ? nil : selected
     }
 
     /// Stands for the "All games" tile in `homeGameID`.
@@ -2682,7 +3077,7 @@ final class LibraryModel: ObservableObject {
         switch route {
         case .home: homeGameID = homeOnAllGames ? Self.allGamesTile : selected?.id
         case .library: libraryGameID = selected?.id
-        case .detail: break
+        case .detail, .launchers: break
         }
     }
 
@@ -2724,6 +3119,14 @@ final class LibraryModel: ObservableObject {
         route.level == .library ? goHome() : goLibrary()
     }
 
+    /// The four launcher cards; Settings › Stores leads here.
+    func openLaunchers() {
+        showingSettings = false
+        rememberSelection()
+        refreshLaunchers()
+        route = .launchers
+    }
+
     /// The selected game's page. A second click on a cover comes here – it never starts or downloads.
     func openDetail() {
         guard let game = heroGame, !route.isDetail else { return }
@@ -2752,6 +3155,8 @@ final class LibraryModel: ObservableObject {
             } else {
                 goHome()
             }
+        case .launchers:
+            goHome()
         case .home:
             return showsFirstStart && (macSteamPrep.back() || setup.back())
         }
@@ -2787,6 +3192,8 @@ final class LibraryModel: ObservableObject {
             goHome()
         case .library:
             goLibrary()
+        case .launchers:
+            openLaunchers()
         case .detail(let id, _):
             guard let index = games.firstIndex(where: { $0.holds(id) }) else { return false }
             if route == .home { homeOnAllGames = false }
@@ -2811,6 +3218,7 @@ final class LibraryModel: ObservableObject {
             }
         case .library: openDetail()
         case .detail: primaryAction()
+        case .launchers: break  // the selected card has it (InputRouter)
         }
     }
 
@@ -2959,6 +3367,16 @@ final class LibraryModel: ObservableObject {
     /// Marked in any of its stores: a game from several stores shares its marks.
     func isHidden(_ game: Game) -> Bool { game.isMarked(in: hiddenGames) }
     func isPinned(_ game: Game) -> Bool { game.isMarked(in: pinnedGames) }
+    func isLater(_ game: Game) -> Bool { game.isMarked(in: laterGames) }
+
+    /// Any game in the library, installed or not; a game that's hidden comes back first.
+    func canMarkLater(_ game: Game) -> Bool { game.inLibrary && !isHidden(game) }
+
+    /// The Play Later list as the library's chip counts it, with the store picked. A game that left
+    /// the library doesn't count, and is on the list again when it returns.
+    var laterCount: Int {
+        laterGames.isEmpty ? 0 : DuplicateGames.count(cards, hidden: hiddenGames, in: filters.store, on: laterGames)
+    }
 
     /// Pinning keeps a game on Home's rail; only games on this Mac are there.
     func canPin(_ game: Game) -> Bool {
@@ -2980,26 +3398,71 @@ final class LibraryModel: ObservableObject {
                            })
     }
 
+    /// On Home's rail right now.
+    func isOnHome(_ game: Game) -> Bool { homeRail.contains { games.indices.contains($0) && games[$0].id == game.id } }
+
+    /// Off Home until it's played again (a pinned one is unpinned too); the library keeps it. With Undo.
+    func removeFromHome(_ game: Game) {
+        let wasPinned = isPinned(game)
+        var removals = offHome
+        game.gameIDs.forEach { removals[$0] = Date() }
+        setOffHome(removals)
+        mark(game.gameIDs, pinned: wasPinned ? false : nil)
+        Toasts.shared.show(L10n.t("%@ is off Home until you play it again", game.name),
+                           action: .init(label: L10n.t("Undo")) { [weak self] in
+                               guard let self else { return }
+                               var back = self.offHome
+                               game.gameIDs.forEach { back[$0] = nil }
+                               self.setOffHome(back)
+                               self.mark(game.gameIDs, pinned: wasPinned ? true : nil)
+                           })
+    }
+
+    private func setOffHome(_ removals: [GameID: Date]) {
+        offHome = removals
+        HomeRemovals.save(removals)
+    }
+
     /// P: stays on Home's rail even when it hasn't been played for a while.
     func togglePinned(_ game: Game) {
         guard canPin(game) || isPinned(game) else { return }
         let pin = !isPinned(game)
+        // Pinned is on Home again, whenever it was taken off.
+        if pin, game.gameIDs.contains(where: { offHome[$0] != nil }) {
+            var removals = offHome
+            game.gameIDs.forEach { removals[$0] = nil }
+            setOffHome(removals)
+        }
         mark(game.gameIDs, pinned: pin)
         Toasts.shared.show(pin ? L10n.t("%@ stays on Home – even when you haven't played it for a while", game.name)
                                : L10n.t("%@ is no longer pinned", game.name))
     }
 
+    /// A game to play some day, marked from its card while scrolling the library.
+    func toggleLater(_ game: Game) {
+        guard canMarkLater(game) || isLater(game) else { return }
+        let add = !isLater(game)
+        mark(game.gameIDs, later: add)
+        Toasts.shared.show(add ? L10n.t("%@ is on your Play Later list", game.name) : L10n.t("%@ is off your Play Later list", game.name))
+    }
+
     /// All of a game's stores at once, so it's marked or not wherever it's looked up.
-    private func mark(_ games: [GameID], hidden: Bool? = nil, pinned: Bool? = nil) {
+    private func mark(_ games: [GameID], hidden: Bool? = nil, pinned: Bool? = nil, later: Bool? = nil) {
         if let hidden {
-            if hidden { hiddenGames.formUnion(games) } else { hiddenGames.subtract(games) }
+            GameMarks.set(games, hidden, in: &hiddenGames)
             GameMarks.save(hiddenGames, .hidden)
             if hiddenGames.isEmpty { showingHidden = false }
         }
         if let pinned {
-            if pinned { pinnedGames.formUnion(games) } else { pinnedGames.subtract(games) }
+            GameMarks.set(games, pinned, in: &pinnedGames)
             GameMarks.save(pinnedGames, .pinned)
         }
+        if let later {
+            GameMarks.set(games, later, in: &laterGames)
+            GameMarks.save(laterGames, .later)
+        }
+        // The list's last game gone: no empty grid, the library again.
+        if filters.later, laterCount == 0 { filters.later = false }
         applyFilter()
     }
 
@@ -3036,7 +3499,7 @@ final class LibraryModel: ObservableObject {
             selectOnHome(place: max(0, min(homeRail.count, homePlace + delta)))
         case .library:
             if let next = gridLayout.index(from: selectedIndex, steps: delta) { selectedIndex = next }
-        case .detail:
+        case .detail, .launchers:
             break
         }
     }
@@ -3049,7 +3512,7 @@ final class LibraryModel: ObservableObject {
         case .library:
             let order = gridLayout.order
             selectedIndex = (toStart ? order.first : order.last) ?? 0
-        case .detail:
+        case .detail, .launchers:
             break
         }
     }
@@ -3112,6 +3575,11 @@ final class LibraryModel: ObservableObject {
     /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
     func launch(_ game: Game, d3dMetalChecked: Bool = false) {
         guard game.isInstalled, Self.mayStart(launching: launchingID != nil, startsAgain: startsAgain) else { return }
+        // Nothing below knows Battle.net's client: Steam's or Epic's way would start the wrong thing.
+        if game.provider == .battlenet {
+            errorMessage = L10n.t("%@ can't start from Nightforge yet: start it in Battle.net.", game.name)
+            return
+        }
         // What the start before still does – watch its game's first seconds, start it again another
         // way – ends with a Play: OxyRail, quit a few seconds in on 1.11., started again on DXVK
         // while Valheim started, and took Valheim's curtain.
@@ -3132,6 +3600,9 @@ final class LibraryModel: ObservableObject {
             defer { endLaunch(number) }
             // However the start ends, one judged by its first seconds brings Nightforge back from its curtain.
             defer { finishJudging(game, current: number == launchNumber && !Task.isCancelled) }
+            // The curtain at once for a game through Steam, as for a Mac version (`launchMac`): Steam for
+            // Mac going and this Steam coming up happen under it, not behind the page.
+            if viaSteam { raiseCurtain(for: game) }
             if viaSteam, game.bottle.isBuiltIn {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
@@ -3161,6 +3632,7 @@ final class LibraryModel: ObservableObject {
                 if !Engine.steamSignedIn { _ = await restartStuckSteam(wine) }
                 launchPhase = nil
             }
+            if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
             if game.provider == .epic, game.pendingUpdate != nil {
@@ -3242,6 +3714,7 @@ final class LibraryModel: ObservableObject {
                 }
                 let logMark = GameLog.mark()
                 let startedAt = Date()
+                if controllerConnected { padlessStarts.remove(game.id) } else { padlessStarts.insert(game.id) }
                 LearnedFixes.setLastLaunch(game.gameID, logMark: logMark)
                 var (frameLimit, learning) = FramePacing.automaticLimit(game: game.gameID, options: options,
                                                                          profile: profile, refreshRate: refreshRate)
@@ -4003,10 +4476,7 @@ final class LibraryModel: ObservableObject {
                 NSApp.yieldActivation(to: app)
                 app.activate(from: .current, options: [.activateAllWindows])
                 try? await Task.sleep(for: .milliseconds(600))
-                if app.isActive {
-                    if !GameBackdrop.isRaised { InputRouter.hidePointerSoon() }  // as handFocus
-                    return
-                }
+                if app.isActive { return }
             }
             try? await Task.sleep(for: .seconds(1))
         }
@@ -4051,6 +4521,7 @@ final class LibraryModel: ObservableObject {
         guard game.isInstalled || game.downloadRefused || { if case .downloading = game.install { return true } else { return false } }()
         else { return false }
         guard uninstallingID == nil && launchingID == nil && move == nil else { return false }
+        if game.provider == .battlenet { return false }  // the client's to remove (BattleNetStore)
         if game.provider == .gog && game.platform == .mac { return !isRunning(game) }
         if game.platform == .mac { return !anyRunning(.mac) }
         return game.bottle.isBuiltIn && !anyRunning(.windows)

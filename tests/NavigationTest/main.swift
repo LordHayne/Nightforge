@@ -50,6 +50,22 @@ struct NavigationTest {
         check(HomeRail.pick([]).isEmpty, "no games, no rail")
 
         // Pinned games lead the rail (by name), even ones not played for long; only games on this Mac.
+        // Taken off Home (8.11.): gone until played again; pinned or played later, it's back.
+        let now = Date()
+        let off: [GameID: Date] = [.steam(1): now.addingTimeInterval(-86_400), .steam(3): now.addingTimeInterval(-10 * 86_400)]
+        let without = HomeRail.pick(games, off: off, fill: false)
+        check(!without.contains(1), "a game taken off Home after it was last played is gone: \(without)")
+        check(without.contains(3), "one played again since it was taken off is back: \(without)")
+        check(HomeRail.pick(games, off: [.steam(42): now], fill: false) == HomeRail.pick(games, fill: false),
+              "a removal of a game that isn't there changes nothing")
+        let removalDefaults = TestDefaults.suite("offHome")
+        HomeRemovals.save(off, to: removalDefaults)
+        let loaded = HomeRemovals.load(from: removalDefaults)
+        check(loaded.count == 2 && abs((loaded[.steam(1)] ?? .distantPast).timeIntervalSince(off[.steam(1)]!)) < 0.01,
+              "removals survive a restart: \(loaded)")
+        check(HomeRemovals.isOff(game(9, .installed), in: [.steam(9): now]) && !HomeRemovals.isOff(game(9, .installed), in: [:]),
+              "a never played game taken off is off; nothing taken off, nothing off")
+
         let pinned = HomeRail.pick(games, pinned: [.steam(5), .steam(0), .steam(7)])
         check(pinned == [5, 7, 4, 3, 1], "pinned first (by name), even unplayed; a pinned game not on the Mac stays off: \(pinned)")
         let pinnedMany = HomeRail.pick(many, pinned: [.steam(139), .steam(137)])

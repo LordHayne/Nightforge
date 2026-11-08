@@ -26,6 +26,9 @@ enum ShaderCaches {
             for id in bundleIDs {
                 folders += metalFolders.map { userCache.appendingPathComponent("\(id)/\($0)", isDirectory: true) }
             }
+            // DXMT points Metal's cache to a folder per program, dxmt/<exe>/com.apple.metal
+            // (Overwatch's held 25 MB on 7.11.); without it "Clear shaders" left those behind.
+            folders.append(userCache.appendingPathComponent("dxmt", isDirectory: true))
         }
         return folders.filter { FileManager.default.fileExists(atPath: $0.path) }
     }

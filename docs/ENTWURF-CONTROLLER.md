@@ -227,7 +227,7 @@ vorne). Für die Einrichtung ist das gewollt, im Test überrascht es.
 | **B** | Genau eine Ebene zurück, mit einem Druck und immer mit sichtbarer Folge (3.3). |
 | **X** | Spielseite des gewählten Spiels. Auf der Spielseite und in Ebenen nichts. |
 | **Y** | Suchen (Frage 2). |
-| **☰** | Optionen des gewählten Spiels, wie das Menü eines Spiels auf Xbox und PlayStation (Frage 1). Ohne Spiel (Alle Spiele, Store-Treffer, Ersteinrichtung) und in Ebenen nichts. |
+| **☰** | Optionen des gewählten Spiels, wie das Menü eines Spiels auf Xbox und PlayStation (Frage 1). Ohne Spiel (Alle Spiele, Store-Treffer, Ersteinrichtung) und in Ebenen nichts. **Gehalten (0,45 s) auf einer Karte (Startseite, Bibliothek): Schnellmenü des Spiels**, auch bei Store-Treffern; dort öffnen sich die Optionen deshalb beim Loslassen, auf der Spielseite weiter beim Drücken (`MenuHold`). Im offenen Schnellmenü bleibt der Rahmen drin, B schließt es. |
 | **L1 / R1** | Tabs. Im Hauptfenster L1 Startseite, R1 Bibliothek, fest wie heute. In den Einstellungen voriger/nächster Tab. Sonst nichts. |
 | **L2 / R2** | Anfang/Ende dessen, worin man gerade ist: Startseite erstes Spiel / „Alle Spiele“, Bibliothek erstes/letztes Spiel, Spielseite Seitenanfang/-ende. Sie holen einen Rahmen zurück zu den Spielen. In Ebenen nichts. |
 | **Steuerkreuz, linker Stick** | Bewegen den Rahmen bzw. die Auswahl. Sie wechseln nie die Ebene (kein ↓ in die Bibliothek mehr). |

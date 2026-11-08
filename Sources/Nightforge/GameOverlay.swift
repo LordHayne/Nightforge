@@ -23,6 +23,9 @@ enum GameOverlay {
         @Published var symbols = PadSymbols()
         /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
         @Published var soundStaysOn: String?
+        /// A controller came after the game started without one (LibraryModel.padArrivedLate):
+        /// the menu offers a restart first, once.
+        @Published var lateController = false
     }
 
     /// What the model does for the choices.
@@ -31,6 +34,8 @@ enum GameOverlay {
         var quit: () async -> Void
         /// Nightforge in front, the game left running behind it; done once it's there or can't be.
         var nightforge: () async -> Void
+        /// Ends the game and starts it again; nil where the overlay offers no restart.
+        var restart: (() async -> Void)? = nil
     }
 
     private static let state = State()
@@ -41,6 +46,15 @@ enum GameOverlay {
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
+    /// Set when a controller came late; the next overlay asks, then it's cleared (close).
+    static var lateController: Bool {
+        get { state.lateController }
+        set { state.lateController = newValue }
+    }
+    /// A game ended: what the overlay was to ask about it isn't for the next one.
+    static func gameEnded() { state.lateController = false }
+    /// The player went back to the game from here (LibraryModel, GameStage).
+    static var resumed: (@MainActor () -> Void)?
     /// Open with "Not starting?" (or the question it led to).
     static var asksAboutStart: Bool { isOpen && state.step == .notStarting }
     /// The panel, while it's up: the pad's input goes there (InputRouter).
@@ -67,15 +81,12 @@ enum GameOverlay {
         display = GameProcesses.display(of: windows, pids: Set(pids)) ?? screenNumber(screen)
         let frame = display.map(Self.frame(of:)) ?? screen.frame
         panel.setFrame(frame, display: false)
-        // A game that took the screen for itself (a real display-mode change) has a shield above
-        // every window: Nightforge comes to the front instead, with the same choice.
-        if GameProcesses.screenCaptured() { comeForward() }
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).
         let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
         panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
         panel.orderFrontRegardless()
-        panel.makeKey()
+        if Self.takesKeys(step) { panel.makeKey() }
         focusDefault()
         heard = false
         opened += 1
@@ -137,7 +148,7 @@ enum GameOverlay {
         if !again {
             panel.level = NSWindow.Level(rawValue: raisedLevel(panel.level.rawValue, covering: covering ?? []))
             panel.orderFrontRegardless()
-            panel.makeKey()
+            if Self.takesKeys(state.step) { panel.makeKey() }
             GameLog.note("Overlay not seen for \(state.game) after 300 ms (\(seen)): raised to L\(panel.level.rawValue), brought to the front")
             Task {
                 try? await Task.sleep(for: .milliseconds(300))
@@ -153,6 +164,14 @@ enum GameOverlay {
     /// Whether the panel shows: nothing in front of it on the Space shown, and macOS counts it as
     /// visible.
     nonisolated static func shows(inFront: Bool, occlusionVisible: Bool) -> Bool { inFront && occlusionVisible }
+
+    /// Whether the panel takes the keys. Not over a game that shows a picture: losing them, The Forest
+    /// lay down in the Dock the moment the panel opened (8.11. 15:5x: `picture here`, next look
+    /// `picture elsewhere`), as Unity and Unreal games do (GameStage), and nothing came back of it for
+    /// the player but a game out of its full screen. The pad reaches Nightforge without them and the
+    /// mouse works through a panel that doesn't need them; the keyboard answers only "Not starting?",
+    /// where no picture is lost. The overlay opens only with the pad, so there's one in the hand.
+    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting }
 
     /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
     /// the screen should that lie higher.
@@ -181,13 +200,14 @@ enum GameOverlay {
     static func resume() { handle(.resume) }
     static func askQuit() { handle(.askQuit) }
     static func quit() { handle(.quit) }
+    static func restart() { handle(.restart) }
     static func toNightforge() { handle(.nightforge) }
 
     private static func handle(_ event: OverlayEvent) {
         guard !leaving else { return }
         // In wine.log: which presses arrive (the pad on "Not starting?", 1.11.), and who's in front.
         GameLog.note("Overlay: \(event) on \(state.step), \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front"
-                     + (panel?.isKeyWindow == true ? "" : ", the panel without the keys"))
+                     + (Self.takesKeys(state.step) && panel?.isKeyWindow != true ? ", the panel without the keys" : ""))
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
@@ -196,6 +216,12 @@ enum GameOverlay {
         case .close:
             InputRouter.hidePointerForGame()  // while the panel still has the keys
             close()
+            resumed?()
+        case .restart:
+            guard let actions else { return }
+            GameBackdrop.returning(held: true)
+            close()
+            Task { await (actions.restart ?? actions.quit)() }
         case .quit:
             // One curtain from here until Nightforge is in front: the panel goes at once, the
             // curtain holds whatever the game's processes do while they end.
@@ -218,7 +244,7 @@ enum GameOverlay {
         }
     }
 
-    enum Effect: Equatable { case none, close, quit, nightforge }
+    enum Effect: Equatable { case none, close, quit, nightforge, restart }
 
     /// The overlay's steps: B steps back, the sticks held again go back to the game from anywhere
     /// but the quitting, and a game is only quit from the question.
@@ -230,6 +256,7 @@ enum GameOverlay {
         case (.menu, .nightforge), (.notStarting, .nightforge): return (step, .nightforge)
         case (.confirmQuit, .back): return (.menu, .none)
         case (.confirmQuit, .quit): return (.quitting, .quit)
+        case (.menu, .restart): return (.quitting, .restart)
         default: return (step, .none)
         }
     }
@@ -237,6 +264,7 @@ enum GameOverlay {
     /// Also when Nightforge quits: a paused game never stays paused.
     static func close() {
         cont()
+        state.lateController = false
         panel?.orderOut(nil)
         PadFocus.shared.clear()
         actions = nil
@@ -256,7 +284,11 @@ enum GameOverlay {
     /// highlighted, and the first press only showed where you were.
     private static func focusDefault() {
         PadFocus.shared.clear()
-        if let id = defaultButton(state.step) { PadFocus.shared.focus(id) }
+        if state.step == .menu && state.lateController {
+            PadFocus.shared.focus("overlay.restart")
+        } else if let id = defaultButton(state.step) {
+            PadFocus.shared.focus(id)
+        }
     }
 
     /// The button a step's highlight starts on (its `padFocus` id): the safe answer.
@@ -282,8 +314,6 @@ enum GameOverlay {
         state.paused = false
     }
 
-    private static func comeForward() { NSApp.comeToFront() }
-
     private static func make() -> NSPanel {
         let panel = OverlayPanel(contentRect: NSScreen.main?.frame ?? .zero, styleMask: [.borderless, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
@@ -297,6 +327,7 @@ enum GameOverlay {
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
+        panel.becomesKeyOnlyIfNeeded = true  // a click on a button leaves the game its keys too
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { followDisplay() }
         }
@@ -309,9 +340,9 @@ enum GameOverlay {
 
 enum OverlayStep: Equatable { case menu, notStarting, confirmQuit, quitting }
 
-enum OverlayEvent { case back, resume, askQuit, quit, nightforge }
+enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart }
 
-/// Takes keys without making Nightforge the active app, so the game's Space stays where it is.
+/// Can take keys without making Nightforge the active app (`takesKeys`), so the game's Space stays where it is.
 private final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { GameOverlay.back() }  // Esc
@@ -362,8 +393,25 @@ private struct OverlayView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
         }
+        // A controller came after the start: many games only look for one then (Left 4 Dead 2, 7.11.).
+        if state.lateController {
+            VStack(spacing: 6) {
+                Label(L10n.t("Controller connected after the start"), systemImage: "gamecontroller.fill")
+                    .font(size: 15, weight: .semibold)
+                    .foregroundStyle(Theme.sodium)
+                Text(L10n.t("Some games only look for controllers when they start. A restart takes about a minute; your progress stays where the game saves it."))
+                    .font(size: 13)
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: 380)
+            }
+            .padding(.top, 6)
+        }
         VStack(spacing: 12) {
-            choice("overlay.continue", L10n.t("Continue Playing"), tint: Theme.sodium, preferred: true) { GameOverlay.resume() }
+            if state.lateController {
+                choice("overlay.restart", L10n.t("Restart Game"), tint: Theme.sodium, preferred: true) { GameOverlay.restart() }
+            }
+            choice("overlay.continue", L10n.t("Continue Playing"), tint: state.lateController ? nil : Theme.sodium,
+                   preferred: !state.lateController) { GameOverlay.resume() }
             choice("overlay.quit", L10n.t("Quit Game")) { GameOverlay.askQuit() }
             choice("overlay.nightforge", L10n.t("Go to Nightforge")) { GameOverlay.toNightforge() }
         }
@@ -713,12 +761,20 @@ enum GameProcesses {
         return info.pbi_status == UInt32(SSTOP)
     }
 
+    /// A captured display's shield: black, the size of the screen, and the game's own window lies a
+    /// level or two above it (L…630 or L…629 in every run with a picture, Overwatch, ABZU, Control).
+    /// Overwatch's black start on 8.11. 13:40 had only this one on screen, its real window hidden,
+    /// while DXMT drew 57 FPS into nothing – and the curtain sank for it.
+    nonisolated static func isShield(level: Int) -> Bool { level == Int(CGShieldingWindowLevel()) }
+
     /// Whether one of `pids` shows a window of a game's size on screen (CGWindowList's entries):
-    /// what the curtain waits for. Small ones – a splash, a launcher's dialog – don't count.
+    /// what the curtain waits for. Small ones – a splash, a launcher's dialog – don't count, nor
+    /// does a captured display's black shield (`isShield`).
     nonisolated static func showsWindow(_ windows: [[String: Any]], pids: Set<pid_t>) -> Bool {
         windows.contains { window in
+            let level = (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
-                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= 0,
+                  level >= 0, !isShield(level: level),
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: Any],
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
@@ -902,6 +958,36 @@ enum GameProcesses {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
         else { return false }
         return showsWindow(windows, pids: pids)
+    }
+
+    /// `pids` have a captured display's shield on the Space shown and no picture above it: the screen
+    /// is black, whatever the game draws (`isShield`).
+    nonisolated static func onlyShield(_ windows: [[String: Any]], pids: Set<pid_t>) -> Bool {
+        !showsWindow(windows, pids: pids) && windows.contains { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner) else { return false }
+            return isShield(level: (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)
+        }
+    }
+
+    nonisolated static func onlyShield(_ pids: Set<pid_t>) -> Bool {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        return onlyShield(windows, pids: pids)
+    }
+
+    /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it.
+    nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?) -> (here: Bool, anywhere: Bool, pageOver: Bool) {
+        guard !pids.isEmpty, let shown = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return (false, false, false) }
+        let here = showsWindow(shown, pids: pids)
+        return (here, here || showsWindow(pids, anySpace: true), page.map { pageCovers(shown, page: $0, pids: pids) } ?? false)
+    }
+
+    /// Whether Nightforge's page lies over the game's picture and none of it in front (`windows`:
+    /// the Space shown, front to back).
+    nonisolated static func pageCovers(_ windows: [[String: Any]], page: Int, pids: Set<pid_t>) -> Bool {
+        guard let index = windows.firstIndex(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue == page }) else { return false }
+        return !showsWindow(Array(windows[..<index]), pids: pids) && showsWindow(Array(windows[index...]), pids: pids)
     }
 
     /// The biggest window of `pids` on the Space shown, for wine.log ("1512×945").

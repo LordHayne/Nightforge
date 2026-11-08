@@ -51,6 +51,14 @@ struct LibraryFilterRow: View {
                 ChoiceChip(symbol: "line.3.horizontal.decrease", title: L10n.t("Filter"),
                            badge: model.filters.on.isEmpty ? nil : model.filters.on.count, menu: .filters,
                            help: L10n.t("Only some games: running great, with a controller, two on one Mac …"))
+                // The Play Later list, one press away; the chip stays while it's on, to go back.
+                let later = model.laterCount
+                if later > 0 || model.filters.later {
+                    FilterToggle(title: L10n.t("Play Later"), symbol: "bookmark.fill", count: later, on: model.filters.later,
+                                 id: "library.later", help: L10n.t("Only the games you marked to play later")) {
+                        model.filters.later.toggle()
+                    }
+                }
                 let active = LibraryFilters.Filter.allCases.filter(model.filters.has)
                 if !active.isEmpty {
                     Rectangle().fill(Color.white.opacity(0.15)).frame(width: 1, height: 18)
@@ -200,7 +208,7 @@ struct LibraryMenuLayer: View {
 }
 
 /// Glass under a chip, like the downloads panel.
-private struct MenuGlass<Content: View>: View {
+struct MenuGlass<Content: View>: View {
     var width: CGFloat
     @ViewBuilder let content: Content
     @Environment(\.textScale) private var textScale

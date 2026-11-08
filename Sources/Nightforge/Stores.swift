@@ -45,10 +45,10 @@ struct StoreLaunchCommand: Equatable {
     var environment: [String: String]
 }
 
-/// One store Nightforge brings games in from (Steam, Epic Games, GOG). Its library comes from the Mac
-/// first – as it was last loaded – and is brought up to date in the background; a store that can't
-/// be reached keeps its games, which still play. Nightforge downloads, starts and removes the games
-/// itself, without the store's own launcher.
+/// One store Nightforge brings games in from (Steam, Epic Games, GOG, Battle.net). Its library comes
+/// from the Mac first – as it was last loaded – and is brought up to date in the background; a store
+/// that can't be reached keeps its games, which still play. Nightforge downloads, starts and removes
+/// Epic's and GOG's games itself; Steam and Battle.net do that in their own clients.
 @MainActor
 protocol StoreProvider: AnyObject {
     var provider: Provider { get }
@@ -66,13 +66,17 @@ protocol StoreProvider: AnyObject {
     func install(_ game: Game, context: StoreContext) async throws
     /// Removes the game from the Mac (or the download that's under way).
     func uninstall(_ game: Game) async throws
+    /// What the store sells under `term`, signed in or not. Nothing when it can't be reached – or,
+    /// like Epic's, can't be searched from here (`StoreHits.epicSearch`).
+    func search(_ term: String) async -> [StoreHit]
 }
 
 extension StoreProvider {
     func refresh() async {}
+    func search(_ term: String) async -> [StoreHit] { [] }
 }
 
-/// A store the player signs in to in the store's own page (Epic Games, GOG): Settings › Stores and
+/// A store the player signs in to in the store's own page (Epic Games, GOG): the launcher menus and
 /// the sync banner show each the same way.
 @MainActor
 protocol AccountStore: StoreProvider, ObservableObject {
@@ -113,6 +117,10 @@ final class SteamStore: StoreProvider {
     private(set) var sync = StoreSync()
     /// Nightforge's own Steam is set up, or another Steam has games.
     private(set) var isConnected = false
+
+    func search(_ term: String) async -> [StoreHit] {
+        await StoreSearch.shared.search(term).map(StoreHit.init)
+    }
 
     func library() async -> [Game] {
         let root = Prefs.bottlesRoot

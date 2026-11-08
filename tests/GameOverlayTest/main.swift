@@ -35,6 +35,34 @@ struct GameOverlayTest {
 
     /// Both sticks – or ☰ and ⧉ on a pad without stick buttons – held for two seconds, once per hold.
     static func hold() {
+        // The overlay never takes the keys from a game with a picture (The Forest went into the Dock, 8.11.).
+        check(!GameOverlay.takesKeys(.menu), "the menu over a game leaves it its keys")
+        check(!GameOverlay.takesKeys(.confirmQuit) && !GameOverlay.takesKeys(.quitting), "… so does the question after it")
+        check(GameOverlay.takesKeys(.notStarting), "\"Not starting?\" has no picture to lose: the keyboard works there")
+        let padFolder = FileManager.default.temporaryDirectory.appendingPathComponent("pad-late-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: padFolder) }
+        func file(_ path: String) {
+            let url = padFolder.appendingPathComponent(path)
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: url.path, contents: Data())
+        }
+        check(!LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "an empty folder: nothing known")
+        file("gameinfo.txt")
+        check(!LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "gameinfo.txt alone isn't Source")
+        try? FileManager.default.removeItem(at: padFolder)
+        file("bin/engine.dll")
+        check(!LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "an engine.dll alone isn't Source (other games ship one)")
+        file("left4dead2/gameinfo.txt")
+        check(LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "Left 4 Dead 2's layout")
+        file("gameinfo.txt")
+        check(LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "gameinfo.txt in the game's own folder too")
+        // "A controller came late" belongs to one game; "Restart Game" hands over only for its own end.
+        MainActor.assumeIsolated {
+            GameOverlay.lateController = true
+            GameOverlay.gameEnded()
+            check(!GameOverlay.lateController, "the late controller's note ends with its game")
+        }
+        check(LibraryModel.endRestarts("a", ended: ["a", "b"]) && !LibraryModel.endRestarts("c", ended: ["a"]), "only the game to restart")
         // Which buttons count: never the PS/Xbox button (Apple's Game Overlay) or Create alone.
         check(OverlayHold.chord(leftStick: true, rightStick: true, menu: false, view: false), "both sticks pressed")
         check(!OverlayHold.chord(leftStick: true, rightStick: false, menu: true, view: true), "one stick, even with ☰ and ⧉: no")
@@ -73,6 +101,8 @@ struct GameOverlayTest {
         expect(.menu, .back, (.menu, .close), "B in the choice: back to the game")
         expect(.menu, .resume, (.menu, .close), "Continue Playing or the sticks held again: back to the game")
         expect(.menu, .askQuit, (.confirmQuit, .none), "Quit Game asks first")
+        expect(.menu, .restart, (.quitting, .restart), "Restart Game after a late controller: ends and starts again, no question")
+        expect(.confirmQuit, .restart, (.confirmQuit, .none), "no restart from the quit question")
         expect(.menu, .quit, (.menu, .none), "no quitting without the question")
         expect(.menu, .nightforge, (.menu, .nightforge), "Go to Nightforge")
         expect(.confirmQuit, .back, (.menu, .none), "B in the question: back to the choice")
@@ -256,6 +286,26 @@ struct GameOverlayTest {
         check(!GameProcesses.showsWindow([], pids: game), "nothing on screen yet")
         check(!GameProcesses.showsWindow([window(7000, 1920, 1080)], pids: []), "no processes, no window")
 
+        // Overwatch, 8.11. 13:40: only the captured display's black shield on screen, the real window
+        // hidden. Every run with a picture had a window above it (L…630, Control L…629).
+        let blackShield = Int(CGShieldingWindowLevel())
+        check(!GameProcesses.showsWindow([window(7000, 1512, 982, layer: blackShield)], pids: game), "the black shield alone is no picture")
+        check(GameProcesses.onlyShield([window(7000, 1512, 982, layer: blackShield)], pids: game), "… and is told apart from no window at all")
+        check(GameProcesses.showsWindow([window(7000, 1512, 982, layer: blackShield + 2), window(7000, 1512, 982, layer: blackShield)], pids: game),
+              "the game's window over its shield is the picture (Overwatch 13:55)")
+        check(GameProcesses.showsWindow([window(7000, 3024, 1964, layer: blackShield + 1), window(7000, 1920, 1200, layer: blackShield)], pids: game),
+              "… one level over it too (Control)")
+        check(!GameProcesses.onlyShield([window(7000, 1512, 982, layer: blackShield + 2), window(7000, 1512, 982, layer: blackShield)], pids: game),
+              "a picture over the shield isn't only a shield")
+        check(!GameProcesses.onlyShield([window(401, 1512, 982, layer: blackShield)], pids: game), "another program's shield says nothing of this game")
+        check(!GameProcesses.onlyShield([], pids: game), "nothing on screen: no shield either")
+
+        // The page keeps to the screen when a game changes the mode under it.
+        let small = CGRect(x: 0, y: 0, width: 1512, height: 982), big = CGRect(x: 0, y: 0, width: 1920, height: 1200)
+        check(GameBackdrop.shouldFollow(visible: true, frame: small, screen: big), "the mode changed: the page follows")
+        check(!GameBackdrop.shouldFollow(visible: true, frame: big, screen: big), "the same size: nothing to do")
+        check(!GameBackdrop.shouldFollow(visible: false, frame: small, screen: big), "not up: nothing to follow")
+
         // The overlay over ABZU (DXMT, macOS's Game Mode on, 3.11.): opened, never seen – behind the
         // game's window – and the game frozen under it. The panel goes above whatever covers the
         // screen, a game's window or a captured display's shield, not Nightforge's own curtain; the
@@ -367,29 +417,71 @@ struct GameOverlayTest {
     static func curtain() {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, macOS: Bool = false,
                   here: Bool = false, anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0,
-                  settle: TimeInterval = 1, guardOver: Bool = false) -> LibraryModel.CurtainStep {
+                  settle: TimeInterval = 1, guardOver: Bool = false, pictureFor: TimeInterval = 0, broughtBack: Int = 0,
+                  playerActed: Bool = false, shieldOnly: Bool = false, steadyFor: TimeInterval = .infinity) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, macOSAsks: macOS,
                                      windowHere: here, windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor,
-                                     settle: settle, guardOver: guardOver)
+                                     settle: settle, guardOver: guardOver, pictureFor: pictureFor, broughtBack: broughtBack,
+                                     playerActed: playerActed, shieldOnly: shieldOnly, steadyFor: steadyFor)
         }
+        // Overwatch, 8.11. 14:53: its window went 1392×742, 1342×710, and only then the display mode.
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 0.5) == .wait, "the picture's size still changing: the curtain stays")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 2) == .lower, "steady for 2 s: the curtain sinks")
+        check(step(gameFront: true, here: true, frontFor: 1, pictureFor: 15, steadyFor: 0) == .lower, "the ceiling holds whatever the size does")
+        check(!LibraryModel.fetchesFrontItself(again: false, active: false), "a plain handover doesn't go through Launch Services")
+        check(!LibraryModel.fetchesFrontItself(again: true, active: true), "Nightforge in front already: it hands over as ever")
+        check(LibraryModel.fetchesFrontItself(again: true, active: false), "fetching a game back from behind needs a real round through the front")
+        check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
+              "only the black shield on screen: its real window is fetched")
+        check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,
+              "still only the shield after two tries: no curtain down for a black screen, \"Not starting?\" comes in its time")
+        check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2) == .lower,
+              "a window off the screen without a shield sinks the curtain as before")
+
+        // The pointer under the curtain: the panel only over the game itself.
+        func pointer(gameFront: Bool = false, picture: Bool = false, second: Bool = false, newFront: Bool = false,
+                     nightforge: Bool = false) -> LibraryModel.PointerStep {
+            LibraryModel.pointerUnderCurtain(gameFront: gameFront, picture: picture, frontForSecond: second, newFront: newFront,
+                                             nightforgeFront: nightforge)
+        }
+        check(pointer(gameFront: true, second: true) == .overGame, "the game a second in front without a picture: hidden over it")
+        check(pointer(gameFront: true, picture: true, second: true) == .leave, "with a picture: never its keys")
+        check(pointer(gameFront: true) == .leave, "only just in front: not yet")
+        check(pointer(newFront: true, nightforge: true) == .fromNightforge, "Nightforge in front: no panel needed")
+        check(pointer(newFront: true) == .leave, "Steam Helper, Claude or Finder in front: its keys stay its own (8.11.)")
+        check(pointer() == .leave, "nothing changed: nothing to do")
         check(step() == .wait, "no window yet: the curtain waits")
         check(step(here: true) == .handOver, "its window is there, another app in front: the game gets the front")
         check(step(anywhere: true) == .handOver, "Mafia II's first start: its window in another Space, behind – handed over too")
         check(step(nightforgeFront: true, here: true) == .handOver, "Nightforge still in front: handed over too")
         check(step(gameFront: true, here: true, frontFor: 0.5) == .wait, "the game in front only just: a moment more")
         check(step(gameFront: true, here: true, frontFor: 1) == .lower, "the game in front for a second: the curtain sinks")
-        check(step(gameFront: true, anywhere: true, frontFor: 3) == .wait, "in front, its window not on the Space shown yet: waits")
+        check(step(gameFront: true, anywhere: true, frontFor: 3) == .wait, "in front, its window not on the Space shown yet: waits a moment")
         check(step(gameFront: true, frontFor: 3) == .wait, "in front without a window of a game's size: waits")
         check(step(lowered: true, gameFront: true) == .wait, "down and the game in front: all well")
         check(step(lowered: true) == .raiseAgain, "down and another app took the front: up again, back to the game")
-        check(step(lowered: true, nightforgeFront: true) == .done, "Go to Nightforge: the player's choice, the watch ends")
+        check(step(lowered: true, nightforgeFront: true, playerActed: true) == .done, "⌘-Tab or a click to Nightforge: the player's choice, the watch ends")
+        // Valheim on 7.11.: macOS handed Nightforge the front, the watch took it for the player and ended.
+        check(step(lowered: true, nightforgeFront: true) == .raiseAgain, "Nightforge in front by itself: the game gets the front back")
         check(step(lowered: true, guardOver: true) == .done, "after the guard time the front is the player's")
         // Up again once already (Sonic Mania on 1.11. built its window anew and the curtain came and went).
         let again = LibraryModel.settleAgain
         check(step(gameFront: true, here: true, frontFor: 1.5, settle: again) == .wait, "up again: one second isn't enough")
         check(step(gameFront: true, here: true, frontFor: again, settle: again) == .lower, "the game kept the front a while: it sinks")
-        // Its window elsewhere, however long: sinking showed Nightforge's page under the game (1.11.).
-        check(step(gameFront: true, anywhere: true, frontFor: 30) == .wait, "its window in another Space: the curtain stays")
+        // In front with its window off the screen: shrunk into the Dock, or in a Space not shown.
+        let patience = LibraryModel.windowAwayPatience
+        check(step(gameFront: true, anywhere: true, frontFor: patience) == .bringBack, "its window off the screen: fetched back, activating it does nothing")
+        check(step(gameFront: true, anywhere: true, frontFor: patience, broughtBack: 1) == .bringBack, "once more")
+        check(step(gameFront: true, anywhere: true, frontFor: patience, broughtBack: LibraryModel.maxBroughtBack) == .lower,
+              "it won't come: the curtain goes all the same, a running game is never left under it")
+        check(step(gameFront: true, frontFor: 60) == .wait, "no window of a picture's size anywhere: nothing to fetch")
+        check(step(gameFront: true, macOS: true, anywhere: true, frontFor: 30) == .wait, "macOS asks: its question keeps the front")
+        // The ceiling: a picture under the curtain whoever has the front.
+        let ceiling = LibraryModel.curtainCeiling
+        check(step(here: true, pictureFor: ceiling - 1) == .handOver, "its picture for a while, another app in front: still handing over")
+        check(step(here: true, pictureFor: ceiling) == .lower, "its picture for long enough: the curtain sinks, whoever has the front")
+        check(step(nightforgeFront: true, here: true, pictureFor: ceiling) == .lower, "Nightforge in front too")
+        check(step(macOS: true, here: true, pictureFor: ceiling) == .wait, "not while macOS's question holds the start")
         // A question of the game's before any picture: the game gets the front, its window goes over the curtain.
         check(step(asks: true) == .handOver, "a question, another app in front: the game gets the front")
         check(step(nightforgeFront: true, asks: true) == .handOver, "Nightforge in front: handed over too")
@@ -406,7 +498,8 @@ struct GameOverlayTest {
               "the game in front with its window: the curtain sinks, the question over it")
         check(step(gameFront: true, macOS: true, asks: true) == .makeWay, "the game's question in front: over the curtain too")
         check(step(lowered: true, macOS: true) == .wait, "down, macOS's question in front: the curtain stays down")
-        check(step(lowered: true, nightforgeFront: true, macOS: true) == .done, "Go to Nightforge meanwhile: the watch ends")
+        check(step(lowered: true, nightforgeFront: true, macOS: true, playerActed: true) == .done, "the player went to Nightforge meanwhile: the watch ends")
+        check(step(lowered: true, nightforgeFront: true, macOS: true) == .wait, "by itself, macOS's question open: the question keeps the front")
         check(step(lowered: true, macOS: true, guardOver: true) == .done, "after the guard time: the watch ends")
 
         // Steam's question before the start (ShowInterstitials, Black Myth: Wukong on 1.11.): the
@@ -422,6 +515,32 @@ struct GameOverlayTest {
         check(turn(asked: true, goesOn: false) == .over, "answered with Cancel: no curtain again")
         check(turn(asked: true, wrong: true) == .over, "answered, then Steam couldn't start it: no curtain over the message")
         check(turn(asks: true, wrong: true) == .none, "a start gone wrong is the watch's own: curtain away, watch over")
+
+        // What takes the curtain away now that it's up from Play on (`launchMac`, `launch`).
+        func asks(confirm: Bool = false, phase: LaunchPhase? = nil, saves: Bool = false) -> Bool {
+            LibraryModel.startAsksPlayer(needsConfirmation: confirm, phase: phase, savesToChoose: saves)
+        }
+        check(!asks(), "nothing to answer")
+        check(asks(confirm: true), "Steam's question")
+        check(asks(phase: .signInAgain), "Steam asks to sign in again")
+        check(asks(phase: .signInInSteamWindow), "Steam for Mac's sign-in, under the curtain now")
+        check(asks(saves: true), "the choice of saves is a sheet in Nightforge's window")
+        check(!asks(phase: .signingIn), "signing in by itself needs nobody")
+        check(!asks(phase: .startingSteamForMac), "the Steams changing over stay under the curtain")
+        check(!asks(phase: .savingToCloud), "… so does the save going up")
+
+        // Steam's dialogs of their own against its routine steps (console_log of both Steams, 8.11.).
+        func dialog(_ what: String) -> Bool {
+            MacSteam.waitsInDialog("[2026-11-08 13:30:55] GameAction [AppID 442070, ActionID 7] : LaunchApp waiting for user response to \(what)"[...])
+        }
+        check(dialog("ShowLaunchOption \"\""), "the pick among launch options has its own window")
+        check(dialog("ShowEula \"\""), "a licence too")
+        check(dialog("SynchronizingCloud \"syncfailed\""), "a cloud sync that failed too")
+        check(dialog("SynchronizingCloud \"cloudconflict\""), "a cloud conflict too")
+        check(dialog("KickingOtherSession \"OxyRail\""), "another session to kick too")
+        check(!dialog("ShowInterstitials \"\""), "ShowInterstitials needs the main window shown")
+        check(!dialog("CreatingProcess \"\""), "CreatingProcess goes on by itself")
+        check(!MacSteam.waitsInDialog("GameAction [AppID 442070] : LaunchApp continues with user response \"\""[...]), "no question, no dialog")
         macOSWait()
         ownQuestion()
 

@@ -200,10 +200,16 @@ enum D3DMetalSupply {
     /// for the game, or its profile names it for a game with a DirectX 12 program of its own
     /// (Control: its DirectX 11 program crashes on DXMT and DXVK). A profile that only prefers it
     /// for a game that draws both with one program isn't asked about: that game runs without.
-    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer, profile: GameProfile? = nil) -> Bool {
-        picked == .d3dmetal || analysis?.onlyD3D12 == true
+    /// `game`: one on `needsRosettaLibrary` needs Apple's files whatever it draws with.
+    static func needed(by analysis: GameAnalysis?, picked: GraphicsLayer, profile: GameProfile? = nil, game: GameID? = nil) -> Bool {
+        game.map(needsRosettaLibrary.contains) == true || picked == .d3dmetal || analysis?.onlyD3D12 == true
             || (analysis?.d3d12Program != nil && profile?.graphics == .d3dmetal)
     }
+
+    /// Games that hang at the start without CX_APPLEGPTK_LIBD3DSHARED_PATH (Engine.environment), even on
+    /// DXMT: the variable names Apple's libd3dshared.dylib, which comes with D3DMetal. Overwatch through
+    /// Steam (7.11.); without D3DMetal set up it would hang with no window and no question.
+    static let needsRosettaLibrary: Set<GameID> = [.steam(2_357_570)]
 
     // MARK: Importing Apple's toolkit
 

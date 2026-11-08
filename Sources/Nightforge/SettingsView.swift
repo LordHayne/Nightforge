@@ -89,19 +89,17 @@ private struct StoresSettings: View {
         Form {
             Section {
                 LabeledContent {
-                    Button(L10n.t("Open Steam")) { model.openSteam() }
-                        .disabled(!Engine.isSteamInstalled)
-                        .padFocus("settings.openSteam", enabled: Engine.isSteamInstalled, activate: { model.openSteam() })
+                    Button(L10n.t("Manage")) { model.openLaunchers() }
+                        .buttonStyle(GlassTextButtonStyle(prominent: true, small: true))
+                        .padFocus("settings.launchers", activate: { model.openLaunchers() })
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Steam")
-                        Text(steamStatus)
+                        Text(L10n.t("Launchers"))
+                        Text(L10n.t("%ld of %ld signed in", model.signedInLaunchers, model.launchers.count))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
                 }
-                AccountStoreRow(store: model.epic, connect: model.connectEpic, disconnect: model.disconnectEpic)
-                AccountStoreRow(store: model.gog, connect: model.connectGOG, disconnect: model.disconnectGOG)
             } footer: {
                 Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. You sign in in the store's own window; Nightforge never sees your login."))
                     .font(size: 10)
@@ -156,99 +154,6 @@ private struct StoresSettings: View {
         }
         .animation(.easeOut(duration: 0.2), value: showsOwnWine)
         .onAppear { showsOwnWine = !bottlesRoot.isEmpty || !runnerPath.isEmpty }
-    }
-
-    private var steamStatus: String {
-        guard Engine.isSteamInstalled else { return L10n.t("Not set up yet – Nightforge does it at the first start.") }
-        let count = model.visibleCount(of: .steam)
-        let games = count == 1 ? L10n.t("1 game") : L10n.t("%ld games", count)
-        return Engine.steamSignedIn ? L10n.t("Signed in · %@", games) : L10n.t("Not signed in · %@", games)
-    }
-}
-
-/// A store the player signs in to (Epic Games, GOG): connect in the store's own sign-in window,
-/// then how its library stands – with a way out when the store couldn't be reached (the games from
-/// last time still play).
-private struct AccountStoreRow<Store: AccountStore>: View {
-    @EnvironmentObject private var model: LibraryModel
-    @ObservedObject var store: Store
-    let connect: () -> Void
-    let disconnect: () -> Void
-
-    private var label: String { store.provider.label }
-    private var key: String { store.provider.rawValue }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LabeledContent {
-                HStack(spacing: 8) {
-                    if store.isConnected && store.sync.state == .signedOut {
-                        Button(store.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Sign In Again"), action: connect)
-                            .buttonStyle(GlassTextButtonStyle(prominent: !store.connecting, small: true))
-                            .padFocus("settings.\(key).signIn", activate: connect)
-                    } else if store.isConnected && store.sync.failed {
-                        Button { model.refreshStores(force: true) } label: {
-                            Label(L10n.t("Try Again"), systemImage: "arrow.clockwise")
-                        }
-                        .padFocus("settings.\(key).retry", activate: { model.refreshStores(force: true) })
-                    }
-                    if store.isConnected {
-                        Button(L10n.t("Disconnect"), action: disconnect)
-                            .padFocus("settings.\(key).disconnect", activate: disconnect)
-                    } else {
-                        Button(store.connecting ? L10n.t("Waiting for sign-in …") : L10n.t("Connect"), action: connect)
-                            .buttonStyle(GlassTextButtonStyle(prominent: !store.connecting, small: true))
-                            .padFocus("settings.\(key).connect", activate: connect)
-                    }
-                }
-            } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(label)
-                    status
-                        .font(size: 10)
-                }
-            }
-            if store.connecting {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "person.badge.key")
-                        .foregroundStyle(Theme.sodium)
-                    Text(L10n.t("%@'s sign-in page is open in a window. Once you're signed in, your games appear here by themselves.", label))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .font(size: 12.5)
-                .foregroundStyle(Theme.ink.opacity(0.85))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-        }
-    }
-
-    @ViewBuilder private var status: some View {
-        if !store.isConnected {
-            Text(store.connecting ? L10n.t("Sign in in %@'s window", label) : L10n.t("Not connected"))
-                .foregroundStyle(.secondary)
-        } else {
-            switch store.sync.state {
-            case .syncing:
-                Text(L10n.t("Updating …")).foregroundStyle(.secondary)
-            case .failed(let reason):
-                Text(store.sync.lastSuccess.map { L10n.t("%@ · last update %@", reason, Format.relative($0)) } ?? reason)
-                    .foregroundStyle(Theme.sodium)
-            case .signedOut:
-                Text(L10n.t("%@ signed you out – your games stay here", label))
-                    .foregroundStyle(Theme.sodium)
-            case .ok:
-                let count = model.visibleCount(of: store.provider)
-                let games = count == 1 ? L10n.t("1 game") : L10n.t("%ld games", count)
-                HStack(spacing: 6) {
-                    Circle().fill(Theme.runsGreat).frame(width: 7, height: 7)
-                    Text(store.sync.lastSuccess.map { L10n.t("%@ · up to date %@", games, Format.relative($0)) } ?? games)
-                }
-                .foregroundStyle(.secondary)
-                .help(store.accountName.map { L10n.t("Signed in as %@", $0) } ?? "")
-            }
-        }
     }
 }
 
@@ -734,6 +639,17 @@ private struct StorageSettings: View {
             }
 
             Section {
+                Button(L10n.t("Restart Nightforge")) { model.restartNightforge() }
+                    .disabled(gameBusy)
+                    .padFocus("storage.restart", enabled: !gameBusy, activate: { model.restartNightforge() })
+                Text(gameBusy ? L10n.t("Quit the game first, then restart Nightforge.")
+                              : L10n.t("Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs."))
+                    .font(size: 10)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
                 HStack {
                     Button(L10n.t("Remove Nightforge Completely …"), action: planRemoval)
                         .disabled(gameBusy || measuringRemoval || removing)
@@ -819,6 +735,9 @@ private struct StorageSettings: View {
                      : game.lastPlayed.map { L10n.t("Last played %@", Format.relative($0)) } ?? L10n.t("Never played"))
                     .font(size: 10)
                     .foregroundStyle(.secondary)
+                if let note = game.moveNote {
+                    Text(note).font(size: 10).foregroundStyle(.secondary)
+                }
             }
         }
     }

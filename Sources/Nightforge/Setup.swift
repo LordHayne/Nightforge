@@ -11,6 +11,8 @@ final class SetupModel: ObservableObject {
         case welcome
         /// The setup's own steps; `phase` says where it is.
         case checklist
+        /// Steam is signed in: the four launcher cards, for the other stores, before the library check.
+        case launchers
         /// After the sign-in: Steam sends the library, and every game is looked up.
         case checking(LibraryCheck)
         /// How many of the games run here, then "Let's Play".
@@ -19,11 +21,12 @@ final class SetupModel: ObservableObject {
 
     /// What Return or A, and Esc or B, do on the page now.
     enum Action: Equatable {
-        case begin, installRosetta, showSteam, retry, skip, play
+        case begin, installRosetta, showSteam, retry, leaveLaunchers, skip, play
 
         var label: String {
             switch self {
             case .begin: return L10n.t("Let's Go")
+            case .leaveLaunchers: return L10n.t("Continue")
             case .installRosetta: return L10n.t("Install Rosetta")
             case .showSteam: return L10n.t("Show Steam window again")
             case .retry: return L10n.t("Try again")
@@ -84,6 +87,8 @@ final class SetupModel: ObservableObject {
 
     /// After the setup (and "Let's Go" in the replay): the library check starts (LibraryModel).
     var onFinished: (() -> Void)?
+    /// The four cards are up, Steam's sign-in window had the front.
+    var onLaunchers: (() -> Void)?
     /// Steam's sign-in window is up, or Steam signed in without one: nothing on the Windows side
     /// waits any more, so Steam for Mac gets ready now (LibraryModel → MacSteamPrep). Before, its
     /// 289 MB and its first start would share the line and the Mac with Steam's own update, which
@@ -120,6 +125,13 @@ final class SetupModel: ObservableObject {
         isReplay = true
         isActive = true
         stage = .welcome
+    }
+
+    /// "Continue" on the four cards: on to the library check, with every store signed in by now.
+    func leaveLaunchers() {
+        guard stage == .launchers else { return }
+        stage = .checking(LibraryCheck())
+        onFinished?()
     }
 
     func checking(_ check: LibraryCheck) {
@@ -160,6 +172,7 @@ final class SetupModel: ObservableObject {
         case .installRosetta: installRosetta()
         case .showSteam: reopenSteam()
         case .retry: start()
+        case .leaveLaunchers: leaveLaunchers()
         case .skip, .play: close()
         }
     }
@@ -174,6 +187,7 @@ final class SetupModel: ObservableObject {
             case .failed: return .retry
             case .idle, .running, .done: return nil
             }
+        case .launchers: return nil  // the card that's selected has Return and A
         case .checking: return nil
         case .reveal: return .play
         }
@@ -183,6 +197,7 @@ final class SetupModel: ObservableObject {
         switch stage {
         case .welcome: return replay ? .skip : nil
         case .checklist: return nil
+        case .launchers: return .leaveLaunchers
         case .checking: return .skip
         case .reveal: return .play
         }
@@ -632,9 +647,14 @@ final class SetupModel: ObservableObject {
     private func finish() {
         signInWatcher?.cancel()
         phase = .done
-        if isActive { stage = .checking(LibraryCheck()) }
+        let cards = isActive && !isReplay
+        if cards {
+            stage = .launchers
+        } else if isActive {
+            stage = .checking(LibraryCheck())
+        }
         onSignInReady?()  // a setup that found Steam signed in already
-        onFinished?()
+        if cards { onLaunchers?() } else { onFinished?() }
         // Steam opens its big main window after sign-in; from now on it only works in the background.
         Task {
             guard let wine = await Engine.installedWine() else { return }

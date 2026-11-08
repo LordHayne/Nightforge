@@ -293,6 +293,11 @@ struct EngineLayoutTest {
               "extra Wine debug channels: channel lists only")
         check(GameLog.wineDebug == "-all,err+module,err+mscoree", "Wine stays quiet without an engine test")
 
+        // MARK: The Rosetta library, off for one game: "off" and no other value, least of all a path.
+        check(GameEnvironment.sanitized(["CX_APPLEGPTK_LIBD3DSHARED_PATH": "off"]).count == 1, "the Rosetta library can be switched off")
+        check(GameEnvironment.sanitized(["CX_APPLEGPTK_LIBD3DSHARED_PATH": "libevil.dylib"]).isEmpty, "winecx loads what it names: nothing else gets through")
+        check(GameEnvironment.sanitized(["CX_APPLEGPTK_LIBD3DSHARED_PATH": "/tmp/evil.dylib"]).isEmpty, "no path")
+
         // MARK: A game's Wine switches (GameEnvironment: profile "environment", test switch gameEnvironment.<key>)
         check(GameEnvironment.sanitized(["WINE_SIMULATE_WRITECOPY": "1", "DYLD_INSERT_LIBRARIES": "/tmp/x.dylib",
                                          "CX_ACTIVE_GRAPHICS_BACKEND": "../dxmt", "CX_HACK_FILESYSTEM_TYPE": "1 2",

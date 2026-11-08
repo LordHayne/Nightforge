@@ -20,7 +20,7 @@
  "games": {
   "550": {
    "name": "Left 4 Dead 2",
-   "note": "Tested 2026-10-26 on M5: DXVK fails (MoltenVK rejects its buffers, 'Failed to create D3D device'), Nightforge switches to WineD3D by itself. Menu and play work, but it crashed after about a minute twice; -vulkan (Valve's DXVK) and WineD3D's Vulkan renderer don't start.",
+   "note": "Tested 2026-11-08 on M5, macOS 27.0, winecx 4.7.3, WineD3D: loading a map hung right after 'Redownloading all lightmaps' whenever sound was on. The game opens the microphone there, winecx asks macOS for it, and macOS refused because Nightforge's helper had no NSMicrophoneUsageDescription (tccd, all 12 runs with sound on 7./8.11.); -nosound skips that step and loaded. Not the cause: windows_speaker_config (4 is stereo, 2 mono), graphics backend (OpenGL or Vulkan), CSMT, mat_queue_mode, msync, Rosetta's AVX hint, CX_APPLEGPTK_LIBD3DSHARED_PATH. 2026-10-26: DXVK fails (MoltenVK rejects its buffers), -vulkan (Valve's DXVK) doesn't start.",
    "source": "mac"
   },
   "1930": {
@@ -4791,8 +4791,12 @@
   },
   "2357570": {
    "name": "Overwatch",
-   "notYet": "Overwatch hangs at the start in Nightforge (no window). Nightforge is looking into why.",
-   "note": "Tested 2026-11-01 on M5, macOS 27.0.1, winecx 4.7.3 with D3DMetal 4.0b3: Overwatch.exe starts, 0 % CPU, no window. Not yet tried: DXMT instead of D3DMetal, a run without msync.",
+   "graphics": "dxmt",
+   "dllOverrides": {
+    "nvapi64": "",
+    "nvngx": ""
+   },
+   "note": "Tested 2026-11-07 on M5, macOS 27.0, winecx 4.7.3, the Steam version from Nightforge: reaches a match on DXMT at about 57 FPS, Direct in the Metal HUD, MetalFX spatial 1512x982 to 3024x1964. Needs CX_APPLEGPTK_LIBD3DSHARED_PATH (set for all winecx programs) and nvapi64 and nvngx off, as Recall does.",
    "source": "mac",
    "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
   },
@@ -5911,5 +5915,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-03T15:39:46Z"
+ "generated": "2026-11-07T21:50:08Z"
 }

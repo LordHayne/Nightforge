@@ -51,9 +51,11 @@ enum L10n {
         "1 game": "1 Spiel",
         "%ld games": "%ld Spiele",
         "Rescan Library": "Bibliothek neu einlesen",
+        "Restart Nightforge": "Nightforge neu starten",
+        "Quit the game first, then restart Nightforge.": "Beende zuerst das Spiel, dann starte Nightforge neu.",
+        "Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs.":
+            "Beendet Steam, Wine und alles, was Nightforge im Hintergrund laufen lässt, und startet Nightforge dann neu. Hilft, wenn etwas hängt.",
         "Quit Nightforge": "Nightforge beenden",
-        "Rescan library (⌘R)": "Bibliothek neu einlesen (⌘R)",
-        "Rescan library": "Bibliothek neu einlesen",
         "Settings (⌘,)": "Einstellungen (⌘,)",
         "Last played": "Zuletzt gespielt",
         "Never": "Noch nie",
@@ -70,7 +72,12 @@ enum L10n {
 
         // Steam store & Mac versions
         "View in Steam Store": "Im Steam-Store ansehen",
-        "In the Steam Store": "Im Steam-Store",
+        "View in %@ Store": "Im %@-Store ansehen",
+        "In the %@ Store": "Im %@-Store",
+        "In the Stores": "In den Stores",
+        "Also in the %@ Store": "Auch im %@-Store",
+        "Also in the %@ Store · %@": "Auch im %@-Store · %@",
+        "Search Epic Games in your browser": "Epic Games im Browser durchsuchen",
         "Price": "Preis",
         "Free": "Kostenlos",
         "Add for Free": "Kostenlos hinzufügen",
@@ -189,9 +196,13 @@ enum L10n {
         "The battery drains although the Mac is plugged in – the charger is too weak for games.":
             "Der Akku entlädt sich, obwohl der Mac am Netzteil hängt – das Netzteil ist zu schwach für Spiele.",
         "Battery Settings": "Batterie-Einstellungen",
-        "Steam also has a Mac version": "Steam hat auch eine Mac-Version",
-        "Steam also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
-            "Steam hat dieses Spiel auch als Mac-Version. Nightforge nutzt sie, sobald dir das Spiel gehört – wenn sie auf aktuellen Macs läuft.",
+        "%@ also has a Mac version": "%@ hat auch eine Mac-Version",
+        "%@ also has a Mac version of this game. Nightforge uses it once you own the game, if it runs on current Macs.":
+            "%@ hat dieses Spiel auch als Mac-Version. Nightforge nutzt sie, sobald dir das Spiel gehört – wenn sie auf aktuellen Macs läuft.",
+        "Blizzard's Mac games stay on this Mac: Battle.net can't install to external drives.": "Blizzards Mac-Spiele bleiben auf diesem Mac: Battle.net kann nicht auf externe Laufwerke installieren.",
+        "Battle.net has to run and be signed in to start it: it needs internet.": "Battle.net muss laufen und angemeldet sein, damit es startet: Es braucht Internet.",
+        "Battle.net installs and removes its games itself: do that in Battle.net.": "Battle.net installiert und entfernt seine Spiele selbst: Bitte dort erledigen.",
+        "%@ can't start from Nightforge yet: start it in Battle.net.": "%@ startet noch nicht aus Nightforge: Bitte in Battle.net starten.",
 
         // Mac versions through Steam for Mac
         "Version": "Version",
@@ -518,9 +529,6 @@ enum L10n {
         // Settings tabs
         "Stores": "Stores",
         "About": "Über",
-        "Not set up yet – Nightforge does it at the first start.": "Noch nicht eingerichtet – Nightforge macht das beim ersten Start.",
-        "Signed in · %@": "Angemeldet · %@",
-        "Not signed in · %@": "Nicht angemeldet · %@",
         "No controller connected.": "Kein Controller verbunden.",
         "Controller battery": "Akku des Controllers",
         "Connected · works in Nightforge and in games with controller support":
@@ -805,6 +813,12 @@ enum L10n {
         "Sound now comes from %@": "Ton kommt jetzt aus %@",
         "The game plays its sound on %@ until it starts again.": "Das Spiel spielt seinen Ton bis zum nächsten Start über %@.",
         "Continue Playing": "Weiterspielen",
+        "Restart Game": "Spiel neu starten",
+        "Controller connected": "Controller verbunden",
+        "Controller connected after the start": "Controller nach dem Start verbunden",
+        "%@ may only find it after a restart – the overlay offers one.": "%@ erkennt ihn vielleicht erst nach einem Neustart – das Overlay bietet ihn an.",
+        "Some games only look for controllers when they start. A restart takes about a minute; your progress stays where the game saves it.":
+            "Manche Spiele suchen Controller nur beim Start. Ein Neustart dauert etwa eine Minute, dein Fortschritt bleibt, wo das Spiel ihn speichert.",
         "Quit Game": "Spiel beenden",
         "Go to Nightforge": "Zu Nightforge",
         "Paused": "Pausiert",
@@ -1121,6 +1135,22 @@ enum L10n {
         "Pin to Home – stays on the rail (P)": "An die Startseite heften – bleibt in der Leiste (P)",
         "Unpin from Home (P)": "Von der Startseite lösen (P)",
         "Pinned to Home": "An die Startseite geheftet",
+        "Pin to Home": "An die Startseite heften",
+        "Remove from Home": "Von der Startseite nehmen",
+        "%@ is off Home until you play it again": "%@ ist von der Startseite, bis du es wieder spielst",
+        "Unpin from Home": "Von der Startseite lösen",
+        "Hide from library": "Aus der Bibliothek ausblenden",
+        "Show in library again": "Wieder in der Bibliothek zeigen",
+        "Quick menu": "Schnellmenü",
+        "Hold: Quick menu": "Halten: Schnellmenü",
+        "Options · Hold: Quick menu": "Optionen · Halten: Schnellmenü",
+        "Play Later": "Später spielen",
+        "Add to Play Later": "Zu „Später spielen“ hinzufügen",
+        "Remove from Play Later": "Aus „Später spielen“ entfernen",
+        "On your Play Later list": "Auf deiner Liste „Später spielen“",
+        "Only the games you marked to play later": "Nur die Spiele, die du für später vorgemerkt hast",
+        "%@ is on your Play Later list": "%@ steht jetzt auf deiner Liste „Später spielen“",
+        "%@ is off your Play Later list": "%@ ist nicht mehr auf deiner Liste „Später spielen“",
         "Undo": "Rückgängig",
         "%@ is hidden from your library": "%@ ist aus deiner Bibliothek ausgeblendet",
         "%@ is back in your library": "%@ ist wieder in deiner Bibliothek",
@@ -1151,7 +1181,6 @@ enum L10n {
             "Nightforge hat selbst herausgefunden, was es braucht, und wendet es bei jedem Start an.",
 
         // Epic Games
-        "Sign in to Epic Games": "Bei Epic Games anmelden",
         "Couldn't reach Epic Games": "Epic Games nicht erreichbar",
         "legendary stopped (code %d)": "legendary hat aufgehört (Code %d)",
         "Epic Games didn't give the launch details for %@.": "Epic Games hat die Startdaten für %@ nicht geliefert.",
@@ -1182,15 +1211,7 @@ enum L10n {
             "Spiele aus allen verbundenen Stores stehen zusammen in der Bibliothek. Epic- und GOG-Spiele lädt und startet Nightforge selbst – ohne Epic-Launcher und ohne GOG Galaxy. Du meldest dich im eigenen Fenster des Stores an; Nightforge sieht deine Anmeldedaten nie.",
         "Try Again": "Erneut versuchen",
         "Disconnect": "Trennen",
-        "Connect": "Verbinden",
         "Waiting for sign-in …": "Warte auf Anmeldung …",
-        "%@'s sign-in page is open in a window. Once you're signed in, your games appear here by themselves.":
-            "Die Anmeldeseite von %@ ist in einem Fenster offen. Sobald du angemeldet bist, erscheinen deine Spiele hier von selbst.",
-        "Not connected": "Nicht verbunden",
-        "Sign in in %@'s window": "Melde dich im Fenster von %@ an",
-        "%@ · last update %@": "%@ · zuletzt aktualisiert %@",
-        "%@ · up to date %@": "%@ · aktuell, %@",
-        "Signed in as %@": "Angemeldet als %@",
         "Epic Games signed you out – sign in again to play %@": "Epic Games hat dich abgemeldet – melde dich wieder an, um %@ zu spielen",
         "Sign In Again": "Erneut anmelden",
         // Sync status per store (7.5)
@@ -1204,7 +1225,6 @@ enum L10n {
             "Epic Games hat dich abgemeldet: Melde dich unter Einstellungen › Stores wieder an, dann startet es auch offline.",
         "This removes the game from your Mac and frees %@. It stays in your %@ library, so you can download it again any time. Saves in its cloud are kept.":
             "Das entfernt das Spiel von deinem Mac und gibt %@ frei. Es bleibt in deiner Bibliothek bei %@, du kannst es jederzeit wieder laden. Spielstände in dessen Cloud bleiben erhalten.",
-        "%@ signed you out – your games stay here": "%@ hat dich abgemeldet – deine Spiele bleiben hier",
         // Epic: Update & Play
         "The update comes from %@ first – the game starts by itself when it's done.":
             "Das Update kommt zuerst von %@ – das Spiel startet von selbst, sobald es fertig ist.",
@@ -1239,7 +1259,6 @@ enum L10n {
         "%@ and %@": "%@ und %@",
 
         // GOG (7.3)
-        "Sign in to GOG": "Bei GOG anmelden",
         "Couldn't reach GOG": "GOG nicht erreichbar",
         "GOG is connected – your games are in the library": "GOG ist verbunden – deine Spiele sind in der Bibliothek",
         "GOG signed you out – sign in again to download %@": "GOG hat dich abgemeldet – melde dich wieder an, um %@ zu laden",
@@ -1319,7 +1338,7 @@ enum L10n {
         "Searches your library": "Sucht in deiner Bibliothek",
         "Back, one level up – like Esc": "Zurück, eine Ebene hoch – wie Esc",
         "Opens the selected game's page": "Öffnet die Seite des gewählten Spiels",
-        "Options for the selected game": "Optionen für das gewählte Spiel",
+        "Options for the selected game – held, its quick menu": "Optionen des gewählten Spiels – gehalten sein Schnellmenü",
         "Goes to Home": "Geht zur Startseite",
         "Goes to the library": "Geht zur Bibliothek",
         "Works – both sticks held for 2 seconds in a game bring Nightforge's menu":
@@ -1334,7 +1353,6 @@ enum L10n {
         "Scroll": "Scrollen",
         "To the games": "Zu den Spielen",
         "Browse": "Blättern",
-        "Works – Nightforge doesn't need this button, games do": "Funktioniert – Nightforge braucht diese Taste nicht, Spiele schon",
         "Works – it belongs to macOS, Nightforge leaves it alone": "Funktioniert – sie gehört macOS, Nightforge lässt sie in Ruhe",
         "Works – Nightforge doesn't need the touchpad, games do": "Funktioniert – Nightforge braucht das Touchpad nicht, Spiele schon",
         "Paused while Steam waits for you to sign in": "Pausiert, solange Steam auf deine Anmeldung wartet",
@@ -1410,6 +1428,58 @@ enum L10n {
             "Öffnet ein GitHub-Formular im Browser, ausgefüllt mit dem Spiel, deiner Antwort und dem Weg, auf dem es lief – ohne Pfade, Kontonamen oder Logs. GitHub erhält diese Werte schon beim Öffnen der Seite; öffentlich wird der Bericht erst, wenn du ihn abschickst, mit deinem GitHub-Namen daran.",
         "The error lines from the last start are on your clipboard – paste them into the report if you want to share them.":
             "Die Fehlerzeilen des letzten Starts sind in deiner Zwischenablage – füge sie in den Bericht ein, wenn du sie teilen willst.",
+
+        // The launcher menus
+        "Your launchers": "Deine Launcher",
+        "Your launchers (M)": "Deine Launcher (M)",
+        "Launchers": "Launcher",
+        "Launchers %ld/%ld": "Launcher %ld/%ld",
+        "Choose where you sign in. After that, the launchers stay in the background and all your games are in one library.":
+            "Wähle, wo du dich anmeldest. Danach bleiben die Launcher im Hintergrund, und alle Spiele stehen in einer Bibliothek.",
+        "Choose launcher": "Launcher wählen",
+        "Not signed in": "Nicht angemeldet",
+        "Signed in – %@": "Angemeldet – %@",
+        "Signed out": "Abgemeldet",
+        "Signed out – %@": "Abgemeldet – %@",
+        "Not reachable": "Nicht erreichbar",
+        "Not reachable – %@": "Nicht erreichbar – %@",
+        "Not installed": "Nicht installiert",
+        "1 game in your library": "1 Spiel in deiner Bibliothek",
+        "%ld games in your library": "%ld Spiele in deiner Bibliothek",
+        "Your games stay here. Sign in again to download and to play online.":
+            "Deine Spiele bleiben hier. Melde dich wieder an, um zu laden und online zu spielen.",
+        "Battle.net for Mac isn't on this Mac yet. Nightforge shows what it has installed.":
+            "Battle.net für den Mac fehlt noch. Nightforge zeigt, was es installiert hat.",
+        "Your Steam library, Mac and Windows versions alike": "Deine Steam-Bibliothek, Mac- und Windows-Versionen",
+        "Your Epic games, Nightforge downloads them itself": "Deine Epic-Spiele, Nightforge lädt sie selbst",
+        "Games without copy protection, Nightforge downloads them itself": "Spiele ohne Kopierschutz, Nightforge lädt sie selbst",
+        "Shows what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.":
+            "Zeigt, was Battle.net für den Mac installiert hat: WoW, Hearthstone und mehr. Overwatch läuft über Steam.",
+        "Sign In to %@": "Bei %@ anmelden",
+        "Sign In": "Anmelden",
+        "Manage": "Verwalten",
+        "Get %@": "%@ laden",
+        "Get": "Laden",
+        "Continue": "Weiter",
+        "%ld of %ld signed in": "%ld von %ld angemeldet",
+        "Open %@": "%@ öffnen",
+        "The games on this Mac stay and come back with the next sign-in.":
+            "Die Spiele auf diesem Mac bleiben und kommen mit der nächsten Anmeldung zurück.",
+        "%@ is connected – your games are in the library": "%@ ist verbunden – deine Spiele sind in der Bibliothek",
+        "Sign in once": "Einmal anmelden",
+        "Your password only goes to %@. After that, %@ runs invisibly in the background.":
+            "Dein Passwort geht nur an %@. Danach läuft %@ unsichtbar im Hintergrund.",
+        "Your password only goes to %@. After that, Nightforge downloads and starts your games itself.":
+            "Dein Passwort geht nur an %@. Danach lädt und startet Nightforge deine Spiele selbst.",
+        "%@'s window is open": "Das Fenster von %@ ist offen",
+        "Sign in there, with two-factor too. Nightforge only lays it on the curtain.":
+            "Melde dich dort an, auch mit Zwei-Faktor. Nightforge legt es nur auf den Vorhang.",
+        "Show Window Again": "Fenster wieder zeigen",
+        "%@'s sign-in page doesn't answer. Check your internet connection.":
+            "Die Anmeldeseite von %@ antwortet nicht. Prüfe deine Internetverbindung.",
+        "Cancel, back to the launcher menu": "Abbrechen, zurück zum Launcher-Menü",
+        "Opens and closes the launcher menu – in games it's the game's": "Öffnet und schließt das Launcher-Menü – in Spielen gehört sie dem Spiel",
+        "Sign in to %@": "Bei %@ anmelden",
 
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",

@@ -1,0 +1,349 @@
+{
+ "pages": 40,
+ "productCount": 479,
+ "products": [
+  {
+   "id": "1256837418",
+   "slug": "cyberpunk_2077_phantom_liberty",
+   "title": "Cyberpunk 2077: Phantom Liberty",
+   "productType": "dlc",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "osx"
+   ],
+   "price": {
+    "final": "29,99 €",
+    "base": "29,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "29.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "29.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/002898a4cc9610c8f8ab2af45787aa4834bbd3e789593105343c219ec027668f.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/45a284386e693f1576b96d98a0023a7905d3956c6f9aa913d3fe5d09a5994bee.png",
+   "storeLink": "https://www.gog.com/de/game/cyberpunk_2077_phantom_liberty",
+   "releaseDate": "2023.09.26"
+  },
+  {
+   "id": "1274966284",
+   "slug": "cyberpunk_2077_ultimate_edition",
+   "title": "Cyberpunk 2077: Ultimate Edition",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "osx"
+   ],
+   "price": {
+    "final": "79,99 €",
+    "base": "79,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "79.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "79.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/499f5ff7f05b67c5d0cdcf94ac60915b4ac7c4bd8b5ad3b94585c5f4945cbf38.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/257b1513b1de9146a3e003b3766f14b0073f0152c4eddc01223dc3585ba50320.png",
+   "storeLink": "https://www.gog.com/de/game/cyberpunk_2077_ultimate_edition",
+   "releaseDate": "2023.09.26"
+  },
+  {
+   "id": "2093619782",
+   "slug": "cyberpunk_2077",
+   "title": "Cyberpunk 2077",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "osx"
+   ],
+   "price": {
+    "final": "59,99 €",
+    "base": "59,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "59.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "59.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/95092abc6bf9e143242b9c5400aa09cb681962c73439c8ebc436aaebcd73b5ea.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/c75e674590b8947542c809924df30bbef2190341163dd08668e243c266be70c5.png",
+   "storeLink": "https://www.gog.com/de/game/cyberpunk_2077",
+   "releaseDate": "2020.12.10"
+  },
+  {
+   "id": "1370227705",
+   "slug": "deus_ex_human_revolution_directors_cut",
+   "title": "Deus Ex: Human Revolution - Director’s Cut",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "2,99 €",
+    "base": "19,99 €",
+    "discount": "-85%",
+    "finalMoney": {
+     "amount": "2.99",
+     "currency": "EUR",
+     "discount": "17.00"
+    },
+    "baseMoney": {
+     "amount": "19.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/a7cb5f7a496d12631e3920ac18d8e51c77d5f3ade505a12a2715b5900e560051.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/42c6aec0e9ae93304d487ebb9ec40eb5fd221d6c174f54b752a1d20915bde11f.png",
+   "storeLink": "https://www.gog.com/de/game/deus_ex_human_revolution_directors_cut",
+   "releaseDate": "2013.10.25"
+  },
+  {
+   "id": "1950574400",
+   "slug": "robocop_rogue_city",
+   "title": "RoboCop: Rogue City",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "3,99 €",
+    "base": "39,99 €",
+    "discount": "-90%",
+    "finalMoney": {
+     "amount": "3.99",
+     "currency": "EUR",
+     "discount": "36.00"
+    },
+    "baseMoney": {
+     "amount": "39.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/7a396cb42b3ceeb4f18260bb40251ad3b902116c8f2784813a5b1cf6bb5e5699.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/a001726381befd1fec6280112e5e5f0674c03ff4eda132579391b8cab619afa2.png",
+   "storeLink": "https://www.gog.com/de/game/robocop_rogue_city",
+   "releaseDate": "2024.02.11"
+  },
+  {
+   "id": "1898192656",
+   "slug": "blade_runner_enhanced_edition",
+   "title": "Blade Runner - Enhanced Edition",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "1,65 €",
+    "base": "8,19 €",
+    "discount": "-80%",
+    "finalMoney": {
+     "amount": "1.65",
+     "currency": "EUR",
+     "discount": "6.54"
+    },
+    "baseMoney": {
+     "amount": "8.19",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/dc57f71e432618fb15d252d45f252cbeb1160443de3a2a4840b076211f0ced7f.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/a726a5f98d5fa16d11557e0076418c44038c2b340cfcee9ce5e0af12cbe44a3a.png",
+   "storeLink": "https://www.gog.com/de/game/blade_runner_enhanced_edition",
+   "releaseDate": "2022.06.23"
+  },
+  {
+   "id": "1207660453",
+   "slug": "bloodnet",
+   "title": "BloodNet",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "linux",
+    "osx"
+   ],
+   "price": {
+    "final": "0,79 €",
+    "base": "5,45 €",
+    "discount": "-86%",
+    "finalMoney": {
+     "amount": "0.79",
+     "currency": "EUR",
+     "discount": "4.66"
+    },
+    "baseMoney": {
+     "amount": "5.45",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/e5d0617ffadbe6d72b77b20038977d2997b3df61c2999149545d60b49b824d7b.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/181e97928b6636a4bb12c24a48ccce24c3b48a29cc39303d3e70e141f22e8001.png",
+   "storeLink": "https://www.gog.com/de/game/bloodnet",
+   "releaseDate": "1993.01.02"
+  },
+  {
+   "id": "1846774951",
+   "slug": "robocop_rogue_city_collection",
+   "title": "RoboCop: Rogue City - Collection",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "12,35 €",
+    "base": "49,39 €",
+    "discount": "-75%",
+    "finalMoney": {
+     "amount": "12.35",
+     "currency": "EUR",
+     "discount": "37.04"
+    },
+    "baseMoney": {
+     "amount": "49.39",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/6d330162af23e170f9602df3759aff8dc52bcec675161e9bb9a61dc9020188a9.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/9c66caca2717b98d4bc4e981bdb4001c19b35bca36514bec7bb68c0449be3738.png",
+   "storeLink": "https://www.gog.com/de/game/robocop_rogue_city_collection",
+   "releaseDate": "2025.07.17"
+  },
+  {
+   "id": "1242122770",
+   "slug": "severed_steel",
+   "title": "Severed Steel",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "2,09 €",
+    "base": "20,99 €",
+    "discount": "-90%",
+    "finalMoney": {
+     "amount": "2.09",
+     "currency": "EUR",
+     "discount": "18.90"
+    },
+    "baseMoney": {
+     "amount": "20.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/5591c46c6f021bb570b100fbb1234b0b9eda81a0ed3f216a67089b497f290570.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/3a118f17c94b812bccc04752009f836944ed60903a486af25966eeb55a4e91b9.png",
+   "storeLink": "https://www.gog.com/de/game/severed_steel",
+   "releaseDate": "2021.09.17"
+  },
+  {
+   "id": "1475517224",
+   "slug": "cyberpunk2077_piggyback_interactive_map",
+   "title": "Cyberpunk 2077 - Piggyback Interactive Map",
+   "productType": "dlc",
+   "productState": "default",
+   "operatingSystems": [
+    "windows",
+    "linux",
+    "osx"
+   ],
+   "price": {
+    "final": "4,99 €",
+    "base": "4,99 €",
+    "discount": null,
+    "finalMoney": {
+     "amount": "4.99",
+     "currency": "EUR",
+     "discount": "0.00"
+    },
+    "baseMoney": {
+     "amount": "4.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/e37ca1e25f312daffb98b274bb4c0acf5208ebb24cb0d00c1d7b44f3a43adfef.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/87c0dc11e50b63703ea1e46ba94d4fb8df543f67027af013d49f6e3513492c9f.png",
+   "storeLink": "https://www.gog.com/de/game/cyberpunk2077_piggyback_interactive_map",
+   "releaseDate": "2020.12.10"
+  },
+  {
+   "id": "1439637285",
+   "slug": "system_shock",
+   "title": "System Shock",
+   "productType": "game",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "11,99 €",
+    "base": "39,99 €",
+    "discount": "-70%",
+    "finalMoney": {
+     "amount": "11.99",
+     "currency": "EUR",
+     "discount": "28.00"
+    },
+    "baseMoney": {
+     "amount": "39.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/2f7147650e9db9d52520b2bf7146d526f9fbb213cb2452c065cbea1d4e340fb5.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/c0a40a3c31a46d4bf1f7d4454f4c4da5bb4f76d85ddaba20485b7c3a793c5610.png",
+   "storeLink": "https://www.gog.com/de/game/system_shock",
+   "releaseDate": "2023.05.30"
+  },
+  {
+   "id": "2138058393",
+   "slug": "deus_ex_mankind_divided_deluxe_edition",
+   "title": "Deus Ex: Mankind Divided - Digital Deluxe Edition",
+   "productType": "pack",
+   "productState": "default",
+   "operatingSystems": [
+    "windows"
+   ],
+   "price": {
+    "final": "6,75 €",
+    "base": "44,99 €",
+    "discount": "-85%",
+    "finalMoney": {
+     "amount": "6.75",
+     "currency": "EUR",
+     "discount": "38.24"
+    },
+    "baseMoney": {
+     "amount": "44.99",
+     "currency": "EUR"
+    }
+   },
+   "coverVertical": "https://images.gog-statics.com/4a27cc313ef9c29cca7d349b2058e9ed229746248a4470d20575d32ea71db508.jpg",
+   "coverHorizontal": "https://images.gog-statics.com/6da1cdef18c2be446de1f62dec0aec879787d58a62703055c1a8a878af54e996.png",
+   "storeLink": "https://www.gog.com/de/game/deus_ex_mankind_divided_deluxe_edition",
+   "releaseDate": "2016.08.23"
+  }
+ ]
+}

@@ -55,6 +55,17 @@ enum GameBackdrop {
     /// How long a start shows only its step before saying why.
     static let detailAfter: TimeInterval = 3
 
+    /// Nightforge has the front only to give it back to a game whose window it fetches
+    /// (LibraryModel.handFocus): the page stays where it is, or Nightforge's window would flash.
+    static var handingOver = false
+
+    private static var spaceChanged = Date.distantPast
+    /// The Space shown changed a moment ago: a swipe of the player's, or a game's full screen.
+    static var spaceJustChanged: Bool { Date().timeIntervalSince(spaceChanged) < 1.5 }
+
+    /// The page's window while it lies behind the game, for GameStage's look.
+    static var pageNumber: Int? { window?.isVisible == true && !state.stage.raised ? window?.windowNumber : nil }
+
     static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
     /// Up for the game's end: Nightforge's way back has it now.
     static var isReturning: Bool { isRaised && state.stage == .returning }
@@ -79,6 +90,29 @@ enum GameBackdrop {
         if state.step != step { state.step = step }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
+    }
+
+    /// The screens changed while the page is up (a game setting its display mode, 1920×1200 on a
+    /// 1512×982 Mac; the mode restored as it ends): the page keeps to the screen, or it covers only
+    /// a corner of it, as the overlay did on 4.11. before it followed.
+    static func followScreen() {
+        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main,
+              shouldFollow(visible: window.isVisible, frame: window.frame, screen: screen.frame)
+        else { return }
+        GameLog.note("The page follows the screen: \(Int(screen.frame.width))×\(Int(screen.frame.height))")
+        window.setFrame(screen.frame, display: true)
+    }
+
+    nonisolated static func shouldFollow(visible: Bool, frame: CGRect, screen: CGRect) -> Bool {
+        visible && frame != screen
+    }
+
+    /// The page was found over the game's picture (GameProcesses.pageCovers): behind every window.
+    /// A Mac game's window lies at the level of the page, and not always above it.
+    static func stepAside() {
+        guard let window, window.isVisible, !state.stage.raised else { return }
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        window.orderFrontRegardless()
     }
 
     /// The game is in front: the curtain fades and stays behind it.
@@ -197,6 +231,7 @@ enum GameBackdrop {
             spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                                               object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated {
+                    GameBackdrop.spaceChanged = Date()
                     guard GameBackdrop.isRaised else { return }
                     GameBackdrop.window?.orderFrontRegardless()
                     GameLog.note("Space changed under the curtain")
@@ -213,7 +248,11 @@ enum GameBackdrop {
                 let other = running?.processIdentifier != ProcessInfo.processInfo.processIdentifier
                 MainActor.assumeIsolated {
                     // Behind the game, another app in front (the game again): over Nightforge's window.
-                    if other, !GameBackdrop.isRaised { return GameBackdrop.otherAppInFront() }
+                    if other, !GameBackdrop.isRaised {
+                        // After the curtain too, in wine.log: who takes the front from a game.
+                        if GameBackdrop.window?.isVisible == true, GameBackdrop.gameOn() { GameLog.note("In front over the page: \(app)") }
+                        return GameBackdrop.otherAppInFront()
+                    }
                     guard GameBackdrop.isRaised else { return }
                     GameLog.note("In front under the curtain: \(app)")
                     // On the way back each app coming forward brought the pointer back. The start
@@ -240,7 +279,7 @@ enum GameBackdrop {
     /// game's window macOS handed Nightforge the front as the game ended: the page stays over
     /// Nightforge's window until the end's curtain comes (watchForGameEnd), three seconds at most.
     private static func nightforgeInFront() {
-        guard let window, window.isVisible, !isRaised else { return }
+        guard let window, window.isVisible, !isRaised, !handingOver else { return }
         guard gameOn() else { return hide() }
         settling?.cancel()
         guard !gameShowsWindow() else { return arrange(window, nightforgeFront: true) }
@@ -275,7 +314,10 @@ enum GameBackdrop {
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         } else {
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
-            if !(nightforgeFront ?? NSApp.isFrontmost), let main = NSApp.windows.first(where: { $0.title == "Nightforge" }), main.isVisible {
+            // Only in the Space of Nightforge's window: in a Space of the game's own (a Mac version in
+            // macOS's full screen) there's no window to lie over, only the game (Valheim, 7.11.).
+            if !(nightforgeFront ?? NSApp.isFrontmost), let main = NSApp.windows.first(where: { $0.title == "Nightforge" }), main.isVisible,
+               main.isOnActiveSpace {
                 window.level = .normal
                 window.order(.above, relativeTo: main.windowNumber)
                 return

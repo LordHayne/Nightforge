@@ -83,10 +83,12 @@ struct Compatibility: Equatable {
                 ? L10n.t("Its anti-cheat needs Windows itself.")
                 : L10n.t("Its anti-cheat needs Windows – playable on GeForce Now instead."))
         }
-        if let rating = facts.ownRating, rating.didntStart == true {
+        // A "didn't start" counts until the game's profile brings a fix, which comes with a new note.
+        let ownRating = facts.ownRating.flatMap { $0.didntStart == true && $0.profileNote != profile?.note ? nil : $0 }
+        if let rating = ownRating, rating.didntStart == true {
             return .init(level: .no, note: L10n.t("You said it didn't start."))
         }
-        if let rating = facts.ownRating {
+        if let rating = ownRating {
             return rating.good
                 ? .init(level: .great, note: L10n.t("You said it runs well."))
                 : .init(level: .tweaks, note: rating.issues.isEmpty ? L10n.t("You said it didn't run well.")

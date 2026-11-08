@@ -87,6 +87,13 @@ private struct PlaceList<Content: View>: View {
 // MARK: - Uninstalling
 
 extension Game {
+    /// Why there's no "Move to …": Blizzard's Agent has no access to external drives on macOS – it isn't
+    /// among the apps that may be given it, and a Hearthstone install on a drive ended in
+    /// BLZBNTAGT000002BF (EPERM, 6.11.2026). So Blizzard's Mac games stay on the internal disk.
+    var moveNote: String? {
+        provider == .battlenet && platform == .mac ? L10n.t("Blizzard's Mac games stay on this Mac: Battle.net can't install to external drives.") : nil
+    }
+
     /// The uninstall question's text for an installed game: where it goes from – the Mac or the
     /// drive it's on – what that frees, and that it stays in its store (Steam, Epic Games, GOG).
     var uninstallMessage: String {

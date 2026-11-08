@@ -133,6 +133,10 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
 
     // MARK: - Library
 
+    func search(_ term: String) async -> [StoreHit] {
+        await GOGSearch.shared.search(term)
+    }
+
     func library() async -> [Game] {
         loadFromDisk()
         guard isConnected else { return [] }
@@ -769,6 +773,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         guard let program, FileManager.default.fileExists(atPath: program.path) else {
             throw GOGError.failed(L10n.t("%@ is missing GOG's start information. Download it again.", game.name))
         }
+        MacGameHUD.prepare(folder: program.pathExtension == "app" ? program : folder)
         let arguments = (info?.arguments ?? []) + extraArguments
         // A program inside an app: the app is what starts.
         let app = program.pathComponents.firstIndex { $0.hasSuffix(".app") }

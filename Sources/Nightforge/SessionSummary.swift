@@ -26,6 +26,9 @@ struct GameRating: Codable, Equatable {
     /// The way it ran: a `LaunchAttempt.id` ("dxmt -dx11", "d3dmetal"), or "mac" for its Mac version –
     /// what worked, or didn't, together with the answer.
     var way: String?
+    /// The game's profile note when it "didn't start": a fix added to the profile later comes with a new
+    /// note (profiles/mac.json), and then the old "didn't start" no longer counts (Compatibility.rate).
+    var profileNote: String?
 
     /// The choice in "Welcome back": "With problems" with the chips picked, in their order; "Ran well"
     /// and "Didn't start" without.
@@ -262,10 +265,15 @@ struct SessionSummarySheet: View {
 
     /// No picture, or it hung: noted, and with "Automatic" the next start goes the next way.
     private func didntStart() {
-        GameRatings.save(GameRating.choice(good: false, issues: [], didntStart: true, way: summary.way), for: summary.game.gameID)
+        var choice = GameRating.choice(good: false, issues: [], didntStart: true, way: summary.way)
+        let game = summary.game.gameID
         rating = false
         saved = true
-        Task { nextWay = await model.wayDidntWork(summary.game) }
+        Task {
+            choice.profileNote = await ProfileStore.shared.profile(for: game)?.note
+            GameRatings.save(choice, for: game)
+            nextWay = await model.wayDidntWork(summary.game)
+        }
     }
 
     /// Opens the report form in the browser, filled in; the player sends it there, or doesn't.
@@ -305,7 +313,7 @@ private struct SessionCover: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Theme.slate, Theme.night], startPoint: .top, endPoint: .bottom)
+            TypoCover.background(width: 64)
             if let cover {
                 Image(nsImage: cover).resizable().scaledToFill()
             }

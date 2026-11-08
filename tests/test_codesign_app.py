@@ -1,6 +1,7 @@
 """scripts/codesign-app.sh signs with Nightforge's own code signing identity when there is one, with a
 designated requirement that names the identifier and the certificate, and ad hoc otherwise. Against
 stand-ins for `security` and `codesign`: no keychain is read, nothing is signed for real."""
+import json
 import pathlib
 import plistlib
 import subprocess
@@ -122,6 +123,24 @@ class CodesignApp(unittest.TestCase):
         self.assertIn("scripts/codesign-certificate.sha1", (ROOT / "scripts/sign-release.sh").read_text())
         pin = [line for line in (ROOT / "scripts/codesign-certificate.sha1").read_text().splitlines() if not line.startswith("#")]
         self.assertTrue(all(len(line.strip()) == 40 for line in pin if line.strip()), "a SHA-1, or nothing yet")
+
+
+class MicrophoneQuestion(unittest.TestCase):
+    """macOS refuses a game's question for the microphone when the app it counts as responsible has no
+    usage text, and winecx then waits for good: Left 4 Dead 2 hung loading every map (8.11.)."""
+
+    def test_the_helper_and_the_app_say_why(self):
+        script = (ROOT / "build.sh").read_text()
+        helper = script.split("<<'PLIST'\n", 1)[1].split("\nPLIST\n", 1)[0]
+        for name, text in (("helper", helper), ("app", (ROOT / "Resources/Info.plist").read_text())):
+            plist = plistlib.loads(text.encode())
+            self.assertTrue(plist.get("NSMicrophoneUsageDescription"), name)
+
+    def test_left_4_dead_2_keeps_the_speakers_it_detects(self):
+        """windows_speaker_config holds DirectSound's constant: 4 is stereo, the 2 once set here is mono."""
+        for file in ("mac.json", "profiles.json"):
+            game = json.loads((ROOT / "profiles" / file).read_text())["games"]["550"]
+            self.assertNotIn("windows_speaker_config", " ".join(game.get("arguments", [])), file)
 
 
 class ExportCodesignIdentity(unittest.TestCase):
