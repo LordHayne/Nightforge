@@ -114,7 +114,7 @@ Nightforge 0.3.2 brings Overwatch to the Mac, a new menu for your launchers and 
 
 Signieren macht der Nutzer im Mac-Terminal, aus `.claude/worktrees/release-main`.
 
-1. Teil A nach `docs/release-notes/v0.3.2.md` und die Version auf 0.3.2 setzen, falls Staging das noch nicht hat.
+1. ~~Teil A nach `docs/release-notes/v0.3.2.md` und die Version auf 0.3.2 setzen~~ Erledigt 8.11.: Die Datei liegt auf Staging, `Resources/Info.plist` sagt 0.3.2. Ändert sich Teil A noch, beide Stellen nachziehen.
 2. Pull Request `claude/staging-032` → `main` (Ruleset), Merge mit dem OK des Nutzers.
 3. `scripts/sign-lists.sh main` (Nutzer).
 4. enginefix- bzw. components-Workflow laufen lassen. Er legt einen Bot-PR auf `bot/components` an.
