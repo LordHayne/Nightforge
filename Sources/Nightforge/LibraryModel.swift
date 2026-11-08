@@ -740,6 +740,8 @@ final class LibraryModel: ObservableObject {
     private func watchRunningGames() {
         Task {
             while !Task.isCancelled {
+                // First, and without a process list: nothing may keep it from going.
+                if curtainOrphan.look(raised: GameBackdrop.isRaised, owners: curtainOwners, now: Date()) { takeAwayOrphanCurtain("nobody came") }
                 let loaded = libraryLoaded
                 let folders = Self.processFolders(allGames)
                 let known = await Task.detached(priority: .utility) { Self.runningGamesKnown(folders) }.value
@@ -787,7 +789,7 @@ final class LibraryModel: ObservableObject {
                     askedAboutNotifications = true
                     MacIntegration.askIfUndecided()
                 }
-                let pause = Duration.seconds(goneFor > 0 ? 1 : busy ? 3 : 10)
+                let pause = Duration.seconds(goneFor > 0 ? 1 : busy || GameBackdrop.isRaised ? 3 : 10)
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
             }
@@ -979,7 +981,8 @@ final class LibraryModel: ObservableObject {
     /// game in its own Space starts sliding away at once, and the page behind it slid in from the side
     /// with the desktop beside it. The look after it says whether that was the end.
     private func gameProcessExited(_ pid: pid_t) {
-        guard Self.exitRaisesCurtain(curtainUp: GameBackdrop.isRaised, sawPicture: stage.sawPicture, judged: startJudgesEnd(),
+        guard CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil),
+              Self.exitRaisesCurtain(curtainUp: GameBackdrop.isRaised, sawPicture: stage.sawPicture, judged: startJudgesEnd(),
                                      othersRunning: playing.contains { running[$0] != nil && running[$0] != pid })
         else { return }
         GameLog.note("A game's process ended: the curtain comes at once, at \(GameLog.clock())")
@@ -995,7 +998,9 @@ final class LibraryModel: ObservableObject {
     /// Another app came to the front over the page: if the game's picture went with it and nobody asked
     /// for that, the curtain comes this moment (`GameStage.pictureWent`).
     private func frontMoved(to front: pid_t) {
-        guard pictureWentAt == nil, !stagePids.isEmpty else { return }
+        guard pictureWentAt == nil, !stagePids.isEmpty,
+              CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil)
+        else { return }
         let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
                                   handsOff: GameOverlay.isOpen || stageAskers.contains(front),
                                   playerActed: Self.playerActed(within: GameStage.leftWithin) || GameBackdrop.spaceJustChanged,
@@ -1009,6 +1014,11 @@ final class LibraryModel: ObservableObject {
     /// `page`: the page the player comes back to, set already. `then`: once the curtain is gone.
     private func comeBack(to page: Route, then: @escaping @MainActor () -> Void = {}) {
         GameLog.note("Back to Nightforge at \(GameLog.clock())")
+        comingBackSince = Date()
+        // The stage is over: what comes to the front from now on says nothing about a game (Tomb Raider, 8.11.).
+        pictureWentAt = nil
+        stagePids = []
+        stageAskers = []
         MacSteam.hide()
         Task {
             // The page's change (0.22 s) done first: a switch of Spaces shows the window as it is
@@ -1024,7 +1034,8 @@ final class LibraryModel: ObservableObject {
                     Self.mayUncover(active: NSApp.isActive,
                                     windowShown: NSApp.windows.first { $0.title == "Nightforge" }?.isOnActiveSpace != false,
                                     page: self?.route ?? page, target: page)
-                }, then: {
+                }, then: { [weak self] in
+                    self?.comingBackSince = nil
                     InputRouter.hidePointerSoon()  // in Nightforge as before the game, when the pad was last
                     then()
                 })
@@ -1172,7 +1183,28 @@ final class LibraryModel: ObservableObject {
     private var curtainEscape: (game: Game, reason: CurtainEscape.Reason)?
     private var stuckAskedAt: Date?
 
-    var curtainEscapeOpen: Bool { curtainEscape != nil && GameBackdrop.isRaised }
+    var curtainEscapeOpen: Bool {
+        CurtainEscape.wayOutOpen(raised: GameBackdrop.isRaised, offered: curtainEscape != nil, owners: curtainOwners)
+    }
+
+    private var curtainOrphan = CurtainEscape.Orphan()
+    /// Curtain watches running; one that was called off may end after the next has begun.
+    private var curtainWatches = 0
+    private var comingBackSince: Date?
+
+    private var curtainOwners: CurtainEscape.Owners {
+        CurtainEscape.Owners(starting: launchingID != nil || judging != nil, watching: curtainWatches > 0,
+                             playing: CurtainEscape.playingOwns(gamePlaying: !playing.isEmpty, upFor: GameBackdrop.upFor),
+                             comingBack: comingBackSince.map { Date().timeIntervalSince($0) < CurtainEscape.comingBackHoldsFor } ?? false)
+    }
+
+    /// A curtain nobody will take away goes by itself, with a game still running by uncovering it, and
+    /// otherwise the way any game's end comes back.
+    private func takeAwayOrphanCurtain(_ who: String) {
+        GameLog.note("Curtain: nobody would take it away (\(who)), it goes, at \(GameLog.clock())")
+        GameBackdrop.setSteamAsks(false)
+        if running.isEmpty { comeBack(to: route) } else { GameBackdrop.hide(after: .zero) }
+    }
 
     /// The curtain's watch at each look: B and Esc lead out from now on, and the curtain says so.
     private func offerWayOut(_ game: Game, reason: CurtainEscape.Reason?) {
@@ -1188,6 +1220,7 @@ final class LibraryModel: ObservableObject {
     /// B or Esc on such a curtain, or the watch by itself: wait on, or back to Nightforge. Epic's and GOG's
     /// update and save end at once, as from the Play button: the update carries on from where it stopped.
     func askAboutStuckStart() {
+        if GameBackdrop.isRaised, curtainEscape == nil, !curtainOwners.anyone { return takeAwayOrphanCurtain("B or Esc") }
         guard let (game, reason) = curtainEscape, !GameOverlay.isOpen else { return }
         if reason.atOnce { return leaveStuckStart(game, handedOver: reason == .steamAsks) }
         stuckAskedAt = Date()
@@ -1255,6 +1288,7 @@ final class LibraryModel: ObservableObject {
         raisedForExit = false
         pictureWentAt = nil
         stuckAskedAt = nil
+        comingBackSince = nil
         stagePids = []
         stageAskers = []
         GameBackdrop.raise(game.name, on: GameDisplay.gameScreen, tip: tip) { [weak self] in self?.gameOnStage == true }
@@ -1325,7 +1359,9 @@ final class LibraryModel: ObservableObject {
         }
         GameLog.note("Curtain watch for \(game.name) begins")
         GameLog.note("  at \(GameLog.clock())")
+        curtainWatches += 1
         defer {
+            curtainWatches -= 1
             curtainGuards = false
             offerWayOut(game, reason: nil)
             windowsQuestion = nil

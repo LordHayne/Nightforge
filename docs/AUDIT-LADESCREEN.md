@@ -79,6 +79,10 @@ Die Ursachen sind aus Log und Code geschlossen, keine ist am laufenden Spiel beo
 | B3 Steams Frage auf dem Vorhang | gebaut (Wahl C): Steams Fenster steht auf dem Vorhang, Leiste unten, B führt sofort zurück. Antworten nur mit Maus oder Trackpad, bis der Touchpad-Zeiger da ist. Nur die Spielstand-Wahl, ein Sheet in Nightforges Fenster, nimmt den Vorhang noch weg. | 6d8d789 |
 | B4 Epic und GOG früher unter den Vorhang | gebaut. B bricht das Update sofort ab (es läuft beim nächsten Mal weiter). Ein Spielstand-Abgleich wird nicht abgeschossen: Er läuft zu Ende, und das Spiel startet nicht. Fortschritt als dünner Balken (Wahl B, 6d8d789). Texte des Auswegs: Wahl A. | cb2223c |
 
+**Live-Fehler 8.11., 22:28 (aus f4386c4):** Nach dem Ende von Tomb Raider kam Steam Helper nach vorn, `frontMoved` kannte nur die alten Prozessnummern und hob den Vorhang für ein beendetes
+Spiel, und niemand nahm ihn wieder weg. Der Auslöser gilt jetzt nur noch für ein laufendes Spiel und nicht mehr auf dem Weg zurück. Dazu: `CurtainEscape.Owners` sagt, wer einen Vorhang wegnimmt
+(Start, Wache, laufendes Spiel, Weg zurück). Hat er 5 s keinen, geht er von selbst, und B oder Esc führen sofort hinaus. `tests/CurtainKeeperTest` wird ohne den Fix rot (9 Fehler).
+
 Ausgeräumt mit einer Probe (Stand-in abseits des Bildschirms): Ein direktes Setzen von `alphaValue` stoppt eine laufende Überblendung. Ein Vorhang, der mitten in
 seinem Ausblenden neu hochkommt, bleibt also sichtbar.
 

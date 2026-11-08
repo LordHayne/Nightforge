@@ -75,6 +75,9 @@ enum GameBackdrop {
     static var pageNumber: Int? { window?.isVisible == true && !state.stage.raised ? window?.windowNumber : nil }
 
     static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
+    private static var upSince = Date.distantFuture
+    /// How long the curtain has stood as it is now.
+    static var upFor: TimeInterval { Date().timeIntervalSince(upSince) }
     /// Up for the game's end: Nightforge's way back has it now.
     static var isReturning: Bool { isRaised && state.stage == .returning }
 
@@ -323,6 +326,7 @@ enum GameBackdrop {
             state.progress = nil
             state.steamAsks = false
         }
+        if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
         state.stage = stage
         self.gameOn = gameOn
         if let observer { NotificationCenter.default.removeObserver(observer) }
