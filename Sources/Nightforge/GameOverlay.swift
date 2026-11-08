@@ -534,6 +534,13 @@ struct OverlayHold {
         return menu && view
     }
 
+    /// Whether the buttons are still down, at an event from any pad. Each pad reports by itself, and a second
+    /// player's moving stick counted as the first one letting go: in a game for two the hold never got
+    /// to its two seconds. The other pads are looked at only while a hold is under way, not at every event.
+    static func stillHeld(thisPad: Bool, holdUnderWay: Bool, anyPad: @autoclosure () -> Bool) -> Bool {
+        thisPad || (holdUnderWay && anyPad())
+    }
+
     /// When the hold began; nil while nothing is held.
     private(set) var since: TimeInterval?
     private var fired = false
