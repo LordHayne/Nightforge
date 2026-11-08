@@ -394,6 +394,9 @@ enum GameDisplay {
                          inches: inches(CGDisplayScreenSize(display))).isTV
     }
 
+    /// The Mac's own screen.
+    static func isBuiltIn(_ screen: NSScreen) -> Bool { id(screen).map { CGDisplayIsBuiltin($0) != 0 } ?? false }
+
     /// A screen's size in millimetres (from its EDID, all zero when it gives none) as a diagonal.
     nonisolated static func inches(_ millimetres: CGSize) -> CGFloat? {
         guard millimetres.width > 0, millimetres.height > 0 else { return nil }

@@ -24,6 +24,7 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        static let keepAwakeMinutes = "keepAwakeMinutes"
         static let padHaptics = "padHaptics"
         static let padPointer = "padPointer"
         /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
@@ -62,6 +63,9 @@ enum Prefs {
     static var padHaptics: Bool {
         UserDefaults.standard.object(forKey: Keys.padHaptics) as? Bool ?? true
     }
+
+    /// How long after the last input Nightforge keeps the Mac awake, plugged in. 0, the default: never (IdleAwake).
+    static var keepAwakeMinutes: Int { IdleAwake.minutes(stored: UserDefaults.standard.integer(forKey: Keys.keepAwakeMinutes)) }
 
     /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.
     static var padGlyphs: PadSymbols.Style {

@@ -143,7 +143,7 @@ final class PadPointer {
 }
 
 /// A controller's touchpad, if it has one.
-private struct Touchpad {
+struct Touchpad {
     let primary: GCControllerDirectionPad
     let secondary: GCControllerDirectionPad
     let button: GCControllerButtonInput

@@ -40,7 +40,13 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    /// When the PS or Xbox button went down, in Nightforge.
+    private var homeDown: TimeInterval?
     private let haptics = PadHaptics()
+    /// The on-screen keyboard: its pad and the look at it, 60 times a second while it's open.
+    private var keyboardTimer: Timer?
+    private weak var keyboardPad: GCExtendedGamepad?
+    private var keyboardClosed: TimeInterval = -.infinity
     private var notices = ControllerNotices(started: ProcessInfo.processInfo.systemUptime)
     /// The pad as the Mac's pointer: touchpad, or the right stick on a pad without one.
     private let pointer = PadPointer()
@@ -133,6 +139,11 @@ final class InputRouter {
     private func handleKey(code: UInt16, chars: String, plain: Bool) -> Bool {
         guard plain, let model, !model.showingOptions, model.macSetup == nil else { return false }
         guard let window = NSApp.keyWindow, window.title == "Nightforge" else { return false }
+        if model.padKeyboard != nil {
+            guard code == 53 else { return false }
+            closeKeyboard()
+            return true
+        }
         // The store's page has the keys: passwords go there. Only Esc is the stage's.
         if let provider = model.signingIn {
             if code == 53 {
@@ -440,6 +451,11 @@ final class InputRouter {
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
         Self.takeViewButton()
         pointer.attach(pad)
+        if HomeButtonSetup.exists, let home = pad.controller?.physicalInputProfile.buttons[GCInputButtonHome] {
+            home.pressedChangedHandler = { [weak self] _, _, pressed in
+                MainActor.assumeIsolated { self?.homeButton(pressed) }
+            }
+        }
 
         // D-pad and left stick both move in all four directions, repeating while held.
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
@@ -467,6 +483,8 @@ final class InputRouter {
         pad.buttonA.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
+                if self?.keyboardHasPad == true { return }
+                if self?.answerQuestion(.ok) == true { return }
                 // On the stage A brings a client's own window back, and is nothing else: the row under
                 // it keeps its highlight.
                 if let provider = self?.model?.signingIn {
@@ -494,8 +512,9 @@ final class InputRouter {
         pad.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
+                if self?.answerQuestion(.cancel) == true { return }
                 // A store's own window has the front while it signs in: B still takes the stage down.
-                guard let self, let model = self.model, self.reach != .none || model.signingIn != nil || model.curtainEscapeOpen else { return }
+                guard let self, let model = self.model, self.reach != .none || model.signingIn != nil || model.curtainEscapeOpen, !self.keyboardHasPad else { return }
                 let main = Self.mainWindow
                 let highlight = NSApp.keyWindow.map { $0 === main && PadFocus.shared.focusedItem(in: $0) != nil } ?? false
                 // One press, one level: the innermost thing open goes first.
@@ -531,11 +550,11 @@ final class InputRouter {
             }
         }
         // Y: search, in the library's header (from Home too).
-        pad.buttonY.pressedChangedHandler = { [weak self] _, _, pressed in
+        pad.buttonY.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
             guard pressed else { return }
             MainActor.assumeIsolated {
-                guard self?.levelsFree == true, self?.model?.showsFirstStart == false else { return }
-                self?.model?.focusSearch()
+                guard self?.levelsFree == true, self?.model?.showsFirstStart == false, let pad else { return }
+                self?.openKeyboard(pad)
             }
         }
         // ⧉: the small launcher menu, on its release (it may be the start of ☰ + ⧉).
@@ -613,11 +632,79 @@ final class InputRouter {
         }
     }
 
+    /// A or B, when a Windows game stands at a question (PadAnswer).
+    private func answerQuestion(_ choice: PadAnswer.Choice) -> Bool {
+        guard let model, PadAnswer.takes(asking: model.windowsQuestion != nil, helperThere: PadAnswerRun.available, overlay: reach == .overlay)
+        else { return false }
+        model.answerQuestion(choice)
+        return true
+    }
+
+    private func openKeyboard(_ pad: GCExtendedGamepad) {
+        guard let model, model.openPadKeyboard() != nil else { return }
+        letGo()
+        keyboardPad = pad
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.lookAtKeyboardPad() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        keyboardTimer = timer
+    }
+
+    /// The keyboard reads the pad by itself, a look ahead of the buttons' own handlers: what closed
+    /// it (☰, A or R2 on its Done key, B) mustn't reach the page behind it a moment later.
+    private var keyboardHasPad: Bool {
+        model?.padKeyboard != nil || ProcessInfo.processInfo.systemUptime - keyboardClosed < 0.3
+    }
+
+    private func closeKeyboard() {
+        keyboardClosed = ProcessInfo.processInfo.systemUptime
+        keyboardTimer?.invalidate()
+        keyboardTimer = nil
+        keyboardPad = nil
+        model?.closePadKeyboard()
+    }
+
+    /// The keyboard takes the whole pad while it's open. Without the pad or Nightforge in front it closes.
+    private func lookAtKeyboardPad() {
+        guard let model, let session = model.padKeyboard, let pad = keyboardPad, reach == .app else { return closeKeyboard() }
+        for event in session.feed(Self.keyboardInput(pad)) {
+            switch event {
+            case let .hover(side, _): feel(.keyHover, on: pad.controller, hand: side)
+            case let .typed(side, _): feel(.keyTyped, on: pad.controller, hand: side)
+            case .submit, .close: closeKeyboard()
+            }
+        }
+        if model.searchText != session.board.text { model.searchText = session.board.text }
+    }
+
+    private static func keyboardInput(_ pad: GCExtendedGamepad) -> PadKeyboard.Input {
+        var input = PadKeyboard.Input(now: ProcessInfo.processInfo.systemUptime)
+        if let touch = Touchpad(pad)?.sample(now: input.now) {
+            input.primary = touch.primary
+            input.secondary = touch.secondary
+            input.touchClick = touch.clicked
+        }
+        input.leftStick = CGPoint(x: CGFloat(pad.leftThumbstick.xAxis.value), y: CGFloat(pad.leftThumbstick.yAxis.value))
+        input.rightStick = CGPoint(x: CGFloat(pad.rightThumbstick.xAxis.value), y: CGFloat(pad.rightThumbstick.yAxis.value))
+        input.dpad = CGPoint(x: CGFloat(pad.dpad.xAxis.value), y: CGFloat(pad.dpad.yAxis.value))
+        input.l2 = pad.leftTrigger.value
+        input.r2 = pad.rightTrigger.value
+        input.l1 = pad.leftShoulder.isPressed
+        input.r1 = pad.rightShoulder.isPressed
+        input.l3 = pad.leftThumbstickButton?.isPressed ?? false
+        input.r3 = pad.rightThumbstickButton?.isPressed ?? false
+        input.a = pad.buttonA.isPressed
+        input.b = pad.buttonB.isPressed
+        input.menu = pad.buttonMenu.isPressed
+        return input
+    }
+
     /// A moment on the pad's motors, if it's one to feel now (PadHapticRules). `controller`: nil for the one last used.
-    func feel(_ moment: PadHapticRules.Moment, on controller: GCController? = nil) {
+    func feel(_ moment: PadHapticRules.Moment, on controller: GCController? = nil, hand: PadKeyboard.Side? = nil) {
         guard PadHapticRules.plays(moment, setting: Prefs.padHaptics, inFront: reach == .app, overlay: reach == .overlay,
                                    padUsedLast: Self.padUsedLast) else { return }
-        haptics.play(moment, on: controller)
+        haptics.play(moment, on: controller, hand: hand)
     }
 
     /// ⧉ down or up: let go on its own, it opens or closes the small launcher menu (PadRules.viewButton).
@@ -629,6 +716,7 @@ final class InputRouter {
         defer { viewChorded = false }
         guard let model, reach == .app, model.signingIn == nil else { return }
         let others = dialog != nil || model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
+            || keyboardHasPad
         switch PadRules.viewButton(menuOpen: model.launcherMenuOpen, levelsFree: !others && reach == .app,
                                    firstStart: model.showsFirstStart, cards: model.showsLauncherCards, chorded: viewChorded) {
         case .open: model.openLauncherMenu(byPad: true)
@@ -640,6 +728,7 @@ final class InputRouter {
     /// ⧉ is Nightforge's while it's in front (PadRules.takesViewButton): a system gesture on it (a
     /// DualSense's screenshot) waits until Nightforge isn't. Only buttons the system has a gesture on.
     static func takeViewButton() {
+        takeHomeButton()
         let takes = PadRules.takesViewButton(active: NSApp.isActive, overlay: GameOverlay.isOpen)
         for controller in GCController.controllers() {
             guard let view = controller.extendedGamepad?.buttonOptions, view.isBoundToSystemGesture else { continue }
@@ -648,8 +737,37 @@ final class InputRouter {
         }
     }
 
+    /// macOS 27: the PS or Xbox button is Nightforge's while it's in front, if System Settings lets the
+    /// app decide (HomeButtonSetup). Asked for here, as macOS's header says, and given back for a game.
+    private static func takeHomeButton() {
+        guard HomeButtonSetup.exists else { return }
+        let takes = HomeButtonSetup.takesButton(exists: true, active: NSApp.isActive, overlay: GameOverlay.isOpen)
+        for controller in GCController.controllers() {
+            guard let home = controller.physicalInputProfile.buttons[GCInputButtonHome], home.isBoundToSystemGesture else { continue }
+            let state: GCControllerElement.SystemGestureState = takes ? .disabled : .enabled
+            if home.preferredSystemGestureState != state { home.preferredSystemGestureState = state }
+        }
+    }
+
+    /// A short press on the PS or Xbox button in Nightforge: to Home, where L1 would go too. Held,
+    /// it's macOS's long press. Not behind the curtain, a sheet or the keyboard.
+    private func homeButton(_ pressed: Bool) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard !pressed else {
+            homeDown = now
+            return
+        }
+        defer { homeDown = nil }
+        guard let down = homeDown, HomeButtonSetup.isShortPress(held: now - down), !GameBackdrop.isRaised, let model,
+              Self.section(for: .l1, route: model.route, inFront: reach == .app, dialog: dialog != nil || panelOpen,
+                           firstStart: model.showsFirstStart) == .home
+        else { return }
+        model.goHome()
+    }
+
     /// ☰ down or up (MenuHold): with a card selected it waits to see whether it's held.
     private func menuButton(_ pressed: Bool) {
+        guard !keyboardHasPad else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard pressed else { return settleMenuHold(down: false, now: now) }
         guard selectedCard != nil else { return openOptions() }
@@ -696,7 +814,7 @@ final class InputRouter {
 
     /// L2/R2: the first and last game; on a game's page its top (Play) and its end.
     private func jump(toStart: Bool) {
-        guard levelsFree, let model else { return }
+        guard levelsFree, !keyboardHasPad, let model else { return }
         guard model.route.isDetail, let main = Self.mainWindow else { return model.jump(toStart: toStart) }
         PadFocus.shared.pageEnd(down: !toStart, in: main)
         if toStart { PadFocus.shared.focus("play") } else { PadFocus.shared.clear() }
@@ -774,6 +892,12 @@ final class InputRouter {
         }
     }
 
+    /// Seconds since anyone touched the pad, the mouse or the keyboard.
+    static var secondsSinceUse: TimeInterval {
+        let any = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!)
+        return min(any, padUse.map { ProcessInfo.processInfo.systemUptime - $0 } ?? .infinity)
+    }
+
     static var padUsedLast: Bool {
         PadRules.padUsedLast(padAgo: padUse.map { ProcessInfo.processInfo.systemUptime - $0 }, mouseAgo: mouseIdle)
     }
@@ -841,7 +965,7 @@ final class InputRouter {
     /// Whether the pad is the Mac's pointer now (PadPointerRules.works). Looked at when a finger lands.
     private var pointerWorks: Bool {
         guard let model else { return false }
-        return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
+        return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: model.padKeyboard != nil, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                      curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
                                      frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks)
     }
@@ -875,7 +999,7 @@ final class InputRouter {
     private var panelOpen: Bool {
         guard let model else { return false }
         return model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
-            || model.launcherMenuOpen || model.showsLauncherCards || model.signingIn != nil
+            || model.launcherMenuOpen || model.showsLauncherCards || model.signingIn != nil || model.padKeyboard != nil
     }
 
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
@@ -912,7 +1036,7 @@ final class InputRouter {
     /// for reading, fast for a long page), 60 times a second while it's held.
     private func scrollWithStick(_ y: Float) {
         // In a game or over the overlay the stick isn't Nightforge's.
-        stickScroll = reach == .app ? Self.stickSpeed(y) : 0
+        stickScroll = reach == .app && model?.padKeyboard == nil ? Self.stickSpeed(y) : 0
         guard stickScroll != 0 else {
             stickRows = 0
             stickScrollTimer?.invalidate()
@@ -976,7 +1100,7 @@ final class InputRouter {
 
     /// The stronger axis wins, so a slightly diagonal stick still moves straight.
     private func steer(_ source: Source, x: Float, y: Float) {
-        guard reach != .none else { return }
+        guard reach != .none, model?.padKeyboard == nil else { return }
         var step = Step()
         if abs(x) >= abs(y) {
             step.dx = x > 0.55 ? 1 : (x < -0.55 ? -1 : 0)

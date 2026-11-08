@@ -344,3 +344,42 @@ struct PadKeyboard {
         }
     }
 }
+
+/// Where the keys are on screen, for a board `width` points wide. A key is never drawn smaller than
+/// it's readable from the sofa; the split gives each thumb its half and the light seam its place.
+struct PadKeyboardGeometry: Equatable {
+    let keyWidth: CGFloat
+    let keyHeight: CGFloat
+    static let gap: CGFloat = 6
+    static let splitGap: CGFloat = 18
+
+    /// The keys that fit `width`, up to the size where a wider board only adds thumb travel.
+    static func fitting(width: CGFloat) -> PadKeyboardGeometry {
+        let room = (width - (PadKeyLayout.columns - 1) * gap - splitGap) / PadKeyLayout.columns
+        let keyWidth = max(44, min(104, room.rounded(.down)))
+        return PadKeyboardGeometry(keyWidth: keyWidth, keyHeight: max(40, min(68, (keyWidth * 0.72).rounded())))
+    }
+
+    private func x(_ column: CGFloat) -> CGFloat {
+        column * (keyWidth + Self.gap) + (column >= PadKeyLayout.split ? Self.splitGap : 0)
+    }
+
+    var size: CGSize {
+        CGSize(width: PadKeyLayout.columns * keyWidth + (PadKeyLayout.columns - 1) * Self.gap + Self.splitGap,
+               height: PadKeyLayout.rows * keyHeight + (PadKeyLayout.rows - 1) * Self.gap)
+    }
+
+    /// The middle of the gap between the halves.
+    var seamX: CGFloat { x(PadKeyLayout.split) - (Self.gap + Self.splitGap) / 2 }
+
+    func rect(_ key: PadKey) -> CGRect {
+        let minX = x(key.frame.minX), maxX = x(key.frame.maxX) - Self.gap
+        // A key's right edge at the split doesn't reach over the gap, one across it does.
+        let right = key.frame.maxX == PadKeyLayout.split ? maxX - Self.splitGap : maxX
+        return CGRect(x: minX, y: key.frame.minY * (keyHeight + Self.gap), width: right - minX, height: keyHeight)
+    }
+
+    func point(_ place: CGPoint) -> CGPoint {
+        CGPoint(x: x(place.x), y: place.y * (keyHeight + Self.gap))
+    }
+}

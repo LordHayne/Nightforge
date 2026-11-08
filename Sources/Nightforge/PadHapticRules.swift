@@ -9,6 +9,8 @@ enum PadHapticRules {
         /// The overlay's buttons held: it builds towards the two seconds, which until now passed without a sign.
         case overlayHold
         case overlayOpens
+        /// The on-screen keyboard: a thumb reached another key, and a key went down.
+        case keyHover, keyTyped
     }
 
     struct Tap: Equatable {
@@ -23,6 +25,7 @@ enum PadHapticRules {
         guard setting else { return false }
         switch moment {
         case .confirm: return inFront || overlay
+        case .keyHover, .keyTyped: return inFront
         case .gameStart: return padUsedLast
         case .overlayHold, .overlayOpens: return true
         }
@@ -40,6 +43,10 @@ enum PadHapticRules {
                     Tap(time: 1.4, intensity: 0.55, sharpness: 0.5)]
         case .overlayOpens:
             return [Tap(time: 0, intensity: 0.9, sharpness: 0.8)]
+        case .keyHover:
+            return [Tap(time: 0, intensity: 0.18, sharpness: 0.9)]
+        case .keyTyped:
+            return [Tap(time: 0, intensity: 0.55, sharpness: 0.9)]
         }
     }
 }

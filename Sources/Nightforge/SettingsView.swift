@@ -173,11 +173,21 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.Keys.gameMode) private var gameMode = true
     @AppStorage(Prefs.Keys.sharpAndSmooth) private var sharpAndSmooth = true
     @AppStorage(Prefs.Keys.notifyDownloads) private var notifyDownloads = true
+    @AppStorage(Prefs.Keys.keepAwakeMinutes) private var keepAwakeMinutes = 0
     @State private var loginItem = LoginItem.state(of: SMAppService.mainApp.status)
     @AppStorage(Prefs.Keys.saveBattery) private var saveBattery = false
     @AppStorage(Prefs.Keys.reduceMotion) private var reduceMotionSetting = ""
     @AppStorage(Prefs.Keys.largerText) private var largerText = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+
+    private static func keepAwakeLabel(_ minutes: Int) -> String {
+        switch minutes {
+        case 0: return L10n.t("Let it sleep as usual")
+        case 60: return L10n.t("1 hour")
+        case let hours where hours % 60 == 0: return L10n.t("%ld hours", hours / 60)
+        default: return L10n.t("%ld minutes", minutes)
+        }
+    }
 
     /// On while it's registered, also while macOS still waits for its OK.
     private var startsAtLogin: Binding<Bool> {
@@ -256,6 +266,16 @@ private struct GeneralSettings: View {
                 if loginItem == .needsApproval {
                     Button(L10n.t("Confirm in System Settings …")) { SMAppService.openSystemSettingsLoginItems() }
                         .padFocus("settings.loginItemApprove", cornerRadius: 15, activate: { SMAppService.openSystemSettingsLoginItems() })
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Picker(L10n.t("Keep the Mac awake"), selection: $keepAwakeMinutes) {
+                        ForEach(IdleAwake.choices, id: \.self) { Text(Self.keepAwakeLabel($0)).tag($0) }
+                    }
+                    .padFocus("settings.keepAwake", selection: $keepAwakeMinutes, values: IdleAwake.choices)
+                    Text(L10n.t("Plugged in, the Mac stays awake this long after the last input, so the controller finds it ready. The screen may still go dark. Never on battery."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Picker(L10n.t("After Launch"), selection: $afterLaunch) {
                     ForEach(AfterLaunch.allCases) { option in
@@ -370,6 +390,7 @@ private struct ControllerSettings: View {
     @State private var refresh = 0
     @State private var pairing = false
     @State private var homeButton = HomeButtonSetup.State.unavailable
+    @State private var homeButtonIsOurs = false
 
     private static let bluetoothSettings = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!
 
@@ -422,10 +443,26 @@ private struct ControllerSettings: View {
                             .padFocus("settings.homeButton", cornerRadius: 15, activate: { HomeButtonSetup.openSettings() })
                     }
                 }
-                .onAppear { homeButton = HomeButtonSetup.current() }
-                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                    homeButton = HomeButtonSetup.current()
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("A short press goes to Home"))
+                            .font(size: 12)
+                        Text(L10n.t("While Nightforge is in front. In System Settings, choose once that the app may decide. In a game the button stays with macOS."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if homeButtonIsOurs {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    } else {
+                        Button(L10n.t("Set Up …")) { HomeButtonSetup.openSettings(.shortPress) }
+                            .padFocus("settings.homeButtonShort", cornerRadius: 15, activate: { HomeButtonSetup.openSettings(.shortPress) })
+                    }
                 }
+                .onAppear { readHomeButton() }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in readHomeButton() }
             }
 
             SectionTitle(L10n.t("Button labels"))
@@ -525,6 +562,11 @@ private struct ControllerSettings: View {
             pointerAllowed = PadPointerAccess.granted
         }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refresh += 1 }
+    }
+
+    private func readHomeButton() {
+        homeButton = HomeButtonSetup.current()
+        homeButtonIsOurs = HomeButtonSetup.appMayHaveButton()
     }
 
     /// One controller: its name, that it works everywhere, and its battery.
