@@ -125,6 +125,9 @@ Signieren macht der Nutzer im Mac-Terminal, aus `.claude/worktrees/release-main`
 ### 3. Offene Entscheidungen
 
 - **GOGs Nutzungsbedingungen, Klausel 11.1(e):** Die Store-Suche fragt GOGs öffentlichen Katalog. Die gemeldete Klausel zu
+  - **Entschieden (8.11., Nutzer): Die GOG-Suche bleibt.** Gelesen am 8.11.: 11.1(e) verbietet Software, die mit GOGs
+    Diensten interagiert, auch nicht autorisierte Drittprogramme, die Informationen sammeln. Das trifft Nightforges
+    ganze GOG-Anbindung (wie bei Heroic), die Suche ändert daran wenig. Keine Rechtsberatung.
   automatisiertem Zugriff ist laut TODO unbestätigt. Entscheidet der Nutzer dagegen, ist die Stelle zum Abschalten
   `GOGStore.search`, und in den Notes fällt „und GOG“ weg.
 - **Battle.net-Bilder über Steam-Zwillinge:** Overwatch, Diablo IV und Call of Duty aus Battle.net holen ihr Logo weiter von
