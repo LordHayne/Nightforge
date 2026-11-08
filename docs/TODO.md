@@ -977,7 +977,7 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
   oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge das Overlay mit „Spiel
   beenden“ an, ohne zu raten, wenn ein Ladebildschirm nur lange dauert.
 - **Großes Nightforge-Overlay** (nach 0.3.0, der Nutzer will es „später schön ausarbeiten“): Uhrzeit, Controller-Akku,
-  laufende Downloads, Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung.
+  laufende Downloads, Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung. Entwurf: `docs/ENTWURF-OVERLAY.md`, drei Varianten auf dem Board `Overlay.dc.html`, die Wahl des Nutzers steht aus. Dort auch ein Fehler von heute: „Weiterspielen“ löst beim Drücken aus, das Spiel sieht die Taste.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
