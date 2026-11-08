@@ -6,11 +6,12 @@ import SwiftUI
 /// Nightforge is built on. The tabs are a row of buttons, so the pad reaches them too.
 struct SettingsView: View {
     enum Tab: CaseIterable {
-        case stores, general, controller, storage, about
+        case stores, home, general, controller, storage, about
 
         var label: String {
             switch self {
             case .stores: return L10n.t("Stores")
+            case .home: return L10n.t("Home")
             case .general: return L10n.t("General")
             case .controller: return L10n.t("Controller")
             case .storage: return L10n.t("Storage")
@@ -42,6 +43,10 @@ struct SettingsView: View {
             Group {
                 switch tab {
                 case .stores: StoresSettings()
+                case .home:
+                    HomeSettingsForm(sources: model.homeSources, pinned: model.pinnedHomeGames, set: model.setHomeSource) {
+                        model.movePin($0, by: $1)
+                    }
                 case .general: GeneralSettings()
                 case .controller: ScrollView { ControllerSettings() }
                         .frame(idealHeight: 480)  // every button's row scrolls

@@ -1486,6 +1486,18 @@ enum L10n {
         "Opens and closes the launcher menu – in games it's the game's": "Öffnet und schließt das Launcher-Menü – in Spielen gehört sie dem Spiel",
         "Sign in to %@": "Bei %@ anmelden",
 
+        // Settings › Home
+        "Pinned games": "Angeheftete Spiele",
+        "Downloads in progress": "Laufende Downloads",
+        "the last %ld days": "die letzten %ld Tage",
+        "Suggestions to start with": "Vorschläge zum Start",
+        "fills up a short Home": "füllt eine kurze Startseite auf",
+        "Nothing pinned yet: a game's quick menu pins it.": "Noch nichts angeheftet: Das Schnellmenü eines Spiels heftet es an.",
+        "Pinned · change the order with ↑ ↓": "Angeheftet · Reihenfolge mit ↑ ↓",
+        "Pinned": "Angeheftet",
+        "Move %@ up": "%@ nach oben",
+        "Move %@ down": "%@ nach unten",
+
         // Errors
         "Component list version %ld needs a newer Nightforge.": "Komponentenliste Version %ld braucht ein neueres Nightforge.",
         "No component list available. Check your internet connection.": "Keine Komponentenliste verfügbar. Prüfe deine Internetverbindung.",
