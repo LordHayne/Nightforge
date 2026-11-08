@@ -1,0 +1,550 @@
+Nightforge: translate DXMT's shaders when a game creates them, so that the first round waits less.
+
+Off unless DXMT_PREPARE_SHADERS is set (1 = plain variants, 2 = also pixel shaders with all their
+targets 8-bit unorm). Translation only (AIR into DXMT's own shader cache): Metal's compile still
+happens at the first draw. Local only: no upload, no shipped shaders, nothing hooks the game.
+
+Licence: LGPL-2.1-or-later. Parts come from Recall's DXMT patches (v1.6.3, patches/
+dxmt-v1-private.patch and dxmt-v1-performance.patch, https://github.com/AsherJN/recall,
+by Joshua Asher Nelson), which are offered under LGPL-2.1-or-later and apply to
+https://github.com/NerRobDog/dxmt at c5dc3a0. Changed for the DXMT v0.80 pin by Nightforge,
+November 2026; see docs/ENTWURF-SHADER.md for what was taken and what wasn't.
+
+Taken: task_scheduler's limit and priority and its shutdown fix, a real hash for ShaderVariant,
+the scheduler joined before the objects it uses, SetCacheOnly and the variant prediction.
+Changed: the sample mask stays in the variant (see canonical()), limits on variants, bytes and
+fan-out, cache lock at the compile threads' priority, compute shaders prepared too, level 2.
+
+diff --git a/src/d3d11/d3d11_pipeline_cache.cpp b/src/d3d11/d3d11_pipeline_cache.cpp
+index ec17d04..3dd2579 100644
+--- a/src/d3d11/d3d11_pipeline_cache.cpp
++++ b/src/d3d11/d3d11_pipeline_cache.cpp
+@@ -1,3 +1,4 @@
++// Changed by Nightforge, November 2026, for early shader translation (DXMT_PREPARE_SHADERS); parts from Recall's DXMT patches, LGPL-2.1-or-later.
+ #include "d3d11_pipeline_cache.hpp"
+ #include "airconv_public.h"
+ #include "d3d11_device.hpp"
+@@ -7,10 +8,17 @@
+ #include "dxmt_tasks.hpp"
+ #include "log/log.hpp"
+ #include "sha1/sha1_util.hpp"
++#include "util_env.hpp"
++#include "util_string.hpp"
+ #include "../d3d10/d3d10_shader.hpp"
+ #include "../d3d10/d3d10_input_layout.hpp"
++#include <algorithm>
++#include <atomic>
++#include <cctype>
+ #include <cstring>
++#include <optional>
+ #include <shared_mutex>
++#include <string>
+ 
+ namespace dxmt {
+ 
+@@ -74,8 +82,14 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+     MTL_SHADER_REFLECTION reflection_;
+     MTL_SM50_SHADER_ARGUMENT *arguments_info_buffer;
+     std::unordered_map<ShaderVariant, std::unique_ptr<CompiledShader>> variants;
++    std::unordered_map<ShaderVariant, std::unique_ptr<CompiledShader>> prepared_;
++    dxmt::mutex variants_mutex_;
+ 
+   public:
++    /* Set before the shader is published. True when the container can't be read, which keeps
++     * every variant distinct. */
++    bool writes_depth_ = true;
++
+     CachedSM50Shader(PipelineCache *cache, sm50_shader_t shader_transferred,
+                      const Sha1Digest &hash, MTL_SHADER_REFLECTION &reflection)
+         : cache(cache), shader(shader_transferred), sha1_(hash),
+@@ -112,7 +126,24 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+     virtual MTL_SM50_SHADER_ARGUMENT *arguments_info() {
+       return arguments_info_buffer + reflection_.NumConstantBuffers;
+     };
++    /* Pixel-shader fields the translator ignores for this shader are reset, so a predicted
++     * variant meets the real one: the depth switch without a depth output, 8-bit unorm bits
++     * for render targets the shader never writes. The sample mask stays: without an oMask of
++     * its own a shader still gets the mask as a coverage output (SM50Compile). */
++    ShaderVariant canonical(ShaderVariant variant) {
++      if (!cache->prepare_level_)
++        return variant;
++      if (auto ps = std::get_if<ShaderVariantPixel>(&variant)) {
++        if (!writes_depth_)
++          ps->disable_depth_output = false;
++        ps->unorm_output_reg_mask &= reflection_.PSValidRenderTargets;
++      }
++      return variant;
++    }
++
+     virtual CompiledShader *get_shader(ShaderVariant variant) {
++      variant = canonical(variant);
++      std::lock_guard<dxmt::mutex> lock(variants_mutex_);
+       auto c = variants.insert({variant, nullptr});
+       if (c.second) {
+         c.first->second = std::visit(
+@@ -121,9 +152,32 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+             },
+             variant);
+         cache->scheduler_.submit(c.first->second.get());
++        if (cache->prepare_level_ && (std::holds_alternative<ShaderVariantVertex>(variant) ||
++                                      std::holds_alternative<ShaderVariantPixel>(variant) ||
++                                      std::holds_alternative<ShaderVariantDefault>(variant))) {
++          auto early = prepared_.find(variant);
++          cache->CountRequest(early != prepared_.end(), early != prepared_.end() && early->second->GetIsDone());
++        }
+       }
+       return c.first->second.get();
+     }
++
++    /* Translates a predicted variant into the shader cache on the low-priority pool, so its
++     * first draw finds it there instead of waiting for a translation. */
++    void prepare(ShaderVariant variant) {
++      variant = canonical(variant);
++      std::lock_guard<dxmt::mutex> lock(variants_mutex_);
++      if (variants.contains(variant) || prepared_.contains(variant) || !cache->ReservePrepare())
++        return;
++      auto task = std::visit(
++          [=, this](auto var) { return CreateVariantShader(cache->device, this, var); }, variant);
++      task->SetCacheOnly();
++      cache->prepare_scheduler_->submit(task.get());
++      prepared_.emplace(variant, std::move(task));
++    }
++
++    bool prepare_budget(uint64_t spent) final { return cache->PrepareBudget(spent); }
++
+     virtual const Sha1Digest &sha1() { return sha1_; };
+ 
+ #ifdef DXMT_DEBUG
+@@ -190,8 +244,6 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+ 
+   ShaderCache& scache_;
+ 
+-  task_scheduler<ThreadpoolWork *> scheduler_;
+-
+   MTLD3D11Device *device;
+   StateObjectCache<D3D11_BLEND_DESC1, IMTLD3D11BlendState> blend_states;
+ 
+@@ -217,6 +269,134 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+   std::unordered_map<ManagedShader, std::unique_ptr<MTLCompiledComputePipeline>> pipelines_cs_;
+   dxmt::mutex mutex_cs_;
+ 
++  /* DXMT_PREPARE_SHADERS: translate predicted variants when a game creates its shaders, on two
++   * lowest-priority workers. 1 = the plain variants, 2 = also pixel shaders with all their
++   * targets 8-bit unorm. Unset = off, and nothing below runs. AIR only: Metal's own compile
++   * still happens at the first draw. Per run, at most this much: */
++  static constexpr uint32_t kPrepareMaxVariants = 65536;
++  static constexpr uint64_t kPrepareMaxBytes = 1ull << 30;
++  // A layout is tried with at most this many vertex shaders, as it runs on the game's thread,
++  // and a signature with at most this many layouts.
++  static constexpr size_t kPrepareMaxShadersPerLayout = 1024;
++  static constexpr size_t kPrepareMaxLayoutsPerSignature = 16;
++
++  int prepare_level_ = 0;
++  std::atomic_uint32_t prepare_reserved_ = 0;
++  std::atomic_uint64_t prepare_bytes_ = 0;
++  std::atomic_uint32_t requests_ = 0, requests_ready_ = 0, requests_queued_ = 0;
++  // The objects stay in shaders_ and input_layouts for the device's lifetime.
++  std::unordered_map<Sha1Digest, std::vector<ManagedInputLayout>> layouts_by_signature_;
++  std::unordered_map<Sha1Digest, std::vector<CachedSM50Shader *>> vertex_shaders_by_signature_;
++  dxmt::mutex mutex_signatures_;
++
++  // Last, so the workers are joined before anything their tasks use goes away.
++  task_scheduler<ThreadpoolWork *> scheduler_;
++  std::optional<task_scheduler<ThreadpoolWork *>> prepare_scheduler_;
++
++  bool ReservePrepare() {
++    return prepare_bytes_.load(std::memory_order_relaxed) < kPrepareMaxBytes &&
++           prepare_reserved_.fetch_add(1, std::memory_order_relaxed) < kPrepareMaxVariants;
++  }
++
++  bool PrepareBudget(uint64_t spent) {
++    return prepare_bytes_.fetch_add(spent, std::memory_order_relaxed) + spent < kPrepareMaxBytes;
++  }
++
++  /* A draw asked for a variant: had it been translated in time? Goes to the log for the measurement. */
++  void CountRequest(bool early, bool ready) {
++    if (ready)
++      requests_ready_.fetch_add(1, std::memory_order_relaxed);
++    else if (early)
++      requests_queued_.fetch_add(1, std::memory_order_relaxed);
++    if ((requests_.fetch_add(1, std::memory_order_relaxed) + 1) % 256 == 0)
++      Logger::info(str::format(
++          "[nightforge-dxmt] prepare: ", requests_.load(), " variants drawn, ", requests_ready_.load(),
++          " translated in time, ", requests_queued_.load(), " still queued, ", prepare_reserved_.load(),
++          " queued in all, ", prepare_bytes_.load() / (1024 * 1024), " MB"));
++  }
++
++  /* The body of the DXBC chunk with one of these tags, or nullptr. */
++  static const uint8_t *FindChunk(const void *bytecode, const char *tag_a, const char *tag_b, const char *tag_c,
++                                  uint32_t &size) {
++    auto dxbc = static_cast<const uint8_t *>(bytecode);
++    if (!dxbc || memcmp(dxbc, "DXBC", 4) != 0)
++      return nullptr;
++    uint32_t total, count;
++    memcpy(&total, dxbc + 24, 4);
++    memcpy(&count, dxbc + 28, 4);
++    for (uint32_t i = 0; i < count && 32 + 4 * i + 4 <= total; i++) {
++      uint32_t offset;
++      memcpy(&offset, dxbc + 32 + 4 * i, 4);
++      if (offset + 8 > total)
++        return nullptr;
++      memcpy(&size, dxbc + offset + 4, 4);
++      if (offset + 8 + size > total)
++        return nullptr;
++      auto is = [&](const char *tag) { return tag && !memcmp(dxbc + offset, tag, 4); };
++      if (is(tag_a) || is(tag_b) || is(tag_c))
++        return dxbc + offset;
++    }
++    return nullptr;
++  }
++
++  static bool OutputWritesDepth(const void *bytecode) {
++    uint32_t size;
++    auto chunk = FindChunk(bytecode, "OSGN", "OSG1", "OSG5", size);
++    if (!chunk)
++      return true;
++    std::string names(reinterpret_cast<const char *>(chunk + 8), size);
++    for (auto &c : names)
++      c = char(std::toupper(uint8_t(c)));
++    return names.find("SV_DEPTH") != std::string::npos;
++  }
++
++  static bool InputSignatureDigest(const void *bytecode, Sha1Digest &digest) {
++    uint32_t size;
++    auto chunk = FindChunk(bytecode, "ISGN", "ISG1", nullptr, size);
++    if (!chunk)
++      return false;
++    digest = Sha1HashState::compute(chunk, size + 8);
++    return true;
++  }
++
++  /* A game makes an input layout from one shader's bytecode and may use it with every vertex
++   * shader of the same input signature, so both are matched by that signature. */
++  void PrepareVertexShader(CachedSM50Shader *shader, const void *bytecode) {
++    Sha1Digest signature;
++    if (!prepare_level_ || !InputSignatureDigest(bytecode, signature))
++      return;
++    std::vector<ManagedInputLayout> layouts;
++    {
++      std::lock_guard<dxmt::mutex> lock(mutex_signatures_);
++      auto &shaders = vertex_shaders_by_signature_[signature];
++      if (std::find(shaders.begin(), shaders.end(), shader) == shaders.end())
++        shaders.push_back(shader);
++      layouts = layouts_by_signature_[signature];
++    }
++    for (auto layout : layouts)
++      shader->prepare(ShaderVariantVertex{layout, 0xffffffff, false});
++  }
++
++  void PrepareInputLayout(ManagedInputLayout layout, const void *bytecode) {
++    Sha1Digest signature;
++    if (!prepare_level_ || !InputSignatureDigest(bytecode, signature))
++      return;
++    std::vector<CachedSM50Shader *> shaders;
++    {
++      std::lock_guard<dxmt::mutex> lock(mutex_signatures_);
++      auto &layouts = layouts_by_signature_[signature];
++      if (layouts.size() >= kPrepareMaxLayoutsPerSignature ||
++          std::find(layouts.begin(), layouts.end(), layout) != layouts.end())
++        return;
++      layouts.push_back(layout);
++      shaders = vertex_shaders_by_signature_[signature];
++    }
++    if (shaders.size() > kPrepareMaxShadersPerLayout)
++      shaders.resize(kPrepareMaxShadersPerLayout);
++    for (auto shader : shaders)
++      shader->prepare(ShaderVariantVertex{layout, 0xffffffff, false});
++  }
++
+   CachedSM50Shader *CreateShader(const void *pBytecode,
+                                  uint32_t BytecodeLength) {
+     auto sha1 = Sha1HashState::compute(pBytecode, BytecodeLength);
+@@ -236,6 +416,8 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+       return nullptr;
+     }
+     auto shader = std::make_unique<CachedSM50Shader>(this, sm50, sha1, reflection);
++    if (prepare_level_)
++      shader->writes_depth_ = OutputWritesDepth(pBytecode);
+     {
+       std::unique_lock<std::shared_mutex> lock(mutex_shares);
+       auto result = shaders_.find(sha1);
+@@ -258,6 +440,7 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+     if (!managed_shader) {
+       return E_FAIL;
+     }
++    PrepareVertexShader(managed_shader, pBytecode);
+     *ppShader =
+         ref(new TShaderBase<ID3D11VertexShader, MTLD3D10VertexShader>(device, managed_shader));
+     return S_OK;
+@@ -269,6 +452,12 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+     if (!managed_shader) {
+       return E_FAIL;
+     }
++    if (prepare_level_) {
++      managed_shader->prepare(ShaderVariantPixel{0xffffffff, false, false, 0});
++      if (prepare_level_ >= 2)
++        managed_shader->prepare(
++            ShaderVariantPixel{0xffffffff, false, false, managed_shader->reflection().PSValidRenderTargets});
++    }
+     *ppShader = ref(new TShaderBase<ID3D11PixelShader, MTLD3D10PixelShader>(device, managed_shader));
+     return S_OK;
+   }
+@@ -314,6 +503,9 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+     if (!managed_shader) {
+       return E_FAIL;
+     }
++    // A compute shader has one variant, so this always meets its dispatch.
++    if (prepare_level_)
++      managed_shader->prepare(ShaderVariantDefault{});
+     *ppShader =
+         ref(new TShaderBase<ID3D11ComputeShader>(device, managed_shader));
+     return S_OK;
+@@ -341,8 +533,9 @@ class PipelineCache : public MTLD3D11PipelineCacheBase {
+       input_layouts.emplace(buffer, std::make_unique<CachedInputLayout>(
+                                         std::move(buffer), input_slot_mask));
+     }
+-    *ppInputLayout =
+-        ref(new MTLD3D11InputLayout(device, input_layouts.at(buffer).get()));
++    ManagedInputLayout layout = input_layouts.at(buffer).get();
++    PrepareInputLayout(layout, pShaderBytecodeWithInputSignature);
++    *ppInputLayout = ref(new MTLD3D11InputLayout(device, layout));
+     return hr;
+   }
+ 
+@@ -452,7 +645,15 @@ public:
+       scache_(ShaderCache::getInstance(pDevice->GetDXMTDevice().metalVersion())),
+       device(pDevice),
+       blend_states(pDevice),
+-      so_layouts(pDevice) {};
++      so_layouts(pDevice) {
++    auto level = env::getEnvVar("DXMT_PREPARE_SHADERS");
++    // Without a cache to write to, a translation ahead of time would be thrown away.
++    if ((level == "1" || level == "2") && bool(scache_.getWriter())) {
++      prepare_level_ = level == "2" ? 2 : 1;
++      prepare_scheduler_.emplace(2, THREAD_PRIORITY_LOWEST);
++      Logger::info(str::format("[nightforge-dxmt] prepare: on, level ", prepare_level_));
++    }
++  };
+ };
+ 
+ std::unique_ptr<MTLD3D11PipelineCacheBase>
+diff --git a/src/d3d11/d3d11_shader.cpp b/src/d3d11/d3d11_shader.cpp
+index 687b94a..c3115c3 100644
+--- a/src/d3d11/d3d11_shader.cpp
++++ b/src/d3d11/d3d11_shader.cpp
+@@ -1,3 +1,4 @@
++// Changed by Nightforge, November 2026, for early shader translation (DXMT_PREPARE_SHADERS); parts from Recall's DXMT patches, LGPL-2.1-or-later.
+ #include "d3d11_shader.hpp"
+ #include "Metal.hpp"
+ #include "airconv_public.h"
+@@ -22,6 +23,20 @@ getGlobalShaderFlag() {
+   return shader_flag;
+ };
+ 
++/* Early translation runs at the lowest priority, but the cache's lock is shared with the
++ * time-critical compile threads, so it holds that lock at their priority. */
++struct CacheLockPriority {
++  bool active;
++  explicit CacheLockPriority(bool active) : active(active) {
++    if (active)
++      SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
++  }
++  ~CacheLockPriority() {
++    if (active)
++      SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
++  }
++};
++
+ template <typename Proc>
+ class GeneralShaderCompileTask : public CompiledShader {
+ public:
+@@ -49,7 +64,28 @@ public:
+   RunThreadpoolWork() {
+     auto pool = WMT::MakeAutoreleasePool();
+     WMT::Reference<WMT::Error> err;
+-    WMT::Reference<WMT::DispatchData> lib_data = shader_->find_cached_variant(variant_digest_);
++    WMT::Reference<WMT::DispatchData> lib_data;
++    {
++      CacheLockPriority priority(cache_only_);
++      lib_data = shader_->find_cached_variant(variant_digest_);
++    }
++
++    if (cache_only_) {
++      if (lib_data != nullptr || !shader_->prepare_budget(0))
++        return this;
++      sm50_bitcode_t translated = proc(func_name.c_str(), &sm50_common);
++      if (!translated)
++        return this;
++      SM50_COMPILED_BITCODE bitcode;
++      SM50GetCompiledBitcode(translated, &bitcode);
++      {
++        CacheLockPriority priority(true);
++        shader_->update_cached_variant(variant_digest_, WMT::MakeDispatchData(bitcode.Data, bitcode.Size));
++      }
++      shader_->prepare_budget(bitcode.Size);
++      SM50DestroyBitcode(translated);
++      return this;
++    }
+ 
+     while (lib_data != nullptr) {
+       auto library = device_->GetMTLDevice().newLibrary(lib_data, err);
+@@ -105,7 +141,10 @@ public:
+ 
+   void SetIsDone(bool state) { ready_.store(state); }
+ 
++  void SetCacheOnly() final { cache_only_ = true; }
++
+ private:
++  bool cache_only_ = false;
+   SM50_SHADER_COMMON_DATA sm50_common;
+   Proc proc;
+   std::string func_name;
+diff --git a/src/d3d11/d3d11_shader.hpp b/src/d3d11/d3d11_shader.hpp
+index fd31bd9..2d89f29 100644
+--- a/src/d3d11/d3d11_shader.hpp
++++ b/src/d3d11/d3d11_shader.hpp
+@@ -1,4 +1,5 @@
+ #pragma once
++// Changed by Nightforge, November 2026, for early shader translation (DXMT_PREPARE_SHADERS); parts from Recall's DXMT patches, LGPL-2.1-or-later.
+ 
+ #include "airconv_public.h"
+ #include "com/com_guid.hpp"
+@@ -7,6 +8,8 @@
+ #include "d3d11_input_layout.hpp"
+ #include "sha1/sha1_util.hpp"
+ #include "log/log.hpp"
++#include <functional>
++#include <type_traits>
+ #include <variant>
+ 
+ struct MTL_COMPILED_SHADER {
+@@ -200,6 +203,9 @@ public:
+   return false if it's not ready
+    */
+   virtual bool GetShader(MTL_COMPILED_SHADER *pShaderData) = 0;
++  /* Translate into the shader cache only, no Metal function: prepares a predicted
++   * variant ahead of its first draw. */
++  virtual void SetCacheOnly() {}
+ };
+ 
+ class Shader {
+@@ -217,6 +223,8 @@ public:
+ 
+   virtual WMT::Reference<WMT::DispatchData> find_cached_variant(Sha1Digest &key) = 0;
+   virtual void update_cached_variant(Sha1Digest &key, WMT::DispatchData data) = 0;
++  /* Early translation's byte budget: adds `spent` and says whether any is left. */
++  virtual bool prepare_budget(uint64_t spent) { return true; }
+ };
+ 
+ template <typename Variant>
+@@ -228,7 +236,40 @@ CreateVariantShader(MTLD3D11Device *, ManagedShader, Variant);
+ namespace std {
+ template <> struct hash<dxmt::ShaderVariant> {
+   size_t operator()(const dxmt::ShaderVariant &v) const noexcept {
+-    return v.index(); // FIXME:
++    size_t result = v.index();
++    auto combine = [&result](const auto &...fields) {
++      auto append = [&result](const auto &field) {
++        result ^= std::hash<std::decay_t<decltype(field)>>{}(field) +
++                  size_t(0x9e3779b97f4a7c15ull) + (result << 6) + (result >> 2);
++      };
++      (append(fields), ...);
++    };
++    // Field by field, as operator== does; hashing object bytes would include padding.
++    std::visit([&](const auto &variant) {
++      using T = std::decay_t<decltype(variant)>;
++      if constexpr (std::is_same_v<T, dxmt::ShaderVariantVertex>) {
++        combine(variant.input_layout_handle, variant.gs_passthrough, variant.rasterization_disabled);
++      } else if constexpr (std::is_same_v<T, dxmt::ShaderVariantPixel>) {
++        combine(variant.sample_mask, variant.dual_source_blending,
++                variant.disable_depth_output, variant.unorm_output_reg_mask);
++      } else if constexpr (std::is_same_v<T, dxmt::ShaderVariantTessellationVertexHull>) {
++        combine(variant.input_layout_handle, variant.vertex_shader_handle,
++                variant.index_buffer_format, variant.max_potential_tess_factor);
++      } else if constexpr (std::is_same_v<T, dxmt::ShaderVariantTessellationDomain>) {
++        combine(variant.hull_shader_handle, variant.gs_passthrough,
++                variant.max_potential_tess_factor, variant.rasterization_disabled);
++      } else if constexpr (std::is_same_v<T, dxmt::ShaderVariantVertexStreamOutput>) {
++        combine(variant.input_layout_handle, variant.stream_output_layout_handle);
++      } else if constexpr (std::is_same_v<T, dxmt::ShaderVariantGeometryVertex>) {
++        combine(variant.input_layout_handle, variant.geometry_shader_handle,
++                variant.index_buffer_format, variant.strip_topology);
++      } else if constexpr (std::is_same_v<T, dxmt::ShaderVariantGeometry>) {
++        combine(variant.vertex_shader_handle, variant.strip_topology);
++      } else {
++        static_assert(std::is_same_v<T, dxmt::ShaderVariantDefault>, "Hash new shader variant fields");
++      }
++    }, v);
++    return result;
+   };
+ };
+ } // namespace std
+diff --git a/src/dxmt/dxmt_tasks.hpp b/src/dxmt/dxmt_tasks.hpp
+index 6762d47..49a3f2f 100644
+--- a/src/dxmt/dxmt_tasks.hpp
++++ b/src/dxmt/dxmt_tasks.hpp
+@@ -1,7 +1,9 @@
+ #pragma once
++// Changed by Nightforge, November 2026, for early shader translation (DXMT_PREPARE_SHADERS); parts from Recall's DXMT patches, LGPL-2.1-or-later.
+ 
+ #include "thread.hpp"
+ #include "util_win32_compat.h"
++#include <algorithm>
+ #include <atomic>
+ #include <queue>
+ #include <unordered_map>
+@@ -18,7 +20,8 @@ template <typename Task> class task_scheduler {
+ public:
+   void submit(Task task);
+ 
+-  task_scheduler();
++  task_scheduler(uint64_t requested_max_threads = 0,
++                 int worker_priority = THREAD_PRIORITY_TIME_CRITICAL);
+   ~task_scheduler();
+ 
+   uint64_t
+@@ -43,12 +46,18 @@ private:
+   std::atomic_uint64_t running = 0;
+   uint64_t threads;
+   uint64_t max_threads;
++  int worker_priority_;
+ };
+ 
+-template <typename Task> task_scheduler<Task>::task_scheduler() {
+-  max_threads = dxmt::thread::hardware_concurrency() * 2;
++template <typename Task>
++task_scheduler<Task>::task_scheduler(uint64_t requested_max_threads, int worker_priority)
++    : worker_priority_(worker_priority) {
++  // An explicit limit is a fixed pool, started up front (growth only happens in submit()).
++  // Without one, upstream's lazy growth stays.
++  max_threads = requested_max_threads ? std::clamp<uint64_t>(requested_max_threads, 1, 64)
++                                      : dxmt::thread::hardware_concurrency() * 2;
+   workers_.reserve(max_threads);
+-  threads = 2;
++  threads = requested_max_threads ? max_threads : 2;
+ 
+   for (unsigned i = 0; i < threads; i++) {
+     workers_.emplace_back([this]() { worker_func(); });
+@@ -56,7 +65,12 @@ template <typename Task> task_scheduler<Task>::task_scheduler() {
+ }
+ 
+ template <typename Task> task_scheduler<Task>::~task_scheduler() {
+-  destroyed.store(true);
++  {
++    // Under the mutex the workers wait on, or notify_all can slip between a worker's check and
++    // its wait and leave it asleep while this joins it.
++    std::unique_lock<dxmt::mutex> lock(worker_mutex_);
++    destroyed.store(true);
++  }
+   worker_cond_.notify_all();
+ 
+   for (auto &worker : workers_) {
+@@ -72,7 +86,7 @@ void
+ task_scheduler<Task>::worker_func() {
+   struct task_trait<Task> task_trait;
+   std::vector<Task> continuation_buffer;
+-  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
++  SetThreadPriority(GetCurrentThread(), worker_priority_);
+   while (!destroyed.load()) {
+     Task task;
+     {
