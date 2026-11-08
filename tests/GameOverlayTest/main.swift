@@ -308,6 +308,13 @@ struct GameOverlayTest {
         check(GameBackdrop.holdsInFront(raised: true, underQuestion: false), "up: kept in front while a Space comes")
         check(!GameBackdrop.holdsInFront(raised: true, underQuestion: true), "under a question it stays under it")
         check(!GameBackdrop.holdsInFront(raised: false, underQuestion: false), "down: never in front of the game")
+        check(LibraryModel.startWentWrong(message: "Steam couldn't start it", hint: nil, failed: false), "a real error: the curtain goes")
+        check(LibraryModel.startWentWrong(message: nil, hint: nil, failed: true), "a start that failed: the curtain goes")
+        check(!LibraryModel.startWentWrong(message: "It starts anyway", hint: "It starts anyway", failed: false), "a word to the player: the curtain stays")
+        check(LibraryModel.startWentWrong(message: "Steam couldn't start it", hint: "It starts anyway", failed: false), "an error after a word: the curtain goes")
+        check(!LibraryModel.startWentWrong(message: nil, hint: "It starts anyway", failed: false), "the word read and gone: nothing")
+        check([10, 30].allSatisfy(GameBackdrop.asksFrontAgain) && !GameBackdrop.asksFrontAgain(look: 0) && !GameBackdrop.asksFrontAgain(look: 11),
+              "the front asked for again twice on the way back, not at every look")
         // ABZU's mode on a 1512×982 Mac: the page's frame from the display itself, before NSScreen knows.
         check(GameBackdrop.appKitFrame(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1200), mainHeight: 1200) == CGRect(x: 0, y: 0, width: 1920, height: 1200),
               "the main display in a new mode: all of it")
@@ -663,18 +670,17 @@ struct GameOverlayTest {
 
     /// The curtain's line follows the start: its own step while it has one, then the game's.
     static func curtainLines() {
-        func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false, window: Bool = false) -> String? {
-            LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs, windowShown: window)
+        func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false) -> String? {
+            LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs)
         }
         check(line() == nil, "nothing known yet: \"Starting …\"")
         check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
         check(line(runs: true) == L10n.t("Waiting for the first picture …"), "the game runs, no window yet")
         check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
-        check(line(shaders: true, runs: true, window: true) == nil, "its window is there: nothing more to say")
-        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true)
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
               == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
-        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, windowShown: false, asks: true,
+        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true,
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),
               "macOS asks: said, before the game's question and any step")

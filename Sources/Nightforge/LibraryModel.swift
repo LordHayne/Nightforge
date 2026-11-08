@@ -544,9 +544,9 @@ final class LibraryModel: ObservableObject {
         if showStatus { launchPhase = nil }
         guard showStatus, !outcome.failed.isEmpty else { return }
         let parts = outcome.failed.joined(separator: ", ")
-        errorMessage = outcome.retried
+        hintDuringStart(outcome.retried
             ? L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway; Nightforge tries again at the next start.", game.name, parts)
-            : L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.", game.name, parts)
+            : L10n.t("Not all Windows parts for %@ could be set up (%@). It starts anyway – if it doesn't run right, this may be why.", game.name, parts))
     }
 
     /// A GOG game's Mac version: no Steam and no Wine – its update and save first, then the app
@@ -985,6 +985,19 @@ final class LibraryModel: ObservableObject {
     /// they came before it and don't hold it (`macOSAsksNow`).
     private var macOSQuestionsBefore: Set<Int>?
 
+    /// A word to the player in a start that goes on ("It starts anyway"): it waits on Nightforge's page,
+    /// and the curtain stays. As an error it took the curtain away for a start that was fine.
+    private var startHint: String?
+
+    private func hintDuringStart(_ text: String) {
+        startHint = text
+        errorMessage = text
+    }
+
+    nonisolated static func startWentWrong(message: String?, hint: String?, failed: Bool) -> Bool {
+        failed || (message != nil && message != hint)
+    }
+
     /// The moment a game is handed to its store (Steam, Steam for Mac, Epic, GOG): Nightforge's
     /// curtain until the game shows its window in front (GameBackdrop). A question from Steam, an
     /// error or a start that didn't take take it away; a game that runs but shows nothing for a
@@ -1066,7 +1079,7 @@ final class LibraryModel: ObservableObject {
             // The game's end has the curtain now (watchForGameEnd, Quit Game).
             if Task.isCancelled { return end("a new start or Go to Nightforge") }
             if GameBackdrop.isReturning { return end("the game ended") }
-            let wentWrong = errorMessage != nil || failedLaunch != nil
+            let wentWrong = Self.startWentWrong(message: errorMessage, hint: startHint, failed: failedLaunch != nil)
             let startGoesOn = launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id)
             if loweredAt == nil {
                 switch Self.steamTurn(asks: steamAsks, asked: steamAsked, startGoesOn: startGoesOn, wentWrong: wentWrong) {
@@ -1174,7 +1187,7 @@ final class LibraryModel: ObservableObject {
             let macOSAsks = turn == .makeWay
             let macOSOpen = !macOSQuestions.isEmpty && !macOSAsks
             if pids.isEmpty {
-                sayOnCurtain(gameRuns: false, windowShown: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+                sayOnCurtain(gameRuns: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
             }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
@@ -1266,7 +1279,7 @@ final class LibraryModel: ObservableObject {
                 madeWay = false
                 curtainUp()
             }
-            sayOnCurtain(gameRuns: !pids.isEmpty, windowShown: here || anywhere, shaders: buildsShaders, asks: asks,
+            sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks,
                          macOSAsks: macOSAsks, macOSOpen: macOSOpen)
             pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
@@ -1464,10 +1477,10 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, windowShown: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
+    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
                               macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.title
-        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns, windowShown: windowShown,
+        GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
                                                   asks: asks, macOSAsks: macOSAsks),
                                detail: Self.curtainDetail(launchHint: launchHint, asks: asks || macOSAsks, macOSOpen: macOSOpen))
     }
@@ -1482,12 +1495,13 @@ final class LibraryModel: ObservableObject {
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
     /// else the start's own (`phase`, "Starting Steam …") while it has one, then what the game does
     /// until its window shows. Nil: "Starting …".
-    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool, windowShown: Bool,
+    nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool,
                                           asks: Bool = false, macOSAsks: Bool = false) -> String? {
         if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
-        guard gameRuns, !windowShown else { return nil }
+        // Its window there, the curtain up a moment longer: the line stays, it doesn't jump back to "Starting …".
+        guard gameRuns else { return nil }
         return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
     }
 
@@ -2924,10 +2938,10 @@ final class LibraryModel: ObservableObject {
             do {
                 try await Engine.offMain { try SaveTransfer.takeNewer(to: platform, rules: rules, places: places, backup: backup) }
             } catch let error as SaveTransfer.PartlyTaken {
-                errorMessage = L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
-                                      error.reason, error.backup.path)
+                hintDuringStart(L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
+                                       error.reason, error.backup.path))
             } catch {
-                errorMessage = L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name)
+                hintDuringStart(L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name))
             }
         }
         _ = await Task.detached(priority: .userInitiated) {

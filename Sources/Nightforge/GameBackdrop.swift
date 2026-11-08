@@ -261,14 +261,22 @@ enum GameBackdrop {
             if let ready {
                 // While Spaces change underneath, the curtain is put in front again and again: the
                 // one shown next has it from its first frame on.
-                for _ in 0..<60 where !ready() {
+                for look in 0..<60 where !ready() {
                     if isRaised { window.orderFrontRegardless() }
+                    if asksFrontAgain(look: look), !NSApp.isActive { NSApp.comeToFront() }
                     try? await Task.sleep(for: .milliseconds(50))
                 }  // up to 3 s
                 if isRaised { window.orderFrontRegardless() }
             }
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
+            // Steam Helper took the front back in that moment (Valheim's end, 16:09 on 8.11.): the curtain
+            // would go over Steam's window.
+            if let ready, !ready() {
+                NSApp.comeToFront()
+                for _ in 0..<20 where !ready() { try? await Task.sleep(for: .milliseconds(50)) }
+                guard !Task.isCancelled else { return }
+            }
             held = false
             await NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
@@ -281,6 +289,10 @@ enum GameBackdrop {
             then?()
         }
     }
+
+    /// On the way back Nightforge asks for the front once, and macOS may give it to Steam Helper as a
+    /// game ends: asked again after half a second and after one and a half, not at every look.
+    nonisolated static func asksFrontAgain(look: Int) -> Bool { look == 10 || look == 30 }
 
     private static func put(_ game: String, on screen: NSScreen?, stage: Stage, tip: LaunchTip? = nil,
                             gameOn: @escaping @MainActor () -> Bool) {
