@@ -1831,7 +1831,7 @@ final class LibraryModel: ObservableObject {
         if !finished.isEmpty || !spaceLooked { refreshLowSpace() }
         applyFilter()
         MacIntegration.announceFinished(finished)
-        KeepAwake.update(downloading: found.filter { Self.isDownloading($0.install) && $0.downloadNeedsSpace == nil }.map(\.name))
+        KeepAwake.update(downloading: KeepAwake.fetched(found.filter { Self.isDownloading($0.install) && $0.downloadNeedsSpace == nil }).map(\.name))
         if downloads.isEmpty && move == nil { showingDownloads = false }
         MacIntegration.libraryLoaded()
         if let game = finished.first {
