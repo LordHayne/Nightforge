@@ -178,7 +178,7 @@ Stand Recall v1.6.3. Basis bleibt Pin 589adb7, die 201 Commits des Forks kommen 
 ### Bauen
 
 - **Offizieller Weg:** `graphics.yml` wendet `engine/patches/dxmt-*.patch` schon an, in Namensreihenfolge; der Patch geht auf einem frischen Pin mit den vorhandenen zusammen auf. Lauf auf einem Zweig (nur nach Push): `gh workflow run graphics.yml --ref <zweig>`, er baut und veröffentlicht nichts. Ein Merge nach `main` löst den Bau und ein neues Graphics-Release aus.
-- **Lokal hier nicht vollständig:** Es gibt nur die Command Line Tools, `xcrun metal` fehlt. `winemetal.so` geht deshalb nur über den Workflow (Xcode auf dem Runner).
+- **Lokal vollständig (seit 8.11., nur für Versuche):** `scripts/build-dxmt-local.sh <ref>` baut mit Xcode 27.2 über `DEVELOPER_DIR` wie `graphics.yml`, einschließlich `winemetal.so`. Was zu Spielern geht, kommt weiter aus dem GitHub-Bau.
 - **Lokale Probe, nur `d3d11.dll`:** gebaut mit mingw 16.2 und meson, mit Stellvertretern für `xcrun`, `winebuild` und `winecrt0`. Die eingebettete Metal-Bibliothek (152.339 Byte) stammt aus der ausgelieferten DLL. Importe gleich der ausgelieferten, 32-Bit-Objekte übersetzen. Dieser Weg dient nur dem Prüfen und der Messung, nicht dem Release.
 
 ### Lizenz: vom Nutzer freigegeben (8.11.)
