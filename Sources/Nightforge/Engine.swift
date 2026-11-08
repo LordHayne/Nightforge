@@ -1939,8 +1939,9 @@ enum Engine {
     }
 
     /// Per-program settings for a game's executables (Wine's AppDefaults): the Direct3D layer, the
-    /// profile's DLL overrides and Windows version. Rewritten in full at every launch, so a changed
-    /// choice or profile never leaves stale entries. The profile's registry entries go in as well.
+    /// profile's DLL overrides and Windows version. Rewritten in full when anything in them differs
+    /// from what the prefix holds (GameRegistryRecord), so a changed choice or profile never leaves
+    /// stale entries. The profile's registry entries go in as well, at every launch.
     static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL) {
         let layer = choice == .automatic ? (profile?.graphics ?? defaultGraphics) : choice
         let d3dMetalEngine = isGPTKCapable(wine: wine)
@@ -1950,7 +1951,7 @@ enum Engine {
         // D3DMetal 3.0 presents itself as an AMD card whose driver Unreal warns about.
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
-        var sections = [crashDialogOff]
+        var sections = [GameRegistryRecord.Section(key: "WineDbg", text: crashDialogOff)]
         for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
@@ -1961,7 +1962,14 @@ enum Engine {
                     .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
             }
             section += "\n[\(app)]\n\"Version\"=" + (profile?.windowsVersion.map(regString) ?? "-")
-            sections.append(section)
+            sections.append(GameRegistryRecord.Section(key: exe, text: section))
+        }
+        let imported = gameSettingsLock.withLock {
+            GameRegistryRecord.importIfChanged(sections, unrecorded: (profile?.registry ?? []).compactMap(regSection),
+                                               record: stamp(in: prefix, name: "game-registry"),
+                                               userRegistry: prefix.appendingPathComponent("user.reg")) {
+                importRegistry($0, wine: wine)
+            }
         }
         sections += (profile?.registry ?? []).compactMap(regSection)
         importRegistry(sections.joined(separator: "\n\n"), wine: wine)
@@ -1977,6 +1985,9 @@ enum Engine {
     static let unrealDriverLists = ["!DriverDenyList", "!Blacklist"]
 
     /// The Unreal projects in a game folder: the ones with <Project>/Binaries/Win64/<Name>-Shipping.exe.
+    /// One start at a time compares with the record, imports and notes what it wrote.
+    private static let gameSettingsLock = NSLock()
+
     static func unrealProjects(in installDir: URL) -> [URL] {
         let projects = executableFiles(in: installDir).filter { exe in
             let win64 = exe.deletingLastPathComponent()

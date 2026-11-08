@@ -184,6 +184,8 @@ struct ProfileFilesTest {
               "a game without it restarts it again")
         check(!Engine.launchRetina && Engine.steamConfigSignature == plain, "and the signature is as before Retina")
 
+        gameRegistryRecord(temp)
+
         // MARK: D3DMetal profiles need the engine that carries it
         let components = temp.appendingPathComponent("Components", isDirectory: true)
         func engine(_ id: String, _ version: String, age: TimeInterval) -> URL {
@@ -468,5 +470,68 @@ struct ProfileFilesTest {
               "once it can be read: exactly the other version's saves, nothing beside them (\(again))")
         check(SaveTransfer.PartlyTaken(backup: secondBackup, reason: "x").errorDescription?.contains(secondBackup.path) == true,
               "a switch that stopped while changing a folder names the backup")
+    }
+
+    /// regedit only when the prefix doesn't hold the settings yet (Engine.applyGameSettings).
+    static func gameRegistryRecord(_ temp: URL) {
+        let fm = FileManager.default
+        let folder = temp.appendingPathComponent("record", isDirectory: true)
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let record = folder.appendingPathComponent(".nightforge-game-registry")
+        let userRegistry = folder.appendingPathComponent("user.reg")
+        typealias Section = GameRegistryRecord.Section
+        var imports: [String] = []
+        var answer = true
+        func run(_ sections: [Section], unrecorded: [String] = []) -> Bool {
+            GameRegistryRecord.importIfChanged(sections, unrecorded: unrecorded, record: record, userRegistry: userRegistry) {
+                imports.append($0)
+                return answer
+            }
+        }
+        /// As a wineserver does it: the registry saved after the import.
+        func saved() {
+            fm.createFile(atPath: userRegistry.path, contents: Data())
+            try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: userRegistry.path)
+        }
+        let gameA = [Section(key: "WineDbg", text: "dbg"), Section(key: "Game.exe", text: "a"), Section(key: "Crash.exe", text: "dxmt")]
+
+        check(run(gameA) && imports == ["dbg\n\na\n\ndxmt"], "a prefix without a record gets the settings, whole and in order")
+        check(run(gameA) && imports.count == 2, "regedit's work isn't trusted until the registry was saved after it")
+        saved()
+        check(!run(gameA) && imports.count == 2, "saved, the same settings run no regedit")
+        check(!run([Section(key: "GAME.EXE", text: "a")]), "a program's name counts without regard to case")
+        check(!run([Section(key: "Game.exe", text: "a")], unrecorded: []) && imports.count == 2, "a part of what's recorded needs nothing")
+
+        check(run([Section(key: "Game.exe", text: "b")]) && imports.last == "b", "a changed choice goes in")
+        saved()
+        check(run(gameA) && imports.last?.contains("a") == true, "and the choice before it goes back in")
+        saved()
+        // Another game with a program of the same name: the last to start decides what the name holds.
+        let gameB = [Section(key: "WineDbg", text: "dbg"), Section(key: "Crash.exe", text: "dxvk")]
+        check(run(gameB), "another game's setting for a shared program goes in")
+        saved()
+        check(run(gameA), "and the first game's goes back in afterwards, though its own record never changed")
+        saved()
+        let before = imports.count
+        check(run(gameA, unrecorded: ["[HKEY_CURRENT_USER\\Software\\Game]"]) && imports.count == before + 1
+              && imports.last?.hasSuffix("[HKEY_CURRENT_USER\\Software\\Game]") == true,
+              "a profile's own values are set again at every start")
+        saved()
+
+        answer = false
+        let failing = [Section(key: "Game.exe", text: "c")]
+        check(run(failing), "a failed import ran")
+        saved()
+        answer = true
+        check(run(failing) && imports.last == "c", "and isn't noted: the next start tries again")
+        saved()
+        check(!run(failing), "until it went in")
+
+        try? "not json".write(to: record, atomically: true, encoding: .utf8)
+        saved()
+        check(run(failing), "a damaged record counts as none")
+        saved()
+        try? fm.removeItem(at: userRegistry)
+        check(run(failing), "no registry on disk: nothing is taken for granted")
     }
 }
