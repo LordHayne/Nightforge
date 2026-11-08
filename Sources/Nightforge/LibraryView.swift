@@ -1134,20 +1134,13 @@ private struct TopBar: View {
             } else if let warning = model.chargerWarning {
                 ChargerPill(warning: warning, power: model.power)
             }
-            // Downloads, rescan and settings share one piece of glass.
+            // Downloads and settings share one piece of glass. No rescan button: the library refreshes
+            // by itself (each time Nightforge comes forward); ⌘R and the menu stay for the rare miss (8.11.).
             HStack(spacing: 2) {
                 if !model.downloads.isEmpty || model.move != nil {
                     DownloadsButton()
                     GlassDivider()
                 }
-                Button { model.rescan() } label: {
-                    Image(systemName: "arrow.clockwise").font(size: 13, weight: .semibold, scales: false)
-                }
-                .buttonStyle(GlassGroupButtonStyle())
-                .help(L10n.t("Rescan library (⌘R)"))
-                .accessibilityLabel(L10n.t("Rescan library"))
-                .padFocus("top.rescan", cornerRadius: 15, activate: { model.rescan() })
-                GlassDivider()
                 Button { model.openSettings() } label: {
                     Image(systemName: "gearshape").font(size: 14, weight: .semibold, scales: false)
                 }
