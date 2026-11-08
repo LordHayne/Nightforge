@@ -27,6 +27,10 @@ NO_PAD_NEEDED = {
     ("LibraryView.swift", "isRunning && !busy"): "the big button: its call adds .padFocus (checked below)",
     ("SignInStage.swift", "model.cancelSignIn()"): "the hint for the mouse; B cancels (InputRouter)",
     ("SignInStage.swift", 'L10n.t("Show Window Again")'): "the pad brings the window with A (InputRouter)",
+    ("SignInStage.swift", 'L10n.t("Sign In Later")'): "A on Epic's stage presses it, it only shows with a controller (InputRouter, checked below)",
+    ("SignInStage.swift", "Hint(.pad(model.padSymbols.details)"): "X changes between phone and keyboard (InputRouter, checked below)",
+    ("SignInStage.swift", "Button(title) { model.switchSignInWay() }"): "only without a controller: with one, it's the hint that X presses",
+    ("PhoneSignInView.swift", 'L10n.t("New Code")'): "A asks for it once the old code has run out (InputRouter, checked below)",
 }
 
 # A pad name used by two controls that can't be on screen together (they're different pages or branches).
@@ -48,6 +52,12 @@ for control in found:
 for key in NO_PAD_NEEDED:
     if key not in seen_allowed:
         problems.append(f"{key}: no control matches this exception any more; take it out of the list")
+
+# On the sign-in stage the pad doesn't move a highlight (InputRouter.perform): A and X go to the stage itself.
+router = blank_comments((root / "Sources/Nightforge/InputRouter.swift").read_text())
+for call in ("model?.signInPrimary()", "model?.switchSignInWay()"):
+    if call not in router:
+        problems.append(f"InputRouter.swift doesn't call {call}: the stage's buttons above can't be pressed with the pad")
 
 # The calls that add the focus for the two shared views above.
 view = blank_comments((root / "Sources/Nightforge/LibraryView.swift").read_text())
