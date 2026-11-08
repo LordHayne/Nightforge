@@ -36,7 +36,9 @@ enum PadPart: String, CaseIterable {
         case .rs: return L10n.t("Scrolls pages and lists – in games it's mostly the camera")
         case .l3, .r3: return L10n.t("Works – both sticks held for 2 seconds in a game bring Nightforge's menu")
         case .select: return L10n.t("Opens and closes the launcher menu – in games it's the game's")
-        case .home: return L10n.t("Works – it belongs to macOS, Nightforge leaves it alone")
+        case .home:
+            return HomeButtonSetup.exists ? L10n.t("Works – a short press goes to Home here, in a game it's macOS's")
+                : L10n.t("Works – it belongs to macOS, Nightforge leaves it alone")
         case .touch: return L10n.t("Moves the pointer where a mouse is needed – in games it's the game's")
         }
     }

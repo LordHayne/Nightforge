@@ -40,6 +40,8 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    /// When the PS or Xbox button went down, in Nightforge.
+    private var homeDown: TimeInterval?
     private let haptics = PadHaptics()
     /// The on-screen keyboard: its pad and the look at it, 60 times a second while it's open.
     private var keyboardTimer: Timer?
@@ -445,6 +447,11 @@ final class InputRouter {
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
         Self.takeViewButton()
         pointer.attach(pad)
+        if HomeButtonSetup.exists, let home = pad.controller?.physicalInputProfile.buttons[GCInputButtonHome] {
+            home.pressedChangedHandler = { [weak self] _, _, pressed in
+                MainActor.assumeIsolated { self?.homeButton(pressed) }
+            }
+        }
 
         // D-pad and left stick both move in all four directions, repeating while held.
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
@@ -716,12 +723,41 @@ final class InputRouter {
     /// ⧉ is Nightforge's while it's in front (PadRules.takesViewButton): a system gesture on it (a
     /// DualSense's screenshot) waits until Nightforge isn't. Only buttons the system has a gesture on.
     static func takeViewButton() {
+        takeHomeButton()
         let takes = PadRules.takesViewButton(active: NSApp.isActive, overlay: GameOverlay.isOpen)
         for controller in GCController.controllers() {
             guard let view = controller.extendedGamepad?.buttonOptions, view.isBoundToSystemGesture else { continue }
             let state: GCControllerElement.SystemGestureState = takes ? .disabled : .enabled
             if view.preferredSystemGestureState != state { view.preferredSystemGestureState = state }
         }
+    }
+
+    /// macOS 27: the PS or Xbox button is Nightforge's while it's in front, if System Settings lets the
+    /// app decide (HomeButtonSetup). Asked for here, as macOS's header says, and given back for a game.
+    private static func takeHomeButton() {
+        guard HomeButtonSetup.exists else { return }
+        let takes = HomeButtonSetup.takesButton(exists: true, active: NSApp.isActive, overlay: GameOverlay.isOpen)
+        for controller in GCController.controllers() {
+            guard let home = controller.physicalInputProfile.buttons[GCInputButtonHome], home.isBoundToSystemGesture else { continue }
+            let state: GCControllerElement.SystemGestureState = takes ? .disabled : .enabled
+            if home.preferredSystemGestureState != state { home.preferredSystemGestureState = state }
+        }
+    }
+
+    /// A short press on the PS or Xbox button in Nightforge: to Home, where L1 would go too. Held,
+    /// it's macOS's long press. Not behind the curtain, a sheet or the keyboard.
+    private func homeButton(_ pressed: Bool) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard !pressed else {
+            homeDown = now
+            return
+        }
+        defer { homeDown = nil }
+        guard let down = homeDown, HomeButtonSetup.isShortPress(held: now - down), !GameBackdrop.isRaised, let model,
+              Self.section(for: .l1, route: model.route, inFront: reach == .app, dialog: dialog != nil || panelOpen,
+                           firstStart: model.showsFirstStart) == .home
+        else { return }
+        model.goHome()
     }
 
     /// ☰ down or up (MenuHold): with a card selected it waits to see whether it's held.

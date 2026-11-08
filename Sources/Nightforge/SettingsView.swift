@@ -385,6 +385,7 @@ private struct ControllerSettings: View {
     @State private var refresh = 0
     @State private var pairing = false
     @State private var homeButton = HomeButtonSetup.State.unavailable
+    @State private var homeButtonIsOurs = false
 
     private static let bluetoothSettings = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!
 
@@ -437,10 +438,26 @@ private struct ControllerSettings: View {
                             .padFocus("settings.homeButton", cornerRadius: 15, activate: { HomeButtonSetup.openSettings() })
                     }
                 }
-                .onAppear { homeButton = HomeButtonSetup.current() }
-                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                    homeButton = HomeButtonSetup.current()
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("A short press goes to Home"))
+                            .font(size: 12)
+                        Text(L10n.t("While Nightforge is in front. In System Settings, choose once that the app may decide. In a game the button stays with macOS."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if homeButtonIsOurs {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    } else {
+                        Button(L10n.t("Set Up …")) { HomeButtonSetup.openSettings(.shortPress) }
+                            .padFocus("settings.homeButtonShort", cornerRadius: 15, activate: { HomeButtonSetup.openSettings(.shortPress) })
+                    }
                 }
+                .onAppear { readHomeButton() }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in readHomeButton() }
             }
 
             SectionTitle(L10n.t("Button labels"))
@@ -540,6 +557,11 @@ private struct ControllerSettings: View {
             pointerAllowed = PadPointerAccess.granted
         }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refresh += 1 }
+    }
+
+    private func readHomeButton() {
+        homeButton = HomeButtonSetup.current()
+        homeButtonIsOurs = HomeButtonSetup.appMayHaveButton()
     }
 
     /// One controller: its name, that it works everywhere, and its battery.
