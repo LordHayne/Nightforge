@@ -135,9 +135,80 @@ Teil ist je Spiel abschaltbar. Recall macht bei Overwatch dasselbe und erwähnt 
 | Stufe | Inhalt | Braucht |
 |---|---|---|
 | 0 | Messung Nightforge heute gegen Recall | Keinen Build; der Nutzer spielt |
-| 1 | `dxmt-0.80-shader-prep.patch` mit allem, was oben „Nehmen“ heißt, Helfer in `graphics.yml`, App-Seite, Recalls `tests/pipeline_cache`. Beide Teile einzeln schaltbar: A/B mit einem Build | graphics-Build und App-Release, Basis `claude/staging-032`, Spieletest mit Korb, Overwatch zuletzt und nur mit OK |
+| 1 | `dxmt-0.80-prepare-shaders.patch`: nur früh übersetzen, Standard aus (Stand unten) | graphics-Build und App-Schalter für 0.3.3, Spieletest mit Korb, Overwatch zuletzt und nur mit OK |
+| 1b | Lernen und Vorab-Anlegen (`pipeline_recipe.*`, `pipeline_cache.*`), `pipeline_warm`, asynchroner Schreiber (`cache.c`) | Einen Grund aus einer Messung. Laut Stufe 0 ist die zweite Runde schon fast sauber |
 | 2 | Pack mit festem Budget, teuerste Pipelines zuerst (Vorschlag: 1 GB) | Nur wenn Lauf B nach Stufe 1 noch Shader-Haken zeigt. Helfer und App, kein neuer DXMT-Patch |
 
 **Außerhalb:** D3DMetal ist geschlossen, Spiele darauf bleiben draußen. Eine geteilte Liste wie Fossilize gehört nicht zu diesem Plan.
 Sie bräuchte Server, Opt-in, Zusammenführen je Spiel-Build und GPU, Signaturen und eine rechtliche Prüfung. AIR stammt aus dem
 Shader-Code des Spiels und dürfte nicht mitreisen. Einstieg: Recherche `hermes/queue-032/shader-sharing.md`, Quellen großteils ungeprüft.
+
+## Stufe 1: Stand 8.11.2026
+
+**Ergebnis:** `engine/patches/dxmt-0.80-prepare-shaders.patch` übersetzt die Shader eines Spiels, sobald es sie anlegt, in zwei Hintergrund-Threads.
+Der Patch ändert nur `d3d11.dll`. Ohne `DXMT_PREPARE_SHADERS` läuft alles wie heute. Gebaut wurde er zur Probe lokal; in einem Spiel lief er noch nicht, und einen Workflow-Lauf gab es nicht.
+
+**Was früh übersetzen kann und was nicht:** Es erzeugt AIR im vorhandenen Cache (`Engine.shaderCache`) und spart damit airconv in der Spielrunde. Metals eigenes Kompilieren beim ersten Zeichnen bleibt. In Stufe 0 maß der
+Beobachter vor allem dieses Kompilieren. Wie viel die erste Runde gewinnt, zeigt erst die Messung unten.
+
+### Recalls Patches einzeln
+
+Stand Recall v1.6.3. Basis bleibt Pin 589adb7, die 201 Commits des Forks kommen nicht mit.
+
+| Patch, Teil | Urteil |
+|---|---|
+| `dxmt-v1-performance.patch`: `DXMT_PREPARE_SHADERS`, Vorhersage der Varianten, `SetCacheOnly`, `canonical()` | Übernommen, mit den Änderungen unten |
+| `dxmt-v1-private.patch`: `task_scheduler` mit Grenze und Priorität samt Reparatur beim Beenden, echter `hash<ShaderVariant>`, Scheduler nach den Objekten, die er braucht | Übernommen |
+| `dxmt-v1-private.patch`: `PipelineReady`, `DXMT_SHADER_LOG`, IR-Freigabe | Nicht nötig für früh übersetzen; Pin hat keine IR-Freigabe, also ist `handle()` immer gültig |
+| `dxmt-v1-private.patch`: asynchroner Schreiber (`cache.c`) | Vertagt: Unix-Seite, bräuchte Build mit Metal-Compiler. Ersatz im Patch: die Hintergrund-Threads halten die Cache-Sperre mit hoher Priorität. Erst nehmen, wenn die Messung Wartezeiten beim Schreiben zeigt |
+| `dxmt-v1-private.patch`: Lernen und Vorab-Anlegen (`pipeline_recipe.*`, `pipeline_cache.*`) | Vertagt, siehe Stufe 1b |
+| `dxmt-shader-pack.patch`, `pipeline_warm.m` | Vertagt, siehe Stufen 1b und 2 |
+| `dxmt-metalfx-upscaling.patch` (DLSS meldet eine RTX 4090) | **Ausgeschlossen:** falsche Hardware |
+| Rest von `dxmt-v1-*`, `dxmt-gpu-errors.patch`, `dxmt-portable-metal.patch`, alle `wine-*` | Kein Shader-Thema |
+
+### Änderungen gegenüber Recall
+
+- **Sample Mask bleibt in der Variante.** Recall setzt sie zurück, wenn der Shader kein `oMask` schreibt. In `SM50Compile` (`src/airconv/dxbc_converter.cpp:460`, gleicher Code auf dem Fork) bekommt aber auch so ein Shader die Maske als Coverage-Ausgabe. Metal hat keine eigene Sample Mask. Recalls Rücksetzen hätte Spiele mit eigener Maske also falsch gezeichnet.
+- **Deckel je Lauf:** 65.536 Varianten und 1 GB AIR. Dazu höchstens 16 Layouts je Signatur und 1.024 Vertex-Shader je Layout, damit `CreateInputLayout` den Spiel-Thread nicht aufhält. Recall hat keine Deckel, sein Cache lag hier nach einer kurzen Sitzung bei knapp 1 GB.
+- **Compute-Shader kommen dazu:** Sie haben genau eine Variante, also trifft die Vorhersage immer.
+- **Wert 2 des Schalters:** `DXMT_PREPARE_SHADERS=2` bereitet Pixel-Shader zusätzlich für 8-Bit-Ziele vor. Recalls Vorhersage (Wert 1) nimmt immer „kein 8-Bit-Ziel“ an; das passt zu Unreal-G-Buffern schlecht.
+- **Aus heißt aus:** Ohne Schalter gibt es keine Threads und keine `canonical()`-Zusammenlegung.
+- **Log für die Messung:** Eine Zeile je 256 gezeichneter Varianten (`[nightforge-dxmt] prepare: …`): wie viele rechtzeitig fertig waren und wie viele noch in der Warteschlange lagen.
+
+### Bauen
+
+- **Offizieller Weg:** `graphics.yml` wendet `engine/patches/dxmt-*.patch` schon an, in Namensreihenfolge; der Patch geht auf einem frischen Pin mit den vorhandenen zusammen auf. Lauf auf einem Zweig (nur nach Push): `gh workflow run graphics.yml --ref <zweig>`, er baut und veröffentlicht nichts. Ein Merge nach `main` löst den Bau und ein neues Graphics-Release aus.
+- **Lokal hier nicht vollständig:** Es gibt nur die Command Line Tools, `xcrun metal` fehlt. `winemetal.so` geht deshalb nur über den Workflow (Xcode auf dem Runner).
+- **Lokale Probe, nur `d3d11.dll`:** gebaut mit mingw 16.2 und meson, mit Stellvertretern für `xcrun`, `winebuild` und `winecrt0`. Die eingebettete Metal-Bibliothek (152.339 Byte) stammt aus der ausgelieferten DLL. Importe gleich der ausgelieferten, 32-Bit-Objekte übersetzen. Dieser Weg dient nur dem Prüfen und der Messung, nicht dem Release.
+
+### Lizenz: Entscheidung des Nutzers vor dem Merge
+
+**Heute** ist unser DXMT-Build MIT. Nightforge selbst ist GPL-3. **Mit diesem Patch** steht der DXMT-Teil des Graphics-Pakets als Ganzes unter LGPL-2.1-or-later, denn der Patch enthält Teile aus Recalls DXMT-Patches, die unter dieser Lizenz stehen.
+
+- **Für Spieler:** Nichts ändert sich. DXMT bleibt ein eigener Download, frei ersetzbar.
+- **Für Nightforge:** Die App bleibt GPL-3 und lädt DXMT weiter als getrennte Komponente.
+- **Pflichten:** Quelltext liegt schon als zweites Asset jedem Graphics-Release bei (unverändertes DXMT, unsere Patches, `graphics.yml`). Der Patch nennt im Kopf die Herkunft, jede geänderte Datei trägt einen Vermerk (LGPL-2.1 § 2 a). Der Lizenztext ist im Paket als `COPYING-Wine.txt`, derselbe Text.
+- **Auf dem Zweig schon geändert:** Hinweistext in `graphics.yml`, `Resources/THIRD_PARTY_NOTICES.txt`.
+- **Einordnung:** Upstream-DXMT ist inzwischen selbst LGPL-2.1-or-later (`LICENSE` auf dem aktuellen Stand), jedes spätere DXMT-Update brächte das ohnehin.
+- **Zurück:** Ein Graphics-Build ohne den Patch ist wieder MIT.
+
+Das ist keine Rechtsberatung. Der Nutzer gibt den Build frei oder nicht.
+
+### Messplan
+
+Werkzeug und Schritte: Notizordner `shader-messung/SCHRITTE.md` (`messung.sh start|warm|fertig`, `frueh.sh an|aus|zahlen`, Probe-DLL daneben).
+
+| Lauf | Spiel | Stand | Vergleich |
+|---|---|---|---|
+| A1, A2 | ABZU, feste Stelle, 5 min kalt, 5 min warm | heutige DLL | Vorher-Wert, fehlt noch |
+| A3 | Overwatch, Custom Game, 5 min warm | heutige DLL | Vorher-Wert, fehlt noch; Practice Range kalt und warm gibt es vom 7.11. |
+| B1, B2 | ABZU wie A1, A2 | Probe-DLL, Wert 1 | Gegen A1, A2 |
+| B3 | Overwatch wie A3 | Probe-DLL | **Nur mit ausdrücklichem OK des Nutzers** |
+
+Zahlen je Runde: Frames über 33/50/100 ms je Minute, schlimmster Frame, Compiler-Sekunden, Größe der Übersetzungs-Datei, Trefferquote aus dem Log. Für den Erfolg zählt die kalte Runde (B1 gegen A1). Warm darf nicht schlechter werden.
+
+### Was noch fehlt
+
+- Probe in einem Spiel, Workflow-Lauf, Spieletest mit Korb.
+- App-Schalter je Spiel in `Engine.gameEnvironment` oder per Profil, Standard erst nach der Messung. `DXMT_PREPARE_SHADERS` ist noch nirgends gesetzt.
+- `ShaderCaches.folders` kennt `C/dxmt` nicht, Deckel je Programm für die Übersetzungs-Datei (die Datei teilen sich alle Spiele).
