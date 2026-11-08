@@ -85,6 +85,9 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var pinnedGames = GameMarks.load(.pinned)
     /// Taken off Home until played again (HomeRemovals).
     @Published private(set) var offHome = HomeRemovals.load()
+    /// What Home's stage is made of, and the order of the pinned games (Settings › Home).
+    @Published private(set) var homeSources = HomeSources.load()
+    @Published private(set) var pinOrder = HomePinOrder.load()
     @Published private(set) var laterGames = GameMarks.load(.later)
     /// The library shows only the hidden games, to bring them back.
     @Published private(set) var showingHidden = false
@@ -3027,7 +3030,8 @@ final class LibraryModel: ObservableObject {
         selectedIndex = selectBestMatch && !words.isEmpty ? first : games.firstIndex(where: { $0.holds(previous) }) ?? first
         if words.isEmpty && !showingHidden {
             let shown = games
-            let stage = HomeRail.stage(shown, pinned: pinnedGames, off: offHome) { StarterPicks.order(shown, facts: starterFacts) }
+            let stage = HomeRail.stage(shown, pinned: pinnedGames, off: offHome, sources: homeSources, pinOrder: pinOrder,
+                                       later: laterGames) { StarterPicks.order(shown, facts: starterFacts) }
             homeRail = stage.rail
             homeStartersFrom = stage.startersFrom
         } else {
@@ -3456,6 +3460,11 @@ final class LibraryModel: ObservableObject {
         if let pinned {
             GameMarks.set(games, pinned, in: &pinnedGames)
             GameMarks.save(pinnedGames, .pinned)
+            // Pinned again later it starts behind the others, not at a place it once had.
+            if !pinned, pinOrder.contains(where: games.contains) {
+                pinOrder.removeAll(where: games.contains)
+                HomePinOrder.save(pinOrder)
+            }
         }
         if let later {
             GameMarks.set(games, later, in: &laterGames)
@@ -3463,6 +3472,28 @@ final class LibraryModel: ObservableObject {
         }
         // The list's last game gone: no empty grid, the library again.
         if filters.later, laterCount == 0 { filters.later = false }
+        applyFilter()
+    }
+
+    /// The pinned games in the library, in their order (Settings › Home).
+    var pinnedHomeGames: [Game] {
+        let pinned = cards.indices.filter { cards[$0].inLibrary && cards[$0].isMarked(in: pinnedGames) }
+        return HomePinOrder.sorted(pinned, in: cards, order: pinOrder).map { cards[$0] }
+    }
+
+    func setHomeSource(_ source: HomeSources.Source, _ on: Bool) {
+        homeSources.set(source, on)
+        homeSources.save()
+        applyFilter()
+    }
+
+    /// Moves a pinned game a place up (-1) or down (1) in Settings › Home.
+    func movePin(_ game: Game, by delta: Int) {
+        let pinned = pinnedHomeGames
+        guard let index = pinned.firstIndex(where: { $0.id == game.id }),
+              let order = HomePinOrder.moved(pinned, index: index, by: delta, order: pinOrder) else { return }
+        pinOrder = order
+        HomePinOrder.save(order)
         applyFilter()
     }
 

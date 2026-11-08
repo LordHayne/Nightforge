@@ -793,6 +793,13 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
     erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
+## Einstellungen › Startseite (0.3.3, Zweig `claude/startseite-033`)
+
+- **Gebaut nach Variante C des Boards „Startseite“:** Quellen an/aus (`HomeSources`) und die Reihenfolge der angehefteten Spiele
+  (`HomePinOrder`), Seite in `HomeSettings.swift`, Tests in `tests/HomeSourcesTest`. Nur offscreen gerendert.
+- **Live prüfen:** Controller im Tab (Schalter, Pfeile, Markierung wandert mit dem Spiel), Startseite nach jedem Schalter, alle Quellen aus
+  (nur die Kachel „Alle Spiele“), „Später spielen“ mit einem noch nicht geladenen Spiel.
+
 ## Launcher-Menü (0.3.2, Zweig `claude/launcher-032`)
 
 - **Gebaut nach dem Canvas vom 7.11.:** `LauncherState` ist der eine Zustand für beide Menüs (`Launchers.swift`), vier Karten und

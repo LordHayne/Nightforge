@@ -64,12 +64,15 @@ extension HomeRail {
     /// to `limit`. `startersFrom`: where the starts begin, nil without any. `starters` is only asked
     /// for when they're needed.
     static func stage(_ games: [Game], pinned: Set<GameID> = [], off: [GameID: Date] = [:], now: Date = Date(),
+                      sources: HomeSources = HomeSources(), pinOrder: [GameID] = [], later: Set<GameID> = [],
                       starters: () -> [Int]) -> (rail: [Int], startersFrom: Int?) {
-        let played = pick(games, pinned: pinned, off: off, now: now, fill: false)
-        guard played.count < minimum else { return (played, nil) }
+        let played = pick(games, pinned: pinned, off: off, now: now, fill: false, sources: sources, pinOrder: pinOrder, later: later)
+        guard sources.isOn(.starters), played.count < minimum else { return (played, nil) }
         let picks = starters().filter { !played.contains($0) && !HomeRemovals.isOff(games[$0], in: off) }
             .prefix(min(StarterPicks.count, limit - played.count))
-        guard !picks.isEmpty else { return (pick(games, pinned: pinned, off: off, now: now), nil) }
+        guard !picks.isEmpty else {
+            return (pick(games, pinned: pinned, off: off, now: now, sources: sources, pinOrder: pinOrder, later: later), nil)
+        }
         return (played + picks, played.count)
     }
 
