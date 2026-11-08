@@ -975,6 +975,9 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
   - Hier ist sie 1,0 MB groß, das kostet Millisekunden. Eine Bibliothek mit Tausenden Spielen hat aber eine viel
     größere.
   - Abhilfe: das Programm in einem Task holen oder je Datei einmal einen Index App-ID → Stelle bauen.
+  - **Erledigt auf `claude/c4-033` (8.11., für 0.3.3):** Die Optionen holen Programm und Programmliste in einem
+    abgekoppelten Task, sobald sie offen sind. Ein Index je Datei lohnt nicht: Die Suche springt von App zu App über
+    die Größenangaben und liest nur den einen Eintrag.
 - **MetalFX im Vulkan-Layer** (Retina für Vulkan-Spiele, PR #1): Die Metal-Seite ist geprüft, in einem Spiel noch nicht.
 - **MoltenVK 1.4.2** (PR #1) ist in keinem Spiel getestet. 1.4.0 scheiterte an Shadern von No Man's Sky.
 - **D3DM_MAX_FPS** wirkt jetzt über Steams Start-Umgebung. Prüfen, ob die gelernte Bildratengrenze

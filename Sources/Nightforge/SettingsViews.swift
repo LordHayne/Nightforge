@@ -16,9 +16,10 @@ struct GameOptionsSheet: View {
     @State private var contentHeight: CGFloat = 0
     @ObservedObject private var padFocus = PadFocus.shared
     /// The program the store starts (Steam's launch option, its one without anti-cheat when there is
-    /// one; Epic's, GOG's), and the game's programs beside it.
-    private let storeProgram: URL?
-    private let programs: [String]
+    /// one; Epic's, GOG's), and the game's programs beside it. Looked up off the main thread once the
+    /// options are open: Steam's comes from appinfo.vdf, megabytes with a big library (release review C4).
+    @State private var storeProgram: URL?
+    @State private var programs: [String] = []
 
     init(game: Game, insight: GameInsight?, report: @escaping () -> Void) {
         self.game = game
@@ -28,12 +29,10 @@ struct GameOptionsSheet: View {
         _options = State(initialValue: stored)
         _expertOpen = State(initialValue: stored.preset == .custom)
         Hardware.refresh()  // so "Automatic (…)" shows what a start now would do
-        storeProgram = Self.storeProgram(of: game)
-        programs = storeProgram.map { GameAnalysis.programs(near: $0, in: game.installDir) } ?? []
     }
 
     /// The program a game's store starts, inside its folder.
-    private static func storeProgram(of game: Game) -> URL? {
+    nonisolated private static func storeProgram(of game: Game) -> URL? {
         guard game.bottle.isBuiltIn, game.isInstalled else { return nil }
         let relative: String?
         switch game.provider {
@@ -105,6 +104,13 @@ struct GameOptionsSheet: View {
             .padding(.top, 2)
         }
         .task {
+            let game = self.game
+            let found = await Task.detached(priority: .userInitiated) { () -> (URL?, [String]) in
+                let store = Self.storeProgram(of: game)
+                return (store, store.map { GameAnalysis.programs(near: $0, in: game.installDir) } ?? [])
+            }.value
+            storeProgram = found.0
+            programs = found.1
             if game.bottle.isBuiltIn || game.switchable { profile = await ProfileStore.shared.profile(for: game.gameID) }
         }
     }
