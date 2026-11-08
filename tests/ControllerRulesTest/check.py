@@ -30,6 +30,7 @@ NO_PAD_NEEDED = {
     ("SignInStage.swift", 'L10n.t("Sign In Later")'): "A on Epic's stage presses it, it only shows with a controller (InputRouter, checked below)",
     ("SignInStage.swift", "Hint(.pad(model.padSymbols.details)"): "X changes between phone and keyboard (InputRouter, checked below)",
     ("SignInStage.swift", "Button(title) { model.switchSignInWay() }"): "only without a controller: with one, it's the hint that X presses",
+    ("PadKeyboardView.swift", "Button(action: close)"): "the X for the mouse; B closes the keyboard (InputRouter)",
     ("PhoneSignInView.swift", 'L10n.t("New Code")'): "A asks for it once the old code has run out (InputRouter, checked below)",
 }
 
