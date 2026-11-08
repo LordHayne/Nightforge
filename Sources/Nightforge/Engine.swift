@@ -2942,8 +2942,27 @@ enum Engine {
         try await offMain { try startSteam(wine, arguments: arguments, extraEnvironment: extraEnvironment) }
     }
 
+    /// How a Steam nobody is waiting for starts: hidden.
+    private static let backgroundStart = ["-silent"]
+
+    /// Steam for Mac has the account for a Mac version (SteamSwitch.macHasAccount).
+    static var windowsSteamHeldBack: Bool {
+        get { heldBack.withLock { $0 } }
+        set { heldBack.withLock { $0 = newValue } }
+    }
+    private static let heldBack = LockedValue(false)
+
+    /// Only what starts by itself waits. A game's start and the player's own window go through
+    /// SteamSwitch first, and "-shutdown" has to reach a Steam that's still up.
+    static func holdsBack(arguments: [String], heldBack: Bool) -> Bool { heldBack && arguments == backgroundStart }
+
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
+        if holdsBack(arguments: arguments, heldBack: windowsSteamHeldBack) {
+            GameLog.note("Steam switch: the Windows Steam waits, Steam for Mac has the account, at \(GameLog.clock())")
+            return
+        }
+        if arguments == backgroundStart { GameLog.note("The Windows Steam starts in the background at \(GameLog.clock())") }
         installWebHelperWrapper()
         var wine = wine
         // Only for a Steam that is known not to run: its files are written here (LaunchOptions too).

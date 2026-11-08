@@ -164,6 +164,12 @@ final class SteamSwitch {
     private(set) var lastSession: [Platform: Session] = [:]
     /// Nightforge quit its Windows Steam for Steam for Mac; it starts again when that's done.
     private(set) var windowsStopped = false
+    /// A Mac version's start has the account, until it's handed back. A Windows Steam signing in now signs
+    /// Steam for Mac out under the game: its save can't go up, and the next start asks about a "PC" that
+    /// never uploaded (Valheim, 8.11. 16:08:52). So its background starts wait (Engine.holdsBack).
+    private(set) var macHasAccount = false {
+        didSet { Engine.windowsSteamHeldBack = macHasAccount }
+    }
     private var afterMac: Task<Void, Never>?
     /// The switch back has got to starting the Windows Steam: a start waits for that to finish
     /// rather than calling it off halfway (settle).
@@ -293,6 +299,7 @@ final class SteamSwitch {
     func makeWayForMac(facts: Facts, phase: (LaunchPhase) -> Void) async {
         if afterMac != nil { phase(.startingSteamForMac) }  // a switch back under way: no wait without a word
         await settle()
+        macTakesAccount()
         var facts = facts
         facts.windowsSteamRunning = Engine.isSteamRunning  // a switch back may have just started it
         if await savesPending(.windows) {
@@ -327,6 +334,7 @@ final class SteamSwitch {
     func makeWayForWindows(facts: Facts, phase: (LaunchPhase) -> Void, restartWindows: () async -> Void) async {
         if afterMac != nil { phase(.startingSteam) }  // a switch back under way: no wait without a word
         await settle()
+        macGivesAccountBack()
         if Self.quitsMacForWindows(facts) {
             GameLog.note("Steam switch: Steam for Mac makes way for the Windows Steam at \(GameLog.clock())")
             if await savesPending(.mac) {
@@ -354,7 +362,11 @@ final class SteamSwitch {
         afterMac = nil
     }
 
+    func macTakesAccount() { macHasAccount = true }
+    func macGivesAccountBack() { macHasAccount = false }
+
     private func restartWindowsIfNeeded(_ restart: () async -> Void) async {
+        macGivesAccountBack()
         guard Self.restartsWindows(stoppedByNightforge: windowsStopped, running: Engine.isSteamRunning,
                                    replaced: Engine.sessionReplaced())
         else { return }
