@@ -60,6 +60,47 @@ struct ShaderCachesTest {
         check(defaults.string(forKey: "shaders.550") == nil, "the next start says again that it prepares shaders")
         check(defaults.bool(forKey: "library.hidden"), "other settings stay")
 
+        // MARK: Early translation
+        let programs = { (names: [String]) in names.map { URL(fileURLWithPath: "/Games/X/\($0)") } }
+        let early = TestDefaults.suite("early-translation")
+        check(ShaderCaches.translatesEarly(programs: programs(["AbzuGame-Win64-Shipping.exe"]), defaults: early), "on without any setting")
+        check(ShaderCaches.translatesEarly(programs: [], defaults: early), "also when no program was found")
+        for name in ["Overwatch.exe", "OVERWATCH.EXE", "overwatch.exe"] {
+            check(!ShaderCaches.translatesEarly(programs: programs(["Launcher.exe", name]), defaults: early), "off for \(name)")
+        }
+        check(ShaderCaches.translatesEarly(programs: programs(["NotOverwatch.exe"]), defaults: early), "only the program of that name")
+        early.set(false, forKey: ShaderCaches.earlyTranslationKey)
+        check(!ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), defaults: early), "the hidden setting turns it off")
+        early.set(true, forKey: ShaderCaches.earlyTranslationKey)
+        check(ShaderCaches.translatesEarly(programs: programs(["Game.exe"]), defaults: early), "and on again")
+
+        // MARK: Upper limit
+        let shared = root.appendingPathComponent("limit/dxmt", isDirectory: true)
+        let limitDefaults = TestDefaults.suite("translation-limit")
+        limitDefaults.set(true, forKey: "shaders.550")
+        limitDefaults.set(true, forKey: "library.hidden")
+        let database = shared.appendingPathComponent("shaders_320.db"), journal = shared.appendingPathComponent("shaders_320.db-wal")
+        let lock = shared.appendingPathComponent("shaders_320.db-lock"), other = shared.appendingPathComponent("pipelines/recipe.json")
+        write(database, bytes: 600); write(journal, bytes: 300); write(lock, bytes: 0); write(other, bytes: 5000)
+        check(ShaderCaches.limitTranslations(in: shared, limit: 1000, defaults: limitDefaults) == 0, "under the limit nothing goes")
+        check([database, journal, lock].allSatisfy(exists), "and the files stay")
+        check(limitDefaults.bool(forKey: "shaders.550"), "as does what the app remembers")
+        write(journal, bytes: 500)
+        check(ShaderCaches.limitTranslations(in: shared, limit: 1000, defaults: limitDefaults) == 1100, "over the limit, journal counted: all of it")
+        check(![database, journal, lock].contains(where: exists), "the file, its journal and its lock go together")
+        check(exists(other), "anything else in the folder stays")
+        check(limitDefaults.object(forKey: "shaders.550") == nil, "the next start says again that it prepares shaders")
+        check(limitDefaults.bool(forKey: "library.hidden"), "other settings stay")
+        check(ShaderCaches.limitTranslations(in: root.appendingPathComponent("nowhere"), limit: 0, defaults: limitDefaults) == 0, "no folder, nothing to do")
+        // The real limit, without writing gigabytes: a sparse file.
+        write(database, bytes: 0)
+        let sparse = try? FileHandle(forWritingTo: database)
+        try? sparse?.truncate(atOffset: UInt64(ShaderCaches.translationLimit))
+        try? sparse?.close()
+        check(ShaderCaches.limitTranslations(in: shared, defaults: limitDefaults) == 0 && exists(database), "exactly 4 GB is still allowed")
+        write(journal, bytes: 1)
+        check(ShaderCaches.limitTranslations(in: shared, defaults: limitDefaults) == ShaderCaches.translationLimit + 1, "one byte more isn't")
+
         print(failures == 0 ? "✓ ShaderCaches" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
