@@ -7,6 +7,8 @@ enum OverlayStillness: Equatable {
     case paused
     /// Not stopped, and the pad still reaches it.
     case hearsPad
+    /// Not stopped, and our Wine driver keeps the pad from it (PadSilence).
+    case silenced
 }
 
 /// What the overlay's blocks are given: looked up once as it opens, only values.
@@ -15,6 +17,10 @@ struct OverlayContext: Equatable {
     /// When the game's process started; nil where that can't be told.
     var startedAt: Date?
     var pads: [ControllerStatus] = []
+    /// A Windows game: our Wine driver can keep the pad from it.
+    var silencesPad = false
+    /// A Windows game that only runs online: it isn't stopped if the driver answers.
+    var runsOnIfSilent = false
 }
 
 /// Whether a block has something to offer for this game on this Mac. Never a question from macOS on
@@ -87,6 +93,12 @@ enum OverlayRules {
         platform == .mac && onlineOnly ? .hearsPad : .paused
     }
 
+    /// A Windows game that only runs online would lose its connection if it stood: it runs on, if our
+    /// Wine driver answers that it keeps the pad from it. Without an answer it's stopped like the rest.
+    nonisolated static func runsOnIfSilent(platform: Platform, onlineOnly: Bool) -> Bool {
+        platform == .windows && onlineOnly
+    }
+
     /// Whether a stopped game may run on: nothing is held any more – or it has waited long enough,
     /// for a stick the player keeps pushed.
     nonisolated static func mayRunOn(padIdle: Bool, waited: TimeInterval) -> Bool {
@@ -106,7 +118,7 @@ enum OverlayRules {
         let state: String?
         switch stillness {
         case .paused: state = L10n.t("Paused")
-        case .hearsPad: state = L10n.t("Keeps running")
+        case .hearsPad, .silenced: state = L10n.t("Keeps running")
         case nil: state = nil
         }
         let length = startedAt.map { sessionLength(seconds: now.timeIntervalSince($0)) }

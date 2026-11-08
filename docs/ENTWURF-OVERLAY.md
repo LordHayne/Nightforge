@@ -4,7 +4,7 @@ Stand 8.11.2026. Das Board liegt unter [`docs/entwuerfe/Overlay.dc.html`](entwue
 
 **Entscheidung des Nutzers (8.11.): Variante A, die Seitenleiste.** B (Streifen unten) bleibt Kandidat für den späteren Konsolen-Modus, C (Raum) bleibt als Idee; alle drei bleiben auf dem Board erhalten.
 
-**Gebaut (Stufe 1, Zweig `claude/overlay-entwurf`):** Seitenleiste aus Bausteinen (`OverlayTiles.swift`, `OverlayView.swift`) mit Spielname, Sitzungszeit, Uhr, Akku je Controller und den drei Wegen. Das Spiel läuft erst weiter, wenn nichts mehr gedrückt ist. Mac-Versionen stehen jetzt auch, reine Online-Spiele auf dem Mac bleiben laufen und das Overlay sagt es. **Noch nicht gebaut:** die stille Eingabe in `winebus`, sie braucht ein neues Paket. Spielernummern kommen mit Stufe 2, bis dahin steht dort nur der Controller-Name. Was nur live geht, steht in `docs/TODO.md` unter „Großes Nightforge-Overlay“.
+**Gebaut (Stufe 1, Zweig `claude/overlay-entwurf`):** Seitenleiste aus Bausteinen (`OverlayTiles.swift`, `OverlayView.swift`) mit Spielname, Sitzungszeit, Uhr, Akku je Controller und den drei Wegen. Das Spiel läuft erst weiter, wenn nichts mehr gedrückt ist. Mac-Versionen stehen jetzt auch, reine Online-Spiele auf dem Mac bleiben laufen und das Overlay sagt es. **Stille Eingabe gebaut:** der Patch `engine/patches/winebus-winecx-pad-silence.patch` und die Nightforge-Seite (`PadSilence.swift`) mit Frist und Antwort des Treibers. **Noch nicht bei Spielern:** Ein neues `gamepad`-Paket kommt erst nach dem Live-Test des Nutzers, bis dahin antwortet kein Treiber und es bleibt beim Anhalten. Spielernummern kommen mit Stufe 2, bis dahin steht dort nur der Controller-Name. Was nur live geht, steht in `docs/TODO.md` unter „Großes Nightforge-Overlay“.
 
 Belege: **[Code]** Datei:Zeile auf `origin/main` (2276ccb), **[Wine]** winecx-Quelltext `e0aa380` (`dappermint/winecx`, der Stand aus `gamepad.yml`),
 **[SDK]** macOS-SDK 26, **[Quelle n]** Liste am Ende, **[Vermutung]** nicht belegt, **[Live]** nur am echten Gerät zu klären.
@@ -169,7 +169,7 @@ Festgelegt vom Nutzer am 8.11. („das spiel sollte die controller eingabe nicht
 - **Neutralstellung ist einfach ein genullter Report.** Sticks gehen von −32768 bis 32767, Trigger von 0 bis 32767 (`hid.c:373–376`), Steuerkreuz 0 heißt Mitte (`hatswitch_decompose`, `hid.c:1532`).
 - **Der Bauweg steht:** `gamepad.yml` baut genau dieses `winebus.so` aus diesem Commit, unsere Patches liegen unter `engine/patches/winebus-winecx-*.patch`.
 
-**Der Patch, wie er sein soll** (noch nicht gebaut):
+**Der Patch** (`engine/patches/winebus-winecx-pad-silence.patch`, Stand 8.11., lokal gebaut, noch nicht live):
 
 1. `sdl_bus_wait` (`bus_sdl.c:1207`) sieht bei jedem Durchlauf, spätestens alle 10 ms, auf den Stand einer Darwin-Notification, wie beim HUD-Schalter (`notify_get_state`).
 2. **Beim Sperren:** für jedes Gerät in `device_list` ein genullter Report, danach gehen keine Reports mehr hinaus. `report_buf` läuft weiter mit.
@@ -207,7 +207,7 @@ Es gibt zwei Arten, und Nightforge unterscheidet sie schon (`ControllerCompatibi
 | Mac, Einzelspieler oder unbekannt | Anhalten, später Weg 2 | ja | Alles, „Pausiert“ |
 | Mac, nur online | **nicht sauber möglich** | nein, die Verbindung ginge verloren | **Kurzform:** Stand und die drei Wege, kein Verweilen, dazu der Satz „Dieses Spiel bekommt deine Eingaben weiter.“ |
 
-**Bis der Patch ausgeliefert ist,** bleibt es bei Windows beim Anhalten mit Loslassen-Regel. Das hält die Figur still, die Nachzügler bleiben möglich.
+**Woher Nightforge weiß, dass der Treiber mitmacht:** Er antwortet auf einer zweiten Notification mit der Frist, die er gelesen hat (`PadSilence.heard`). Nur dann läuft ein reines Online-Spiel weiter, ohne Antwort wird es angehalten wie alle anderen. **Bis der Patch ausgeliefert ist,** bleibt es bei Windows beim Anhalten mit Loslassen-Regel. Das hält die Figur still, die Nachzügler bleiben möglich.
 
 **Die Live-Runde, in dieser Reihenfolge:**
 

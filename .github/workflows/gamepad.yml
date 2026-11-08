@@ -93,6 +93,7 @@ jobs:
           so=dlls/winebus.sys/winebus.so
           strings "$so" | grep -q "libSDL2-2.0.0.dylib" || { echo "winebus.so without SDL"; exit 1; }
           strings "$so" | grep -q "Controller (XBOX 360 For Windows)" || { echo "winebus.so without the Xbox 360 IDs"; exit 1; }
+          strings "$so" | grep -q "nightforge.pad-silence" || { echo "winebus.so without the pad's silence"; exit 1; }
           nm "$so" | grep -q "sdl_bus_init" || { echo "no SDL bus"; exit 1; }
           # The SDL library sits in the engine's lib/, two levels up from lib/wine/x86_64-unix.
           install_name_tool -add_rpath @loader_path/../../ "$so"

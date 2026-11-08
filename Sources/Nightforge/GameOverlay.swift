@@ -10,13 +10,15 @@ import SwiftUI
 /// none. A pad without them uses ☰ and ⧉ (`OverlayHold.chord`).
 ///
 /// The pad reaches Nightforge in the background (InputRouter); the game gets the same presses,
-/// which macOS can't take from it, and the rule is that it gets none while the overlay is up. So the
-/// game is stopped then, once the panel shows (SIGSTOP), and runs on when nothing is held any more:
+/// which macOS can't take from it, and the rule is that it gets none while the overlay is up. A
+/// Windows game's pad comes through our own Wine driver, which keeps silent for as long as the overlay
+/// asks (PadSilence). And the game is stopped, once the panel shows (SIGSTOP), and runs on when nothing is held any more:
 /// the button that closed the overlay is the player's last word to it, not the game's (mayRunOn).
 /// Wine's pad driver runs in winedevice.exe, not in the game, and XInput hands the game the pad's
 /// state when it runs on, after what's queued meanwhile; its sound pauses with it. Whether a Mac
 /// game gets a backlog from GameController on running on hasn't been seen yet. A Mac game that only
 /// runs online isn't stopped: it keeps hearing the pad, and the overlay says so (OverlayStillness).
+/// A Windows game that only runs online isn't stopped either, if the driver answers; it can't hear the pad.
 @MainActor
 enum GameOverlay {
     final class State: ObservableObject {
@@ -96,6 +98,7 @@ enum GameOverlay {
         state.centered = takesKeys(step)
         state.context = context
         state.stuck = stuck
+        if step == .menu, context.silencesPad { PadSilence.begin() }  // at once: it costs a game nothing
         state.game = game
         state.soundStaysOn = soundStaysOn
         state.symbols = symbols
@@ -171,7 +174,7 @@ enum GameOverlay {
             + "\(visible ? "visible" : "hidden") to macOS, the panel L\(panel.level.rawValue), the game's windows \(GameProcesses.windowList(Set(pids)))"
         if shows(inFront: covering?.isEmpty == true, occlusionVisible: visible) {
             if again { GameLog.note("Overlay seen for \(state.game) once raised (\(seen))") }
-            if pause { stop(pids) }
+            if pause, !runsOnSilenced() { stop(pids) }
             return
         }
         if !again {
@@ -188,6 +191,17 @@ enum GameOverlay {
         GameLog.note("Overlay still not seen for \(state.game) (\(seen)): it goes, the game runs on in front")
         InputRouter.hidePointerForGame()
         close()
+    }
+
+    /// A Windows game that only runs online isn't stopped when our Wine driver has answered that it
+    /// keeps the pad from it; if not, it's stopped like any other.
+    private static func runsOnSilenced() -> Bool {
+        guard state.context.runsOnIfSilent else { return false }
+        let heard = PadSilence.heard
+        state.context.stillness = heard ? .silenced : .paused
+        state.paused = !heard
+        GameLog.note("Overlay: \(state.game) only runs online, " + (heard ? "the pad driver answered: it runs on" : "no answer from the pad driver: it stops"))
+        return heard
     }
 
     /// Whether the panel shows: nothing in front of it on the Space shown, and macOS counts it as
@@ -269,6 +283,7 @@ enum GameOverlay {
             Task {
                 await padReleased()
                 cont()
+                PadSilence.end()
                 await actions.nightforge()
                 leaving = false
                 close()
@@ -296,6 +311,7 @@ enum GameOverlay {
     /// Also when Nightforge quits: a paused game never stays paused.
     static func close() {
         cont()
+        PadSilence.end()
         state.lateController = false
         panel?.orderOut(nil)
         PadFocus.shared.clear()
@@ -306,12 +322,12 @@ enum GameOverlay {
     /// pad (the press that closed it is not for the game), and only then is it handed the front:
     /// stopped, Wine can't take it.
     private static func closeForGame() {
-        let paused = state.paused
+        let holdsIt = state.paused || PadSilence.isOn
         state.lateController = false
         panel?.orderOut(nil)
         PadFocus.shared.clear()
         actions = nil
-        guard paused else {
+        guard holdsIt else {
             cont()
             resumed?()
             return
@@ -320,6 +336,7 @@ enum GameOverlay {
             await padReleased()
             guard !Task.isCancelled else { return }
             cont()
+            PadSilence.end()
             runningOn = nil
             resumed?()
         }

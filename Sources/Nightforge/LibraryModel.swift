@@ -2123,8 +2123,10 @@ final class LibraryModel: ObservableObject {
         let stillness = OverlayRules.stillness(platform: game.platform, onlineOnly: game.onlineOnly)
         let pauses = stillness == .paused
         input.refreshBattery()  // otherwise read only while Nightforge is in front
-        let context = OverlayContext(stillness: stillness, startedAt: running[game.id].flatMap(GameProcesses.started),
-                                     pads: controllerStatuses)
+        let runsOn = OverlayRules.runsOnIfSilent(platform: game.platform, onlineOnly: game.onlineOnly)
+        // The one that runs on if our driver answers says what it does once that's known.
+        let context = OverlayContext(stillness: runsOn ? nil : stillness, startedAt: running[game.id].flatMap(GameProcesses.started),
+                                     pads: controllerStatuses, silencesPad: game.platform == .windows, runsOnIfSilent: runsOn)
         Task {
             let pids = await Task.detached(priority: .userInitiated) {
                 GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table())
