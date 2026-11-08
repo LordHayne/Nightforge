@@ -10,7 +10,7 @@ enum MacGameHUD {
     static let setKey = "hud.macDomains"
 
     /// The bundle IDs of the apps in a game's folder: the folder itself when it is an app, else the
-    /// apps at most two folders down (Valheim.app, or Game/Game.app).
+    /// apps in it and one folder down (Valheim.app, or Game/Game.app).
     static func bundleIDs(in folder: URL) -> [String] {
         if folder.pathExtension == "app" { return Bundle(url: folder)?.bundleIdentifier.map { [$0] } ?? [] }
         let fm = FileManager.default
