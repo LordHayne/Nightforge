@@ -173,10 +173,19 @@ enum Engine {
         set { launchSettings.withLock { $0.environment = newValue } }
     }
 
-    /// Both, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
+    /// Whether the Wine session has msync: the switch's for the engine test (`msyncSwitch`) unless the
+    /// game about to start says otherwise (`msyncWanted`). Every process of a session has to agree
+    /// with its wineserver, so it's in `environment` and `steamConfigSignature`; `applyMsyncMode`
+    /// ends a session started the other way.
+    static var msync: Bool {
+        get { launchSettings.withLock { $0.msync } }
+        set { launchSettings.withLock { $0.msync = newValue } }
+    }
+
+    /// All of them, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
     /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
     /// Dictionary read while it's being replaced can crash.
-    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool)>(([:], false))
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool, msync: Bool)>(([:], false, msyncSwitch))
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -194,11 +203,12 @@ enum Engine {
     /// Vulkan goes to (`vulkanDriver`), nil leaves the one Steam has. `vulkanLoader`: the engine
     /// test's loader (vulkanLoaderEnvironment), over those – never with KosmicKrisp, which gives way
     /// to it (`kosmicKrispReady`). Once its switch is off, what it left in the session goes too, unless
-    /// the game's own switches set it. True when the running Steam has to restart.
+    /// the game's own switches set it. `msyncWanted`: nil leaves the session as it is, as a game
+    /// joining a running one has to. True when the running Steam has to restart.
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
                                          vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
-                                         defaults: UserDefaults = .standard) -> Bool {
+                                         msyncWanted: Bool? = nil, defaults: UserDefaults = .standard) -> Bool {
         let launch = launchSettings.withLock { $0 }
         var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
@@ -231,8 +241,9 @@ enum Engine {
             for name in vulkanLoaderNames + ["CX_ACTIVE_GRAPHICS_BACKEND"] where environment[name] == nil { wanted[name] = nil }
         }
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
-        launchSettings.withLock { [wanted] in $0 = (wanted, retina) }
-        return wanted != launch.environment || retina != launch.retina
+        let session = msyncWanted ?? launch.msync
+        launchSettings.withLock { [wanted] in $0 = (wanted, retina, session) }
+        return wanted != launch.environment || retina != launch.retina || session != launch.msync
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
@@ -1946,8 +1957,9 @@ enum Engine {
     }
 
     /// Per-program settings for a game's executables (Wine's AppDefaults): the Direct3D layer, the
-    /// profile's DLL overrides and Windows version. Rewritten in full at every launch, so a changed
-    /// choice or profile never leaves stale entries. The profile's registry entries go in as well.
+    /// profile's DLL overrides and Windows version. Rewritten in full when anything in them differs
+    /// from what the prefix holds (GameRegistryRecord), so a changed choice or profile never leaves
+    /// stale entries. The profile's registry entries go in as well, at every launch.
     static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL) {
         let layer = choice == .automatic ? (profile?.graphics ?? defaultGraphics) : choice
         let d3dMetalEngine = isGPTKCapable(wine: wine)
@@ -1957,7 +1969,7 @@ enum Engine {
         // D3DMetal 3.0 presents itself as an AMD card whose driver Unreal warns about.
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
         let exes = executables(in: installDir)
-        var sections = [crashDialogOff]
+        var sections = [GameRegistryRecord.Section(key: "WineDbg", text: crashDialogOff)]
         for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             var overrides = profile?.dllOverrides ?? [:]
@@ -1968,11 +1980,20 @@ enum Engine {
                     .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
             }
             section += "\n[\(app)]\n\"Version\"=" + (profile?.windowsVersion.map(regString) ?? "-")
-            sections.append(section)
+            sections.append(GameRegistryRecord.Section(key: exe, text: section))
         }
-        sections += (profile?.registry ?? []).compactMap(regSection)
-        importRegistry(sections.joined(separator: "\n\n"), wine: wine)
+        let imported = gameSettingsLock.withLock {
+            GameRegistryRecord.importIfChanged(sections, unrecorded: (profile?.registry ?? []).compactMap(regSection),
+                                               record: stamp(in: prefix, name: "game-registry"),
+                                               userRegistry: prefix.appendingPathComponent("user.reg")) {
+                importRegistry($0, wine: wine)
+            }
+        }
+        if !imported { GameLog.note("Game settings as the prefix has them: no regedit") }
     }
+
+    /// One start at a time compares with the record, imports and notes what it wrote.
+    private static let gameSettingsLock = NSLock()
 
     // MARK: - Unreal's driver warning
 
@@ -2328,25 +2349,38 @@ enum Engine {
 
     /// msync for every Wine session, unless an engine test turns it off with `defaults write
     /// io.github.lordhayne.nightforge msync -bool false` (docs/TODO.md › Engine-Tests; there's no
-    /// switch in the app). Read once per app run: every process of a session has to agree with its
-    /// wineserver, and `applyMsyncMode` ends a session started the other way.
-    static let msync = UserDefaults.standard.object(forKey: "msync") as? Bool ?? true
+    /// switch in the app). Read once per app run.
+    static let msyncSwitch = UserDefaults.standard.object(forKey: "msync") as? Bool ?? true
+
+    /// What a game wants of its session: msync, unless its profile says no. The engine test's "off"
+    /// stands for every game.
+    static func msyncWanted(profile: GameProfile?, switchedOn: Bool = msyncSwitch) -> Bool {
+        switchedOn && profile?.msync != false
+    }
+
+    private static let msyncSessionKey = "msyncSession"
 
     /// Whether a session started with msync as `session` says (nil: before this was noted, when
     /// every session had it) has to end for one that wants it as `wanted`.
     static func msyncSessionEnds(wanted: Bool, session: Bool?) -> Bool { (session ?? true) != wanted }
 
-    /// Ends the Wine session when it began with msync the other way round from `msync`. Not under
-    /// a running game – the caller makes sure of that.
+    /// The Wine session as last begun has msync the other way round from `msync`.
+    static func msyncSessionDiffers(defaults: UserDefaults = .standard) -> Bool {
+        msyncSessionEnds(wanted: msync, session: defaults.object(forKey: msyncSessionKey) as? Bool)
+    }
+
+    /// Ends the Wine session when it began with msync the other way round from `msync`. Never under
+    /// a running game, nor when that can't be told. Before anything else starts in the new session:
+    /// a Wine program that disagrees with its wineserver about msync doesn't work with it.
     static func applyMsyncMode(_ wine: URL, defaults: UserDefaults = .standard) {
-        let key = "msyncSession"
-        guard msyncSessionEnds(wanted: msync, session: defaults.object(forKey: key) as? Bool) else { return }
+        guard msyncSessionDiffers(defaults: defaults), windowsGameRunningKnown == false else { return }
         // Not known whether a session runs (no process list): it isn't ended, and the switch isn't noted as
         // if it had been – the next start looks again.
         guard let session = ownProcessesKnown() else { return }
         if !session.isEmpty { stopAll(wine) }
-        defaults.set(msync, forKey: key)
-        GameLog.note("msync \(msync ? "on" : "off") from this Wine session on (engine test switch)")
+        let wanted = msync
+        defaults.set(wanted, forKey: msyncSessionKey)
+        GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
     }
 
     static func environment(wine: URL) -> [String: String] {
@@ -2458,7 +2492,10 @@ enum Engine {
             guard !current, !busy else { return }
             try await restartSteamInBackground(wine)
         } else {
-            if !busy { applyRetinaMode(wine) }
+            if !busy {
+                applyMsyncMode(wine)
+                applyRetinaMode(wine)
+            }
             try startSteam(wine, arguments: ["-silent"])
         }
         UserDefaults.standard.set(steamConfigSignature, forKey: key)
@@ -2675,6 +2712,7 @@ enum Engine {
     /// Quits Steam politely (so it saves its state) and starts it again hidden.
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
+        applyMsyncMode(wine)
         applyRetinaMode(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
@@ -2690,6 +2728,7 @@ enum Engine {
             waited += 1
         }
         await offMain { stopAll(wine) }
+        applyMsyncMode(wine)
         applyRetinaMode(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")

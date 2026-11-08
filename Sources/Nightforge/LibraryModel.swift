@@ -4358,6 +4358,8 @@ final class LibraryModel: ObservableObject {
                 let winecx = game.bottle.isBuiltIn && runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true
                 let vulkan = Engine.vulkanDriver(layer: layer, analysis: analysis, winecx: winecx,
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
+                // A session has msync or doesn't: a game joining one that runs takes it as it is.
+                let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
                 if viaSteam, game.bottle.isBuiltIn,
                    Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
@@ -4365,7 +4367,8 @@ final class LibraryModel: ObservableObject {
                                                    environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
-                                                                                                wine: runner.map(URL.init(fileURLWithPath:)))) || programChanged,
+                                                                                                wine: runner.map(URL.init(fileURLWithPath:))),
+                                                   msyncWanted: msyncWanted) || programChanged,
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
@@ -4373,6 +4376,18 @@ final class LibraryModel: ObservableObject {
                 }
                 if viaSteam, game.bottle.isBuiltIn, layer == .d3dmetal {
                     GameLog.note(GameLog.d3dMetalStart(game.name, environment: Engine.steamEnvironment, retina: Engine.launchRetina))
+                }
+                // A store's game (Epic, GOG) starts a session of its own: msync as it wants it, before anything
+                // else of that session; Steam ended first, it would stay in the old one.
+                if !viaSteam, game.bottle.isBuiltIn, let msyncWanted, let runner {
+                    Engine.msync = msyncWanted
+                    if Engine.msyncSessionDiffers() {
+                        launchPhase = .startingSteam
+                        let wine = URL(fileURLWithPath: runner)
+                        try? await Engine.stopSteam(wine)
+                        await Engine.offMain { Engine.applyMsyncMode(wine) }
+                        launchPhase = nil
+                    }
                 }
                 // A store's game (Epic, GOG) starts a session of its own: Wine's Retina mode goes into the
                 // prefix before it, Steam ended first as for a fresh session, not with a Steam start.

@@ -76,6 +76,9 @@ struct GameProfile: Decodable, Equatable {
     /// whatever it draws with. That names Apple's libd3dshared.dylib, which comes with D3DMetal, so
     /// without D3DMetal set up its start asks first (D3DMetalSupply.needed). Overwatch, 7.11.
     var needsRosettaLibrary: Bool?
+    /// false: the game runs without msync. Wine's whole session has it or doesn't, so Steam starts
+    /// afresh when it changes from one game to the next. Everything else keeps it (Engine.msyncWanted).
+    var msync: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -134,7 +137,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog
+        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog, msync
         case needsRosettaLibrary
     }
 
@@ -187,6 +190,7 @@ struct GameProfile: Decodable, Equatable {
             .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
         skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
         needsRosettaLibrary = try? container.decodeIfPresent(Bool.self, forKey: .needsRosettaLibrary)
+        msync = try? container.decodeIfPresent(Bool.self, forKey: .msync)
     }
 
     // MARK: What a list may ask for at a start

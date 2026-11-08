@@ -546,6 +546,8 @@ enum Launcher {
                                     vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
             Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
             Engine.applyIniSettings(profile?.iniSettings ?? [])
+            // Before regedit: it would join what's left of a session with msync the other way.
+            if Engine.steamRunningKnown == false { Engine.applyMsyncMode(runner) }
             Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
             // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
