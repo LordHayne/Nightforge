@@ -87,6 +87,10 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 - HUD in Mac-Versionen über Apples `MetalForceHudEnabled` je Spiel (7d33975). **Live prüfen mit Valheim.**
 - Left 4 Dead 2: **Der Hänger nach „Redownloading all lightmaps“ hängt an der Mikrofon-Anfrage.** Beim Verbinden mit der Karte öffnet Source das Mikrofon (`Voice_Init`), winecx fragt macOS und wartet ohne Zeitlimit (`dispatch_semaphore_wait`), und macOS verweigerte die Frage, weil `Nightforge Helper` kein `NSMicrophoneUsageDescription` hatte (tccd: alle 12 Läufe mit Ton am 7./8.11., im `-nosound`-Lauf keiner). Der „Stereo-Fix“ 8ecb223 war ein Ablesefehler: „Lord Hayne“ stammt aus dem `-nosound`-Lauf, `windows_speaker_config` 4 ist Stereo, 2 ist Mono. Korrektur: Nutzungstext in Helper und App, Schalter raus aus dem Profil. **Offen:** Live-Test (ohne besondere Startparameter Dead Center laden, die Frage von macOS beantworten, einmal „Erlauben“ oder „Nicht erlauben“); erst danach die Zeile in `docs/release-notes/v0.3.2.md` und im Entwurf ändern. Das Pad kann macOS' Frage nicht beantworten, bei gesenktem Vorhang steht auch kein Hinweis da.
 
+## 0.3.3: ganz oben
+
+- **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): Flackern beim Start und Beenden von Overwatch, beim erneuten Start von Valheim direkt nach The Forest war kurz der Desktop zu sehen. Für 0.3.2 reicht der jetzige Stand. Grundlage: `docs/AUDIT-LADESCREEN.md`.
+
 ## 8.11. mittags (staging-032, nicht gepusht)
 
 - **Zwei Controller in der Leiste** (d5c0316): je eine Kapsel mit Akku. Live gesehen am 8.11. (DualSense 35 % und 65 %).
