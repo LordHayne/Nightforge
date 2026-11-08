@@ -13,6 +13,13 @@ struct EngineLayoutTest {
         }
     }
 
+    /// The names Wine's install has on disk; this test's layouts below spell them out on their own.
+    static func folderNames() {
+        check(WineFolders.unix == "x86_64-unix", "Unix halves' folder")
+        check(WineFolders.windows == "x86_64-windows", "64-bit modules' folder")
+        check(WineFolders.windows32 == "i386-windows", "32-bit modules' folder")
+    }
+
     /// A DLL-sized file, builtin-marked like Wine's own when `builtin`.
     static func dll(_ tag: String, builtin: Bool = false) -> Data {
         var bytes = Data(count: 0x100)
@@ -39,6 +46,7 @@ struct EngineLayoutTest {
 
     static func main() {
         TestDefaults.useWorkFolder()
+        folderNames()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 
