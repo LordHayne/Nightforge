@@ -3,6 +3,7 @@
 // tests/GameOverlayTest/run.sh
 import CoreGraphics
 import Foundation
+import SwiftUI
 
 @main
 struct GameOverlayTest {
@@ -29,9 +30,65 @@ struct GameOverlayTest {
         wayOut()
         curtainLines()
         brandArt()
+        blocks()
+        stillness()
         standIn()
         if failures == 0 { print("✓ GameOverlay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// A block for the side bar, as a new one would be: the overlay needs no other change for it.
+    struct FakeTile: OverlayTile {
+        let id: String
+        let zone: OverlayZone
+        var title: String { id }
+        var answer = OverlayAvailability.ready
+        func availability(in context: OverlayContext) -> OverlayAvailability { answer }
+        func view(in context: OverlayContext, metrics: OverlayMetrics) -> AnyView { AnyView(EmptyView()) }
+    }
+
+    /// The side bar's blocks: what shows, where, and the sizes.
+    static func blocks() {
+        let ids = { (tiles: [any OverlayTile]) in tiles.map(\.id) }
+        let pad = ControllerStatus(name: "DualSense Wireless Controller", battery: 0.8)
+        check(ids(OverlayTiles.visible(in: OverlayContext(pads: [pad]))) == ["clock", "session", "pads"],
+              "stage 1: the clock, the session, the controllers, by zone")
+        check(ids(OverlayTiles.visible(in: OverlayContext())) == ["clock", "session"], "no controller: no row for them")
+        let mixed: [any OverlayTile] = [
+            FakeTile(id: "tool", zone: .tool), FakeTile(id: "volume", zone: .control),
+            FakeTile(id: "gone", zone: .control, answer: .hidden), FakeTile(id: "later", zone: .control, answer: .nextStart("next start")),
+            FakeTile(id: "top", zone: .corner),
+        ]
+        check(ids(OverlayTiles.visible(mixed, in: OverlayContext())) == ["top", "volume", "later", "tool"],
+              "a new block only says its zone: sorted in, kept in its order, hidden when it means nothing here")
+        check(OverlayMetrics(height: 1080)(26) == 26, "the board's sizes are the 1080p ones")
+        check(OverlayMetrics(height: 2160)(26) == 52, "a 2160-point screen: twice")
+        check(OverlayMetrics(height: 982).unit < 1 && OverlayMetrics(height: 200).unit == 0.7, "smaller, but not unreadable")
+    }
+
+    /// What the overlay does to a game, and when it may run on.
+    static func stillness() {
+        check(OverlayRules.stillness(platform: .windows, onlineOnly: false) == .paused, "a Windows game is stopped")
+        check(OverlayRules.stillness(platform: .windows, onlineOnly: true) == .paused,
+              "… an online one too, until winebus can keep the pad from it")
+        check(OverlayRules.stillness(platform: .mac, onlineOnly: false) == .paused, "a Mac version is stopped")
+        check(OverlayRules.stillness(platform: .mac, onlineOnly: true) == .hearsPad, "an online Mac version can't be: the overlay says so")
+        check(OverlayRules.runsOnIfSilent(platform: .windows, onlineOnly: true), "an online Windows game runs on if the driver answers")
+        check(!OverlayRules.runsOnIfSilent(platform: .windows, onlineOnly: false), "… any other is stopped")
+        check(!OverlayRules.runsOnIfSilent(platform: .mac, onlineOnly: true), "… a Mac version has no such driver")
+        check(!OverlayRules.mayRunOn(padIdle: false, waited: 0.2), "a held button: it waits")
+        check(OverlayRules.mayRunOn(padIdle: true, waited: 0), "nothing held: at once")
+        check(OverlayRules.mayRunOn(padIdle: false, waited: OverlayRules.releaseLimit), "a stick kept pushed: not for ever")
+
+        check(OverlayRules.sessionLength(seconds: 20).hasPrefix("1 "), "under a minute reads a minute, not 0")
+        check(OverlayRules.sessionLength(seconds: 24 * 60).hasPrefix("24 "), "minutes")
+        check(OverlayRules.sessionLength(seconds: 84 * 60).hasPrefix("1 h 24 "), "hours and minutes")
+        check(OverlayRules.sessionLength(seconds: 120 * 60) == "2 h", "whole hours")
+        let start = Date(timeIntervalSince1970: 1000)
+        check(OverlayRules.sessionLine(.paused, startedAt: start, now: start.addingTimeInterval(120)).contains(" · 2 "), "state and length")
+        check(!OverlayRules.sessionLine(.paused, startedAt: nil, now: start).contains("·"), "no start known: no separator")
+        check(OverlayRules.sessionLine(nil, startedAt: nil, now: start).isEmpty, "nothing known: nothing")
+        check(GameProcesses.started(getpid()) != nil, "a process knows when it started")
     }
 
     /// Both sticks – or ☰ and ⧉ on a pad without stick buttons – held for two seconds, once per hold.

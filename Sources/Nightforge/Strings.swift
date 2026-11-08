@@ -890,6 +890,8 @@ enum L10n {
         "Quit Game": "Spiel beenden",
         "Go to Nightforge": "Zu Nightforge",
         "Paused": "Pausiert",
+        "Keeps running": "Läuft weiter",
+        "This game still gets your controller input.": "Dieses Spiel bekommt deine Eingaben weiter.",
         "Quit %@?": "%@ beenden?",
         "What wasn't saved is lost. A game that no longer responds ends as well.":
             "Was nicht gespeichert ist, geht verloren. Auch ein Spiel, das nicht mehr reagiert, wird beendet.",

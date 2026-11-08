@@ -53,6 +53,9 @@ final class InputRouter {
 
     func start(model: LibraryModel) {
         self.model = model
+        GameOverlay.padIdle = {
+            GCController.controllers().allSatisfy { controller in controller.extendedGamepad.map { !Self.inUse($0) } ?? true }
+        }
         pointer.works = { [weak self] in self?.pointerWorks ?? false }
         pointer.stickWorks = { [weak self] in self?.stickIsPointer ?? false }
 
