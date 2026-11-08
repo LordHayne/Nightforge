@@ -1159,11 +1159,26 @@ enum Engine {
         # A download counts only while its Steam runs: one Steam ends when the other takes over (one sign-in
         # per account), and its download stops there. Counted anyway, it kept the script and Steam for Mac
         # waiting for 12 hours (It Takes Two, 8.11.).
+        BUSY_DOWNLOAD=0
         busy() {
+          BUSY_DOWNLOAD=0
           if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
-          [ -n "$WINE" ] && steam_running && downloading_anywhere "$STEAMAPPS" && return 0
-          [ -n "$MAC_STEAMAPPS" ] && pgrep -qx steam_osx && downloading_anywhere "$MAC_STEAMAPPS" && return 0
+          [ -n "$WINE" ] && steam_running && downloading_anywhere "$STEAMAPPS" && { BUSY_DOWNLOAD=1; return 0; }
+          [ -n "$MAC_STEAMAPPS" ] && pgrep -qx steam_osx && downloading_anywhere "$MAC_STEAMAPPS" && { BUSY_DOWNLOAD=1; return 0; }
           return 1
+        }
+        # Nightforge's own hold on sleep went with it, and asleep Steam would fetch nothing: this script's own
+        # while a download is what it waits for, gone with the script (-w) or when the download is done.
+        AWAKE_PID=""
+        stay_awake() {
+          [ -z "$AWAKE_PID" ] || return 0
+          caffeinate -i -w "$$" >/dev/null 2>&1 &
+          AWAKE_PID=$!
+        }
+        may_sleep() {
+          [ -n "$AWAKE_PID" ] || return 0
+          kill "$AWAKE_PID" 2>/dev/null
+          AWAKE_PID=""
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
         # it's gone it would count as opened again.
@@ -1191,7 +1206,11 @@ enum Engine {
         while true; do
           while true; do
             if [ "$RESTART" = 1 ]; then break; fi
-            while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
+            while busy; do
+              if [ "$BUSY_DOWNLOAD" = 1 ]; then stay_awake; else may_sleep; fi
+              reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10
+            done
+            may_sleep
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0
             busy || break
