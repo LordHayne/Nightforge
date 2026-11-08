@@ -4,6 +4,63 @@ Stand 31.10.2026. Gemessen auf `claude/ux-roadmap-next` 159acfa (GOG gemergt), d
 aufsetzt. Zum Vergleich steht auch 001a3e0 da, der Stand vor dem GOG-Merge. Die Prozentzahlen sind Zeilenabdeckung
 laut `llvm-cov`.
 
+## Stand 8.11.2026, zweite Runde (nach 0.3.2)
+
+Neu ist eine Testumgebung für das echte `LibraryModel` ([tests/Shared/ModelWorld.swift](../tests/Shared/ModelWorld.swift)):
+erfundenes Home mit Steam-Ordnern und GOG-Bibliothek, kein Fenster, kein Netz. Bricht ab, wenn es das echte Home wäre.
+Nie von dort aus: `launch`, `startInput`, eine Store-Anmeldung, irgendetwas mit Steam für Mac; das Modell ginge sonst an
+die echten Prozesse dieses Macs.
+
+| | vorher | nachher |
+|---|---|---|
+| Zeilen | 32,36 % | 35,98 % |
+| Funktionen | 43,57 % | 48,76 % |
+| Regionen | 42,00 % | 46,19 % |
+
+Gemessen wurden nur die fünf betroffenen Reihen, ihre Profile sind mit denen des Laufs von 6698647 zusammengeführt,
+beide gegen die heutigen Quellen. Funktionen, die sich seit jenem Lauf geändert haben, verlieren dabei die alten
+Zähler. Deshalb liegt „vorher“ unter den 33,52 %, die der volle Lauf auf dem Release ergab. Der Zuwachs ist das
+Verlässliche: 3,6 Punkte Zeilen, 5,2 Punkte Funktionen.
+
+Am meisten bewegt: `LibraryModel` 2,0 → 23,9 %, `DriveMoves` 0 → 22,1 %, `Updater` 56,1 → 88,3 %, `SteamSwitch`
+48,9 → 63,0 %, `Launchers` 32,3 → 53,4 %, `GameInfoStore` 19,6 → 56,4 %, `Stores` 10,7 → 52,4 %.
+
+### Gefundene Fehler, alle behoben
+
+| Commit | Fehler | Trifft Spieler? |
+|---|---|---|
+| 7205e95 | `takeTurnsDownloading` verglich die Summe aller Mac-Downloads: Ein fertiger Download nahm seinen Anteil mit, der nächste galt bis zum Ende der Sitzung als hängend | ja, mehrere Mac-Downloads nacheinander |
+| 7205e95 | Epic- und GOG-Spiele liegen in der eingebauten Flasche und zählten als Downloads des Windows-Steam: Sie hielten den Zug von Steam für Mac auf | ja, Epic/GOG neben einem Mac-Download |
+| ac82b01 | „Fortsetzen“ nach Platzmangel fragte `steamapps/common` nach freiem Platz; fehlt der Ordner (erster Download einer Bibliothek), hieß es „– frei“, egal wie viel da war | ja, frische Bibliothek auf einer Platte |
+| b2115fa | Beschädigtes Manifest mit riesiger Größe: Absturz bei jedem Download-Druck und in Einstellungen › Speicher (die Grenze lag bei `Int64.max`, Addieren läuft über) | nur mit kaputter Datei |
+| 4be9315 | Zahlen in Steams und legendarys Logs jenseits von `Int64`: Absturz beim Blick auf einen Download | nur mit kaputter Datei |
+| ceff372 | Ein erfolgreiches Update ließ sein Zip im Temp-Ordner (das `defer` kam wegen des Beendens nie dran; hier lagen zwei Ordner à 6 MB) | ja, klein |
+| bac2a4e | `fallBackToWindows` scannte neben einem laufenden Scan vorbei, gegen die Regel „ein Scan zur Zeit“ | selten |
+| 2078afe | Epics Anmeldeseite: `}` vor `{` ergab einen ungültigen Bereich und damit einen Absturz | kaum |
+
+Gefunden hat sie das Lesen der Abläufe mit der Frage „was, wenn das nicht stimmt?“. Die 3000 Zufallsschritte über Seiten
+und Auswahl liefen dagegen ohne Fehler durch.
+
+### Neue Reihen
+
+`ModelNavigationTest` (3000 Zufallsschritte, Regeln nach jedem Schritt), `ModelFlowsTest` (Downloads, Markierungen und
+Undo, ein Spiel aus zwei Stores, Moves, Fragen, abgesteckte Platten, riesige Größen, Deinstallieren, Download Again,
+Spielstände vor dem Steam-Wechsel), `UpdaterInstallTest` (Updater gegen ein erfundenes GitHub, Zips mit eigenem
+Schlüssel), `BugDownloadTurnsTest` (512 Zustände). Jedes Zip der Updater-Reihe fordert ein macOS, das es nicht gibt:
+Auch mit kaputten Prüfungen kann die Reihe weder tauschen noch neu starten.
+
+Gegenprobe in einer Kopie: Jede der 15 eingebauten Änderungen ließ die zuständige Reihe fehlschlagen (Auswahl und Seite
+nach einem Scan, Panel, Pin beim Ausblenden, Fortsetzen, zweite Kopie auf abgesteckter Platte, Größengrenze,
+Summenvergleich, Epic/GOG, Epics Seite, jede Updater-Prüfung einzeln).
+
+### Was bleibt
+
+Nicht ohne echte Steams testbar sind `launch` (359 Zeilen), `watchCurtain` (322), `start` (147), `launchMac` (113),
+`waitForMacStart`, `performMove` und `watchForGameEnd`. Für `watchForGameEnd` wäre der kleinste Schritt ein Werttyp, der
+`startedHere`, `playing`, `goneFor` und `sessionStarts` hält und je Blick sagt, was geschehen soll; die Aufrufe von
+`GameBackdrop` und `MacSteam` blieben im Modell. `Updater.install` ist bis zum letzten Tor geprüft, der Tausch selbst
+nicht.
+
 ## Stand 8.11.2026 (0.3.2)
 
 Gemessen auf `claude/staging-032` 6698647. Vorher sind die 66 Reihen von staging, nachher alle 84. Beide Zahlen
