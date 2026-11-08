@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 KNOWN_X86_ONLY_LINES = {
     "build.sh": 2,  # hide-steam-dock, nightforge-sandbox: see tests/test_helper_architectures.py
     "scripts/build-enginefix.sh": 1,  # patches winecx's own ntdll.so
+    "scripts/build-winebus-local.sh": 1,  # winebus.so for winecx, for trying a change locally
     ".github/workflows/gamepad.yml": 1,  # winebus.so for winecx
     ".github/workflows/graphics.yml": 2,  # winemac.so and DXMT's Unix side for Wine
 }
