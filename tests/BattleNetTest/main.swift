@@ -468,10 +468,20 @@ struct BattleNetTest {
         check(quiet.step([]) == .failed(.noAnswer), "and then the start is over")
         var taken = BattleNetStart.Watch()
         _ = taken.step([.launching])
-        var after = (2...12).map { _ in taken.step([]) }
+        var after = (2...BattleNetStart.Watch.askAfter).map { _ in taken.step([]) }
         check(!after.contains(.sendAgain), "taken: nothing is sent again")
-        after = (13...BattleNetStart.Watch.askAfter).map { _ in taken.step([]) }
-        check(after.last == .playerAsked, "taken but no game: the window all the same")
+        check(!after.contains(.playerAsked), "taken: the curtain stays at 30 s, a game may take its time")
+        after = ((BattleNetStart.Watch.askAfter + 1)..<BattleNetStart.Watch.askAfterTaken).map { _ in taken.step([]) }
+        check(after.allSatisfy { $0 == .wait }, "taken: quiet until the longer wait is over")
+        check(taken.step([]) == .playerAsked, "taken but still no game: the window after the longer wait")
+        for _ in 1..<BattleNetStart.Watch.answerFor { check(taken.step([]) == .wait, "the player has time to answer then too") }
+        check(taken.step([]) == .failed(.noAnswer), "and then that start is over too")
+        var takenLate = BattleNetStart.Watch()
+        for _ in 1..<20 { _ = takenLate.step([]) }
+        _ = takenLate.step([.launching])
+        after = (21..<BattleNetStart.Watch.askAfterTaken).map { _ in takenLate.step([]) }
+        check(after.allSatisfy { $0 == .wait }, "taken only after a while: the longer wait counts as well")
+        check(takenLate.step([]) == .playerAsked, "and ends at the same second")
         var refused = BattleNetStart.Watch()
         check(refused.step([.refused]) == .failed(.refused), "refused: at once")
         var offCalled = BattleNetStart.Watch()

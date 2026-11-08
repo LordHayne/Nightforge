@@ -149,6 +149,9 @@ enum BattleNetStart {
         /// Nothing to show for it this long: the client may be asking something behind the curtain
         /// (a consent, the operating system, which game account), which only its window shows.
         static let askAfter = 30
+        /// The client took the command and is starting the game: that can take a while, and its
+        /// window coming forward in the middle of a normal start would only be in the way.
+        static let askAfterTaken = 120
         /// From then on the player has this long.
         static let answerFor = 300
 
@@ -167,7 +170,7 @@ enum BattleNetStart {
             if let askedAt {
                 return seconds - askedAt >= Self.answerFor ? .failed(.noAnswer) : .wait
             }
-            if seconds >= Self.askAfter {
+            if seconds >= (taken ? Self.askAfterTaken : Self.askAfter) {
                 askedAt = seconds
                 return .playerAsked
             }

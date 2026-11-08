@@ -827,7 +827,8 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   weiter. Ob `launch WTCG` in der zweiten Instanz greift, zeigt erst der Live-Test.
 - **Unsicher, Live-Test:** (a) `launch <Code>` auf dem heutigen Mac-Client; (b) `launch_uid wow_classic` für Classic (kein Startcode,
   reine Ableitung); (c) die Logzeilen `Game launch options` als Zeichen „genommen“. Schlägt (a) fehl, kommt nach 30 s das
-  Client-Fenster mit „Battle.net wartet auf dich“, der Spieler drückt dort auf Spielen, und Nightforge folgt dem Spiel.
+  Client-Fenster mit „Battle.net wartet auf dich“, der Spieler drückt dort auf Spielen, und Nightforge folgt dem Spiel. Hat der
+  Client den Start laut Log angenommen, wartet Nightforge bis 120 s, damit sein Fenster einen normalen Start nicht unterbricht.
 - **Live prüfen (mit Hearthstone, `/Users/thomas/games/Hearthstone`):** 1. Client läuft, angemeldet: Spielen, Vorhang, Spiel startet ohne Klick.
   2. Client aus: Spielen startet ihn versteckt, dann das Spiel. 3. Nach dem Spiel: zurück in Nightforge, „Willkommen zurück“, Spielzeit
   auf der Karte (ab 1 Minute). 4. Beenden über das Overlay. 5. B/Esc während des Wartens bricht ab. 6. Keine zweite Battle.net-App bleibt
