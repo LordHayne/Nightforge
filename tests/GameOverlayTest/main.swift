@@ -35,6 +35,27 @@ struct GameOverlayTest {
 
     /// Both sticks – or ☰ and ⧉ on a pad without stick buttons – held for two seconds, once per hold.
     static func hold() {
+        // The overlay never takes the keys from a game with a picture (The Forest went into the Dock, 8.11.).
+        check(!GameOverlay.takesKeys(.menu), "the menu over a game leaves it its keys")
+        check(!GameOverlay.takesKeys(.confirmQuit) && !GameOverlay.takesKeys(.quitting), "… so does the question after it")
+        check(GameOverlay.takesKeys(.notStarting), "\"Not starting?\" has no picture to lose: the keyboard works there")
+        let padFolder = FileManager.default.temporaryDirectory.appendingPathComponent("pad-late-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: padFolder) }
+        func file(_ path: String) {
+            let url = padFolder.appendingPathComponent(path)
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: url.path, contents: Data())
+        }
+        check(!LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "an empty folder: nothing known")
+        file("gameinfo.txt")
+        check(!LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "gameinfo.txt alone isn't Source")
+        try? FileManager.default.removeItem(at: padFolder)
+        file("bin/engine.dll")
+        check(!LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "an engine.dll alone isn't Source (other games ship one)")
+        file("left4dead2/gameinfo.txt")
+        check(LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "Left 4 Dead 2's layout")
+        file("gameinfo.txt")
+        check(LibraryModel.readsPadsOnlyAtStart(installDir: padFolder), "gameinfo.txt in the game's own folder too")
         // "A controller came late" belongs to one game; "Restart Game" hands over only for its own end.
         MainActor.assumeIsolated {
             GameOverlay.lateController = true

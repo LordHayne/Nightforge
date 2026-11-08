@@ -39,6 +39,24 @@ höchstens 30 s nach seinem Start, auf beiden Steam-Wegen. Steam Cloud selbst bl
 Live-Prüfung dazu: (a) Overwatch 3×, kein Schwarz, kein Dock-Klick nötig, im Log kein `didn't come back`; (b) Windows-Spiel mit
 verändertem Controller, dann Valheim: keine Frage von Steam, im Log nur bei Bedarf `Steam Cloud: Steam finishes its first sync`.
 
+## Nachtrag: Overlay (8.11., nach 6698647)
+
+**D1 · Das Controller-Menü legte The Forest ins Dock.** `wine.log`: `Overlay up (menu)`, und bei der nächsten Bühnen-Prüfung
+`picture elsewhere`. `GameOverlay` nahm dem Spiel mit `panel.makeKey()` die Tasten (bei einem Moduswechsel zusätzlich mit
+`NSApp.comeToFront`). Das ist derselbe Mechanismus wie beim Zeiger-Panel. Das Menü nimmt jetzt keine Tasten mehr und holt Nightforge
+nicht mehr nach vorn; das Pad erreicht es weiterhin. **Die Tastatur** (Esc) gibt es im Menü deshalb nicht mehr. Der einzige Weg ohne
+Tastenwegnahme wäre `CGEventSource.keyState` abzufragen, aber dann bekäme auch das Spiel dieses Esc, und Unity öffnete beim Weiterspielen
+sein Menü. Das Overlay öffnet ohnehin nur mit dem Pad. „Startet nicht?“ hat kein Bild zu verlieren und behält die Tastatur. Mit der
+Maus bleibt alles bedienbar, Live-Prüfung offen.
+
+**D2 · „Spiel neu starten“ trotz funktionierendem Controller.** Hinweis und Neustart-Angebot kommen nur noch bei Source-Spielen
+(`bin/engine.dll` und `gameinfo.txt`). Von außen ist nicht zu sehen, ob ein Spiel einen Controller liest. Ein Profilfeld wäre die
+Erweiterung, wenn weitere Spiele auffallen.
+
+Live-Prüfung dazu: The Forest, ABZU und Valheim: L3+R3 halten, Menü schließen, das Spiel ist unverändert im Vollbild; Pad-Bedienung
+im Menü geht; Maus-Klick auf „Weiterspielen“ geht und lässt das Spiel im Vollbild. Spiel ohne Controller starten, dann Controller
+einschalten: bei L4D2 Hinweis und Angebot, bei The Forest und Valheim keins.
+
 ## Für 0.3.3
 
 1. **Der Ladebildschirm muss wesentlich ruhiger werden** (der Nutzer, 8.11.). Das ist der oberste Punkt. Dazu gehören:
@@ -48,6 +66,8 @@ verändertem Controller, dann Valheim: keine Frage von Steam, im Log nur bei Bed
    - **Desktop kurz sichtbar beim erneuten Start von Valheim direkt nach The Forest** (8.11., 14:57). Das Log zeigt nur `Space
      changed under the curtain` kurz vor dem Bild; Valheim macht einen eigenen Vollbild-Space auf. Ursache unbewiesen, Vermutung:
      Der Vorhang ist beim Wechsel der Spaces erst einen Moment später im neuen Space.
+   - **Beim Beenden von Overwatch und ABZU kurz ein falsches Bild**, und der Vorhang kommt manchmal von der Seite herein, wobei der
+     Desktop zu sehen ist (8.11., Live-Test). Noch nicht untersucht; hängt vermutlich am Moduswechsel und am Space-Wechsel.
    - B3: Steams Frage nimmt den Vorhang ganz weg.
    - B6: Der Text springt kurz zurück auf „Starten …“.
 2. B2: kein Ausweg vom Vorhang ohne Spielprozess.
