@@ -20,6 +20,8 @@ enum GameDisplay {
         let pixels: Int
         /// Shows another screen's picture (mirroring): no place of its own to move to.
         var mirrors = false
+        /// The diagonal the screen says it has; nil when it says nothing.
+        var inches: CGFloat? = nil
     }
 
     /// The external screen to play on: a TV before a monitor, then the biggest. None without one.
@@ -379,8 +381,22 @@ enum GameDisplay {
             guard let display = id(screen) else { return nil }
             return Candidate(id: display, name: screen.localizedName, builtIn: CGDisplayIsBuiltin(display) != 0,
                              pixels: CGDisplayPixelsWide(display) * CGDisplayPixelsHigh(display),
-                             mirrors: CGDisplayMirrorsDisplay(display) != kCGNullDirectDisplay)
+                             mirrors: CGDisplayMirrorsDisplay(display) != kCGNullDirectDisplay,
+                             inches: inches(CGDisplayScreenSize(display)))
         }
+    }
+
+    /// Whether an NSScreen is a TV (Candidate.isTV).
+    static func isTV(_ screen: NSScreen) -> Bool {
+        guard let display = id(screen) else { return false }
+        return Candidate(id: display, name: screen.localizedName, builtIn: CGDisplayIsBuiltin(display) != 0, pixels: 0,
+                         inches: inches(CGDisplayScreenSize(display))).isTV
+    }
+
+    /// A screen's size in millimetres (from its EDID, all zero when it gives none) as a diagonal.
+    nonisolated static func inches(_ millimetres: CGSize) -> CGFloat? {
+        guard millimetres.width > 0, millimetres.height > 0 else { return nil }
+        return hypot(millimetres.width, millimetres.height) / 25.4
     }
 
     /// Every display that shows a picture, mirrors included (they aren't NSScreens of their own).
@@ -534,8 +550,10 @@ enum GameDisplay {
 
 extension GameDisplay.Candidate {
     /// TVs name themselves so over HDMI ("LG TV SSCR2", "SAMSUNG", "SONY TV  *00"), and so does an
-    /// AV receiver in front of one ("DENON-AVR").
+    /// AV receiver in front of one ("DENON-AVR"). Others (Philips, Grundig, Loewe, a Yamaha receiver)
+    /// by their size: 40 inches and up. A large monitor counts too; its full screen is remembered per screen.
     var isTV: Bool {
+        if !builtIn, (inches ?? 0) >= 40 { return true }
         let words = name.uppercased().split { !$0.isLetter && !$0.isNumber }
         let brands: Set<Substring> = ["TV", "SAMSUNG", "SONY", "VIZIO", "HISENSE", "TCL", "PANASONIC", "BRAVIA",
                                       "AVR", "DENON", "MARANTZ", "ONKYO"]

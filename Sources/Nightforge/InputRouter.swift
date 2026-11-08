@@ -40,9 +40,13 @@ final class InputRouter {
     private var stickScrollTimer: Timer?
     /// What the right stick scrolled in the library and hasn't made a row yet (PadRules.stickRows).
     private var stickRows: CGFloat = 0
+    /// The pad as the Mac's pointer: touchpad, or the right stick on a pad without one.
+    private let pointer = PadPointer()
 
     func start(model: LibraryModel) {
         self.model = model
+        pointer.works = { [weak self] in self?.pointerWorks ?? false }
+        pointer.stickWorks = { [weak self] in self?.stickIsPointer ?? false }
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let code = event.keyCode
@@ -82,6 +86,7 @@ final class InputRouter {
         observers.append(center.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.letGo()
+                self?.pointer.controllerLeft()
                 self?.refreshConnected()
             }
         })
@@ -403,6 +408,7 @@ final class InputRouter {
         // SDL saw crashes when it was set before.
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
         Self.takeViewButton()
+        pointer.attach(pad)
 
         // D-pad and left stick both move in all four directions, repeating while held.
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
@@ -411,8 +417,11 @@ final class InputRouter {
         pad.leftThumbstick.valueChangedHandler = { [weak self] _, x, y in
             MainActor.assumeIsolated { self?.steer(.stick, x: x, y: y) }
         }
-        pad.rightThumbstick.valueChangedHandler = { [weak self] _, _, y in
-            MainActor.assumeIsolated { self?.scrollWithStick(y) }
+        pad.rightThumbstick.valueChangedHandler = { [weak self, weak pad] _, x, y in
+            MainActor.assumeIsolated {
+                self?.scrollWithStick(y)
+                if let pad { self?.pointer.stick(x: x, y: y, on: pad) }
+            }
         }
         // X: the selected game's page (A on Home plays it).
         pad.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in
@@ -514,13 +523,17 @@ final class InputRouter {
             MainActor.assumeIsolated { self?.goSection(.r1) }
         }
         // L2/R2: first and last game, like Home and End on the keyboard.
-        pad.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
-            guard pressed else { return }
-            MainActor.assumeIsolated { self?.jump(toStart: true) }
+        pad.leftTrigger.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
+            MainActor.assumeIsolated {
+                if let pad, self?.pointer.trigger(.l2, pressed: pressed, on: pad) == true { return }
+                if pressed { self?.jump(toStart: true) }
+            }
         }
-        pad.rightTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
-            guard pressed else { return }
-            MainActor.assumeIsolated { self?.jump(toStart: false) }
+        pad.rightTrigger.pressedChangedHandler = { [weak self, weak pad] _, _, pressed in
+            MainActor.assumeIsolated {
+                if let pad, self?.pointer.trigger(.r2, pressed: pressed, on: pad) == true { return }
+                if pressed { self?.jump(toStart: false) }
+            }
         }
         // Both sticks held for two seconds open the overlay over a game, and close it again.
         pad.valueChangedHandler = { [weak self] gamepad, _ in
@@ -537,7 +550,7 @@ final class InputRouter {
         }
         // The pad in use with Nightforge or its overlay in front: the pointer hides until the mouse
         // moves, as on a console. In a game it's the game's.
-        if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)) {
+        if PadRules.hidesPointer(inFront: reach == .app, overlay: reach == .overlay, inUse: Self.inUse(pad)), !pointer.isMouse {
             NSCursor.setHiddenUntilMouseMoves(true)
         }
         wakeIfIdle(pad, now: now)
@@ -775,6 +788,19 @@ final class InputRouter {
         guard !GameOverlay.isOpen else { return }
         letGo()
         model?.openOverlay()
+    }
+
+    /// Whether the pad is the Mac's pointer now (PadPointerRules.works). Looked at when a finger lands.
+    private var pointerWorks: Bool {
+        guard let model else { return false }
+        return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
+                                     curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
+                                     frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks)
+    }
+
+    private var stickIsPointer: Bool {
+        PadPointerRules.stickIsPointer(works: pointerWorks, hasTouchpad: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
+                                       curtain: GameBackdrop.isRaised)
     }
 
     /// The window in front of the library when it's an alert or sheet (game options, Steam for

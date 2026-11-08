@@ -26,9 +26,9 @@ struct SignInStage: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 footer
             }
-            .padding(.top, 36)
+            .padding(.top, Theme.margins.top)
             .padding(.horizontal, Theme.gutter)
-            .padding(.bottom, 22)
+            .padding(.bottom, Theme.margins.bottom)
             .frame(width: geo.size.width, height: geo.size.height)
             .background(background(geo.size))
         }

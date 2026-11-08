@@ -56,7 +56,7 @@ struct LibraryView: View {
 
                 HintBar()
                     .padding(.horizontal, Theme.gutter)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, Theme.margins.bottom)
             }
 
             if model.showingDownloads {
@@ -67,7 +67,7 @@ struct LibraryView: View {
                     .onTapGesture { model.showingDownloads = false }
                 DownloadsPanel()
                     .padZone(.panel)
-                    .padding(.top, 84)  // below the top bar (36 + 38), right under the downloads ring
+                    .padding(.top, Theme.margins.top + 48)  // below the top bar (its margin + 38), right under the downloads ring
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .transition(.opacity.combined(with: .offset(y: -8)))
@@ -81,7 +81,7 @@ struct LibraryView: View {
                     .onTapGesture { model.closeLauncherMenu() }
                 LauncherMenu()
                     .padZone(.panel)
-                    .padding(.top, 82)  // right under its pill
+                    .padding(.top, Theme.margins.top + 46)  // right under its pill
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .transition(.opacity.combined(with: .offset(y: -8)))
@@ -1167,7 +1167,7 @@ private struct TopBar: View {
             .background(GlassBackground(glass: .regular, shape: Capsule()))
         }
         .padding(.horizontal, Theme.gutter)
-        .padding(.top, 36)
+        .padding(.top, Theme.margins.top)
     }
 
 }
