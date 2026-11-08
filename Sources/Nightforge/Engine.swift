@@ -49,9 +49,13 @@ enum Engine {
     /// Steam's web UI (CEF) paints a black window under Wine on macOS unless it renders in software
     /// in a single process. The single-process part is done by the steamwebhelper wrapper, which
     /// -noverifyfiles keeps Steam from "repairing" away; the CEF sandbox needs Windows features Wine lacks.
+    /// Friends and chat are web views of their own that Steam keeps up in the background, rendered in
+    /// software like the rest; Nightforge never shows them, so they stay off (-nofriendsui, -nochatui).
+    /// Sign-in, downloads and cloud saves don't go through them. Read at Steam's start only: a Steam that
+    /// runs takes them at its next start, no restart needed.
     static let steamArguments = [
         "-no-cef-sandbox", "-cef-single-process", "-noverifyfiles",
-        "-cef-disable-gpu", "-cef-disable-gpu-compositing",
+        "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-nofriendsui", "-nochatui",
     ]
     /// `steamArguments` for a start of Steam. Before its first update has put the client in place,
     /// without -noverifyfiles: told not to verify, a bootstrapper with nothing installed found
