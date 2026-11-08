@@ -16,7 +16,7 @@ Nightforge 0.3.2 bringt Overwatch auf den Mac, ein neues Menü für deine Launch
 
 ### Spiele
 - **Overwatch läuft** über Steam, auf DXMT. Bisher hing es beim Start ohne Fenster. Der Hinweis „Startet noch nicht“ ist weg. Beim ersten Start richtet Nightforge dafür einmal Apples D3DMetal ein.
-- **Left 4 Dead 2 lädt seine Karten wieder.** Es hing beim Laden einer Karte, weil Wine ihm vier Lautsprecher meldete. Jetzt startet es in Stereo.
+- **Left 4 Dead 2 lädt seine Karten wieder.** Beim Laden einer Karte öffnet es das Mikrofon für den Sprachchat, und daran hing es. Jetzt fragt macOS einmal nach dem Mikrofon, und danach lädt die Karte, egal wie du antwortest.
 - **Leistungsanzeige auch in Mac-Versionen:** Die Metal-Leistungsanzeige aus den Einstellungen erscheint jetzt auch in Mac-Spielen und verschwindet wieder, wenn du sie abschaltest.
 - **Das Löschen der Shader-Caches ist gründlicher:** Es leert jetzt auch DXMTs Metal-Zwischenspeicher für jedes Spiel.
 - Hast du ein Spiel als „Startet nicht“ markiert und bringt sein Spielprofil später eine Korrektur, probiert Nightforge es wieder ganz normal.
@@ -60,7 +60,7 @@ Nightforge 0.3.2 brings Overwatch to the Mac, a new menu for your launchers and 
 
 ### Games
 - **Overwatch runs** through Steam, on DXMT. Until now it hung at the start without a window. The "Doesn't start yet" note is gone. On its first start Nightforge sets up Apple's D3DMetal for it, once.
-- **Left 4 Dead 2 loads its maps again.** It hung loading a map because Wine reported four speakers to it. Now it starts in stereo.
+- **Left 4 Dead 2 loads its maps again.** Loading a map opens the microphone for voice chat, and that's where it hung. Now macOS asks once about the microphone, and the map loads whichever way you answer.
 - **Performance HUD in Mac versions too:** the Metal performance HUD from Settings now shows in Mac games as well, and goes away again when you switch it off.
 - **Clearing the shader caches goes deeper:** it now also empties DXMT's Metal caches for each game.
 - If you marked a game "Didn't start" and its game profile later brings a fix, Nightforge tries it the normal way again.

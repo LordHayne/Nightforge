@@ -121,7 +121,7 @@ enum BattleNetLibrary {
                 // On its way down: everything in the list is still 0, the operation alone says so.
                 guard install.operation == .update, seen.insert(install.code).inserted else { return nil }
                 var coming = game(install, title, client: client, installDir: top)
-                coming.install = .downloading(install.progress.flatMap { $0 > 0 ? $0 : nil })
+                coming.install = .downloading(install.progress.flatMap { $0 > 0 && $0.isFinite ? min($0, 1) : nil })  // from a file: `Int(fraction * 100)` traps on inf
                 coming.pendingUpdate = nil
                 return coming
             }

@@ -82,6 +82,7 @@ struct DownloadsPanel: View {
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(GlassButtonStyle(shape: Circle()))
+                .accessibilityLabel(L10n.t("Close"))
                 .help(L10n.t("Close"))
                 .padFocus("downloads.close", cornerRadius: 14, activate: { model.closeDownloads() })
             }

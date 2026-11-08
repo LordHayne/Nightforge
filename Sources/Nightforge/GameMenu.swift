@@ -82,7 +82,7 @@ enum GameMenu {
             list.append(.geforceNow)
         case .installed where game.antiCheatBlock == nil || state.running:
             list.append(state.running ? .switchToGame : .play)
-        case .notInstalled where !game.isVROnly && game.antiCheatBlock == nil:
+        case .notInstalled where !game.isVROnly && game.antiCheatBlock == nil && game.missingDrive == nil:
             list.append(.download)
         case .inStore:
             if game.storeFree { list.append(.addForFree) }

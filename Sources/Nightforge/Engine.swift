@@ -1093,7 +1093,7 @@ enum Engine {
           has_process '\steamapps\common\' && return 0                                  # a Windows game
           has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
           has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
-          [ -n "$MAC_STEAMAPPS" ] && has_process "$MAC_STEAMAPPS/common/" && return 0     # a Mac game
+          [ -n "$MAC_STEAMAPPS" ] && has_process "/steamapps/common/" && return 0         # a Mac game, in any library (Windows paths have backslashes)
           runs_from_game_folder && return 0                                               # one a launcher started
           return 1
         }
@@ -1111,13 +1111,40 @@ enum Engine {
           done
           return 1
         }
+        # Every steamapps folder of a Steam: its own and what its libraryfolders.vdf lists (an external
+        # drive's). Windows paths arrive as Z:\\Volumes\\…, with the backslashes doubled.
+        library_folders() {
+          printf '%s\n' "$1"
+          sed -n 's/.*"path"[[:space:]]*"\(.*\)".*/\1/p' "$1/libraryfolders.vdf" 2>/dev/null | while IFS= read -r path; do
+            case "$path" in
+              /*) ;;
+              *)
+                path="$(printf '%s' "$path" | sed -e 's|\\\\|/|g' -e 's|\\|/|g')"
+                case "$path" in
+                  [zZ]:/*) path="/${path#??/}" ;;
+                  [cC]:/*) path="$PREFIX/drive_c/${path#??/}" ;;
+                  ?:/*) path="$PREFIX/dosdevices/$(printf '%s' "${path%%:*}" | tr 'A-Z' 'a-z'):/${path#??/}" ;;
+                  *) continue ;;
+                esac
+                ;;
+            esac
+            printf '%s\n' "$path/steamapps"
+          done
+        }
+        downloading_anywhere() {
+          local folder IFS=$'\n'
+          for folder in $(library_folders "$1"); do
+            downloading_in "$folder" && return 0
+          done
+          return 1
+        }
         # A download counts only while its Steam runs: one Steam ends when the other takes over (one sign-in
         # per account), and its download stops there. Counted anyway, it kept the script and Steam for Mac
         # waiting for 12 hours (It Takes Two, 8.11.).
         busy() {
           if game_running; then LAST_GAME="$(date +%s)"; return 0; fi
-          [ -n "$WINE" ] && steam_running && downloading_in "$STEAMAPPS" && return 0
-          [ -n "$MAC_STEAMAPPS" ] && pgrep -qx steam_osx && downloading_in "$MAC_STEAMAPPS" && return 0
+          [ -n "$WINE" ] && steam_running && downloading_anywhere "$STEAMAPPS" && return 0
+          [ -n "$MAC_STEAMAPPS" ] && pgrep -qx steam_osx && downloading_anywhere "$MAC_STEAMAPPS" && return 0
           return 1
         }
         # The Nightforge that started this is still on its way out (it waits until this runs): until
