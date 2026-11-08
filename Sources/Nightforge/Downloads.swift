@@ -22,16 +22,61 @@ enum KeepAwake {
         }
     }
 
-    /// Of these downloads, the ones that keep the Mac awake.
-    static func fetched(_ games: [Game]) -> [Game] {
-        guard !games.isEmpty else { return [] }  // the usual case: no process list asked for
+    /// One download a scan found.
+    struct Download: Equatable {
+        var name: String
+        var provider: Provider
+        var platform: Platform
+        var builtIn: Bool
+        var paused: Bool
+    }
+
+    /// A game's downloads: its own, unless it waits for room, and the Mac version's coming beside an installed
+    /// Windows one (`macPending`), which is Steam for Mac's.
+    nonisolated static func downloads(of game: Game) -> [Download] {
+        var found: [Download] = []
+        if case .downloading = game.install, game.downloadNeedsSpace == nil {
+            found.append(Download(name: game.name, provider: game.provider, platform: game.platform,
+                                  builtIn: game.bottle.isBuiltIn, paused: game.downloadPaused))
+        }
+        if case .downloading? = game.macPending {
+            found.append(Download(name: game.name, provider: .steam, platform: .mac, builtIn: false, paused: game.macPendingStopped))
+        }
+        return found
+    }
+
+    /// A store gone with its download still listed may be between two starts: the Steams changing over took
+    /// 1 min 33 s on 8.11. (22:27:13 to 22:28:47), and the hold was gone for it. Past this it has really ended.
+    nonisolated static let storeAwayGrace: TimeInterval = 300
+
+    /// What keeps the Mac awake now, and when a store was last seen fetching something. A pause doesn't get
+    /// this grace: paused means the Mac may sleep.
+    nonisolated static func held(_ downloads: [Download], steamRunning: Bool, macSteamRunning: Bool, battleNetRunning: Bool,
+                                 storeSeen: Date?, now: Date) -> (names: [String], storeSeen: Date?) {
+        let unpaused = downloads.filter { !$0.paused }
+        let fetched = unpaused.filter {
+            counts(provider: $0.provider, platform: $0.platform, builtIn: $0.builtIn, paused: false,
+                   steamRunning: steamRunning, macSteamRunning: macSteamRunning, battleNetRunning: battleNetRunning)
+        }
+        if !fetched.isEmpty { return (fetched.map(\.name), now) }
+        guard !unpaused.isEmpty, let storeSeen, now.timeIntervalSince(storeSeen) < storeAwayGrace else { return ([], nil) }
+        return (unpaused.map(\.name), storeSeen)
+    }
+
+    private static var storeSeen: Date?
+
+    /// Of these downloads, the names that keep the Mac awake.
+    static func fetched(_ downloads: [Download]) -> [String] {
+        guard !downloads.isEmpty else {  // the usual case: no process list asked for
+            storeSeen = nil
+            return []
+        }
         let steam = Engine.steamRunningKnown ?? true  // not known: as before
         let mac = MacSteam.isRunning
         let battleNet = !NSRunningApplication.runningApplications(withBundleIdentifier: BattleNetClient.bundleID).isEmpty
-        return games.filter {
-            counts(provider: $0.provider, platform: $0.platform, builtIn: $0.bottle.isBuiltIn, paused: $0.downloadPaused,
-                   steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet)
-        }
+        let result = held(downloads, steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet, storeSeen: storeSeen, now: Date())
+        storeSeen = result.storeSeen
+        return result.names
     }
 
     static func update(downloading names: [String]) {
