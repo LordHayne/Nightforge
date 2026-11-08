@@ -3,6 +3,10 @@
 #   scripts/run-tests.sh                  every tests/*Test, as many at a time as the Mac has cores
 #   scripts/run-tests.sh -P 2             two at a time
 #   scripts/run-tests.sh VDFTest EpicTest only these
+#   scripts/run-tests.sh --changed [ref]  only those a change since ref (origin/main) touches: a quick look, a merge wants them all
+#
+# The app is compiled once up front and each series then builds only its own files (scripts/testbuild/swiftc);
+# NIGHTFORGE_TEST_FULL_BUILDS=1 has every series compile all of it again, as swiftc alone would.
 #
 # Each series writes to a log of its own in build/test-logs (or NIGHTFORGE_TEST_LOGS), and its exit code is kept beside its name
 # right after it ends, so one that doesn't even build counts as failed. The logs of failed series are
@@ -28,18 +32,39 @@ fi
 
 JOBS="$(sysctl -n hw.ncpu)"
 SERIES=()
+CHANGED=""
+BASE="origin/main"
 while [ $# -gt 0 ]; do
   case "$1" in
     -P) JOBS="$2"; shift 2 ;;
+    --changed)
+      CHANGED=1
+      shift
+      if [ $# -gt 0 ] && git rev-parse -q --verify "$1^{commit}" > /dev/null; then BASE="$1"; shift; fi
+      ;;
     /*|tests/*) SERIES+=("${1%/}"); shift ;;
     *) SERIES+=("tests/${1%/}"); shift ;;
   esac
 done
-if [ ${#SERIES[@]} -eq 0 ]; then
+if [ -n "$CHANGED" ]; then
+  while IFS= read -r dir; do [ -z "$dir" ] || SERIES+=("$dir"); done < <(scripts/testbuild/affected.py "$BASE")
+  if [ ${#SERIES[@]} -eq 0 ]; then
+    echo "✓ No test series is touched by the changes since $BASE"
+    exit 0
+  fi
+  echo "▸ Only what the changes since $BASE touch; before a merge, run them all"
+elif [ ${#SERIES[@]} -eq 0 ]; then
   for dir in tests/*Test; do SERIES+=("$dir"); done
 fi
 LOGS="${NIGHTFORGE_TEST_LOGS:-build/test-logs}"
 rm -rf "$LOGS" && mkdir -p "$LOGS"
+
+# Only when a chosen series builds the whole app: a handful of small ones have nothing to share.
+# shellcheck source=testbuild/compile-once.sh
+. scripts/testbuild/compile-once.sh
+if grep -qs 'Sources/Nightforge/\*\.swift' "${SERIES[@]/%//run.sh}"; then
+  compile_app_once "$JOBS"
+fi
 
 echo "▸ Running ${#SERIES[@]} test series, $JOBS at a time …"
 # A series xargs couldn't start has no exit code below, so it counts as failed there.

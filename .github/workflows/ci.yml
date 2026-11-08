@@ -24,8 +24,13 @@ jobs:
       - name: Build the app
         run: ./build.sh
 
+      # Stand-ins for the compiler: the shortcut below only takes what it prepared, and a failure stays one.
+      - name: Test build shortcut
+        run: python3 -m unittest tests/test_testbuild.py
+
       # Every tests/*Test at once, one per core, each with its own log and exit code: all logs land in
       # groups, a failed series' log once more at the end, and any failure fails the job.
+      # The app is compiled once for all of them; a series builds only its own files (scripts/testbuild/swiftc).
       - name: Swift tests
         run: scripts/run-tests.sh
 
