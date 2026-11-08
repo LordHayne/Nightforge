@@ -183,29 +183,15 @@ Stand Recall v1.6.3. Basis bleibt Pin 589adb7, die 201 Commits des Forks kommen 
 
 ### Lizenz: Entscheidung des Nutzers vor dem Merge
 
-**Heute** ist unser DXMT-Build MIT. Nightforge selbst ist GPL-3. **Mit diesem Patch** steht der DXMT-Teil des Graphics-Pakets als Ganzes unter LGPL-2.1-or-later, denn der Patch enthält Teile aus Recalls DXMT-Patches, die unter dieser Lizenz stehen.
-
-- **Für Spieler:** Nichts ändert sich. DXMT bleibt ein eigener Download, frei ersetzbar.
-- **Für Nightforge:** Die App bleibt GPL-3 und lädt DXMT weiter als getrennte Komponente.
-- **Pflichten:** Quelltext liegt schon als zweites Asset jedem Graphics-Release bei (unverändertes DXMT, unsere Patches, `graphics.yml`). Der Patch nennt im Kopf die Herkunft, jede geänderte Datei trägt einen Vermerk (LGPL-2.1 § 2 a). Der Lizenztext ist im Paket als `COPYING-Wine.txt`, derselbe Text.
-- **Auf dem Zweig schon geändert:** Hinweistext in `graphics.yml`, `Resources/THIRD_PARTY_NOTICES.txt`.
-- **Einordnung:** Upstream-DXMT ist inzwischen selbst LGPL-2.1-or-later (`LICENSE` auf dem aktuellen Stand), jedes spätere DXMT-Update brächte das ohnehin.
-- **Zurück:** Ein Graphics-Build ohne den Patch ist wieder MIT.
-
-Das ist keine Rechtsberatung. Der Nutzer gibt den Build frei oder nicht.
+Siehe `docs/ENTSCHEIDUNG-DXMT-LGPL.md`: Pflichten, was öffentlich würde, was unberührt bleibt. Auf dem Zweig sind `graphics.yml` und `Resources/THIRD_PARTY_NOTICES.txt` schon angepasst.
 
 ### Messplan
 
-Werkzeug und Schritte: Notizordner `shader-messung/SCHRITTE.md` (`messung.sh start|warm|fertig`, `frueh.sh an|aus|zahlen`, Probe-DLL daneben).
+Ablauf und Werkzeug: Notizordner `shader-messung/SCHRITTE.md`, ein Befehl (`ablauf.sh`), rund 40 Minuten, der Nutzer spielt.
 
-| Lauf | Spiel | Stand | Vergleich |
-|---|---|---|---|
-| A1, A2 | ABZU, feste Stelle, 5 min kalt, 5 min warm | heutige DLL | Vorher-Wert, fehlt noch |
-| A3 | Overwatch, Custom Game, 5 min warm | heutige DLL | Vorher-Wert, fehlt noch; Practice Range kalt und warm gibt es vom 7.11. |
-| B1, B2 | ABZU wie A1, A2 | Probe-DLL, Wert 1 | Gegen A1, A2 |
-| B3 | Overwatch wie A3 | Probe-DLL | **Nur mit ausdrücklichem OK des Nutzers** |
+ABZU, dieselbe Probe-DLL, Schalter abwechselnd aus und an, je Block eine kalte und eine warme Runde von 4 Minuten. `vergleich.py` nennt je Runde Frames über 33/50/100 ms je Minute, schlimmsten Frame, 99. Perzentil, Compiler-Sekunden, Wachstum der Übersetzungs-Datei und die Trefferquote.
 
-Zahlen je Runde: Frames über 33/50/100 ms je Minute, schlimmster Frame, Compiler-Sekunden, Größe der Übersetzungs-Datei, Trefferquote aus dem Log. Für den Erfolg zählt die kalte Runde (B1 gegen A1). Warm darf nicht schlechter werden.
+**Gewinn belegt**, wenn jede kalte Runde mit Schalter mindestens 25 % weniger Frames über 50 ms je Minute hat als das Mittel ohne, der schlimmste Frame höchstens 10 % steigt und die warme Runde nicht schlechter wird (Grenze: +20 % plus 1 je Minute). Overwatch folgt nur mit ausdrücklichem OK des Nutzers.
 
 ### Was noch fehlt
 
