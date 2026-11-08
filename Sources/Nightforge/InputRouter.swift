@@ -44,6 +44,8 @@ final class InputRouter {
     private var parkingLook: TimeInterval = -.infinity
     /// When the PS or Xbox button went down, in Nightforge.
     private var homeDown: TimeInterval?
+    private var homeButtonAllowed = false
+    private var homeButtonTaken = false
     private let haptics = PadHaptics()
     /// The on-screen keyboard: its pad and the look at it, 60 times a second while it's open.
     private var keyboardTimer: Timer?
@@ -110,10 +112,14 @@ final class InputRouter {
             MainActor.assumeIsolated {
                 self?.letGo()
                 Self.takeViewButton()
+                self?.takeHomeButton(lookAgain: true)
             }
         })
-        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { Self.takeViewButton() }
+        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                Self.takeViewButton()
+                self?.takeHomeButton(lookAgain: true)
+            }
         })
         // A sheet or dialog opened while the pad is in use shows its highlight at once, on its safe
         // default answer (PadFocus.Item.preferred), so the first A already answers.
@@ -455,6 +461,7 @@ final class InputRouter {
         // SDL saw crashes when it was set before.
         if !GCController.shouldMonitorBackgroundEvents { GCController.shouldMonitorBackgroundEvents = true }
         Self.takeViewButton()
+        takeHomeButton(lookAgain: true)
         pointer.attach(pad)
         pointerAfterConnecting()
         if HomeButtonSetup.exists, let home = pad.controller?.physicalInputProfile.buttons[GCInputButtonHome] {
@@ -739,7 +746,6 @@ final class InputRouter {
     /// ⧉ is Nightforge's while it's in front (PadRules.takesViewButton): a system gesture on it (a
     /// DualSense's screenshot) waits until Nightforge isn't. Only buttons the system has a gesture on.
     static func takeViewButton() {
-        takeHomeButton()
         let takes = PadRules.takesViewButton(active: NSApp.isActive, overlay: GameOverlay.isOpen)
         for controller in GCController.controllers() {
             guard let view = controller.extendedGamepad?.buttonOptions, view.isBoundToSystemGesture else { continue }
@@ -748,16 +754,33 @@ final class InputRouter {
         }
     }
 
-    /// macOS 27: the PS or Xbox button is Nightforge's while it's in front, if System Settings lets the
-    /// app decide (HomeButtonSetup). Asked for here, as macOS's header says, and given back for a game.
-    private static func takeHomeButton() {
-        guard HomeButtonSetup.exists else { return }
-        let takes = HomeButtonSetup.takesButton(exists: true, active: NSApp.isActive, overlay: GameOverlay.isOpen)
-        for controller in GCController.controllers() {
+    /// macOS 27: the PS or Xbox button is Nightforge's while it's in front and no game runs, once
+    /// it's allowed (HomeButtonSetup). Asked for here, as macOS's header says, and given back for a game.
+    /// `lookAgain`: what System Settings say may have changed. Called every few seconds too, for a game that starts.
+    func takeHomeButton(lookAgain: Bool = false) {
+        guard HomeButtonSetup.exists, let model else { return }
+        let controllers = GCController.controllers()
+        guard !controllers.isEmpty else { return }
+        if lookAgain { homeButtonAllowed = HomeButtonSetup.appMayHaveButton() }
+        let takes = HomeButtonSetup.takesButton(exists: true, active: NSApp.isActive, overlay: GameOverlay.isOpen, gameOn: model.gameOnScreen,
+                                                allowed: homeButtonAllowed, asked: UserDefaults.standard.bool(forKey: Prefs.Keys.homeButtonAsked))
+        homeButtonTaken = takes
+        for controller in controllers {
             guard let home = controller.physicalInputProfile.buttons[GCInputButtonHome], home.isBoundToSystemGesture else { continue }
             let state: GCControllerElement.SystemGestureState = takes ? .disabled : .enabled
             if home.preferredSystemGestureState != state { home.preferredSystemGestureState = state }
         }
+    }
+
+    /// Settings' Set Up: the first time it asks for the button, and macOS puts its question then, with
+    /// the player at the Mac. Refused or never answered, the page in System Settings is the way.
+    func askForHomeButton() {
+        if UserDefaults.standard.bool(forKey: Prefs.Keys.homeButtonAsked), !HomeButtonSetup.appMayHaveButton() {
+            HomeButtonSetup.openSettings(.shortPress)
+            return
+        }
+        UserDefaults.standard.set(true, forKey: Prefs.Keys.homeButtonAsked)
+        takeHomeButton(lookAgain: true)
     }
 
     /// A short press on the PS or Xbox button in Nightforge: to Home, where L1 would go too. Held,
@@ -769,7 +792,7 @@ final class InputRouter {
             return
         }
         defer { homeDown = nil }
-        guard let down = homeDown, HomeButtonSetup.isShortPress(held: now - down), !GameBackdrop.isRaised, let model,
+        guard homeButtonTaken, let down = homeDown, HomeButtonSetup.isShortPress(held: now - down), !GameBackdrop.isRaised, let model,
               Self.section(for: .l1, route: model.route, inFront: reach == .app, dialog: dialog != nil || panelOpen,
                            firstStart: model.showsFirstStart) == .home
         else { return }

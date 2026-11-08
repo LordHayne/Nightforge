@@ -22,10 +22,17 @@ struct HomeButtonSetupTest {
         check(HomeButtonSetup.appMayHave(inAppAction: Int.max), "the button switched off for the system reaches the app too")
         check(!HomeButtonSetup.appMayHave(inAppAction: 0), "macOS's own handling stays macOS's")
         check(!HomeButtonSetup.appMayHave(inAppAction: -1), "can't be read: not assumed")
-        check(HomeButtonSetup.takesButton(exists: true, active: true, overlay: false), "macOS 27, Nightforge in front: Nightforge's")
-        check(!HomeButtonSetup.takesButton(exists: false, active: true, overlay: false), "macOS 26: everything as before")
-        check(!HomeButtonSetup.takesButton(exists: true, active: false, overlay: false), "a game in front: macOS's")
-        check(!HomeButtonSetup.takesButton(exists: true, active: true, overlay: true), "the overlay over a game: macOS's")
+        func takes(exists: Bool = true, active: Bool = true, overlay: Bool = false, gameOn: Bool = false, allowed: Bool = true, asked: Bool = false) -> Bool {
+            HomeButtonSetup.takesButton(exists: exists, active: active, overlay: overlay, gameOn: gameOn, allowed: allowed, asked: asked)
+        }
+        check(takes(), "macOS 27, allowed, Nightforge in front: Nightforge's")
+        check(!takes(exists: false), "macOS 26: everything as before")
+        check(!takes(active: false), "a game in front: macOS's")
+        check(!takes(overlay: true), "the overlay over a game: macOS's")
+        check(!takes(gameOn: true), "while a game runs or starts, even with Nightforge in front")
+        check(!takes(allowed: false), "never asks by itself: macOS's question would stand over the next game")
+        check(takes(allowed: false, asked: true), "the player asked for it in Settings: then it may ask")
+        check(!takes(gameOn: true, allowed: false, asked: true), "and not over a game even then")
         check(HomeButtonSetup.isShortPress(held: 0.2) && !HomeButtonSetup.isShortPress(held: 0.6), "short, and held")
         check(HomeButtonSetup.Page.longPress.rawValue == 1 && HomeButtonSetup.Page.shortPress.rawValue == 2, "the pages' numbers from the header")
 

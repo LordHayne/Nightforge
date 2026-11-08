@@ -447,7 +447,7 @@ private struct ControllerSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("A short press goes to Home"))
                             .font(size: 12)
-                        Text(L10n.t("While Nightforge is in front. In System Settings, choose once that the app may decide. In a game the button stays with macOS."))
+                        Text(L10n.t("While Nightforge is in front. macOS asks once whether Nightforge may have the button: choose Allow. In a game it stays with macOS."))
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -457,8 +457,8 @@ private struct ControllerSettings: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Theme.sodium)
                     } else {
-                        Button(L10n.t("Set Up …")) { HomeButtonSetup.openSettings(.shortPress) }
-                            .padFocus("settings.homeButtonShort", cornerRadius: 15, activate: { HomeButtonSetup.openSettings(.shortPress) })
+                        Button(L10n.t("Set Up …")) { model.askForHomeButton() }
+                            .padFocus("settings.homeButtonShort", cornerRadius: 15, activate: { model.askForHomeButton() })
                     }
                 }
                 .onAppear { readHomeButton() }

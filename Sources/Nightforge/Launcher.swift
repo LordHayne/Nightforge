@@ -24,6 +24,8 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        /// The player pressed Set Up for the short press of the PS or Xbox button (HomeButtonSetup).
+        static let homeButtonAsked = "homeButtonAsked"
         static let parkPointer = "parkPointerOverGames"
         static let keepAwakeMinutes = "keepAwakeMinutes"
         static let padHaptics = "padHaptics"

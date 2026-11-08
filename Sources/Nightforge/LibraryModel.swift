@@ -780,6 +780,7 @@ final class LibraryModel: ObservableObject {
                 if warning != chargerWarning { chargerWarning = warning }
                 await lookAtSteamOnDemand()
                 offerFullScreenIfDue()
+                input.takeHomeButton()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
@@ -3570,6 +3571,8 @@ final class LibraryModel: ObservableObject {
         fullScreenOffered = true
         offersFullScreen = true
     }
+
+    func askForHomeButton() { input.askForHomeButton() }
 
     func acceptFullScreen() {
         offersFullScreen = false
