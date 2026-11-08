@@ -73,6 +73,11 @@ struct LibraryView: View {
                     .transition(.opacity.combined(with: .offset(y: -8)))
             }
 
+            if let session = model.padKeyboard {
+                PadKeyboardPanel(session: session, layout: model.padSymbols.layout)
+                    .transition(.opacity.combined(with: .offset(y: 16)))
+            }
+
             if model.launcherMenuOpen {
                 // A click beside the menu closes it, like the downloads panel.
                 Color.black.opacity(0.001)

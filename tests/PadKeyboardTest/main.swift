@@ -22,6 +22,7 @@ struct PadKeyboardTest {
         typing()
         sticks()
         dpad()
+        geometry()
         print(failures == 0 ? "✓ PadKeyboard" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -35,6 +36,30 @@ struct PadKeyboardTest {
         let edge = PadKeyboard.edge
         let across = u * (1 - 2 * edge) + edge, down = v * (1 - 2 * edge) + edge
         return Finger(x: Float(side == .left ? across - 1 : across), y: Float(1 - 2 * down))
+    }
+
+    static func geometry() {
+        let g = PadKeyboardGeometry.fitting(width: 1_100)
+        let board = PadKeyLayout.make(page: .letters, shifted: false)
+        check(g.size.width <= 1_100, "it fits the room it was given")
+        check(g.keyHeight >= 40 && g.keyWidth >= 44, "the keys stay readable from the sofa")
+        let huge = PadKeyboardGeometry.fitting(width: 4_000)
+        check(huge.keyWidth == 104, "a wider board doesn't mean more thumb travel for nothing")
+        for key in board.keys {
+            let rect = g.rect(key)
+            check(rect.minX >= 0 && rect.maxX <= g.size.width + 0.5, "\(key.id) stays on the board")
+            for other in board.keys where other.id != key.id {
+                check(!rect.intersects(g.rect(other)), "\(key.id) and \(other.id) don't overlap")
+            }
+        }
+        let t = g.rect(board.key(id: "t")!), z = g.rect(board.key(id: "z")!)
+        check(t.maxX < g.seamX && g.seamX < z.minX, "the seam runs between T and Z")
+        check(z.minX - t.maxX == PadKeyboardGeometry.gap + PadKeyboardGeometry.splitGap, "the halves stand apart by the split")
+        let space = g.rect(board.key(id: "space")!)
+        check(space.minX < g.seamX && g.seamX < space.maxX, "the space bar lies under the seam, for the N")
+        check(abs(t.width - z.width) < 0.5, "a key is the same width on both halves")
+        let inside = g.point(CGPoint(x: 1.5, y: 1.5)), key = g.rect(board.key(id: "w")!)
+        check(key.contains(inside), "a pointer in the middle of a key is drawn on that key")
     }
 
     static func layout() {

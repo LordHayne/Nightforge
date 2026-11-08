@@ -54,6 +54,8 @@ final class LibraryModel: ObservableObject {
     }
     /// Bumped to move keyboard focus into the search field in the library's header (⌘F, /).
     @Published private(set) var searchFocusRequest = 0
+    /// The keyboard for the controller while it's open.
+    @Published private(set) var padKeyboard: PadKeyboardSession?
     /// A focus request the field hasn't taken yet: it may only appear with the library.
     private var searchFocusPending = false
     /// Home, the library grid, or a game's page.
@@ -3067,6 +3069,17 @@ final class LibraryModel: ObservableObject {
         searchFocusPending = true
         searchFocusRequest += 1
     }
+
+    /// The keyboard for the controller, over the library: the hits show above it.
+    func openPadKeyboard() -> PadKeyboardSession? {
+        guard !allGames.isEmpty else { return nil }
+        if route != .library { goLibrary() }
+        let session = PadKeyboardSession(text: searchText)
+        padKeyboard = session
+        return session
+    }
+
+    func closePadKeyboard() { padKeyboard = nil }
 
     /// The search field takes a focus request once, when it's asked or when it appears.
     func takeSearchFocus() -> Bool {

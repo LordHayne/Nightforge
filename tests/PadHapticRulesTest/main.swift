@@ -18,6 +18,8 @@ struct PadHapticRulesTest {
         check(plays(.confirm, inFront: true), "A in Nightforge")
         check(plays(.confirm, overlay: true), "A in the overlay")
         check(!plays(.confirm), "A in a game is the game's")
+        check(plays(.keyTyped, inFront: true) && !plays(.keyHover), "the keyboard only with Nightforge in front")
+        check(Rules.taps(.keyHover)[0].intensity < Rules.taps(.keyTyped)[0].intensity, "reaching a key is lighter than pressing one")
         check(plays(.gameStart, pad: true), "started with the pad")
         check(!plays(.gameStart), "started with the mouse: the pad may lie on the table")
         check(plays(.overlayHold) && plays(.overlayOpens), "the overlay's buttons are Nightforge's, in a game too")
