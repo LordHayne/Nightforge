@@ -3,7 +3,10 @@ import Foundation
 /// Ending the evening with the pad: the Mac to sleep, Nightforge closed. Today that takes the menu
 /// bar, ⌘Q or the Dock. The rules; where the entries show is the player's choice (board EinAus).
 enum PowerMenu {
-    enum Entry: Equatable { case sleepMac, quitNightforge }
+    enum Entry: Equatable, Hashable, Identifiable {
+        case sleepMac, quitNightforge
+        var id: Self { self }
+    }
 
     /// Not with a game on: the overlay ends those. A running download keeps the Mac awake on
     /// purpose (Downloads), so no sleep in the middle of it.

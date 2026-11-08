@@ -646,6 +646,13 @@ enum L10n {
         "Open when you log in": "Beim Anmelden öffnen",
         "Nightforge is there as soon as the Mac is. macOS tells you once that it's set.": "Nightforge ist da, sobald der Mac da ist. macOS weist einmal darauf hin.",
         "Confirm in System Settings …": "In den Systemeinstellungen bestätigen …",
+        "Put the Mac to sleep": "Mac schlafen legen",
+        "Put the Mac to sleep?": "Mac schlafen legen?",
+        "Sleep": "Schlafen",
+        "Quit": "Beenden",
+        "Quit Nightforge?": "Nightforge beenden?",
+        "It wakes with a key, the lid or the trackpad.": "Wach wird er mit Taste, Deckel oder Trackpad.",
+        "Steam shuts down as usual.": "Steam fährt danach wie gewohnt herunter.",
         "Notify me when downloads finish": "Mitteilung, wenn Downloads fertig sind",
         "A macOS notification with a Play button while Nightforge is in the background. Your last five games are in the Dock menu, too.":
             "Eine macOS-Mitteilung mit „Spielen“-Knopf, während Nightforge im Hintergrund ist. Deine letzten fünf Spiele stehen auch im Dock-Menü.",

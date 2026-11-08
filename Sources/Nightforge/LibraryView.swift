@@ -197,6 +197,20 @@ struct LibraryView: View {
                     .padFocus("cloud.continue", cornerRadius: 21, preferred: true, activate: { model.confirmCloud() })
             }
         }
+        .sheet(item: $model.pendingPower) { entry in
+            GlassQuestion(entry == .sleepMac ? L10n.t("Put the Mac to sleep?") : L10n.t("Quit Nightforge?"),
+                          message: entry == .sleepMac ? L10n.t("It wakes with a key, the lid or the trackpad.") : L10n.t("Steam shuts down as usual."),
+                          id: "power") {
+                // The safe answer has the highlight, as in every question.
+                Button(L10n.t("Cancel")) { model.pendingPower = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("power.cancel", cornerRadius: 21, preferred: true, activate: { model.pendingPower = nil })
+                Button(entry == .sleepMac ? L10n.t("Sleep") : L10n.t("Quit")) { model.confirmPower() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .padFocus("power.confirm", cornerRadius: 21, activate: { model.confirmPower() })
+            }
+        }
         .sheet(item: $model.pendingUninstall) { game in
             GlassQuestion(game.isInstalled ? L10n.t("Uninstall %@?", game.name) : L10n.t("Cancel the download of %@?", game.name),
                           message: game.downloadRefused ? L10n.t("Nightforge takes the download request back from Steam. Nothing was downloaded.")

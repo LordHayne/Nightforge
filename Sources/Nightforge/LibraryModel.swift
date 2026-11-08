@@ -159,6 +159,8 @@ final class LibraryModel: ObservableObject {
     @Published var showingSettings = false
     /// Waiting for the user to confirm removing this game (or its download).
     @Published var pendingUninstall: Game?
+    /// Sleeping the Mac or quitting, waiting for its "are you sure" (PowerMenu).
+    @Published var pendingPower: PowerMenu.Entry?
     /// Waiting for the user to confirm removing the Windows version of a game that now runs its Mac one.
     @Published var pendingLeftoverRemoval: Game?
     /// Steam for Mac being set up for a game whose Mac version is wanted.
@@ -4581,6 +4583,21 @@ final class LibraryModel: ObservableObject {
     func requestUninstall(_ game: Game? = nil) {
         guard let game = game ?? selected, canUninstall(game) else { return }
         pendingUninstall = game
+    }
+
+    func askPower(_ entry: PowerMenu.Entry) {
+        closeLauncherMenu()
+        pendingPower = entry
+    }
+
+    func confirmPower() {
+        guard let entry = pendingPower else { return }
+        pendingPower = nil
+        switch entry {
+        case .quitNightforge: Quit.now(by: "the small menu")
+        case .sleepMac:
+            do { try PowerMenu.sleepMac() } catch { GameLog.note("Couldn't put the Mac to sleep: \(error.localizedDescription)") }
+        }
     }
 
     func confirmUninstall() {
