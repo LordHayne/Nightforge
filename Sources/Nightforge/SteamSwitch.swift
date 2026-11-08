@@ -63,6 +63,59 @@ enum SteamLogin {
     }
 }
 
+/// A Steam's own first cloud sync after it started, as cloud_log.txt tells it. Valheim, 8.11. 14:55:
+/// Steam for Mac got the game 2 s after it started, while it was bringing down the Steam Controller
+/// Configs (AppID 241100, change 5 → 6) that the Windows Steam had changed. Its background job and the
+/// start's own step collided ("Job Canceled"), and Steam asked "Unable to Sync – Play anyway / Cancel"
+/// (SynchronizingControllerConfig "syncfailed"). Valheim's own saves were in step, and two minutes
+/// later, with nothing to bring down, the same start went through. So a Steam that has only just
+/// started gets the game once that sync is done – never for long, and only a just-started one.
+enum SteamCloudStart {
+    private static let controllerConfigs = "[AppID 241100]"
+    /// How long after its start Steam may still begin that sync (it did within 3 s).
+    nonisolated static let beginsWithin: TimeInterval = 20
+    /// How long after its start the sync may hold a game at all.
+    nonisolated static let finishesWithin: TimeInterval = 30
+
+    static func shouldWait(steamRoot: URL, now: Date = Date()) -> Bool {
+        let url = steamRoot.appendingPathComponent("logs/cloud_log.txt")
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        try? handle.seek(toOffset: size > 262_144 ? size - 262_144 : 0)
+        return shouldWait(log: String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self), now: now)
+    }
+
+    /// `log`: cloud_log.txt; its last "Client version:" line is this Steam's start.
+    static func shouldWait(log: String, now: Date) -> Bool {
+        guard let start = log.range(of: "Client version:", options: .backwards) else { return false }
+        let lineStart = log[..<start.lowerBound].lastIndex(where: \.isNewline).map { log.index(after: $0) } ?? log.startIndex
+        guard let started = date(log[lineStart..<start.lowerBound]) else { return false }
+        let age = now.timeIntervalSince(started)
+        let lines = log[start.upperBound...].split(whereSeparator: \.isNewline).filter { $0.contains(controllerConfigs) }
+        guard !lines.isEmpty else { return age < beginsWithin }
+        var evaluated = false
+        var toFetch = false
+        for line in lines {
+            if line.contains("Starting sync (eval") { evaluated = false }
+            if line.contains("Need to sync from local change number") { toFetch = true }
+            if line.contains("Eval complete") { evaluated = true }
+            if line.contains("Download complete") || line.contains("Successfully synced to ChangeNumber") { toFetch = false }
+        }
+        return (!evaluated || toFetch) && age < finishesWithin
+    }
+
+    /// "[2026-11-08 14:55:37] "
+    private static func date(_ prefix: Substring) -> Date? {
+        guard prefix.hasPrefix("["), let close = prefix.firstIndex(of: "]") else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        return formatter.date(from: String(prefix[prefix.index(after: prefix.startIndex)..<close]))
+    }
+}
+
 /// Which of the two Steams runs. Both sign in with the same account, and Steam keeps one session
 /// per account, login ID and public IP – the login ID comes from the Mac's local address, so the
 /// second Steam to sign in signs the first one out ("Session Replaced"), and it stays out. The

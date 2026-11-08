@@ -15,6 +15,31 @@ Zweig `claude/ladescreen-audit-2f71a4`, aufbauend auf `f30d255` (staging-032). G
 - 10 Korrekturen sind auf dem Zweig und getestet. Neues Aussehen gibt es nicht, deshalb kein Board. Was offen bleibt, steht
   unter „Für 0.3.3“.
 
+## Nachtrag: Live-Befunde zu Build 83fdb25 (8.11., 14:53 bis 14:58)
+
+**C1 · Overwatch bleibt schwarz, ein Klick im Dock zeigt es.** Der Dock-Klick schickt ein Reopen-Ereignis, und Wine holt dabei
+das minimierte Fenster zurück (`applicationShouldHandleReopen` → `unminimizeWindowIfNoneVisible`). Dasselbe passiert, wenn das
+Spiel wirklich neu aktiv wird. Unser Zurückholen erreichte beides nicht: `NSApp.activate` aus dem Hintergrund ignoriert macOS,
+solange das vordere Spiel nicht abgibt. Beleg: Bei den drei `fetching back` um 14:53 steht keine einzige Aktivierung im Log. Ein
+eigenes Reopen-Ereignis scheidet aus, weil es nach Automatisierungsrechten fragen würde (`AEDetermine…` an eine fremde App:
+-1744, Dialog beim Spieler). `handFocus` geht jetzt über Launch Services selbst nach vorn, wartet darauf und übergibt dann, das
+Spiel wird also wirklich aktiv. Am Spielprozess hängt nichts. Ob es Overwatch zurückbringt, zeigt erst der Live-Test.
+
+**C2 · Flackern bei Start und Ende.** Beim Start sank der Vorhang für ein noch wechselndes Fenster (1392×742, dann 1342×710),
+danach setzte das Spiel erst den Anzeigemodus. Beim Ende lag der Vorhang unter Wines Schutzfenster und dem Spiel. Jetzt muss die
+Bildgröße 2 s stehen, und der Vorhang liegt über dem Schutzfenster, solange es eins gibt. Dauerhaft darf er das nicht, sonst
+verdeckt er ⌘-Tab und macOS-Meldungen. Das Overlay geht darüber. Das kurze Schwarz der Bildschirm-Umschaltung selbst bleibt.
+
+**C3 · „Unable to Sync“ vor Valheim (14:55).** Valheims Spielstände waren nicht betroffen: `[AppID 892970] … already synced`. Es
+ging um Steams Controller-Konfigurationen (AppID 241100, Änderung 5 → 6): `SynchronizingControllerConfig "syncfailed"`, im
+`cloud_log` „Job Canceled“. Steam für Mac bekam das Spiel 2 s nach dem Start, mitten in diesem Download. Um 14:57, ohne etwas zum
+Herunterladen, lief derselbe Start durch. `SteamCloudStart` hält ein gerade gestartetes Steam bis zum Ende dieses Abgleichs auf,
+höchstens 30 s nach seinem Start, auf beiden Steam-Wegen. Steam Cloud selbst bleibt unberührt.
+
+Live-Prüfung dazu: (a) Overwatch 3×, kein Schwarz, kein Dock-Klick nötig, im Log kein `didn't come back`; (b) Start und Ende von
+Overwatch ohne Flackern; im Log `The curtain goes over a captured display's shield`; (c) Windows-Spiel mit verändertem Controller,
+dann Valheim: keine Frage von Steam, im Log nur bei Bedarf `Steam Cloud: Steam finishes its first sync`.
+
 ## Wer was macht
 
 | Teil | Aufgabe |

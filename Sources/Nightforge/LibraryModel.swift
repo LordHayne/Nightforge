@@ -966,6 +966,8 @@ final class LibraryModel: ObservableObject {
         /// Its picture on the Space shown since, and how often its window was fetched back under the curtain.
         var pictureSince: Date?
         var broughtBack = 0
+        /// The picture's size on the Space shown, and since when it hasn't changed.
+        var pictureSize: (size: String, since: Date)?
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
@@ -1044,6 +1046,7 @@ final class LibraryModel: ObservableObject {
                     return end("the start went wrong")
                 }
             }
+            if loweredAt == nil { GameBackdrop.keepOverShield() }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             // One list for all of it: the game's processes and macOS's askers come from the same look.
@@ -1146,10 +1149,15 @@ final class LibraryModel: ObservableObject {
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
-            let (here, anywhere, asking, windows, shieldOnly) = await Task.detached(priority: .utility) {
+            let (here, anywhere, asking, windows, shieldOnly, size) = await Task.detached(priority: .utility) {
                 (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.questionWindow(pids),
-                 GameProcesses.windowList(pids), GameProcesses.onlyShield(pids))
+                 GameProcesses.windowList(pids), GameProcesses.onlyShield(pids), GameProcesses.windowSize(pids))
             }.value
+            if here, let size {
+                if pictureSize?.size != size { pictureSize = (size, Date()) }
+            } else {
+                pictureSize = nil
+            }
             if let asking, asking.number != questionSeen?.number { questionSeen = (asking.number, Date()) }
             if asking == nil { questionSeen = nil }
             let question = asking?.number
@@ -1216,7 +1224,8 @@ final class LibraryModel: ObservableObject {
                                     settle: raisedAgain == 0 ? 1 : Self.settleAgain,
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false,
                                     pictureFor: pictureSince.map { Date().timeIntervalSince($0) } ?? 0,
-                                    broughtBack: broughtBack, playerActed: Self.playerActed(), shieldOnly: shieldOnly) {
+                                    broughtBack: broughtBack, playerActed: Self.playerActed(), shieldOnly: shieldOnly,
+                                    steadyFor: pictureSize.map { Date().timeIntervalSince($0.since) } ?? 0) {
             case .wait:
                 break
             case .handOver:
@@ -1504,7 +1513,8 @@ final class LibraryModel: ObservableObject {
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, macOSAsks: Bool = false,
                                         windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
                                         settle: TimeInterval = 1, guardOver: Bool, pictureFor: TimeInterval = 0,
-                                        broughtBack: Int = 0, playerActed: Bool = false, shieldOnly: Bool = false) -> CurtainStep {
+                                        broughtBack: Int = 0, playerActed: Bool = false, shieldOnly: Bool = false,
+                                        steadyFor: TimeInterval = .infinity) -> CurtainStep {
         if lowered {
             if guardOver || (nightforgeFront && playerActed) { return .done }
             return gameFront || macOSAsks ? .wait : .raiseAgain
@@ -1516,7 +1526,7 @@ final class LibraryModel: ObservableObject {
         guard gameFront else { return handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
         // page while the game had the front (1.11.).
-        if windowHere { return frontFor >= settle ? .lower : .wait }
+        if windowHere { return frontFor >= settle && steadyFor >= pictureSteady ? .lower : .wait }
         guard !macOSAsks, frontFor >= windowAwayPatience else { return .wait }
         if broughtBack < maxBroughtBack { return .bringBack }
         // Only a black shield on screen (Overwatch, 8.11.): sinking would count it as a picture and
@@ -1524,6 +1534,10 @@ final class LibraryModel: ObservableObject {
         return shieldOnly ? .wait : .lower
     }
 
+    /// How long the picture's size has to stay before the curtain sinks: Overwatch on 8.11. 14:53 showed
+    /// a window of 1392×742, then 1342×710, and only then set its display mode. The curtain sank in
+    /// between, so the page and a black screen flashed up.
+    nonisolated static let pictureSteady: TimeInterval = 2
     /// How long a picture may stand under the curtain, whatever has the front.
     nonisolated static let curtainCeiling: TimeInterval = 15
     /// How long the game has the front with its window off the screen before it's fetched back.
@@ -1570,10 +1584,26 @@ final class LibraryModel: ObservableObject {
         GameBackdrop.handingOver = again  // the page stays while Nightforge has the front for this
         defer { GameBackdrop.handingOver = false }
         if !NSApp.isActive {
-            // Not through Launch Services here: its activation can land after the handover and take
-            // the front back from the game.
+            // Not through Launch Services for a plain handover: its activation can land after it and
+            // take the front back from the game.
             NSApp.activate(ignoringOtherApps: true)
-            for _ in 0..<20 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+            for _ in 0..<(again ? 6 : 20) where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+            if Self.fetchesFrontItself(again: again, active: NSApp.isActive) {
+                // macOS ignores `activate` from behind while the app in front doesn't yield: Overwatch's
+                // three fetches on 8.11. changed nothing (not one activation in wine.log), a click on the
+                // Dock brought it back at once. The Dock sends a reopen event, which Wine answers like
+                // becoming active (unminimizeWindowIfNoneVisible) – but such an event from Nightforge
+                // would ask the player for Automation rights. So a real round: Nightforge in front
+                // through Launch Services, awaited, and then the handover below makes the game active.
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                for _ in 0..<30 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
+                guard NSApp.isActive else {
+                    GameLog.note("Fetching the game back: Nightforge didn't get the front to hand it over")
+                    return app.isActive
+                }
+            }
         }
         InputRouter.hidePointerForGame()
         NSApp.yieldActivation(to: app)
@@ -1584,6 +1614,10 @@ final class LibraryModel: ObservableObject {
         // a game's keys to hide it costs its full screen (watchCurtain).
         return app.isActive
     }
+
+    /// A game to be fetched back (`again`) needs a real change of the active app, and Nightforge's own
+    /// `activate` didn't get it the front: it goes through Launch Services.
+    nonisolated static func fetchesFrontItself(again: Bool, active: Bool) -> Bool { again && !active }
 
     /// The game's program with windows among its processes: a Windows game's .exe under Wine, a Mac game's app.
     private static func gameApp(_ pids: Set<pid_t>) -> NSRunningApplication? {
@@ -2696,6 +2730,7 @@ final class LibraryModel: ObservableObject {
             }
             awaitingSteam = false
             launchPhase = nil
+            await waitForSteamCloud(MacSteam.root)
             // steam://run/<id>//<arguments>: the extra part goes to the game.
             let extra = arguments.isEmpty ? ""
                 : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
@@ -2758,6 +2793,24 @@ final class LibraryModel: ObservableObject {
                 }
             }
             if !Task.isCancelled { stepBack(behind: game, behavior) }  // a new start has the curtain
+        }
+    }
+
+    /// A Steam that has only just started finishes its own first cloud sync before it gets a game
+    /// (`SteamCloudStart`). Steam then decides for itself as ever; nothing of its cloud is skipped.
+    private func waitForSteamCloud(_ root: URL) async {
+        var waiting = false
+        defer { if waiting { launchPhase = nil } }
+        for _ in 0..<35 {
+            guard !Task.isCancelled,
+                  await Task.detached(priority: .utility, operation: { SteamCloudStart.shouldWait(steamRoot: root) }).value
+            else { return }
+            if !waiting {
+                waiting = true
+                launchPhase = .signingIn
+                GameLog.note("Steam Cloud: Steam finishes its first sync before the game starts, at \(GameLog.clock())")
+            }
+            try? await Task.sleep(for: .seconds(1))
         }
     }
 
@@ -3561,6 +3614,7 @@ final class LibraryModel: ObservableObject {
                 if !Engine.steamSignedIn { _ = await restartStuckSteam(wine) }
                 launchPhase = nil
             }
+            if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
             if game.provider == .epic, game.pendingUpdate != nil {
