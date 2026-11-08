@@ -91,7 +91,7 @@ clang -arch arm64 -mmacosx-version-min=14.0 -O2 -Wall \
 # The same helper as a finished app inside Nightforge, so codesign-app.sh signs it with Nightforge's
 # certificate: macOS then knows it by that, and asks for a permission (removable volumes) only once
 # instead of again after every build (8.11.). Nightforge copies it out at runtime (Detached.swift).
-HELPER_APP="$OUT/Contents/Library/Helpers/Nightforge Helper.app"
+HELPER_APP="$OUT/Contents/Helpers/Nightforge Helper.app"
 mkdir -p "$HELPER_APP/Contents/MacOS" "$HELPER_APP/Contents/Resources"
 cp "$OUT/Contents/Resources/nightforge-helper" "$HELPER_APP/Contents/MacOS/nightforge-helper"
 cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'

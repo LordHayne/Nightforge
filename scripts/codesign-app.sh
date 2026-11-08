@@ -38,14 +38,25 @@ fi
 if [ -n "$IDENTITY" ]; then
   BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")"
   REQUIREMENT="designated => identifier \"$BUNDLE_ID\" and certificate leaf = H\"$IDENTITY\""
-  # Nested code first with its own requirements, then the app with the one that names it.
+  # Nested code first with its own requirements, then the app with the one that names it. The helper app
+  # by name: --deep doesn't count Contents/Helpers as nested code, and with its own requirement on the
+  # certificate macOS keeps its permissions across builds (Detached.swift).
+  HELPER="$APP_PATH/Contents/Helpers/Nightforge Helper.app"
+  if [ -d "$HELPER" ]; then
+    HELPER_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$HELPER/Contents/Info.plist")"
+    codesign --force --timestamp=none --sign "$IDENTITY" ${KEYCHAIN[@]+"${KEYCHAIN[@]}"} \
+      -r="designated => identifier \"$HELPER_ID\" and certificate leaf = H\"$IDENTITY\"" "$HELPER" >/dev/null
+  fi
   codesign --force --deep --timestamp=none --sign "$IDENTITY" ${KEYCHAIN[@]+"${KEYCHAIN[@]}"} "$APP_PATH" >/dev/null
   codesign --force --timestamp=none --sign "$IDENTITY" ${KEYCHAIN[@]+"${KEYCHAIN[@]}"} -r="$REQUIREMENT" "$APP_PATH" >/dev/null
   codesign --verify --deep --strict "$APP_PATH"
+  [ ! -d "$HELPER" ] || codesign --verify --strict "$HELPER"
   codesign --display -r - "$APP_PATH" 2>/dev/null | grep -qiF "certificate leaf = H\"$IDENTITY\"" \
     || { echo "✗ The app's designated requirement doesn't name the certificate." >&2; exit 1; }
   echo "✓ Signed with Nightforge's code signing identity ($IDENTITY)"
 else
-  # Ad hoc, so macOS launches the app without any identity.
+  # Ad hoc, so macOS launches the app without any identity; the helper app by name first, as above.
+  [ ! -d "$APP_PATH/Contents/Helpers/Nightforge Helper.app" ] \
+    || codesign --force --sign - "$APP_PATH/Contents/Helpers/Nightforge Helper.app" >/dev/null
   codesign --force --deep --sign - "$APP_PATH" >/dev/null
 fi

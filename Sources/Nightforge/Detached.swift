@@ -204,7 +204,7 @@ final class DetachedProcess: @unchecked Sendable {
     private static var helperFailed = false
 
     /// The finished helper app inside Nightforge.app (build.sh), signed with Nightforge's certificate.
-    static var shippedHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/Helpers/\(helperName)", isDirectory: true)
+    static var shippedHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/\(helperName)", isDirectory: true)
 
     /// The helper as an app of its own in Nightforge's data folder. Copied from the signed one inside
     /// Nightforge.app when there is one: macOS knows it by the certificate then and asks for a permission
