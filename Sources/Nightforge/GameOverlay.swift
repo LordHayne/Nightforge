@@ -81,15 +81,12 @@ enum GameOverlay {
         display = GameProcesses.display(of: windows, pids: Set(pids)) ?? screenNumber(screen)
         let frame = display.map(Self.frame(of:)) ?? screen.frame
         panel.setFrame(frame, display: false)
-        // A game that took the screen for itself (a real display-mode change) has a shield above
-        // every window: Nightforge comes to the front instead, with the same choice.
-        if GameProcesses.screenCaptured() { comeForward() }
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).
         let coverLevel = GameProcesses.coverLevel(windows, screen: GameProcesses.cgRect(frame), except: getpid())
         panel.level = NSWindow.Level(rawValue: panelLevel(coverLevel: coverLevel))
         panel.orderFrontRegardless()
-        panel.makeKey()
+        if Self.takesKeys(step) { panel.makeKey() }
         focusDefault()
         heard = false
         opened += 1
@@ -151,7 +148,7 @@ enum GameOverlay {
         if !again {
             panel.level = NSWindow.Level(rawValue: raisedLevel(panel.level.rawValue, covering: covering ?? []))
             panel.orderFrontRegardless()
-            panel.makeKey()
+            if Self.takesKeys(state.step) { panel.makeKey() }
             GameLog.note("Overlay not seen for \(state.game) after 300 ms (\(seen)): raised to L\(panel.level.rawValue), brought to the front")
             Task {
                 try? await Task.sleep(for: .milliseconds(300))
@@ -167,6 +164,14 @@ enum GameOverlay {
     /// Whether the panel shows: nothing in front of it on the Space shown, and macOS counts it as
     /// visible.
     nonisolated static func shows(inFront: Bool, occlusionVisible: Bool) -> Bool { inFront && occlusionVisible }
+
+    /// Whether the panel takes the keys. Not over a game that shows a picture: losing them, The Forest
+    /// lay down in the Dock the moment the panel opened (8.11. 15:5x: `picture here`, next look
+    /// `picture elsewhere`), as Unity and Unreal games do (GameStage), and nothing came back of it for
+    /// the player but a game out of its full screen. The pad reaches Nightforge without them and the
+    /// mouse works through a panel that doesn't need them; the keyboard answers only "Not starting?",
+    /// where no picture is lost. The overlay opens only with the pad, so there's one in the hand.
+    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting }
 
     /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
     /// the screen should that lie higher.
@@ -202,7 +207,7 @@ enum GameOverlay {
         guard !leaving else { return }
         // In wine.log: which presses arrive (the pad on "Not starting?", 1.11.), and who's in front.
         GameLog.note("Overlay: \(event) on \(state.step), \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nobody") in front"
-                     + (panel?.isKeyWindow == true ? "" : ", the panel without the keys"))
+                     + (Self.takesKeys(state.step) && panel?.isKeyWindow != true ? ", the panel without the keys" : ""))
         let (step, effect) = transition(state.step, event)
         if step != state.step { show(step) }
         switch effect {
@@ -309,8 +314,6 @@ enum GameOverlay {
         state.paused = false
     }
 
-    private static func comeForward() { NSApp.comeToFront() }
-
     private static func make() -> NSPanel {
         let panel = OverlayPanel(contentRect: NSScreen.main?.frame ?? .zero, styleMask: [.borderless, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
@@ -324,6 +327,7 @@ enum GameOverlay {
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
+        panel.becomesKeyOnlyIfNeeded = true  // a click on a button leaves the game its keys too
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { followDisplay() }
         }
@@ -338,7 +342,7 @@ enum OverlayStep: Equatable { case menu, notStarting, confirmQuit, quitting }
 
 enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart }
 
-/// Takes keys without making Nightforge the active app, so the game's Space stays where it is.
+/// Can take keys without making Nightforge the active app (`takesKeys`), so the game's Space stays where it is.
 private final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { GameOverlay.back() }  // Esc

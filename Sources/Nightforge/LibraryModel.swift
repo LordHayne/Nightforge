@@ -1713,16 +1713,35 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// A controller came after a Windows game started without one: many only look for pads at start
-    /// (Left 4 Dead 2, 7.11.). Said once for a few seconds over the game, then asked in the overlay.
+    /// A controller came after a Windows game started without one. Only games known to look for pads
+    /// at their start hear about it (Left 4 Dead 2, 7.11.): The Forest and Valheim took one at once on
+    /// 8.11. and were offered a restart all the same. Said once for a few seconds over the game, then
+    /// asked in the overlay.
     func padArrivedLate() {
         guard let game = allGames.first(where: { padlessStarts.contains($0.id) && running[$0.id] != nil }) else { return }
         padlessStarts.remove(game.id)
-        GameOverlay.lateController = true
-        GameLog.note("A controller came after \(game.name) started without one: hint shown, the overlay offers a restart")
-        GameHint.show(title: L10n.t("Controller connected"),
-                      detail: L10n.t("%@ may only find it after a restart – the overlay offers one.", game.name),
-                      on: GameDisplay.gameScreen)
+        let folder = game.installDir
+        Task {
+            guard await Task.detached(priority: .utility, operation: { Self.readsPadsOnlyAtStart(installDir: folder) }).value,
+                  running[game.id] != nil
+            else { return }
+            GameOverlay.lateController = true
+            GameLog.note("A controller came after \(game.name) started without one: hint shown, the overlay offers a restart")
+            GameHint.show(title: L10n.t("Controller connected"),
+                          detail: L10n.t("%@ may only find it after a restart – the overlay offers one.", game.name),
+                          on: GameDisplay.gameScreen)
+        }
+    }
+
+    /// Whether a game is known to look for controllers only when it starts: Valve's Source engine
+    /// (bin/engine.dll, and gameinfo.txt in its folder or a folder of its content). From outside
+    /// Nightforge can't see whether a game reads a pad, so everything else hears nothing.
+    nonisolated static func readsPadsOnlyAtStart(installDir: URL) -> Bool {
+        let manager = FileManager.default
+        guard manager.fileExists(atPath: installDir.appendingPathComponent("bin/engine.dll").path) else { return false }
+        if manager.fileExists(atPath: installDir.appendingPathComponent("gameinfo.txt").path) { return true }
+        let folders = (try? manager.contentsOfDirectory(at: installDir, includingPropertiesForKeys: nil)) ?? []
+        return folders.contains { manager.fileExists(atPath: $0.appendingPathComponent("gameinfo.txt").path) }
     }
 
     /// "Restart Nightforge" (menu, Settings): Nightforge quits, the shutdown script ends Steam (both),
