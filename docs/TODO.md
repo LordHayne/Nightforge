@@ -255,6 +255,14 @@ Die Tests vom 26.10. liefen größtenteils noch auf Wine 11.18 (Gcenx). Seit PR 
   `msync: up and running` (Test vom 28.10.), also ist dessen eigenes msync aktiv. Beide haben denselben Fehler beim
   Thread-Ende (unten „Engine-Arbeit“). Für winecx behebt ihn `enginefix` (Stück B).
 
+## Ladescreen-Audit (8.11.) – Zweig `claude/ladescreen-audit-2f71a4`, live prüfen
+
+Bericht und Live-Liste: `docs/AUDIT-LADESCREEN.md`. Behoben: schwarzes Schutzfenster galt als Bild (Overwatch 13:40), das
+Zeiger-Panel nahm Steam Helper die Tasten, Vorhang ab „Spielen“ auf beiden Steam-Wegen, Steams Store über seinen Dialogen,
+`MacSteam.hide` jetzt mit Helper, der Vorhang folgt dem Anzeigemodus, Esc auf dem Vorhang.
+Für 0.3.3: kein Ausweg vom Vorhang ohne Spielprozess (B2), Steams Frage auf dem Vorhang statt ohne ihn (B3, Board),
+Epic/GOG-Vorlauf unter den Vorhang (B4), Hinweise nehmen den Vorhang weg (B5), `GameStage` holt ein endendes Spiel zurück (B1).
+
 ## Vorhang und Bühnenwache (0.3.2) – Zweig `claude/vorhang-032`, live prüfen
 
 - **Was war:** Nightforges Zeiger-Panel (`InputRouter.pointerOverGame`) nahm dem Spiel 50 ms die Tasten. Wine meldet das dem

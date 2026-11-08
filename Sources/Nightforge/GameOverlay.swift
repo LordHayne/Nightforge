@@ -755,12 +755,20 @@ enum GameProcesses {
         return info.pbi_status == UInt32(SSTOP)
     }
 
+    /// A captured display's shield: black, the size of the screen, and the game's own window lies a
+    /// level or two above it (L…630 or L…629 in every run with a picture, Overwatch, ABZU, Control).
+    /// Overwatch's black start on 8.11. 13:40 had only this one on screen, its real window hidden,
+    /// while DXMT drew 57 FPS into nothing – and the curtain sank for it.
+    nonisolated static func isShield(level: Int) -> Bool { level == Int(CGShieldingWindowLevel()) }
+
     /// Whether one of `pids` shows a window of a game's size on screen (CGWindowList's entries):
-    /// what the curtain waits for. Small ones – a splash, a launcher's dialog – don't count.
+    /// what the curtain waits for. Small ones – a splash, a launcher's dialog – don't count, nor
+    /// does a captured display's black shield (`isShield`).
     nonisolated static func showsWindow(_ windows: [[String: Any]], pids: Set<pid_t>) -> Bool {
         windows.contains { window in
+            let level = (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
             guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner),
-                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= 0,
+                  level >= 0, !isShield(level: level),
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: Any],
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue, let height = (bounds["Height"] as? NSNumber)?.doubleValue
@@ -944,6 +952,21 @@ enum GameProcesses {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
         else { return false }
         return showsWindow(windows, pids: pids)
+    }
+
+    /// `pids` have a captured display's shield on the Space shown and no picture above it: the screen
+    /// is black, whatever the game draws (`isShield`).
+    nonisolated static func onlyShield(_ windows: [[String: Any]], pids: Set<pid_t>) -> Bool {
+        !showsWindow(windows, pids: pids) && windows.contains { window in
+            guard let owner = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pids.contains(owner) else { return false }
+            return isShield(level: (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0)
+        }
+    }
+
+    nonisolated static func onlyShield(_ pids: Set<pid_t>) -> Bool {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        return onlyShield(windows, pids: pids)
     }
 
     /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it.

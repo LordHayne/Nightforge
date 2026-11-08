@@ -775,6 +775,7 @@ final class LibraryModel: ObservableObject {
 
     /// `page`: the page the player comes back to, set already. `then`: once the curtain is gone.
     private func comeBack(to page: Route, then: @escaping @MainActor () -> Void = {}) {
+        GameLog.note("Back to Nightforge at \(GameLog.clock())")
         MacSteam.hide()
         Task {
             // The page's change (0.22 s) done first: a switch of Spaces shows the window as it is
@@ -994,6 +995,7 @@ final class LibraryModel: ObservableObject {
             if let lowest = macOSOnScreen.last { GameBackdrop.makeWay(under: lowest) }
         }
         GameLog.note("Curtain watch for \(game.name) begins")
+        GameLog.note("  at \(GameLog.clock())")
         defer { curtainGuards = false }
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(500))
@@ -1012,6 +1014,8 @@ final class LibraryModel: ObservableObject {
                 case .wait:
                     continue
                 case .over:
+                    // Answered with Cancel, or the start went wrong: Steam's window doesn't stay.
+                    hideSteamWindow(for: game)
                     return end("Steam asked, the start is over")
                 case .back:
                     steamAsked = false
@@ -1085,8 +1089,10 @@ final class LibraryModel: ObservableObject {
             case .answered:
                 macOSAskedSince = nil
                 // Down already, the game has the screen: no curtain over it.
-                if loweredAt == nil { curtainUp() }
-                GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
+                if loweredAt == nil {
+                    curtainUp()
+                    GameLog.note("Curtain up again for \(game.name): macOS's question is answered")
+                }
             case .none:
                 if !asksNow {
                     macOSAskedSince = nil
@@ -1129,9 +1135,9 @@ final class LibraryModel: ObservableObject {
             // its own) is the game's side too: no handing over, no curtain again.
             let gameFront = front.map(pids.contains) ?? false || companion
             frontSince = gameFront ? (frontSince ?? Date()) : nil
-            let (here, anywhere, asking, windows) = await Task.detached(priority: .utility) {
+            let (here, anywhere, asking, windows, shieldOnly) = await Task.detached(priority: .utility) {
                 (GameProcesses.showsWindow(pids), GameProcesses.showsWindow(pids, anySpace: true), GameProcesses.questionWindow(pids),
-                 GameProcesses.windowList(pids))
+                 GameProcesses.windowList(pids), GameProcesses.onlyShield(pids))
             }.value
             if let asking, asking.number != questionSeen?.number { questionSeen = (asking.number, Date()) }
             if asking == nil { questionSeen = nil }
@@ -1172,11 +1178,16 @@ final class LibraryModel: ObservableObject {
             pointerFront = front
             // Nor while macOS asks, nor while one of its askers has the front before its window shows.
             if loweredAt == nil, !asks, !madeWay, !macOSAsks, !(front.map(askers.contains) ?? false) {
-                if gameFront, !here, !anywhere, let since = frontSince, since != pointerHidden, Date().timeIntervalSince(since) >= 1 {
-                    pointerHidden = since
+                switch Self.pointerUnderCurtain(gameFront: gameFront, picture: here || anywhere,
+                                                frontForSecond: frontSince.map { $0 != pointerHidden && Date().timeIntervalSince($0) >= 1 } ?? false,
+                                                newFront: newFront, nightforgeFront: front == getpid()) {
+                case .overGame:
+                    pointerHidden = frontSince
                     InputRouter.hidePointerOverGame()
-                } else if !gameFront, newFront, front != nil {
-                    if front == getpid() { InputRouter.hidePointerForGame() } else { InputRouter.hidePointerOverGame() }
+                case .fromNightforge:
+                    InputRouter.hidePointerForGame()
+                case .leave:
+                    break
                 }
             }
             // Its question answered, no picture yet: the curtain over everything again until there is one.
@@ -1194,7 +1205,7 @@ final class LibraryModel: ObservableObject {
                                     settle: raisedAgain == 0 ? 1 : Self.settleAgain,
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false,
                                     pictureFor: pictureSince.map { Date().timeIntervalSince($0) } ?? 0,
-                                    broughtBack: broughtBack, playerActed: Self.playerActed()) {
+                                    broughtBack: broughtBack, playerActed: Self.playerActed(), shieldOnly: shieldOnly) {
             case .wait:
                 break
             case .handOver:
@@ -1224,6 +1235,7 @@ final class LibraryModel: ObservableObject {
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
                 GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
+                GameLog.note("  at \(GameLog.clock())")
                 // Down because it had stood long enough: going up again for the front would only flap.
                 if !gameFront { return end("its picture doesn't stay under the curtain, the stage watch has it") }
             case .raiseAgain:
@@ -1333,9 +1345,16 @@ final class LibraryModel: ObservableObject {
         questions.contains { !before.contains($0) }
     }
 
-    /// Steam waits for the player in its window during a start: a question before it (licence,
-    /// ShowInterstitials), or its sign-in after a restart (`restartStuckSteam`).
-    private var steamAsks: Bool { launchNeedsConfirmation || launchPhase == .signInAgain }
+    /// The start waits for the player where the curtain would hide it: Steam's question (licence,
+    /// ShowInterstitials), its sign-in – after a restart (`restartStuckSteam`) or a Steam for Mac that
+    /// lost it (`launchMac`) – or the choice of saves, a sheet in Nightforge's own window.
+    private var steamAsks: Bool {
+        Self.startAsksPlayer(needsConfirmation: launchNeedsConfirmation, phase: launchPhase, savesToChoose: saveChoice != nil)
+    }
+
+    nonisolated static func startAsksPlayer(needsConfirmation: Bool, phase: LaunchPhase?, savesToChoose: Bool) -> Bool {
+        needsConfirmation || savesToChoose || phase == .signInAgain || phase == .signInInSteamWindow
+    }
 
     enum SteamTurn: Equatable { case none, away, wait, back, over }
 
@@ -1438,6 +1457,19 @@ final class LibraryModel: ObservableObject {
         return size.width < thinRatio * size.height || standing >= thinPatience
     }
 
+    enum PointerStep: Equatable { case leave, overGame, fromNightforge }
+
+    /// How the pointer is hidden under the curtain, when at all. Over a game without a picture yet the
+    /// sheer panel may take its keys for 50 ms; Nightforge in front needs no panel. Any other app is
+    /// left alone: the panel took the keys from Steam Helper – as its question came up (Drawful 2,
+    /// 8.11.), five times on the way back – and from Claude, Chrome and Finder.
+    /// The price: while such an app has the front, the pointer can show on the curtain.
+    nonisolated static func pointerUnderCurtain(gameFront: Bool, picture: Bool, frontForSecond: Bool, newFront: Bool,
+                                                nightforgeFront: Bool) -> PointerStep {
+        if gameFront { return !picture && frontForSecond ? .overGame : .leave }
+        return newFront && nightforgeFront ? .fromNightforge : .leave
+    }
+
     enum CurtainStep: Equatable { case wait, handOver, makeWay, bringBack, lower, raiseAgain, done }
 
     /// What the curtain does at a look. Up: it waits for the game's window – `windowHere` on the
@@ -1461,7 +1493,7 @@ final class LibraryModel: ObservableObject {
     nonisolated static func curtainStep(lowered: Bool, gameFront: Bool, nightforgeFront: Bool, macOSAsks: Bool = false,
                                         windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
                                         settle: TimeInterval = 1, guardOver: Bool, pictureFor: TimeInterval = 0,
-                                        broughtBack: Int = 0, playerActed: Bool = false) -> CurtainStep {
+                                        broughtBack: Int = 0, playerActed: Bool = false, shieldOnly: Bool = false) -> CurtainStep {
         if lowered {
             if guardOver || (nightforgeFront && playerActed) { return .done }
             return gameFront || macOSAsks ? .wait : .raiseAgain
@@ -1475,7 +1507,10 @@ final class LibraryModel: ObservableObject {
         // page while the game had the front (1.11.).
         if windowHere { return frontFor >= settle ? .lower : .wait }
         guard !macOSAsks, frontFor >= windowAwayPatience else { return .wait }
-        return broughtBack < maxBroughtBack ? .bringBack : .lower
+        if broughtBack < maxBroughtBack { return .bringBack }
+        // Only a black shield on screen (Overwatch, 8.11.): sinking would count it as a picture and
+        // never ask. The start stays open, "Not starting?" comes over the shield in its time.
+        return shieldOnly ? .wait : .lower
     }
 
     /// How long a picture may stand under the curtain, whatever has the front.
@@ -2601,6 +2636,10 @@ final class LibraryModel: ObservableObject {
         let arguments = GameOptionsStore.load(game.gameID).extraArgs.trimmingCharacters(in: .whitespaces)
         launchTask = Task {
             defer { endLaunch(number) }
+            // The curtain at once: the Steams changing over took 9–27 s behind Nightforge's page, with
+            // Steam's windows coming up (8.11.). It says what's happening, and goes for what the player
+            // has to answer (`steamAsks`).
+            raiseCurtain(for: game)
             // The Windows Steam goes (one sign-in per account on a Mac), once its last game's save is up.
             await steamSwitch.makeWayForMac(facts: steamFacts, phase: { self.launchPhase = $0 })
             let steamStarted = Date()
@@ -2613,6 +2652,8 @@ final class LibraryModel: ObservableObject {
                 launchPhase = .signingIn
                 await MacSteam.quit()
                 MacSteam.start()
+            } else if !(MacSteam.signedIn && MacSteam.startupFinished) {
+                launchPhase = .startingSteamForMac  // up and still starting: no wait without a word
             }
             // Steam turns commands away until it has signed in and finished starting. It signs in by
             // itself; when it asks instead (its remembered sign-in ran out), its window comes at once,
@@ -3468,6 +3509,9 @@ final class LibraryModel: ObservableObject {
             defer { endLaunch(number) }
             // However the start ends, one judged by its first seconds brings Nightforge back from its curtain.
             defer { finishJudging(game, current: number == launchNumber && !Task.isCancelled) }
+            // The curtain at once for a game through Steam, as for a Mac version (`launchMac`): Steam for
+            // Mac going and this Steam coming up happen under it, not behind the page.
+            if viaSteam { raiseCurtain(for: game) }
             if viaSteam, game.bottle.isBuiltIn {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
