@@ -65,6 +65,8 @@ struct BattleNetTest {
             return
         }
         TestDefaults.useWorkFolder()
+        check(!LibraryModel.hidesBattleNetWindow(messageUp: true), "a start that ended with a message sends the player to the client: its window stays")
+        check(LibraryModel.hidesBattleNetWindow(messageUp: false), "a question answered, the game on its way: the window goes")
         parses()
         refuses()
         realFiles()
