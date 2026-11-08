@@ -52,7 +52,7 @@ Your Steam, Epic and GOG games show up together. Nightforge downloads and starts
 
 ### Made for the couch
 
-Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, and the pointer hides until you move the mouse again; signing in and searching still need a keyboard. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge like on a console, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait. Keyboard and trackpad work everywhere too.
+Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, the bar at the bottom shows every connected controller with its battery, and the pointer hides until you move the mouse again; signing in and searching still need a keyboard. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge like on a console, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait. Keyboard and trackpad work everywhere too.
 
 **Nightforge's own controller menu.** Press both sticks (L3 + R3) and hold them for two seconds, and a calm menu comes up in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
 
@@ -77,7 +77,9 @@ After every game Nightforge shows how long you played and asks how it ran. It re
 - **macOS Game Mode.** Games get priority on the CPU and graphics, and controllers and headphones get half the Bluetooth latency.
 - **Dock and notifications.** Right-click the Dock icon to start your last five games. A notification tells you when a download is done, and downloads keep your Mac awake.
 - **Looks out for your battery.** A charger too weak for games shows at the top before the battery runs low; on battery, games can be capped at 30 FPS.
-- **Store search.** Search also finds games in the Steam store, with price and Metascore; you buy in your browser, and they appear in your library. Free games you add right away with **Add for Free** – Steam asks once in its own window.
+- **Launcher menu.** Four cards show where you're signed in at Steam, Epic, GOG and Battle.net, and you sign in right from the card. Battle.net games show in the library, but you still start them in the Battle.net client.
+- **Store search.** Search also finds games in the Steam and GOG stores, in one list; a game both sell is one card. Steam's come with price and Metascore; you buy in your browser, and they appear in your library. Free games you add right away with **Add for Free** – Steam asks once in its own window.
+- **Restart Nightforge.** In the Nightforge menu and in Settings: it ends Steam, Wine and everything in the background and starts Nightforge fresh, for when something hangs.
 - **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it by themselves.
 - **Larger text and less motion.** One switch makes all of Nightforge's text a step larger; another turns zooming and sliding into plain cross-fades.
 - **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub filled in with the game and its settings, and is public only once you submit it; error lines stay on your clipboard until you paste them.
@@ -102,7 +104,7 @@ Nightforge is meant to be switched on and enjoyed; the defaults give the best re
 
 ## Tested on a Mac
 
-Played live on a Mac with M5 between 24 October and 2 November 2026, with Nightforge 0.3 and the builds before it.
+Played live on a Mac with M5 between 24 October and 7 November 2026, with Nightforge 0.3 and the builds before it.
 
 | Game | Store | Way | Result |
 |---|---|---|---|
@@ -111,11 +113,11 @@ Played live on a Mac with M5 between 24 October and 2 November 2026, with Nightf
 | No Man's Sky | Steam | Mac version | Runs |
 | OxyRail | Steam | Windows · DXMT | Runs, a steady 60 FPS with MetalFX |
 | Overcooked 2 | Steam | Windows · DXMT | Runs at 60 FPS, with a controller and on the TV too |
+| Overwatch | Steam | Windows · DXMT | Runs; on its first start Nightforge sets up Apple's D3DMetal, once |
 | Black Myth: Wukong Benchmark Tool | Steam | Windows · D3DMetal | Runs, 68 FPS (Low, FSR, 1512×982) |
 | The Last Caretaker Demo | Steam | Windows · D3DMetal | Runs, around 50 FPS at full Retina resolution with FSR frame generation |
 | Control | Epic Games | Windows · D3DMetal | Runs |
 | Mafia II (Classic) | GOG | Windows · WineD3D | Runs, but not smooth yet |
-| Overwatch | Steam | Windows | Doesn't start yet – Nightforge is looking into why |
 
 Everything else: try it. Nightforge picks the way from a game's files and moves on to the next one by itself if a game doesn't start. Online games with anti-cheat are the exception (see Good to know).
 
