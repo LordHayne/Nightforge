@@ -28,6 +28,10 @@ import Foundation
         check(!games.contains { $0.inLibrary && model.isHidden($0) }, "a hidden game shown after \(step)")
     }
     if model.showingHidden { check(!model.hiddenGames.isEmpty, "the hidden list open with nothing hidden after \(step)") }
+    // Home's sources decide what's on its rail.
+    for index in model.homeRail where !model.showingHidden {
+        check(games.indices.contains(index), "the rail's games exist after \(step)")
+    }
     if model.quickMenu != nil { check(model.quickMenuGame != nil, "the quick menu open on a game that's gone after \(step)") }
     check(model.homePlace >= 0 && model.homePlace <= model.homeRail.count, "Home's place \(model.homePlace) after \(step)")
     if let target = model.backTarget { check(target != model.route, "back leads nowhere after \(step)") }
@@ -62,7 +66,7 @@ struct Listed { let id: Int; let name: String }
         let selected = model.selected
         var step: String
         let routeBefore = model.route
-        switch random.below(27) {
+        switch random.below(29) {
         case 0: let word = random.pick(words); model.searchText = word; step = "search “\(word)”"
         case 1: model.goHome(); step = "goHome"
         case 2: model.goLibrary(); step = "goLibrary"
@@ -107,6 +111,22 @@ struct Listed { let id: Int; let name: String }
             guard !model.allGames.isEmpty else { continue }
             let game = random.pick(model.allGames); model.reveal(game); step = "reveal \(game.name)"
             shownOffRail = model.route == .home
+        case 27:
+            let source = random.pick(HomeSources.Source.allCases), on = random.below(2) == 0
+            model.setHomeSource(source, on); step = "Home source \(source) \(on)"
+        case 28:
+            let pinned = model.pinnedHomeGames
+            guard !pinned.isEmpty else { continue }
+            let game = random.pick(pinned), by = random.pick([-1, 1]), before = pinned.map(\.id)
+            model.movePin(game, by: by)
+            let after = model.pinnedHomeGames.map(\.id)
+            check(Set(before) == Set(after) && after.count == before.count, "moving a pin keeps all of them: \(before) → \(after)")
+            if let place = before.firstIndex(of: game.id), before.indices.contains(place + by) {
+                check(after.firstIndex(of: game.id) == place + by, "and moves it one place (seed \(seed)): \(before) → \(after)")
+            } else {
+                check(before == after, "past the end nothing changes: \(before) → \(after)")
+            }
+            step = "move pin \(by)"
         default:
             // A game comes or goes between two looks.
             let game = random.pick(all)
@@ -121,7 +141,7 @@ struct Listed { let id: Int; let name: String }
             await ModelWorld.scan(model)
         }
         if number % 40 == 0 { await ModelWorld.settle(5) }
-        if !step.hasPrefix("reveal"), model.route != routeBefore || step.hasPrefix("move") || step.hasPrefix("jump") || step.hasPrefix("Home place") || step.hasPrefix("select") { shownOffRail = false }
+        if !step.hasPrefix("reveal"), model.route != routeBefore || (step.hasPrefix("move ") && !step.hasPrefix("move pin")) || step.hasPrefix("jump") || step.hasPrefix("Home place") || step.hasPrefix("select") { shownOffRail = false }
         checkRules(model, after: "\(step) (seed \(seed), step \(number))")
     }
     for game in all { ModelWorld.removeSteamGame(game.id, game.name) }

@@ -514,6 +514,50 @@ import Foundation
     try? FileManager.default.removeItem(at: ModelWorld.gogFolder)
 }
 
+/// The question about Apple's D3DMetal: left unanswered it takes back what it recorded, and says why the game doesn't start.
+@MainActor func d3dMetalQuestion() async {
+    clean()
+    D3DMetalSupply.forget()
+    let model = LibraryModel()
+    ModelWorld.steamGame(120, "Needs DirectX 12", lastPlayed: 1_700_000_000)
+    await ModelWorld.scan(model)
+    let game = game(model, "Needs DirectX 12")!
+    Toasts.shared.dismiss()
+
+    model.askAboutD3DMetal(for: game)
+    check(model.d3dMetalDialog?.step == .choose && model.d3dMetalDialog?.game?.id == game.id, "the question is put for its game")
+    check(model.d3dMetalDialog?.licenseAccepted == false, "with Apple's licence, the first time")
+    model.askAboutD3DMetal(for: game)  // a second press
+    let dialog = model.d3dMetalDialog?.id
+    model.askAboutD3DMetal(for: game)
+    check(model.d3dMetalDialog?.id == dialog, "one question at a time")
+
+    // Answered, and it can't be set up here: it stays open and says so.
+    model.downloadD3DMetal()
+    check(D3DMetalSupply.choice()?.source == .nightforge, "the answer is recorded")
+    for _ in 0..<400 {
+        if case .failed? = model.d3dMetalDialog?.step { break }
+        await ModelWorld.settle(25)
+    }
+    guard case .failed? = model.d3dMetalDialog?.step else { return check(false, "no network, no engine: it says so: \(String(describing: model.d3dMetalDialog?.step))") }
+
+    // Closed like that: the answer goes again, the game says why it didn't start.
+    model.d3dMetalDialog = nil
+    model.d3dMetalDismissed()
+    check(D3DMetalSupply.choice() == nil, "what it recorded is taken back")
+    check(Toasts.shared.current?.message.contains("Needs DirectX 12") == true, "the player hears why: \(String(describing: Toasts.shared.current?.message))")
+    Toasts.shared.dismiss()
+
+    // A question only for what isn't there: asked for nothing, it closes without a word about a game.
+    model.askAboutD3DMetal(for: nil)
+    model.askToRemoveD3DMetal()
+    check(model.d3dMetalDialog?.step == .confirmRemoval, "Remove asks once more")
+    model.d3dMetalDialog = nil
+    model.d3dMetalDismissed()
+    check(Toasts.shared.current == nil, "from Settings no game is spoken of")
+    await ModelWorld.settle(100)
+}
+
 /// Saves on their way to the cloud hold a switch of the Steams up, not longer than they have to.
 @MainActor func savesBeforeSwitch() async {
     clean()
@@ -583,6 +627,7 @@ func scansInLine() {
         await savesBeforeSwitch()
         await hugeSizes()
         await removingAndKeys()
+        await d3dMetalQuestion()
         scansInLine()
         await MainActor.run {
             if failures == 0 { print("✓ The model's flows: downloads, marks, two stores, moves, questions") } else { print("✗ \(failures) failures") }
