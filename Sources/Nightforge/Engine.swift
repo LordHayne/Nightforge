@@ -153,6 +153,8 @@ enum Engine {
             + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
+            // Setting D3DMetal up gives Steam a variable it only takes at its start (`environment`).
+            + (d3dMetalReady ? "-rosetta" : "")
     }
 
     /// Wine's Retina mode for the game about to start (GameProfile.retina): it sees the screen's full
@@ -1030,6 +1032,18 @@ enum Engine {
           [ "$SANDBOX" = "-" ] && return 1
           if [ -n "$SANDBOX" ]; then "$SANDBOX" "$PROFILE" "$WINE" "$@"; else "$WINE" "$@"; fi
         }
+        # A request to a Steam that may not answer: ended after HANG_LIMIT seconds (settable for the test), so
+        # the script goes on to what ends it anyway. Hanging here, it never reached `open` after a restart.
+        HANG_LIMIT="${NIGHTFORGE_HANG_LIMIT:-30}"
+        limited() {
+          local pid watch status
+          "$@" & pid=$!
+          ( /bin/sleep "$HANG_LIMIT"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 & watch=$!
+          wait "$pid"
+          status=$?
+          kill "$watch" 2>/dev/null
+          return "$status"
+        }
         STEAMAPPS="$PREFIX/drive_c/Program Files (x86)/Steam/steamapps"
         # The longest this waits for a game or a download (seconds, 12 h): then it leaves things as they
         # are and ends, rather than stay for as long as the Mac is on. Settable for the test.
@@ -1138,9 +1152,15 @@ enum Engine {
             busy || break
           done
           if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
-            osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
+            limited osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
             if [ "$RESTART" = 1 ]; then
               for i in $(seq 1 20); do pgrep -qx steam_osx || break; sleep 1; done
+              # Still there: it hangs on something (a dialog nobody answers), and that's what the restart is for.
+              if pgrep -qx steam_osx; then
+                pkill -x steam_osx 2>/dev/null
+                for i in $(seq 1 5); do pgrep -qx steam_osx || break; sleep 1; done
+                pkill -9 -x steam_osx 2>/dev/null
+              fi
             fi
           fi
           [ -n "$WINE" ] || finish
@@ -1149,7 +1169,7 @@ enum Engine {
           reopened && exit 0
           if steam_running; then
             # -noverifyfiles: checking its files, Steam would put its own steamwebhelper back over Nightforge's.
-            wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
+            limited wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown >/dev/null 2>&1
             for i in $(seq 1 20); do
               steam_running || break
               reopened && exit 0

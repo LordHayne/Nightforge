@@ -35,6 +35,13 @@ struct GameOverlayTest {
 
     /// Both sticks – or ☰ and ⧉ on a pad without stick buttons – held for two seconds, once per hold.
     static func hold() {
+        // "A controller came late" belongs to one game; "Restart Game" hands over only for its own end.
+        MainActor.assumeIsolated {
+            GameOverlay.lateController = true
+            GameOverlay.gameEnded()
+            check(!GameOverlay.lateController, "the late controller's note ends with its game")
+        }
+        check(LibraryModel.endRestarts("a", ended: ["a", "b"]) && !LibraryModel.endRestarts("c", ended: ["a"]), "only the game to restart")
         // Which buttons count: never the PS/Xbox button (Apple's Game Overlay) or Create alone.
         check(OverlayHold.chord(leftStick: true, rightStick: true, menu: false, view: false), "both sticks pressed")
         check(!OverlayHold.chord(leftStick: true, rightStick: false, menu: true, view: true), "one stick, even with ☰ and ⧉: no")

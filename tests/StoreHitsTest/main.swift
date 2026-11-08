@@ -111,11 +111,14 @@ struct StoreHitsTest {
 
     /// What goes out.
     static func requests() {
-        let url = GOGSearch.url("a&b+c d", region: "AT", german: true)?.absoluteString ?? ""
+        let url = GOGSearch.url("a&b+c d", region: "AT", currency: "EUR", german: true)?.absoluteString ?? ""
         check(url.hasPrefix("https://catalog.gog.com/v1/catalog?"), url)
         check(url.contains("query=like:a%26b%2Bc%20d"), "the search whole, not read as parameters: \(url)")
         check(url.contains("countryCode=AT") && url.contains("locale=de-DE") && url.contains("currencyCode=EUR"), url)
         check(GOGSearch.url("x", region: "US", german: false)?.absoluteString.contains("locale=en-US") == true, "the app's language")
+        // GOG shows no price for a country and a currency that don't go together (8.11.).
+        check(GOGSearch.url("x", region: "US", currency: "USD", german: false)?.absoluteString.contains("countryCode=US") == true
+              && GOGSearch.url("x", region: "US", currency: "USD", german: false)?.absoluteString.contains("currencyCode=USD") == true, "the region's currency")
 
         let agent = GOGSearch.userAgent
         check(agent.hasPrefix("Nightforge/"), agent)

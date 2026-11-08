@@ -51,6 +51,8 @@ enum GameOverlay {
         get { state.lateController }
         set { state.lateController = newValue }
     }
+    /// A game ended: what the overlay was to ask about it isn't for the next one.
+    static func gameEnded() { state.lateController = false }
     /// The player went back to the game from here (LibraryModel, GameStage).
     static var resumed: (@MainActor () -> Void)?
     /// Open with "Not starting?" (or the question it led to).

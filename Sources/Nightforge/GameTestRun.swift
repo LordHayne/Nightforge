@@ -176,7 +176,7 @@ final class GameTestRun {
             // What Play asks before anything starts (askAboutD3DMetalBeforeStart): it would set D3DMetal up.
             let analysis = await model.insight(of: game)?.analysis
             facts.needsD3DMetal = !Engine.d3dMetalReady && Engine.installedWineNow().map({ Engine.isGPTKCapable(wine: $0) }) == true
-                && D3DMetalSupply.needed(by: analysis, picked: GameOptionsStore.load(game.gameID).graphics)
+                && D3DMetalSupply.needed(by: analysis, picked: GameOptionsStore.load(game.gameID).graphics, game: game.gameID)
         }
         let skip = GameTest.skip(facts)
         return GameTest.Candidate(key: game.gameID.key, name: game.name, store: game.provider, storeID: game.gameID.id,

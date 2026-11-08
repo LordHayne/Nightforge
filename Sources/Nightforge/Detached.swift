@@ -274,19 +274,26 @@ final class DetachedProcess: @unchecked Sendable {
         }
     }
 
-    /// The shipped, signed helper copied into the data folder; again only when it changed.
+    /// What makes a helper app that one: its program and the seal of its signature.
+    private static func helperIdentity(_ app: URL) -> Data? {
+        guard let binary = try? Data(contentsOf: app.appendingPathComponent("Contents/MacOS/nightforge-helper")),
+              let seal = try? Data(contentsOf: app.appendingPathComponent("Contents/_CodeSignature/CodeResources"))
+        else { return nil }
+        return binary + seal
+    }
+
+    /// The shipped, signed helper copied into the data folder; again only when the copy there differs.
+    /// Compared with the copy itself: another Nightforge (an older one still in /Applications) can have
+    /// built its own there since, and macOS would ask again for that one.
     private static func copyShippedHelper() -> URL? {
         let fm = FileManager.default
         let app = home.appendingPathComponent(helperName, isDirectory: true)
-        let stampFile = home.appendingPathComponent(".helper.sha256")
-        guard let binary = try? Data(contentsOf: shippedHelper.appendingPathComponent("Contents/MacOS/nightforge-helper")),
-              let seal = try? Data(contentsOf: shippedHelper.appendingPathComponent("Contents/_CodeSignature/CodeResources"))
-        else { return nil }
-        let stamp = Data(SHA256.hash(data: binary + seal).map { String(format: "%02x", $0) }.joined().utf8)
-        if fm.fileExists(atPath: app.path), (try? Data(contentsOf: stampFile)) == stamp { return app }
+        guard let shipped = helperIdentity(shippedHelper) else { return nil }
+        if helperIdentity(app) == shipped { return app }
         // Copied beside the old one and swapped in: a helper still running from it keeps its files.
         let fresh = home.appendingPathComponent(".\(helperName)-\(UUID().uuidString)", isDirectory: true)
         do {
+            try fm.createDirectory(at: home, withIntermediateDirectories: true)  // a first start may be this early
             try fm.copyItem(at: shippedHelper, to: fresh)
             let items = [fresh] + ((fm.enumerator(at: fresh, includingPropertiesForKeys: nil)?.allObjects as? [URL]) ?? [])
             for item in items { removexattr(item.path, "com.apple.quarantine", XATTR_NOFOLLOW) }
@@ -295,7 +302,6 @@ final class DetachedProcess: @unchecked Sendable {
             } else {
                 try fm.moveItem(at: fresh, to: app)
             }
-            try? stamp.write(to: stampFile)
             return app
         } catch {
             try? fm.removeItem(at: fresh)

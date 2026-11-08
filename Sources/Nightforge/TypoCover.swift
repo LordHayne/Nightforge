@@ -32,7 +32,7 @@ struct TypoCover: View {
                 VStack(alignment: .leading, spacing: (width * 8 / 252).rounded()) {
                     if let name {
                         Text(name)
-                            .font(Theme.display(Self.nameSize(width: width)))
+                            .displayFont(Self.nameSize(width: width))
                             .lineSpacing(-Self.nameSize(width: width) * 0.12)
                             .foregroundStyle(Theme.ink)
                             .lineLimit(4)
@@ -41,7 +41,7 @@ struct TypoCover: View {
                     }
                     if let line {
                         Text(line)
-                            .font(.system(size: Self.lineSize(width: width), weight: .semibold))
+                            .font(size: Self.lineSize(width: width), weight: .semibold)
                             .foregroundStyle(Theme.muted)
                             .lineLimit(2)
                     }

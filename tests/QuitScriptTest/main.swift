@@ -59,12 +59,16 @@ struct QuitScriptTest {
                   *) awk -F'\\t' '{ print $2 }' "$file" ;;
                 esac
                 """, to: bin.appendingPathComponent("ps"), executable: true)
-            QuitScriptTest.write("#!/bin/sh\nexit 1\n", to: bin.appendingPathComponent("pgrep"), executable: true)
+            // FAKE_MAC_STEAM: Steam for Mac runs and doesn't go away.
+            QuitScriptTest.write("#!/bin/sh\n[ -n \"$FAKE_MAC_STEAM\" ] && exit 0\nexit 1\n", to: bin.appendingPathComponent("pgrep"), executable: true)
+            QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("pkill"), executable: true)
             QuitScriptTest.write("#!/bin/sh\nexit 0\n", to: bin.appendingPathComponent("lsof"), executable: true)
             QuitScriptTest.write("#!/bin/sh\necho \"$*\" >> \"$FAKE_SLEEPLOG\"\n", to: bin.appendingPathComponent("sleep"), executable: true)
             QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("open"), executable: true)
-            QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("osascript"), executable: true)
-            QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: wine, executable: true)
+            // FAKE_HANG: steam.exe -shutdown and osascript don't come back, as with a Steam that doesn't answer.
+            let hangs = "case \"$*\" in *-shutdown*|*-e*) [ -n \"$FAKE_HANG\" ] && exec /bin/sleep 20 ;; esac"
+            QuitScriptTest.write("#!/bin/sh\n\(record)\n\(hangs)\n", to: bin.appendingPathComponent("osascript"), executable: true)
+            QuitScriptTest.write("#!/bin/sh\n\(record)\n\(hangs)\n", to: wine, executable: true)
             QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: wine.deletingLastPathComponent().appendingPathComponent("wineserver"), executable: true)
             QuitScriptTest.write(Engine.steamShutdownScript, to: script)
             try? FileManager.default.createDirectory(at: steamapps, withIntermediateDirectories: true)
@@ -88,7 +92,8 @@ struct QuitScriptTest {
         /// Runs the script; what the stand-ins were asked, one call a line.
         /// `switchAfter`: the stand-in ps lists `later` instead of `processes` from its n-th answer on.
         func run(limit: Int? = nil, quitting: Int = 0, app: String? = nil, lastGame: Int? = nil,
-                 switchAfter: Int? = nil, psLimit: Int? = nil, restart: Bool = false) -> (calls: [String], status: Int32, timedOut: Bool) {
+                 switchAfter: Int? = nil, psLimit: Int? = nil, restart: Bool = false, hang: Bool = false,
+                 macSteam: Bool = false) -> (calls: [String], status: Int32, timedOut: Bool) {
             try? FileManager.default.removeItem(at: log)
             try? FileManager.default.removeItem(at: sleepLog)
             var environment = ["PATH": bin.path + ":/usr/bin:/bin:/usr/sbin", "FAKE_PS": processList.path, "FAKE_LOG": log.path,
@@ -96,12 +101,17 @@ struct QuitScriptTest {
             if let limit { environment["NIGHTFORGE_QUIT_LIMIT"] = String(limit) }
             if let psLimit { environment["NIGHTFORGE_PS_LIMIT"] = String(psLimit) }
             environment["FAKE_SLEEPLOG"] = sleepLog.path
+            if hang {
+                environment["FAKE_HANG"] = "1"
+                environment["NIGHTFORGE_HANG_LIMIT"] = "1"
+            }
+            if macSteam { environment["FAKE_MAC_STEAM"] = "1" }
             environment["FAKE_COUNT"] = root.appendingPathComponent("ps-count").path
             if let switchAfter {
                 environment["FAKE_PS_LATER"] = later.path
                 environment["FAKE_SWITCH"] = String(switchAfter)
             }
-            let outcome = Subprocess.run("/bin/bash", [script.path, wine.path, prefix.path, "", "0", app ?? self.app,
+            let outcome = Subprocess.run("/bin/bash", [script.path, wine.path, prefix.path, "", macSteam ? "1" : "0", app ?? self.app,
                                                        quitting == 0 ? "" : String(quitting), "1",
                                                        lastGame.map(String.init) ?? "0", "", "", restart ? "1" : "0"],
                                          environment: environment, timeout: 60)
@@ -146,6 +156,35 @@ struct QuitScriptTest {
             let recent = world.run(lastGame: now(), restart: true)
             check(sleeps(world).contains("30") && recent.calls.last == "open \(world.app)",
                   "restart right after a game: 30 s for the cloud saves first, then Nightforge: \(sleeps(world))")
+        }
+
+        // A Steam that doesn't answer: the restart goes on all the same and Nightforge comes back (audit 8.11.).
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            let started = Date()
+            let result = world.run(restart: true, hang: true)
+            check(!result.timedOut && result.status == 0, "a hanging Steam: the script ended (status \(result.status))")
+            check(Date().timeIntervalSince(started) < 15, "… after the limit, not after the hang")
+            check(result.calls.contains("wineserver -k") && result.calls.last == "open \(world.app)",
+                  "… and the session ended, Nightforge opens: \(result.calls)")
+        }
+
+        // Steam for Mac that doesn't quit: asked first, then ended, only on a restart.
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            let restart = world.run(restart: true, macSteam: true)
+            let quit = restart.calls.firstIndex { $0.hasPrefix("osascript") }
+            let term = restart.calls.firstIndex(of: "pkill -x steam_osx")
+            check(quit != nil && term != nil && quit! < term!, "restart: asked to quit, then ended: \(restart.calls)")
+            check(restart.calls.contains("pkill -9 -x steam_osx"), "… by force when it stays: \(restart.calls)")
+            check(restart.calls.last == "open \(world.app)", "… and Nightforge opens: \(restart.calls)")
+            let plain = world.run(macSteam: true)
+            check(plain.calls.contains { $0.hasPrefix("osascript") } && !plain.calls.contains { $0.hasPrefix("pkill") },
+                  "an ordinary quit asks and leaves it: \(plain.calls)")
         }
 
         // Another copy of Nightforge, or a tool that names the program, is not Nightforge opened again.
