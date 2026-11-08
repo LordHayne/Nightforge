@@ -178,16 +178,18 @@ func checkDownloads() async {
     // Signed, and still not what it should be.
     let notZip = Data("this isn't a zip".utf8)
     turnedAway(await tryInstall(.ok(notZip), signature: .ok(sign(notZip))), "signed, but no zip") { if case .unpack = $0 { return true }; return false }
-    let empty = zip(version: "9.9.9", name: "Something.app")
+    // Each of these also asks for a macOS that doesn't exist, the last gate before the swap: with a check above broken
+    // the test fails there, and the swap and the restart behind it still can't happen.
+    let empty = zip(version: "9.9.9", minimumMac: "99.0", name: "Something.app")
     turnedAway(await tryInstall(.ok(empty), signature: .ok(sign(empty))), "no Nightforge.app in it") { if case .unpack = $0 { return true }; return false }
-    let other = zip(version: "9.9.9", bundle: "com.example.other")
+    let other = zip(version: "9.9.9", bundle: "com.example.other", minimumMac: "99.0")
     turnedAway(await tryInstall(.ok(other), signature: .ok(sign(other))), "another program in it") { if case .unpack = $0 { return true }; return false }
-    let older = zip(version: "0.1.0")
+    let older = zip(version: "0.1.0", minimumMac: "99.0")
     turnedAway(await tryInstall(.ok(older), signature: .ok(sign(older))), "an old signed release under a new tag") {
         if case .otherVersion(let found, let named) = $0 { return found == "0.1.0" && named == "9.9.9" }
         return false
     }
-    let unsigned = zip(version: "9.9.9", codesigned: false)
+    let unsigned = zip(version: "9.9.9", minimumMac: "99.0", codesigned: false)
     turnedAway(await tryInstall(.ok(unsigned), signature: .ok(sign(unsigned))), "arrived damaged (no code signature)") { if case .signature = $0 { return true }; return false }
     turnedAway(await tryInstall(.ok(good), signature: goodSig), "needs a newer macOS") {
         if case .needsNewerMac(let required) = $0 { return required == "99.0" }
