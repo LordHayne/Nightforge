@@ -1808,6 +1808,15 @@ final class LibraryModel: ObservableObject {
     private var scanInFlight = false
     private var scanAgain = false
 
+    /// A scan the caller waits for, one at a time like any other. Past `reload`, it ran beside a scan under way, and
+    /// whichever ended first let a third begin.
+    private func scanInLine() async {
+        while scanInFlight { try? await Task.sleep(for: .milliseconds(50)) }
+        scanInFlight = true
+        await rescan()
+        while scanInFlight { try? await Task.sleep(for: .milliseconds(50)) }  // one asked for meanwhile
+    }
+
     /// Reads every store's library from the Mac and shows what it found.
     private func rescan() async {
         antiCheatBlocks = await ProfileStore.shared.antiCheatBlocks()
@@ -2902,7 +2911,7 @@ final class LibraryModel: ObservableObject {
         MacHealth.fail(game.appID)
         NSApp.activate()
         Task {
-            await rescan()  // after the Mac launch has wound down: one launch at a time
+            await scanInLine()  // after the Mac launch has wound down: one launch at a time
             guard let windows = allGames.first(where: { $0.gameID == game.gameID && $0.platform == .windows }) else { return }
             if windows.isInstalled {
                 launch(windows)

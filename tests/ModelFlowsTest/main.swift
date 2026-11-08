@@ -500,6 +500,15 @@ import Foundation
     try? FileManager.default.removeItem(at: record.deletingLastPathComponent())
 }
 
+/// Scans run one at a time: only the three places that keep to that may start one.
+func scansInLine() {
+    let source = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+    let starts = source.components(separatedBy: "await rescan()").count - 1
+    MainActor.assumeIsolated {
+        check(starts == 3, "await rescan() only from reload, a scan's own tail and scanInLine: \(starts)")
+    }
+}
+
 @main struct Main {
     static func main() async {
         await ModelWorld.begin()
@@ -512,6 +521,7 @@ import Foundation
         await gogGames()
         await savesBeforeSwitch()
         await hugeSizes()
+        scansInLine()
         await MainActor.run {
             if failures == 0 { print("✓ The model's flows: downloads, marks, two stores, moves, questions") } else { print("✗ \(failures) failures") }
             exit(failures == 0 ? 0 : 1)
