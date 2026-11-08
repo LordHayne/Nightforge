@@ -25,6 +25,17 @@ struct ProfileFilesTest {
         let temp = fm.temporaryDirectory.appendingPathComponent("profile-files-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: temp) }
 
+        // The fields this build reads have to reach it. A list kept from before wins over the app's own at the same
+        // stamp (SignedLists.isOlder), and a hand edit doesn't move the stamp: Overwatch lost its question about D3DMetal.
+        if let list = try? Data(contentsOf: URL(fileURLWithPath: "profiles/profiles.json")) {
+            let lastSignedWithout = Data(#"{"generated": "2026-11-07T21:50:08Z"}"#.utf8)
+            check(SignedLists.isOlder(lastSignedWithout, than: list), "the list with needsRosettaLibrary is newer than the last one signed without it")
+            let text = String(decoding: list, as: UTF8.self)
+            check(text.contains("\"needsRosettaLibrary\": true"), "Overwatch's field is in the list that ships")
+        } else {
+            check(false, "profiles/profiles.json not found from the repository's root")
+        }
+
         // MARK: Decoding
         let decoded = profile("""
             {"retina": true,
