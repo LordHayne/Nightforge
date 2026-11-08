@@ -32,6 +32,15 @@ enum GameLog {
         FileHandle(fileDescriptor: descriptor, closeOnDealloc: true).write(Data(("info:  [nightforge] " + text + "\n").utf8))
     }
 
+    /// The time of day for a line that needs one ("13:55:02"). Nightforge's lines have none of their
+    /// own – the games' log parsers go by their exact words – so only a few say when they happened.
+    static func clock(_ date: Date = Date()) -> String {
+        var seconds = time_t(date.timeIntervalSince1970)
+        var parts = tm()
+        localtime_r(&seconds, &parts)
+        return String(format: "%02d:%02d:%02d", parts.tm_hour, parts.tm_min, parts.tm_sec)
+    }
+
     /// What a start on D3DMetal goes with, by name and 1/0: MetalFX for the game's DLSS, a frame limit,
     /// another GPU's identity, ray tracing, and Wine's Retina mode – so a live test can tell what was on.
     static func d3dMetalStart(_ game: String, environment: [String: String], retina: Bool) -> String {

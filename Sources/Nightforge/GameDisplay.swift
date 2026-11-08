@@ -110,6 +110,7 @@ enum GameDisplay {
                 if GameBackdrop.isRaised {
                     GameLog.note("Screens changed under the curtain\(connected ? ", one connected" : "")\(plugged ? ", a new TV" : "")")
                 }
+                GameBackdrop.followScreen()
                 followSound(plugged ? .plugged : nil)  // also when a TV goes, or mirroring starts or ends
                 Task { await leaveFullScreenOffTV() }
                 guard connected else { return }

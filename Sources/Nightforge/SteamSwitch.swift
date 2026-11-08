@@ -193,6 +193,7 @@ final class SteamSwitch {
     /// would sign in after it and sign it out. A signed-in (or already signed-out) one goes
     /// alongside: Steam for Mac signing in signs it out anyway, and nothing waits for it.
     func makeWayForMac(facts: Facts, phase: (LaunchPhase) -> Void) async {
+        if afterMac != nil { phase(.startingSteamForMac) }  // a switch back under way: no wait without a word
         await settle()
         var facts = facts
         facts.windowsSteamRunning = Engine.isSteamRunning  // a switch back may have just started it
@@ -202,6 +203,7 @@ final class SteamSwitch {
         }
         guard Self.stopsWindowsForMac(facts), let wine = await Engine.installedWine() else { return }
         windowsStopped = true
+        GameLog.note("Steam switch: the Windows Steam makes way for Steam for Mac at \(GameLog.clock())")
         if Engine.steamSignedIn || Engine.sessionReplaced() {
             Task { try? await Engine.stopSteam(wine) }
         } else {
@@ -225,8 +227,10 @@ final class SteamSwitch {
     /// that Nightforge quit or Steam for Mac signed out starts again – `restartWindows`, which
     /// returns once it has signed in.
     func makeWayForWindows(facts: Facts, phase: (LaunchPhase) -> Void, restartWindows: () async -> Void) async {
+        if afterMac != nil { phase(.startingSteam) }  // a switch back under way: no wait without a word
         await settle()
         if Self.quitsMacForWindows(facts) {
+            GameLog.note("Steam switch: Steam for Mac makes way for the Windows Steam at \(GameLog.clock())")
             if await savesPending(.mac) {
                 phase(.savingToCloud)
                 await waitForSaves(.mac, limit: Self.launchPatience)
@@ -235,6 +239,7 @@ final class SteamSwitch {
             await Task { await MacSteam.quit() }.value
         }
         if Self.restartsWindows(stoppedByNightforge: windowsStopped, running: Engine.isSteamRunning, replaced: false) {
+            GameLog.note("Steam switch: the Windows Steam starts again at \(GameLog.clock())")
             phase(.startingSteam)
             windowsStopped = false
             await restartWindows()

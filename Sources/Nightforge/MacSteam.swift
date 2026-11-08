@@ -273,19 +273,28 @@ enum MacSteam {
         // Steam's question about a launch option is a small window of its own: the store, opened on
         // top of it, left nothing to click (Drawful 2, 8.11.).
         let windows = steamWindows()
-        let asking = asksLaunchOption
-        if asking { GameLog.note("Steam asks for a launch option, its windows: " + windows.map { "\($0.pid) \(Int($0.width))×\(Int($0.height))\($0.onScreen ? "" : " hidden")" }.joined(separator: ", ")) }
+        let asking = asksInADialog
+        if asking { GameLog.note("Steam asks in a dialog of its own, its windows: " + windows.map { "\($0.pid) \(Int($0.width))×\(Int($0.height))\($0.onScreen ? "" : " hidden")" }.joined(separator: ", ")) }
         if !(asking && windows.contains { $0.onScreen && (200...1000).contains($0.width) && (100...760).contains($0.height) }) {
             open("open/main", activate: true)
         }
         comeForward()
     }
 
-    /// The last thing Steam logged about a start is that it waits for the pick among a game's launch options.
-    private static var asksLaunchOption: Bool {
+    /// The last thing Steam logged about a start is that it waits for an answer in a dialog of its
+    /// own: its main window would only lie over that.
+    private static var asksInADialog: Bool {
         guard let last = logLines("console_log.txt").last(where: { $0.contains("GameAction [AppID") }),
-              last.contains("waiting for user response to ShowLaunchOption"), let date = logDate(last) else { return false }
+              waitsInDialog(last), let date = logDate(last) else { return false }
         return Date().timeIntervalSince(date) < 600
+    }
+
+    /// Steam's question in `line` has a dialog of its own: a launch option, a licence, a cloud sync
+    /// that failed or conflicts, another session to kick (console_log of both Steams up to 8.11.).
+    /// The two routine steps have none: ShowInterstitials goes on once the main window is shown,
+    /// CreatingProcess by itself.
+    static func waitsInDialog(_ line: Substring) -> Bool {
+        line.contains("waiting for user response to") && !line.contains("to ShowInterstitials") && !line.contains("to CreatingProcess")
     }
 
     /// A Steam dialog the player answers (steam://install/… asks where to install).
@@ -376,9 +385,15 @@ enum MacSteam {
         return held
     }
 
-    /// Back to the background after the player has dealt with it.
+    /// Back to the background after the player has dealt with it. Steam Helper too: its windows are
+    /// nearly all of Steam's (`helperBundleID`), so hiding the client alone left them up.
     static func hide() {
-        for app in clientApps { app.hide() }
+        for app in windowApps { app.hide() }
+    }
+
+    /// The Steam processes whose windows the player sees: the client and its web view.
+    private static var windowApps: [NSRunningApplication] {
+        clientApps + (isTestHome ? [] : NSRunningApplication.runningApplications(withBundleIdentifier: helperBundleID))
     }
 
     /// Keeps Steam for Mac out of sight while Nightforge runs. Its window comes up when it starts,
@@ -389,7 +404,10 @@ enum MacSteam {
     @MainActor
     static func guardWindows() async {
         while !Task.isCancelled {
-            if clientApps.contains(where: { !$0.isHidden }), !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
+            // By a window on screen for the web view: it may not be hideable at all, and then
+            // `waitingForPlayer` (two logs read) would run every second for nothing.
+            let shows = clientApps.contains { !$0.isHidden } || (isRunning && steamWindows().contains { $0.onScreen && $0.width > 120 && $0.height > 80 })
+            if shows, !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
                 hide()
             }
             try? await Task.sleep(for: .seconds(1))

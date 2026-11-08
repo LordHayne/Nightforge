@@ -158,6 +158,9 @@ final class InputRouter {
             if model.lightbox != nil { model.lightbox = nil; return true }
             if model.showingDownloads { model.showingDownloads = false; return true }
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
+            // On the curtain as with the pad's B (PadRules.back): calling the start off here only
+            // stops Nightforge's wait, Steam starts the game anyway, without a curtain.
+            if GameBackdrop.isRaised { return true }
             if model.awaitingSteam { model.cancelLaunch(); return true }
             if model.back() { return true }
             // Nothing to go back from: Esc leaves full screen, as in macOS's.
@@ -698,11 +701,13 @@ final class InputRouter {
     }
 
     /// An app coming to the front brings the pointer back – the game handed the front, the next app
-    /// and Nightforge on the way back (1.11.): hidden again a moment later, over whichever it is.
+    /// and Nightforge on the way back (1.11.): hidden again a moment later, once it's Nightforge.
+    /// Not over another app: Steam Helper, coming up as a Mac game ends, lost its keys five times
+    /// in a row to the sheer panel (8.11.).
     static func hidePointerSoon() {
         Task {
             try? await Task.sleep(for: .milliseconds(300))
-            if NSApp.isFrontmost { hidePointerForGame() } else { hidePointerOverGame() }
+            if NSApp.isFrontmost { hidePointerForGame() }
         }
     }
 

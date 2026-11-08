@@ -92,6 +92,21 @@ enum GameBackdrop {
         if state.detail != shown { state.detail = shown }
     }
 
+    /// The screens changed while the page is up (a game setting its display mode, 1920×1200 on a
+    /// 1512×982 Mac; the mode restored as it ends): the page keeps to the screen, or it covers only
+    /// a corner of it, as the overlay did on 4.11. before it followed.
+    static func followScreen() {
+        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main,
+              shouldFollow(visible: window.isVisible, frame: window.frame, screen: screen.frame)
+        else { return }
+        GameLog.note("The page follows the screen: \(Int(screen.frame.width))×\(Int(screen.frame.height))")
+        window.setFrame(screen.frame, display: true)
+    }
+
+    nonisolated static func shouldFollow(visible: Bool, frame: CGRect, screen: CGRect) -> Bool {
+        visible && frame != screen
+    }
+
     /// The page was found over the game's picture (GameProcesses.pageCovers): behind every window.
     /// A Mac game's window lies at the level of the page, and not always above it.
     static func stepAside() {
