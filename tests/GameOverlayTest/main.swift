@@ -89,6 +89,21 @@ struct GameOverlayTest {
         check(!short.update(pressed: true, now: 1.75), "a short press (a game's own use) doesn't count towards the next")
         check(!short.update(pressed: true, now: 3.5), "the new press counts from its own start")
         check(short.update(pressed: true, now: 3.75), "two seconds after the new press")
+
+        // Two pads: the first holds, the second keeps reporting its stick.
+        var two = OverlayHold()
+        check(!two.update(pressed: OverlayHold.stillHeld(thisPad: true, holdUnderWay: two.since != nil, anyPad: false), now: 10), "player 1 holds")
+        check(OverlayHold.stillHeld(thisPad: false, holdUnderWay: two.since != nil, anyPad: true), "player 2's stick isn't player 1 letting go")
+        check(!two.update(pressed: OverlayHold.stillHeld(thisPad: false, holdUnderWay: two.since != nil, anyPad: true), now: 11), "1 s in, player 2 reporting")
+        check(two.update(pressed: OverlayHold.stillHeld(thisPad: false, holdUnderWay: two.since != nil, anyPad: true), now: 12),
+              "the hold reaches its two seconds with player 2 reporting")
+        check(!two.update(pressed: OverlayHold.stillHeld(thisPad: false, holdUnderWay: two.since != nil, anyPad: true), now: 15),
+              "it fired once: player 2's events don't start it over")
+        check(!OverlayHold.stillHeld(thisPad: false, holdUnderWay: two.since != nil, anyPad: false), "let go on every pad: over")
+        var looked = false
+        func lookedAtPads() -> Bool { looked = true; return false }
+        check(!OverlayHold.stillHeld(thisPad: false, holdUnderWay: false, anyPad: lookedAtPads()) && !looked,
+              "no hold under way: the other pads aren't looked at, an event comes hundreds of times a second")
     }
 
     /// B steps back, the PS button goes back to the game, a game is only quit from the question.

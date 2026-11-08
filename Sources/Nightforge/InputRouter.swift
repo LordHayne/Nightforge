@@ -540,8 +540,8 @@ final class InputRouter {
         }
         wakeIfIdle(pad, now: now)
         if pad.buttonOptions?.isPressed == true && pad.buttonMenu.isPressed { viewChorded = true }
-        let pressed = OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
-                                        menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
+        let pressed = OverlayHold.stillHeld(thisPad: Self.holdsChord(pad), holdUnderWay: overlayHold.since != nil,
+                                            anyPad: GCController.controllers().compactMap(\.extendedGamepad).contains(where: Self.holdsChord))
         if overlayHold.update(pressed: pressed, now: now) {
             if GameOverlay.isOpen { GameOverlay.resume() } else { openOverlay() }
         }
@@ -737,6 +737,11 @@ final class InputRouter {
         panel.animationBehavior = .none
         panel.isExcludedFromWindowsMenu = true
         return panel
+    }
+
+    private static func holdsChord(_ pad: GCExtendedGamepad) -> Bool {
+        OverlayHold.chord(leftStick: pad.leftThumbstickButton?.isPressed, rightStick: pad.rightThumbstickButton?.isPressed,
+                          menu: pad.buttonMenu.isPressed, view: pad.buttonOptions?.isPressed ?? false)
     }
 
     /// A button down or a stick or the d-pad pushed – not a resting stick's noise.
