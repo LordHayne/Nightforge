@@ -262,11 +262,21 @@ enum SteamCatalog {
         appInfoLock.lock()
         defer { appInfoLock.unlock() }
         if let cached = appInfoCache[key], cached.modified == modified { return cached.info }
-        guard let bytes = try? Data(contentsOf: file) else { return nil }
-        let info = appInfo(Array(bytes), appID: appID)
+        // The file itself is read once per change too, not again for each other game (release review C4).
+        let bytes: [UInt8]
+        if let file = appInfoFile[steamRoot.path], file.modified == modified {
+            bytes = file.bytes
+        } else {
+            guard let data = try? Data(contentsOf: file) else { return nil }
+            bytes = Array(data)
+            // Kept only up to 64 MB, so a huge library doesn't hold its whole appinfo in memory for good.
+            appInfoFile[steamRoot.path] = bytes.count <= 64 << 20 ? (modified, bytes) : nil
+        }
+        let info = appInfo(bytes, appID: appID)
         appInfoCache[key] = (modified, info)
         return info
     }
+    private static var appInfoFile: [String: (modified: Date, bytes: [UInt8])] = [:]
 
     /// The "appinfo" section of one app in appinfo.vdf.
     private static func appInfo(_ bytes: [UInt8], appID wanted: Int) -> [String: BinaryKV]? {
