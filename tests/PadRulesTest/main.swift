@@ -13,7 +13,56 @@ struct PadRulesTest {
         }
     }
 
+    /// Player numbers (PlayerSlots): nothing here touches a real controller.
+    static func players() {
+        var slots = PlayerSlots<String>()
+        func pads(_ names: String...) -> [(pad: String, kind: String)] {
+            names.map { (pad: $0, kind: $0.hasPrefix("d") ? "DualSense" : "Xbox") }
+        }
+        check(slots.update(connected: pads("d1")) == ["d1": 1], "first on: player 1")
+        check(slots.update(connected: pads("d1", "d2")) == ["d1": 1, "d2": 2], "the next is player 2")
+        check(slots.update(connected: pads("d2", "d1")) == ["d1": 1, "d2": 2], "macOS's order doesn't move anyone")
+        check(slots.update(connected: pads("d2")) == ["d2": 2], "player 1 off: player 2 stays 2")
+        check(slots.update(connected: pads("d2", "d3")) == ["d2": 2, "d3": 1], "back on (a new object): its old seat")
+        check(slots.update(connected: pads("d2", "d3", "x1")) == ["d2": 2, "d3": 1, "x1": 3], "another kind: the next free seat")
+
+        var both = PlayerSlots<String>()
+        _ = both.update(connected: pads("d1", "x1"))
+        _ = both.update(connected: [])
+        check(both.update(connected: pads("x2")) == ["x2": 2], "both off, the Xbox pad first: still its own seat")
+        check(both.update(connected: pads("x2", "d2")) == ["x2": 2, "d2": 1], "and the DualSense its own")
+
+        var reserved = PlayerSlots<String>()
+        _ = reserved.update(connected: pads("d1"))
+        _ = reserved.update(connected: [])
+        check(reserved.update(connected: pads("x1")) == ["x1": 2], "a seat waits for its kind: another pad goes on to the next")
+
+        var full = PlayerSlots<String>()
+        _ = full.update(connected: pads("d1", "d2", "d3", "d4"))
+        check(full.update(connected: pads("d1", "d2", "d3", "d4", "d5")).count == 4, "a fifth has no number")
+        check(full.update(connected: pads("d1", "d2", "d3", "d4", "d5"))["d5"] == nil, "and keeps none")
+        check(full.update(connected: pads("d2", "d3", "d4", "d5"))["d5"] == 1, "until a seat is there for it")
+
+        var oldest = PlayerSlots<String>()
+        _ = oldest.update(connected: pads("d1", "d2", "d3", "d4"))
+        _ = oldest.update(connected: pads("d1", "d3", "d4"))  // seat 2 first
+        _ = oldest.update(connected: pads("d3", "d4"))  // then seat 1
+        check(oldest.update(connected: pads("d3", "d4", "x1"))["x1"] == 2, "no seat of its own kind and none free: the one left longest ago")
+
+        for player in 1...4 { check(PlayerLight.color(player: player) != nil, "player \(player) has a colour") }
+        check(Set((1...4).map { "\(PlayerLight.color(player: $0)!)" }).count == 4, "four different colours")
+        check(PlayerLight.color(player: 0) == nil && PlayerLight.color(player: 5) == nil, "no number, no colour")
+
+        check(ControllerStatus(name: "DualSense Wireless Controller", battery: 0.8, player: 1).label == "1 · DualSense · 80 %", "number, name, battery")
+        check(ControllerStatus(name: "Xbox Wireless Controller", battery: nil, player: 2).label == "2 · Xbox", "no battery reported")
+        check(ControllerStatus(name: "DualSense Wireless Controller", battery: 0.8).label == "DualSense · 80 %", "no number: as before")
+        let unordered = [ControllerStatus(name: "a", battery: nil), ControllerStatus(name: "b", battery: nil, player: 2),
+                         ControllerStatus(name: "c", battery: nil), ControllerStatus(name: "d", battery: nil, player: 1)]
+        check(ControllerStatus.inPlayerOrder(unordered).map(\.name) == ["d", "b", "a", "c"], "player 1 first, those without a number last in their order")
+    }
+
     static func main() {
+        players()
         typealias Open = PadRules.Open
 
         // B: one press, one level, the innermost first.
