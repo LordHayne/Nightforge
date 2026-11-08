@@ -51,6 +51,10 @@ enum L10n {
         "1 game": "1 Spiel",
         "%ld games": "%ld Spiele",
         "Rescan Library": "Bibliothek neu einlesen",
+        "Restart Nightforge": "Nightforge neu starten",
+        "Quit the game first, then restart Nightforge.": "Beende zuerst das Spiel, dann starte Nightforge neu.",
+        "Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs.":
+            "Beendet Steam, Wine und alles, was Nightforge im Hintergrund laufen lässt, und startet Nightforge dann neu. Hilft, wenn etwas hängt.",
         "Quit Nightforge": "Nightforge beenden",
         "Settings (⌘,)": "Einstellungen (⌘,)",
         "Last played": "Zuletzt gespielt",

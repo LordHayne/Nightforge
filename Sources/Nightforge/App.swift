@@ -39,6 +39,7 @@ struct NightforgeApp: App {
             }
             // Also with a sheet open, which AppKit's own Quit waits for (Quit).
             CommandGroup(replacing: .appTermination) {
+                Button(L10n.t("Restart Nightforge")) { model.restartNightforge() }
                 Button(L10n.t("Quit Nightforge")) { Quit.now(by: "the menu") }
                     .keyboardShortcut("q")
             }
@@ -126,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        Engine.scheduleSteamShutdown()
+        Engine.scheduleSteamShutdown(restart: Engine.restarting)
         GameDisplay.quitting()
         GameOverlay.close()  // a game paused under the overlay runs on
     }

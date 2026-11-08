@@ -639,6 +639,17 @@ private struct StorageSettings: View {
             }
 
             Section {
+                Button(L10n.t("Restart Nightforge")) { model.restartNightforge() }
+                    .disabled(gameBusy)
+                    .padFocus("storage.restart", enabled: !gameBusy, activate: { model.restartNightforge() })
+                Text(gameBusy ? L10n.t("Quit the game first, then restart Nightforge.")
+                              : L10n.t("Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs."))
+                    .font(size: 10)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
                 HStack {
                     Button(L10n.t("Remove Nightforge Completely …"), action: planRemoval)
                         .disabled(gameBusy || measuringRemoval || removing)

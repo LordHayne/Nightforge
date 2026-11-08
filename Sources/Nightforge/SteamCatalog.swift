@@ -236,15 +236,29 @@ enum SteamCatalog {
         }
     }
 
+    /// The game's macOS launch options in Steam's order, from Steam for Mac's appinfo (SteamProgram.macLaunchType).
+    static func macLaunchEntries(appID: Int, steamRoot: URL) -> [LaunchEntry] {
+        launchOptions(appID: appID, steamRoot: steamRoot, os: "macos").map { option in
+            LaunchEntry(executable: option["executable"]?.string ?? "", arguments: option["arguments"]?.string ?? "",
+                        type: option["type"]?.string ?? "", description: option["description"]?.string ?? "",
+                        betaKey: option["config"]?.object?["betakey"]?.string ?? "")
+        }
+    }
+
     /// The game's launch options that apply to Windows, in Steam's order.
     private static func windowsLaunchOptions(appID: Int, steamRoot: URL) -> [[String: BinaryKV]] {
+        launchOptions(appID: appID, steamRoot: steamRoot, os: "windows")
+    }
+
+    /// The game's launch options that apply to `os` ("windows", "macos"), in Steam's order.
+    private static func launchOptions(appID: Int, steamRoot: URL, os target: String) -> [[String: BinaryKV]] {
         guard let launch = cachedAppInfo(appID: appID, steamRoot: steamRoot)?["config"]?.object?["launch"]?.object
         else { return [] }
         return launch
             .compactMap { key, value -> (index: Int, option: [String: BinaryKV])? in
                 guard let index = Int(key), let option = value.object else { return nil }
                 let os = option["config"]?.object?["oslist"]?.string ?? ""
-                return os.isEmpty || os.contains("windows") ? (index, option) : nil
+                return os.isEmpty || os.contains(target) ? (index, option) : nil
             }
             .sorted { $0.index < $1.index }
             .map(\.option)

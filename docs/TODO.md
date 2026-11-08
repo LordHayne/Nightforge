@@ -87,6 +87,20 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 - HUD in Mac-Versionen über Apples `MetalForceHudEnabled` je Spiel (7d33975). **Live prüfen mit Valheim.**
 - Left 4 Dead 2 lädt in Stereo (`+windows_speaker_config 2`, 8ecb223). **Offen:** warum winecx vier Kanäle meldet.
 
+## 8.11. mittags (staging-032, nicht gepusht)
+
+- **Zwei Controller in der Leiste** (d5c0316): je eine Kapsel mit Akku. Live gesehen am 8.11. (DualSense 35 % und 65 %).
+- **Nightforge neu starten** (Menü „Nightforge“, Einstellungen über „Komplett entfernen“): `steam-shutdown.sh` mit
+  `$11 = 1` wartet auf kein Spiel und keinen Download, beendet auch Steam für Mac (wartet bis 20 s), dann
+  `wineserver -k`, die Wine-Helfer und zuletzt `open` auf Nightforge. Nach einem Spiel in den letzten fünf Minuten
+  bleiben die 30 s für die Cloud-Spielstände. Gesperrt, solange ein Spiel läuft. **Live prüfen:** Neustart ohne Spiel,
+  einmal mit hängendem Mac-Steam-Dialog (Drawful 2), danach startet Nightforge von selbst und Steam frisch.
+- **Mac-Spiele mit mehreren Startarten** (Drawful 2: „Standalone“ oder Jackbox-Megapicker): Mac-Steam fragte, und
+  sein Fenster kam trotz `MacSteam.show()` nicht nach vorn („Bestätige im Steam-Fenster“, nichts zu sehen). Jetzt
+  `steam://launch/<id>/Option2` (Steams erste Mac-Option, wenn kein anderer ihren Typ hat; `steamui.dylib` kennt die
+  Namen). **Offen:** warum Steams Frage-Fenster unter macOS nicht nach vorn kommt; betrifft andere Fragen weiter.
+  **Live prüfen:** Drawful 2 startet ohne Frage.
+
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
 
 Gebaut und mit Stand-ins getestet (`tests/SubprocessTest`, `tests/QuitScriptTest`, `tests/CompleteRemovalTest`), noch nicht in der

@@ -1643,6 +1643,19 @@ final class LibraryModel: ObservableObject {
                       on: GameDisplay.gameScreen)
     }
 
+    /// "Restart Nightforge" (menu, Settings): Nightforge quits, the shutdown script ends Steam (both),
+    /// the Wine session and its helpers at once, then opens Nightforge again – a clean start when
+    /// something in the background hangs (the user, 8.11.). Not while a game runs: the overlay ends it first.
+    func restartNightforge() {
+        guard running.isEmpty else {
+            errorMessage = L10n.t("Quit the game first, then restart Nightforge.")
+            return
+        }
+        GameLog.note("Restart asked for: Steam, Wine and the helpers end, then Nightforge opens again")
+        Engine.restarting = true
+        if !Quit.now(by: "Restart Nightforge") { Engine.restarting = false }
+    }
+
     /// The overlay's restart: once the game's processes are gone, it starts again.
     func startAgainWhenEnded(_ game: Game) async {
         for _ in 0..<60 where running[game.id] != nil { try? await Task.sleep(for: .milliseconds(500)) }
@@ -2625,13 +2638,19 @@ final class LibraryModel: ObservableObject {
                 : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
-            await Task.detached(priority: .userInitiated) {
+            let appID = game.appID
+            let launchType = await Task.detached(priority: .userInitiated) { () -> String? in
                 ControllerCompatibility.prepare(installDir: installDir)
                 MacGameHUD.prepare(folder: installDir)
+                return SteamProgram.macLaunchType(SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root))
             }.value
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
-            let run = { MacSteam.open("run/\(game.appID)" + extra) }
+            // With several launch options Steam asks which one, in a window that didn't come forward
+            // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
+            // first straight away; it passes no arguments, so with the player's own Steam asks as before.
+            let command = launchType.flatMap { arguments.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
+            let run = { MacSteam.open(command) }
             raiseCurtain(for: game)
             run()
             let start = await waitForMacStart(game, watcher: watcher, send: run)

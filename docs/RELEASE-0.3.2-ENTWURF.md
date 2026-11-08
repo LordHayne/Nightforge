@@ -37,6 +37,8 @@ Nightforge 0.3.2 bringt Overwatch auf den Mac, ein neues Menü für deine Launch
 ### Spielen
 - **Spiele bleiben vorne:** Manche Unity- und Unreal-Spiele, etwa The Forest, verschwanden kurz nach dem Ladebildschirm ins Dock, weil Nightforge ihnen einen Moment lang die Tastatur nahm. Das passiert nicht mehr, und verschwindet ein Spiel trotzdem, holt Nightforge es zurück.
 - **Controller zu spät eingeschaltet:** Schaltest du den Controller erst ein, wenn ein Windows-Spiel schon läuft, erscheint ein kurzer Hinweis über dem Spiel, und im Controller-Menü steht der Neustart des Spiels ganz oben.
+- **Nightforge neu starten:** Im Menü „Nightforge“ und in den Einstellungen beendet „Nightforge neu starten“ Steam, Wine und alles, was im Hintergrund läuft, und startet Nightforge frisch. Das hilft, wenn etwas hängt.
+- **Mac-Spiele mit mehreren Startarten** wie Drawful 2 starten gleich in ihrer eigenen Version. Bisher wartete Steam auf eine Auswahl in einem Fenster, das nicht nach vorne kam.
 
 ### macOS
 - **Eine Frage weniger:** „Nightforge Helper“, über den Nightforge Steam, Wine und die Spiele startet, kommt jetzt fertig signiert mit der App. macOS fragt deshalb nur noch einmal nach dem Zugriff auf externe Laufwerke und behält die Antwort über Updates hinweg.
@@ -77,6 +79,8 @@ Nightforge 0.3.2 brings Overwatch to the Mac, a new menu for your launchers and 
 ### Playing
 - **Games stay in front:** some Unity and Unreal games, like The Forest, slipped into the Dock right after the loading screen, because Nightforge took their keyboard for a moment. That no longer happens, and if a game disappears anyway, Nightforge brings it back.
 - **Controller switched on late:** if you switch your controller on after a Windows game started, a short note shows over the game, and restarting the game comes first in the controller menu.
+- **Restart Nightforge:** in the Nightforge menu and in Settings, "Restart Nightforge" ends Steam, Wine and everything running in the background, and starts Nightforge fresh. It helps when something hangs.
+- **Mac games with several ways to start**, like Drawful 2, start their own version right away. Until now Steam waited for a choice in a window that didn't come to the front.
 
 ### macOS
 - **One question less:** "Nightforge Helper", which Nightforge starts Steam, Wine and the games through, now comes signed inside the app. So macOS asks only once for access to external drives and keeps your answer across updates.

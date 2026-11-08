@@ -191,6 +191,19 @@ struct SteamProgramTest {
               "Control: Steam's one Windows program")
         check(entries(cyberpunk).last?.betaKey == "pc_preview_a", "an option for a beta branch says so")
         check(entries(424242).isEmpty && SteamProgram.storeProgram([]) == nil, "a game Steam doesn't know: nothing")
+
+        // Steam for Mac asks which option when there are several (Drawful 2, 8.11.): Steam's first, by its type.
+        typealias Entry = SteamCatalog.LaunchEntry
+        let drawful = [Entry(executable: "Drawful 2.app", type: "option2", description: "Standalone"),
+                       Entry(executable: "mpLauncher.sh", type: "option1", description: "in the Jackbox Games Megapicker"),
+                       Entry(executable: "launch_megapicker", arguments: "product/drawful-2", type: "option1", betaKey: "latest")]
+        check(SteamProgram.macLaunchType(drawful) == "Option2", "Drawful 2 on the Mac: its standalone option, by type")
+        check(SteamProgram.macLaunchType(Array(drawful.prefix(1))) == nil, "one option: Steam doesn't ask, steam://run as before")
+        check(SteamProgram.macLaunchType([drawful[0], drawful[2]]) == nil, "an option only for a beta branch doesn't count")
+        check(SteamProgram.macLaunchType([Entry(executable: "Game.app", type: "default"), drawful[1]]) == nil,
+              "a default option has no name steam://launch takes: steam://run as before")
+        check(SteamProgram.macLaunchType([Entry(executable: "A.app", type: "option1"), drawful[1]]) == nil,
+              "two options of the same type: Steam would take either, so it asks as before")
     }
 
     static func route(_ appID: Int, _ dir: URL, _ layer: GraphicsLayer = .dxmt, chosen: String = "", profile: String? = nil)

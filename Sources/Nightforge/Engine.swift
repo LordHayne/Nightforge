@@ -968,9 +968,13 @@ enum Engine {
     /// It gives up if Nightforge is opened again in the meantime. Steam for Mac goes the same way
     /// when Nightforge started it. A game that was running when Nightforge quit brings Nightforge
     /// back when it ends, so the player lands in the launcher again, controller in hand.
-    static func scheduleSteamShutdown() {
+    /// "Restart Nightforge" (LibraryModel.restartNightforge): the script ends everything at once, Steam
+    /// for Mac too, and opens Nightforge again once the session is down.
+    nonisolated(unsafe) static var restarting = false
+
+    static func scheduleSteamShutdown(restart: Bool = false) {
         let wine = isSteamInstalled ? sessionWine() ?? installedWineNow() : nil
-        let macSteam = MacSteam.endsWithNightforge()
+        let macSteam = restart || MacSteam.endsWithNightforge()
         let macLibrary = FileManager.default.fileExists(atPath: MacSteam.steamapps.path) ? MacSteam.steamapps.path : ""
         let script = supportDir.appendingPathComponent("steam-shutdown.sh")
         let text = steamShutdownScript
@@ -982,6 +986,7 @@ enum Engine {
         let sandbox = WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]
         process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
                              String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))] + sandbox
+            + [restart ? "1" : "0"]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -994,6 +999,7 @@ enum Engine {
     /// game last ran or was asked to start (`lastGameActivity`, epoch seconds): only within five minutes of
     /// that does it wait 30 s for the cloud saves before it ends Steam. $9 and $10 Wine's sandbox helper and
     /// profile (WineSandbox; review of 3.11.2026: it ran steam.exe from the prefix outside the sandbox).
+    /// $11 "1" for a restart: no waiting for games or downloads, then Nightforge opens again (8.11.).
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
     /// counts a download only if it isn't paused. A game that starts while Steam is being ended (from Steam's
     /// window) sends it back to waiting, never under `wineserver -k`. Its process is in `steam-shutdown.pid`
@@ -1011,6 +1017,12 @@ enum Engine {
         LAST_GAME="${8:-0}"
         recent_game() { [ $(( $(date +%s) - LAST_GAME )) -lt 300 ]; }
         SANDBOX="$9"; PROFILE="${10}"
+        # RESTART is 1 for "Restart Nightforge": no game or download is waited for (Nightforge offers it only
+        # with no game running; a hung one ends with the session), Steam for Mac goes too, and Nightforge
+        # opens again once everything is down. A game that ran in the last five minutes still gets its 30 s
+        # for the cloud saves.
+        RESTART="${11:-0}"
+        finish() { [ "$RESTART" = 1 ] && [ -n "$APP" ] && open "$APP"; exit 0; }
         # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
         # change, so with the switch on it runs inside too, as every other Wine start does. Switched on
         # without the helper, nothing of Windows starts; the session still ends below (wineserver -k).
@@ -1097,7 +1109,7 @@ enum Engine {
           for i in $(seq 1 100); do kill -0 "$QUITTING" 2>/dev/null || break; sleep 0.1; done
         fi
         # The game ends: back to Nightforge (gone for three looks, so a launcher handing over doesn't count).
-        if [ -n "$APP" ] && game_running; then
+        if [ "$RESTART" != 1 ] && [ -n "$APP" ] && game_running; then
           gone=0
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
@@ -1116,6 +1128,7 @@ enum Engine {
         # game with it.
         while true; do
           while true; do
+            if [ "$RESTART" = 1 ]; then recent_game && sleep 30; break; fi
             while busy; do reopened && exit 0; late && exit 0; unknown_too_long && exit 0; sleep 10; done
             recent_game && sleep 30        # cloud saves of a game that just ended (or is just starting): not otherwise
             reopened && exit 0
@@ -1123,8 +1136,11 @@ enum Engine {
           done
           if [ "$QUIT_MAC" = 1 ] && pgrep -qx steam_osx; then
             osascript -e 'tell application id "com.valvesoftware.steam" to quit' >/dev/null 2>&1
+            if [ "$RESTART" = 1 ]; then
+              for i in $(seq 1 20); do pgrep -qx steam_osx || break; sleep 1; done
+            fi
           fi
-          [ -n "$WINE" ] || exit 0
+          [ -n "$WINE" ] || finish
           # Nightforge opened again meanwhile has its own plans for Steam (and may start a game right
           # away): asked again before each step that would end the session.
           reopened && exit 0
@@ -1134,11 +1150,12 @@ enum Engine {
             for i in $(seq 1 20); do
               steam_running || break
               reopened && exit 0
-              game_running && continue 2
+              [ "$RESTART" != 1 ] && game_running && continue 2
               sleep 1
             done
           fi
           reopened && exit 0
+          [ "$RESTART" = 1 ] && break
           game_running || break
         done
         "$(dirname "$WINE")/wineserver" -k
@@ -1147,6 +1164,7 @@ enum Engine {
         # Wine's only, which map the engine's files (Nightforge's downloaders work there too).
         is_wine() { lsof -a -p "$1" -d txt -Fn 2>/dev/null | grep -qE '/Components/(winecx|wine|wine-staging)/'; }
         lsof -a -d cwd -Fpn 2>/dev/null           | awk -v root="$PREFIX" '/^p/ { pid = substr($0, 2) } /^n/ { if (index(substr($0, 2), root) == 1) print pid }'           | while read -r pid; do is_wine "$pid" && kill -9 "$pid" 2>/dev/null; done
+        finish
         """#
 
     /// Installed engine binary, if setup has got that far. While the engine the component list
