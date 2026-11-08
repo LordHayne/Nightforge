@@ -2163,15 +2163,19 @@ private struct HintBar: View {
     var body: some View {
         HStack(spacing: 22) {
             // During the first start's checklist the controller test shows the battery itself.
-            if model.controllerConnected, let status = model.controllerStatus,
-               !(model.showsFirstStart && model.setup.stage == .checklist) {
-                Label(status.label, systemImage: status.symbol)
-                    .font(size: 12, weight: .medium).monospacedDigit()
-                    .foregroundStyle(status.isLow ? Theme.sodium : Theme.ink.opacity(0.8))
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
-                    .background(GlassBackground(glass: .regular, shape: Capsule()))
-                    .help(L10n.t("Controller battery"))
+            // One capsule per controller: with two players both show, each with its own battery (8.11.).
+            if model.controllerConnected, !(model.showsFirstStart && model.setup.stage == .checklist) {
+                HStack(spacing: 8) {
+                    ForEach(Array(model.controllerStatuses.prefix(4).enumerated()), id: \.offset) { _, status in
+                        Label(status.label, systemImage: status.symbol)
+                            .font(size: 12, weight: .medium).monospacedDigit()
+                            .foregroundStyle(status.isLow ? Theme.sodium : Theme.ink.opacity(0.8))
+                            .padding(.horizontal, 12)
+                            .frame(height: 32)
+                            .background(GlassBackground(glass: .regular, shape: Capsule()))
+                            .help(L10n.t("Controller battery"))
+                    }
+                }
             }
             Spacer()
             let pad = model.padSymbols

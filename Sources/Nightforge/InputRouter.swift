@@ -379,15 +379,15 @@ final class InputRouter {
         refreshBattery()
     }
 
-    /// The controller in use and its battery, for the hint bar ("DualSense · 80 %").
+    /// Every connected controller and its battery, for the hint bar ("DualSense · 80 %"). In the order
+    /// macOS lists them, so the capsules keep their places when the other controller is used (8.11.).
     func refreshBattery() {
-        let controller = GCController.current ?? GCController.controllers().first { $0.extendedGamepad != nil }
-        let status = controller.map { pad -> ControllerStatus in
+        let statuses = GCController.controllers().filter { $0.extendedGamepad != nil }.map { pad -> ControllerStatus in
             let battery = pad.battery.flatMap { $0.batteryState == .unknown ? nil : $0 }
             return ControllerStatus(name: pad.vendorName ?? pad.productCategory, battery: battery?.batteryLevel,
                                     charging: battery?.batteryState == .charging)
         }
-        if model?.controllerStatus != status { model?.controllerStatus = status }
+        if model?.controllerStatuses != statuses { model?.controllerStatuses = statuses }
     }
 
     private func attach(_ controller: GCController?) {

@@ -204,8 +204,8 @@ final class LibraryModel: ObservableObject {
     @Published var controllerConnected = false
     /// The buttons of the controller in use, as that controller labels them (InputRouter).
     @Published var padSymbols = PadSymbols()
-    /// The controller in use and its battery (InputRouter), for the hint bar.
-    @Published var controllerStatus: ControllerStatus?
+    /// Every connected controller with its battery, one capsule each in the hint bar.
+    @Published var controllerStatuses: [ControllerStatus] = []
     /// A newer Nightforge release, offered with one click in the top bar.
     @Published private(set) var availableUpdate: AppUpdate?
     @Published private(set) var updating = false
