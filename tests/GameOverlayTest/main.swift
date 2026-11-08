@@ -397,12 +397,19 @@ struct GameOverlayTest {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, macOS: Bool = false,
                   here: Bool = false, anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0,
                   settle: TimeInterval = 1, guardOver: Bool = false, pictureFor: TimeInterval = 0, broughtBack: Int = 0,
-                  playerActed: Bool = false, shieldOnly: Bool = false) -> LibraryModel.CurtainStep {
+                  playerActed: Bool = false, shieldOnly: Bool = false, steadyFor: TimeInterval = .infinity) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, macOSAsks: macOS,
                                      windowHere: here, windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor,
                                      settle: settle, guardOver: guardOver, pictureFor: pictureFor, broughtBack: broughtBack,
-                                     playerActed: playerActed, shieldOnly: shieldOnly)
+                                     playerActed: playerActed, shieldOnly: shieldOnly, steadyFor: steadyFor)
         }
+        // Overwatch, 8.11. 14:53: its window went 1392×742, 1342×710, and only then the display mode.
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 0.5) == .wait, "the picture's size still changing: the curtain stays")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 2) == .lower, "steady for 2 s: the curtain sinks")
+        check(step(gameFront: true, here: true, frontFor: 1, pictureFor: 15, steadyFor: 0) == .lower, "the ceiling holds whatever the size does")
+        check(!LibraryModel.fetchesFrontItself(again: false, active: false), "a plain handover doesn't go through Launch Services")
+        check(!LibraryModel.fetchesFrontItself(again: true, active: true), "Nightforge in front already: it hands over as ever")
+        check(LibraryModel.fetchesFrontItself(again: true, active: false), "fetching a game back from behind needs a real round through the front")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
               "only the black shield on screen: its real window is fetched")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,

@@ -123,8 +123,36 @@ struct SteamSwitchTest {
         check(realLogAfter == realLogBefore, "the real Steam for Mac's connection log is untouched")
     }
 
+    static func cloudStart() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let at = { (time: String) in formatter.date(from: "2026-11-08 " + time)! }
+        func wait(_ lines: [String], _ now: String) -> Bool {
+            SteamCloudStart.shouldWait(log: lines.joined(separator: "\r\n"), now: at(now))
+        }
+        let begun = ["[2026-11-08 14:55:37] Client version: 1792618285", "[2026-11-08 14:55:37] [AppID 7] Starting sync (init,)"]
+        check(wait(begun, "14:55:39"), "the controller configs not looked at yet, Steam just started: it waits")
+        check(!wait(begun, "14:56:10"), "never looked at within its time (no such app, or offline): no wait")
+        let init241 = begun + ["[2026-11-08 14:55:40] [AppID 241100] Starting sync (init,)", "[2026-11-08 14:55:40] [AppID 241100] Starting sync (eval,)"]
+        check(wait(init241, "14:55:40"), "looking at them: it waits")
+        let need = init241 + ["[2026-11-08 14:55:41] [AppID 241100] Need to sync from local change number '5' to global change number '6' (full), but not attempting now",
+                              "[2026-11-08 14:55:41] [AppID 241100] Eval complete", "[2026-11-08 14:55:41] [AppID 241100] Starting sync (down,)"]
+        check(wait(need, "14:55:41"), "the 8.11. collision: a change to bring down, still under way")
+        check(!wait(need, "14:56:30"), "held at most 30 s after its start")
+        check(!wait(need + ["[2026-11-08 14:55:42] [AppID 241100] Download complete, result OK", "[2026-11-08 14:55:42] [AppID 241100] Successfully synced to ChangeNumber 6"], "14:55:42"),
+              "brought down: the game may start")
+        check(!wait(["[2026-11-08 14:57:35] Client version: 1792618285", "[2026-11-08 14:57:36] [AppID 241100] Starting sync (eval,)",
+                     "[2026-11-08 14:57:37] [AppID 241100] Currently already synced to global change number '6', should be nothing to download",
+                     "[2026-11-08 14:57:37] [AppID 241100] Eval complete"], "14:57:37"), "nothing to bring down (14:57): no wait")
+        check(!SteamCloudStart.shouldWait(log: "[2026-11-08 14:55:37] [AppID 7] Starting sync (init,)", now: at("14:55:39")), "the start not in the log's tail: long ago, no wait")
+        // Steam that's been up for a long time doesn't wait for anything.
+        check(!wait(["[2026-11-08 09:00:00] Client version: 1792618285", "[2026-11-08 09:00:05] [AppID 241100] Starting sync (eval,)"], "14:00:00"), "up for hours: no wait")
+    }
+
     @MainActor
     static func everything() async {
+        cloudStart()
         let fm = FileManager.default
         let work = fm.temporaryDirectory.appendingPathComponent("steam-switch-test-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
