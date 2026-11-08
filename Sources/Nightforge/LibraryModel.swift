@@ -352,6 +352,7 @@ final class LibraryModel: ObservableObject {
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.wakeSteam()
                 self?.reload(quiet: true)
                 self?.refreshStores()
                 self?.refreshLaunchers()
@@ -613,6 +614,7 @@ final class LibraryModel: ObservableObject {
                 if reading.source != power { power = reading.source }
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
+                await lookAtSteamOnDemand()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 let pause = Duration.seconds(goneFor > 0 ? 1 : busy ? 3 : 10)
@@ -890,7 +892,7 @@ final class LibraryModel: ObservableObject {
     /// Steam for Mac is busy for a Mac version: one is running or starting. The Wine Steam stays
     /// out of the way then – signing in, it would sign Steam for Mac out (one sign-in per account),
     /// and the game's saves would no longer reach Steam Cloud.
-    private var macSteamBusy: Bool {
+    var macSteamBusy: Bool {
         anyRunning(.mac) || allGames.contains { $0.id == launchingID && $0.platform == .mac && $0.provider == .steam }
     }
 
@@ -2008,7 +2010,9 @@ final class LibraryModel: ObservableObject {
     /// Keeps Nightforge's own Steam running hidden once it's set up.
     /// The engine check and Steam (re)start at app launch; game launches wait for it so a pending
     /// Steam restart can't cut off a game that was just started.
-    private var steamStartup: Task<Void, Never>?
+    var steamStartup: Task<Void, Never>?
+    /// Steam only when something needs it, on battery.
+    var steamOnDemand = SteamOnDemand()
 
     func startBackgroundSteam() {
         // onAppear can fire more than once; one start per app run is enough.
@@ -2058,6 +2062,9 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(60))
         }
     }
+
+    /// A Steam woken by SteamOnDemand is watched like one started with Nightforge.
+    func watchWokenSteam(_ wine: URL) { Task { await watchSteamStart(wine) } }
 
     /// Steam hangs now and then while starting under Wine (see Engine.steamLooksStuck), and one
     /// restart fixes it. Watched for the first two minutes, ideally before anyone presses Play.
@@ -3608,6 +3615,7 @@ final class LibraryModel: ObservableObject {
                                                     restartWindows: { await self.restartWindowsSteam() })
                 launchPhase = nil
             }
+            if viaSteam, game.bottle.isBuiltIn { wakeSteam() }
             if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value
