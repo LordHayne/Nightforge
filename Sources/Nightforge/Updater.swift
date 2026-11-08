@@ -134,8 +134,8 @@ enum Updater {
         return needed > (running.majorVersion, running.minorVersion, running.patchVersion)
     }
 
-    /// Downloads and installs `update` over the running app, then restarts it.
-    static func install(_ update: AppUpdate) async throws {
+    /// Downloads and installs `update` over the running app, then restarts it. `keys`: whose signature counts.
+    static func install(_ update: AppUpdate, keys: [String] = SigningKeys.trusted) async throws {
         let fm = FileManager.default
         let app = Bundle.main.bundleURL
         guard !runsFromProtectedPlace(app) else { throw Failure.protectedPlace }
@@ -153,7 +153,7 @@ enum Updater {
         let zip = work.appendingPathComponent("Nightforge.zip")
         try fm.moveItem(at: download, to: zip)
         // Nothing of the download is opened before the maintainer's signature holds for it.
-        guard isSigned(zip, signature: signature) else {
+        guard isSigned(zip, signature: signature, keys: keys) else {
             GameLog.note("The download of Nightforge \(update.version) doesn't match its signature: not installed")
             throw Failure.signature
         }
@@ -180,6 +180,8 @@ enum Updater {
         relaunch.arguments = ["-c", #"for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || break; sleep 0.2; done; /usr/bin/open "$0""#,
                               app.path, String(getpid())]
         try relaunch.run()
+        // Now, not by the `defer` above: quitting ends the process before it would run, and the zip stayed in the temp folder.
+        try? fm.removeItem(at: work)
         await MainActor.run { _ = Quit.now(by: "the update") }  // also from the Settings sheet
     }
 
