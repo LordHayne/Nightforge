@@ -1046,7 +1046,6 @@ final class LibraryModel: ObservableObject {
                     return end("the start went wrong")
                 }
             }
-            if loweredAt == nil { GameBackdrop.keepOverShield() }
             buildsShaders = buildsShaders || launchBuildsShaders
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             // One list for all of it: the game's processes and macOS's askers come from the same look.

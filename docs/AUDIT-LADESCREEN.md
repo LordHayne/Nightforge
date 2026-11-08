@@ -25,10 +25,10 @@ eigenes Reopen-Ereignis scheidet aus, weil es nach Automatisierungsrechten frage
 -1744, Dialog beim Spieler). `handFocus` geht jetzt über Launch Services selbst nach vorn, wartet darauf und übergibt dann, das
 Spiel wird also wirklich aktiv. Am Spielprozess hängt nichts. Ob es Overwatch zurückbringt, zeigt erst der Live-Test.
 
-**C2 · Flackern bei Start und Ende.** Beim Start sank der Vorhang für ein noch wechselndes Fenster (1392×742, dann 1342×710),
-danach setzte das Spiel erst den Anzeigemodus. Beim Ende lag der Vorhang unter Wines Schutzfenster und dem Spiel. Jetzt muss die
-Bildgröße 2 s stehen, und der Vorhang liegt über dem Schutzfenster, solange es eins gibt. Dauerhaft darf er das nicht, sonst
-verdeckt er ⌘-Tab und macOS-Meldungen. Das Overlay geht darüber. Das kurze Schwarz der Bildschirm-Umschaltung selbst bleibt.
+**C2 · Flackern bei Start und Ende (für 0.3.3).** Beim Start sank der Vorhang für ein noch wechselndes Fenster (1392×742, dann
+1342×710), danach setzte das Spiel erst den Anzeigemodus. Beim Ende lag der Vorhang unter Wines Schutzfenster und dem Spiel. In
+0.3.2 bleibt nur die kleine Korrektur: Die Bildgröße muss 2 s stehen, höchstens bis zur Obergrenze von 15 s. Der Vorhang über dem
+Schutzfenster war in 00adb4e gebaut, ist für 0.3.2 wieder herausgenommen und steht unter „Für 0.3.3“.
 
 **C3 · „Unable to Sync“ vor Valheim (14:55).** Valheims Spielstände waren nicht betroffen: `[AppID 892970] … already synced`. Es
 ging um Steams Controller-Konfigurationen (AppID 241100, Änderung 5 → 6): `SynchronizingControllerConfig "syncfailed"`, im
@@ -36,9 +36,24 @@ ging um Steams Controller-Konfigurationen (AppID 241100, Änderung 5 → 6): `Sy
 Herunterladen, lief derselbe Start durch. `SteamCloudStart` hält ein gerade gestartetes Steam bis zum Ende dieses Abgleichs auf,
 höchstens 30 s nach seinem Start, auf beiden Steam-Wegen. Steam Cloud selbst bleibt unberührt.
 
-Live-Prüfung dazu: (a) Overwatch 3×, kein Schwarz, kein Dock-Klick nötig, im Log kein `didn't come back`; (b) Start und Ende von
-Overwatch ohne Flackern; im Log `The curtain goes over a captured display's shield`; (c) Windows-Spiel mit verändertem Controller,
-dann Valheim: keine Frage von Steam, im Log nur bei Bedarf `Steam Cloud: Steam finishes its first sync`.
+Live-Prüfung dazu: (a) Overwatch 3×, kein Schwarz, kein Dock-Klick nötig, im Log kein `didn't come back`; (b) Windows-Spiel mit
+verändertem Controller, dann Valheim: keine Frage von Steam, im Log nur bei Bedarf `Steam Cloud: Steam finishes its first sync`.
+
+## Für 0.3.3
+
+1. **Der Ladebildschirm muss wesentlich ruhiger werden** (der Nutzer, 8.11.). Das ist der oberste Punkt. Dazu gehören:
+   - **Flackern bei Start und Ende von Overwatch.** Der Vorhang liegt unter Wines Schutzfenster (Ebene …628) und dem Spiel, also
+     wird er bei jedem Moduswechsel schwarz. Fertiger Ansatz in 00adb4e (`GameBackdrop.curtainLevel`, `keepOverShield`): der
+     Vorhang über dem Schutzfenster, solange es eins gibt, das Overlay darüber. Für 0.3.2 zu groß, ungeprüft.
+   - **Desktop kurz sichtbar beim erneuten Start von Valheim direkt nach The Forest** (8.11., 14:57). Das Log zeigt nur `Space
+     changed under the curtain` kurz vor dem Bild; Valheim macht einen eigenen Vollbild-Space auf. Ursache unbewiesen, Vermutung:
+     Der Vorhang ist beim Wechsel der Spaces erst einen Moment später im neuen Space.
+   - B3: Steams Frage nimmt den Vorhang ganz weg.
+   - B6: Der Text springt kurz zurück auf „Starten …“.
+2. B2: kein Ausweg vom Vorhang ohne Spielprozess.
+3. B4: Epic und GOG mit Update und Spielstand unter den Vorhang.
+4. B5: Hinweise nehmen den Vorhang weg.
+5. B1: `GameStage` holt ein endendes Spiel zurück.
 
 ## Wer was macht
 
@@ -214,6 +229,8 @@ Hinweis („startet trotzdem“ bei GOG-Teilen und Spielständen).
 |---|---|
 | A1–A5 | behoben, getestet, Live-Prüfung nötig |
 | A6–A10 | behoben, gering, gehen mit |
+| C1 Overwatch nach vorn, C3 Steams Sync-Frage | behoben, getestet, Live-Prüfung nötig |
+| C2 | in 0.3.2 nur die Regel „Bild 2 s ruhig“, der Rest 0.3.3 |
 | B1–B6, V1–V3 | 0.3.3 |
 
 Einordnung im Funktionsstopp: Alle Punkte sind Fehler aus den Live-Tests vom 7./8.11. oder dieselbe Klasse. Die größte
