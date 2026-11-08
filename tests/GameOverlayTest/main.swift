@@ -61,9 +61,35 @@ struct GameOverlayTest {
         ]
         check(ids(OverlayTiles.visible(mixed, in: OverlayContext())) == ["top", "volume", "later", "tool"],
               "a new block only says its zone: sorted in, kept in its order, hidden when it means nothing here")
-        check(OverlayMetrics(height: 1080)(26) == 26, "the board's sizes are the 1080p ones")
-        check(OverlayMetrics(height: 2160)(26) == 52, "a 2160-point screen: twice")
-        check(OverlayMetrics(height: 982).unit < 1 && OverlayMetrics(height: 200).unit == 0.7, "smaller, but not unreadable")
+        sizes()
+    }
+
+    /// The live test of 8.11.: too big for Full HD, and more so on the Mac.
+    static func sizes() {
+        let tv = OverlayMetrics(height: 1080, seat: .sofa)
+        check(tv.text(24) == 24 && tv.text(28) == 28 && tv.text(6) == 6,
+              "a TV keeps the board's sizes: 24 at the least, 28 on the buttons, a 6-point ring")
+        check(tv(600) <= 480, "… and the card around them shrinks: at most a quarter of 1920 points")
+        check(tv.heading(36) >= 28 && tv.heading(44) * 0.7 >= 24 && tv.heading(34) >= 24,
+              "a question stays main text, the clock small text, a long name shrunk to its limit too")
+        check(tv.top == 54 && tv.trailing == 96, "the board's 5 % from the edge, on a TV")
+
+        let tv4K = OverlayMetrics(height: 2160, seat: .sofa)
+        check(tv4K(600) == 2 * tv(600) && tv4K.text(24) == 48 && tv4K.top == 108,
+              "3840×2160 points on a TV: twice everything, so the same share of the picture")
+        check(OverlayMetrics(height: 200, seat: .sofa).unit == 0.7, "a very small TV mode: smaller, but not unreadable")
+
+        let macBook = OverlayMetrics(height: 982, seat: .desk)
+        check(macBook(600) / 1512 <= 0.25, "on a MacBook a side bar: at most a quarter of its width")
+        check(macBook.text(24) >= 13, "… and nothing under what a Mac's own text is")
+        check(macBook.top < tv.top && macBook.trailing < tv.trailing, "no 5 % on a desk: a screen shows its whole picture")
+
+        let monitor = OverlayMetrics(height: 1080, seat: .desk)
+        check(monitor(600) < tv(600) && monitor.text(24) < tv.text(24), "the same Full HD on a desk: smaller than on a TV")
+        let monitor4K = OverlayMetrics(height: 2160, seat: .desk)
+        check(monitor4K.unit == 1.5 && monitor4K.text(24) >= 19, "3840×2160 points on a desk: it grows, not tiny")
+        check(monitor4K(600) < tv4K(600), "… and still less than on a TV of that size")
+        check(OverlayMetrics(height: 800, seat: .desk).unit == 1, "a small Mac screen: the desk's size, no smaller")
     }
 
     /// What the overlay does to a game, and when it may run on.

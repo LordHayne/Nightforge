@@ -30,6 +30,8 @@ enum GameOverlay {
         /// A question about a start, with no picture to keep: in the middle of the screen, for as long
         /// as the overlay is up.
         @Published var centered = false
+        /// A TV or a desk: what the side bar's sizes are for.
+        @Published var seat = OverlaySeat.desk
         @Published var symbols = PadSymbols()
         /// The output the game still plays to after the default changed (GameAudio.gameStillOn).
         @Published var soundStaysOn: String?
@@ -111,6 +113,8 @@ enum GameOverlay {
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
         display = GameProcesses.display(of: windows, pids: Set(pids)) ?? screenNumber(screen)
         let frame = display.map(Self.frame(of:)) ?? screen.frame
+        let shownOn = NSScreen.screens.first { GameDisplay.id($0) == display } ?? screen
+        state.seat = GameDisplay.isTV(shownOn) ? .sofa : .desk
         panel.setFrame(frame, display: false)
         // Above whatever covers the screen – the game's window, whatever level it gives it, or a
         // captured display's shield (windows above its level show over it).

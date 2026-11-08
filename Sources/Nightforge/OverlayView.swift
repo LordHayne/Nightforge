@@ -8,14 +8,14 @@ struct OverlayView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let m = OverlayMetrics(height: geometry.size.height)
+            let m = OverlayMetrics(height: geometry.size.height, seat: state.seat)
             ZStack(alignment: .topTrailing) {
                 if state.centered {
                     centered
                 } else {
                     sideBar(m)
-                        .padding(.top, m(54))
-                        .padding(.trailing, m(96))
+                        .padding(.top, m.top)
+                        .padding(.trailing, m.trailing)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -28,8 +28,8 @@ struct OverlayView: View {
     private func sideBar(_ m: OverlayMetrics) -> some View {
         VStack(alignment: .leading, spacing: m(20)) {
             switch state.step {
-            case .confirmQuit: question(title: m(32), detail: m(24), metrics: m)
-            case .quitting: Text(L10n.t("Quitting %@ …", state.game)).font(size: m(30), weight: .semibold)
+            case .confirmQuit: question(title: m.heading(36), detail: m.text(24), metrics: m)
+            case .quitting: Text(L10n.t("Quitting %@ …", state.game)).font(size: m.heading(36), weight: .semibold)
             default: menu(m)
             }
         }
@@ -46,9 +46,9 @@ struct OverlayView: View {
         VStack(alignment: .leading, spacing: m(8)) {
             HStack(alignment: .firstTextBaseline, spacing: m(16)) {
                 Text(state.game)
-                    .displayFont(m(44))
+                    .displayFont(m.heading(44))
                     .lineLimit(2)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(0.7)  // a long name, and still 24 on a TV
                     .frame(maxWidth: .infinity, alignment: .leading)
                 zone(.corner, tiles, m)
             }
@@ -57,7 +57,7 @@ struct OverlayView: View {
         // Wine keeps the device it opened: a change in the menu bar reaches the game's next start.
         if let device = state.soundStaysOn {
             Text(L10n.t("The game plays its sound on %@ until it starts again.", device))
-                .font(size: m(24))
+                .font(size: m.text(24))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -65,10 +65,10 @@ struct OverlayView: View {
         if state.lateController {
             VStack(alignment: .leading, spacing: m(6)) {
                 Label(L10n.t("Controller connected after the start"), systemImage: "gamecontroller.fill")
-                    .font(size: m(26), weight: .semibold)
+                    .font(size: m.text(26), weight: .semibold)
                     .foregroundStyle(Theme.sodium)
                 Text(L10n.t("Some games only look for controllers when they start. A restart takes about a minute; your progress stays where the game saves it."))
-                    .font(size: m(24))
+                    .font(size: m.text(24))
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -88,22 +88,34 @@ struct OverlayView: View {
             zone(.control, tiles, m)
             zone(.tool, tiles, m)
         }
-        // How it closes, and how it opens next time.
-        HStack(spacing: m(18)) {
-            HStack(spacing: m(8)) {
-                Image(systemName: state.symbols.back)
-                Text(L10n.t("Continue Playing"))
-            }
-            Spacer(minLength: 0)
-            HStack(spacing: m(8)) {
-                OverlayChord(symbols: state.symbols)
-                Text(L10n.t("Hold: this menu"))
-            }
+        hints(m)
+    }
+
+    /// How it closes, and how it opens next time: side by side where they fit, otherwise one above the
+    /// other. Never shrunk to fit, which would take them under the size a TV needs.
+    private func hints(_ m: OverlayMetrics) -> some View {
+        let close = HStack(spacing: m(8)) {
+            Image(systemName: state.symbols.back)
+            Text(L10n.t("Continue Playing"))
         }
-        .font(size: m(24), weight: .medium)
+        let open = HStack(spacing: m(8)) {
+            OverlayChord(symbols: state.symbols)
+            Text(L10n.t("Hold: this menu"))
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: m(18)) {
+                close
+                Spacer(minLength: 0)
+                open
+            }
+            VStack(alignment: .leading, spacing: m(6)) {
+                close
+                open
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(size: m.text(24), weight: .medium)
         .foregroundStyle(Theme.muted)
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
     }
 
     /// The blocks of one zone, or the sentence for one that can't be used now.
@@ -114,8 +126,8 @@ struct OverlayView: View {
                 tile.view(in: state.context, metrics: m)
             case .nextStart(let reason), .needsRight(let reason):
                 VStack(alignment: .leading, spacing: m(4)) {
-                    Text(tile.title).font(size: m(26), weight: .semibold)
-                    Text(reason).font(size: m(24)).foregroundStyle(Theme.muted)
+                    Text(tile.title).font(size: m.text(26), weight: .semibold)
+                    Text(reason).font(size: m.text(24)).foregroundStyle(Theme.muted)
                 }
             case .hidden:
                 EmptyView()
@@ -198,7 +210,7 @@ struct OverlayView: View {
         Button(action: action) { Text(title) }
             .buttonStyle(OverlayButtonStyle(tint: tint, metrics: metrics))
             .padFocus(id, preferred: preferred, ring: false, activate: action)
-            .modifier(OverlayFocusRing(id: id, width: metrics.map { $0(6) } ?? 3, gap: metrics.map { $0(5) } ?? 5))
+            .modifier(OverlayFocusRing(id: id, width: metrics.map { $0.text(6) } ?? 3, gap: metrics.map { $0(5) } ?? 5))
     }
 }
 
@@ -229,7 +241,7 @@ private struct OverlayButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(size: metrics.map { $0(28) } ?? 16, weight: .semibold)
+            .font(size: metrics.map { $0.text(28) } ?? 16, weight: .semibold)
             .foregroundStyle(tint != nil ? Theme.night : Theme.ink)
             .frame(maxWidth: .infinity)
             .frame(height: metrics.map { $0(72) } ?? 46)
