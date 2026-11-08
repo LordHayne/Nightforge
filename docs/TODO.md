@@ -85,7 +85,7 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 - „Shader löschen“ leert auch Metals DXMT-Caches je Programm, `$DARWIN_USER_CACHE_DIR/dxmt/<exe>` (ca8961d).
 - Ein „startet nicht“ des Spielers verfällt, sobald das Profil des Spiels eine neue Notiz bringt (f0d1adc).
 - HUD in Mac-Versionen über Apples `MetalForceHudEnabled` je Spiel (7d33975). **Live prüfen mit Valheim.**
-- Left 4 Dead 2: **Der Schalter `+windows_speaker_config 2` (8ecb223) reicht nicht.** Live 8.11. 13:38 hing es wieder nach „Redownloading all lightmaps“, auch am 7.11. 22:47 mit Schalter; durch kam nur der Lauf 7.11. 22:43 ohne Schalter, als `config.cfg` auf 2 stand. Jetzt steht dort wieder `"4"` (Steam Cloud). Vermutung: Der Ton startet mit dem Wert aus `config.cfg`, der `+`-Befehl kommt zu spät. **Nächster Test:** `+snd_restart` zusätzlich als Startparameter, wirkt das, kommt es ins Profil. Solange stimmt die Zeile in den Release Notes nicht. **Offen:** warum winecx vier Kanäle meldet.
+- Left 4 Dead 2: **Der Schalter `+windows_speaker_config 2` (8ecb223) reicht nur beim Direktstart einer Karte.** Durch kam am 7.11. 22:47 der Lauf mit Schalter und `+map c1m1_hotel`. Aus dem Menü heraus hängt es mit Schalter nach „Redownloading all lightmaps“ (8.11. 13:38 und 13:59). Die `config.cfg` steht danach weiter auf `"4"`, der Wert aus der Steam Cloud vom 26.10. (Gcenx-Engine, nicht winecx) kommt also zurück. Neue Spieler dürften 2 erkannt bekommen. **Nächster Test:** Startparameter `-condebug +host_writeconfig`, damit das Spiel selbst 2 speichert, dann eine Karte aus dem Menü. Klappt das, kommt `+host_writeconfig` ins Profil. Solange stimmt die Zeile in den Release Notes nicht.
 
 ## 8.11. mittags (staging-032, nicht gepusht)
 
