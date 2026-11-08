@@ -71,12 +71,13 @@ struct BattleNetTest {
         codes()
         paths()
         cards()
+        starts()
         await theRest()
         if failures > 0 {
             print("\(failures) failure(s)")
             exit(1)
         }
-        print("✓ Battle.net: product.db, codes, paths, cards, Mac first")
+        print("✓ Battle.net: product.db, codes, paths, cards, Mac first, starts through its client")
     }
 
     /// A product as the Agent writes it, the fields Nightforge steps over included.
@@ -372,6 +373,135 @@ struct BattleNetTest {
         check(real.bottle.name != Engine.bottle.name && real.bottle.url != Engine.bottle.url, "a bottle of its own")
     }
 
+    /// The start through the Mac client (BattleNetStart). Nothing here runs a client: the logs are made up
+    /// from lines the real one writes.
+    static func starts() {
+        // What the client is told.
+        check(BattleNetStart.command(code: "hsb") == "launch WTCG", "Hearthstone by its start code, not its product code")
+        check(BattleNetStart.command(code: "wow") == "launch WoW", "WoW")
+        check(BattleNetStart.command(code: "wow_classic") == "launch_uid wow_classic", "Classic has no start code: by its name in the list")
+        check(BattleNetStart.command(code: "pro") == nil, "no Mac version: nothing to ask the Mac client")
+        check(BattleNetStart.command(code: "bna") == nil, "the client itself isn't a game")
+        check(BattleNetStart.arguments(command: "launch WTCG") == ["--exec=launch WTCG"], "one argument, as the client wants it")
+        check(BattleNetStart.gamePage(code: "hsb")?.absoluteString == "battlenet://WTCG", "the game's page")
+        check(BattleNetStart.gamePage(code: "wow_classic") == nil, "Classic has none: the client as it is")
+
+        // What stops a start before it begins.
+        check(BattleNetStart.blocker(code: "hsb", pendingUpdate: false, clientThere: true) == nil, "ready to go")
+        check(BattleNetStart.blocker(code: "hsb", pendingUpdate: true, clientThere: true) == .updateFirst, "the client's update first")
+        check(BattleNetStart.blocker(code: "hsb", pendingUpdate: false, clientThere: false) == .noClient, "the client was removed")
+        check(BattleNetStart.blocker(code: "pro", pendingUpdate: false, clientThere: true) == .notAMacGame, "Windows client's game")
+
+        // The client's state by its log.
+        func line(_ text: String) -> String { "I 2026-11-07 19:25:29.668161 " + text + "\n" }
+        let ready = line("[AccountManager] {Main} " + BattleNetClient.accountReady)
+        let up = line("[GameController] {Main} " + BattleNetStart.controllerReady)
+        let down = line("[GameController] {Main} " + BattleNetStart.controllerDown)
+        let asks = line("[Login] {Main} " + BattleNetClient.pageAsks + "Credential")
+        check(BattleNetStart.state(running: false, log: ready + up) == .notRunning, "no process: not running, whatever an old log says")
+        check(BattleNetStart.state(running: true, log: nil) == .starting, "no log of this run yet")
+        check(BattleNetStart.state(running: true, log: ready) == .starting, "account there, games' side not yet: a command would go unheard")
+        check(BattleNetStart.state(running: true, log: ready + up) == .ready, "both there")
+        check(BattleNetStart.state(running: true, log: asks) == .signInNeeded, "the sign-in page asks")
+        check(BattleNetStart.state(running: true, log: asks + ready + up) == .ready, "through the page")
+        check(BattleNetStart.state(running: true, log: ready + up + asks) == .signInNeeded, "the page asks again")
+        check(BattleNetStart.state(running: true, log: ready + up + down) == .starting, "a run that ends isn't ready")
+        check(BattleNetStart.state(running: true, log: ready + up + down + ready + up) == .ready, "the same log, up again")
+
+        // Which log is the client's.
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func log(_ name: String, _ text: String, age: TimeInterval = 0) {
+            let file = folder.appendingPathComponent(name)
+            try? text.write(to: file, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: file.path)
+        }
+        check(BattleNetStart.clientLog(in: folder, since: nil) == nil, "no logs")
+        log("battle.net-20261107T192521.941521.log", line("[Main] {} Logging started for app_loader 2.53.8.17986"))
+        check(BattleNetStart.clientLog(in: folder, since: nil) == nil, "the loader's short log isn't the client's")
+        log("battle.net-20261107T192522.248808.log", ready + up)
+        log("battle.net-20261107T193000.000000.log", line("[Main] {} Logging started for app_loader 2.53.8.17986"))
+        let found = BattleNetStart.clientLog(in: folder, since: nil)
+        check(found?.file.lastPathComponent == "battle.net-20261107T192522.248808.log", "the newest with an account in it, past the loader of a command sent")
+        check(found?.text.contains(BattleNetStart.controllerReady) == true, "with its text")
+        log("battle.net-20261107T192522.248808.log", ready + up, age: 3600)
+        check(BattleNetStart.clientLog(in: folder, since: Date().addingTimeInterval(-60)) == nil, "written before this client started: an old run's")
+        check(BattleNetStart.clientLog(in: folder, since: Date().addingTimeInterval(-7200)) != nil, "written since")
+
+        // Lines to events.
+        check(BattleNetStart.events(in: "") == [], "nothing new")
+        check(BattleNetStart.events(in: line("[GameLaunchController] {Main} Data-sharing consent fetched from server: consentId=X optIn=0")) == [], "other lines say nothing")
+        check(BattleNetStart.events(in: line("[GameLauncher] {Main} Game launch options: programId=WTCG")) == [.launching], "the client took it")
+        check(BattleNetStart.events(in: line("[GameLauncher] {Main} Attempted to launch a game that is not installed. uid=hs_beta")) == [.refused], "not installed")
+        check(BattleNetStart.events(in: line("[GameLaunchController] {Main} Pending game launch expired before Agent reported it running. uid=hs_beta")) == [.refused], "expired")
+        check(BattleNetStart.events(in: line("[GameLaunchController] {Main} Game launch sequence canceled")) == [.calledOff], "called off")
+        let shutdown = String(repeating: line("[GameLaunchController] {Main} Game launch sequence canceled"), count: 4) + down
+        check(BattleNetStart.events(in: shutdown) == [.clientEnds], "at the client's end every launch is called off: that's the end (7.11. 20:15:55)")
+
+        // Following the log.
+        let followed = folder.appendingPathComponent("followed.log")
+        try? "from before\n".write(to: followed, atomically: true, encoding: .utf8)
+        var follower = BattleNetStart.LogFollower(file: followed)
+        check(follower.newText().isEmpty, "what came before the command isn't read")
+        func append(_ text: String) {
+            guard let handle = try? FileHandle(forWritingTo: followed) else { return }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(text.utf8))
+            try? handle.close()
+        }
+        append("first line\nhalf a li")
+        check(follower.newText() == "first line\n", "whole lines only")
+        append("ne\nthird\n")
+        check(follower.newText() == "half a line\nthird\n", "the rest of it once it's whole")
+        check(follower.newText().isEmpty, "nothing twice")
+        var missing = BattleNetStart.LogFollower(file: folder.appendingPathComponent("gone.log"))
+        check(missing.newText().isEmpty, "a log that's gone says nothing")
+
+        // Second by second.
+        var quiet = BattleNetStart.Watch()
+        var steps: [BattleNetStart.Watch.Step] = []
+        for _ in 1...BattleNetStart.Watch.askAfter { steps.append(quiet.step([])) }
+        check(steps.enumerated().filter { $0.element == .sendAgain }.map { $0.offset + 1 } == [12, 24], "not taken: sent again twice")
+        check(steps.last == .playerAsked && steps.dropLast().allSatisfy { $0 != .playerAsked }, "and then the client's window, once")
+        for _ in 1..<BattleNetStart.Watch.answerFor { check(quiet.step([]) == .wait, "the player has time to answer") }
+        check(quiet.step([]) == .failed(.noAnswer), "and then the start is over")
+        var taken = BattleNetStart.Watch()
+        _ = taken.step([.launching])
+        var after = (2...BattleNetStart.Watch.askAfter).map { _ in taken.step([]) }
+        check(!after.contains(.sendAgain), "taken: nothing is sent again")
+        check(!after.contains(.playerAsked), "taken: the curtain stays at 30 s, a game may take its time")
+        after = ((BattleNetStart.Watch.askAfter + 1)..<BattleNetStart.Watch.askAfterTaken).map { _ in taken.step([]) }
+        check(after.allSatisfy { $0 == .wait }, "taken: quiet until the longer wait is over")
+        check(taken.step([]) == .playerAsked, "taken but still no game: the window after the longer wait")
+        for _ in 1..<BattleNetStart.Watch.answerFor { check(taken.step([]) == .wait, "the player has time to answer then too") }
+        check(taken.step([]) == .failed(.noAnswer), "and then that start is over too")
+        var takenLate = BattleNetStart.Watch()
+        for _ in 1..<20 { _ = takenLate.step([]) }
+        _ = takenLate.step([.launching])
+        after = (21..<BattleNetStart.Watch.askAfterTaken).map { _ in takenLate.step([]) }
+        check(after.allSatisfy { $0 == .wait }, "taken only after a while: the longer wait counts as well")
+        check(takenLate.step([]) == .playerAsked, "and ends at the same second")
+        var refused = BattleNetStart.Watch()
+        check(refused.step([.refused]) == .failed(.refused), "refused: at once")
+        var offCalled = BattleNetStart.Watch()
+        check(offCalled.step([.calledOff]) == .failed(.calledOff), "called off: at once")
+        var ended = BattleNetStart.Watch()
+        check(ended.step([.clientEnds, .calledOff]) == .failed(.clientEnded), "the client's end outweighs the rest")
+
+        // Play time.
+        let day = Date(timeIntervalSince1970: 1_800_000_000)
+        let started = BattleNetStore.played(nil, at: day)
+        check(started.lastPlayed == day && started.minutes == 0, "a start: last played, no minutes")
+        let played = BattleNetStore.played(started, minutes: 42, at: day.addingTimeInterval(2520))
+        check(played.minutes == 42 && played.lastPlayed == day.addingTimeInterval(2520), "a session adds up")
+        check(BattleNetStore.played(played, minutes: -5, at: day).minutes == 42, "never less")
+        let cards = BattleNetLibrary.games([install("hsb", path: "/Users/x/Hearthstone"), install("s2", path: "/Users/x/SC2")], client: .mac) { _ in true }
+        let timed = BattleNetStore.withPlayTimes(cards, ["hsb": played])
+        check(timed.first { $0.gameID.id == "hsb" }?.playtimeMinutes == 42, "the card has its minutes")
+        check(timed.first { $0.gameID.id == "s2" }?.playtimeMinutes == nil, "one never played has none")
+    }
+
     @MainActor
     static func theRest() async {
         let store = BattleNetStore()
@@ -397,10 +527,11 @@ struct BattleNetTest {
         // Every other start reaches Steam's or Epic's way: Battle.net's games stop before them.
         let source = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
         if let launch = source.range(of: "func launch(_ game: Game, d3dMetalChecked"),
-           let guardLine = source.range(of: "if game.provider == .battlenet {", range: launch.upperBound..<source.endIndex),
-           let macStart = source.range(of: "launchMac(game)", range: launch.upperBound..<source.endIndex),
+           let guardLine = source.range(of: "if game.provider == .battlenet, game.platform != .mac {", range: launch.upperBound..<source.endIndex),
+           let client = source.range(of: "case .battlenet: launchBattleNetMac(game)", range: guardLine.upperBound..<source.endIndex),
            let steamStart = source.range(of: "let viaSteam = game.provider == .steam", range: launch.upperBound..<source.endIndex) {
-            check(guardLine.lowerBound < macStart.lowerBound && guardLine.lowerBound < steamStart.lowerBound, "a Battle.net card starts nothing")
+            check(guardLine.lowerBound < client.lowerBound && client.lowerBound < steamStart.lowerBound,
+                  "a Mac card goes to its client, a Windows client's stops: never Steam's or Epic's way")
         } else {
             check(false, "LibraryModel.launch as this test knows it")
         }

@@ -31,6 +31,12 @@ enum LaunchPhase: Equatable {
     /// A GOG game's Windows parts (GOG Galaxy's redistributables), before its first start: the
     /// part being installed (nil while they come from GOG), named in the line below the button.
     case settingUpWindowsParts(String?)
+    /// Blizzard's client isn't up yet: it starts hidden.
+    case startingBattleNet
+    /// The client wants the player's sign-in: its window is open.
+    case signInInBattleNetWindow
+    /// The client hasn't started the game and may be asking something: its window is open.
+    case battleNetAsks
 
     var title: String {
         switch self {
@@ -51,6 +57,9 @@ enum LaunchPhase: Equatable {
         case .rollingBack: return L10n.t("Trying the previous engine …")
         case .heldEngine: return L10n.t("Starting with the previous engine …")
         case .settingUpWindowsParts: return L10n.t("Setting up the game …")
+        case .startingBattleNet: return L10n.t("Starting Battle.net …")
+        case .signInInBattleNetWindow: return L10n.t("Sign in in the Battle.net window")
+        case .battleNetAsks: return L10n.t("Battle.net is waiting for you")
         }
     }
 
@@ -78,6 +87,9 @@ enum LaunchPhase: Equatable {
             return L10n.t("Windows part: %@ – the game needs it. Only the first time.", part)
         case .settingUpWindowsParts(nil):
             return L10n.t("The Windows parts the game needs come from GOG. Only the first time.")
+        case .startingBattleNet: return L10n.t("Blizzard's games start through Battle.net, which runs in the background.")
+        case .signInInBattleNetWindow: return L10n.t("Battle.net needs you to sign in. Its window is open.")
+        case .battleNetAsks: return L10n.t("Its window is open: answer there, or press Play in it.")
         }
     }
 

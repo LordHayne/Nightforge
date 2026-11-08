@@ -836,8 +836,8 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   er beim nächsten Start neu, die Karte zeigt dann „Abgemeldet“. Einen Kontonamen zeigt sie nicht: In den Dateien steht nur die Mail.
 - **Fenster in Nightforge (wartet aufs OK des Nutzers):** `CGWindowListCopyWindowInfo` liefert die Fensterrahmen von Battle.net ohne
   Bedienungshilfen- und Bildschirmaufnahme-Recht (geprüft 7.11.). Die Bühne könnte ihren Rahmen also dorthin legen, wo das Fenster ist.
-- **Battle.net-Karten starten noch nicht:** Ist der Mac-Client angemeldet, verknüpft Nightforge Battle.net von selbst (wie Steam), bis
-  der Spieler „Trennen“ wählt. Die Spiele stehen dann in der Bibliothek, „Spielen“ verweist auf den Client.
+- **Battle.net-Karten:** Ist der Mac-Client angemeldet, verknüpft Nightforge Battle.net von selbst (wie Steam), bis der Spieler
+  „Trennen“ wählt. „Spielen“ startet die Spiele des Mac-Clients (siehe „Battle.net-Start“ unten); die des Windows-Clients sagen weiter, dass das noch nicht geht.
 - **Beendigungen im wine.log:** Seit 7.11. steht jede Beendigung mit Auslöser dort (`[nightforge] Quit by …`, bei Apple Events mit
   dem Absender, etwa `osascript`). Das Beenden im Live-Test 7.11. 21:20:45 war sauber, aber ohne Spur: vorher wurde nur ein
   verweigertes Beenden geloggt.
@@ -869,6 +869,29 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   den wineserver von Battle.net beenden.
 - **DXMT-Lizenz:** Unser 0.80 (589adb7) steht unter MIT, die Angabe in `THIRD_PARTY_NOTICES.txt` stimmt. DXMTs `main` steht
   inzwischen unter LGPL-2.1-or-later: Beim nächsten DXMT-Update den Hinweis ändern und die Quellen wie bei Wine mitliefern.
+
+## Battle.net-Start (0.3.3, Zweig `claude/battlenet-start-033`)
+
+- **Gebaut:** `BattleNetStart.swift`, `LibraryModel.launchBattleNetMac`. Client versteckt hochfahren (`startHidden`), warten bis er
+  angemeldet und bereit ist (Log: Konto `Ready` und `GameController initialization complete`), dann ein zweiter Aufruf des
+  Programms mit dem einen Argument `--exec=launch <Startcode>`. Ab da wie jedes Spiel: Vorhang, Prozess im Spielordner, Bühne,
+  Beenden über das Overlay, Spielzeit in `Nightforge/BattleNet/playtime.json`. Keine neuen UI-Elemente, nur neue Texte in der
+  vorhandenen Startzeile. An Spieldateien ändert Nightforge nichts (auch kein `ControllerCompatibility.prepare`/HUD wie bei Steam).
+- **Belegt, nur statisch** (Client 2.53.8.17986, nicht ausgeführt): Die Optionsliste hat `exec,e` „Execute a command“; im Kern
+  stehen `launch_uid`, `handle_uri` und Log-Zeilen wie `Game launch options: programId=`. Der Loader reicht Argumente an den Kern
+  weiter. Ob `launch WTCG` in der zweiten Instanz greift, zeigt erst der Live-Test.
+- **Unsicher, Live-Test:** (a) `launch <Code>` auf dem heutigen Mac-Client; (b) `launch_uid wow_classic` für Classic (kein Startcode,
+  reine Ableitung); (c) die Logzeilen `Game launch options` als Zeichen „genommen“. Schlägt (a) fehl, kommt nach 30 s das
+  Client-Fenster mit „Battle.net wartet auf dich“, der Spieler drückt dort auf Spielen, und Nightforge folgt dem Spiel. Hat der
+  Client den Start laut Log angenommen, wartet Nightforge bis 120 s, damit sein Fenster einen normalen Start nicht unterbricht.
+- **Live prüfen (mit Hearthstone, `/Users/thomas/games/Hearthstone`):** 1. Client läuft, angemeldet: Spielen, Vorhang, Spiel startet ohne Klick.
+  2. Client aus: Spielen startet ihn versteckt, dann das Spiel. 3. Nach dem Spiel: zurück in Nightforge, „Willkommen zurück“, Spielzeit
+  auf der Karte (ab 1 Minute). 4. Beenden über das Overlay. 5. B/Esc während des Wartens bricht ab. 6. Keine zweite Battle.net-App bleibt
+  im Dock stehen (der Aufruf mit `--exec` soll sich beenden). 7. Abgemeldet: Fenster kommt, „Melde dich im Battle.net-Fenster an“,
+  danach startet das Spiel. 8. Update wartet: Client öffnet die Spielseite, Hinweis in Nightforge.
+- **Bewusst so:** Der Client bleibt nach dem Spiel versteckt offen (wie Steam für Mac). Ihn zu beenden wäre möglich, kann aber einen Download treffen.
+- **`battlenet://`:** `battlenet://<Startcode>` öffnet nur die Spielseite (Fallback-Weg). Der Client hat auch eine Launch-Aktion für URIs (`UriController`,
+  `launch`, `update`, `install`); die genaue Form ist nicht belegt und nicht eingebaut.
 
 ## Mac-Versionen
 

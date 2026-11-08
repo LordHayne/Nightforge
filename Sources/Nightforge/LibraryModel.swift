@@ -581,6 +581,133 @@ final class LibraryModel: ObservableObject {
         }
     }
 
+    /// A Blizzard Mac game, through Blizzard's own client: Nightforge sees to it that the client is up
+    /// and signed in, asks it to start the game, and follows the game like any other from there.
+    private func launchBattleNetMac(_ game: Game) {
+        let code = game.gameID.id
+        switch BattleNetStart.blocker(code: code, pendingUpdate: game.pendingUpdate != nil, clientThere: BattleNetClient.app != nil) {
+        case .notAMacGame?:
+            errorMessage = L10n.t("%@ can't start from Nightforge yet: start it in Battle.net.", game.name)
+            return
+        case .noClient?:
+            errorMessage = L10n.t("%@ starts through Battle.net for Mac, which isn't on this Mac any more.", game.name)
+            return
+        case .updateFirst?:
+            BattleNetClient.showGame(code: code)
+            errorMessage = L10n.t("%@ has an update waiting. Battle.net is open: update it there, then press Play here.", game.name)
+            return
+        case nil:
+            break
+        }
+        guard let command = BattleNetStart.command(code: code) else { return }
+        let number = beginLaunch(game)
+        let behavior = Prefs.afterLaunch
+        launchTask = Task {
+            defer { endLaunch(number) }
+            awaitingSteam = true  // B or Esc calls the start off
+            defer { awaitingSteam = false }
+            guard let log = await readyBattleNet(for: game) else { return }
+            BattleNetClient.hide()  // up from its sign-in, or open from before: the curtain has the screen
+            raiseCurtain(for: game)
+            let sent = await Task.detached(priority: .userInitiated) { (try? BattleNetClient.send(command)) != nil }.value
+            guard sent else {
+                errorMessage = L10n.t("%@ couldn't start: %@", game.name, L10n.t("Battle.net didn't take the request."))
+                return
+            }
+            let failure = await waitForBattleNetStart(game, command: command, log: log)
+            launchPhase = nil
+            if Task.isCancelled { return }
+            if let failure {
+                sayBattleNetFailed(game, failure)
+                return
+            }
+            awaitingSteam = false
+            launchingID = nil
+            battleNet.recordStart(game)
+            startedHere.insert(game.id)
+            BattleNetClient.hide()  // the game has the stage now
+            await bringToFront(game)
+            if !Task.isCancelled { stepBack(behind: game, behavior) }  // a new start has the curtain
+        }
+    }
+
+    /// The client up and signed in, its log to follow; nil when the start is off (it says why).
+    /// A sign-in stays the client's: its window comes up for it, and the player gets ten minutes.
+    private func readyBattleNet(for game: Game) async -> URL? {
+        var look = await Task.detached(priority: .userInitiated) { BattleNetClient.lookAtClient() }.value
+        if look.state == .notRunning {
+            launchPhase = .startingBattleNet
+            BattleNetClient.startHidden()
+        }
+        var waited = 0
+        var asked = false
+        defer { launchPhase = nil }
+        while waited < (asked ? 600 : 90) {
+            if look.state == .ready, let log = look.log { return log }
+            if look.state == .signInNeeded, !asked {
+                asked = true
+                launchPhase = .signInInBattleNetWindow
+                BattleNetClient.show()
+            }
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return nil }
+            waited += 1
+            look = await Task.detached(priority: .userInitiated) { BattleNetClient.lookAtClient() }.value
+        }
+        if asked {
+            errorMessage = L10n.t("Battle.net isn't signed in, so %@ didn't start. Sign in there and press Play again.", game.name)
+        } else {
+            BattleNetClient.show()
+            errorMessage = L10n.t("Battle.net didn't get ready, so %@ didn't start. Please try again.", game.name)
+        }
+        return nil
+    }
+
+    /// Follows the start until the game's process is there (or it's called off in Nightforge): nil
+    /// then, otherwise what stopped it.
+    private func waitForBattleNetStart(_ game: Game, command: String, log: URL) async -> BattleNetStart.Watch.Failure? {
+        let folders = Self.processFolders([game])
+        var follower = BattleNetStart.LogFollower(file: log)
+        var watch = BattleNetStart.Watch()
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+            if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil { return nil }
+            let events = BattleNetStart.events(in: follower.newText())
+            switch watch.step(events) {
+            case .wait:
+                break
+            case .sendAgain:
+                _ = await Task.detached(priority: .userInitiated) { try? BattleNetClient.send(command) }.value
+            case .playerAsked:
+                // The curtain makes way (`steamAsks`), the client comes forward.
+                launchPhase = .battleNetAsks
+                BattleNetClient.showGame(code: game.gameID.id)
+            case .failed(let failure):
+                return failure
+            }
+        }
+        return nil
+    }
+
+    /// The start is over without the game: what happened, the client in front where the player can go on.
+    private func sayBattleNetFailed(_ game: Game, _ failure: BattleNetStart.Watch.Failure) {
+        switch failure {
+        case .refused:
+            BattleNetClient.showGame(code: game.gameID.id)
+            errorMessage = L10n.t("Battle.net couldn't start %@. Its window says why.", game.name)
+        case .calledOff:
+            BattleNetClient.showGame(code: game.gameID.id)
+            errorMessage = L10n.t("Battle.net called off the start of %@. Press Play again to try once more.", game.name)
+        case .clientEnded:
+            errorMessage = L10n.t("Battle.net closed before %@ started. Please try again.", game.name)
+        case .noAnswer:
+            // Started by hand now, it still counts as a game started here.
+            startedHere.insert(game.id)
+            BattleNetClient.showGame(code: game.gameID.id)
+            errorMessage = L10n.t("Battle.net didn't start %@. Press Play in its window: Nightforge notices the game by itself.", game.name)
+        }
+    }
+
     // MARK: - Running games
 
     /// Wine shows each game process with its Windows path, e.g.
@@ -778,6 +905,7 @@ final class LibraryModel: ObservableObject {
             // Shorter is a start that didn't take (LaunchHealth deals with those).
             if game.provider == .epic { afterEpicSession(game, minutes: minutes) }
             if game.provider == .gog { afterGOGSession(game, minutes: minutes) }
+            if game.provider == .battlenet { battleNet.recordSession(game, minutes: minutes) }
             return minutes >= 1 ? SessionSummary(game: game, minutes: minutes, totalBefore: start.totalBefore,
                                                  endedAt: endedAt, way: game.platform == .mac ? "mac" : waysUsed[game.gameID]) : nil
         }
@@ -1524,7 +1652,7 @@ final class LibraryModel: ObservableObject {
     }
 
     nonisolated static func startAsksPlayer(needsConfirmation: Bool, phase: LaunchPhase?, savesToChoose: Bool) -> Bool {
-        needsConfirmation || savesToChoose || phase == .signInAgain || phase == .signInInSteamWindow
+        needsConfirmation || savesToChoose || phase == .signInAgain || phase == .signInInSteamWindow || phase == .battleNetAsks
     }
 
     enum SteamTurn: Equatable { case none, away, wait, back, over }
@@ -1544,7 +1672,9 @@ final class LibraryModel: ObservableObject {
     /// Steam's window that Nightforge opened for a question (`showSteamWindow`), out of sight again
     /// once it's answered: left open, it came forward when the game ended, before the curtain (1.11.).
     private func hideSteamWindow(for game: Game) {
-        if game.platform == .mac {
+        if game.provider == .battlenet {
+            BattleNetClient.hide()
+        } else if game.platform == .mac {
             MacSteam.hide()
         } else if steamWindowShown {
             steamWindowShown = false
@@ -2353,7 +2483,9 @@ final class LibraryModel: ObservableObject {
     func primaryAction() {
         guard let game = selected, uninstallingID != game.id else { return }
         if launchingID == game.id {
-            if launchNeedsConfirmation && game.platform == .mac {
+            if game.provider == .battlenet {
+                if launchPhase == .battleNetAsks || launchPhase == .signInInBattleNetWindow { BattleNetClient.show() }
+            } else if launchNeedsConfirmation && game.platform == .mac {
                 MacSteam.show()
             } else if launchNeedsConfirmation && game.bottle.isBuiltIn {
                 showSteamWindow()
@@ -3833,8 +3965,9 @@ final class LibraryModel: ObservableObject {
     /// `d3dMetalChecked`: the question about D3DMetal is answered (or isn't needed) – D3DMetalFlow starts it again.
     func launch(_ game: Game, d3dMetalChecked: Bool = false) {
         guard game.isInstalled, Self.mayStart(launching: launchingID != nil, startsAgain: startsAgain) else { return }
-        // Nothing below knows Battle.net's client: Steam's or Epic's way would start the wrong thing.
-        if game.provider == .battlenet {
+        // The Windows client can't be asked yet: nothing below knows it, and Steam's or Epic's way
+        // would start the wrong thing. The Mac client's games go below (launchBattleNetMac).
+        if game.provider == .battlenet, game.platform != .mac {
             errorMessage = L10n.t("%@ can't start from Nightforge yet: start it in Battle.net.", game.name)
             return
         }
@@ -3845,7 +3978,11 @@ final class LibraryModel: ObservableObject {
         Engine.noteGameActivity()  // the quit script waits for cloud saves if Nightforge quits soon after (Engine.steamShutdownScript)
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
-            if game.provider == .gog { launchGOGMac(game) } else { launchMac(game) }
+            switch game.provider {
+            case .gog: launchGOGMac(game)
+            case .battlenet: launchBattleNetMac(game)
+            default: launchMac(game)
+            }
             return
         }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.

@@ -2,12 +2,11 @@ import Foundation
 
 /// Battle.net: Blizzard's own client, on the Mac and in a Wine prefix of its own (BattleNetLibrary).
 /// Unlike Epic's and GOG's games, these stay the client's to download, update and start; Nightforge
-/// shows what the Agent lists and will ask the client to start it, and never holds a Blizzard
-/// password or changes the client's files.
+/// shows what the Agent lists and asks the client to start it (BattleNetStart, the Mac client's games
+/// only), and never holds a Blizzard password or changes the client's or a game's files.
 ///
-/// So far the library only: the cards show, nothing starts from them (LibraryModel.launch). They
-/// show once Battle.net is linked: on its launcher card, or by itself once the client is signed in
-/// on this Mac – until the player disconnects it (`links`).
+/// The cards show once Battle.net is linked: on its launcher card, or by itself once the client is
+/// signed in on this Mac – until the player disconnects it (`links`).
 @MainActor
 final class BattleNetStore: StoreProvider {
     static let switchKey = "battleNetStore"
@@ -39,12 +38,58 @@ final class BattleNetStore: StoreProvider {
     func library() async -> [Game] {
         guard isConnected else { return [] }
         let prefix = BattleNetLibrary.prefix
-        return await Engine.offMain {
+        let found: [Game] = await Engine.offMain {
             func games(_ client: BattleNetLibrary.Client) -> [Game] {
                 BattleNetLibrary.read(client.database).map { BattleNetLibrary.games($0, client: client) } ?? []
             }
             return BattleNetLibrary.merged(mac: games(.mac), windows: games(.windows(prefix: prefix)))
         }
+        return Self.withPlayTimes(found, loadPlayTimes())
+    }
+
+    // MARK: Play time
+
+    /// What Nightforge has seen of its own starts: the client keeps none it lets anyone read.
+    nonisolated static var playTimeFile: URL { Engine.supportDir.appendingPathComponent("BattleNet/playtime.json") }
+
+    private func loadPlayTimes() -> [String: EpicPlayTime] {
+        (try? Data(contentsOf: Self.playTimeFile)).flatMap { try? JSONDecoder().decode([String: EpicPlayTime].self, from: $0) } ?? [:]
+    }
+
+    private func save(_ times: [String: EpicPlayTime]) {
+        try? FileManager.default.createDirectory(at: Self.playTimeFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(times) { try? data.write(to: Self.playTimeFile, options: .atomic) }
+    }
+
+    nonisolated static func withPlayTimes(_ games: [Game], _ times: [String: EpicPlayTime]) -> [Game] {
+        games.map { game in
+            guard let time = times[game.gameID.id] else { return game }
+            var game = game
+            game.lastPlayed = time.lastPlayed
+            game.playtimeMinutes = time.minutes
+            return game
+        }
+    }
+
+    /// `time` after a start (no minutes yet) or a session that ended.
+    nonisolated static func played(_ time: EpicPlayTime?, minutes: Int = 0, at date: Date) -> EpicPlayTime {
+        var time = time ?? EpicPlayTime()
+        time.lastPlayed = date
+        time.minutes += max(minutes, 0)
+        return time
+    }
+
+    func recordStart(_ game: Game, at date: Date = Date()) {
+        var times = loadPlayTimes()
+        times[game.gameID.id] = Self.played(times[game.gameID.id], at: date)
+        save(times)
+    }
+
+    /// A session that ended: for "Continue playing" and the play time.
+    func recordSession(_ game: Game, minutes: Int, endedAt: Date = Date()) {
+        var times = loadPlayTimes()
+        times[game.gameID.id] = Self.played(times[game.gameID.id], minutes: minutes, at: endedAt)
+        save(times)
     }
 
     func install(_ game: Game, context: StoreContext) async throws {

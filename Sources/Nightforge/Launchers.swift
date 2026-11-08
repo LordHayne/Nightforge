@@ -94,14 +94,14 @@ struct LauncherState: Equatable, Identifiable {
         }
     }
 
-    /// What the store brings. Battle.net's says what's really there: the Mac client's games. Windows
+    /// What the store brings. Battle.net's says what's really there: the Mac client's games, which its client starts. Windows
     /// Battle.net isn't wired in, and Overwatch comes through Steam.
     private var pitch: String {
         switch provider {
         case .steam: return L10n.t("Your Steam library, Mac and Windows versions alike")
         case .epic: return L10n.t("Your Epic games, Nightforge downloads them itself")
         case .gog: return L10n.t("Games without copy protection, Nightforge downloads them itself")
-        case .battlenet: return L10n.t("Shows what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.")
+        case .battlenet: return L10n.t("Starts what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam.")
         }
     }
 
@@ -207,7 +207,7 @@ enum BattleNetClient {
 
     nonisolated static var app: URL? { NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) }
 
-    nonisolated private static var logs: URL {
+    nonisolated static var logs: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Battle.net/Logs", isDirectory: true)
     }
