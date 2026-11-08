@@ -184,6 +184,26 @@ struct ProfileFilesTest {
               "a game without it restarts it again")
         check(!Engine.launchRetina && Engine.steamConfigSignature == plain, "and the signature is as before Retina")
 
+        // MARK: msync per game: a whole session has it or doesn't
+        check(profile(#"{"msync": false}"#)?.msync == false && profile(#"{"name": "Game"}"#)?.msync == nil
+              && profile(#"{"msync": "no"}"#)?.msync == nil, "a profile can say no; nothing or something odd says nothing")
+        check(Engine.msyncWanted(profile: nil) && Engine.msyncWanted(profile: profile(#"{"name": "Game"}"#))
+              && Engine.msyncWanted(profile: profile(#"{"msync": true}"#)), "without a no from the profile, every game keeps it")
+        check(!Engine.msyncWanted(profile: profile(#"{"msync": false}"#)), "the profile's no counts")
+        check(!Engine.msyncWanted(profile: profile(#"{"msync": true}"#), switchedOn: false)
+              && !Engine.msyncWanted(profile: nil, switchedOn: false), "the engine test's off stands for every game")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: true),
+              "a game that keeps msync restarts nothing")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: false),
+              "a game without it restarts Steam")
+        check(!Engine.msync && Engine.steamConfigSignature == plain + "-nomsync"
+              && Engine.environment(wine: URL(fileURLWithPath: "/nowhere/bin/wine"))["WINEMSYNC"] == "0",
+              "and the session's programs and Steam's signature say so")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: nil) && !Engine.msync,
+              "a game joining that session leaves it as it is")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: true, msyncWanted: true)
+              && Engine.msync && Engine.steamConfigSignature == plain, "the next game with it starts afresh, signature as before")
+
         gameRegistryRecord(temp)
 
         // MARK: D3DMetal profiles need the engine that carries it

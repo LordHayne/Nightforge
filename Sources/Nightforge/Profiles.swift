@@ -72,6 +72,9 @@ struct GameProfile: Decodable, Equatable {
     /// false: Unity's configuration window before the game asks something that matters here, so
     /// Nightforge leaves "Play!" to the player (UnityDialog).
     var skipUnityDialog: Bool?
+    /// false: the game runs without msync. Wine's whole session has it or doesn't, so Steam starts
+    /// afresh when it changes from one game to the next. Everything else keeps it (Engine.msyncWanted).
+    var msync: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -130,7 +133,7 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog
+        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog, msync
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -181,6 +184,7 @@ struct GameProfile: Decodable, Equatable {
         environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
             .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
         skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
+        msync = try? container.decodeIfPresent(Bool.self, forKey: .msync)
     }
 
     // MARK: What a list may ask for at a start

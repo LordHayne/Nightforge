@@ -88,6 +88,7 @@ All fields are optional. They're read by `GameProfile` in `Sources/Nightforge/Pr
 | `environment` | `{"NAME": "value"}` | Wine's and CrossOver's own switches for this game alone. Only `WINE_SIMULATE_WRITECOPY`, `CX_HACK_FILESYSTEM_TYPE`, `CX_ACTIVE_GRAPHICS_BACKEND`, `CX_GRAPHICS_BACKEND` and `WINE_LARGE_ADDRESS_AWARE`, with values of letters, digits, `.`, `_` and `-` (up to 32). |
 | `dlss` | `true` | The game's DLSS was seen working on D3DMetal (through MetalFX), so with MetalFX on it gets Retina mode as well. A DLSS library in the game folder alone isn't enough. |
 | `skipUnityDialog` | `false` | Leaves Unity's configuration window before the game to the player, for a game that asks something there that matters. Otherwise Nightforge presses "Play!" itself. |
+| `msync` | `false` | Runs the game without msync, for one that hangs or stutters with it. Wine's whole session has it or doesn't, so Steam restarts when it changes from one game to the next. A game started next to a running Windows game takes that session as it is. |
 | `antiCheat`, `antiCheatOnline` | list of text | `[]` says the game runs on a Mac after all, whatever AreWeAntiCheatYet lists. |
 | `notYet` | text in plain English | The game doesn't start on a Mac yet and Nightforge is working on it: Nightforge says so before the download and offers GeForce Now when it has the game. The reason also needs its German text in `Sources/Nightforge/Strings.swift`, the one other file such a pull request changes. |
 | `gog` | list of GOG product IDs | The same game's GOG versions get this profile too. |
