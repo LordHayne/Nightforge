@@ -19,7 +19,7 @@ klären kann. Zeilennummern gelten für `365f393`. Keine Nightforge-GUI, keine S
 | B2 | mittel | Aufgewecktes Steam meldet Steam für Mac ab, startet unter Spielen | `SteamOnDemand.swift:136` | `claude/audit-033-steam-bei-bedarf` 36ef977 | `claude/steam-on-demand-033` |
 | B3 | mittel | Battle.net-Fenster verschwindet unter seiner eigenen Fehlermeldung | `LibraryModel.swift:1708` | `claude/audit-033-battlenet-fenster` 202b21b | `claude/battlenet-start-033` |
 | B4 | hoch | Overwatch verliert die D3DMetal-Frage | `profiles/profiles.json:5919` | `claude/audit-033-listen-stempel` df9a1cf | `claude/audit-033` |
-| B5 | mittel | Halber Download hält den Mac wach, auch ohne laufendes Steam | `LibraryModel.swift:2183` | `claude/audit-033-wachhalten` 5a2369b | main |
+| B5 | mittel | Halber oder pausierter Download hält den Mac wach | `LibraryModel.swift:2183` | `claude/audit-033-wachhalten` 5a2369b, ee63ab8 | main |
 | B6 | niedrig | Nach B auf dem Vorhang geht noch ein Startbefehl an Steam | `LibraryModel.swift:3322`, `:3328` | `claude/audit-033-nachsenden` fae0667 | main |
 
 Zweige für Code, den es auf `origin/main` noch nicht gibt, beginnen an der Spitze ihres Ursprungszweigs; von `origin/main`
@@ -71,8 +71,9 @@ bekam das Feld nicht, und die feste Liste im Code ist weg. Overwatch hätte ohne
 Download ohne laufendes Steam hielt den Mac wach, solange Nightforge offen ist; mit Start beim Anmelden wäre das den ganzen Tag.
 Das widerspricht „hält den Mac nie vom Schlafen ab“. Jetzt zählt er nur, wenn der zuständige Client läuft.
 
-**Offen:** Ein in laufendem Steam pausierter Download hält weiter wach. Das ließe sich an fehlendem Fortschritt erkennen und braucht eine Entscheidung
-(Frist). Solange ein Download zählt, bleibt auch „Mac schlafen legen“ aus dem Menü verschwunden (`PowerMenu.entries`).
+**Pausiert (Entscheidung des Nutzers, 8.11.):** „Pausieren heißt, er darf schlafen“, ohne Frist. Steams Pausen-Markierung (`StateFlags` 512, im Log `0x602`
+„Update Required,Update Paused,Update Started“) kommt jetzt in `Game.downloadPaused`, und so ein Download zählt nicht mehr. Pause und Weiterladen lösen sofort einen
+vollen Scan aus, das Wachhalten folgt also gleich. Ein laufender Download, den Steam nur nicht bedient (in der Warteschlange), zählt weiter.
 
 ### B6 · Nachsenden nach B
 
@@ -87,6 +88,7 @@ der Befehl trotzdem an. Bei `-applaunch`-Spielen geht das Nachsenden über `stea
 | O2 | niedrig | Anmeldeobjekt bleibt nach „Nightforge komplett entfernen“ | `claude/touchpad-tastatur-033` |
 | O3 | niedrig | Zeiger über einem Mac-Spiel bei offenem Overlay | `claude/touchpad-tastatur-033` |
 | O4 | niedrig | Stick-Zeiger hat keinen Besitzer, Abgang eines Controllers lässt alles los | `claude/touchpad-tastatur-033` |
+| O5 | niedrig | Pausierter Download versteckt weiter „Mac schlafen legen“ | `claude/touchpad-tastatur-033` |
 
 **O1.** Mit 6d8d789 bleibt der Vorhang bei `.battleNetAsks` stehen (`steamAsksOnCurtain` kennt nur die Spielstand-Wahl). Dann sucht
 `steamWindowsOnScreen` die Fenster von Steam für Mac, nicht die von Battle.net. Acht Sekunden steht „Steam fragt etwas“ über dem Battle.net-Fenster; läuft Steam für Mac
@@ -98,11 +100,13 @@ sichtbar, legt sich der Vorhang sogar unter dessen Fenster. Vorschlag: `steamAsk
 
 **O4.** Zwei Controller ohne Touchpad teilen `stickVelocity` und `heldTriggers`; ein ruhender zweiter Stick kann die Bewegung kurz stoppen. `controllerLeft` lässt auch den Klick des verbliebenen Controllers los. Beides nur kurz störend.
 
+**O5.** `LauncherViews.swift:195` (7729450) übergibt `downloading: !model.downloads.isEmpty`. Nach der Entscheidung zu B5 gehört dort `model.downloads.contains { !$0.downloadPaused }` hin, sobald beide Zweige zusammen sind.
+
 ## Weitere Beobachtungen
 
 | Schwere | Punkt | Beleg |
 |---|---|---|
-| Frage | Frühes Shader-Übersetzen ist ohne Rückfrage standardmäßig an, ausgenommen nur `overwatch.exe` | `ShaderCaches.swift:30`; andere Spiele mit `antiCheatOnline` fallen nicht darunter. Wirkt erst mit gepatchter `d3d11.dll` |
+| entschieden | Frühes Shader-Übersetzen ist standardmäßig an, ausgenommen nur `overwatch.exe`; Spiele mit `antiCheatOnline` werden wie Overwatch ausgenommen (Nutzer, 8.11.), das baut die Shader-Session | `ShaderCaches.swift:30`. Wirkt erst mit gepatchter `d3d11.dll` |
 | niedrig | Esc auf dem Vorhang wirkt nur, wenn Nightforge aktiv ist (lokaler Monitor), der Hinweis sagt es aber auch mit Steam vorn. **Vermutung**, siehe „Live prüfen“ | `InputRouter.swift:53`, `CurtainEscape.tip` |
 | niedrig | `anyDown` in `wakeIfIdle` wird wie B1 von jedem Controller überschrieben: ein gehaltener Knopf kann als neuer Druck zählen | `InputRouter.swift:719` |
 | niedrig | `LogFollower` beginnt nach `send`, eine sehr schnelle Ablehnung würde übersehen | `LibraryModel.swift:615`, `:673` |
@@ -119,10 +123,10 @@ sichtbar, legt sich der Vorhang sogar unter dessen Fenster. Vorschlag: `steamAsk
 - **Touchpad bei zwei Controllern:** `owner` hält den zweiten Finger sauber fern.
 - **Battle.net-Fragen:** Client geht vor dem Vorhang weg, kommt für Fragen zurück, und der Weg über B bricht das Nachsenden ab.
 
-## Entscheidungen für den Nutzer
+## Entscheidungen des Nutzers (8.11.)
 
-1. Frühes Shader-Übersetzen: an für alle außer Overwatch, oder auch für Spiele mit `antiCheatOnline` aus?
-2. Pausierter Download in laufendem Steam: nach welcher Frist darf der Mac schlafen?
+1. Frühes Shader-Übersetzen: Spiele mit `antiCheatOnline` werden ausgenommen wie Overwatch. Baut die Shader-Session.
+2. Ein in Steam pausierter Download hält den Mac gar nicht wach, ohne Frist. Gebaut in ee63ab8 (B5).
 
 ## Live prüfen
 
@@ -131,6 +135,6 @@ sichtbar, legt sich der Vorhang sogar unter dessen Fenster. Vorschlag: `steamAsk
 3. Am Netzteil einstecken während eines Epic-Spiels: Steam startet erst nach dem Spiel (`Steam wakes` im `wine.log`).
 4. Battle.net: Start ohne Antwort oder mit Ablehnung, das Client-Fenster bleibt unter der Meldung offen.
 5. Overwatch ohne D3DMetal, mit vorhandener alter Liste: Die Frage kommt.
-6. Mac schlafen lassen mit halbem Download und beendetem Steam: Er schläft ein.
+6. Mac schlafen lassen mit halbem Download und beendetem Steam, und mit in Steam pausiertem Download: Er schläft beide Male ein (`pmset -g assertions` zeigt Nightforge nicht mehr).
 7. Spiel mit mehreren Startoptionen: während des Wartens B und zurück, Steam fragt nicht mehr nach.
 8. Ohne Controller, Steam vorn unter dem Vorhang: Führt Esc hinaus?
