@@ -318,7 +318,7 @@ Der einzige Fehler aus dieser Runde ist G3: Die Audit-Notiz O1 wurde beim Merge 
 
 ### Entscheidungen
 
-- **E1, 15 Minuten:** Steams Frage wartet laut Kommentar „so lange wie nötig“, die Schleife endet aber nach 900 s (`LibraryModel.swift:3609`, `:4859`). Bleibt die Lizenz 15 Minuten offen, sagt Nightforge „Steam reagiert nicht“, obwohl das Fenster noch steht. Gab es schon in 0.3.2, mit dem Lizenz-Rahmen fällt es eher auf. Vorschlag: nicht abbrechen, solange eine Frage steht; B führt ohnehin hinaus.
+- **E1, 15 Minuten:** Steams Frage wartet laut Kommentar „so lange wie nötig“, die Schleife endet aber nach 900 s (`LibraryModel.swift:3609`, `:4859`). Bleibt die Lizenz 15 Minuten offen, sagt Nightforge „Steam reagiert nicht“, obwohl das Fenster noch steht. Gab es schon in 0.3.2, mit dem Lizenz-Rahmen fällt es eher auf. Vorschlag: nicht abbrechen, solange eine Frage steht; B führt ohnehin hinaus. **Entschieden 9.11.: weiter warten, eingebaut** (`LibraryModel.followsSteam`): die Zeit der offenen Frage zählt nicht, B führt hinaus, ein beendetes Steam nimmt die Frage mit. Nur als Regel getestet, live nicht.
 - **E2, was der Merge auslöst:** `graphics.yml` und `gamepad.yml` veröffentlichen beim Push auf `main` sofort ein Release. Beides sind Builds, die laut Commit ef8d560 und `ENTSCHEIDUNG-DXMT-LGPL.md` eine eigene Freigabe brauchen. An Spieler gehen sie erst über Manifest und Signatur, also Schritt 9. Für alte 0.3.2-Kopien sind sie wirkungslos, solange niemand fragt. **Vermutung**, mit einem Spiel nie getestet. Vorschlag: mergen, aber Schritt 9 erst nach einem Live-Test.
 
 ### 5 · Schritte vor dem Release, in dieser Reihenfolge

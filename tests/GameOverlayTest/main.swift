@@ -733,6 +733,18 @@ struct GameOverlayTest {
         check(question(7, shownFor: 4) == .wait, "still within its grace")
         check(question(8, shownFor: LibraryModel.steamAnswerGrace) == .askPlayer, "still waiting 5 s after the window: the player is asked")
 
+        // The time a question stands is the player's, not the start's.
+        func follows(quiet: Int = 0, _ seconds: Int, onPlayer: Int = 0) -> Bool {
+            LibraryModel.followsSteam(quietSeconds: quiet, seconds: seconds, onPlayerSeconds: onPlayer)
+        }
+        check(follows(899), "no question: within the 15 minutes the start goes on")
+        check(!follows(900), "no question: 15 minutes are the end of it")
+        check(!follows(quiet: 120, 130), "two minutes without a word: over, as before")
+        check(follows(5_000, onPlayer: 4_900), "a licence open for over an hour: the start still waits")
+        check(follows(5_001, onPlayer: 4_900), "a yes after it: the rest of the start has its time")
+        check(!follows(5_800, onPlayer: 4_900), "and the 15 minutes count again for what isn't the player's")
+        check(!follows(quiet: 120, 5_000, onPlayer: 4_900), "silence after the question ends it too")
+
         // A start judged by its first seconds that ends early (Control on 2.11., every way): the start
         // tells what's next under the same curtain – not when it's an end like any other.
         check(LibraryModel.startJudgesEnd(quitByPlayer: false, showedPicture: false), "gone without a picture: the start decides, the curtain stays")

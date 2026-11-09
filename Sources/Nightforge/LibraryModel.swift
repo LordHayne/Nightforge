@@ -3622,17 +3622,27 @@ final class LibraryModel: ObservableObject {
         var seconds = 0
         var askingSince: Int?
         var shownAt: Int?
+        var onPlayerSeconds = 0
         var handledRejections = 0
         var resent = 0
         awaitingSteam = true
         defer { awaitingSteam = false }
-        while quietSeconds < 120 && seconds < 900 {
+        while Self.followsSteam(quietSeconds: quietSeconds, seconds: seconds, onPlayerSeconds: onPlayerSeconds) {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return .cancelled }
             seconds += 1
             if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil {
                 launchNeedsConfirmation = false
                 return .processSeen
+            }
+            if askingSince != nil {
+                onPlayerSeconds += 1
+                if seconds % Self.steamLookEvery == 0, !MacSteam.isRunning {
+                    steamQuestionOver(yes: false)
+                    askingSince = nil
+                    shownAt = nil
+                    GameLog.note("Steam for Mac ended while it asked about \(game.name), at \(GameLog.clock())")
+                }
             }
             let event = watcher.poll()
             if watcher.rejectedCommands > handledRejections && resent < 5 {
@@ -4863,6 +4873,7 @@ final class LibraryModel: ObservableObject {
         var totalSeconds = 0
         var askingSince: Int?
         var shownAt: Int?
+        var onPlayerSeconds = 0
         var retriedAfterRestart = false
         var signedInSince: Int?
         var resent = false
@@ -4882,7 +4893,7 @@ final class LibraryModel: ObservableObject {
             updateSpeed = nil
             if launchPhase == .licenceAnswered { launchPhase = nil }
         }
-        while quietSeconds < 120 && totalSeconds < 900 {
+        while Self.followsSteam(quietSeconds: quietSeconds, seconds: totalSeconds, onPlayerSeconds: onPlayerSeconds) {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return false }
             // Steam updates the game first ("Update & Play"): that's no silence, however long it takes.
@@ -4898,6 +4909,16 @@ final class LibraryModel: ObservableObject {
                 updateSpeed = nil
             }
             totalSeconds += 1
+            if askingSince != nil {
+                onPlayerSeconds += 1
+                if game.bottle.isBuiltIn, totalSeconds % Self.steamLookEvery == 0,
+                   await Engine.offMain({ Engine.steamRunningKnown }) == false {
+                    steamQuestionOver(yes: false)
+                    askingSince = nil
+                    shownAt = nil
+                    GameLog.note("Steam ended while it asked about \(game.name), at \(GameLog.clock())")
+                }
+            }
             let event = watcher.poll()
             if watcher.licenceAsked, !startedAgainAfterLicence, !watcher.wentOnAfterLicence, !answerStored {
                 let open = await Task.detached(priority: .utility) { SteamLicenceFiles.openInConfig(entries: licences, steamRoot: root) }.value
@@ -5029,7 +5050,7 @@ final class LibraryModel: ObservableObject {
                 }
                 guard let since = askingSince else {
                     // The game's own installers say nothing to this log, however long the player takes over
-                    // them. The limit of 15 minutes for the whole start stands.
+                    // them. The limit of 15 minutes for the start stands (followsSteam).
                     quietSeconds = watcher.runningInstallScript ? 0 : quietSeconds + 1
                     continue
                 }
@@ -5430,6 +5451,20 @@ final class LibraryModel: ObservableObject {
     }
 
     nonisolated static let steamAnswerGrace = 5
+
+    /// How long a start waits with no word from Steam, and for Steam altogether.
+    nonisolated static let steamSilencePatience = 120
+    nonisolated static let steamStartPatience = 900
+    /// How often a start looks whether the Steam with a standing question still runs, in seconds.
+    nonisolated static let steamLookEvery = 10
+
+    /// Whether a start goes on following Steam. The time a question of Steam's stands is the player's
+    /// (`onPlayerSeconds`) and doesn't count: a licence left open for 20 minutes used to end in "Steam
+    /// didn't respond" with its window still there, and a yes after 15 minutes would have ended the start
+    /// at once. B leads out of such a wait, and a Steam that ends takes its question with it.
+    nonisolated static func followsSteam(quietSeconds: Int, seconds: Int, onPlayerSeconds: Int) -> Bool {
+        quietSeconds < steamSilencePatience && seconds - onPlayerSeconds < steamStartPatience
+    }
 
     /// Steam asked again, unless the player has left the start: neither the pause before it nor the look at the
     /// processes stops for that, and Steam would start the game, or ask which way, with nobody there.
