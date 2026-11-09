@@ -51,7 +51,8 @@ Nightforge 0.3.3 macht deinen Mac mehr zur Konsole. Suchen und Zeigen gehen jetz
 
 ### Downloads und Strom
 - **Der Mac bleibt wach, solange geladen wird,** bei allen Stores, auch mit ausgeschaltetem Bildschirm. Am Ring steht, ob der Mac wach bleibt oder schlafen darf, und kommst du zurück, sagt eine Zeile, wie viel in der Zwischenzeit geladen wurde.
-- **Auf Akku schläft Steam,** wenn Nightforge 30 Minuten nicht vorn war und nichts Steam braucht. Es wacht auf, sobald du zurückkommst.
+- **Nightforge ruht, wenn niemand da ist:** Ohne Eingabe schaut es seltener nach, und Steam geht nach 30 Minuten schlafen, wenn nichts es braucht, auch am Netzteil. Auf Akku reicht es, wenn Nightforge so lange nicht vorn war. Steam wacht auf, sobald du zurückkommst.
+- **Updates nach dem Aufwachen:** Lief der Mac eine Weile nicht, schaut Nightforge beim Aufwachen nach Neuem, ohne Admin-Rechte und ohne den Mac dafür zu wecken. Ein Spielstart hat immer Vorrang.
 
 ### Bekannt
 - In Windows-Spielen vergibt das Spiel die Spielerplätze selbst. Spieler 1 im Spiel kann der andere Controller sein.
@@ -104,7 +105,8 @@ Nightforge 0.3.3 makes your Mac more of a console. Searching and pointing now wo
 
 ### Downloads and power
 - **Your Mac stays awake while games download,** for all stores, also with the display off. The ring says whether the Mac stays awake or may sleep, and when you come back a line says how much was downloaded meanwhile.
-- **On battery Steam sleeps** when Nightforge hasn't been in front for 30 minutes and nothing needs Steam. It wakes as soon as you come back.
+- **Nightforge rests when nobody's there:** with no input it looks around less often, and Steam goes to sleep after 30 minutes when nothing needs it, also when plugged in. On battery it's enough that Nightforge hasn't been in front for that long. Steam wakes as soon as you come back.
+- **Updates after waking:** when the Mac has been away for a while, Nightforge looks for what's new as it wakes, without admin rights and without waking the Mac for it. A game start always comes first.
 
 ### Known
 - In Windows games the game hands out the player slots itself. Player 1 in the game can be the other controller.
@@ -127,7 +129,7 @@ Diese Zeilen bleiben nur, wenn der Test sie bestätigt:
 | Vibration | Ob der DualSense über Bluetooth vibriert, ist offen (A4) |
 | Anmelden am Sofa | GOG bis zum Ende mit dem Handy, macOS-Firewall und Port |
 | Valheim „Cloud Out of Date“ | Abendliste R7 |
-| Auf Akku schläft Steam | Block H |
+| Nightforge ruht, Updates nach dem Aufwachen | Block H und Abendliste W1, W2; ob das Windows-Steam den Schlaf sperrt, ist offen |
 | Fernseher | Abendliste T1–T5, 4K ist noch nie gelaufen |
 
 Die Schritte bis `main` (Workflows, Manifeste, Signaturen) kommen aus der Gesamtprüfung in `docs/AUDIT-0.3.3.md`.
