@@ -4839,8 +4839,12 @@ final class LibraryModel: ObservableObject {
         /// When the player said yes to Steam's licence, and whether the start went out once more for it.
         var licenceAnsweredAt: Int?
         var startedAgainAfterLicence = false
+        /// Steam's own record of the licence, when it asked and whether the answer is in it now (SteamLicence.afterAnswer).
+        var licenceOpenWhenAsked: Bool?
+        var answerStored = false
         let (appID, root) = (game.appID, game.steamRoot)
-        licenceLog.know(Set(await Task.detached(priority: .utility) { SteamCatalog.licences(appID: appID, steamRoot: root).map(\.id) }.value))
+        let licences = await Task.detached(priority: .utility) { SteamCatalog.licences(appID: appID, steamRoot: root) }.value
+        licenceLog.know(Set(licences.map(\.id)))
         awaitingSteam = true
         defer {
             awaitingSteam = false
@@ -4864,7 +4868,15 @@ final class LibraryModel: ObservableObject {
             }
             totalSeconds += 1
             let event = watcher.poll()
-            if event != .licence, watcher.licenceAsked, licenceAnsweredAt == nil, licenceLog.answered() {
+            if watcher.licenceAsked, !startedAgainAfterLicence, !watcher.wentOnAfterLicence, !answerStored {
+                let open = await Task.detached(priority: .utility) { SteamLicenceFiles.openInConfig(entries: licences, steamRoot: root) }.value
+                licenceOpenWhenAsked = licenceOpenWhenAsked ?? open
+                if SteamLicence.answeredInConfig(openWhenAsked: licenceOpenWhenAsked, openNow: open) {
+                    answerStored = true
+                    GameLog.note("Steam has stored the answer to the licence of \(game.name), at \(GameLog.clock())")
+                }
+            }
+            if event != .licence, watcher.licenceAsked, licenceAnsweredAt == nil, licenceLog.answered() || answerStored {
                 licenceAnsweredAt = totalSeconds
                 steamQuestionOver(yes: true)
                 askingSince = nil
@@ -4873,7 +4885,8 @@ final class LibraryModel: ObservableObject {
                 GameLog.note("Steam's licence for \(game.name) is answered with yes, at \(GameLog.clock())")
             }
             switch SteamLicence.afterAnswer(windowsSteam: game.platform != .mac, answeredAgo: licenceAnsweredAt.map { totalSeconds - $0 },
-                                            steamWentOn: watcher.wentOnAfterLicence, startedAgain: startedAgainAfterLicence) {
+                                            steamWentOn: watcher.wentOnAfterLicence, startedAgain: startedAgainAfterLicence,
+                                            answerStored: answerStored) {
             case .nothing:
                 break
             case .wait:
@@ -4882,7 +4895,8 @@ final class LibraryModel: ObservableObject {
                 startedAgainAfterLicence = true
                 quietSeconds = 0
                 sentAt = Date()
-                GameLog.note("\(game.name) is sent to Steam once more: it doesn't go on by itself after its licence, at \(GameLog.clock())")
+                GameLog.note("\(game.name) is sent to Steam once more: it doesn't go on by itself after its licence"
+                             + (answerStored ? "" : " (the answer isn't to be seen in its record)") + ", at \(GameLog.clock())")
                 client = try? await Task.detached(priority: .userInitiated) {
                     try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                         frameLimit: frameLimit, extraArguments: arguments)
@@ -4900,7 +4914,11 @@ final class LibraryModel: ObservableObject {
                 // A question from its first word on: the 3 + 5 s below are for steps that answer themselves.
                 askingSince = askingSince ?? totalSeconds
                 quietSeconds = 0
-                if licenceAnsweredAt != nil { licenceLog.askedAgain() }
+                if licenceAnsweredAt != nil {
+                    licenceLog.askedAgain()
+                    licenceOpenWhenAsked = nil
+                    answerStored = false
+                }
                 licenceAnsweredAt = nil
                 launchAsksLicence = true
                 if !launchNeedsConfirmation {
@@ -4979,7 +4997,9 @@ final class LibraryModel: ObservableObject {
                     continue
                 }
                 guard let since = askingSince else {
-                    quietSeconds += 1
+                    // The game's own installers say nothing to this log, however long the player takes over
+                    // them. The limit of 15 minutes for the whole start stands.
+                    quietSeconds = watcher.runningInstallScript ? 0 : quietSeconds + 1
                     continue
                 }
                 // A question that stands: Steam's window first, which runs hidden – some steps go on

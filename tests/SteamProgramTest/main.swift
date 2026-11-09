@@ -81,9 +81,18 @@ struct SteamProgramTest {
         check(!open(108_600), "answered")
         check(!open(480), "answered, and the US-only one doesn't count")
         check(!open(550), "a game without a licence")
+
+        func record(_ appID: Int, in folder: URL? = nil) -> Bool? {
+            SteamLicenceFiles.openInConfig(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: folder ?? root)
+        }
+        check(record(1_426_210) == true, "open in Steam's record")
+        check(record(108_600) == false, "answered there")
+        check(record(550) == nil, "a game without a licence: nothing to look for")
+        check(record(1_426_210, in: root.appendingPathComponent("nowhere")) == nil, "no account to look at: it can't be told")
         let before = (try? Data(contentsOf: root.appendingPathComponent("userdata/12345678/config/localconfig.vdf")))
         file("logs/webhelper_js.txt", "[2026] SteamUI: INFO: accepted eula 1426210_eula_1\r\n")
         check(!open(1_426_210), "answered a moment ago: localconfig has it only later")
+        check(record(1_426_210) == true, "the log's word isn't the record's")
         check((try? Data(contentsOf: root.appendingPathComponent("userdata/12345678/config/localconfig.vdf"))) == before, "Steam's file as it was")
     }
 

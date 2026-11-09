@@ -418,6 +418,9 @@ struct LaunchWatcher {
     private(set) var wentOnAfterLicence = false
     /// Steam says so itself: "continues with user response" to the licence. Steam for Mac does.
     private(set) var licenceContinued = false
+    /// Steam is on the game's install script: the game's own installers, which log nothing here and may
+    /// ask the player things (GTA V: Rockstar's launcher, its terms and folder).
+    private(set) var runningInstallScript = false
 
     /// Remembers where the log ends now, so only lines written after the launch count.
     init(steamRoot: URL, appID: Int) {
@@ -461,6 +464,9 @@ struct LaunchWatcher {
             }
             guard mentionsApp(line) else { continue }
             if line.contains("GameAction") { steamReceivedLaunch = true }
+            if line.contains("GameAction"), line.contains("changed task to") {
+                runningInstallScript = line.contains("changed task to RunningInstallScript")
+            }
             if licenceAsked, !wentOnAfterLicence, !Self.asksLicence(line), line.contains("GameAction"), line.contains("LaunchApp") {
                 wentOnAfterLicence = true
                 if event == nil { event = .continued }

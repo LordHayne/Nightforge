@@ -97,8 +97,9 @@ struct SteamLicenceTest {
     static func afterAnswer() {
         typealias Step = SteamLicence.AfterAnswer
         let after = SteamLicence.startAgainAfter
-        func step(windows: Bool = true, ago: Int?, on: Bool = false, again: Bool = false) -> Step {
-            SteamLicence.afterAnswer(windowsSteam: windows, answeredAgo: ago, steamWentOn: on, startedAgain: again)
+        let latest = SteamLicence.startAgainAtLatest
+        func step(windows: Bool = true, ago: Int?, on: Bool = false, again: Bool = false, stored: Bool = true) -> Step {
+            SteamLicence.afterAnswer(windowsSteam: windows, answeredAgo: ago, steamWentOn: on, startedAgain: again, answerStored: stored)
         }
         check(step(ago: nil) == .nothing, "no yes, no new start: a No or B never gets here")
         check(step(ago: 0) == .wait && step(ago: after - 1) == .wait, "Steam gets a moment")
@@ -107,6 +108,17 @@ struct SteamLicenceTest {
         check(step(ago: after, again: true) == .nothing, "once per start")
         check(step(ago: after, on: true) == .nothing, "not when Steam went on by itself")
         check(step(windows: false, ago: after) == .nothing, "Steam for Mac goes on by itself")
+        check(step(ago: after, stored: false) == .wait && step(ago: latest - 1, stored: false) == .wait,
+              "not while Steam's record hasn't got the answer: it would only show the licence again")
+        check(step(ago: latest, stored: false) == .startAgain, "by the quickest start seen to work it goes out anyway")
+        check(step(ago: latest, again: true, stored: false) == .nothing, "and still once")
+        check(latest <= 25, "no later than a new start is known to work")
+
+        func yes(_ then: Bool?, _ now: Bool?) -> Bool { SteamLicence.answeredInConfig(openWhenAsked: then, openNow: now) }
+        check(yes(true, false), "open when asked, not any more: stored")
+        check(!yes(true, true), "still open: a No, a closed window, or not written yet")
+        check(!yes(false, false), "not open when asked: this record can't tell, as for one limited to some countries")
+        check(!yes(nil, false) && !yes(true, nil) && !yes(nil, nil), "a record that can't be read says nothing")
     }
 
     static func bar() {
