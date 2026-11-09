@@ -115,6 +115,22 @@ class HintTests(unittest.TestCase):
         self.assertEqual(self.hint(page(crossover="playable", crossover_notes="Use DXMT on CrossOver 25.1.")),
                          {"graphics": "dxmt", "from": ["crossover"], "source": "agw"})
 
+    def test_a_note_names_the_layer_the_fields_dont(self):
+        notes = {"42910": {"page": "Magicka", "graphics": "d3dmetal"}, "7": {"page": "Odd", "graphics": "wined3d"}}
+        self.assertEqual(agw.note_hint("42910", notes), {"graphics": "d3dmetal", "from": ["notes"], "source": "agw"})
+        self.assertIsNone(agw.note_hint("7", notes))
+        self.assertIsNone(agw.note_hint("8", notes))
+
+    def test_the_notes_file_is_what_it_says(self):
+        path = pathlib.Path(__file__).parent.parent / "profiles" / "agw-notes.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(document["license"], "CC BY-NC-SA 3.0")
+        self.assertGreaterEqual(len(document["games"]), 20)
+        for key, game in document["games"].items():
+            self.assertTrue(key.isdigit(), key)
+            self.assertEqual(set(game), {"page", "graphics"}, key)
+            self.assertIn(game["graphics"], ("d3dmetal", "dxmt", "dxvk"), key)
+
     def test_nothing_named_no_hint(self):
         self.assertIsNone(self.hint(page(crossover="perfect", crossover_notes="Runs great.")))
 

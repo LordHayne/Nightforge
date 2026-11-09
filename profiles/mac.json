@@ -49,6 +49,14 @@
    "graphics": "dxvk",
    "note": "Tested 2026-10-26 on M5: plays with DXVK at 60-120 FPS (the Vulkan layer's count). Steam may first ask about controller firmware; Nightforge shows that window."
   },
+  "1426210": {
+   "name": "It Takes Two",
+   "graphics": "d3dmetal",
+   "arguments": [
+    "-dx12"
+   ],
+   "note": "Tested 2026-11-09 on M5 with D3DMetal on winecx 4.7.3: it starts on D3DMetal with -dx12. With -dx11 on DXMT and DXVK it stays at a small window without a picture."
+  },
   "1623730": {
    "name": "Palworld",
    "graphics": "dxmt",

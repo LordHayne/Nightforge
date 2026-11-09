@@ -437,7 +437,13 @@ def own_graphics(mac: dict) -> dict:
     return layers
 
 
-def build(pages: list, mac: dict) -> tuple:
+def note_hint(key: str, notes: dict):
+    """A hint from profiles/agw-notes.json: the layer the page's free text names, where its fields say none."""
+    layer = (notes.get(key) or {}).get("graphics")
+    return {"graphics": layer, "from": ["notes"], "source": "agw"} if layer in ("d3dmetal", "dxmt", "dxvk") else None
+
+
+def build(pages: list, mac: dict, notes: dict = None) -> tuple:
     """The document's "games" and "aliases" from parsed pages, plus counts for the summary."""
     layers = own_graphics(mac)
     games, aliases = {}, {"steam": {}, "gog": {}}
@@ -456,7 +462,7 @@ def build(pages: list, mac: dict) -> tuple:
         if key in games:
             continue
         own = next((layers[k] for k in [key] + ["gog." + g for g in page["gog"]] + page["steam"] if k in layers), None)
-        hint = derive_hint(page, own)
+        hint = derive_hint(page, own) or (None if own else note_hint(key, notes or {}))
         if own and derive_hint(page) is not None:
             stats["overruled"] += 1
         entry = {k: v for k, v in page.items() if k in ("page", "ids", "edited", "codeweavers", "paths")}
@@ -618,6 +624,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "agw.json")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
+    parser.add_argument("--notes", type=pathlib.Path, default=ROOT / "profiles" / "agw-notes.json")
     parser.add_argument("--pages", type=pathlib.Path, help="read the pages from a file --save-pages wrote, offline")
     parser.add_argument("--save-pages", type=pathlib.Path, help="also keep the fetched pages, for --pages")
     parser.add_argument("--wikidata", type=pathlib.Path, help="read Wikidata's answer from a file --save-wikidata wrote")
@@ -635,7 +642,8 @@ def main() -> int:
     pages = [p for p in (parse_page(r["title"], r["wikitext"], r.get("edited")) for r in raw) if p]
     fill_ids(pages, wikidata_ids(bindings))
     mac = json.loads(options.mac.read_text(encoding="utf-8"))
-    games, aliases, stats = build(pages, mac)
+    notes = json.loads(options.notes.read_text(encoding="utf-8")).get("games", {}) if options.notes.exists() else {}
+    games, aliases, stats = build(pages, mac, notes)
     previous = json.loads(options.out.read_text(encoding="utf-8")) if options.out.exists() else None
     doc = document(games, aliases, previous)
     validate(doc, options.minimum)
