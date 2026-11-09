@@ -35,6 +35,19 @@ enum GameBackdrop {
         @Published var progress: Double?
         /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
         @Published var steamAsks = false
+        /// That question is its licence: said so at the top, with a seam round its window (`seam`) and the way to answer.
+        @Published var licence: LicenceLook?
+        /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
+        @Published var seam: CGRect?
+        /// Steam will show the licence at this start, as far as can be told beforehand.
+        @Published var licenceAnnounced = false
+    }
+
+    /// What the bar under Steam's licence says.
+    struct LicenceLook: Equatable {
+        var answering: SteamLicence.Answering
+        /// R2 or RT, for a pad without a touchpad.
+        var click: String
     }
 
     enum Stage: Equatable {
@@ -104,8 +117,24 @@ enum GameBackdrop {
         if state.detail != shown { state.detail = shown }
     }
 
-    static func setSteamAsks(_ asks: Bool) {
+    static func setSteamAsks(_ asks: Bool, licence: LicenceLook? = nil) {
         if state.steamAsks != asks { state.steamAsks = asks }
+        if state.licence != licence { state.licence = licence }
+        if state.seam != nil { state.seam = nil }
+        if state.licenceAnnounced { state.licenceAnnounced = false }  // said, or answered
+    }
+
+    /// Steam's window under the licence's frame (screen coordinates, y down); nil while it isn't there.
+    static func frameSteamWindow(_ frame: CGRect?) {
+        guard let window, state.licence != nil else { return }
+        let curtain = appKitFrame(bounds: window.frame, mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
+        let seam = frame.flatMap { SteamLicence.seam(window: $0, curtain: curtain) }
+        if state.seam != seam { state.seam = seam }
+    }
+
+    static func announceLicence(for game: String) {
+        guard isRaised, state.game == game, !state.steamAsks else { return }
+        state.licenceAnnounced = true
     }
 
     static func setWayOut(_ tip: LaunchTip?) {
@@ -325,6 +354,9 @@ enum GameBackdrop {
             state.wayOut = nil
             state.progress = nil
             state.steamAsks = false
+            state.licence = nil
+            state.seam = nil
+            state.licenceAnnounced = false
         }
         if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
         state.stage = stage
@@ -512,12 +544,15 @@ struct BackdropView: View {
     var body: some View {
         ZStack {
             BrandNight()
+            // One fade each way, between two pages that stand still.
             if state.stage == .starting && state.steamAsks {
-                SteamQuestionFrame(game: state.game, wayOut: state.wayOut)
+                SteamQuestionFrame(game: state.game, wayOut: state.wayOut, licence: state.licence, seam: state.seam)
+                    .transition(.opacity)
             } else {
-                page
+                page.transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.4), value: state.steamAsks)
         .clipped()
         .ignoresSafeArea()
     }
@@ -555,8 +590,14 @@ struct BackdropView: View {
                     .frame(maxWidth: 560)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
-                // A tip for new players, quiet, in the banner's blue.
-                if state.stage == .starting, let tip = state.wayOut ?? state.tip {
+                // Steam's licence, said beforehand in the place of the tip.
+                if state.stage == .starting, state.wayOut == nil, state.licenceAnnounced {
+                    Text(L10n.t("Steam will show the licence once. After that, never again."))
+                        .font(size: 15)
+                        .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
+                        .padding(.top, 26)
+                } else if state.stage == .starting, let tip = state.wayOut ?? state.tip {
+                    // A tip for new players, quiet, in the banner's blue.
                     HStack(spacing: 12) {
                         HStack(spacing: 6) {
                             ForEach(Array(tip.symbols.enumerated()), id: \.offset) { index, symbol in
@@ -608,33 +649,88 @@ private struct UpdateBar: View {
 private struct SteamQuestionFrame: View {
     let game: String
     let wayOut: LaunchTip?
+    /// Steam's licence: said so at the top, with `seam` round its window once that's there.
+    var licence: GameBackdrop.LicenceLook?
+    var seam: CGRect?
+    @ObservedObject private var tv = TVLayout.shared
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spaced(text: game.uppercased(with: L10n.locale) + " · " + L10n.t("Steam is asking something").uppercased(with: L10n.locale), kern: 6)
-                .fontWidth(.expanded)
-                .font(size: 18)
-                .foregroundStyle(Color(nsColor: BrandArt.tagline))
-                .lineLimit(1)
-                .padding(.top, 48)
-            Spacer()
-            HStack(spacing: 48) {
-                Text(L10n.t("Answer with the mouse or trackpad"))
-                // Without a controller there's no B to name, and Esc goes to Steam's window.
-                if let wayOut, !wayOut.symbols.isEmpty {
-                    HStack(spacing: 10) {
-                        ForEach(Array(wayOut.symbols.enumerated()), id: \.offset) { _, symbol in PadGlyph(symbol, size: 20) }
-                        Text(wayOut.text)
+        ZStack {
+            if let seam {
+                // Drawn once where the window stands, on the curtain under it; the window itself is left as it is.
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color(nsColor: BrandArt.seamBlue), lineWidth: 2)
+                    .shadow(color: Color(nsColor: BrandArt.seamBlue).opacity(0.6), radius: 18)
+                    .frame(width: seam.width + 24, height: seam.height + 24)
+                    .position(x: seam.midX, y: seam.midY)
+                    .transition(.opacity)
+            }
+            VStack(spacing: 0) {
+                Spaced(text: game.uppercased(with: L10n.locale) + " · " + (licence == nil ? L10n.t("Steam is asking something") : L10n.t("The licence, just once")).uppercased(with: L10n.locale), kern: 6)
+                    .fontWidth(.expanded)
+                    .font(size: 18)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.top, max(48, Theme.margins.top))
+                    .padding(.horizontal, Theme.margins.side)
+                if licence != nil {
+                    Text(L10n.t("Steam only asks this at the first start."))
+                        .font(size: 15)
+                        .foregroundStyle(Theme.muted)
+                        .padding(.top, 12)
+                }
+                Spacer()
+                HStack(spacing: 48) {
+                    answers
+                    // Without a controller there's no B to name, and Esc goes to Steam's window.
+                    if let wayOut, !wayOut.symbols.isEmpty {
+                        HStack(spacing: 10) {
+                            ForEach(Array(wayOut.symbols.enumerated()), id: \.offset) { _, symbol in PadGlyph(symbol, size: 20) }
+                            Text(licence == nil ? wayOut.text : L10n.t("Cancel"))
+                        }
                     }
                 }
+                .font(size: 17)
+                .foregroundStyle(Color(nsColor: BrandArt.tagline))
+                .frame(maxWidth: .infinity)
+                .frame(height: 96)
+                .padding(.bottom, tv.isOn ? Theme.margins.bottom : 0)  // what a TV may cut off stays empty
+                .background(Color(red: 6 / 255, green: 8 / 255, blue: 11 / 255).opacity(0.72))
+                .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 1) }
             }
-            .font(size: 17)
-            .foregroundStyle(Color(nsColor: BrandArt.tagline))
-            .frame(maxWidth: .infinity)
-            .frame(height: 96)
-            .background(Color(red: 6 / 255, green: 8 / 255, blue: 11 / 255).opacity(0.72))
-            .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 1) }
         }
+        .animation(.easeInOut(duration: 0.4), value: seam == nil)
+    }
+
+    @ViewBuilder private var answers: some View {
+        switch licence?.answering ?? .mouse {
+        case .mouse:
+            Text(L10n.t("Answer with the mouse or trackpad"))
+        case .touchpad:
+            HStack(spacing: 10) {
+                TouchpadMark()
+                Text(L10n.t("Touchpad moves the pointer"))
+            }
+            Text(L10n.t("Press to click"))
+            Text(L10n.t("Two fingers scroll"))
+        case .stick:
+            HStack(spacing: 10) {
+                PadGlyph("r.joystick.fill", size: 20)
+                Text(L10n.t("Right stick moves the pointer"))
+            }
+            Text(L10n.t("%@ clicks", licence?.click ?? "R2"))
+        }
+    }
+}
+
+/// The pad's touchpad, as small as the button marks beside it.
+private struct TouchpadMark: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 5)
+            .strokeBorder(lineWidth: 1.8)
+            .frame(width: 30, height: 20)
+            .overlay(Circle().frame(width: 5, height: 5))
     }
 }
 

@@ -393,6 +393,8 @@ enum LaunchError: LocalizedError {
 struct LaunchWatcher {
     enum Event {
         case needsConfirmation
+        /// Its licence: a question for the player from the first moment, no routine step (SteamLicence).
+        case licence
         /// Steam got its answer (or never needed one – it logs routine steps the same way).
         case continued
         case running
@@ -410,6 +412,12 @@ struct LaunchWatcher {
     /// Steam was already waiting on a question for this game before the launch (e.g. an earlier
     /// attempt); the new request just queues behind it.
     private var openQuestion = false
+    /// Steam asked this game's licence, in this start or as the question it was still waiting on.
+    private(set) var licenceAsked = false
+    /// It has moved on from the licence since: the Windows Steam doesn't, after a yes (SteamLicence).
+    private(set) var wentOnAfterLicence = false
+    /// Steam says so itself: "continues with user response" to the licence. Steam for Mac does.
+    private(set) var licenceContinued = false
 
     /// Remembers where the log ends now, so only lines written after the launch count.
     init(steamRoot: URL, appID: Int) {
@@ -423,6 +431,8 @@ struct LaunchWatcher {
             try? handle.close()
             let last = tail.split(whereSeparator: \.isNewline).last { $0.contains("GameAction [AppID \(appID),") }
             openQuestion = last?.contains("waiting for user response") ?? false
+            // Not told apart in `poll`: the Windows Steam leaves this line last after a yes as well.
+            licenceAsked = openQuestion && last?.contains("to ShowEula") == true
         }
     }
 
@@ -451,8 +461,17 @@ struct LaunchWatcher {
             }
             guard mentionsApp(line) else { continue }
             if line.contains("GameAction") { steamReceivedLaunch = true }
+            if licenceAsked, !wentOnAfterLicence, !Self.asksLicence(line), line.contains("GameAction"), line.contains("LaunchApp") {
+                wentOnAfterLicence = true
+                if event == nil { event = .continued }
+            }
+            if line.contains("continues with user response \"ShowEula\"") { licenceContinued = true }
             if line.contains("Game process added") || line.contains("changed task to Completed") {
                 event = .running
+            } else if Self.asksLicence(line) {
+                licenceAsked = true
+                wentOnAfterLicence = false
+                event = .licence
             } else if line.contains("waiting for user response") {
                 event = .needsConfirmation
             } else if line.contains("continues with user response") {
@@ -464,6 +483,11 @@ struct LaunchWatcher {
             }
         }
         return event
+    }
+
+    /// "LaunchApp changed task to ShowEula", and the line after it, "waiting for user response to ShowEula".
+    static func asksLicence(_ line: Substring) -> Bool {
+        line.contains("changed task to ShowEula") || line.contains("waiting for user response to ShowEula")
     }
 
     /// "AppID 10" must not match "AppID 1000": the ID has to end there.

@@ -36,9 +36,55 @@ struct SteamProgramTest {
         editing()
         accounts()
         steamCommands()
+        licences()
         try? fm.removeItem(at: temp)
         print(failures == 0 ? "✓ SteamProgram" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// Steam's licences from its real files, read only: appinfo's list, the signed-in account's answers.
+    static func licences() {
+        let root = temp.appendingPathComponent("SteamLicences", isDirectory: true)
+        func file(_ path: String, _ text: String) {
+            let url = root.appendingPathComponent(path)
+            try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data(text.utf8).write(to: url)
+        }
+        func eulas(_ entries: [(String, KV)]) -> [(String, KV)] { [("common", .object([("eulas", .object(entries))]))] }
+        func eula(_ id: String, version: Int? = nil, countries: String? = nil) -> KV {
+            var pairs: [(String, KV)] = [("id", .string(id)), ("name", .string("EULA")), ("url", .string("https://example.com/\(id)"))]
+            if let version { pairs.append(("version", .int(Int32(version)))) }
+            if let countries { pairs.append(("countries", .string(countries))) }
+            return .object(pairs)
+        }
+        try? fm.createDirectory(at: root.appendingPathComponent("appcache"), withIntermediateDirectories: true)
+        try? appinfo([
+            (1_426_210, eulas([("0", eula("1426210_eula_1"))])),
+            (108_600, eulas([("0", eula("108600_eula_1", version: 11))])),
+            (480, eulas([("0", eula("480_eula_0")), ("1", eula("480_eula_1", countries: "US"))])),
+            (550, []),
+        ]).write(to: root.appendingPathComponent("appcache/appinfo.vdf"))
+        check(SteamCatalog.licences(appID: 1_426_210, steamRoot: root) == [SteamLicence.Entry(id: "1426210_eula_1", version: 0)],
+              "the id, not the entry's number, and no version is 0")
+        check(SteamCatalog.licences(appID: 108_600, steamRoot: root) == [SteamLicence.Entry(id: "108600_eula_1", version: 11)], "with its version")
+        check(SteamCatalog.licences(appID: 480, steamRoot: root).contains(SteamLicence.Entry(id: "480_eula_1", version: 0, countries: "US")), "with its countries")
+        check(SteamCatalog.licences(appID: 550, steamRoot: root).isEmpty && SteamCatalog.licences(appID: 7, steamRoot: root).isEmpty, "none, or a game Steam doesn't know")
+
+        func open(_ appID: Int) -> Bool {
+            SteamLicenceFiles.stillOpen(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: root)
+        }
+        check(!open(1_426_210), "no signed-in account to look at: nothing is said")
+        file("config/loginusers.vdf", "\"users\"\n{\n\t\"76561197972611406\"\n\t{\n\t\t\"AccountName\"\t\"test\"\n\t\t\"MostRecent\"\t\"1\"\n\t}\n}\n")
+        file("userdata/0/config/localconfig.vdf", "\t\"1426210_eula_1\"\t\t\"0\"\n")
+        file("userdata/12345678/config/localconfig.vdf", "\t\"108600_eula_1\"\t\t\"11\"\r\n\t\"480_eula_0\"\t\t\"0\"\r\n")
+        check(open(1_426_210), "another folder's answer isn't this account's")
+        check(!open(108_600), "answered")
+        check(!open(480), "answered, and the US-only one doesn't count")
+        check(!open(550), "a game without a licence")
+        let before = (try? Data(contentsOf: root.appendingPathComponent("userdata/12345678/config/localconfig.vdf")))
+        file("logs/webhelper_js.txt", "[2026] SteamUI: INFO: accepted eula 1426210_eula_1\r\n")
+        check(!open(1_426_210), "answered a moment ago: localconfig has it only later")
+        check((try? Data(contentsOf: root.appendingPathComponent("userdata/12345678/config/localconfig.vdf"))) == before, "Steam's file as it was")
     }
 
     // MARK: Binary KeyValues as Steam writes them (as in StoreFactsTest)

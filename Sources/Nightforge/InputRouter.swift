@@ -927,6 +927,14 @@ final class InputRouter {
         NSCursor.setHiddenUntilMouseMoves(true)
     }
 
+    /// The pointer into Steam's window for its licence, in the middle of it and on no button: only moved
+    /// (no event, no click), and only for whoever plays with the pad.
+    static func bringPointer(into window: CGRect) {
+        guard padUsedLast else { return }
+        CGWarpMouseCursorPosition(CGPoint(x: window.midX, y: window.midY))
+        NSCursor.setHiddenUntilMouseMoves(false)
+    }
+
     /// The same with another app in front – the game, under the curtain or handed the front: macOS
     /// hides it only for the app with the keys and the window under the pointer. So Nightforge has
     /// both for a moment – a sheer panel over the pointer's screen, as the overlay is when Continue

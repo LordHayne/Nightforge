@@ -37,6 +37,8 @@ enum LaunchPhase: Equatable {
     case signInInBattleNetWindow
     /// The client hasn't started the game and may be asking something: its window is open.
     case battleNetAsks
+    /// The player said yes to Steam's licence; the game starts now.
+    case licenceAnswered
 
     var title: String {
         switch self {
@@ -60,6 +62,7 @@ enum LaunchPhase: Equatable {
         case .startingBattleNet: return L10n.t("Starting Battle.net …")
         case .signInInBattleNetWindow: return L10n.t("Sign in in the Battle.net window")
         case .battleNetAsks: return L10n.t("Battle.net is waiting for you")
+        case .licenceAnswered: return L10n.t("Thanks. The game is starting …")
         }
     }
 
@@ -90,6 +93,7 @@ enum LaunchPhase: Equatable {
         case .startingBattleNet: return L10n.t("Blizzard's games start through Battle.net, which runs in the background.")
         case .signInInBattleNetWindow: return L10n.t("Battle.net needs you to sign in. Its window is open.")
         case .battleNetAsks: return L10n.t("Its window is open: answer there, or press Play in it.")
+        case .licenceAnswered: return L10n.t("Steam won't ask again.")
         }
     }
 
