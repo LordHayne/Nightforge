@@ -264,6 +264,16 @@ enum SteamCatalog {
             .map(\.option)
     }
 
+    /// The licences appinfo names for the game (`common/eulas`, SteamLicence).
+    static func licences(appID: Int, steamRoot: URL) -> [SteamLicence.Entry] {
+        guard let eulas = cachedAppInfo(appID: appID, steamRoot: steamRoot)?["common"]?.object?["eulas"]?.object else { return [] }
+        return eulas.values.compactMap(\.object).compactMap { eula in
+            guard let id = eula["id"]?.string, !id.isEmpty else { return nil }
+            return SteamLicence.Entry(id: id, version: eula["version"]?.int ?? eula["version"]?.string.flatMap { Int($0) } ?? 0,
+                                      countries: eula["countries"]?.string)
+        }
+    }
+
     /// One app's appinfo, read once per change of appinfo.vdf: the file is megabytes with a big
     /// library, and every start and every selection asks for launch options or save rules.
     private static var appInfoCache: [String: (modified: Date, info: [String: BinaryKV]?)] = [:]

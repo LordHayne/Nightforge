@@ -76,6 +76,61 @@ struct LaunchEdgeTest {
         var questioned = LaunchWatcher(steamRoot: steam, appID: 730)
         check(questioned.poll() == .needsConfirmation, "a question open before the start is told at once")
         check(questioned.poll() == nil, "and only once")
+        licence()
+    }
+
+    /// Steam's licence: a question from its first word, and how its end shows in each Steam.
+    static func licence() {
+        let steam = work.appendingPathComponent("steam-licence", isDirectory: true)
+        let line = "[2026] GameAction [AppID 1426210, ActionID 1] : LaunchApp"
+        func say(_ text: String) { append("\(line) \(text)\n", to: log(steam)) }
+        append("", to: log(steam))
+
+        var watcher = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        check(!watcher.licenceAsked, "nothing asked yet")
+        say("changed task to ShowEula with \"\"")
+        check(watcher.poll() == .licence && watcher.licenceAsked, "the licence from its first word on")
+        say("waiting for user response to ShowEula \"\"")
+        check(watcher.poll() == .licence, "and the wait for it")
+        check(watcher.poll() == nil && !watcher.wentOnAfterLicence, "the Windows Steam stays there after a yes, without a word")
+
+        say("waiting for user response to ShowInterstitials \"\"")
+        check(watcher.poll() == .needsConfirmation, "the routine step stays what it was")
+        check(watcher.wentOnAfterLicence, "and Steam has moved on")
+
+        say("continues with user response \"ShowInterstitials\"")  // nothing left open for the next one to find
+        var mac = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        say("changed task to ShowEula with \"\"")
+        check(mac.poll() == .licence, "Steam for Mac asks the same")
+        say("continues with user response \"ShowEula\"")
+        check(mac.poll() == .continued && mac.wentOnAfterLicence && mac.licenceContinued, "and goes on by itself, which says yes")
+
+        // Asked in an earlier start, whether or not it still stands: not new, so no frame at once.
+        say("waiting for user response to ShowEula \"\"")
+        var earlier = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        check(earlier.licenceAsked, "known to have been asked")
+        check(earlier.poll() == .needsConfirmation, "an old line isn't a new licence")
+        say("changed task to CheckShaderDepotManifest with \"\"")
+        check(earlier.poll() == .continued && !earlier.licenceContinued, "a new start going past it ends that wait, and says nothing of a yes")
+
+        let interfaceLog = steam.appendingPathComponent("logs/webhelper_js.txt")
+        append("SteamUI: INFO: accepted eula 1426210_eula_1\nSteamUI: INFO: eulas complete 1426210_eula_1\n", to: interfaceLog)
+        var answers = SteamLicenceLog(steamRoot: steam, appID: 1_426_210)
+        check(!answers.answered(), "a yes from before this start isn't this start's")
+        append("SteamUI: INFO: prompt for eula 1426210_eula_1\n", to: interfaceLog)
+        check(!answers.answered(), "being asked")
+        append("SteamUI: INFO: accepted eula 1426210_eula_1\nSteamUI: INFO: eulas complete 1426210_eula_1\n", to: interfaceLog)
+        check(answers.answered() && answers.answered(), "the yes, and it stays one")
+        answers.askedAgain()
+        check(!answers.answered(), "Steam asking again needs another")
+
+        // The frame comes before Steam's window does: that wait is longer than the usual one.
+        func step(_ since: TimeInterval, licence: Bool) -> LibraryModel.SteamOnCurtain {
+            LibraryModel.steamOnCurtainStep(lowest: nil, sinceSeen: since, savesToChoose: false,
+                                            patience: licence ? LibraryModel.licenceWindowPatience : LibraryModel.steamWindowPatience)
+        }
+        check(step(9, licence: false) == .giveUp && step(9, licence: true) == .wait, "9 s without a window: over for a question, not for the licence")
+        check(step(LibraryModel.licenceWindowPatience, licence: true) == .giveUp, "but not for ever")
     }
 
     static func startCheck() {

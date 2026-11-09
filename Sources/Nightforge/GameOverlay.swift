@@ -789,6 +789,11 @@ enum GameProcesses {
         }.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
     }
 
+    /// A window's place on the screen, y down.
+    nonisolated static func frame(ofWindow number: Int) -> CGRect? {
+        (CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(number)) as? [[String: Any]])?.first.flatMap(bounds)
+    }
+
     nonisolated static func steamWindows(pids: Set<pid_t>) -> [Int] {
         guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
         else { return [] }

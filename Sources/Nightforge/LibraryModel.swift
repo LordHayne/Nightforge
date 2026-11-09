@@ -123,6 +123,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var launchingID: String?
     /// Steam is showing a question (licence, setup) for the game being launched.
     @Published private(set) var launchNeedsConfirmation = false
+    /// That question is Steam's licence: the frame comes at once and says so (SteamLicence).
+    private var launchAsksLicence = false
     /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …").
     @Published private(set) var launchPhase: LaunchPhase?
     /// How fast Steam's update before a start goes ("12.4 MB/s · 4 min left"), once it's known.
@@ -1307,6 +1309,38 @@ final class LibraryModel: ObservableObject {
         curtainWatch = Task { await watchCurtain(game) }
         stageWatch?.cancel()
         stageWatch = Task { await watchStage(game) }
+        announceLicence(of: game)
+    }
+
+    /// A word on the loading screen when Steam will show the game's licence. Only a word: when it's
+    /// wrong or missing nothing else changes, the frame comes when Steam asks.
+    private func announceLicence(of game: Game) {
+        guard game.provider == .steam else { return }
+        let appID = game.appID
+        let root = game.platform == .mac ? MacSteam.root : game.steamRoot
+        Task {
+            let open = await Task.detached(priority: .utility) {
+                SteamLicenceFiles.stillOpen(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: root)
+            }.value
+            guard open else { return }
+            GameLog.note("Steam's licence for \(game.name) is still open: said on the curtain")
+            GameBackdrop.announceLicence(for: game.name)
+        }
+    }
+
+    /// How the player can answer Steam's licence, for the bar on the curtain.
+    private var licenceLook: GameBackdrop.LicenceLook {
+        let pads = GCController.controllers().compactMap(\.extendedGamepad)
+        let pad: SteamLicence.Pad = pads.isEmpty ? .none : pads.contains { Touchpad($0) != nil } ? .touchpad : .stick
+        return GameBackdrop.LicenceLook(answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
+                                        click: PadPart.r2.name(padSymbols.layout))
+    }
+
+    /// Steam's question is over. `yes`: it was the licence, answered by the player, and the curtain thanks them.
+    private func steamQuestionOver(yes: Bool) {
+        launchNeedsConfirmation = false
+        if launchAsksLicence, yes { launchPhase = .licenceAnswered }
+        launchAsksLicence = false
     }
 
     private func watchCurtain(_ game: Game) async {
@@ -1343,6 +1377,8 @@ final class LibraryModel: ObservableObject {
         var steamAsked = false
         /// Steam's question stands on the curtain: when its window was last seen there.
         var steamWindowSeen: Date?
+        /// The window the pointer was brought into for Steam's licence, once per window.
+        var pointerBroughtTo: Int?
         /// macOS's questions on screen at the last look (`GameProcesses.macOSQuestions`), the frontmost
         /// first: the curtain lies under them while it's up.
         var macOSOnScreen: [Int] = []
@@ -1392,7 +1428,7 @@ final class LibraryModel: ObservableObject {
                     if GameOverlay.asksWayOut { GameOverlay.close() }
                     if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil) {
                         steamWindowSeen = Date()
-                        GameBackdrop.setSteamAsks(true)
+                        GameBackdrop.setSteamAsks(true, licence: launchAsksLicence ? licenceLook : nil)
                         offerWayOut(game, reason: .steamAsks)
                         GameLog.note("Curtain stays for \(game.name): Steam asks something, on the curtain")
                     } else {
@@ -1404,7 +1440,17 @@ final class LibraryModel: ObservableObject {
                 case .wait:
                     guard let seen = steamWindowSeen else { continue }
                     let steamWindows = await steamWindowsOnScreen(game)
-                    switch Self.steamOnCurtainStep(lowest: steamWindows.last, sinceSeen: Date().timeIntervalSince(seen), savesToChoose: saveChoice != nil) {
+                    if launchAsksLicence {
+                        let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
+                        let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
+                        GameBackdrop.frameSteamWindow(frame)
+                        if let number, let frame, pointerBroughtTo != number {
+                            pointerBroughtTo = number
+                            InputRouter.bringPointer(into: frame)
+                        }
+                    }
+                    switch Self.steamOnCurtainStep(lowest: steamWindows.last, sinceSeen: Date().timeIntervalSince(seen), savesToChoose: saveChoice != nil,
+                                                   patience: launchAsksLicence ? Self.licenceWindowPatience : Self.steamWindowPatience) {
                     case .lieUnder(let lowest):
                         steamWindowSeen = Date()
                         GameBackdrop.makeWay(under: lowest)
@@ -1841,11 +1887,16 @@ final class LibraryModel: ObservableObject {
     nonisolated static let steamWindowPatience: TimeInterval = 8
 
     /// `lowest`: the backmost of Steam's windows on screen, which the curtain lies right under.
-    nonisolated static func steamOnCurtainStep(lowest: Int?, sinceSeen: TimeInterval, savesToChoose: Bool) -> SteamOnCurtain {
+    nonisolated static func steamOnCurtainStep(lowest: Int?, sinceSeen: TimeInterval, savesToChoose: Bool,
+                                               patience: TimeInterval = steamWindowPatience) -> SteamOnCurtain {
         if savesToChoose { return .giveUp }
         if let lowest { return .lieUnder(lowest) }
-        return sinceSeen >= steamWindowPatience ? .giveUp : .wait
+        return sinceSeen >= patience ? .giveUp : .wait
     }
+
+    /// The frame comes with Steam's first word about the licence, its window later: 6 s later with a
+    /// Steam that had only just started (9.11.), and it may take longer on a slower Mac.
+    nonisolated static let licenceWindowPatience: TimeInterval = 30
 
     private func steamWindowsOnScreen(_ game: Game) async -> [Int] {
         if game.platform == .mac {
@@ -3509,6 +3560,8 @@ final class LibraryModel: ObservableObject {
     /// then takes it without a word.
     private func waitForMacStart(_ game: Game, watcher: LaunchWatcher, send: () -> Void) async -> MacStart {
         var watcher = watcher
+        launchAsksLicence = false
+        defer { if launchPhase == .licenceAnswered { launchPhase = nil } }
         let folders = Self.processFolders([game])
         var quietSeconds = 0
         var seconds = 0
@@ -3554,8 +3607,16 @@ final class LibraryModel: ObservableObject {
             case .needsConfirmation?:
                 askingSince = askingSince ?? seconds
                 quietSeconds = 0
+            case .licence?:
+                askingSince = askingSince ?? seconds
+                quietSeconds = 0
+                launchAsksLicence = true
+                if !launchNeedsConfirmation {
+                    launchNeedsConfirmation = true
+                    MacSteam.show()
+                }
             case .continued?:
-                launchNeedsConfirmation = false
+                steamQuestionOver(yes: watcher.licenceContinued)
                 askingSince = nil
                 shownAt = nil
                 quietSeconds = 0
@@ -4722,6 +4783,8 @@ final class LibraryModel: ObservableObject {
     private func start(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
                        arguments: [String], frameLimit: Int) async -> Bool {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
+        var licenceLog = SteamLicenceLog(steamRoot: game.steamRoot, appID: game.appID)
+        launchAsksLicence = false
         // Running, signed in and done starting: Steam logs the command within a second (SteamCommands).
         var steamWasReady = game.bottle.isBuiltIn && Engine.isSteamRunning && Engine.steamSignedIn
             && Engine.startupFinished(steamRoot: Engine.steamRoot)
@@ -4747,10 +4810,16 @@ final class LibraryModel: ObservableObject {
         var signedInSince: Int?
         var resent = false
         var updated = UpdateProgress()
+        /// When the player said yes to Steam's licence, and whether the start went out once more for it.
+        var licenceAnsweredAt: Int?
+        var startedAgainAfterLicence = false
+        let (appID, root) = (game.appID, game.steamRoot)
+        licenceLog.know(Set(await Task.detached(priority: .utility) { SteamCatalog.licences(appID: appID, steamRoot: root).map(\.id) }.value))
         awaitingSteam = true
         defer {
             awaitingSteam = false
             updateSpeed = nil
+            if launchPhase == .licenceAnswered { launchPhase = nil }
         }
         while quietSeconds < 120 && totalSeconds < 900 {
             try? await Task.sleep(for: .seconds(1))
@@ -4768,15 +4837,53 @@ final class LibraryModel: ObservableObject {
                 updateSpeed = nil
             }
             totalSeconds += 1
-            switch watcher.poll() {
+            let event = watcher.poll()
+            if event != .licence, watcher.licenceAsked, licenceAnsweredAt == nil, licenceLog.answered() {
+                licenceAnsweredAt = totalSeconds
+                steamQuestionOver(yes: true)
+                askingSince = nil
+                shownAt = nil
+                quietSeconds = 0
+                GameLog.note("Steam's licence for \(game.name) is answered with yes, at \(GameLog.clock())")
+            }
+            switch SteamLicence.afterAnswer(windowsSteam: game.platform != .mac, answeredAgo: licenceAnsweredAt.map { totalSeconds - $0 },
+                                            steamWentOn: watcher.wentOnAfterLicence, startedAgain: startedAgainAfterLicence) {
+            case .nothing:
+                break
+            case .wait:
+                quietSeconds = 0
+            case .startAgain:
+                startedAgainAfterLicence = true
+                quietSeconds = 0
+                sentAt = Date()
+                GameLog.note("\(game.name) is sent to Steam once more: it doesn't go on by itself after its licence, at \(GameLog.clock())")
+                client = try? await Task.detached(priority: .userInitiated) {
+                    try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
+                                        frameLimit: frameLimit, extraArguments: arguments)
+                }.value
+                continue
+            }
+            switch event {
             case .running?:
                 launchNeedsConfirmation = false
                 return true
             case .needsConfirmation?:
                 askingSince = askingSince ?? totalSeconds
                 quietSeconds = 0
+            case .licence?:
+                // A question from its first word on: the 3 + 5 s below are for steps that answer themselves.
+                askingSince = askingSince ?? totalSeconds
+                quietSeconds = 0
+                if licenceAnsweredAt != nil { licenceLog.askedAgain() }
+                licenceAnsweredAt = nil
+                launchAsksLicence = true
+                if !launchNeedsConfirmation {
+                    launchNeedsConfirmation = true
+                    if game.bottle.isBuiltIn { showSteamWindow() }
+                    GameLog.note("Steam shows the licence of \(game.name), at \(GameLog.clock())")
+                }
             case .continued?:
-                launchNeedsConfirmation = false
+                steamQuestionOver(yes: watcher.licenceContinued)
                 askingSince = nil
                 shownAt = nil
                 quietSeconds = 0
