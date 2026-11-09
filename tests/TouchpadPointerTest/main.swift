@@ -159,6 +159,14 @@ struct TouchpadPointerTest {
                                   frontIsGame: false, macOSAsks: { asked = true; return true }())
         check(!asked, "the window list is only read when the answer depends on it")
 
+        func overRunning(asks: Bool) -> Bool {
+            PadPointerRules.works(setting: true, keyboardOpen: false, inFront: false, overlay: true, curtain: false, gamePlaying: true,
+                                  frontIsGame: true, macOSAsks: asks, gameRunsUnderOverlay: true)
+        }
+        check(!overRunning(asks: false), "a game running on under the overlay: the pointer stays out of it")
+        check(overRunning(asks: true), "unless macOS asks something, which only a pointer answers")
+        check(PadPointerRules.works(setting: true, keyboardOpen: false, inFront: false, overlay: true, curtain: false, gamePlaying: true,
+                                    frontIsGame: true, macOSAsks: false), "a game stopped under the overlay: the pointer is free")
         check(PadPointerRules.stickIsPointer(works: true, hasTouchpad: false, inFront: false, overlay: false, curtain: false), "Xbox pad, Steam in front: the right stick is the mouse")
         check(!PadPointerRules.stickIsPointer(works: true, hasTouchpad: true, inFront: false, overlay: false, curtain: false), "with a touchpad it stays free")
         check(!PadPointerRules.stickIsPointer(works: true, hasTouchpad: false, inFront: true, overlay: false, curtain: false), "in Nightforge the stick scrolls")

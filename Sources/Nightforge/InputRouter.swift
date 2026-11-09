@@ -1059,7 +1059,7 @@ final class InputRouter {
         return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: model.padKeyboard != nil, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                      curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
                                      frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks,
-                                     windowOverGame: model.overGame != nil)
+                                     windowOverGame: model.overGame != nil, gameRunsUnderOverlay: GameOverlay.gameRunsUnder)
     }
 
     private var stickIsPointer: Bool {

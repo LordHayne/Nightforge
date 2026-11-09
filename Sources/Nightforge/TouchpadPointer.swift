@@ -145,10 +145,13 @@ enum PadPointerRules {
     /// overlay, under the curtain (a question before the picture comes), in another app. With a game
     /// on screen the touchpad is the game's and a moved pointer would turn its camera; only a question
     /// from macOS (the microphone in Left 4 Dead 2, 8.11.) comes first. Never while the keyboard is
-    /// open: the touchpad types there.
+    /// open: the touchpad types there. Nor over a game that runs on under the overlay (`gameRunsUnderOverlay`),
+    /// which would see the pointer: the player's rule, 8.11., is that it gets nothing while the overlay is up.
     static func works(setting: Bool, keyboardOpen: Bool, inFront: Bool, overlay: Bool, curtain: Bool, gamePlaying: Bool,
-                      frontIsGame: Bool, macOSAsks: @autoclosure () -> Bool, windowOverGame: Bool = false) -> Bool {
+                      frontIsGame: Bool, macOSAsks: @autoclosure () -> Bool, windowOverGame: Bool = false,
+                      gameRunsUnderOverlay: Bool = false) -> Bool {
         guard setting, !keyboardOpen else { return false }
+        if gameRunsUnderOverlay { return macOSAsks() }
         if inFront || overlay || curtain || windowOverGame { return true }
         return !gamePlaying && !frontIsGame || macOSAsks()
     }
