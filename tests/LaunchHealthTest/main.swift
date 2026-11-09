@@ -62,8 +62,8 @@ struct LaunchHealthTest {
         check(ids(GameAnalysis(apis: [.d3d12]), d3dMetal: true) == ["d3dmetal"], "DirectX 12 only: D3DMetal")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), d3dMetal: true) == ["dxmt -dx11", "dxvk -dx11", "d3dmetal"],
               "Unreal: DirectX 11 on DXMT first, DirectX 12 on D3DMetal last")
-        check(ids(GameAnalysis(apis: [.d3d11, .d3d12]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"],
-              "unknown engine with DirectX 12: D3DMetal after the DirectX 11 ladder")
+        check(ids(GameAnalysis(apis: [.d3d11, .d3d12]), d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "unknown engine with DirectX 12: it picks by itself, so D3DMetal first")
         check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "DirectX 11 only: D3DMetal's Direct3D 11 last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: true)
               == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"], "a profile that measured DirectX 12 better starts there, without -dx11")
@@ -71,7 +71,7 @@ struct LaunchHealthTest {
         let control = GameAnalysis(apis: [.d3d11, .d3d12], d3d12Program: "Control_DX12.exe")
         check(ids(control, #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
               "a game with a DirectX 12 program of its own and a profile for D3DMetal: D3DMetal first")
-        check(ids(control, d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "…without the profile, D3DMetal after DXMT and DXVK")
+        check(ids(control, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"], "…and without the profile: no switch to hold it to DirectX 11")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: false).first == "dxmt -dx11",
               "…but not on an engine without D3DMetal")
         check(ids(GameAnalysis(apis: [.d3d9]), d3dMetal: true) == ["dxvk", "wined3d"], "DirectX 9: unchanged")
@@ -122,7 +122,7 @@ struct LaunchHealthTest {
         LaunchHealth.reset(fresh)
         let followed = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
         check(followed.attempts.map(\.id) == ["d3dmetal", "dxmt", "dxvk"] && followed.hint == .d3dmetal, "a game not started yet follows the hint")
-        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true)
+        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true, filesDecide: false)
         LaunchHealth.confirm(fresh, plain)
         let kept = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
         check(kept.attempts == plain && kept.hint == nil, "a way that works isn't given up for a report")

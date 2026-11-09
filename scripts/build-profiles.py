@@ -94,6 +94,12 @@ STEAM_IDS_BY_SLUG = {
 # such switch for them (no "-nobattleye" in a profile): the player sets it.
 PLAYER_SWITCHES_ANTICHEAT_OFF = {"271590"}  # Grand Theft Auto V Legacy
 
+# Highball's curated list (gethighball.com/data/games.json, CC0-1.0): the graphics layer people ran a
+# game with on a Mac. A report, not a test of Nightforge's own: it goes beside the profiles and only orders
+# the ways a game is started. Its notes, arguments and recipes stay out.
+HIGHBALL_LAYERS = {"dxmt", "d3dmetal", "dxvk"}
+HIGHBALL_STATUSES = {"verified-local", "reported-upstream", "community"}
+
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
 # Anti-cheat that only a multiplayer server asks for (PunkBuster) or that only checks on the server
@@ -444,6 +450,18 @@ def translate(path: pathlib.Path):
     return profile, partial
 
 
+def highball_reports(document):
+    """Steam app ID → {"graphics", "status", "date"} for the games Highball names a usable layer for."""
+    reports = {}
+    for game in document.get("games") or []:
+        app_id, layer = game.get("steam_appid"), game.get("renderer")
+        if isinstance(app_id, int) and layer in HIGHBALL_LAYERS and game.get("status") in HIGHBALL_STATUSES:
+            reports[str(app_id)] = {"graphics": layer, "status": game["status"]}
+            if game.get("lastVerified"):
+                reports[str(app_id)]["date"] = game["lastVerified"]
+    return dict(sorted(reports.items(), key=lambda item: int(item[0])))
+
+
 def anticheat_block(game):
     """{"name", and "antiCheat" or "antiCheatOnline": anti-cheat names} for an AreWeAntiCheatYet
     game that can't run on a Mac, or not online; None for one that runs."""
@@ -571,6 +589,7 @@ def main() -> int:
     parser.add_argument("protonfixes", type=pathlib.Path)
     parser.add_argument("--anticheat", type=pathlib.Path, help="AreWeAntiCheatYet games.json")
     parser.add_argument("--geforcenow", type=pathlib.Path, help="GeForce Now catalog from fetch-geforce-now.py")
+    parser.add_argument("--highball", type=pathlib.Path, help="Highball's curated games.json (CC0-1.0)")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "profiles.json")
     options = parser.parse_args()
@@ -646,6 +665,9 @@ def main() -> int:
         # Steam app IDs by number, then the other stores' keys ("epic.<namespace>", "gog.<product ID>").
         "games": dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0]))),
     }
+    if options.highball:
+        document["reported"] = highball_reports(json.loads(options.highball.read_text(encoding="utf-8")))
+        document["sources"]["highball"] = {"url": "https://gethighball.com/database", "license": "CC0-1.0"}
     previous = None
     if options.out.exists():
         previous = json.loads(options.out.read_text(encoding="utf-8"))

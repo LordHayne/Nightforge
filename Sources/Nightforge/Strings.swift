@@ -1536,6 +1536,7 @@ enum L10n {
             "Aus dem AppleGamingWiki (CC BY-NC-SA 3.0), gekürzt. Getestet mit anderen Versionen als denen von Nightforge.",
         "AppleGamingWiki has no ratings for this game yet.": "Im AppleGamingWiki gibt es für dieses Spiel noch keine Bewertung.",
         "No profile yet – %@ first, as AppleGamingWiki reports.": "Noch kein Profil – zuerst %@, wie im AppleGamingWiki berichtet.",
+        "No profile yet – %@ first, as Highball's database reports.": "Noch kein Profil – zuerst %@, wie in der Datenbank von Highball berichtet.",
 
         "Thanks – noted on this Mac. Next time Nightforge starts it another way.":
             "Danke – auf diesem Mac vermerkt. Beim nächsten Mal startet Nightforge es auf einem anderen Weg.",

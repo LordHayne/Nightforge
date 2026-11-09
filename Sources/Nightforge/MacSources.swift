@@ -10,6 +10,10 @@ struct SourceHint: Equatable {
     /// The DirectX version the reports ran it with ("12"), when they say one.
     var directX: String?
     var source = "agw"
+
+    /// A Mac database that says which game ran how goes before the engine's known DirectX 11 switch;
+    /// the wiki's reports, often years old, don't.
+    var outranksEngineSwitch: Bool { source == "highball" }
 }
 
 /// What AppleGamingWiki says about one game on a Mac (profiles/agw.json, built nightly by
@@ -86,6 +90,44 @@ struct AGWEntry: Equatable {
     var wineSummary: String? {
         let parts = ways.filter(\.way.throughWine).map { "\($0.way.label): \($0.report.rating.label)" }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+}
+
+extension AGWEntry.Report {
+    /// From the time DXMT was there to choose: before it, a report naming DXVK says nothing against DXMT.
+    var fromDXMTEra: Bool {
+        let majors = versions.compactMap { version -> Int? in
+            guard version.hasPrefix("CrossOver ") else { return nil }
+            return Int(version.dropFirst("CrossOver ".count).prefix { $0.isNumber })
+        }
+        return majors.contains { $0 >= 24 } || (date ?? "") >= "2025"
+    }
+}
+
+extension AGWEntry {
+    /// The way the reports point to: the wiki's clear reading when there is one (`hint`), else the
+    /// newest report that ran well and names a layer, a perfect one before a playable one. A wrong
+    /// one costs a try, so reports needn't agree to count; a tie says nothing, and a layer a report as
+    /// new or newer found bad is out.
+    var weightedHint: SourceHint? {
+        if let hint { return hint }
+        let throughWine = reports.filter(\.key.throughWine).map(\.value)
+        var best: [GraphicsLayer: (rank: (String, Int), directX: [String])] = [:]
+        for report in throughWine where report.rating.good {
+            for layer in report.graphics where [.d3dmetal, .dxmt, .dxvk].contains(layer) && (layer != .dxvk || report.fromDXMTEra) {
+                let rank = (report.date ?? "", report.rating == .perfect ? 1 : 0)
+                if best[layer].map({ $0.rank < rank }) ?? true { best[layer] = (rank, report.directX) }
+            }
+        }
+        for report in throughWine where !report.rating.good {
+            for layer in report.graphics {
+                if let known = best[layer], (report.date ?? "") >= known.rank.0 { best[layer] = nil }
+            }
+        }
+        let ranked = best.sorted { $0.value.rank > $1.value.rank }
+        guard let top = ranked.first else { return nil }
+        if ranked.count > 1, ranked[1].value.rank == top.value.rank { return nil }
+        return SourceHint(graphics: top.key, directX: top.value.directX.count == 1 ? top.value.directX[0] : nil)
     }
 }
 

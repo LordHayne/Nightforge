@@ -7,6 +7,18 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
+
+Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel. Gebaut: `StartRules.swift`, `StartEvidence.swift`.
+
+- **Erste Wahl:** eigenes Profil, dann bewiesener Weg, dann Highball, dann AppleGamingWiki (auch unklare Fälle, der neueste gute Bericht zählt), dann die Dateien. DirectX 12 ohne bekannten Schalter und „Dateien sagen nichts“ starten zuerst auf D3DMetal. Bewiesene Wege bleiben.
+- **Dateien:** Zeigt die Importliste nichts, wird der Programmtext gelesen (`ProgramText`).
+- **Fehler lesen:** Unreals Absturzberichte auch aus `AppData/Local`, ein abgelehnter Schalter springt direkt zum Weg ohne ihn, der Crash-Reporter hält den nächsten Weg nicht mehr auf.
+- **Protokoll:** `start-evidence.jsonl` je Versuch; „First starts so far“ steht im Log. Bleibt auf dem Mac.
+- **Highball:** `reported` in `profiles.json` (CC0), nur Grafikweg; `profiles.yml` holt die Liste.
+
+Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
+
 ## Rosetta und macOS 28
 
 Plan und Stand in `docs/ENTWURF-ARM64.md`. Vorbereitung auf `claude/arm64-vorbereitung` (Abschnitt 6). Offen sind die

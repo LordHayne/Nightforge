@@ -274,6 +274,12 @@ struct AntiCheatBlock: Hashable {
 private struct ProfileDocument: Decodable {
     let formatVersion: Int
     let games: [String: Lenient]
+    /// What others ran games with on a Mac, by Steam app ID (Highball's database). A report, not a profile.
+    var reported: [String: ReportedWay]?
+
+    struct ReportedWay: Decodable {
+        let graphics: String
+    }
 
     /// One odd entry shouldn't cost every other game its profile.
     struct Lenient: Decodable {
@@ -300,6 +306,8 @@ actor ProfileStore {
     private var epicProfiles: [String: GameProfile] = [:]
     /// GOG games' entries ("gog.<product ID>" in the list), by product ID.
     private var gogProfiles: [String: GameProfile] = [:]
+    /// The layer others ran a game with on a Mac, by Steam app ID.
+    private var reported: [Int: SourceHint] = [:]
     private var refreshed = false
 
     /// `bundledURL`: the copy that comes with the app, `remoteURL` the online one, `keys` the public
@@ -330,6 +338,15 @@ actor ProfileStore {
         if !refreshed { await refresh() }
         loadLocalIfNeeded()
         return epicNamespace.map { epicProfiles[$0] } ?? gogProfiles[game.id]
+    }
+
+    /// The layer others ran the game with on a Mac (`reported` in the list), by its Steam app ID: an
+    /// Epic or GOG copy by the same game on Steam's.
+    func reportedWay(steamAppID: Int?) async -> SourceHint? {
+        guard let steamAppID else { return nil }
+        if !refreshed { await refresh() }
+        loadLocalIfNeeded()
+        return reported[steamAppID]
     }
 
     /// Every game's profile from the list at hand, without waiting for the online copy (like
@@ -388,6 +405,7 @@ actor ProfileStore {
         profiles = decoded
         epicProfiles = Self.decodeEpic(data)
         gogProfiles = Self.decodeGOG(data)
+        reported = Self.decodeReported(data)
         return true
     }
 
@@ -413,6 +431,18 @@ actor ProfileStore {
         case .unavailable:
             break
         }
+    }
+
+    static func decodeReported(_ data: Data) -> [Int: SourceHint] {
+        guard let document = try? JSONDecoder().decode(ProfileDocument.self, from: data),
+              document.formatVersion <= supportedFormat
+        else { return [:] }
+        var ways: [Int: SourceHint] = [:]
+        for (key, way) in document.reported ?? [:] {
+            guard let appID = Int(key), let layer = GraphicsLayer(rawValue: way.graphics) else { continue }
+            ways[appID] = SourceHint(graphics: layer, source: "highball")
+        }
+        return ways
     }
 
     /// The entries keyed "epic.<namespace>" (older Nightforge versions skip them: not a number).

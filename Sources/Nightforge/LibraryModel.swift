@@ -4517,6 +4517,11 @@ final class LibraryModel: ObservableObject {
             let automatic = game.bottle.isBuiltIn && options.graphics == .automatic
             let attempts = LaunchHealth.ladder(insight?.attempts ?? [], preset: options.preset, profile: profile, hint: insight?.hint)
             if automatic { LaunchHealth.review(game.gameID, attempts, steamRoot: game.steamRoot) }
+            if automatic, !attempts.isEmpty, let analysis {
+                let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
+                GameLog.note(LaunchHealth.plan(game.name, attempts: attempts, index: index, confirmed: confirmed, analysis: analysis,
+                                               profile: profile, hint: insight?.hint, highball: insight?.hintFromHighball == true))
+            }
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
                 await Task.detached(priority: .utility) {
@@ -4613,6 +4618,7 @@ final class LibraryModel: ObservableObject {
                 // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
                 let way = LaunchAttempt(graphics: layer, arguments: arguments).id
                 if let build, EngineRollback.shared.needsWatch(game.gameID, build: build, way: way) { watchFirstSeconds = true }
+                if automatic, !attempts.isEmpty { StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed) }
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
                     ? await Engine.offMain { [options] in
@@ -4694,7 +4700,7 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds? Not known
                 // (no process list): nothing learned either way – only a picture confirms it then (confirmOnceDrawing).
-                if await survivesFirstSeconds(game, logMark: logMark, layer: layer) != .ended {
+                if await survivesFirstSeconds(game, logMark: logMark, layer: layer, startedAt: startedAt) != .ended {
                     if judging?.id == game.id { judging = nil }  // its end is a session's like any other
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
@@ -4713,21 +4719,25 @@ final class LibraryModel: ObservableObject {
                 }.value
                 let drew = LaunchHealth.showedPicture(game.gameID, since: startedAt) || LaunchHealth.drewFrames(in: log, programs: programs)
                 let crashed = wayConfirmed && !drew
-                    && (GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty)
+                    && (GameLog.crashed(in: log) || !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty)
                 let outcome = LaunchHealth.earlyEnd(trusted: wayConfirmed, graphicsFailed: graphicsFailed, crashed: crashed, drew: drew,
                                                     shortEndsBefore: wayConfirmed ? LaunchHealth.shortEnds(game.gameID, attempts) : 0)
                 if outcome == .confirm {
                     // The game is gone; Nightforge comes back as after any game (watchForGameEnd).
-                    if automatic, !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
+                    if automatic, !attempts.isEmpty {
+                        LaunchHealth.confirm(game.gameID, attempts)
+                        if !wayConfirmed { StartEvidence.note(.worked, game: game.gameID, way: way) }
+                    }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 }
                 // Closed at a question of its own (the curtain saw it): the player's choice too – unless
                 // the log says the graphics failed or it crashed, as after Play in Unity's window it might.
                 if let end = LaunchHealth.ownQuestionEnd(game.gameID), end >= startedAt {
-                    let crashedAtAll = GameLog.crashed(in: log) || !GameLog.unrealCrashes(in: installDir, since: startedAt).isEmpty
+                    let crashedAtAll = GameLog.crashed(in: log) || !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty
+                    let cannotDraw = automatic && !wayConfirmed && LaunchHealth.layerCannotDraw(analysis, layer: layer)
                     if Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
-                                                 graphicsFailed: graphicsFailed, crashed: crashedAtAll) {
+                                                 graphicsFailed: graphicsFailed || cannotDraw, crashed: crashedAtAll) {
                         GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
                         return
                     }
@@ -4788,13 +4798,20 @@ final class LibraryModel: ObservableObject {
                 // A way that worked before and ended without a graphics error keeps its place:
                 // watched again at the next start. Nightforge stays in front.
                 if wayConfirmed && !graphicsFailed { return }
-                if LaunchHealth.advance(game.gameID, attempts) {
+                // What the game itself said goes first: it can rule out ways without trying them.
+                let crashTexts = await Task.detached(priority: .utility) {
+                    GameLog.crashMessages(installDir: installDir, since: startedAt)
+                }.value
+                if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
+                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first)
+                if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts)) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
                     continue
                 }
                 // One way only (Vulkan, DirectX 12): what the game draws with says more than a layer.
                 let tried = attempts.count > 1 ? attempts.map(\.label) : [analysis?.summary ?? attempts.first?.label ?? ""]
+                StartEvidence.note(.gaveUp, game: game.gameID, way: way)
                 failedLaunch = FailedLaunch(game: game, tried: tried)
                 return
             }
@@ -5184,7 +5201,10 @@ final class LibraryModel: ObservableObject {
                                                    running: absent < 2, ranFor: Date().timeIntervalSince(startedAt))
                 switch LaunchHealth.afterFirstSeconds(verdict) {
                 case .confirm:
-                    if !attempts.isEmpty { LaunchHealth.confirm(game.gameID, attempts) }
+                    if !attempts.isEmpty {
+                        LaunchHealth.confirm(game.gameID, attempts)
+                        if !wasConfirmed { StartEvidence.note(.worked, game: game.gameID, way: way) }
+                    }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 case _ where verdict == .ended:
@@ -5209,17 +5229,37 @@ final class LibraryModel: ObservableObject {
     /// When the first seconds' watch last saw a game running (`ownQuestionEndStands`).
     private var firstSecondsRunning: [String: Date] = [:]
 
-    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil,
-                                      layer: GraphicsLayer? = nil) async -> FirstSecondsWatch.Verdict {
+    private func survivesFirstSeconds(_ game: Game, logMark: UInt64? = nil, layer: GraphicsLayer? = nil,
+                                      startedAt: Date? = nil) async -> FirstSecondsWatch.Verdict {
         let folders = Self.processFolders([game])
+        let installDir = game.installDir
         let started = Date()
         var watch = FirstSecondsWatch()
+        var looks = 0
         while watch.continues(after: Date().timeIntervalSince(started)) {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return .ended }
             let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
             if case .running = presence { firstSecondsRunning[game.id] = Date() }
             if let verdict = watch.look(presence) { return verdict }
+            // A crash report of this start: the game is dead, whatever still runs. Unreal's crash reporter
+            // stays about a minute and holds up the next way (Hogwarts Legacy, 9.11.2026: 80 s a way).
+            looks += 1
+            if let startedAt, looks % 2 == 0, !LaunchHealth.showedPicture(game.gameID, since: startedAt) {
+                let crashed = await Task.detached(priority: .utility) {
+                    !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty
+                }.value
+                if crashed {
+                    GameLog.note("\(game.name) left a crash report in its first seconds, at \(GameLog.clock())")
+                    for _ in 0..<15 {
+                        let rest = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
+                        guard case .running(let pid) = rest, !Task.isCancelled else { break }
+                        kill(pid, SIGTERM)
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                    return .ended
+                }
+            }
             if case .running(let pid) = presence, let logMark, let layer, GameLog.graphicsFailed(since: logMark, layer: layer) {
                 kill(pid, SIGTERM)
                 // Steam has to see it gone before the next way can start.
@@ -5256,10 +5296,13 @@ final class LibraryModel: ObservableObject {
             analyses[game.gameID] = analysis
         }
         let profile = await ProfileStore.shared.profile(for: game.gameID)
-        // What AppleGamingWiki reports orders the ways too, where it fits and no profile names a layer.
-        let (attempts, hint) = LaunchHealth.attempts(for: analysis, profile: profile, hint: macSources.entry(for: game)?.hint,
+        // What others ran it with orders the ways too, where it fits and no profile names a layer:
+        // Highball's Mac database, then AppleGamingWiki's reports.
+        let report = await ProfileStore.shared.reportedWay(steamAppID: game.steamAppID) ?? macSources.entry(for: game)?.weightedHint
+        let (attempts, hint) = LaunchHealth.attempts(for: analysis, profile: profile, hint: report,
                                                      game: game.gameID, preset: GameOptionsStore.load(game.gameID).preset)
-        let insight = GameInsight(analysis: analysis, attempts: attempts, hint: hint)
+        let insight = GameInsight(analysis: analysis, attempts: attempts, hint: hint,
+                                  hintFromHighball: hint != nil && report?.source == "highball")
         if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
     }

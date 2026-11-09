@@ -59,11 +59,13 @@ jobs:
         run: |
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/anticheat.json" https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/HEAD/games.json
           python3 -I scripts/fetch-geforce-now.py "$RUNNER_TEMP/geforcenow.json"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/highball.json" https://gethighball.com/data/games.json
 
       - name: Build profiles
         run: |
           python3 -I scripts/build-profiles.py "$RUNNER_TEMP/umu-protonfixes" \
-            --anticheat "$RUNNER_TEMP/anticheat.json" --geforcenow "$RUNNER_TEMP/geforcenow.json"
+            --anticheat "$RUNNER_TEMP/anticheat.json" --geforcenow "$RUNNER_TEMP/geforcenow.json" \
+            --highball "$RUNNER_TEMP/highball.json"
 
       - name: Validate
         run: |

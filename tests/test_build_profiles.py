@@ -286,6 +286,20 @@ class AntiCheatTests(unittest.TestCase):
             "1245620": {"name": "Elden Ring", "antiCheatOnline": ["Easy Anti-Cheat"]},
         })
 
+    def test_highball_reports_only_name_a_usable_layer(self):
+        reports = build_profiles.highball_reports({"games": [
+            {"steam_appid": 1088850, "renderer": "d3dmetal", "status": "verified-local", "lastVerified": "2026-09-13", "notes": "x"},
+            {"steam_appid": 990080, "renderer": "d3dmetal", "status": "community", "lastVerified": None},
+            {"steam_appid": 42, "renderer": "wined3d", "status": "community"},
+            {"steam_appid": 43, "renderer": None, "status": "community"},
+            {"steam_appid": None, "renderer": "dxmt", "status": "community"},
+            {"steam_appid": 44, "renderer": "dxmt", "status": "blocked-anticheat"},
+        ]})
+        self.assertEqual(reports, {
+            "990080": {"graphics": "d3dmetal", "status": "community"},
+            "1088850": {"graphics": "d3dmetal", "status": "verified-local", "date": "2026-09-13"},
+        })
+
     def test_an_anticheat_the_player_may_switch_off_costs_only_online_play(self):
         # Rockstar lets the player turn BattlEye off for GTA V's story; the same status for another game stays a block.
         denied = {"status": "Denied", "anticheats": ["BattlEye"]}

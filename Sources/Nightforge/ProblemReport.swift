@@ -8,6 +8,8 @@ struct GameInsight: Equatable {
     let attempts: [LaunchAttempt]
     /// The layer `attempts` put first because other sources report it working (`LaunchHealth.hinted`).
     var hint: GraphicsLayer?
+    /// That report is from Highball's database rather than AppleGamingWiki.
+    var hintFromHighball = false
 }
 
 /// A game that ended right after starting with every way Nightforge knows.
@@ -56,7 +58,7 @@ enum ProblemReport {
         if options.graphics == .automatic, !attempts.isEmpty {
             let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
             graphics += " → " + attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
-            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from AppleGamingWiki" }
+            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from \(insight?.hintFromHighball == true ? "Highball" : "AppleGamingWiki")" }
         }
         var detected = insight?.analysis.summary ?? "–"
         if let analysis = insight?.analysis {
@@ -86,7 +88,7 @@ enum ProblemReport {
                                  launchOptions: options.extraArgs)
     }
 
-    static var chip: String {
+    nonisolated static var chip: String {
         var size = 0
         sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
         var bytes = [CChar](repeating: 0, count: max(size, 1))
@@ -95,7 +97,7 @@ enum ProblemReport {
         return name.isEmpty ? "Mac" : name
     }
 
-    static var osVersion: String {
+    nonisolated static var osVersion: String {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         return "\(version.majorVersion).\(version.minorVersion)"
     }

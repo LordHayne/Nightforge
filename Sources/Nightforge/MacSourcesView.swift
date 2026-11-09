@@ -21,7 +21,7 @@ struct MacSourcesSection: View {
                         WayRow(way: item.way, report: item.report)
                     }
                 }
-                if let hint = model.insights[game.gameID]?.hint {
+                if let insight = model.insights[game.gameID], let hint = insight.hint, !insight.hintFromHighball {
                     Label(L10n.t("Nightforge tries %@ first, as these reports did.", hint.shortLabel), systemImage: "arrow.up.forward.circle")
                         .font(size: 13, weight: .medium)
                         .foregroundStyle(Theme.ink.opacity(0.85))

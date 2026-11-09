@@ -89,12 +89,15 @@ enum LaunchHealth {
     /// D3DMetal (which runs Direct3D 11 too) last. `hint`: a way other sources report working
     /// (AppleGamingWiki); it goes first where it fits the game (`hinted`) and the profile names no
     /// layer of its own.
+    /// Without a profile or a report the game's files decide (`fromFiles`; `filesDecide: false`: the list
+    /// from before they did, which ways already proven on it stay on).
     /// A game with a DirectX 12 program of its own starts that one on D3DMetal (GameProgram, Control_DX12.exe).
     /// `kosmicKrisp`: under winecx DXVK's Direct3D 9 draws on KosmicKrisp (Engine.vulkanDriver).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint? = nil,
                          d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads,
-                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> [LaunchAttempt] {
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady, filesDecide: Bool = true) -> [LaunchAttempt] {
         let preferred = profile?.graphics ?? hinted(hint, analysis: analysis, d3dMetal: d3dMetal)
+            ?? (filesDecide ? fromFiles(analysis, d3dMetal: d3dMetal) : nil)
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, preferred == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
             let arguments = analysis.preferD3D11Arguments
@@ -139,14 +142,15 @@ enum LaunchHealth {
     /// The layer a source's hint puts first, where it fits the game; nil where it doesn't. D3DMetal
     /// for a game with DirectX 11 (and maybe a DirectX 12 build), or one nothing was detected for –
     /// D3DMetal runs both – unless Nightforge knows the engine's DirectX 11 switch: Unreal's and
-    /// Unity's DirectX 11 on DXMT is measured, a report from CrossOver doesn't beat that. DXMT or DXVK
-    /// for a game with DirectX 11. (Control: DirectX 11 crashed on DXMT and DXVK and runs on D3DMetal,
-    /// 1./2.11.2026; every Mac source runs it on D3DMetal.)
+    /// Unity's DirectX 11 on DXMT is measured, a report from CrossOver doesn't beat that – one from a
+    /// Mac database that says which game ran how does (`outranksEngineSwitch`: Hogwarts Legacy won't
+    /// take -dx11). DXMT or DXVK for a game with DirectX 11. (Control: DirectX 11 crashed on DXMT and
+    /// DXVK and runs on D3DMetal, 1./2.11.2026; every Mac source runs it on D3DMetal.)
     static func hinted(_ hint: SourceHint?, analysis: GameAnalysis, d3dMetal: Bool = Engine.d3dMetalReady) -> GraphicsLayer? {
         guard let hint, analysis.usesD3D11 || analysis.apis.isEmpty else { return nil }
         switch hint.graphics {
         case .d3dmetal:
-            return d3dMetal && analysis.preferD3D11Arguments.isEmpty ? .d3dmetal : nil
+            return d3dMetal && (analysis.preferD3D11Arguments.isEmpty || hint.outranksEngineSwitch) ? .d3dmetal : nil
         case .dxmt, .dxvk:
             return hint.graphics
         case .automatic, .wined3d:
@@ -155,22 +159,26 @@ enum LaunchHealth {
     }
 
     /// The ways for a game, with a source's hint where it fits – unless the game already runs on a
-    /// confirmed way of the list without it: a way that works isn't given up for someone else's
-    /// report. One still looking for its way (started before the hint came, on the first run) takes
-    /// the hinted list. `hint` in the result: the layer the list put first for it, nil when it didn't
-    /// follow one.
+    /// confirmed way of a list without it: a way that works isn't given up for someone else's report,
+    /// nor for what the files say since they decide. One still looking for its way (started before the
+    /// hint came, on the first run) takes the new list. `hint` in the result: the layer the list put
+    /// first for it, nil when it didn't follow one.
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
                          preset: GraphicsPreset, d3dMetal: Bool = Engine.d3dMetalReady,
                          vulkanLayer: Bool = Engine.vulkanLayerLoads,
                          kosmicKrisp: Bool = Engine.kosmicKrispReady) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
         let plain = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
-        guard profile?.graphics == nil, let layer = hinted(hint, analysis: analysis, d3dMetal: d3dMetal) else { return (plain, nil) }
-        let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
-                                kosmicKrisp: kosmicKrisp)
-        let before = ladder(plain, preset: preset, profile: profile)
-        let after = ladder(followed, preset: preset, profile: profile, hint: layer)
-        if after != before, peek(game, before)?.confirmed == true, peek(game, after) == nil { return (plain, nil) }
-        return (followed, layer)
+        let layer = profile?.graphics == nil ? hinted(hint, analysis: analysis, d3dMetal: d3dMetal) : nil
+        let chosen = layer == nil ? plain : attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal,
+                                                     vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
+        let before = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
+                              kosmicKrisp: kosmicKrisp, filesDecide: false)
+        let after = ladder(chosen, preset: preset, profile: profile, hint: layer)
+        for list in [plain, before] where list != chosen {
+            let earlier = ladder(list, preset: preset, profile: profile)
+            if earlier != after, peek(game, earlier)?.confirmed == true, peek(game, after) == nil { return (list, nil) }
+        }
+        return (chosen, layer)
     }
 
     /// The ways in the order a preset tries them. "Most compatible" starts with the safest: the
@@ -290,16 +298,18 @@ enum LaunchHealth {
         save(game, state)
     }
 
-    /// Moves on to the next way. False when there is none: then the list starts over next time.
-    static func advance(_ game: GameID, _ attempts: [LaunchAttempt]) -> Bool {
+    /// Moves on to the next way – the next one that answers what the game said (`failure`), if there is
+    /// one. False when no way is left: then the list starts over next time.
+    static func advance(_ game: GameID, _ attempts: [LaunchAttempt], answering failure: StartFailure? = nil) -> Bool {
         var state = load(game, attempts)
         state.startedAt = nil
         state.confirmed = false
         state.proof = nil
-        let next = state.index + 1 < attempts.count
-        state.index = next ? state.index + 1 : 0
+        let following = Array(attempts.indices.dropFirst(state.index + 1))
+        let next = following.first { failure?.answered(by: attempts[$0]) ?? true } ?? following.first
+        state.index = next ?? 0
         save(game, state)
-        return next
+        return next != nil
     }
 
     /// Games whose way is confirmed, with that way's id: what they ran well with so far

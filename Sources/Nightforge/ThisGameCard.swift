@@ -80,9 +80,12 @@ struct ThisGameCard: View {
         }
     }
 
-    /// No profile of its own, but the ways start with the one AppleGamingWiki's reports used.
+    /// No profile of its own, but the ways start with the one others' reports used.
     private var reported: String? {
-        model.insights[game.gameID]?.hint.map { L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", $0.shortLabel) }
+        guard let insight = model.insights[game.gameID], let hint = insight.hint else { return nil }
+        return insight.hintFromHighball
+            ? L10n.t("No profile yet – %@ first, as Highball's database reports.", hint.shortLabel)
+            : L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", hint.shortLabel)
     }
 
     private var origin: ProfileOrigin? { ProfileOrigin(profile) }

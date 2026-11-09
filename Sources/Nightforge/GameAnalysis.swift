@@ -99,7 +99,8 @@ extension GameAnalysis {
         targets += programs.filter { $0.lastPathComponent.lowercased().contains("-shipping") }
         // Steam may start a launcher that draws nothing itself; then the biggest program is the game.
         let fallback = targets.count
-        if let largest = programs.max(by: { size($0) < size($1) }) { targets.append(largest) }
+        let largest = programs.max(by: { size($0) < size($1) })
+        if let largest { targets.append(largest) }
 
         var engineLibraries: [URL] = []
         // Direct3D 12's Agility SDK ships as D3D12Core.dll in a folder next to the game. It says the
@@ -139,6 +140,12 @@ extension GameAnalysis {
         // bin/shaderapi*.dll, so no import names it; Direct3D 9 is the one they use.
         if analysis.apis.isEmpty, contents.hasItem(named: "shaderapidx9.dll") {
             analysis.apis.insert(.d3d9)
+        }
+        // No import table says anything: a copy protection hides it, or the renderer is loaded at run
+        // time. The program's own text still names what it can draw with (Guardians of the Galaxy and
+        // GTA V Enhanced, 9.11.2026: nothing detected, so they started on DXMT, which has no DirectX 12).
+        if analysis.apis.isEmpty, analysis.engine != .unity, let largest {
+            analysis.apis.formUnion(ProgramText.apis(in: largest))
         }
         if agilitySDK { analysis.apis.insert(.d3d12) }
         // Programs of its own for DirectX 11 and 12 beside the store's: the game draws each there,
@@ -277,6 +284,47 @@ extension GameAnalysis {
         let name = url.lastPathComponent.lowercased()
         return (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil))?
             .first { $0.lastPathComponent.lowercased() == name }
+    }
+}
+
+/// What a Windows program's own text names, for one whose import table says nothing. Read in pieces,
+/// so a drive pulled out only ends the look.
+enum ProgramText {
+    private static let names: [(text: String, api: GameAnalysis.API)] = [
+        ("d3d12.dll", .d3d12), ("D3D12CreateDevice", .d3d12),
+        ("d3d11.dll", .d3d11), ("D3D11CreateDevice", .d3d11),
+        ("d3d10.dll", .d3d10),
+        ("d3d9.dll", .d3d9), ("Direct3DCreate9", .d3d9),
+        ("vulkan-1.dll", .vulkan),
+        ("opengl32.dll", .openGL),
+    ]
+
+    /// A program that names DirectX 11 or 12 draws with those: the other interfaces it names are for
+    /// overlays and tools.
+    static func apis(in file: URL) -> Set<GameAnalysis.API> {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return [] }
+        defer { try? handle.close() }
+        var found = Set<GameAnalysis.API>()
+        var tail = Data()  // a name across two pieces
+        var reading = true
+        while reading {
+            autoreleasepool {
+                guard let piece = try? handle.read(upToCount: 16 << 20), !piece.isEmpty else {
+                    reading = false
+                    return
+                }
+                let window = tail + piece
+                window.withUnsafeBytes { bytes in
+                    guard let base = bytes.baseAddress else { return }
+                    for (text, api) in names where !found.contains(api) {
+                        if text.withCString({ memmem(base, bytes.count, $0, strlen($0)) }) != nil { found.insert(api) }
+                    }
+                }
+                tail = Data(window.suffix(32))
+            }
+        }
+        let direct = found.intersection([.d3d11, .d3d12])
+        return direct.isEmpty ? found : direct
     }
 }
 

@@ -81,7 +81,7 @@ enum GameLog {
     /// Rosetta's AVX hint (`ROSETTA_ADVERTISE_AVX`) at its word on a path Rosetta lacks. Wine says
     /// so in the log; Unreal games catch it themselves and leave a crash report in their folder.
     static func illegalInstruction(since mark: UInt64, installDir: URL, startedAt: Date) -> Bool {
-        illegalInstruction(in: text(since: mark)) || unrealCrashes(in: installDir, since: startedAt).contains {
+        illegalInstruction(in: text(since: mark)) || crashReports(installDir: installDir, since: startedAt).contains {
             ((try? String(contentsOf: $0, encoding: .utf8)) ?? "").contains("EXCEPTION_ILLEGAL_INSTRUCTION")
         }
     }
@@ -110,6 +110,55 @@ enum GameLog {
                   modified >= date
             else { continue }
             found.append(file)
+        }
+        return found
+    }
+
+    /// The crash reports of a start, wherever the game keeps them. A shipped Unreal game writes to
+    /// %LOCALAPPDATA%\<project>\Saved\Crashes rather than its own folder (Hogwarts Legacy, 9.11.2026:
+    /// two crashes nobody read). An ensure is a report from a game that goes on: no crash.
+    static func crashReports(installDir: URL, since date: Date, prefix: URL = Engine.prefix) -> [URL] {
+        (unrealCrashes(in: installDir, since: date) + crashesInPrefix(prefix, since: date)).filter {
+            crashContext(reportText($0)).type?.lowercased() != "ensure"
+        }
+    }
+
+    /// What those reports say, one message each.
+    static func crashMessages(installDir: URL, since date: Date, prefix: URL = Engine.prefix) -> [String] {
+        crashReports(installDir: installDir, since: date, prefix: prefix).compactMap { crashContext(reportText($0)).message }
+    }
+
+    /// A crash report's kind ("Crash", "Assert", "Ensure") and its message.
+    static func crashContext(_ text: String) -> (type: String?, message: String?) {
+        func field(_ name: String) -> String? {
+            guard let open = text.range(of: "<\(name)>"),
+                  let close = text.range(of: "</\(name)>", range: open.upperBound..<text.endIndex)
+            else { return nil }
+            let value = text[open.upperBound..<close.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        }
+        return (field("CrashType"), field("ErrorMessage"))
+    }
+
+    private static func reportText(_ file: URL) -> String {
+        String(decoding: (try? Data(contentsOf: file)) ?? Data(), as: UTF8.self)
+    }
+
+    private static func crashesInPrefix(_ prefix: URL, since date: Date) -> [URL] {
+        func folders(_ url: URL) -> [URL] {
+            (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+        }
+        var found: [URL] = []
+        for user in folders(prefix.appendingPathComponent("drive_c/users")) {
+            for owner in folders(user.appendingPathComponent("AppData/Local")) {
+                for crash in folders(owner.appendingPathComponent("Saved/Crashes")) {
+                    let file = crash.appendingPathComponent("CrashContext.runtime-xml")
+                    if let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                       modified >= date {
+                        found.append(file)
+                    }
+                }
+            }
         }
         return found
     }
