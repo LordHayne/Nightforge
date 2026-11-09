@@ -4530,7 +4530,7 @@ final class LibraryModel: ObservableObject {
             if automatic, !attempts.isEmpty, let analysis {
                 let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
                 GameLog.note(LaunchHealth.plan(game.name, attempts: attempts, index: index, confirmed: confirmed, analysis: analysis,
-                                               profile: profile, hint: insight?.hint, highball: insight?.hintFromHighball == true))
+                                               profile: profile, hint: insight?.hint, source: insight?.hintSource))
             }
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
@@ -5358,12 +5358,13 @@ final class LibraryModel: ObservableObject {
         }
         let profile = await ProfileStore.shared.profile(for: game.gameID)
         // What others ran it with orders the ways too, where it fits and no profile names a layer:
-        // Highball's Mac database, then AppleGamingWiki's reports.
-        let report = await ProfileStore.shared.reportedWay(steamAppID: game.steamAppID) ?? macSources.entry(for: game)?.weightedHint
+        // Highball's Mac database, what PCGamingWiki says it can draw with, then AppleGamingWiki's reports.
+        let report = await ProfileStore.shared.reportedWay(steamAppID: game.steamAppID)
+            ?? macSources.directXHint(steamAppID: game.steamAppID) ?? macSources.entry(for: game)?.weightedHint
         let (attempts, hint) = LaunchHealth.attempts(for: analysis, profile: profile, hint: report,
                                                      game: game.gameID, preset: GameOptionsStore.load(game.gameID).preset)
         let insight = GameInsight(analysis: analysis, attempts: attempts, hint: hint,
-                                  hintFromHighball: hint != nil && report?.source == "highball")
+                                  hintSource: hint == nil ? nil : report?.source)
         if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
     }

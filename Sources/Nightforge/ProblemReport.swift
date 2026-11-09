@@ -8,8 +8,8 @@ struct GameInsight: Equatable {
     let attempts: [LaunchAttempt]
     /// The layer `attempts` put first because other sources report it working (`LaunchHealth.hinted`).
     var hint: GraphicsLayer?
-    /// That report is from Highball's database rather than AppleGamingWiki.
-    var hintFromHighball = false
+    /// Where that hint comes from (SourceHint.source).
+    var hintSource: String?
 }
 
 /// A game that ended right after starting with every way Nightforge knows.
@@ -58,7 +58,7 @@ enum ProblemReport {
         if options.graphics == .automatic, !attempts.isEmpty {
             let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
             graphics += " → " + attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
-            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from \(insight?.hintFromHighball == true ? "Highball" : "AppleGamingWiki")" }
+            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from \(SourceHint.name(of: insight?.hintSource))" }
         }
         var detected = insight?.analysis.summary ?? "–"
         if let analysis = insight?.analysis {

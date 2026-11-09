@@ -13,7 +13,16 @@ struct SourceHint: Equatable {
 
     /// A Mac database that says which game ran how goes before the engine's known DirectX 11 switch;
     /// the wiki's reports, often years old, don't.
-    var outranksEngineSwitch: Bool { source == "highball" }
+    var outranksEngineSwitch: Bool { source != "agw" }
+
+    /// Where a hint comes from, for the log and problem reports.
+    static func name(of source: String?) -> String {
+        switch source {
+        case "highball": return "Highball"
+        case "pcgw": return "PCGamingWiki"
+        default: return "AppleGamingWiki"
+        }
+    }
 }
 
 /// What AppleGamingWiki says about one game on a Mac (profiles/agw.json, built nightly by
@@ -136,8 +145,16 @@ struct AGWIndex: Equatable {
     var games: [String: AGWEntry] = [:]
     var steamAliases: [String: String] = [:]
     var gogAliases: [String: String] = [:]
+    /// The DirectX versions PCGamingWiki lists for games with DirectX 12, by Steam app ID (fetch-pcgw.py).
+    var directX: [String: [String]] = [:]
 
     var isEmpty: Bool { games.isEmpty }
+
+    /// D3DMetal for a game PCGamingWiki knows nothing but DirectX 12 for: DXMT and DXVK have none.
+    func directXHint(steamAppID: Int?) -> SourceHint? {
+        guard let steamAppID, directX[String(steamAppID)] == ["12"] else { return nil }
+        return SourceHint(graphics: .d3dmetal, directX: "12", source: "pcgw")
+    }
 
     /// By the game's Steam app ID (its own, or that of the same game on Steam), else by its GOG product ID.
     func entry(steamAppID: Int?, gogID: String?) -> AGWEntry? {
@@ -160,7 +177,8 @@ struct AGWIndex: Equatable {
               document.formatVersion <= AGWStore.supportedFormat
         else { return nil }
         return AGWIndex(games: document.games.compactMapValues(\.entry),
-                        steamAliases: document.aliases?["steam"] ?? [:], gogAliases: document.aliases?["gog"] ?? [:])
+                        steamAliases: document.aliases?["steam"] ?? [:], gogAliases: document.aliases?["gog"] ?? [:],
+                        directX: document.directX ?? [:])
     }
 }
 
@@ -170,6 +188,7 @@ private struct AGWDocument: Decodable {
     let formatVersion: Int
     let games: [String: Lenient]
     let aliases: [String: [String: String]]?
+    var directX: [String: [String]]?
 
     struct Lenient: Decodable {
         let entry: AGWEntry?

@@ -487,7 +487,7 @@ def order(games: dict) -> dict:
     return dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0])))
 
 
-def document(games: dict, aliases: dict, previous: dict = None, now: datetime.datetime = None) -> dict:
+def document(games: dict, aliases: dict, previous: dict = None, now: datetime.datetime = None, directx: dict = None) -> dict:
     doc = {
         "formatVersion": FORMAT_VERSION,
         "about": "What AppleGamingWiki says about running each game on a Mac. Per way (native, rosetta, crossover, "
@@ -508,6 +508,10 @@ def document(games: dict, aliases: dict, previous: dict = None, now: datetime.da
         "aliases": {k: dict(sorted(v.items(), key=lambda item: int(item[0]))) for k, v in aliases.items()},
         "games": order(games),
     }
+    if directx:
+        # What PCGamingWiki lists for games with DirectX 12 (fetch-pcgw.py): the same licence, and like this file not bundled.
+        doc["directX"] = directx
+        doc["directXSource"] = "PCGamingWiki contributors, https://www.pcgamingwiki.com (CC BY-NC-SA 3.0)"
     unchanged = previous and {k: v for k, v in previous.items() if k != "generated"} == doc
     doc["generated"] = previous["generated"] if unchanged else \
         (now or datetime.datetime.now(datetime.timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -625,6 +629,7 @@ def main() -> int:
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "agw.json")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
     parser.add_argument("--notes", type=pathlib.Path, default=ROOT / "profiles" / "agw-notes.json")
+    parser.add_argument("--directx", type=pathlib.Path, default=ROOT / "profiles" / "pcgw-directx.json")
     parser.add_argument("--pages", type=pathlib.Path, help="read the pages from a file --save-pages wrote, offline")
     parser.add_argument("--save-pages", type=pathlib.Path, help="also keep the fetched pages, for --pages")
     parser.add_argument("--wikidata", type=pathlib.Path, help="read Wikidata's answer from a file --save-wikidata wrote")
@@ -645,7 +650,8 @@ def main() -> int:
     notes = json.loads(options.notes.read_text(encoding="utf-8")).get("games", {}) if options.notes.exists() else {}
     games, aliases, stats = build(pages, mac, notes)
     previous = json.loads(options.out.read_text(encoding="utf-8")) if options.out.exists() else None
-    doc = document(games, aliases, previous)
+    directx = json.loads(options.directx.read_text(encoding="utf-8")).get("games", {}) if options.directx.exists() else {}
+    doc = document(games, aliases, previous, directx=directx)
     validate(doc, options.minimum)
     options.out.parent.mkdir(parents=True, exist_ok=True)
     options.out.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")

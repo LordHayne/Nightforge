@@ -1537,6 +1537,7 @@ enum L10n {
         "AppleGamingWiki has no ratings for this game yet.": "Im AppleGamingWiki gibt es für dieses Spiel noch keine Bewertung.",
         "No profile yet – %@ first, as AppleGamingWiki reports.": "Noch kein Profil – zuerst %@, wie im AppleGamingWiki berichtet.",
         "No profile yet – %@ first, as Highball's database reports.": "Noch kein Profil – zuerst %@, wie in der Datenbank von Highball berichtet.",
+        "No profile yet – %@ first, as PCGamingWiki lists only DirectX 12.": "Noch kein Profil – zuerst %@, weil das PCGamingWiki nur DirectX 12 nennt.",
 
         "Thanks – noted on this Mac. Next time Nightforge starts it another way.":
             "Danke – auf diesem Mac vermerkt. Beim nächsten Mal startet Nightforge es auf einem anderen Weg.",

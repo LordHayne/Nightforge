@@ -1,0 +1,7 @@
+{
+ "about": "The DirectX versions PCGamingWiki lists for games it knows a DirectX 12 for, by Steam app ID. Built by scripts/fetch-pcgw.py.",
+ "license": "CC BY-NC-SA 3.0",
+ "licenseURL": "https://creativecommons.org/licenses/by-nc-sa/3.0/",
+ "attribution": "PCGamingWiki contributors, https://www.pcgamingwiki.com",
+ "games": {}
+}

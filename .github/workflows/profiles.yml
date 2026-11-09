@@ -23,6 +23,7 @@ on:
       - "scripts/build-profiles.py"
       - "scripts/fetch-agw.py"
       - "profiles/agw-notes.json"
+      - "scripts/fetch-pcgw.py"
       - "tests/test_build_profiles.py"
       - ".github/workflows/profiles.yml"
   pull_request:
@@ -31,6 +32,7 @@ on:
       - "scripts/build-profiles.py"
       - "scripts/fetch-agw.py"
       - "profiles/agw-notes.json"
+      - "scripts/fetch-pcgw.py"
       - "tests/test_build_profiles.py"
       - "tests/test_fetch_agw.py"
 
@@ -121,6 +123,15 @@ jobs:
       # Its own step: when AppleGamingWiki or Wikidata is down, or the format changed, the script fails
       # without writing, and the last agw.json stays (marked by its "generated" date). Not for pull
       # requests, which commit nothing: the wiki gets its ~45 requests once a night.
+      # Needs the account's bot password; without it the step does nothing and the last list stays.
+      - name: Fetch PCGamingWiki's DirectX list
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          PCGW_BOT_USER: ${{ secrets.PCGW_BOT_USER }}
+          PCGW_BOT_PASSWORD: ${{ secrets.PCGW_BOT_PASSWORD }}
+        run: python3 -I scripts/fetch-pcgw.py
+
       - name: Fetch AppleGamingWiki
         if: github.event_name != 'pull_request'
         continue-on-error: true
@@ -134,6 +145,7 @@ jobs:
           path: |
             profiles/profiles.json
             profiles/agw.json
+            profiles/pcgw-directx.json
           if-no-files-found: error
           retention-days: 1
 
@@ -159,7 +171,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet profiles/profiles.json profiles/agw.json; then
+          if git diff --quiet profiles/profiles.json profiles/agw.json profiles/pcgw-directx.json; then
             echo "No profile changes."
             exit 0
           fi
@@ -167,7 +179,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$branch"
-          git add profiles/profiles.json profiles/agw.json
+          git add profiles/profiles.json profiles/agw.json profiles/pcgw-directx.json
           git commit -m "Update game profiles"
           # The bot's own branch: this night's list replaces yesterday's if it wasn't merged (and with
           # it a signature made for yesterday's).

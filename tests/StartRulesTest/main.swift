@@ -142,6 +142,18 @@ struct StartRulesTest {
         check(reported.count == 1 && reported[1_088_850] == SourceHint(graphics: .d3dmetal, source: "highball"), "the list's reports: odd ones cost only themselves")
         check(ProfileStore.decodeReported(Data(#"{"formatVersion":1,"games":{}}"#.utf8)).isEmpty, "a list without them")
 
+        // MARK: What PCGamingWiki lists
+        var wiki = AGWIndex()
+        wiki.directX = ["990080": ["12"], "870780": ["11", "12"]]
+        check(wiki.directXHint(steamAppID: 990_080) == SourceHint(graphics: .d3dmetal, directX: "12", source: "pcgw"), "only DirectX 12: D3DMetal")
+        check(wiki.directXHint(steamAppID: 870_780) == nil, "DirectX 11 as well: it says nothing about the way")
+        check(wiki.directXHint(steamAppID: 1) == nil && wiki.directXHint(steamAppID: nil) == nil, "not listed: nothing")
+        check(ids(unreal, hint: wiki.directXHint(steamAppID: 990_080)) == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"], "it goes before the Unreal switch")
+        check(SourceHint.name(of: "pcgw") == "PCGamingWiki" && SourceHint.name(of: "agw") == "AppleGamingWiki", "the sources by name")
+        let decoded = AGWIndex.decode(Data(#"{"formatVersion":1,"games":{},"directX":{"990080":["12"]}}"#.utf8))
+        check(decoded?.directX["990080"] == ["12"], "the wiki list brings them along")
+        check(AGWIndex.decode(Data(#"{"formatVersion":1,"games":{}}"#.utf8))?.directX.isEmpty == true, "a list without them still reads")
+
         // MARK: A program that hides what it links
         let hidden = folder()
         var bytes = Data(count: 64)
@@ -161,11 +173,11 @@ struct StartRulesTest {
 
         // MARK: The log says why
         let plan = LaunchHealth.plan("Guardians", attempts: [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt)], index: 0, confirmed: false,
-                                     analysis: bothNoSwitch, profile: nil, hint: nil, highball: false)
+                                     analysis: bothNoSwitch, profile: nil, hint: nil, source: nil)
         check(plan.contains("d3dmetal, dxmt") && plan.contains("no switch"), "the plan names the ways and why: \(plan)")
         func why(_ analysis: GameAnalysis, index: Int = 0, confirmed: Bool = false, profile json: String? = nil, hint: GraphicsLayer? = nil, highball: Bool = false,
                  way: LaunchAttempt = LaunchAttempt(graphics: .d3dmetal)) -> String {
-            LaunchHealth.plan("X", attempts: [way, way], index: index, confirmed: confirmed, analysis: analysis, profile: profile(json), hint: hint, highball: highball)
+            LaunchHealth.plan("X", attempts: [way, way], index: index, confirmed: confirmed, analysis: analysis, profile: profile(json), hint: hint, source: highball ? "highball" : "agw")
         }
         check(why(bothNoSwitch, confirmed: true).contains("worked on this Mac"), "proven")
         check(why(bothNoSwitch, index: 1).contains("before it didn't work"), "a later way")

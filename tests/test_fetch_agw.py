@@ -104,6 +104,29 @@ class ParseTests(unittest.TestCase):
         self.assertIsNone(agw.parse_date("sometime"))
 
 
+pcgw_spec = importlib.util.spec_from_file_location("fetch_pcgw", SCRIPT.parent / "fetch-pcgw.py")
+pcgw = importlib.util.module_from_spec(pcgw_spec)
+pcgw_spec.loader.exec_module(pcgw)
+
+
+class PCGamingWikiTests(unittest.TestCase):
+    def test_rows_become_versions_by_app(self):
+        rows = [{"title": {"steam": "990080", "d3d": "12"}}, {"title": {"steam": "870780, 1", "d3d": "12,11"}},
+                {"title": {"steam": "", "d3d": "12"}}, {"title": {"steam": "5", "d3d": ""}}, {"title": {"steam": "x", "d3d": "12"}}]
+        self.assertEqual(pcgw.directx_by_app(rows), {"1": ["11", "12"], "870780": ["11", "12"], "990080": ["12"]})
+
+    def test_the_date_only_moves_with_the_content(self):
+        now = datetime.datetime(2026, 11, 9, tzinfo=datetime.timezone.utc)
+        first = pcgw.document({"1": ["12"]}, None, now)
+        later = now + datetime.timedelta(days=1)
+        self.assertEqual(pcgw.document({"1": ["12"]}, first, later)["generated"], first["generated"])
+        self.assertNotEqual(pcgw.document({"2": ["12"]}, first, later)["generated"], first["generated"])
+
+    def test_the_wiki_list_carries_them_when_there_are_any(self):
+        self.assertEqual(agw.document({}, {"steam": {}, "gog": {}}, directx={"1": ["12"]})["directX"], {"1": ["12"]})
+        self.assertNotIn("directX", agw.document({}, {"steam": {}, "gog": {}}, directx={}))
+
+
 class HintTests(unittest.TestCase):
     def hint(self, text, own=None):
         return agw.derive_hint(parse(text), own)

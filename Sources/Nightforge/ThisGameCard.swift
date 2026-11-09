@@ -83,9 +83,11 @@ struct ThisGameCard: View {
     /// No profile of its own, but the ways start with the one others' reports used.
     private var reported: String? {
         guard let insight = model.insights[game.gameID], let hint = insight.hint else { return nil }
-        return insight.hintFromHighball
-            ? L10n.t("No profile yet – %@ first, as Highball's database reports.", hint.shortLabel)
-            : L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", hint.shortLabel)
+        switch insight.hintSource {
+        case "highball": return L10n.t("No profile yet – %@ first, as Highball's database reports.", hint.shortLabel)
+        case "pcgw": return L10n.t("No profile yet – %@ first, as PCGamingWiki lists only DirectX 12.", hint.shortLabel)
+        default: return L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", hint.shortLabel)
+        }
     }
 
     private var origin: ProfileOrigin? { ProfileOrigin(profile) }

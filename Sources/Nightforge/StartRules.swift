@@ -87,18 +87,20 @@ extension LaunchHealth {
 
     /// The line for the log: the ways, the one now, and why that one.
     static func plan(_ name: String, attempts: [LaunchAttempt], index: Int, confirmed: Bool, analysis: GameAnalysis,
-                     profile: GameProfile?, hint: GraphicsLayer?, highball: Bool) -> String {
+                     profile: GameProfile?, hint: GraphicsLayer?, source: String?) -> String {
         let way = attempts[index]
         return "Start plan for \(name): \(attempts.map(\.id).joined(separator: ", ")); now \(way.id), "
-            + why(way, index: index, confirmed: confirmed, analysis: analysis, profile: profile, hint: hint, highball: highball)
+            + why(way, index: index, confirmed: confirmed, analysis: analysis, profile: profile, hint: hint, source: source)
     }
 
     private static func why(_ way: LaunchAttempt, index: Int, confirmed: Bool, analysis: GameAnalysis, profile: GameProfile?,
-                            hint: GraphicsLayer?, highball: Bool) -> String {
+                            hint: GraphicsLayer?, source: String?) -> String {
         if confirmed { return "it has worked on this Mac" }
         if index > 0 { return "the ways before it didn't work" }
         if profile?.graphics == way.graphics { return "a profile tested on a Mac names it" }
-        if hint == way.graphics { return "reports name it (\(highball ? "Highball" : "AppleGamingWiki"))" }
+        if hint == way.graphics {
+            return source == "pcgw" ? "PCGamingWiki lists only DirectX 12" : "reports name it (\(SourceHint.name(of: source)))"
+        }
         if analysis.onlyD3D12 { return "its files show DirectX 12 only" }
         if fromFiles(analysis, d3dMetal: true) == way.graphics {
             return analysis.apis.isEmpty ? "its files show nothing, and D3DMetal runs DirectX 11 and 12"
