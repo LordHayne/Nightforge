@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 /// "Remove Nightforge completely": the engine, the Windows environment with its games (Steam's,
 /// Epic's, GOG's) and GOG's Mac versions, the caches and the settings go; saves that live only on
@@ -236,7 +237,8 @@ enum CompleteRemoval {
     /// doesn't stop the others; the settings stay until all are gone, so a second try finds the rest.
     @discardableResult
     static func remove(_ places: Places = Places(), defaults: UserDefaults = .standard,
-                       profileRules: [Int: [SaveRule]] = [:], phase: (@Sendable (Phase) -> Void)? = nil) throws -> URL? {
+                       profileRules: [Int: [SaveRule]] = [:], login: LoginService? = nil,
+                       phase: (@Sendable (Phase) -> Void)? = nil) throws -> URL? {
         if !isTheApp, namesTheRealApp(places) { throw RemovalError.notTheApp }  // before anything is touched
         phase?(.copyingSaves)
         let saves: URL?
@@ -251,6 +253,8 @@ enum CompleteRemoval {
             left.append(target.lastPathComponent)
         }
         guard left.isEmpty else { throw RemovalError.notDeleted(left) }
+        // While the app is still where it was registered from (`run` puts it in the Bin afterwards).
+        if let login { LoginItem.forget(service: login) }
         defaults.removePersistentDomain(forName: places.settingsDomain)
         return saves
     }
@@ -393,7 +397,7 @@ enum CompleteRemoval {
             if let rules = await ProfileStore.shared.profile(for: appID)?.saves, !rules.isEmpty { profileRules[appID] = rules }
         }
         let saves = try await Task.detached(priority: .userInitiated) { [profileRules] in
-            try remove(profileRules: profileRules, phase: { step in Task { @MainActor in phase(step) } })
+            try remove(profileRules: profileRules, login: SMAppService.mainApp, phase: { step in Task { @MainActor in phase(step) } })
         }.value
         if let saves { NSWorkspace.shared.activateFileViewerSelecting([saves]) }
         // FileManager rather than NSWorkspace.recycle, which goes through the Finder. With its own
