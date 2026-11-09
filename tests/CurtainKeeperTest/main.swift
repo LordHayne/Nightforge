@@ -227,6 +227,48 @@ struct CurtainKeeperTest {
         }
     }
 
+    /// The watch's own rule under any timing: never away from an owner, never before its time, and not long after it.
+    static func orphanTiming() {
+        var random = SystemRandomNumberGenerator()
+        let look: TimeInterval = 2  // at most this far apart, as the watch over running games goes
+        for _ in 0..<5_000 {
+            var orphan = CurtainEscape.Orphan()
+            var now = Date(timeIntervalSince1970: 1_000_000)
+            var nobodySince: Date?
+            var raised = false
+            for _ in 0..<80 {
+                now.addTimeInterval(.random(in: 0.2...look, using: &random))
+                if Int.random(in: 0...6, using: &random) == 0 { raised.toggle() }
+                var owners = CurtainEscape.Owners()
+                if Int.random(in: 0...4, using: &random) == 0 { owners.starting = true }
+                if Int.random(in: 0...4, using: &random) == 0 { owners.watching = true }
+                if Int.random(in: 0...6, using: &random) == 0 { owners.playing = true }
+                if Int.random(in: 0...6, using: &random) == 0 { owners.comingBack = true }
+                let orphaned = raised && !owners.anyone
+                let goes = orphan.look(raised: raised, owners: owners, now: now)
+                if goes {
+                    check(orphaned, "it goes from under an owner, or with nothing raised")
+                    check(nobodySince.map { now.timeIntervalSince($0) >= CurtainEscape.orphanAfter } ?? false, "it goes before its time")
+                    raised = false
+                    nobodySince = nil
+                } else if orphaned {
+                    let since = nobodySince ?? now
+                    nobodySince = since
+                    check(now.timeIntervalSince(since) < CurtainEscape.orphanAfter + look, "it stays long after its time")
+                } else {
+                    nobodySince = nil
+                }
+                if failures > 0 { return }
+            }
+        }
+        let flags = [false, true]
+        for starting in flags { for watching in flags { for playing in flags { for comingBack in flags { for raised in flags { for offered in flags {
+            let owners = CurtainEscape.Owners(starting: starting, watching: watching, playing: playing, comingBack: comingBack)
+            let open = CurtainEscape.wayOutOpen(raised: raised, offered: offered, owners: owners)
+            check(open == (raised && (offered || !(starting || watching || playing || comingBack))), "the way out at the wrong moment")
+        } } } } } }
+    }
+
     /// The rules above do nothing unless the app asks them: what went wrong on 8.11. was a place that didn't.
     static func wiring() {
         let source = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
@@ -251,6 +293,7 @@ struct CurtainKeeperTest {
         safety()
         wayOut()
         anyOrder()
+        orphanTiming()
         wiring()
         print(failures == 0 ? "CurtainKeeperTest: all good" : "CurtainKeeperTest: \(failures) failed")
         exit(failures == 0 ? 0 : 1)
