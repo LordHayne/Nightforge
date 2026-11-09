@@ -637,6 +637,50 @@ func scansInLine() {
     }
 }
 
+/// The keyboard for the controller through the real model, and what the pad's buttons may do with nothing to do.
+@MainActor func padKeyboardAndWaysOut() async {
+    clean()
+    let empty = LibraryModel()
+    check(empty.openPadKeyboard() == nil, "an empty library: nothing to search, no keyboard")
+    check(empty.padKeyboard == nil && !empty.searchBarFloats, "and no bar floating for it")
+    empty.closePadKeyboard()
+    check(empty.padKeyboard == nil, "closing nothing does nothing")
+
+    ModelWorld.steamGame(70, "Keyed", lastPlayed: 1_700_000_000)
+    ModelWorld.steamGame(71, "Other", lastPlayed: 1_700_000_100)
+    let model = LibraryModel()
+    await ModelWorld.scan(model)
+    check(model.route == .home, "it starts at home")
+    guard let session = model.openPadKeyboard() else { return check(false, "a keyboard with games to search") }
+    check(model.padKeyboard === session && model.route == .library, "it opens over the library, where the hits show")
+    check(model.searchBarFloats, "and the search bar floats up with it")
+    await ModelWorld.settle(80)
+    check(model.searchBarRaised, "after a beat for the field to be measured")
+    let again = model.openPadKeyboard()
+    check(again != nil && model.padKeyboard === again, "opened over itself: one keyboard, the newest")
+    model.closePadKeyboard()
+    check(model.padKeyboard == nil && !model.searchBarRaised, "closed, the bar goes back")
+    await ModelWorld.settle(500)
+    check(!model.searchBarFloats, "and is in its place once it has arrived")
+
+    // Reopened while the last one's bar is still on its way back: that way back mustn't end the new one's float.
+    _ = model.openPadKeyboard()
+    await ModelWorld.settle(60)
+    model.closePadKeyboard()
+    _ = model.openPadKeyboard()
+    await ModelWorld.settle(500)
+    check(model.searchBarFloats && model.padKeyboard != nil, "a keyboard opened right after closing keeps its bar")
+    model.closePadKeyboard()
+    await ModelWorld.settle(500)
+
+    // With no curtain and no question the pad's and the key's ways out touch nothing.
+    let before = model.route
+    check(!model.curtainEscapeOpen, "no curtain: no way out on offer")
+    model.askAboutStuckStart()
+    model.answerQuestion(.ok)
+    check(model.route == before && model.errorMessage == nil, "B and A with nothing to answer do nothing")
+}
+
 @main struct Main {
     static func main() async {
         await ModelWorld.begin()
@@ -651,6 +695,7 @@ func scansInLine() {
         await hugeSizes()
         await removingAndKeys()
         await d3dMetalQuestion()
+        await padKeyboardAndWaysOut()
         scansInLine()
         await MainActor.run {
             if failures == 0 { print("✓ The model's flows: downloads, marks, two stores, moves, questions") } else { print("✗ \(failures) failures") }
