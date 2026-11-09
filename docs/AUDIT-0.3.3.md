@@ -224,3 +224,127 @@ Für A braucht die Oberfläche `KeepAwake`s Zustand (heute privat), für C `NSWo
 6. Mac schlafen lassen mit halbem Download und beendetem Steam, und mit in Steam pausiertem Download: Er schläft beide Male ein (`pmset -g assertions` zeigt Nightforge nicht mehr).
 7. Spiel mit mehreren Startoptionen: während des Wartens B und zurück, Steam fragt nicht mehr nach.
 8. Ohne Controller, Steam vorn unter dem Vorhang: Führt Esc hinaus?
+
+## Gesamtprüfung vor dem Release (9.11.)
+
+Geprüft: `claude/staging-033` bei `1e6ed95` gegen `origin/main` (`2276ccb`, 0.3.2), 189 Commits, 263 Dateien. Das lokale `main` steht auf `785c65d` (26.10.) und taugt nicht zum Vergleich. Nur Code, Logs von GitHub und Dateien gelesen; keine Nightforge-GUI, kein Spiel, kein Push. Zeilennummern gelten für diesen Zweig. **Vermutung** steht, wo nur ein Live-Test es klären kann.
+
+### Ergebnis
+
+- **Vier Fehler behoben**, je ein Commit mit Test (G1 bis G4, Zweig `claude/audit-033-gesamt`).
+- **Blockiert das Release:** `profiles/profiles.json` ist nicht signiert (`scripts/check-signatures.sh`: „the signature doesn't hold“). Dazu fehlen `docs/release-notes/v0.3.3.md` und `wrapper/pad-answer.exe`. Reihenfolge unten.
+- **Vor dem Merge zu entscheiden:** E1 und E2. Der Merge veröffentlicht von selbst zwei neue Pakete.
+- `claude/staging-033` liegt nicht auf GitHub. **CI ist auf diesem Stand noch nie gelaufen**, die Tests liefen nur auf diesem Mac.
+
+| Nr. | Schwere | Fehler | Datei | Commit | Seit |
+|---|---|---|---|---|---|
+| G1 | mittel | Pad und Tasten erreichen, was unter dem Vorhang liegt | `InputRouter.swift:148` | 2ae8990 | 0.3.2, in 0.3.3 schlimmer durch die Tastatur |
+| G2 | niedrig | Fenster über dem Spiel bleibt nach dem Spiel gemerkt, und das Overlay schützt nicht vor der Übergabe | `LibraryModel.swift:1773`, `:2188` | 99cbae7 | 0.3.3 |
+| G3 | mittel | Battle.net-Frage steht als „Steam fragt etwas“ auf dem Vorhang (O1 von oben, war noch offen) | `LibraryModel.swift:1442` | 38b063a | 0.3.3 |
+| G4 | niedrig | „Mac schlafen legen“ fehlt bei pausiertem Download (O5 von oben, war noch offen) | `LauncherViews.swift:195` | 0d186de | 0.3.3 |
+
+**G1.** Nightforge bleibt unter dem Vorhang oft die aktive App, bis das Spiel die Front nimmt (`raiseCurtain`: „Nightforge in front still“). Das sind die ersten Sekunden, bei einem Steam-Update Minuten. `reach` war dann `.app`. Nur B und Esc kannten den Vorhang (`PadRules.back`). Y öffnete die Tastatur und wechselte zur Bibliothek, X und L1/R1 änderten die Seite, ☰ öffnete Optionen, A drückte den markierten Knopf, das Steuerkreuz verschob die Auswahl, ⌘⌫ fragte unsichtbar nach dem Entfernen. Jetzt gilt für all das `PadRules.curtainCovers`. Das Overlay über dem Vorhang behält das Pad. A und B für die Frage eines Windows-Spiels gehen weiter vor.
+
+**G2.** `overGame` wurde nur in `watchStage` gesetzt und blieb am Ende stehen. Stand beim Spielende ein kleines Steam-Fenster über dem Spiel, bekam Steam beim nächsten Fingerauflegen die Front, mit dem Spieler schon in Nightforge. Unter offenem Overlay gab `reachWindowOverGame` die Front ebenfalls ab, obwohl die Bühnenwache dort stillhält (`handsOff`).
+
+**Tests:** Alle Reihen außer `DetachedProcessTest` (wartet in Checkouts unter `~/Downloads` auf eine macOS-Frage), `-P 2`, 107 von 108 grün. `EpicTest` scheiterte an einer festen Wartezeit von 300 ms (ein von drei Läufen); keine dieser Änderungen berührt Epic; behoben in a67799a, danach 6 von 6 grün. Die Python-Tests liefen nicht, keine dieser Änderungen betrifft sie. Im echten Programm ist nichts davon gesehen.
+
+### 1 · Wer nimmt wem was weg
+
+| Paar | Ergebnis | Beleg |
+|---|---|---|
+| Vorhang, Steams Lizenz | Hält. Vorhang liegt unter Steams hinterstem Fenster, das Nach-vorn-Holen stoppt dann | `LibraryModel.swift:1469`, `GameBackdrop.swift:432` |
+| Lizenz, Zeiger | Hält. Nur verschoben, kein Klick, nur wenn das Pad zuletzt benutzt wurde. Die durchsichtige Tastenfläche kommt nicht, die Schleife endet vorher mit `continue` | `InputRouter.swift:935`, `LibraryModel.swift:1480` |
+| Lizenz, Zeiger-Parken | Hält. Parken nur ohne Vorhang | `InputRouter.swift:827` |
+| Lizenz, B | Hält. B führt hinaus, Steam fragt beim nächsten Start wieder | `LibraryModel.swift:1251` |
+| Lizenz, Tastatur | War offen: G1 | |
+| Overlay, Vorhang | Hält. Overlay liegt immer über dem Vorhang | `GameOverlay.swift:225`, `GameBackdrop.swift:448` |
+| Overlay, Tasten des Spiels | Hält. Nimmt die Tasten nur ohne Bild („Startet nicht?“, Ausweg) | `GameOverlay.swift` `takesKeys` |
+| Overlay, Steam-Fenster | War offen: G2 | |
+| Touchpad, Tastatur | Hält. Bei offener Tastatur tippt das Touchpad, es zeigt nicht | `TouchpadPointer.swift` `works` |
+| Touchpad, Parken | Hält. 3 s nach der letzten Berührung wird nicht geparkt | `PadPointer.touchedRecently` |
+| Parken, Steam-Fenster | Hält. Solange ein Fenster über dem Spiel steht, wird nicht geparkt | `InputRouter.swift:830` |
+| Tastatur, Overlay-Griff | Hält. Sobald das Overlay das Pad hat, schließt die Tastatur | `InputRouter.swift:694` |
+
+Offen, alle niedrig:
+
+- **N1, Fokuswache:** Erscheint ein großes Fremdfenster in den ersten 8 s nach dem Vorhang, gibt die Bühnenwache ihm die Front, und `watchCurtain` holt sie dem Spiel zurück (`.raiseAgain`). Danach liegt das Fenster hinter dem Spiel. Aus dem Code abgeleitet, nicht beobachtet.
+- **N2, Pad ohne Touchpad:** Ein kleines Fenster über dem Spiel bekommt die Front nur per Finger (`pointer.works`). Der Stick fragt `stickIsPointer` und ruft die Übergabe nie auf.
+- **N3, zwei Pads:** Die Leiste der Lizenz sagt „Touchpad“, sobald irgendein Pad eins hat, auch wenn das andere in der Hand liegt (`LibraryModel.swift:1347`).
+- **N4, spätes Lizenz-Wort:** Kommt `.licence` erst, nachdem Steam schon allgemein gefragt hat, bleibt die Leiste „Steam fragt etwas“ ohne Rahmen (`LibraryModel.swift:1444` wird nur einmal erreicht). Der Start läuft normal weiter.
+- **O2, O3, O4** von oben sind weiter offen.
+
+### 2 · Download-Hinweise mit Wachhalten, Pause, Spielstart, Steam nur bei Bedarf
+
+- **Hält:** „Mac bleibt wach“ steht nur, wenn die Assertion wirklich gehalten wird. In der 5-Minuten-Frist beim Steam-Wechsel stimmt das auch (`KeepAwake.held`).
+- **Hält:** Der Hinweis fällt weg, sobald ein Spiel, der Vorhang oder das Overlay kommt (`DownloadProof.moment`). Die Hauptschleife prüft das auch, wenn die Zeile noch wartet.
+- **Hält:** Steam nur bei Bedarf schickt kein ladendes Steam schlafen (`SteamOnDemand.unneeded`, `!facts.downloading`). Ein pausierter Download zählt dort weiter als Download, Steam bleibt also an. Das ist die sichere Seite.
+- **Hält:** Schläft Steam und ein halber Download ist gelistet, steht „Steam läuft nicht, der Download steht“. Das stimmt.
+- **War falsch:** „Mac schlafen legen“ bei pausiertem Download, G4.
+- **Offen, schon bekannt:** Epic und GOG halten den Mac nach dem Beenden nicht wach. Ob Steams Pause-Knopf Bit 512 setzt, ist nur live zu klären.
+
+### 3 · Merge-Konflikte
+
+Geprüft mit `git show --remerge-diff` für alle 45 Merges seit 0.3.2. `Strings.swift`, `GameBackdrop.swift` und `Launcher.swift` hatten **keinen** Konflikt. Zwölf Merges hatten welche oder Nacharbeit, davon neun in Swift-Quellen.
+
+| Merge | Datei | Lösung | Urteil |
+|---|---|---|---|
+| 7624ba7 | `SteamOnDemand` | Beide Sperren in einem `guard`, `wakeSteam` ohne die alte `macSteamBusy`-Prüfung | Stimmt, `wakeWay` deckt das ab |
+| 1fe63bc | `InputRouter` | `pressed` neu, `held` bleibt | Stimmt |
+| 2bb2442 | `InputRouter` | A: Tastatur und Frage zuerst, dann die Anmelde-Bühne | Stimmt |
+| f3c8909 | `Profiles` | `needsRosettaLibrary` und `msync` beide | Stimmt, auch im `CodingKeys` und `init` |
+| a9e0006 | `InputRouter`, `LibraryModel` | B mit Ausweg und Tastatur, Status mit Fortschritt und Pad-Antwort, beide `defer`-Zeilen | Stimmt |
+| 365f393 | `InputRouter` | Spielernummern plus Meldungen | Stimmt |
+| 568282a | `LibraryModel` | `.battleNetAsks` in `startAsksPlayer` | Stimmt für sich, das Zusammenspiel war G3 |
+| 546d0c3 | `LibraryModel` | Abbruchprüfung vor `raiseCurtain` | Stimmt |
+| 388db06 | `GameOverlay`, `OverlayView`, `InputRouter` | Altes `OverlayView` raus, `.stuck` in die neue Ansicht | Stimmt, `takesKeys` deckt `.stuck` ab |
+
+Der einzige Fehler aus dieser Runde ist G3: Die Audit-Notiz O1 wurde beim Merge nicht umgesetzt.
+
+### 4 · Was beim normalen Spieler anders ist
+
+| Teil | Beim Spieler nach dem Update | Auf diesem Mac | Rückfall ohne Paket |
+|---|---|---|---|
+| **winebus-Stille** | `gamepad` 4.7.3-15 ohne den Patch | Engine-`winebus.so` lokal getauscht: `strings` findet `nightforge.pad-silence`, das Paket nicht | Sauber. Der Treiber antwortet nicht, `PadSilence.heard` ist falsch, das Spiel wird angehalten wie in 0.3.2 (`GameOverlay.swift:202`). Die Anfrage selbst bleibt folgenlos |
+| **`pad-answer.exe`** | Fehlt, solange sie nicht im Repo liegt. `release.yml` installiert kein mingw | Lokale Builds haben sie: mingw liegt in `/opt/homebrew/bin` | Sauber. `PadAnswerRun.available` ist falsch, A und B gehen nicht an die Frage, der Vorhang sagt „mit Maus oder Trackpad antworten“ |
+| **DXMT-Patch** | `graphics` -17, kein `prepareShaders` im `d3d11.dll` | Installiert ebenfalls -17, nur ein lokaler Testbau im Cache hat den Patch | Sauber. Die Zeile steht in `dxmt.conf`, nur die gepatchte DLL fragt sie ab (`Engine.swift:2543`, Patch Zeile 324) |
+| **Gamepad-Paket fehlt ganz** | Wie seit 0.3.0: DualSense erreicht Windows-Spiele nicht | Installiert | Unverändert gegenüber 0.3.2 |
+| **Klick ins Steam-Fenster** | Braucht „Bedienungshilfen“ und eine echte Maus zum Einschalten | **Vermutung:** schon erteilt | Sauber. Leiste sagt „mit der Maus“, sonst erklärt ein Hinweis den Weg |
+| **PS-Taste** | Nur macOS 27 | macOS 27 | `HomeButtonSetup.exists` ist auf macOS 26 falsch |
+
+`pad-answer.c` baut mit den Flags des Workflows (`-Werror`). Beide Patch-Sätze wurden lokal schon gebaut (`build-winebus-local.sh`, `build-dxmt-local.sh`).
+
+**Für Spieler sichtbar anders:** Online-only-Windows-Spiele wie Overwatch werden unter dem Overlay angehalten, auf diesem Mac laufen sie weiter. Wer das live prüft, sieht also nicht, was Spieler sehen, bis das Paket verteilt ist.
+
+### Entscheidungen
+
+- **E1, 15 Minuten:** Steams Frage wartet laut Kommentar „so lange wie nötig“, die Schleife endet aber nach 900 s (`LibraryModel.swift:3609`, `:4859`). Bleibt die Lizenz 15 Minuten offen, sagt Nightforge „Steam reagiert nicht“, obwohl das Fenster noch steht. Gab es schon in 0.3.2, mit dem Lizenz-Rahmen fällt es eher auf. Vorschlag: nicht abbrechen, solange eine Frage steht; B führt ohnehin hinaus.
+- **E2, was der Merge auslöst:** `graphics.yml` und `gamepad.yml` veröffentlichen beim Push auf `main` sofort ein Release. Beides sind Builds, die laut Commit ef8d560 und `ENTSCHEIDUNG-DXMT-LGPL.md` eine eigene Freigabe brauchen. An Spieler gehen sie erst über Manifest und Signatur, also Schritt 9. Für alte 0.3.2-Kopien sind sie wirkungslos, solange niemand fragt. **Vermutung**, mit einem Spiel nie getestet. Vorschlag: mergen, aber Schritt 9 erst nach einem Live-Test.
+
+### 5 · Schritte vor dem Release, in dieser Reihenfolge
+
+Die Regel „main schützen“ lässt nur Pull Requests zu, ohne Pflicht-Checks und ohne Freigabe (`gh api …/rulesets/26713432`). Signieren macht der Nutzer auf seinem Mac.
+
+| Nr. | Schritt | Wer | Warum hier |
+|---|---|---|---|
+| 1 | Offene Zweige in Staging, darunter dieser | Koordinator | |
+| 2 | Live-Test nach `docs/LIVETEST-0.3.3.md` und der Liste unten | Nutzer | |
+| 3 | E1 und E2 entscheiden | Nutzer | |
+| 4 | `docs/release-notes/v0.3.3.md` schreiben, `Resources/Info.plist` auf 0.3.3 | Koordinator | `release.yml` übernimmt nur diese Datei |
+| 5 | `claude/staging-033` pushen, PR nach `main` | mit OK | **Erster CI-Lauf** dieses Stands. Der Check „Signatures“ ist bis Schritt 6 rot; die Regel verlangt keinen grünen Check |
+| 6 | Merge, danach sofort `scripts/sign-lists.sh main`, dann `scripts/check-signatures.sh` | Nutzer | Bis dahin lehnt jede laufende Kopie die Profilliste ab und behält ihre |
+| 7 | Der Merge löst aus: `ci`, `graphics` und `gamepad` (neue Releases), `pad-answer` (PR `bot/pad-answer`), `profiles` (erneuert `bot/profiles`). Läufe prüfen | Koordinator | |
+| 8 | `bot/pad-answer` prüfen und mergen | mit OK | **Vor dem Tag**, sonst fehlen A und B im Release |
+| 9 | `components.yml` starten oder 04:17 abwarten, `scripts/sign-lists.sh bot/components`, PR #41 mergen | Nutzer | Nur nach dem Live-Test der neuen Pakete (E2). Geht auch nach dem Release |
+| 10 | #40 (`bot/profiles`) erst nach dem neuen Lauf aus Schritt 7, dann signieren und mergen | Nutzer | **Der heutige Stand von #40 kennt `needsRosettaLibrary` nicht:** Overwatch verlöre die D3DMetal-Frage |
+| 11 | #39 (`unity-play.exe`) entscheiden | Nutzer | Muss vor dem Tag sein, wenn es mit soll |
+| 12 | Tag `v0.3.3-rc.1`, `scripts/sign-release.sh v0.3.3-rc.1 --publish`, installieren, `pad-answer.exe` in `Resources` prüfen | Nutzer | Prerelease, wird niemandem angeboten |
+| 13 | Tag `v0.3.3`, `scripts/sign-release.sh v0.3.3 --publish` | Nutzer | Muss auf `main` liegen |
+| 14 | Landing Page, Download-Zahlen | Koordinator | |
+
+### Live prüfen
+
+1. Y, X, A und L1 unter dem Vorhang, während Nightforge noch vorne ist: Es passiert nichts, nach dem Spiel ist die Seite unverändert. B führt weiter hinaus, wenn der Ausweg angeboten wird.
+2. Kleines Steam-Fenster beim Spielende offen lassen, zurück in Nightforge den Finger aufs Touchpad: Steam kommt nicht nach vorn.
+3. Battle.net fragt beim Start: Der Vorhang geht sofort, das Client-Fenster steht vorne, kein „Steam fragt etwas“.
+4. Download in Steam pausieren: Im kleinen Menü erscheint „Mac schlafen legen“.
