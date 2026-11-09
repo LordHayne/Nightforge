@@ -4688,10 +4688,14 @@ final class LibraryModel: ObservableObject {
                 if Task.isCancelled { return }
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
                 GameLog.note(GameTest.startNote(game: game.name, way: way, engine: build?.engine))  // the ways a start took (GameTest)
+                // Past the game's own launcher window where its program knows the switch: straight into the
+                // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way.
+                let startArguments = Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch)
+                if startArguments != arguments { GameLog.note("\(game.name) starts past its own launcher window (\(startArguments.last ?? ""))") }
                 raiseCurtain(for: game)
                 let started = viaSteam
-                    ? await start(game, runner: runner, options: options, profile: profile, arguments: arguments, frameLimit: frameLimit)
-                    : await startDirect(game, runner: runner, options: options, profile: profile, arguments: arguments,
+                    ? await start(game, runner: runner, options: options, profile: profile, arguments: startArguments, frameLimit: frameLimit)
+                    : await startDirect(game, runner: runner, options: options, profile: profile, arguments: startArguments,
                                         frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
                 guard started else { return }
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
@@ -5335,6 +5339,12 @@ final class LibraryModel: ObservableObject {
                 return "hung without a picture"
             }
         }
+    }
+
+    /// A start's arguments with the switch past the game's own launcher window, once.
+    nonisolated static func argumentsPastLauncher(_ arguments: [String], switch launcherSwitch: String?) -> [String] {
+        guard let launcherSwitch, !arguments.contains(where: { $0.caseInsensitiveCompare(launcherSwitch) == .orderedSame }) else { return arguments }
+        return arguments + [launcherSwitch]
     }
 
     /// What a game's files reveal (read once per game and app run) and the ways to start it.

@@ -740,6 +740,41 @@ struct D3DMetalTest {
         Engine.clearUnrealDriverDenyList(installDir: two)
         check(Engine.unrealProjects(in: two).map(\.lastPathComponent) == ["A", "B"]
               && ["A", "B"].allSatisfy { text(two.appendingPathComponent("\($0)/Saved/Config/Windows/Hardware.ini")) != nil }, "both projects")
+
+        // Hogwarts Legacy (9.11.2026): its program isn't "-Shipping" but Unreal's Engine/Binaries lies beside
+        // it, and it reads the player's files from AppData/Local/HogwartsLegacy, not from the game folder.
+        let hogwarts = fresh(work, "unreal-appdata")
+        for exe in ["HogwartsLegacy.exe", "Phoenix/Binaries/Win64/HogwartsLegacy.exe", "Engine/Binaries/Win64/CrashReportClient.exe"] {
+            write("MZ", to: hogwarts.appendingPathComponent(exe))
+        }
+        let project = hogwarts.appendingPathComponent("Phoenix")
+        check(Engine.unrealProjects(in: hogwarts).map(\.lastPathComponent) == ["Phoenix"], "beside Engine/Binaries any program makes a project: \(Engine.unrealProjects(in: hogwarts))")
+        check(Engine.unrealSavedNames(project) == ["HogwartsLegacy", "Phoenix"], "the program's name first: \(Engine.unrealSavedNames(project))")
+        let abzu = fresh(work, "unreal-abzu")
+        write("MZ", to: abzu.appendingPathComponent("AbzuGame/Binaries/Win64/AbzuGame-Win64-Shipping.exe"))
+        check(Engine.unrealSavedNames(abzu.appendingPathComponent("AbzuGame")) == ["AbzuGame"], "-Win64-Shipping goes, no name twice")
+        let prefix = fresh(work, "unreal-prefix")
+        let local = prefix.appendingPathComponent("drive_c/users/player/AppData/Local")
+        let saved = local.appendingPathComponent("HogwartsLegacy/Saved/Config/WindowsNoEditor/Engine.ini")
+        write("[Core.System]\nPaths=x\n", to: saved)
+        Engine.clearUnrealDriverDenyList(installDir: hogwarts, prefix: prefix)
+        check(text(saved) == "[Core.System]\nPaths=x\n\n[SystemSettings]\nr.WarnOfBadDrivers=0\n", "the player's Engine.ini under AppData: \(text(saved).debugDescription)")
+        check(text(local.appendingPathComponent("HogwartsLegacy/Saved/Config/WindowsNoEditor/Hardware.ini"))?.contains("!DriverDenyList=ClearArray") == true,
+              "and its Hardware.ini")
+        check(!fm.fileExists(atPath: local.appendingPathComponent("Phoenix").path), "no folder under the project's name beside the game's")
+        check(text(project.appendingPathComponent("Saved/Config/Windows/Engine.ini"))?.contains("r.WarnOfBadDrivers=0") == true, "the game folder as before")
+
+        // Before the first start: the folder under the program's name for this Mac's user, Unreal 4's and 5's.
+        let first = fresh(work, "unreal-prefix-first")
+        let firstLocal = first.appendingPathComponent("drive_c/users/\(NSUserName())/AppData/Local")
+        try? fm.createDirectory(at: firstLocal, withIntermediateDirectories: true)
+        Engine.clearUnrealDriverDenyList(installDir: hogwarts, prefix: first)
+        check(["Windows", "WindowsNoEditor"].allSatisfy {
+            text(firstLocal.appendingPathComponent("HogwartsLegacy/Saved/Config/\($0)/Engine.ini")) == "[SystemSettings]\nr.WarnOfBadDrivers=0\n"
+        }, "a first start gets both folders")
+        let noUser = fresh(work, "unreal-prefix-none")
+        Engine.clearUnrealDriverDenyList(installDir: hogwarts, prefix: noUser)
+        check(!fm.fileExists(atPath: noUser.appendingPathComponent("drive_c").path), "a prefix without the user's folder gets nothing")
     }
 
     // MARK: In the engine's list

@@ -19,6 +19,26 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
 
 - **Kein Bild heißt nicht gestartet:** Ein unbewiesener Weg wird bis zum ersten Bild beobachtet. Endet er ohne Bild oder hängt (90 s ohne Arbeit, höchstens 270 s), kommt der nächste (`PictureWatch`). Nicht bei fremden Launchern und Anti-Cheat; die Zeit offener Fragen zählt nicht.
 
+- **Testabend 9.11. spät (Build 4cea416), gebaut:**
+  - Guardians of the Galaxy: Das eigene Startfenster (Spielen/Optionen/YouTube, 790×445) zählte als Bild, der Vorhang
+    ging, das Pad erreichte es nicht. `gotg.exe` kennt `-nolauncher`: `ProgramText.launcherSwitch` liest den Schalter
+    aus dem Programm, er geht bei jedem Start mit (kein eigener Weg). Danach lief es im Fenster 1280×720: Das Spiel hatte
+    beim ersten Start selbst `Fullscreen=0` in `HKCU\Software\Eidos Montreal\Guardians of the Galaxy` geschrieben.
+    `GameResolution.screenKeys` macht solche Schlüssel (Eidos Montreal, Crystal Dynamics, Square Enix) beim ersten Mal
+    Vollbild in Bildschirmgröße; danach bleibt ein Fenster das des Spielers (`resolutionScreenKeysFitted`).
+  - Hogwarts Legacy: Unreals Treiber-Warnung kam trotz `r.WarnOfBadDrivers=0`: Das stand nur im Spielordner, Hogwarts
+    liest `AppData/Local/HogwartsLegacy/Saved/Config/WindowsNoEditor`, und sein Programm heißt nicht `-Shipping`.
+    `Engine.unrealUserConfigs` schreibt jetzt auch dorthin (vor dem ersten Start beide Ordner).
+  - Live prüfen: Guardians startet ohne Startfenster und im Vollbild; Hogwarts ohne Warnung.
+- **Offen vom selben Abend:**
+  - It Takes Two auf Automatisch: Steam wartet auf eine Antwort (`ShowInterstitials`), seine Fenster bleiben versteckt
+    (500×500, nicht auf dem Schirm), auch nach vier `ExecCommandLine` von „Steam-Fenster zeigen“. Der Vorhang gibt nach
+    der Geduld auf, der Start endet still. Vorher lief ein DXVK-Start (von Hand gewählt) in den bekannten stillen Absturz.
+  - „Composited“ in Rot bei D3DMetal (Hogwarts, Guardians): bekannt, D3DMetal zeichnet ohne Retina in halber
+    Pixelzahl (siehe Direct-Ziel).
+  - Pad im Spiel: Der Nutzer konnte „das Controller-Menü“ bei Hogwarts nur mit der Maus bedienen. Noch klären, ob
+    Nightforges Overlay oder das Menü des Spiels gemeint ist (Log: Overlay kam dreimal, `back` zweimal).
+
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
 
 ## Rosetta und macOS 28

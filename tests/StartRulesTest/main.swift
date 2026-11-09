@@ -181,6 +181,22 @@ struct StartRulesTest {
         check(ProgramText.apis(in: split) == [.d3d12], "a name across two pieces is found")
         check(ProgramText.apis(in: hidden.appendingPathComponent("none.exe")).isEmpty, "no file: nothing")
 
+        // MARK: Past the game's own launcher window
+        // Guardians of the Galaxy (9.11.2026): Play, Options, YouTube in a window of its own, out of the pad's
+        // reach; its gotg.exe holds "-nolauncher" and "-NoLauncher".
+        let guardians = folder()
+        try? Data("..UseLauncher..-NoLauncher..-nolauncher..d3d12.dll..".utf8).write(to: guardians.appendingPathComponent("gotg.exe"))
+        check(GameAnalysis.analyze(installDir: guardians, launchExecutable: "gotg.exe").launcherSwitch == "-nolauncher", "the switch the program knows")
+        let camel = folder()
+        try? Data("..-NoLauncher..".utf8).write(to: camel.appendingPathComponent("Game.exe"))
+        check(ProgramText.launcherSwitch(in: camel.appendingPathComponent("Game.exe")) == "-NoLauncher", "as the program spells it")
+        let plain = folder()
+        try? Data("..UseLauncher..launcher_play..".utf8).write(to: plain.appendingPathComponent("Game.exe"))
+        check(GameAnalysis.analyze(installDir: plain, launchExecutable: "Game.exe").launcherSwitch == nil, "a launcher's words without the switch: none")
+        check(LibraryModel.argumentsPastLauncher(["-dx12"], switch: "-nolauncher") == ["-dx12", "-nolauncher"], "after the way's own")
+        check(LibraryModel.argumentsPastLauncher(["-NOLAUNCHER"], switch: "-nolauncher") == ["-NOLAUNCHER"], "never twice")
+        check(LibraryModel.argumentsPastLauncher([], switch: nil) == [], "none without")
+
         // MARK: The log says why
         let plan = LaunchHealth.plan("Guardians", attempts: [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt)], index: 0, confirmed: false,
                                      analysis: bothNoSwitch, profile: nil, hint: nil, source: nil)

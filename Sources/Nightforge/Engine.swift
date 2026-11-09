@@ -1986,7 +1986,7 @@ enum Engine {
             placeDXVK(layer == .dxvk, dxvkDir: dxvk, installDir: installDir)
         }
         // D3DMetal 3.0 presents itself as an AMD card whose driver Unreal warns about.
-        if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir) }
+        if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir, prefix: prefix) }
         let exes = executables(in: installDir)
         var sections = [GameRegistryRecord.Section(key: "WineDbg", text: crashDialogOff)]
         for exe in exes where isPlainProgramName(exe) {
@@ -2023,14 +2023,56 @@ enum Engine {
     /// … and the keys for the list: DriverDenyList in Unreal 5, Blacklist before. "!" clears the list.
     static let unrealDriverLists = ["!DriverDenyList", "!Blacklist"]
 
-    /// The Unreal projects in a game folder: the ones with <Project>/Binaries/Win64/<Name>-Shipping.exe.
+    /// The Unreal projects in a game folder: the ones with <Project>/Binaries/Win64/<Name>-Shipping.exe,
+    /// and, beside Unreal's own Engine/Binaries, any program there: Hogwarts Legacy's is
+    /// Phoenix/Binaries/Win64/HogwartsLegacy.exe (9.11.2026).
     static func unrealProjects(in installDir: URL) -> [URL] {
+        let besideEngine = FileManager.default.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path)
         let projects = executableFiles(in: installDir).filter { exe in
             let win64 = exe.deletingLastPathComponent()
-            return exe.lastPathComponent.hasSuffix("-Shipping.exe") && win64.lastPathComponent == "Win64"
+            return (besideEngine || exe.lastPathComponent.hasSuffix("-Shipping.exe")) && win64.lastPathComponent == "Win64"
                 && win64.deletingLastPathComponent().lastPathComponent == "Binaries"
         }.map { $0.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() }
         return Array(Set(projects)).filter { $0.lastPathComponent != "Engine" }.sorted { $0.path < $1.path }
+    }
+
+    /// The names a shipped Unreal game's folder under AppData/Local may have: its program's, without
+    /// "-Win64-Shipping" (ABZU: AbzuGame; Hogwarts Legacy: HogwartsLegacy, its project being Phoenix),
+    /// then the project's. Shipping programs first.
+    static func unrealSavedNames(_ project: URL) -> [String] {
+        let win64 = project.appendingPathComponent("Binaries/Win64", isDirectory: true)
+        let programs = ((try? FileManager.default.contentsOfDirectory(atPath: win64.path)) ?? [])
+            .filter { $0.lowercased().hasSuffix(".exe") }
+            .sorted { ($0.hasSuffix("-Shipping.exe") ? 0 : 1, $0) < ($1.hasSuffix("-Shipping.exe") ? 0 : 1, $1) }
+        let names = programs.map { name -> String in
+            var base = String(name.dropLast(4))
+            for suffix in ["-Win64-Shipping", "-WinGDK-Shipping", "-Shipping"] where base.hasSuffix(suffix) {
+                base = String(base.dropLast(suffix.count))
+                break
+            }
+            return base
+        } + [project.lastPathComponent]
+        var seen = Set<String>()
+        return names.filter { !$0.isEmpty && isPlainProgramName($0) && !$0.contains("/") && seen.insert($0.lowercased()).inserted }
+    }
+
+    /// The Saved/Config folders under the prefix's AppData/Local that belong to a project: the ones
+    /// there already (the game has run), any player's; before its first start the one under the
+    /// program's name for this Mac's user. Most shipped games keep their files there, not in the game
+    /// folder (Hogwarts Legacy, ABZU: the warning came with the lists in the game folder cleared).
+    static func unrealUserConfigs(project: URL, prefix: URL, user: String = NSUserName()) -> [URL] {
+        let fm = FileManager.default
+        let users = prefix.appendingPathComponent("drive_c/users", isDirectory: true)
+        let names = unrealSavedNames(project)
+        let accounts = ((try? fm.contentsOfDirectory(atPath: users.path)) ?? []).sorted()
+        let found = accounts.flatMap { account in
+            names.map { users.appendingPathComponent("\(account)/AppData/Local/\($0)/Saved", isDirectory: true) }
+                .filter { fm.fileExists(atPath: $0.path) }
+        }
+        if !found.isEmpty { return found.map { $0.appendingPathComponent("Config", isDirectory: true) } }
+        let local = users.appendingPathComponent("\(user)/AppData/Local", isDirectory: true)
+        guard let first = names.first, fm.fileExists(atPath: local.path) else { return [] }
+        return [local.appendingPathComponent("\(first)/Saved/Config", isDirectory: true)]
     }
 
     /// D3DMetal 3.0 presents itself as an AMD card ("AMD Compatibility Mode") with driver 30.0.15.1233, which
@@ -2045,17 +2087,24 @@ enum Engine {
     /// text), which the player's Engine.ini sets in [SystemSettings] before the graphics start, in
     /// shipped games too. Set before every start of an Unreal game on D3DMetal, as the game may rewrite
     /// the files when it quits.
-    static func clearUnrealDriverDenyList(installDir: URL) {
+    /// Most shipped games read the player's files from the prefix's AppData/Local/<Name>/Saved/Config,
+    /// not from the game folder: there the warning came on regardless (Hogwarts Legacy, 9.11.2026), so
+    /// both get it (`prefix`). Before a game's first start Nightforge can't tell Unreal 4 from 5: there
+    /// both folders.
+    static func clearUnrealDriverDenyList(installDir: URL, prefix: URL? = nil) {
         let fm = FileManager.default
         let lists = Dictionary(uniqueKeysWithValues: unrealDriverLists.map { ($0, "ClearArray") })
         for project in unrealProjects(in: installDir) {
-            let config = project.appendingPathComponent("Saved/Config", isDirectory: true)
-            // Unreal 5 keeps its saved files under Windows, Unreal 4 under WindowsNoEditor (once it has run).
-            let platforms = ["Windows"] + (fm.fileExists(atPath: config.appendingPathComponent("WindowsNoEditor").path) ? ["WindowsNoEditor"] : [])
-            for platform in platforms {
-                let folder = config.appendingPathComponent(platform, isDirectory: true)
-                mergeIniFile(folder.appendingPathComponent("Hardware.ini"), unrealDriverSections.map { ($0, lists) })
-                mergeIniFile(folder.appendingPathComponent("Engine.ini"), [unrealDriverWarningOff])
+            let user = prefix.map { unrealUserConfigs(project: project, prefix: $0) } ?? []
+            for config in [project.appendingPathComponent("Saved/Config", isDirectory: true)] + user {
+                // Unreal 5 keeps its saved files under Windows, Unreal 4 under WindowsNoEditor (once it has run).
+                let firstStart = user.contains(config) && !fm.fileExists(atPath: config.path)
+                let platforms = ["Windows"] + (firstStart || fm.fileExists(atPath: config.appendingPathComponent("WindowsNoEditor").path) ? ["WindowsNoEditor"] : [])
+                for platform in platforms {
+                    let folder = config.appendingPathComponent(platform, isDirectory: true)
+                    mergeIniFile(folder.appendingPathComponent("Hardware.ini"), unrealDriverSections.map { ($0, lists) })
+                    mergeIniFile(folder.appendingPathComponent("Engine.ini"), [unrealDriverWarningOff])
+                }
             }
         }
     }

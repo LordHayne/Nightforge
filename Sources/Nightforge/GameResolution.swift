@@ -78,6 +78,17 @@ enum GameResolution {
             guard !changes.isEmpty, Engine.importRegistry(registryImport(key: key, values: changes), wine: wine) else { continue }
             notes.append("\(key.split(separator: "\\").last ?? ""): \(unitySize(values).map { "\($0) → " } ?? "")\(size)")
         }
+        // Eidos-Montréal's and Crystal Dynamics' games: Fullscreen, FullscreenWidth, FullscreenHeight.
+        let fitted = screenKeysFitted()
+        for key in screenKeys(inRegistry: registry, gameName: game.name) {
+            let mark = game.gameID.key + "|" + key.lowercased()
+            let values = dwordValues(inRegistry: registry, key: key)
+            let changes = screenKeyChanges(values, size: size, firstFit: !fitted.contains(mark))
+            if !changes.isEmpty, !Engine.importRegistry(registryImport(key: key, values: changes), wine: wine) { continue }
+            noteScreenKeyFitted(mark)
+            guard !changes.isEmpty else { continue }
+            notes.append("\(key.split(separator: "\\").last ?? ""): \(changes.keys.contains { $0.caseInsensitiveCompare("Fullscreen") == .orderedSame } ? "window → " : "")\(size)")
+        }
         // A game whose profile says where it keeps its resolution (its own format).
         if let saved = profile?.resolution, let file = savedFile(saved, installDir: game.installDir, places: places),
            let text = try? String(contentsOf: file, encoding: .utf8),
@@ -405,6 +416,78 @@ enum GameResolution {
         if let off = windowed[fullscreen] { wanted["Fullscreen"] = off }
         guard !wanted.isEmpty else { return nil }
         return wanted
+    }
+
+    // MARK: - Eidos-Montréal and Crystal Dynamics
+
+    /// Publishers whose games keep their screen in the registry as Fullscreen, FullscreenWidth and
+    /// FullscreenHeight: Software\Eidos Montreal\Guardians of the Galaxy (9.11.2026); Crystal Dynamics'
+    /// Tomb Raider games keep theirs the same way, a key further down (…\Graphics).
+    static let screenKeyVendors = ["Eidos Montreal", "Crystal Dynamics", "Square Enix"]
+
+    /// The keys under those publishers that hold such a screen, for a game whose name holds the key's
+    /// title or the other way round ("Guardians of the Galaxy" and "Marvel's Guardians of the Galaxy").
+    static func screenKeys(inRegistry text: String, gameName: String) -> [String] {
+        let wanted = plainName(gameName)
+        var keys: [String] = []
+        var current: String?
+        var width = false, mode = false
+        func close() {
+            if let current, width, mode { keys.append(current) }
+        }
+        for line in text.split(whereSeparator: \.isNewline) {
+            if line.hasPrefix("[") {
+                close()
+                (current, width, mode) = (nil, false, false)
+                let (name, end) = registryString(line.dropFirst(), until: "]")
+                let parts = name.split(separator: "\\").map(String.init)
+                guard end != nil, parts.count >= 3, parts[0].caseInsensitiveCompare("Software") == .orderedSame,
+                      screenKeyVendors.contains(where: { $0.caseInsensitiveCompare(parts[1]) == .orderedSame }),
+                      Engine.isAllowedRegistryKey("HKEY_CURRENT_USER\\" + name),
+                      name.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value < 0x7f })
+                else { continue }
+                let title = plainName(parts[2])
+                if title.count >= 4, !wanted.isEmpty, wanted.contains(title) || title.contains(wanted) { current = name }
+                continue
+            }
+            guard current != nil else { continue }
+            let lower = line.lowercased()
+            if lower.hasPrefix("\"fullscreenwidth\"=dword:") { width = true }
+            if lower.hasPrefix("\"fullscreen\"=dword:") { mode = true }
+        }
+        close()
+        return keys
+    }
+
+    /// Letters and digits, lower case: "Marvel's Guardians of the Galaxy" → "marvelsguardiansofthegalaxy".
+    static func plainName(_ name: String) -> String { String(name.lowercased().filter { $0.isLetter || $0.isNumber }) }
+
+    /// What makes such a key full screen at `size`. One set to a window stays one – the player's – except
+    /// the first time Nightforge sees it: the game sets its first window itself (Guardians of the Galaxy:
+    /// 1280×720 at its first start, 9.11.2026). Exclusive or not stays the game's.
+    static func screenKeyChanges(_ values: [String: UInt32], size: Size, firstFit: Bool) -> [String: UInt32] {
+        func name(_ wanted: String) -> String? { values.keys.sorted().first { $0.caseInsensitiveCompare(wanted) == .orderedSame } }
+        guard let mode = name("Fullscreen"), size.width > 0, size.height > 0 else { return [:] }
+        if values[mode] == 0, !firstFit { return [:] }
+        var changes: [String: UInt32] = [:]
+        if values[mode] == 0 { changes[mode] = 1 }
+        for (wanted, value) in [("FullscreenWidth", UInt32(size.width)), ("FullscreenHeight", UInt32(size.height))] {
+            let key = name(wanted) ?? wanted
+            if values[key] != value { changes[key] = value }
+        }
+        return changes
+    }
+
+    /// The keys Nightforge has fitted once ("<game>|<key>"): from then on a window in them is the player's.
+    static func screenKeysFitted(_ defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: "resolutionScreenKeysFitted") ?? [])
+    }
+
+    static func noteScreenKeyFitted(_ mark: String, _ defaults: UserDefaults = .standard) {
+        var marks = defaults.stringArray(forKey: "resolutionScreenKeysFitted") ?? []
+        guard !marks.contains(mark) else { return }
+        marks.append(mark)
+        defaults.set(marks, forKey: "resolutionScreenKeysFitted")
     }
 
     /// Games whose resolution Nightforge leaves alone, by GameID key: for live tries with a settings

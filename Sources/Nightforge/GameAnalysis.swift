@@ -44,6 +44,9 @@ struct GameAnalysis: Codable, Equatable {
     /// folder (Control: Control.exe hands over to Control_DX11.exe, Control_DX12.exe lies beside
     /// it). D3DMetal starts it (GameProgram); the other layers have no DirectX 12 and keep the store's.
     var d3d12Program: String?
+    /// The switch past the game's own launcher window (Play, Options, …), where its program knows one:
+    /// Guardians of the Galaxy's gotg.exe takes -nolauncher (9.11.2026). Given at every start, not a way of its own.
+    var launcherSwitch: String?
 
     /// Direct3D 10/11 is what DXMT and DXVK translate.
     var usesD3D11: Bool { apis.contains(.d3d10) || apis.contains(.d3d11) }
@@ -160,6 +163,9 @@ extension GameAnalysis {
         if analysis.engine == .other, programs.contains(where: { $0.lastPathComponent.lowercased().contains("-win64-shipping") })
             || fm.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path) {
             analysis.engine = .unreal
+        }
+        if let started = targets.first(where: { fm.fileExists(atPath: $0.path) }) {
+            analysis.launcherSwitch = ProgramText.launcherSwitch(in: started)
         }
         analysis.antiCheat = antiCheatFiles.filter { contents.hasItem(named: $0.1) }.map(\.0)
         analysis.launcher = launchers.first { $0.paths.contains(where: contents.has) }?.name
@@ -302,12 +308,32 @@ enum ProgramText {
     /// A program that names DirectX 11 or 12 draws with those: the other interfaces it names are for
     /// overlays and tools.
     static func apis(in file: URL) -> Set<GameAnalysis.API> {
+        let seen = find(names.map(\.text), in: file)
+        let found = Set(names.filter { seen.contains($0.text) }.map(\.api))
+        let direct = found.intersection([.d3d11, .d3d12])
+        return direct.isEmpty ? found : direct
+    }
+
+    /// The switches past a game's own launcher window that programs are known to take, as they
+    /// spell them (Guardians of the Galaxy: "-nolauncher" and "-NoLauncher" in gotg.exe).
+    static let launcherSwitches = ["-nolauncher", "-NoLauncher"]
+
+    /// The switch, in the first spelling the program holds; nil when it holds none. Not in programs over
+    /// 2 GB: read in full once per game and app run, a bigger one costs more than a launcher window.
+    static func launcherSwitch(in file: URL) -> String? {
+        guard let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= 2 << 30 else { return nil }
+        let seen = find(launcherSwitches, in: file)
+        return launcherSwitches.first(where: seen.contains)
+    }
+
+    /// Which of `texts` the file holds, read in 16 MB pieces.
+    static func find(_ texts: [String], in file: URL) -> Set<String> {
         guard let handle = try? FileHandle(forReadingFrom: file) else { return [] }
         defer { try? handle.close() }
-        var found = Set<GameAnalysis.API>()
+        var found = Set<String>()
         var tail = Data()  // a name across two pieces
         var reading = true
-        while reading {
+        while reading, found.count < texts.count {
             autoreleasepool {
                 guard let piece = try? handle.read(upToCount: 16 << 20), !piece.isEmpty else {
                     reading = false
@@ -316,15 +342,14 @@ enum ProgramText {
                 let window = tail + piece
                 window.withUnsafeBytes { bytes in
                     guard let base = bytes.baseAddress else { return }
-                    for (text, api) in names where !found.contains(api) {
-                        if text.withCString({ memmem(base, bytes.count, $0, strlen($0)) }) != nil { found.insert(api) }
+                    for text in texts where !found.contains(text) {
+                        if text.withCString({ memmem(base, bytes.count, $0, strlen($0)) }) != nil { found.insert(text) }
                     }
                 }
                 tail = Data(window.suffix(32))
             }
         }
-        let direct = found.intersection([.d3d11, .d3d12])
-        return direct.isEmpty ? found : direct
+        return found
     }
 }
 
