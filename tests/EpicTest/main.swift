@@ -181,7 +181,8 @@ struct EpicTest {
             check(false, "the stand-ins started")
             return
         }
-        try? await Task.sleep(for: .milliseconds(300))
+        // Its helper comes after its trap: once that's there, it ignores SIGTERM. Not a fixed wait, which a busy Mac runs past.
+        for _ in 0..<100 where FakeProcesses.children(of: hung).isEmpty { try? await Task.sleep(for: .milliseconds(50)) }
         let helper = FakeProcesses.children(of: hung).first ?? 0
         check(helper > 0, "the hanging one has a helper of its own")
         FakeProcesses.install { FakeProcesses.rows(of: [hung, polite, other], descendants: true) }
