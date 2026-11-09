@@ -403,7 +403,7 @@ struct LaunchHealthTest {
         var watcher = LaunchWatcher(steamRoot: steam, appID: appID)
         check(watcher.poll() == nil, "a finished launch earlier in the log isn't an open question")
         append(["ExecCommandLine: \"\"C:\\Steam\\steam.exe\" -silent -applaunch \(appID)\"", "\(action) waiting for user response to ShowEula \"\""])
-        check(watcher.poll() == .needsConfirmation, "a new question is seen")
+        check(watcher.poll() == .licence, "a new licence question is seen, as the licence")
         check(watcher.steamReceivedLaunch, "Steam took the launch request")
         append(["\(action) continues with user response \"ShowEula\"", "Game process added : AppID \(appID) \"C:\\game.exe\", ProcID 7, IP 0.0.0.0:0"])
         check(watcher.poll() == .running, "then the game runs")
