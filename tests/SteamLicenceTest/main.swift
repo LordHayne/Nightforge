@@ -62,14 +62,15 @@ struct SteamLicenceTest {
     }
 
     static func account() {
-        let recent = (id: "76561197972611406", mostRecent: true)
+        let remembered = "76561197972611406"
         let folder = "12345678"
-        check(SteamLicence.accountFolder(users: [recent], folders: ["0", folder]) == folder, "the account signed in last, not the folder 0")
-        check(SteamLicence.accountFolder(users: [(id: "76561198000000001", mostRecent: false), recent], folders: ["39734273", folder]) == folder, "of two")
-        check(SteamLicence.accountFolder(users: [recent], folders: ["39734273"]) == nil, "its folder isn't there: nothing to tell")
-        check(SteamLicence.accountFolder(users: [], folders: ["0", folder]) == folder, "without a mark the only account there is")
-        check(SteamLicence.accountFolder(users: [], folders: ["39734273", folder]) == nil, "two and no mark: nothing to tell")
-        check(SteamLicence.accountFolder(users: [(id: "abc", mostRecent: true)], folders: []) == nil, "nonsense")
+        func account(_ id: String?, _ folders: [String]) -> String? { SteamLicence.accountFolder(remembered: id, folders: folders) }
+        check(account(remembered, ["0", folder]) == folder, "the account Steam remembers, not the folder 0")
+        check(account(remembered, ["39734273", folder]) == folder, "of two")
+        check(account(remembered, ["39734273"]) == nil, "its folder isn't there: nothing to tell")
+        check(account(nil, ["0", folder]) == folder, "none remembered: the only account there is")
+        check(account(nil, ["39734273", folder]) == nil, "two and none remembered: nothing to tell")
+        check(account("abc", []) == nil, "nonsense")
     }
 
     static func answer() {

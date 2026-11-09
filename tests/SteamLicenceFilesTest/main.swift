@@ -94,6 +94,23 @@ struct SteamLicenceFilesTest {
         put(config(), "userdata/\(second.folder)/config/localconfig.vdf", in: two)
         check(open(two), "the account signed in last counts, not the other's answer")
 
+        // Two accounts and no MostRecent, as Steam writes it now: the rule SteamSwitch goes by, the same account.
+        func accounts(_ one: String, _ other: String) -> URL {
+            let root = world()
+            put("\"users\"\n{\n\t\"\(first.id)\"\n\t{\n\(one)\t}\n\t\"\(second.id)\"\n\t{\n\(other)\t}\n}\n", "config/loginusers.vdf", in: root)
+            put(config([licence: 0]), "userdata/\(first.folder)/config/localconfig.vdf", in: root)
+            put(config(), "userdata/\(second.folder)/config/localconfig.vdf", in: root)
+            return root
+        }
+        func stamp(_ value: Int) -> String { "\t\t\"timestamp\"\t\t\"\(value)\"\n" }
+        let auto = "\t\t\"AutoLogin\"\t\t\"1\"\n"
+        let signsIn = accounts(stamp(100), stamp(50) + auto)
+        check(SteamLogin.rememberedAccount(steamRoot: signsIn) == second.id && open(signsIn), "the one Steam signs in by itself, though the other is newer")
+        let newer = accounts(stamp(100), stamp(200))
+        check(SteamLogin.rememberedAccount(steamRoot: newer) == second.id && open(newer), "else the newest: this one hasn't answered")
+        let older = accounts(stamp(200), stamp(100))
+        check(SteamLogin.rememberedAccount(steamRoot: older) == first.id && !open(older), "and that one has")
+
         let lower = world()
         put(users([(second.id, true)], key: "mostrecent"), "config/loginusers.vdf", in: lower)
         put(config([licence: 0]), "userdata/\(second.folder)/config/localconfig.vdf", in: lower)
@@ -318,12 +335,9 @@ struct SteamLicenceFilesTest {
             check(!SteamLicence.stillOpen(entries, accepted: all, answeredInLog: []), "everything answered at its version")
 
             // The account's folder is one that's there, or none.
-            let ids = (0..<Int.random(in: 0...3, using: &random)).map { _ -> (id: String, mostRecent: Bool) in
-                let id = ["76561197972611406", "76561197960265728", "0", "abc", "99999999999999999999", "18446744073709551615", ""].randomElement(using: &random)!
-                return (id, Bool.random(using: &random))
-            }
+            let remembered = [nil, "76561197972611406", "76561197960265728", "0", "abc", "99999999999999999999", "18446744073709551615", ""].randomElement(using: &random)!
             let folders = ["0", "12345678", "39734273", "x", "99999999999999999999"].filter { _ in Bool.random(using: &random) }
-            if let folder = SteamLicence.accountFolder(users: ids, folders: folders) {
+            if let folder = SteamLicence.accountFolder(remembered: remembered, folders: folders) {
                 check(folders.contains(folder) && folder != "0" && UInt64(folder) != nil, "a folder that isn't an account's: \(folder) of \(folders)")
             }
 

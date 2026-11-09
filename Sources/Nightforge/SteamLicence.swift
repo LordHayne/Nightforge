@@ -46,11 +46,11 @@ enum SteamLicence {
     /// The offset between a SteamID64 and the account number userdata's folders go by.
     private static let steamIDBase: UInt64 = 76_561_197_960_265_728
 
-    /// The folder in userdata of the account signed in last: the one loginusers.vdf marks MostRecent, or
-    /// the only account there is. Nil when it can't be told, and then nothing is announced.
-    static func accountFolder(users: [(id: String, mostRecent: Bool)], folders: [String]) -> String? {
+    /// The folder in userdata of the account Steam remembers (`SteamLogin.rememberedAccount`, by its SteamID),
+    /// or the only account there is. Nil when it can't be told, and then nothing is announced.
+    static func accountFolder(remembered: String?, folders: [String]) -> String? {
         let accounts = folders.filter { (UInt64($0) ?? 0) != 0 }
-        if let recent = users.first(where: \.mostRecent), let id = UInt64(recent.id), id > steamIDBase {
+        if let remembered, let id = UInt64(remembered), id > steamIDBase {
             let folder = String(id - steamIDBase)
             return accounts.contains(folder) ? folder : nil
         }
@@ -180,9 +180,8 @@ enum SteamLicenceFiles {
     private static func localConfig(steamRoot: URL) -> URL? {
         let userdata = steamRoot.appendingPathComponent("userdata", isDirectory: true)
         let folders = ((try? FileManager.default.contentsOfDirectory(atPath: userdata.path)) ?? [])
-        let parsed = VDF.parse(contentsOf: steamRoot.appendingPathComponent("config/loginusers.vdf"))?["users"]?.object ?? [:]
-        let users = parsed.map { (id: $0.key, mostRecent: $0.value["MostRecent"]?.string == "1") }
-        return SteamLicence.accountFolder(users: users, folders: folders).map { userdata.appendingPathComponent("\($0)/config/localconfig.vdf") }
+        return SteamLicence.accountFolder(remembered: SteamLogin.rememberedAccount(steamRoot: steamRoot), folders: folders)
+            .map { userdata.appendingPathComponent("\($0)/config/localconfig.vdf") }
     }
 
     private static func answeredInLog(steamRoot: URL) -> Set<String> {
