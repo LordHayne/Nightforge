@@ -102,10 +102,12 @@ final class InputRouter {
             let controller = note.object as? GCController
             MainActor.assumeIsolated { self?.attach(controller) }
         })
-        observers.append(center.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] _ in
+        observers.append(center.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
+            let gone = note.object as? GCController
             MainActor.assumeIsolated {
                 self?.letGo()
-                self?.pointer.controllerLeft()
+                self?.pointer.controllerLeft(connected: Set(GCController.controllers().filter { $0 !== gone }
+                    .compactMap(\.extendedGamepad).map(ObjectIdentifier.init)))
                 self?.haptics.forgetGone()
                 self?.refreshConnected()
             }

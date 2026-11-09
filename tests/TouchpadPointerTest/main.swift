@@ -49,7 +49,40 @@ struct TouchpadPointerTest {
     static func finger(_ x: Float, _ y: Float) -> Finger { Finger(x: x, y: y) }
 
     @MainActor
+    /// Two pads without a touchpad and one pointer.
+    static func hands() {
+        var hands = PointerHands<String>()
+        check(hands.moveStick("a", moving: true) && hands.stickHolder == "a", "the first stick out of its middle has the pointer")
+        check(!hands.moveStick("b", moving: false) && hands.stickHolder == "a", "a second pad's resting stick doesn't stop it")
+        check(!hands.moveStick("b", moving: true) && hands.stickHolder == "a", "nor does its pushed one take over")
+        check(hands.moveStick("a", moving: false) && hands.stickHolder == nil, "back in the middle: free")
+        check(hands.moveStick("b", moving: true) && hands.stickHolder == "b", "and the other may have it")
+
+        var buttons = PointerHands<String>()
+        check(buttons.press(.left, by: "a") && !buttons.press(.left, by: "b"), "one pad holds a button")
+        check(buttons.press(.right, by: "b"), "the other button is free")
+        check(!buttons.release(.left, by: "b") && buttons.triggers[.left] == "a", "only the one who pressed lets go")
+        check(buttons.release(.left, by: "a") && buttons.triggers[.left] == nil, "and then it is up")
+
+        var leaving = PointerHands<String>()
+        _ = leaving.moveStick("a", moving: true)
+        _ = leaving.press(.left, by: "a")
+        _ = leaving.press(.right, by: "b")
+        let first = leaving.padsLeft(connected: ["a"])
+        check(!first.stick && first.triggers == [.right], "b left: only its button is let go of")
+        check(leaving.stickHolder == "a" && leaving.triggers == [.left: "a"], "a holds on")
+        let second = leaving.padsLeft(connected: [])
+        check(second.stick && second.triggers == [.left] && leaving.stickHolder == nil && leaving.triggers.isEmpty, "a left too: all of it goes")
+        check(leaving.padsLeft(connected: []) == (stick: false, triggers: []), "nothing held, nothing to let go of")
+
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/PadPointer.swift", encoding: .utf8)) ?? ""
+        check(source.contains("hands.moveStick(id, moving: true)") && source.contains("hands.press(button, by: id)") && source.contains("hands.padsLeft(connected: connected)")
+              && !source.contains("heldTriggers"), "PadPointer goes by who holds what")
+        check(source.contains("if let owner, !connected.contains(owner) {"), "a finger stays on its touchpad when another controller leaves")
+    }
+
     static func main() {
+        hands()
         movement()
         fingers()
         clicks()

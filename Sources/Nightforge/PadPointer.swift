@@ -23,14 +23,14 @@ final class PadPointer {
     private var active = false
     private var stickVelocity = CGVector.zero
     private var stickTimer: Timer?
-    private var heldTriggers: Set<PadPart> = []
+    private var hands = PointerHands<ObjectIdentifier>()
     private var lastTouch: TimeInterval = -.infinity
     /// Whether the stick, out of its middle, is the mouse: settled once per push. In a game it's
     /// asked otherwise at every sample, and the answer reads the window list.
     private var stickDecided: Bool?
 
     /// The stick or a trigger is working the pointer now: the pad's "in use" mustn't hide it.
-    var isMouse: Bool { stickTimer != nil || !heldTriggers.isEmpty }
+    var isMouse: Bool { stickTimer != nil || !hands.triggers.isEmpty }
 
     /// The touchpad moved the pointer a moment ago: then it's meant to be seen.
     func touchedRecently(now: TimeInterval) -> Bool { now - lastTouch < 3 }
@@ -48,16 +48,21 @@ final class PadPointer {
         }
     }
 
-    /// A controller left: a button held with it mustn't stay down.
-    func controllerLeft() {
-        driver.apply(tracker.reset())
-        owner = nil
-        active = false
-        stickDecided = nil
-        setStick(.zero)
-        driver.apply(heldTriggers.map { $0 == .r2 ? .release(.left) : .release(.right) })
-        heldTriggers = []
-        triggerButton = TouchpadPointer()
+    /// A controller left: a button held with it mustn't stay down. What the others hold stays held.
+    /// `connected`: the pads still here.
+    func controllerLeft(connected: Set<ObjectIdentifier>) {
+        if let owner, !connected.contains(owner) {
+            driver.apply(tracker.reset())
+            self.owner = nil
+            active = false
+        }
+        let left = hands.padsLeft(connected: connected)
+        if left.stick {
+            stickDecided = nil
+            setStick(.zero)
+        }
+        driver.apply(left.triggers.map { .release($0) })
+        if left.triggers.contains(.left) { triggerButton = TouchpadPointer() }
     }
 
     private func changed(_ pad: GCExtendedGamepad?) {
@@ -90,10 +95,13 @@ final class PadPointer {
     func stick(x: Float, y: Float, on pad: GCExtendedGamepad) {
         guard Touchpad(pad) == nil else { return }
         let velocity = PadPointerRules.stickVelocity(x: x, y: y)
+        let id = ObjectIdentifier(pad)
         guard velocity != .zero else {
+            guard hands.moveStick(id, moving: false) else { return }
             stickDecided = nil
             return setStick(.zero)
         }
+        guard hands.moveStick(id, moving: true) else { return }
         let decided = stickDecided ?? stickWorks()
         stickDecided = decided
         guard decided else { return }
@@ -122,10 +130,12 @@ final class PadPointer {
     /// R2 (left button) or L2 (right button). True when it was the mouse's, so it does nothing else.
     func trigger(_ part: PadPart, pressed: Bool, on pad: GCExtendedGamepad) -> Bool {
         guard Touchpad(pad) == nil else { return false }
+        let id = ObjectIdentifier(pad)
+        let button: TouchpadPointer.Button = part == .r2 ? .left : .right
         if pressed {
             guard stickWorks() else { return false }
-            heldTriggers.insert(part)
-        } else if heldTriggers.remove(part) == nil {
+            guard hands.press(button, by: id) else { return true }  // another pad holds this button
+        } else if !hands.release(button, by: id) {
             return false
         }
         if part == .r2 {

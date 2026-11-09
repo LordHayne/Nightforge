@@ -238,6 +238,44 @@ enum PadPointerRules {
     static func screenScale(width: CGFloat) -> CGFloat { min(max(width / 1920, 0.75), 2) }
 }
 
+/// Who works the pointer on pads without a touchpad: the stick and each trigger belong to one pad until it
+/// lets go. A second player's resting stick is no reason to stop, and a controller that leaves only lets go
+/// of what it held itself.
+struct PointerHands<Pad: Hashable> {
+    private(set) var stickHolder: Pad?
+    private(set) var triggers: [TouchpadPointer.Button: Pad] = [:]
+
+    /// This pad's stick is out of its middle (`moving`) or back in it. False: another pad's has the pointer.
+    mutating func moveStick(_ pad: Pad, moving: Bool) -> Bool {
+        if let stickHolder, stickHolder != pad { return false }
+        stickHolder = moving ? pad : nil
+        return true
+    }
+
+    /// False: another pad holds this button.
+    mutating func press(_ button: TouchpadPointer.Button, by pad: Pad) -> Bool {
+        if let holder = triggers[button], holder != pad { return false }
+        triggers[button] = pad
+        return true
+    }
+
+    /// True if the press was this pad's.
+    mutating func release(_ button: TouchpadPointer.Button, by pad: Pad) -> Bool {
+        guard triggers[button] == pad else { return false }
+        triggers[button] = nil
+        return true
+    }
+
+    /// `connected`: the pads still here. What the others held is let go of, and said.
+    mutating func padsLeft(connected: Set<Pad>) -> (stick: Bool, triggers: [TouchpadPointer.Button]) {
+        let stick = stickHolder.map { !connected.contains($0) } ?? false
+        if stick { stickHolder = nil }
+        let buttons = triggers.filter { !connected.contains($0.value) }.map(\.key)
+        buttons.forEach { triggers[$0] = nil }
+        return (stick, buttons)
+    }
+}
+
 /// What PointerDriver needs from the Mac; a stand-in in the tests.
 @MainActor
 protocol PointerDesk: AnyObject {
