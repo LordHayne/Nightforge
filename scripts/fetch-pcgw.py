@@ -97,7 +97,7 @@ class Wiki:
             answer = self.call({
                 "action": "cargoquery", "tables": "Game,API", "join_on": "Game._pageID=API._pageID",
                 "fields": "Game.Steam_AppID=steam,API.Direct3D_versions=d3d",
-                "where": 'API.Direct3D_versions HOLDS "12" AND Game.Steam_AppID IS NOT NULL',
+                "where": 'API.Direct3D_versions HOLDS "12"',  # a row without a Steam app ID drops out in directx_by_app
                 "order_by": "Game._pageID", "limit": str(PAGE), "offset": str(offset),
             })
             if "error" in answer:
