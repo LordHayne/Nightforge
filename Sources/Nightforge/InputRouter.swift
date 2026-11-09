@@ -1056,16 +1056,19 @@ final class InputRouter {
     }
 
     /// Whether the pad is the Mac's pointer now (PadPointerRules.works). Looked at when a finger lands.
-    private var pointerWorks: Bool {
+    private var pointerWorks: Bool { pointerWorks(windowOverGame: model?.overGame != nil) }
+
+    private func pointerWorks(windowOverGame: Bool) -> Bool {
         guard let model else { return false }
         return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: model.padKeyboard != nil, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                      curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
                                      frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks,
-                                     windowOverGame: model.overGame != nil, gameRunsUnderOverlay: GameOverlay.gameRunsUnder)
+                                     windowOverGame: windowOverGame, gameRunsUnderOverlay: GameOverlay.gameRunsUnder)
     }
 
     private var stickIsPointer: Bool {
-        PadPointerRules.stickIsPointer(works: pointerWorks, hasTouchpad: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
+        PadPointerRules.stickIsPointer(works: pointerWorks(windowOverGame: PadPointerRules.stickReaches(windowOver: model?.overGame != nil, gameFront: model?.overGameFront ?? false)),
+                                       hasTouchpad: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                        curtain: GameBackdrop.isRaised)
     }
 

@@ -191,6 +191,10 @@ enum PadPointerRules {
         return touched || (over.size.width >= 600 && over.size.height >= 400)
     }
 
+    /// For the right stick and R2 a window over the game counts only once its app has the front. While the game
+    /// has it, they are the game's: a small notice over the picture mustn't turn its camera stick into a mouse.
+    static func stickReaches(windowOver: Bool, gameFront: Bool) -> Bool { windowOver && !gameFront }
+
     /// Pads without a touchpad use the right stick and R2, but only where Nightforge doesn't need
     /// them itself: with Nightforge in front the stick scrolls and R2 goes to the last game.
     static func stickIsPointer(works: Bool, hasTouchpad: Bool, inFront: Bool, overlay: Bool, curtain: Bool) -> Bool {

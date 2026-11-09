@@ -192,6 +192,11 @@ struct TouchpadPointerTest {
                                   frontIsGame: false, macOSAsks: { asked = true; return true }())
         check(!asked, "the window list is only read when the answer depends on it")
 
+        check(!PadPointerRules.stickReaches(windowOver: true, gameFront: true), "a small notice over the game: the stick and R2 stay the game's")
+        check(PadPointerRules.stickReaches(windowOver: true, gameFront: false), "the window's app has the front: they are the mouse")
+        check(!PadPointerRules.stickReaches(windowOver: false, gameFront: false), "no window over the game: nothing to reach")
+        let router = (try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? ""
+        check(router.contains("works: pointerWorks(windowOverGame: PadPointerRules.stickReaches("), "the stick goes by that, the touchpad doesn't")
         func overRunning(asks: Bool) -> Bool {
             PadPointerRules.works(setting: true, keyboardOpen: false, inFront: false, overlay: true, curtain: false, gamePlaying: true,
                                   frontIsGame: true, macOSAsks: asks, gameRunsUnderOverlay: true)

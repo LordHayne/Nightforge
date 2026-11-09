@@ -1005,7 +1005,7 @@ final class LibraryModel: ObservableObject {
     private var stageAskers = Set<pid_t>()
     /// Another app's window over the game's picture, as of the stage watch's last look.
     private(set) var overGame: PadPointerRules.OverGame?
-    private var overGameFront = false
+    private(set) var overGameFront = false
     private var overGameHanded: Int?
 
     /// A game's process ended: the curtain now, in the same moment, not at the look it cuts short. A Mac
