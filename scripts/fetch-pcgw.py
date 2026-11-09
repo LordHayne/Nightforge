@@ -42,9 +42,10 @@ FIELDS = {
     "macIntel": "API.macOS_Intel_64bit_app", "macARM": "API.macOS_ARM_app",
     "physics": "Middleware.Physics", "audio": "Middleware.Audio", "cutscenes": "Middleware.Cutscenes",
     "multiplayer": "Middleware.Multiplayer", "anticheat": "Middleware.Anticheat", "drm": "Availability.Uses_DRM",
+    "drmSteam": "Availability.Steam_DRM", "drmEpic": "Availability.Epic_Games_Store_DRM", "drmGOG": "Availability.GOGcom_DRM",
 }
 LISTS = {"steam", "gog", "engines", "d3d", "ddraw", "opengl", "vulkan", "glide", "physics", "audio", "cutscenes",
-         "multiplayer", "anticheat", "drm"}
+         "multiplayer", "anticheat", "drm", "drmSteam", "drmEpic", "drmGOG"}
 # DRM that's no news on a Steam game.
 PLAIN_DRM = {"Steam", "DRM-free", "GOG.com"}
 
@@ -95,7 +96,8 @@ def derived(pages: dict) -> dict:
                 physx.add(app)
             if entry.get("win32") == "true" and entry.get("win64") != "true":
                 only32.add(app)
-            other = [d for d in entry.get("drm", []) if d not in PLAIN_DRM]
+            # The Steam version's own DRM where the page says it; what all versions use otherwise.
+            other = [d for d in entry.get("drmSteam", entry.get("drm", [])) if d not in PLAIN_DRM]
             if other:
                 drm[app] = other
             if entry.get("anticheat"):

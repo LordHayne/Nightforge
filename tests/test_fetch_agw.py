@@ -116,11 +116,13 @@ class PCGamingWikiTests(unittest.TestCase):
                        "win32": "true", "win64": "false", "drm": "Steam"}},
             {"title": {"page": "Control", "steam": "870780, 1", "d3d": "12,11", "anticheat": ""}},
             {"title": {"page": "Old", "steam": "", "d3d": "12"}},
+            {"title": {"page": "It Takes Two", "steam": "1426210", "d3d": "11", "drm": "EA app,Microsoft Store,Steam",
+                       "drmSteam": "Steam,EA app"}},
             {"title": {"page": "", "steam": "5", "d3d": "12"}}]
 
     def test_facts_by_page_without_empty_values(self):
         pages = pcgw.facts(self.ROWS)
-        self.assertEqual(list(pages), ["Control", "Hogwarts Legacy", "Mafia II", "Old"])
+        self.assertEqual(list(pages), ["Control", "Hogwarts Legacy", "It Takes Two", "Mafia II", "Old"])
         self.assertEqual(pages["Mafia II"], {"steam": ["50130"], "gog": ["1816059595"], "d3d": ["9.0c"],
                                              "physics": ["PhysX"], "win32": "true", "win64": "false", "drm": ["Steam"]})
         self.assertEqual(pages["Control"]["d3d"], ["11", "12"])
@@ -131,7 +133,7 @@ class PCGamingWikiTests(unittest.TestCase):
         self.assertEqual(data["directX"], {"1": ["11", "12"], "870780": ["11", "12"], "990080": ["12"]})
         self.assertEqual(data["physX"], ["50130"])
         self.assertEqual(data["only32bit"], ["50130"])
-        self.assertEqual(data["drm"], {"990080": ["Denuvo Anti-Tamper"]})
+        self.assertEqual(data["drm"], {"990080": ["Denuvo Anti-Tamper"], "1426210": ["EA app"]})
         self.assertEqual(data["anticheat"], {})
 
     def test_the_date_only_moves_with_the_content(self):
