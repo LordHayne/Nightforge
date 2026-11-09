@@ -115,8 +115,43 @@ struct DownloadProofFuzzTest {
         }
     }
 
+    /// The hold over time: a store that's gone gets its five minutes from when it was last seen, and not one look more.
+    static func holdOverTime() {
+        var random = SystemRandomNumberGenerator()
+        for _ in 0..<3_000 {
+            var now = clock
+            var seen: Date?
+            for _ in 0..<60 {
+                now.addTimeInterval(.random(in: 1...120, using: &random))
+                let steam = Int.random(in: 0...3, using: &random) == 0, mac = Int.random(in: 0...5, using: &random) == 0, battleNet = Int.random(in: 0...5, using: &random) == 0
+                let list = (0..<Int.random(in: 0...3, using: &random)).map { number in
+                    KeepAwake.Download(name: "\(number)", provider: [Provider.steam, .steam, .battlenet].randomElement(using: &random)!,
+                                       platform: Bool.random(using: &random) ? .windows : .mac, builtIn: true, paused: Int.random(in: 0...3, using: &random) == 0)
+                }
+                let before = seen
+                let held = KeepAwake.held(list, steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet, storeSeen: seen, now: now)
+                seen = held.storeSeen
+                let unpaused = list.filter { !$0.paused }
+                let fetching = unpaused.filter {
+                    KeepAwake.counts(provider: $0.provider, platform: $0.platform, builtIn: $0.builtIn, paused: false, steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet)
+                }
+                if unpaused.isEmpty { check(held.names.isEmpty && seen == nil, "a paused download holds the Mac") }
+                if !fetching.isEmpty {
+                    check(held.names == fetching.map(\.name) && seen == now, "fetching, and not counted as such")
+                } else if !held.names.isEmpty {
+                    check(before != nil && seen == before, "the grace moved on with nobody fetching")
+                    check(now.timeIntervalSince(before ?? now) < KeepAwake.storeAwayGrace, "held past the store's grace")
+                } else {
+                    check(seen == nil, "a store's last sighting kept after the grace has ended")
+                }
+                if failures > 0 { return }
+            }
+        }
+    }
+
     static func main() {
         TestDefaults.useWorkFolder()
+        holdOverTime()
         standing()
         outcomes()
         moments()
