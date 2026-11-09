@@ -37,8 +37,6 @@ beliebige Stückelung wachsender Logs.
 
 ### Beobachtet, nicht geändert
 
-- `SteamLicence.accepted` liest nur Zeilen mit „eula“. Eine Lizenz, deren ID das Wort nicht enthält, gälte immer als offen, und der Vorhang kündigte sie bei jedem Start an. In den 12 gemessenen Schlüsseln kam das nicht vor.
-- `SteamLicenceFiles` kennt nur `MostRecent`; `SteamSwitch.rememberedAccount` fällt auf `AutoLogin` und den neuesten Zeitstempel zurück. Bei zwei Konten ohne Marke sagt der Vorhang dann nichts (ausdrücklich gewollt: „nothing is announced“).
 - `Engine.uninstall` startet die Windows-Steam im Hintergrund neu; während eines Mac-Spiels hält `holdsBack` das zurück, und sie kommt erst über `windowsStopped` oder das nächste Windows-Spiel zurück.
 - `SteamSwitchTest` prüft, dass das Log der echten Steam for Mac unberührt bleibt, und wird rot, wenn der Nutzer währenddessen Steam benutzt (8.11. einmal gesehen): Umgebung, kein Fehler.
 

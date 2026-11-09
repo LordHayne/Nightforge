@@ -26,16 +26,21 @@ enum SteamLicence {
     /// `answeredInLog`: the log has a yes a moment before localconfig does (`answeredInConfig`).
     static func stillOpen(_ entries: [Entry], accepted: [String: Int], answeredInLog: Set<String>) -> Bool {
         entries.contains { entry in
-            guard entry.countries == nil, !entry.id.isEmpty, !answeredInLog.contains(entry.id) else { return false }
+            guard entry.countries == nil, inConfigLines(entry.id), !answeredInLog.contains(entry.id) else { return false }
             guard let answered = accepted[entry.id] else { return true }
             return answered < entry.version
         }
     }
 
+    /// Whether a licence's answer can be found at all, only localconfig's lines with "eula" being looked at.
+    /// One named otherwise (America's Army 3 Dedicated Server's "create_me", 1 of the 77 in appinfo on 9.11.) would count as open at
+    /// every start, so it isn't announced: better no word than a wrong one each time.
+    static func inConfigLines(_ text: some StringProtocol) -> Bool { text.range(of: "eula", options: .caseInsensitive) != nil }
+
     /// The licences answered in a localconfig.vdf: only its lines with "eula" are looked at.
     static func accepted(inLocalConfig text: String) -> [String: Int] {
         var accepted: [String: Int] = [:]
-        for line in text.split(whereSeparator: \.isNewline) where line.range(of: "eula", options: .caseInsensitive) != nil {
+        for line in text.split(whereSeparator: \.isNewline) where inConfigLines(line) {
             let parts = line.split(separator: "\"", omittingEmptySubsequences: false)
             guard parts.count == 5, let version = Int(parts[3]) else { continue }
             accepted[String(parts[1])] = version
@@ -46,11 +51,11 @@ enum SteamLicence {
     /// The offset between a SteamID64 and the account number userdata's folders go by.
     private static let steamIDBase: UInt64 = 76_561_197_960_265_728
 
-    /// The folder in userdata of the account signed in last: the one loginusers.vdf marks MostRecent, or
-    /// the only account there is. Nil when it can't be told, and then nothing is announced.
-    static func accountFolder(users: [(id: String, mostRecent: Bool)], folders: [String]) -> String? {
+    /// The folder in userdata of the account Steam remembers (`SteamLogin.rememberedAccount`, by its SteamID),
+    /// or the only account there is. Nil when it can't be told, and then nothing is announced.
+    static func accountFolder(remembered: String?, folders: [String]) -> String? {
         let accounts = folders.filter { (UInt64($0) ?? 0) != 0 }
-        if let recent = users.first(where: \.mostRecent), let id = UInt64(recent.id), id > steamIDBase {
+        if let remembered, let id = UInt64(remembered), id > steamIDBase {
             let folder = String(id - steamIDBase)
             return accounts.contains(folder) ? folder : nil
         }
@@ -169,9 +174,11 @@ enum SteamLicenceFiles {
                                       answeredInLog: answeredInLog(steamRoot: steamRoot))
     }
 
-    /// Whether one of these stands open in Steam's own record, read just now. Nil when it can't be told.
+    /// Whether one of these stands open in Steam's own record, read just now. Nil when it can't be told, as
+    /// with one that can't be found there: the others answered wouldn't say it was.
     static func openInConfig(entries: [SteamLicence.Entry], steamRoot: URL) -> Bool? {
-        guard !entries.isEmpty, let config = localConfig(steamRoot: steamRoot), let data = try? Data(contentsOf: config)
+        guard !entries.isEmpty, entries.allSatisfy({ SteamLicence.inConfigLines($0.id) }),
+              let config = localConfig(steamRoot: steamRoot), let data = try? Data(contentsOf: config)
         else { return nil }
         return SteamLicence.stillOpen(entries, accepted: SteamLicence.accepted(inLocalConfig: String(decoding: data, as: UTF8.self)),
                                       answeredInLog: [])
@@ -180,9 +187,8 @@ enum SteamLicenceFiles {
     private static func localConfig(steamRoot: URL) -> URL? {
         let userdata = steamRoot.appendingPathComponent("userdata", isDirectory: true)
         let folders = ((try? FileManager.default.contentsOfDirectory(atPath: userdata.path)) ?? [])
-        let parsed = VDF.parse(contentsOf: steamRoot.appendingPathComponent("config/loginusers.vdf"))?["users"]?.object ?? [:]
-        let users = parsed.map { (id: $0.key, mostRecent: $0.value["MostRecent"]?.string == "1") }
-        return SteamLicence.accountFolder(users: users, folders: folders).map { userdata.appendingPathComponent("\($0)/config/localconfig.vdf") }
+        return SteamLicence.accountFolder(remembered: SteamLogin.rememberedAccount(steamRoot: steamRoot), folders: folders)
+            .map { userdata.appendingPathComponent("\($0)/config/localconfig.vdf") }
     }
 
     private static func answeredInLog(steamRoot: URL) -> Set<String> {

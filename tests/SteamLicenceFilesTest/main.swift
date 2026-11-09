@@ -94,6 +94,35 @@ struct SteamLicenceFilesTest {
         put(config(), "userdata/\(second.folder)/config/localconfig.vdf", in: two)
         check(open(two), "the account signed in last counts, not the other's answer")
 
+        // Two accounts and no MostRecent, as Steam writes it now: the rule SteamSwitch goes by, the same account.
+        func accounts(_ one: String, _ other: String) -> URL {
+            let root = world()
+            put("\"users\"\n{\n\t\"\(first.id)\"\n\t{\n\(one)\t}\n\t\"\(second.id)\"\n\t{\n\(other)\t}\n}\n", "config/loginusers.vdf", in: root)
+            put(config([licence: 0]), "userdata/\(first.folder)/config/localconfig.vdf", in: root)
+            put(config(), "userdata/\(second.folder)/config/localconfig.vdf", in: root)
+            return root
+        }
+        func stamp(_ value: Int) -> String { "\t\t\"timestamp\"\t\t\"\(value)\"\n" }
+        let auto = "\t\t\"AutoLogin\"\t\t\"1\"\n"
+        let signsIn = accounts(stamp(100), stamp(50) + auto)
+        check(SteamLogin.rememberedAccount(steamRoot: signsIn) == second.id && open(signsIn), "the one Steam signs in by itself, though the other is newer")
+        let newer = accounts(stamp(100), stamp(200))
+        check(SteamLogin.rememberedAccount(steamRoot: newer) == second.id && open(newer), "else the newest: this one hasn't answered")
+        let older = accounts(stamp(200), stamp(100))
+        check(SteamLogin.rememberedAccount(steamRoot: older) == first.id && !open(older), "and that one has")
+
+        // A licence not named "eula": localconfig's other lines aren't read, so its answer can't be seen.
+        let namedOtherwise = world()
+        put(users([(first.id, true)]), "config/loginusers.vdf", in: namedOtherwise)
+        put(config(["create_me": 0]), "userdata/\(first.folder)/config/localconfig.vdf", in: namedOtherwise)
+        let unnamed = Entry(id: "create_me", version: 0)
+        check(!open(namedOtherwise, [unnamed]), "answered or not, no word about it")
+        check(open(namedOtherwise, [unnamed, Entry(id: licence, version: 0)]), "a licence that can be looked up still counts")
+        check(SteamLicenceFiles.openInConfig(entries: [unnamed], steamRoot: namedOtherwise) == nil, "the record can't tell")
+        check(SteamLicenceFiles.openInConfig(entries: [unnamed, Entry(id: licence, version: 0)], steamRoot: namedOtherwise) == nil,
+              "nor with another beside it: that one answered wouldn't mean this one is")
+        check(SteamLicenceFiles.openInConfig(entries: [Entry(id: licence, version: 0)], steamRoot: namedOtherwise) == true, "one it can")
+
         let lower = world()
         put(users([(second.id, true)], key: "mostrecent"), "config/loginusers.vdf", in: lower)
         put(config([licence: 0]), "userdata/\(second.folder)/config/localconfig.vdf", in: lower)
@@ -318,12 +347,9 @@ struct SteamLicenceFilesTest {
             check(!SteamLicence.stillOpen(entries, accepted: all, answeredInLog: []), "everything answered at its version")
 
             // The account's folder is one that's there, or none.
-            let ids = (0..<Int.random(in: 0...3, using: &random)).map { _ -> (id: String, mostRecent: Bool) in
-                let id = ["76561197972611406", "76561197960265728", "0", "abc", "99999999999999999999", "18446744073709551615", ""].randomElement(using: &random)!
-                return (id, Bool.random(using: &random))
-            }
+            let remembered = [nil, "76561197972611406", "76561197960265728", "0", "abc", "99999999999999999999", "18446744073709551615", ""].randomElement(using: &random)!
             let folders = ["0", "12345678", "39734273", "x", "99999999999999999999"].filter { _ in Bool.random(using: &random) }
-            if let folder = SteamLicence.accountFolder(users: ids, folders: folders) {
+            if let folder = SteamLicence.accountFolder(remembered: remembered, folders: folders) {
                 check(folders.contains(folder) && folder != "0" && UInt64(folder) != nil, "a folder that isn't an account's: \(folder) of \(folders)")
             }
 

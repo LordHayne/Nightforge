@@ -43,6 +43,11 @@ struct SteamLicenceTest {
         check(open([Entry(id: "480_eula_1", version: 0, countries: "US"), Entry(id: "480_eula_0", version: 0)]), "the other one still is")
         check(!open([twoGames], log: ["1426210_eula_1"]), "answered in this session: localconfig only has it later")
         check(!open([Entry(id: "", version: 0)]), "an entry without a name is nothing to announce")
+        let unnamed = Entry(id: "create_me", version: 0)
+        check(!open([unnamed]), "named without \"eula\": its answer can't be found, so no word at every start")
+        check(open([unnamed, twoGames]), "the other one still says it")
+        check(!open([unnamed, Entry(id: "a_eula", version: 1)], ["a_eula": 1]), "the other answered: nothing left to say")
+        check(open([Entry(id: "480_EULA", version: 0)]), "the word in any case, as localconfig is read")
     }
 
     static func localConfig() {
@@ -62,14 +67,15 @@ struct SteamLicenceTest {
     }
 
     static func account() {
-        let recent = (id: "76561197972611406", mostRecent: true)
+        let remembered = "76561197972611406"
         let folder = "12345678"
-        check(SteamLicence.accountFolder(users: [recent], folders: ["0", folder]) == folder, "the account signed in last, not the folder 0")
-        check(SteamLicence.accountFolder(users: [(id: "76561198000000001", mostRecent: false), recent], folders: ["39734273", folder]) == folder, "of two")
-        check(SteamLicence.accountFolder(users: [recent], folders: ["39734273"]) == nil, "its folder isn't there: nothing to tell")
-        check(SteamLicence.accountFolder(users: [], folders: ["0", folder]) == folder, "without a mark the only account there is")
-        check(SteamLicence.accountFolder(users: [], folders: ["39734273", folder]) == nil, "two and no mark: nothing to tell")
-        check(SteamLicence.accountFolder(users: [(id: "abc", mostRecent: true)], folders: []) == nil, "nonsense")
+        func account(_ id: String?, _ folders: [String]) -> String? { SteamLicence.accountFolder(remembered: id, folders: folders) }
+        check(account(remembered, ["0", folder]) == folder, "the account Steam remembers, not the folder 0")
+        check(account(remembered, ["39734273", folder]) == folder, "of two")
+        check(account(remembered, ["39734273"]) == nil, "its folder isn't there: nothing to tell")
+        check(account(nil, ["0", folder]) == folder, "none remembered: the only account there is")
+        check(account(nil, ["39734273", folder]) == nil, "two and none remembered: nothing to tell")
+        check(account("abc", []) == nil, "nonsense")
     }
 
     static func answer() {
@@ -90,6 +96,7 @@ struct SteamLicenceTest {
         check(!read(["SteamUI: INFO: accepted eula 11426210_eula_1", "SteamUI: INFO: eulas complete 11426210_eula_1"]), "a longer app ID isn't this one")
         check(read(["SteamUI: INFO: accepted eula 231430_eula_0", "SteamUI: INFO: eulas complete 231430_eula_0"], known: ["231430_eula_0"]), "the ID of another app, as appinfo names it")
         check(read(["INFO: accepted eula eula_1426210", "INFO: eulas complete eula_1426210"]), "the old form")
+        check(read(["INFO: accepted eula create_me", "INFO: eulas complete create_me"], known: ["create_me"]), "Steam's log still tells that one's yes")
         check(!read(["SteamBrowser: INFO: said accepted eulaz 1426210_eula_1"]), "other lines")
         check(SteamLicence.logLine("INFO: accepted eula ") == nil, "a line without an id")
     }
