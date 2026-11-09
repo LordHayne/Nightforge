@@ -286,6 +286,23 @@ class AntiCheatTests(unittest.TestCase):
             "1245620": {"name": "Elden Ring", "antiCheatOnline": ["Easy Anti-Cheat"]},
         })
 
+    def test_an_anticheat_the_player_may_switch_off_costs_only_online_play(self):
+        # Rockstar lets the player turn BattlEye off for GTA V's story; the same status for another game stays a block.
+        denied = {"status": "Denied", "anticheats": ["BattlEye"]}
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "Grand Theft Auto V", **denied, "storeIds": {"steam": "271590"}},
+            {"name": "PUBG: Battlegrounds", **denied, "storeIds": {"steam": "578080"}},
+        ])
+        self.assertEqual(blocks["271590"], {"name": "Grand Theft Auto V", "antiCheatOnline": ["BattlEye"]})
+        self.assertEqual(blocks["578080"], {"name": "PUBG: Battlegrounds", "antiCheat": ["BattlEye"]})
+
+    def test_the_list_never_switches_gta_battleye_off_itself(self):
+        # The switch stays the player's: the list only stops blocking the game.
+        games = json.loads((pathlib.Path(__file__).parent.parent / "profiles" / "profiles.json").read_text(encoding="utf-8"))["games"]
+        self.assertEqual(games["271590"].get("antiCheatOnline"), ["BattlEye"])
+        self.assertNotIn("antiCheat", games["271590"])
+        self.assertNotIn("arguments", games["271590"])
+
     def test_supported_loses_online_play_only_through_a_linux_module(self):
         # Proton runs Easy Anti-Cheat and BattlEye through their Linux module, which a Mac lacks;
         # every other anti-cheat runs inside Wine, on a Mac as well.

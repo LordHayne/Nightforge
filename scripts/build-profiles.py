@@ -89,6 +89,11 @@ STEAM_IDS_BY_SLUG = {
     "skate.": "3354750",  # skate.
 }
 
+# Games whose maker lets the player switch the anti-cheat off for the single player: Rockstar's own
+# BattlEye option for GTA V's story. Only online play is lost, so it's no block. Nightforge passes no
+# such switch for them (no "-nobattleye" in a profile): the player sets it.
+PLAYER_SWITCHES_ANTICHEAT_OFF = {"271590"}  # Grand Theft Auto V Legacy
+
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
 # Anti-cheat that only a multiplayer server asks for (PunkBuster) or that only checks on the server
@@ -463,6 +468,8 @@ def anticheat_blocks(games, titles=None):
         if not (game.get("storeIds") or {}).get("steam") and app_id in own:
             continue
         block = anticheat_block(game)
+        if block and app_id in PLAYER_SWITCHES_ANTICHEAT_OFF and "antiCheat" in block:
+            block = {"name": block["name"], "antiCheatOnline": block["antiCheat"]}
         # Two entries for one app (a renamed game): the other's full block doesn't shrink to online.
         if app_id.isdigit() and block and not ("antiCheat" in blocks.get(app_id, {}) and "antiCheatOnline" in block):
             blocks[app_id] = block
