@@ -132,6 +132,12 @@ enum SteamLicence {
     enum Answering: Equatable { case mouse, touchpad, stick }
     enum Pad: Equatable { case none, touchpad, stick }
 
+    /// What the pad in the player's hand has; nil: no pad. With two connected only that one counts: the bar
+    /// says what to do with it.
+    static func pad(inHandHasTouchpad: Bool?) -> Pad {
+        inHandHasTouchpad.map { $0 ? .touchpad : .stick } ?? .none
+    }
+
     /// With the mouse unless the pad's pointer can click in Steam's window: that needs the setting and
     /// macOS's Accessibility permission, without which a click never arrives.
     static func answering(pad: Pad, pointerOn: Bool, mayClick: Bool) -> Answering {

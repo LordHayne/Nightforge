@@ -1348,8 +1348,8 @@ final class LibraryModel: ObservableObject {
 
     /// How the player can answer Steam's licence, for the bar on the curtain.
     private var licenceLook: GameBackdrop.LicenceLook {
-        let pads = GCController.controllers().compactMap(\.extendedGamepad)
-        let pad: SteamLicence.Pad = pads.isEmpty ? .none : pads.contains { Touchpad($0) != nil } ? .touchpad : .stick
+        let inHand = GCController.current?.extendedGamepad ?? GCController.controllers().compactMap(\.extendedGamepad).first
+        let pad = SteamLicence.pad(inHandHasTouchpad: inHand.map { Touchpad($0) != nil })
         return GameBackdrop.LicenceLook(answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
                                         click: PadPart.r2.name(padSymbols.layout))
     }

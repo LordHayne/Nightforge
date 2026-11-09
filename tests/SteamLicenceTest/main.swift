@@ -14,7 +14,18 @@ struct SteamLicenceTest {
         }
     }
 
+    /// The bar goes by the pad in the player's hand.
+    static func inHand() {
+        check(SteamLicence.pad(inHandHasTouchpad: true) == .touchpad, "a DualSense in hand: the touchpad")
+        check(SteamLicence.pad(inHandHasTouchpad: false) == .stick, "an Xbox pad in hand, a DualSense beside it: the stick")
+        check(SteamLicence.pad(inHandHasTouchpad: nil) == .none, "no pad: the mouse")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("GCController.current?.extendedGamepad") && model.contains("SteamLicence.pad(inHandHasTouchpad:")
+              && !model.contains("pads.contains { Touchpad($0) != nil }"), "the model asks for the pad last used, not for any")
+    }
+
     static func main() {
+        inHand()
         beforehand()
         localConfig()
         account()
