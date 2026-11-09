@@ -22,6 +22,39 @@ struct SteamSwitchTest {
 
     @MainActor
     /// Steam only when something needs it, on battery (SteamOnDemand).
+    /// Nobody there: Steam rests on a Mac that's plugged in too, Nightforge in front or not.
+    static func onDemandNobodyThere() {
+        let start = Date()
+        let after = start.addingTimeInterval(SteamOnDemand.awayFor + 1)
+        var console = SteamOnDemand.Facts(onBattery: false, inFront: true, nobodyThere: true, steamRunning: true, signInKept: true)
+        check(SteamOnDemand.unneeded(console), "plugged in, in front, nobody there: nothing needs it")
+        var rest = SteamOnDemand()
+        check(rest.step(console, now: start) == .keep && rest.step(console, now: after) == .sleep, "after the wait it sleeps")
+        var down = console
+        down.steamRunning = false
+        check(rest.step(down, now: after.addingTimeInterval(200)) == .keep && rest.asleep, "nobody back: it stays down")
+        var back = down
+        back.nobodyThere = false
+        check(rest.step(back, now: after.addingTimeInterval(201)) == .wake, "input again: it comes back without Play")
+
+        var someone = console
+        someone.nobodyThere = false
+        var stays = SteamOnDemand()
+        check(!SteamOnDemand.unneeded(someone) && stays.step(someone, now: start) == .keep && stays.step(someone, now: after) == .keep,
+              "plugged in with someone there: nothing changes")
+        for spoil in [\SteamOnDemand.Facts.gameBusy, \.downloading, \.gameRanRecently, \.clientUpdating, \.otherWork] {
+            console[keyPath: spoil] = true
+            check(!SteamOnDemand.unneeded(console), "what needs Steam counts with nobody there as well")
+            console[keyPath: spoil] = false
+        }
+        var battery = SteamOnDemand.Facts(onBattery: true, inFront: true, nobodyThere: true)
+        check(SteamOnDemand.rests(battery), "on battery in front, nobody there: rests")
+        battery.nobodyThere = false
+        check(!SteamOnDemand.rests(battery), "on battery in front, someone there: the player may press Play")
+        battery.inFront = false
+        check(SteamOnDemand.rests(battery), "on battery out of front: as before")
+    }
+
     static func onDemand() {
         typealias F = SteamOnDemand.Facts
         let idle = F(onBattery: true, inFront: false, steamRunning: true, signInKept: true)
@@ -120,6 +153,7 @@ struct SteamSwitchTest {
 
     static func main() async {
         onDemand()
+        onDemandNobodyThere()
         TestDefaults.useWorkFolder()
         let arguments = CommandLine.arguments
         if let index = arguments.firstIndex(of: "--test-home"), arguments.count > index + 1 {
