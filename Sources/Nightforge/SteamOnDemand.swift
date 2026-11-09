@@ -133,7 +133,7 @@ extension LibraryModel {
         let nobodyThere = IdleRest.nobodyThere(idle: InputRouter.secondsSinceUse)
         guard power.onBattery || nobodyThere || steamOnDemand.asleep else { return }
         var facts = SteamOnDemand.Facts(onBattery: power.onBattery, inFront: NSApp.isActive, nobodyThere: nobodyThere,
-                                        gameBusy: !running.isEmpty || launchingID != nil || awaitingSteam || launchNeedsConfirmation,
+                                        gameBusy: gameUnderWay || awaitingSteam || launchNeedsConfirmation,
                                         downloading: downloads.contains { $0.provider == .steam && $0.platform == .windows },
                                         macDownload: macDownloading,
                                         gameRanRecently: Engine.gameRanRecently,
@@ -189,7 +189,7 @@ extension LibraryModel {
                 break
             }
             GameLog.note("Steam wakes")
-            try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
+            try? await Engine.ensureSteamRunning(wine, busy: gameUnderWay)
             watchWokenSteam(wine)
         }
     }

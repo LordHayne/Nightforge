@@ -177,6 +177,15 @@ struct StartRulesTest {
         check(why(unreal, way: LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"])).contains("held to DirectX 11"), "the switch")
         check(why(GameAnalysis(apis: [.d3d11]), way: LaunchAttempt(graphics: .dxmt)).contains("usual first way"), "the usual way")
 
+        // MARK: A Steam restart doesn't take a store's game with it (Guardians, ABZU, 9.11.2026)
+        check(Engine.gameKeepsSession([#"z:\\volumes\\games\\nightforge games\\epic games\\marvelgotg\\retail\\gotg.exe"#.replacingOccurrences(of: #"\\"#, with: #"\"#)]), "an Epic game keeps the session")
+        check(Engine.gameKeepsSession([#"c:\gog games\mafia ii\mafia2.exe"#]), "a GOG game too")
+        check(Engine.gameKeepsSession([#"z:\x\steamapps\common\game\game.exe"#]), "a Steam game too")
+        check(!Engine.gameKeepsSession([#"c:\program files (x86)\steam\bin\cef\steamwebhelper.exe"#, "/path/wineserver"]), "only Steam's own: nothing keeps it")
+        let began = Date()
+        check(!Engine.steamHadTimeToHang(began: began, quietFor: 45, now: began.addingTimeInterval(25)), "25 s after its start, quiet logs are the last session's")
+        check(Engine.steamHadTimeToHang(began: began, quietFor: 45, now: began.addingTimeInterval(45)), "after 45 s they say something")
+
         // MARK: First starts, the number that counts
         let file = folder().appendingPathComponent("evidence.jsonl")
         func started(_ id: Int, _ way: String, known: Bool = false) {

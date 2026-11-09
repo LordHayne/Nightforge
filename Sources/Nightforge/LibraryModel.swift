@@ -781,7 +781,7 @@ final class LibraryModel: ObservableObject {
                     GameDisplay.leaveGame()
                     GameBackdrop.hide(after: .zero)
                 }
-                if steam.restartWhenIdle && found.isEmpty && launchingID == nil && move == nil {
+                if steam.restartWhenIdle && found.isEmpty && !gameUnderWay && move == nil {
                     steam.restartWhenIdle = false
                     if let wine = await Engine.installedWine() { try? await Engine.restartSteamInBackground(wine) }
                 }
@@ -882,6 +882,10 @@ final class LibraryModel: ObservableObject {
     /// curtain, or Nightforge with what happened. Control (Epic) crashed on every way on 2.11., and
     /// the curtain went, Nightforge came, the curtain came again for each.
     private var judging: (id: String, since: Date)?
+
+    /// A game is starting or running, also in the moments the look at the processes doesn't show it yet:
+    /// what restarts Steam ends its Wine session, and a store's game lives in that one too.
+    var gameUnderWay: Bool { launchingID != nil || judging != nil || !running.isEmpty }
 
     /// A game on the stage for the curtain and the page behind it: one being played, or one whose
     /// start is still judged – gone already, maybe about to start again another way.
@@ -2661,7 +2665,7 @@ final class LibraryModel: ObservableObject {
         steamStartup = Task {
             await previous?.value
             guard let wine = await Engine.installedWine(), !macSteamBusy else { return }
-            try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
+            try? await Engine.ensureSteamRunning(wine, busy: gameUnderWay)
         }
     }
 
@@ -2702,7 +2706,7 @@ final class LibraryModel: ObservableObject {
             // back when that ended – goes first (SteamSwitch): quit, it finishes its cloud sync;
             // signed out by the Windows Steam, it wouldn't.
             if MacSteam.startedByNightforge, MacSteam.isRunning, !steamFacts.macDownload { await MacSteam.quit() }
-            try? await Engine.ensureSteamRunning(wine, busy: !running.isEmpty)
+            try? await Engine.ensureSteamRunning(wine, busy: gameUnderWay)
             Task { await self.watchSteamStart(wine) }
             Task { await self.watchDockHider(wine) }
         }
@@ -2715,7 +2719,7 @@ final class LibraryModel: ObservableObject {
     private func watchDockHider(_ wine: URL) async {
         while await Engine.offMain({ DockHider.runningSteamState() }) != .current {
             let downloading = allGames.contains { Self.isDownloading($0.install) || Self.isDownloading($0.macPending) }
-            if launchingID == nil, running.isEmpty, !downloading, !launchNeedsConfirmation,
+            if !gameUnderWay, !downloading, !launchNeedsConfirmation,
                !(await Engine.offMain { Engine.windowsGameRunning }) {
                 _ = await restartStuckSteam(wine, freshSession: true)
                 return
@@ -2738,7 +2742,8 @@ final class LibraryModel: ObservableObject {
                 await steamCameUp(since: began)
                 return
             }
-            if launchingID == nil, running.isEmpty, Engine.steamLooksStuck(quietFor: 45) {
+            if Engine.steamHadTimeToHang(began: began, quietFor: 45), !gameUnderWay, Engine.steamLooksStuck(quietFor: 45),
+               !(await Engine.offMain { Engine.windowsGameRunning }) {
                 _ = await steamStartFailed(since: began)
                 _ = await restartStuckSteam(wine)
                 return
@@ -3215,7 +3220,7 @@ final class LibraryModel: ObservableObject {
                 await MacSteam.quit()
                 MacSteam.start()
             } else if let wine = await Engine.installedWine() {
-                if running.isEmpty && launchingID == nil {
+                if !gameUnderWay {
                     try? await Engine.restartSteamInBackground(wine)
                 } else {
                     steam.restartWhenIdle = true
@@ -4489,6 +4494,11 @@ final class LibraryModel: ObservableObject {
             if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
             if Task.isCancelled { return }  // no saves taken along, and no question about them, for a start that's over
             if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            // A Steam restart still under way ends its Wine session at its end, with whatever started in it.
+            if !viaSteam, game.bottle.isBuiltIn, let restart = steamStartup {
+                await restart.value
+                if Task.isCancelled { return }
+            }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
             if game.provider == .epic, game.pendingUpdate != nil {
                 guard await updateEpic(game) else { return }

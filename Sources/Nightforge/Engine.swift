@@ -2495,6 +2495,12 @@ enum Engine {
 
     /// Starts Steam hidden unless it's already running. Downloads and game launches go through it.
     /// A Steam started with older game settings is restarted, unless `busy` (a game is running).
+    /// Whether a game runs in the session these processes (lower-cased commands) make up: Steam's, or
+    /// a store's that started straight (Epic, GOG), whose path says nothing of Steam.
+    static func gameKeepsSession(_ commands: [String]) -> Bool {
+        commands.contains { command in GameProcesses.gameFolders.contains { command.contains($0.lowercased()) } }
+    }
+
     static func ensureSteamRunning(_ wine: URL, busy: Bool = false) async throws {
         let key = "steamConfigSignature"
         let current = UserDefaults.standard.string(forKey: key) == steamConfigSignature
@@ -2503,8 +2509,7 @@ enum Engine {
         // A Steam whose wineserver is gone: clear it away before starting afresh. A running game's
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
-        if !isSteamRunning, !ours.contains(where: { $0.contains(#"\steamapps\common\"#) }),
-           ours.contains(where: { $0.contains("steam") }) {
+        if !isSteamRunning, !gameKeepsSession(ours), ours.contains(where: { $0.contains("steam") }) {
             stopAll(wine)
         }
         if isSteamRunning {
@@ -2785,7 +2790,13 @@ enum Engine {
         try await stopSteam(wine, running: { isSteamRunning },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
-                            hardStop: { stopAll($0) }, endWait: endWait)
+                            hardStop: { wine in
+                                // `wineserver -k` ends everything in the session: never with a game in it.
+                                guard windowsGameRunningKnown == false else {
+                                    return GameLog.note("Steam didn't end, and a game runs in its session: it's left as it is")
+                                }
+                                stopAll(wine)
+                            }, endWait: endWait)
     }
 
     /// For a stop before Steam's files are touched (a game moved, a library added or forgotten): within five
@@ -2892,6 +2903,13 @@ enum Engine {
     /// only in bootstrap_log, so every log counts here, not console_log alone. A signed-in Steam
     /// that stops taking commands still writes configstore_log and appinfo_log: that hang is told
     /// by the command itself (SteamCommands).
+    /// Whether a Steam started at `began` has had the time to be quiet for `seconds` at all: before that
+    /// the newest log is the last session's, and quiet says nothing (a game started meanwhile was ended
+    /// by the restart this caused, 9.11.2026).
+    static func steamHadTimeToHang(began: Date, quietFor seconds: TimeInterval, now: Date = Date()) -> Bool {
+        now.timeIntervalSince(began) >= seconds
+    }
+
     static func steamLooksStuck(quietFor seconds: TimeInterval) -> Bool {
         let logs = steamRoot.appendingPathComponent("logs", isDirectory: true)
         let files = (try? FileManager.default.contentsOfDirectory(

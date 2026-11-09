@@ -154,7 +154,7 @@ extension LibraryModel {
             }
             let steamWasUp = await Engine.offMain { Engine.isSteamRunning }
             guard let wine = try? await Engine.ensureEngine(gameRunning: false), steamWasUp, !self.macSteamBusy else { return }
-            try? await Engine.ensureSteamRunning(wine, busy: !self.running.isEmpty)
+            try? await Engine.ensureSteamRunning(wine, busy: self.gameUnderWay)
         }
     }
 }
