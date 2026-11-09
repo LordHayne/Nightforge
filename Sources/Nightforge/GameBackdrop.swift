@@ -132,6 +132,11 @@ enum GameBackdrop {
         if state.seam != seam { state.seam = seam }
     }
 
+    /// A question already on the curtain turned out to be the licence (SteamLicence.framesLate).
+    static var licenceStillToSay: Bool { SteamLicence.framesLate(steamAsks: state.steamAsks, framed: state.licence != nil) }
+
+    static func sayLicence(_ look: LicenceLook) { state.licence = look }
+
     static func announceLicence(for game: String) {
         guard isRaised, state.game == game, !state.steamAsks else { return }
         state.licenceAnnounced = true

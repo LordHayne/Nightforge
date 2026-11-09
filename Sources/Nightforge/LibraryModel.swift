@@ -1459,6 +1459,7 @@ final class LibraryModel: ObservableObject {
                     guard let seen = steamWindowSeen else { continue }
                     let steamWindows = await steamWindowsOnScreen(game)
                     if launchAsksLicence {
+                        if GameBackdrop.licenceStillToSay { GameBackdrop.sayLicence(licenceLook) }
                         let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
                         let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
                         GameBackdrop.frameSteamWindow(frame)
