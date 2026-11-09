@@ -369,6 +369,7 @@ final class LibraryModel: ObservableObject {
         input.start(model: self)
         Quit.closeModelSheets = { [weak self] in self?.closeAllSheets() }
         watchRunningGames()
+        beginWakeWatch()
         NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled }
         }
@@ -802,6 +803,7 @@ final class LibraryModel: ObservableObject {
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
                 await lookAtSteamOnDemand()
+                lookAtWakeCatchUp()
                 offerFullScreenIfDue()
                 input.takeHomeButton()
                 DarkWatch.shared.look()
@@ -2656,8 +2658,11 @@ final class LibraryModel: ObservableObject {
     /// The engine check and Steam (re)start at app launch; game launches wait for it so a pending
     /// Steam restart can't cut off a game that was just started.
     var steamStartup: Task<Void, Never>?
-    /// Steam only when something needs it, on battery.
+    /// Steam only when something needs it.
     var steamOnDemand = SteamOnDemand()
+    /// What's due after the Mac woke, and the fetch of it that a start calls off.
+    var wakeCatchUp = WakeCatchUp()
+    var wakeFetch: Task<Void, Never>?
 
     func startBackgroundSteam() {
         // onAppear can fire more than once; one start per app run is enough.
@@ -2908,6 +2913,11 @@ final class LibraryModel: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    /// Asks GitHub again. No answer keeps what it knew: an offline Mac says "none" as well.
+    func lookForAppUpdate() async {
+        if let update = await Updater.check() { availableUpdate = update }
     }
 
     func installUpdate() {
@@ -4339,6 +4349,7 @@ final class LibraryModel: ObservableObject {
         launchNumber += 1
         launchingID = game.id
         lookNow()
+        callOffWakeUpdate()
         curtainNote = nil
         startsAgain = false
         GameDisplay.enterGame()

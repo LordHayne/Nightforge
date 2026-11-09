@@ -27,11 +27,62 @@ func windowGuard() {
     check(IdleRest.windowGuardPause(steamRunning: false, testHome: true) == 1, "a test home's stand-in is no app macOS tells about")
 }
 
+func wakeCatchUp() {
+    let start = Date()
+    func at(_ seconds: TimeInterval) -> Date { start.addingTimeInterval(seconds) }
+    let night = WakeCatchUp.every + 60
+    func ready(_ wake: TimeInterval) -> TimeInterval { wake + WakeCatchUp.settle + 1 }
+
+    var nap = WakeCatchUp(now: start)
+    nap.woke(now: at(600))
+    check(!nap.take(gameOrStart: false, nobodyThere: false, now: at(700)), "a short nap asks nothing new")
+
+    var morning = WakeCatchUp(now: start)
+    check(!morning.take(gameOrStart: false, nobodyThere: false, now: at(night)), "no wake, no update")
+    morning.woke(now: at(night))
+    check(!morning.take(gameOrStart: false, nobodyThere: false, now: at(night + 5)), "the network gets its moment first")
+    check(!morning.take(gameOrStart: true, nobodyThere: false, now: at(ready(night))), "a game or a start comes first")
+    check(!morning.take(gameOrStart: false, nobodyThere: true, now: at(ready(night))), "a wake nobody's at does nothing")
+    check(morning.take(gameOrStart: false, nobodyThere: false, now: at(ready(night) + 60)), "once it's free it runs")
+    check(!morning.take(gameOrStart: false, nobodyThere: false, now: at(ready(night) + 90)), "once")
+
+    morning.woke(now: at(ready(night) + 120))
+    check(!morning.take(gameOrStart: false, nobodyThere: false, now: at(ready(night) + 200)), "not again soon after")
+    morning.again(now: at(ready(night) + 300))
+    check(morning.take(gameOrStart: false, nobodyThere: false, now: at(ready(ready(night) + 300))), "called off by a start: once more afterwards")
+
+    var apply = WakeCatchUp(now: start)
+    check(!apply.takeApply(gameOrStart: false), "nothing fetched, nothing goes in")
+    apply.fetched()
+    check(!apply.takeApply(gameOrStart: true) && apply.applyDue, "fetched, it waits while a game or a start is on")
+    check(apply.takeApply(gameOrStart: false) && !apply.applyDue, "and goes in once it's free, once")
+}
+
+func component(_ id: String, _ version: String) -> String {
+    #"{"id": "\#(id)", "kind": "graphics", "version": "\#(version)", "url": "https://example.invalid/\#(id).tar.gz", "sha256": "00", "size": 1, "license": "MIT", "source": "https://example.invalid"}"#
+}
+
+func wantedAhead() {
+    func wanted(_ extra: [String]) -> Set<String>? {
+        let list = ([component(Engine.winecxEngineID, "4.7.3"), component(Engine.graphicsID, "4.7.3-1")] + extra).joined(separator: ",")
+        guard let manifest = try? JSONDecoder().decode(ComponentManifest.self, from: Data(#"{"schemaVersion": 1, "generated": "now", "components": [\#(list)]}"#.utf8)) else { return nil }
+        return Set(Engine.wantedAhead(manifest).map(\.id))
+    }
+    check(wanted([])?.contains(Engine.winecxEngineID) == true && wanted([])?.contains(Engine.graphicsID) == true, "the engine and its graphics")
+    check(wanted([component(Engine.d3dMetalID, "3.0")])?.contains(Engine.d3dMetalID) == false, "never Apple's D3DMetal: the player decides that")
+    check(wanted([component(Engine.gamepadID, "4.7.3-15"), component(Engine.dxvkID, "1")])?.isSuperset(of: [Engine.gamepadID, Engine.dxvkID]) == true,
+          "the components the engine takes")
+    check(wanted([component(Engine.engineFixID, "4.7.3-2")])?.contains(Engine.engineFixID) == true, "the engine fix for this engine")
+    check(wanted([component(Engine.engineFixID, "4.7.2-2")])?.contains(Engine.engineFixID) == false, "not one built for another engine")
+}
+
 @main
 struct IdleRestTest {
     static func main() async {
         lookPauses()
         windowGuard()
+        wakeCatchUp()
+        wantedAhead()
         if failures > 0 {
             print("\(failures) failed")
             exit(1)
