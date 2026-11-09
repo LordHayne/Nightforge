@@ -94,6 +94,8 @@ struct Game: Identifiable, Hashable {
     /// The Mac version Nightforge switches to once it's on the Mac, while the installed Windows
     /// version is still the one played: not downloaded yet, or downloading.
     var macPending: InstallState?
+    /// That download is paused or out of room (`downloadPaused`, `downloadNeedsSpace`): the Mac may sleep.
+    var macPendingStopped = false
     /// Keeps a game's place in the list when it changes version.
     var listID: String?
     /// Where another store keeps the game's art (Steam's comes from its own cache and CDN).
@@ -440,6 +442,7 @@ enum LibraryScanner {
             // that way while its Mac version is fetched; it switches once that is installed.
             if game.isInstalled && !entry.isInstalled && reason != .chosen {
                 game.macPending = entry.install
+                game.macPendingStopped = entry.downloadPaused || entry.downloadNeedsSpace != nil
                 result.append(game)
                 continue
             }

@@ -113,6 +113,92 @@ sichtbar, legt sich der Vorhang sogar unter dessen Fenster. Vorschlag: `steamAsk
 | niedrig | TV-Wechsel baut die ganze Oberfläche neu (`.id`), offene Blätter gehen zu | `App.swift:24` |
 | niedrig | R2/L2 lesen im Spiel bei Pads ohne Touchpad bei jedem Druck die Fensterliste | `PadPointer.trigger`, `pointerWorks` |
 
+## Wachhalten beim Download (Nachtrag 8.11., 23:40)
+
+Geprüft auf `claude/staging-033` bei 8870ae2, dazu `pmset -g assertions`, `pmset -g log` (ab 1.11.) und die `content_log.txt` beider Steams. Nur gelesen, kein Steam gestartet oder beendet.
+
+**Für heute Nacht:** Am Netzteil und mit offenem Deckel ist nichts nötig. Mit geschlossenem Deckel schläft das MacBook ein. Dieses MacBook hat am Netzteil `sleep 0`, schläft also ohnehin nicht von selbst ein; auf Akku `sleep 1`. Das Wachbleiben heute Nacht beweist darum nichts über Nightforge, auch wegen der Assertion des Claude-Programms.
+
+| Nr. | Schwere | Fehler | Datei | Commit |
+|---|---|---|---|---|
+| W1 | mittel | Beim Wechsel der beiden Steams war das Wachhalten 1:28 min weg (mein Fehler aus 5a2369b) | `Downloads.swift` | 9bc8220 |
+| W2 | mittel | Mac-Version neben installierter Windows-Version zählte nie als Download | `Downloads.swift`, `Library.swift` | 9bc8220 |
+| W3 | mittel | Nach dem Beenden von Nightforge lief der Download weiter, aber ohne Wachhalten | `Engine.swift` (Beenden-Skript) | d45d6c3 |
+
+Zweig: `claude/wachhalten-download-033` von `claude/staging-033`. `DownloadRateTest`, `QuitScriptTest`, `UpdateStateTest` grün (`-P 2`). Der laufende Nightforge hat das noch nicht, das braucht einen neuen Build.
+
+### 1 · Warteschlange
+
+Zwischen zwei Spielen entsteht keine Lücke. Jedes Spiel der Warteschlange hat schon sein Manifest ohne das Bit „fertig“ (jetzt `StateFlags 1026`, in Steams Log `0x40a` für „Update Queued“) und zählt damit. Beleg: Um 23:33 ging GTA V aus, Steam startete neu (23:33:09 bis :16, Ursache nicht im Log), 228980 und It Takes Two liefen an. Die Assertion lief durch, seit 22:29:13 am Stück.
+
+Die echte Lücke lag woanders: 22:27:13 machte das Windows-Steam Platz für Steam für Mac, und 22:27:45 bis 22:29:13 gab es keine Assertion, weil der Scan „Steam läuft nicht“ sah. Auf Akku hätte der Mac dort einschlafen können. Jetzt hat ein Store, der gerade geladen hat, 5 Minuten Zeit zurückzukommen (W1). Eine Pause bekommt keine Frist, und ist nichts mehr zu laden, endet das Wachhalten sofort.
+
+### 2 · Je Store
+
+| Store | Zählt, wenn | Läuft, zählt aber nicht | Zählt, läuft aber nicht |
+|---|---|---|---|
+| Steam (Windows) | Manifest nicht fertig, nicht pausiert, `steam.exe` läuft | Updates installierter Spiele (`flags & 4`), passt zu „Updates beim nächsten Aufwachen“ (`docs/TODO.md`) | Steam läuft, lädt aber nichts (abgemeldet, kein Netz): kein Bit, keine Grenze |
+| Steam für Mac | wie oben, `steam_osx` läuft | war: Mac-Version neben Windows-Version (W2) | wie oben |
+| Epic | Auftrag läuft | Update beim Spielstart | keins bekannt |
+| GOG | Auftrag läuft | Update beim Spielstart | keins bekannt |
+| Battle.net | Operation „update“, Spiel nicht installiert, Mac-Client läuft | Update installierter Spiele; Windows-Client; **Vermutung:** der Agent lädt bei geschlossenem Client weiter | keins bekannt |
+
+**Pausiert erkennen:** `StateFlags 512` ist auf diesem Mac nur für Steams eigene Pause bei vollem Speicher belegt (26.10., `0x602`). Ob der Knopf „Pause“ in Steam das Bit auch setzt, ist **nicht belegt** und muss live geprüft werden.
+
+### 3 · Ende von Nightforge
+
+Steam bleibt oben: Das Beenden-Skript wartet auf laufende Downloads, höchstens 12 h. Wach blieb der Mac dabei nicht, denn die Assertion stirbt mit Nightforge (`ClientDied` 12:36:35 und 22:25:25; beim ersten Mal 17:29 min ohne, ohne Schaden nur wegen `sleep 0`). Das Skript hält den Mac jetzt selbst wach (`caffeinate -i -w`), nur solange ein Download der Grund ist (W3). „Steam nur bei Bedarf“ stoppt ein ladendes Steam nicht.
+
+**Offen:** Epic und GOG laden als eigener Prozess (`DetachedProcess`) weiter, das Skript kennt sie nicht, sie haben nach dem Beenden kein Wachhalten.
+
+### 4 · Deckel zu
+
+Dagegen hilft nichts, was eine App ohne Admin-Recht tun darf. Apples Header zu dieser Assertion: „The system may still sleep for lid close“ (`IOPMLib.h`); die stärkere Art `PreventSystemSleep` ist dort als nicht mehr unterstützt markiert. `pmset disablesleep` bräuchte Admin-Rechte und ändert eine Systemeinstellung, das soll Nightforge nicht tun. Zugeklappt läuft ein MacBook nur mit externem Bildschirm, Netzteil und Tastatur oder Maus weiter. Im Log: 12 „Clamshell Sleep“ seit 1.11., 3 davon am Netzteil.
+
+Nightforge sollte es sagen, statt es zu versprechen. Vorschlag für die Downloads, nur am MacBook ohne externen Bildschirm: „Lass den Deckel offen, bis der Download fertig ist. Der Bildschirm darf ausgehen.“ Aussehen und Ort gehören aufs Board (Design first).
+
+### 5 · Akku, Hitze, nach dem Ende
+
+- **Akku:** Das Wachhalten gilt auch auf Akku, bis macOS wegen niedrigem Stand schläft. `IdleAwake` gilt dagegen nie auf Akku.
+- **Hitze:** Keine Warnung (`pmset -g therm`, nach über einer Stunde Download). Mehr wurde nicht gemessen.
+- **Nach dem Ende:** Nichts bleibt zurück: Die Assertion geht beim Scan nach dem letzten Download (Beleg 13:09:59). Mit W1 bleibt sie nur, solange noch ein Download gelistet ist.
+- **Mac mini als Konsole:** Passt, solange etwas lädt. `IdleAwake` ist getrennt, standardmäßig aus, und zählt ab der letzten Eingabe. Die eine Ausnahme ist ein toter Download ohne Pausen-Bit (Tabelle oben): Der hält wach, solange Nightforge offen ist.
+
+### 6 · `pmset -g log`
+
+Seit 1.11.: 442 Mal Schlaf (251 „Sleep Service Back to Sleep“, 177 „Maintenance Sleep“, 12 Deckel, 2 Idle, beide auf Akku). In den sechs Download-Zeiträumen und bis 3 min danach: keiner. Von den Steam-Läufen in beiden `content_log.txt` überspannte keiner einen Schlaf. Ein abgerissener Download ist damit nicht belegt. Das beweist aber wenig, denn am Netzteil ist hier kein Idle-Schlaf eingestellt und das Log beginnt erst am 1.11.
+
+### 7 · Was die Oberfläche sagen sollte (nur Vorschlag, nichts gebaut)
+
+Der Nutzer hielt den Mac für eingeschlafen, dabei war nur der Bildschirm aus. Der gewünschte Satz steht schon seit 27.10. in den Downloads (`Downloads.swift:177`: „Dein Mac bleibt wach, solange Spiele laden. Der Bildschirm darf trotzdem ausgehen.“). Er hilft nur nicht, aus zwei Gründen:
+
+- **Er steht am falschen Ort.** Das Feld öffnet sich nur auf Klick, der schwarze Bildschirm kommt später und ohne Zusammenhang. Während er aus ist, kann Nightforge nichts anzeigen; sagen lässt es sich nur vorher oder danach.
+- **Er stimmt nicht immer.** Er steht bei jedem gelisteten Download, seit 5a2369b und ee63ab8 also auch, wenn der Mac schlafen darf (alles pausiert, Store beendet). Und er verschweigt den Deckel.
+
+| Stufe | Was | Wann |
+|---|---|---|
+| A | Satz nach dem echten Zustand: „Dein Mac bleibt wach, solange Spiele laden. Der Bildschirm darf ausgehen.“ Am MacBook ohne externen Bildschirm dazu: „Lass den Deckel offen.“ Alles pausiert: „Pausiert: Der Mac darf schlafen.“ Steam beendet: „Steam läuft nicht, der Download steht.“ | im Feld „Downloads“ |
+| B | Derselbe Satz einmal als kurze Meldung, wenn ein Download beginnt und jemand hinschaut | beim ersten Download der Sitzung |
+| C | Beim Zurückkommen der Beweis: „Der Download lief weiter: 12 GB, während der Bildschirm aus war.“ | wenn der Bildschirm wieder angeht und in der Zeit geladen wurde |
+
+**Empfehlung: A und C.** A macht den Satz wahr, C beantwortet genau die Frage, die sich beim schwarzen Bildschirm stellt. B fällt weg, wenn C da ist, denn beim Spielstart stört jede Meldung mehr. Den Bildschirm anzulassen ist keine Lösung: Das kostet Strom und widerspricht „der Bildschirm darf ausgehen“.
+
+Für A braucht die Oberfläche `KeepAwake`s Zustand (heute privat), für C `NSWorkspace.screensDidSleepNotification` und die Summe aus `downloadRates`. Aussehen und Ort gehören aufs Board (Design first).
+
+### Fragen an den Nutzer
+
+1. Auf Akku wachhalten: wie heute bis macOS abschaltet, oder ab 20 % nicht mehr, oder gar nicht?
+2. Ein Download ohne jeden Fortschritt: nach 30 min nicht mehr wachhalten? Das bräuchte Nightforges gemessene Geschwindigkeit, denn Steam schreibt seine Zahlen nur selten.
+3. Epic und GOG nach dem Beenden: sollen sie den Mac auch wachhalten?
+4. Die Hinweise aus Abschnitt 7: nur A, A und C, oder alle drei? Dafür ein Board?
+
+### Live prüfen
+
+1. Download läuft, Nightforge beenden: `pmset -g assertions` zeigt `caffeinate`, nach dem Ende nicht mehr.
+2. Windows-Download läuft, Mac-Spiel starten: Die Nightforge-Assertion bleibt durchgehend.
+3. In Steam „Pause“ drücken: Im Manifest steht `StateFlags` mit Bit 512, die Assertion geht.
+4. Mac-Version neben installierter Windows-Version laden: Assertion da.
+
 ## Geprüft, in Ordnung
 
 - **Konflikte von Hand:** `refreshBattery` meldet Änderungen und setzt Spielernummern richtig. `startAsksPlayer` enthält `.battleNetAsks`. Die Abbruchprüfung vor `raiseCurtain` in `launchMac` sitzt richtig.

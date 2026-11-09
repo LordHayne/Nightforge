@@ -84,6 +84,46 @@ struct DownloadRateTest {
         check(awake(.battlenet, blizzard: true) && !awake(.battlenet), "Battle.net's by its client")
         check(awake(.epic) && awake(.gog), "Epic's and GOG's are Nightforge's own jobs")
 
+        // Steam between two starts: the hold stays for a while, then it's over (8.11., 22:27).
+        typealias D = KeepAwake.Download
+        let gta = D(name: "GTA", provider: .steam, platform: .windows, builtIn: true, paused: false)
+        let clock = Date(timeIntervalSince1970: 2_000_000)
+        func held(_ list: [D], steam: Bool = false, mac: Bool = false, seen: Date?, at seconds: TimeInterval) -> (names: [String], storeSeen: Date?) {
+            KeepAwake.held(list, steamRunning: steam, macSteamRunning: mac, battleNetRunning: false, storeSeen: seen, now: clock.addingTimeInterval(seconds))
+        }
+        let up = held([gta], steam: true, seen: nil, at: 0)
+        check(up.names == ["GTA"] && up.storeSeen == clock, "Steam runs: held, and noted")
+        let between = held([gta], seen: up.storeSeen, at: 93)
+        check(between.names == ["GTA"] && between.storeSeen == clock, "Steam gone 93 s, the two Steams changing over: still held")
+        let over = held([gta], seen: up.storeSeen, at: KeepAwake.storeAwayGrace)
+        check(over.names.isEmpty && over.storeSeen == nil, "past the grace: Steam has ended, the Mac may sleep")
+        check(held([gta], seen: nil, at: 0).names.isEmpty, "Steam never seen fetching it: a leftover in a file holds nothing up")
+        var paused = gta
+        paused.paused = true
+        check(held([paused], steam: true, seen: up.storeSeen, at: 1).names.isEmpty, "paused: no grace, the Mac may sleep at once")
+        check(held([paused, gta], seen: up.storeSeen, at: 10).names == ["GTA"], "the grace holds only for what isn't paused")
+        let next = held([], steam: true, seen: up.storeSeen, at: 10)
+        check(next.names.isEmpty && next.storeSeen == nil, "nothing left to fetch: over at once, the Mac isn't held for the grace")
+
+        // The queue: the next game is in the list before the one before it ends, so a change-over leaves no gap.
+        var queued = gta
+        queued.name = "It Takes Two"
+        check(held([queued], steam: true, seen: up.storeSeen, at: 400).names == ["It Takes Two"], "the next in Steam's queue holds it")
+
+        // What a game's state counts as.
+        var game = Game(appID: 7, name: "Valheim", bottle: Engine.bottle, steamRoot: URL(fileURLWithPath: "/x"), steamExeWindowsPath: "",
+                        installDir: URL(fileURLWithPath: "/x/Valheim"), sizeOnDisk: 1)
+        check(KeepAwake.downloads(of: game).isEmpty, "installed: nothing to fetch")
+        game.macPending = .downloading(0.2)
+        check(KeepAwake.downloads(of: game).map(\.platform) == [.mac], "the Mac version coming beside the Windows one is Steam for Mac's download")
+        check(held(KeepAwake.downloads(of: game), mac: true, seen: nil, at: 0).names == ["Valheim"], "and holds the Mac awake")
+        game.macPendingStopped = true
+        check(held(KeepAwake.downloads(of: game), mac: true, seen: nil, at: 0).names.isEmpty, "unless it's paused or out of room")
+        game.macPending = nil
+        game.install = .downloading(0.5)
+        game.downloadNeedsSpace = 100
+        check(KeepAwake.downloads(of: game).isEmpty, "waiting for room: nothing being fetched")
+
         print(failures == 0 ? "✓ DownloadRate" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
