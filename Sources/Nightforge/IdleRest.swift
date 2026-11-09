@@ -19,6 +19,12 @@ enum IdleRest {
         return inFront ? 3 : 10
     }
 
+    /// Seconds between two looks at the downloads (their manifests, every tenth a whole scan). A
+    /// paused one stays listed, and nobody reads progress that isn't there: it went on every 3 s all day.
+    static func downloadLookPause(fetching: Bool, nobodyThere: Bool) -> Int {
+        nobodyThere && !fetching ? 30 : 3
+    }
+
     /// Seconds between two looks for Steam for Mac's windows. It went round every second for as long as
     /// Nightforge was open, mostly with no Steam for Mac there; macOS says when one starts, so
     /// this is only for a word that got lost. A test home's stand-in is no app macOS tells about.

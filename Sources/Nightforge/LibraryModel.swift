@@ -814,7 +814,7 @@ final class LibraryModel: ObservableObject {
                     MacIntegration.askIfUndecided()
                 }
                 let pause = Duration.seconds(IdleRest.lookPause(gameEnding: goneFor > 0, gameOrStart: !found.isEmpty || launchingID != nil || GameBackdrop.isRaised,
-                                                                downloading: !downloads.isEmpty, inFront: NSApp.isActive,
+                                                                downloading: KeepAwake.isHolding, inFront: NSApp.isActive,
                                                                 nobodyThere: IdleRest.nobodyThere(idle: InputRouter.secondsSinceUse)))
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
@@ -2595,8 +2595,9 @@ final class LibraryModel: ObservableObject {
     private func watchDownloads() {
         let downloading = allGames.contains { Self.isDownloading($0.install) || Self.isDownloading($0.macPending) }
         guard downloading, downloadWatcher == nil else { return }
+        let pause = IdleRest.downloadLookPause(fetching: KeepAwake.isHolding, nobodyThere: IdleRest.nobodyThere(idle: InputRouter.secondsSinceUse))
         downloadWatcher = Task {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(pause))
             downloadWatcher = nil
             await lookAtDownloads()
         }

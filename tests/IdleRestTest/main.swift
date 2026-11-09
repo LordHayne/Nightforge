@@ -21,6 +21,12 @@ func lookPauses() {
     check(pause(ending: true, game: true, away: true) == 1, "a game that just ended comes first")
 }
 
+func downloadLooks() {
+    check(IdleRest.downloadLookPause(fetching: true, nobodyThere: true) == 3, "one really coming down keeps its pace, nobody there or not")
+    check(IdleRest.downloadLookPause(fetching: false, nobodyThere: false) == 3, "paused with someone there: a resume shows at once")
+    check(IdleRest.downloadLookPause(fetching: false, nobodyThere: true) == 30, "paused and nobody there: it rests")
+}
+
 func windowGuard() {
     check(IdleRest.windowGuardPause(steamRunning: true, testHome: false) == 1, "Steam for Mac there: its windows are watched every second")
     check(IdleRest.windowGuardPause(steamRunning: false, testHome: false) == 30, "none there: macOS says when one starts")
@@ -80,6 +86,7 @@ func wantedAhead() {
 struct IdleRestTest {
     static func main() async {
         lookPauses()
+        downloadLooks()
         windowGuard()
         wakeCatchUp()
         wantedAhead()
