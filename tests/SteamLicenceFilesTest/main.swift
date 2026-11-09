@@ -111,6 +111,18 @@ struct SteamLicenceFilesTest {
         let older = accounts(stamp(200), stamp(100))
         check(SteamLogin.rememberedAccount(steamRoot: older) == first.id && !open(older), "and that one has")
 
+        // A licence not named "eula": localconfig's other lines aren't read, so its answer can't be seen.
+        let namedOtherwise = world()
+        put(users([(first.id, true)]), "config/loginusers.vdf", in: namedOtherwise)
+        put(config(["create_me": 0]), "userdata/\(first.folder)/config/localconfig.vdf", in: namedOtherwise)
+        let unnamed = Entry(id: "create_me", version: 0)
+        check(!open(namedOtherwise, [unnamed]), "answered or not, no word about it")
+        check(open(namedOtherwise, [unnamed, Entry(id: licence, version: 0)]), "a licence that can be looked up still counts")
+        check(SteamLicenceFiles.openInConfig(entries: [unnamed], steamRoot: namedOtherwise) == nil, "the record can't tell")
+        check(SteamLicenceFiles.openInConfig(entries: [unnamed, Entry(id: licence, version: 0)], steamRoot: namedOtherwise) == nil,
+              "nor with another beside it: that one answered wouldn't mean this one is")
+        check(SteamLicenceFiles.openInConfig(entries: [Entry(id: licence, version: 0)], steamRoot: namedOtherwise) == true, "one it can")
+
         let lower = world()
         put(users([(second.id, true)], key: "mostrecent"), "config/loginusers.vdf", in: lower)
         put(config([licence: 0]), "userdata/\(second.folder)/config/localconfig.vdf", in: lower)
