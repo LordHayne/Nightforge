@@ -73,7 +73,7 @@ final class InputRouter {
             let plain = event.modifierFlags.intersection([.command, .control, .option]).isEmpty
             let command = event.modifierFlags.intersection([.command, .control, .option]) == .command
             let handled = MainActor.assumeIsolated {
-                if command, chars.lowercased() == "f" {
+                if command, chars.lowercased() == "f", self?.curtainCovers != true {
                     self?.model?.focusSearch()
                     return true
                 }
@@ -83,7 +83,7 @@ final class InputRouter {
                     return true
                 }
                 // ⌘⌫ like "Move to Trash" in Finder – asks before removing anything.
-                if command, code == 51, NSApp.keyWindow?.firstResponder is NSText == false {
+                if command, code == 51, self?.curtainCovers != true, NSApp.keyWindow?.firstResponder is NSText == false {
                     self?.model?.requestUninstall()
                     return true
                 }
@@ -144,6 +144,9 @@ final class InputRouter {
     /// front – nowhere, as they belong to the game.
     private enum Reach { case app, overlay, none }
 
+    /// The curtain lies over the levels (PadRules.curtainCovers): nothing under it is reached.
+    private var curtainCovers: Bool { PadRules.curtainCovers(raised: GameBackdrop.isRaised, overlay: GameOverlay.isOpen) }
+
     private var reach: Reach {
         if GameOverlay.isOpen { return .overlay }
         return NSApp.isActive ? .app : .none
@@ -171,6 +174,12 @@ final class InputRouter {
             }
             return false
         }
+        // On the curtain as with the pad's B (PadRules.back): calling the start off here only stops
+        // Nightforge's wait, Steam starts the game anyway, without a curtain.
+        if curtainCovers {
+            if code == 53, model.curtainEscapeOpen { model.askAboutStuckStart() }
+            return true
+        }
         if model.quickMenu != nil || model.launcherMenuOpen { return handleMenuKey(code, in: window, model) }
         if window.firstResponder is NSText { return false }
         if model.showsLauncherCards, handleCardKey(code, in: window, model) { return true }
@@ -192,12 +201,6 @@ final class InputRouter {
             if model.lightbox != nil { model.lightbox = nil; return true }
             if model.showingDownloads { model.showingDownloads = false; return true }
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
-            // On the curtain as with the pad's B (PadRules.back): calling the start off here only
-            // stops Nightforge's wait, Steam starts the game anyway, without a curtain.
-            if GameBackdrop.isRaised {
-                if model.curtainEscapeOpen { model.askAboutStuckStart() }
-                return true
-            }
             if model.awaitingSteam { model.cancelLaunch(); return true }
             if model.back() { return true }
             // Nothing to go back from: Esc leaves full screen, as in macOS's.
@@ -512,7 +515,7 @@ final class InputRouter {
                     self?.model?.signInPrimary()
                     return
                 }
-                guard self?.reach != Reach.none else { return }
+                guard self?.reach != Reach.none, self?.curtainCovers != true else { return }
                 self?.feel(.confirm, on: pad?.controller)
                 // The overlay has A to itself, not the big screenshot under it.
                 if self?.reach != .overlay, self?.model?.lightbox != nil, self?.dialog == nil {
@@ -738,7 +741,7 @@ final class InputRouter {
         defer { viewChorded = false }
         guard let model, reach == .app, model.signingIn == nil else { return }
         let others = dialog != nil || model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
-            || keyboardHasPad
+            || keyboardHasPad || curtainCovers
         switch PadRules.viewButton(menuOpen: model.launcherMenuOpen, levelsFree: !others && reach == .app,
                                    firstStart: model.showsFirstStart, cards: model.showsLauncherCards, chorded: viewChorded) {
         case .open: model.openLauncherMenu(byPad: true)
@@ -1084,11 +1087,12 @@ final class InputRouter {
     }
 
     /// Something over the main window's levels that keeps the pad: the downloads panel, a chip's list,
-    /// a game's quick menu, a big screenshot, the launcher menus, a store's sign-in.
+    /// a game's quick menu, a big screenshot, the launcher menus, a store's sign-in, the curtain.
     private var panelOpen: Bool {
         guard let model else { return false }
         return model.showingDownloads || model.libraryMenu != nil || model.quickMenu != nil || model.lightbox != nil
             || model.launcherMenuOpen || model.showsLauncherCards || model.signingIn != nil || model.padKeyboard != nil
+            || curtainCovers
     }
 
     /// The key window when its controls are on PadFocus's map (options, settings, setup sheets).
@@ -1125,7 +1129,7 @@ final class InputRouter {
     /// for reading, fast for a long page), 60 times a second while it's held.
     private func scrollWithStick(_ y: Float) {
         // In a game or over the overlay the stick isn't Nightforge's.
-        stickScroll = reach == .app && model?.padKeyboard == nil ? Self.stickSpeed(y) : 0
+        stickScroll = reach == .app && model?.padKeyboard == nil && !curtainCovers ? Self.stickSpeed(y) : 0
         guard stickScroll != 0 else {
             stickRows = 0
             stickScrollTimer?.invalidate()
@@ -1210,6 +1214,7 @@ final class InputRouter {
     @discardableResult
     private func perform(_ step: Step) -> Bool {
         guard let model else { return false }
+        if curtainCovers { return true }  // a direction held as the curtain comes stops here
         if model.signingIn != nil { return false }  // the store's page has nothing for the pad
         // A screenshot shown big: left and right go through the others.
         if model.lightbox != nil, padWindow == nil || padWindow === Self.mainWindow {

@@ -79,6 +79,11 @@ enum PadRules {
         inFront && !sheet && !panel
     }
 
+    /// The curtain is up over Nightforge's levels. Nightforge often still is the active app then, until the
+    /// game takes the front: a start's first seconds, or minutes of Steam updating it. What's under the
+    /// curtain can't be seen, so it isn't reached either, as with B (`back`). The overlay over it has the pad.
+    static func curtainCovers(raised: Bool, overlay: Bool) -> Bool { raised && !overlay }
+
     /// Home in three parts, top to bottom: the top bar, the games (no highlight), the game's buttons.
     /// From the games ↓ enters the buttons and ↑ the top bar; nil: the step moves the games.
     static func homeEntry(dy: Int) -> PadZone? {

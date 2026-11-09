@@ -13,6 +13,23 @@ struct PadRulesTest {
         }
     }
 
+    /// The curtain up, Nightforge still the active app: nothing under it is reached, by pad or keyboard.
+    static func curtain() {
+        check(PadRules.curtainCovers(raised: true, overlay: false), "the curtain covers the levels")
+        check(!PadRules.curtainCovers(raised: false, overlay: false), "no curtain: nothing to cover them")
+        check(!PadRules.curtainCovers(raised: true, overlay: true), "the overlay over it has the pad")
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? ""
+        func has(_ text: String, _ what: String) { check(source.contains(text), what) }
+        has("guard self?.reach != Reach.none, self?.curtainCovers != true else { return }", "A presses nothing under the curtain")
+        has("|| model.launcherMenuOpen || model.showsLauncherCards || model.signingIn != nil || model.padKeyboard != nil\n            || curtainCovers",
+            "X, Y, ☰, L1, R1, L2 and R2 count it as something open")
+        has("if curtainCovers { return true }  // a direction held", "the d-pad and the stick stop at it")
+        has("|| keyboardHasPad || curtainCovers", "⧉ too")
+        has("model?.padKeyboard == nil && !curtainCovers ? Self.stickSpeed(y)", "and the right stick's scrolling")
+        has("if code == 53, model.curtainEscapeOpen { model.askAboutStuckStart() }", "keys: Esc is the way out")
+        has("if command, code == 51, self?.curtainCovers != true", "⌘⌫ removes nothing unseen")
+    }
+
     /// Player numbers (PlayerSlots): nothing here touches a real controller.
     static func players() {
         var slots = PlayerSlots<String>()
@@ -124,6 +141,7 @@ struct PadRulesTest {
         check(!PadRules.actsOnGames(inFront: true, sheet: false, panel: true), "not behind the downloads panel, a list or a big screenshot")
         check(!PadRules.actsOnGames(inFront: true, sheet: true, panel: false), "not behind a sheet")
         check(!PadRules.actsOnGames(inFront: false, sheet: false, panel: false), "not with a game in front")
+        curtain()
 
         // Home: ↓ to the game's buttons, ↑ to the top bar, sideways the games; back the way it came.
         check(PadRules.homeEntry(dy: 1) == .game, "down on Home: the game's buttons, not the library")
