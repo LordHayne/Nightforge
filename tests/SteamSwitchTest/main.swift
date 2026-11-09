@@ -406,6 +406,14 @@ struct SteamSwitchTest {
         turn.macGivesAccountBack()
         check(!turn.macHasAccount && !Engine.windowsSteamHeldBack, "handed back, the Windows Steam may come")
 
+        // Every way out of a Mac version's start without a game: nothing's end would hand the account back, and from then on
+        // no background start of the Windows Steam comes, until the next Windows game.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        let mac = model.components(separatedBy: "private func launchMac(").dropFirst().first?.components(separatedBy: "\n    }\n").first ?? ""
+        check(mac.contains("makeWayForMac"), "launchMac still takes the account")
+        check(mac.range(of: "defer {[^}]*macGivesAccountBack", options: .regularExpression) != nil, "and hands it back when no game came of it")
+        check(mac.contains("gameStarted = true"), "but not from a game that runs: that one's end does")
+
         // MARK: The first start
         check(MacSteamPrep.decide(macAccount: nil, windowsAccount: "1", macVersions: 12) == .signIn, "Mac versions: the second code")
         check(MacSteamPrep.decide(macAccount: nil, windowsAccount: "1", macVersions: 0) == .notNeeded, "none: no second code")

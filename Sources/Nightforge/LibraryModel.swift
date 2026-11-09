@@ -3359,7 +3359,12 @@ final class LibraryModel: ObservableObject {
         let behavior = Prefs.afterLaunch
         let arguments = GameOptionsStore.load(game.gameID).extraArgs.trimmingCharacters(in: .whitespaces)
         launchTask = Task {
-            defer { endLaunch(number) }
+            var gameStarted = false
+            defer {
+                endLaunch(number)
+                // No game came of it (failed, called off, the player went back): nothing's end will hand the account back.
+                if !gameStarted, !macSteamBusy { steamSwitch.macGivesAccountBack() }
+            }
             // The curtain at once: the Steams changing over took 9–27 s behind Nightforge's page, with
             // Steam's windows coming up (8.11.). It says what's happening, and goes for what the player
             // has to answer (`steamAsks`).
@@ -3448,7 +3453,7 @@ final class LibraryModel: ObservableObject {
                 errorMessage = L10n.t("Steam didn't respond, so %@ didn't start. Please try again.", game.name)
                 return
             case .processSeen, .steamSaysRunning:
-                break
+                gameStarted = true
             }
             launchingID = nil
             SteamPriority.watch(game)
