@@ -4,6 +4,48 @@ Stand 31.10.2026. Gemessen auf `claude/ux-roadmap-next` 159acfa (GOG gemergt), d
 aufsetzt. Zum Vergleich steht auch 001a3e0 da, der Stand vor dem GOG-Merge. Die Prozentzahlen sind Zeilenabdeckung
 laut `llvm-cov`.
 
+## Stand 9.11.2026, vierte Runde (0.3.3, auf `claude/staging-033` 1e6ed95)
+
+Volllauf mit `scripts/coverage.sh -P 2` vorher und nachher. Alle 112 Reihen grün, je Reihe am Exit-Code abgelesen, aus einem
+Checkout im Scratchpad (wegen `DetachedProcessTest`). Kein Live-Test.
+
+| | vorher | nachher |
+|---|---|---|
+| Zeilen | 36,76 % | 36,92 % |
+| Funktionen | 50,06 % | 50,40 % |
+| Regionen | 47,45 % | 47,70 % |
+
+Die Prozente bewegen sich kaum: Die neuen Regeln (`SteamLicence`, `DownloadStanding`, `DownloadProof`, `CurtainEscape`,
+`PointerParking`, `PadPointerRules`) waren schon getestet. Die Runde hat ihre Ränder geprüft: echte Dateien, Zufallsfolgen,
+beliebige Stückelung wachsender Logs.
+
+### Gefundene Fehler, beide behoben
+
+| Commit | Fehler | Wie gefunden |
+|---|---|---|
+| 29dffaf | `BytesDownloaded "nan"` in einem Manifest: `Double("nan")` ist eine Zahl, `UpdateState.fraction` wird NaN, `Int(fraction * 100)` auf der Karte stürzt ab. | `DownloadProofFuzzTest` |
+| 1e39d2a | Ein Mac-Start ohne Spiel (fehlgeschlagen, abgebrochen, B) gab Steams Konto nicht zurück. Hintergrundstarts der Windows-Steam, auch das Aufwachen, taten bis zum nächsten Windows-Spiel nichts. | Lesen; Regel in `SteamSwitchTest` |
+
+### Neue Reihen und Fälle
+
+- `SteamLicenceFilesTest`: ein erfundener Steam-Ordner: was vor dem Start offen ist, beschädigte Dateien, das Log-Ende, das Ja in beliebigen Stücken, dasselbe für `LaunchWatcher`.
+- `DownloadProofFuzzTest`: Ring, Panel und Beweiszeile unter Zufall; die fünf Minuten von `KeepAwake.held` über die Zeit; beschädigte Zahlen.
+- `PointerRulesFuzzTest`: Parken, Fenster über dem Spiel, wer den Zeiger bekommt, Stick.
+- `CurtainKeeperTest`: nie unter einem Besitzer weg, nie zu früh, nicht lange zu spät. `ModelFlowsTest`: die Pad-Tastatur durch das echte Modell.
+
+18 absichtlich eingebaute Fehler, je einzeln im Scratch-Checkout: alle 18 wurden rot, jeweils durch einen Test und nicht durch einen Übersetzungsfehler.
+
+### Beobachtet, nicht geändert
+
+- `SteamLicence.accepted` liest nur Zeilen mit „eula“. Eine Lizenz, deren ID das Wort nicht enthält, gälte immer als offen, und der Vorhang kündigte sie bei jedem Start an. In den 12 gemessenen Schlüsseln kam das nicht vor.
+- `SteamLicenceFiles` kennt nur `MostRecent`; `SteamSwitch.rememberedAccount` fällt auf `AutoLogin` und den neuesten Zeitstempel zurück. Bei zwei Konten ohne Marke sagt der Vorhang dann nichts (ausdrücklich gewollt: „nothing is announced“).
+- `Engine.uninstall` startet die Windows-Steam im Hintergrund neu; während eines Mac-Spiels hält `holdsBack` das zurück, und sie kommt erst über `windowsStopped` oder das nächste Windows-Spiel zurück.
+- `SteamSwitchTest` prüft, dass das Log der echten Steam for Mac unberührt bleibt, und wird rot, wenn der Nutzer währenddessen Steam benutzt (8.11. einmal gesehen): Umgebung, kein Fehler.
+
+### Was bleibt
+
+Fast alle ungetesteten Zeilen sind Abläufe mit dem System oder Ansichten: `launch`, `start`, `launchMac`, `waitForMacStart`, `watchCurtain`, `watchStage`, `InputRouter`, `GameBackdrop`, `SettingsView`. Die reinen Regeln daneben sind weitgehend abgedeckt; viele vermeintliche Lücken in `GameProcesses` sind nur die dünnen Hüllen um `CGWindowList`. Mehr Prozente brächte erst ein Ersatz für Prozessliste und Fensterliste im Modell.
+
 ## Stand 8.11.2026, dritte Runde (0.3.3, auf `claude/staging-033` 365f393)
 
 | | vorher | nachher |
