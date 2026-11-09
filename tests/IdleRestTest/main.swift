@@ -21,10 +21,17 @@ func lookPauses() {
     check(pause(ending: true, game: true, away: true) == 1, "a game that just ended comes first")
 }
 
+func windowGuard() {
+    check(IdleRest.windowGuardPause(steamRunning: true, testHome: false) == 1, "Steam for Mac there: its windows are watched every second")
+    check(IdleRest.windowGuardPause(steamRunning: false, testHome: false) == 30, "none there: macOS says when one starts")
+    check(IdleRest.windowGuardPause(steamRunning: false, testHome: true) == 1, "a test home's stand-in is no app macOS tells about")
+}
+
 @main
 struct IdleRestTest {
     static func main() async {
         lookPauses()
+        windowGuard()
         if failures > 0 {
             print("\(failures) failed")
             exit(1)

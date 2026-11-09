@@ -18,4 +18,11 @@ enum IdleRest {
         if nobodyThere, !downloading { return 30 }
         return inFront ? 3 : 10
     }
+
+    /// Seconds between two looks for Steam for Mac's windows. It went round every second for as long as
+    /// Nightforge was open, mostly with no Steam for Mac there; macOS says when one starts, so
+    /// this is only for a word that got lost. A test home's stand-in is no app macOS tells about.
+    static func windowGuardPause(steamRunning: Bool, testHome: Bool) -> Int {
+        steamRunning || testHome ? 1 : 30
+    }
 }

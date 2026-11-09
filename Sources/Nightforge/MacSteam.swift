@@ -412,6 +412,12 @@ enum MacSteam {
     /// not even then while the first start holds it back.
     @MainActor
     static func guardWindows() async {
+        // Steam coming up ends the wait at once, however long it is.
+        let launched = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { note in
+            guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == bundleID else { return }
+            MainActor.assumeIsolated { guardNap?.cancel() }
+        }
+        defer { NSWorkspace.shared.notificationCenter.removeObserver(launched) }
         while !Task.isCancelled {
             // By a window on screen for the web view: it may not be hideable at all, and then
             // `waitingForPlayer` (two logs read) would run every second for nothing.
@@ -419,9 +425,13 @@ enum MacSteam {
             if shows, !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
                 hide()
             }
-            try? await Task.sleep(for: .seconds(1))
+            let pause = IdleRest.windowGuardPause(steamRunning: isRunning, testHome: isTestHome)
+            guardNap = Task { try? await Task.sleep(for: .seconds(pause)) }
+            await guardNap?.value
         }
     }
+
+    @MainActor private static var guardNap: Task<Void, Never>?
 
     /// Steam waits for the player: a question before a game starts ("waiting for user response"
     /// in its console log), a cloud sync it couldn't finish, or its sign-in window.
