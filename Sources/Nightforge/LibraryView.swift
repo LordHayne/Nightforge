@@ -103,6 +103,8 @@ struct LibraryView: View {
                     .transition(.opacity)
             }
 
+            DarkProofLine()
+
             // Not for the pad: what a message offers is also where it belongs (Home, the library, the downloads).
             ToastHost()
                 .padReachable(false)

@@ -232,6 +232,10 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var updating = false
     /// Plugged in or on battery (for the top bar and "Save battery when unplugged").
     @Published private(set) var power = PowerSource.current()
+    /// What the ring and the Downloads panel say about the Mac.
+    @Published private(set) var downloadStanding: DownloadStanding = .silent
+    /// What the last scan found to keep the Mac awake for, and whether anything can be fetching it.
+    private var keptAwakeFor: (downloads: [KeepAwake.Download], fetching: Bool) = ([], false)
     /// Plugged in, but the charger is too weak for games (3.5).
     @Published private(set) var chargerWarning: ChargerCheck.Warning?
     private var chargerCheck = ChargerCheck()
@@ -379,6 +383,11 @@ final class LibraryModel: ObservableObject {
             return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
         }
         GameBackdrop.frontMoved = { [weak self] front in self?.frontMoved(to: front) }
+        DarkWatch.shared.begin(with: self)
+        // A screen plugged in or pulled: whether the lid matters changes with it.
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshDownloadStanding() }
+        }
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -781,7 +790,10 @@ final class LibraryModel: ObservableObject {
                     input.refreshBattery()
                 }
                 let reading = PowerSource.reading()
-                if reading.source != power { power = reading.source }
+                if reading.source != power {
+                    power = reading.source
+                    refreshDownloadStanding()
+                }
                 IdleAwake.apply(IdleAwake.holds(minutes: Prefs.keepAwakeMinutes, onBattery: reading.source.onBattery, idle: InputRouter.secondsSinceUse),
                                 reason: L10n.t("Nightforge keeps the Mac awake for a while, as set in its settings"))
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
@@ -789,6 +801,7 @@ final class LibraryModel: ObservableObject {
                 await lookAtSteamOnDemand()
                 offerFullScreenIfDue()
                 input.takeHomeButton()
+                DarkWatch.shared.look()
                 let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
@@ -2362,7 +2375,7 @@ final class LibraryModel: ObservableObject {
 
     /// A scan the caller waits for, one at a time like any other. Past `reload`, it ran beside a scan under way, and
     /// whichever ended first let a third begin.
-    private func scanInLine() async {
+    func scanInLine() async {
         while scanInFlight { try? await Task.sleep(for: .milliseconds(50)) }
         scanInFlight = true
         await rescan()
@@ -2392,7 +2405,11 @@ final class LibraryModel: ObservableObject {
         if !finished.isEmpty || !spaceLooked { refreshLowSpace() }
         applyFilter()
         MacIntegration.announceFinished(finished)
-        KeepAwake.update(downloading: KeepAwake.fetched(found.flatMap(KeepAwake.downloads(of:))))
+        let toFetch = found.flatMap(KeepAwake.downloads(of:))
+        let fetched = KeepAwake.fetched(toFetch)
+        KeepAwake.update(downloading: fetched)
+        keptAwakeFor = (toFetch, !fetched.isEmpty)
+        refreshDownloadStanding()
         if downloads.isEmpty && move == nil { showingDownloads = false }
         MacIntegration.libraryLoaded()
         if let game = finished.first {
@@ -2507,6 +2524,15 @@ final class LibraryModel: ObservableObject {
             rates[game.gameID] = rate
         }
         if rates != downloadRates { downloadRates = rates }
+    }
+
+    func refreshDownloadStanding() {
+        let listed = !downloads.isEmpty
+        let displays = listed ? DownloadStanding.onlineDisplays() : (builtIn: false, external: false)
+        let standing = DownloadStanding.of(listed: listed, fetching: keptAwakeFor.fetching, holding: KeepAwake.isHolding, downloads: keptAwakeFor.downloads,
+                                           lidMatters: DownloadStanding.lidMatters(hasBattery: power.level != nil, builtInDisplay: displays.builtIn,
+                                                                                   externalDisplay: displays.external, onBattery: power.onBattery))
+        if standing != downloadStanding { downloadStanding = standing }
     }
 
     /// While Steam downloads something, a look every few seconds for progress.

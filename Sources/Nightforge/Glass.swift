@@ -123,8 +123,11 @@ struct GlassTextButtonStyle: ButtonStyle {
 /// A button inside a shared piece of glass (the top bar's downloads, rescan and settings): no glass of
 /// its own, a light capsule under the pointer.
 struct GlassGroupButtonStyle: ButtonStyle {
+    /// As wide as its label (the downloads ring with its word), instead of the usual round size.
+    var wide = false
+
     func makeBody(configuration: Configuration) -> some View {
-        GlassGroupButton(label: configuration.label, pressed: configuration.isPressed)
+        GlassGroupButton(label: configuration.label, pressed: configuration.isPressed, wide: wide)
     }
 }
 
@@ -179,13 +182,15 @@ struct GlassDivider: View {
 private struct GlassGroupButton<Label: View>: View {
     let label: Label
     let pressed: Bool
+    var wide = false
     @State private var hovering = false
     @Environment(\.reduceMotion) private var reduceMotion
 
     var body: some View {
         label
             .foregroundStyle(Theme.ink.opacity(hovering ? 1 : 0.9))
-            .frame(width: 36, height: 30)
+            .padding(.horizontal, wide ? 7 : 0)
+            .frame(width: wide ? nil : 36, height: 30)
             .background(Capsule().fill(.white.opacity(hovering ? 0.15 : 0)))
             .contentShape(Capsule())
             .scaleEffect(pressed && !reduceMotion ? 0.9 : 1)

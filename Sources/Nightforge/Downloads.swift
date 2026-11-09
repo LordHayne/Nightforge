@@ -7,6 +7,8 @@ import SwiftUI
 enum KeepAwake {
     private static var assertion: IOPMAssertionID = 0
     private static var holding = false
+    /// Whether the Mac is really being held awake right now (DownloadStanding says so only then).
+    static var isHolding: Bool { holding }
 
     /// Whether anything can be fetching this game now. A download counts by what its store left on disk, and
     /// that stays when the store isn't running: the Mac then never slept for as long as Nightforge was open,
@@ -96,26 +98,33 @@ enum KeepAwake {
 /// got and how many there are (D).
 struct DownloadsButton: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var tv = TVLayout.shared
 
     var body: some View {
         let downloads = model.downloads
         let count = downloads.count + (model.move == nil ? 0 : 1)
+        let standing = model.downloadStanding
+        let ring = ringView(count: count, fraction: Self.progress(downloads, move: model.move), resting: standing.mayDoze)
         Button { model.showingDownloads.toggle() } label: {
-            ZStack {
-                Circle().stroke(Color.white.opacity(0.15), lineWidth: 2.5)
-                Circle()
-                    .trim(from: 0, to: max(0.03, Self.progress(downloads, move: model.move)))
-                    .stroke(Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text("\(count)")
-                    .font(size: 10, weight: .bold, scales: false).monospacedDigit()
-                    .foregroundStyle(Theme.ink)
+            // The word goes first when the bar is tight; the panel has the whole sentence.
+            ViewThatFits(in: .horizontal) {
+                if let word = standing.ringWord {
+                    HStack(spacing: 7) {
+                        ring
+                        Text(word)
+                            .font(size: tv.isOn ? 18 : 12, weight: .semibold, scales: !tv.isOn)
+                            .foregroundStyle(standing == .awakeLidOpen ? Theme.sodium : standing.mayDoze ? Theme.muted : Theme.ink)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                ring
             }
-            .frame(width: 22, height: 22)
         }
-        .buttonStyle(GlassGroupButtonStyle())
+        .buttonStyle(GlassGroupButtonStyle(wide: standing.ringWord != nil))
         .help(count == 1 ? L10n.t("1 download (D)") : L10n.t("%ld downloads (D)", count))
-        .accessibilityLabel(count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", count))
+        .accessibilityLabel([count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", count), standing.ringWord]
+            .compactMap { $0 }.joined(separator: ", "))
         // With the pad, the highlight goes into the panel it opens.
         .padFocus("top.downloads", cornerRadius: 15, activate: {
             if model.showingDownloads { model.closeDownloads() } else {
@@ -123,6 +132,20 @@ struct DownloadsButton: View {
                 PadFocus.shared.focus("downloads.close")
             }
         })
+    }
+
+    private func ringView(count: Int, fraction: Double, resting: Bool) -> some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.15), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: max(0.03, fraction))
+                .stroke(resting ? Theme.ink.opacity(0.34) : Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(count)")
+                .font(size: 10, weight: .bold, scales: false).monospacedDigit()
+                .foregroundStyle(Theme.ink)
+        }
+        .frame(width: 22, height: 22)
     }
 
     static func progress(_ downloads: [Game], move: GameMove? = nil) -> Double {
@@ -170,11 +193,12 @@ struct DownloadsPanel: View {
             ForEach(model.downloads) { game in
                 row(game)
             }
-            if !model.downloads.isEmpty {
+            if let sentence = model.downloadStanding.sentence {
                 Rectangle().fill(.white.opacity(0.1)).frame(height: 1)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: "moon.zzz")
-                    Text(L10n.t("Your Mac stays awake while games download. The display can still turn off."))
+                    Image(systemName: sentence.symbol)
+                        .foregroundStyle(sentence.action == nil ? Theme.muted : Theme.sodium)
+                    Text(Self.styled(sentence))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(size: 12)
@@ -186,6 +210,31 @@ struct DownloadsPanel: View {
         .frame(width: 380 * textScale)  // grows with the text, so the names keep their room
         .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 24, style: .continuous)))
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    /// What matters stands out: a store that's gone, and the one thing the player has to do.
+    private static func styled(_ sentence: DownloadStanding.Sentence) -> AttributedString {
+        var text = AttributedString()
+        if let lead = sentence.lead {
+            var part = AttributedString(lead + " ")
+            part.foregroundColor = Theme.ink
+            part.inlinePresentationIntent = .stronglyEmphasized
+            text += part
+        }
+        text += AttributedString(sentence.text)
+        if let action = sentence.action {
+            var part = AttributedString(" " + action)
+            part.foregroundColor = Theme.sodium
+            part.inlinePresentationIntent = .stronglyEmphasized
+            text += part
+        }
+        return text
+    }
+
+    /// Nothing is coming down for this game: the row says so and its bar goes grey.
+    private func resting(_ game: Game) -> Bool {
+        if case .storeStopped = model.downloadStanding { return true }
+        return game.downloadPaused
     }
 
     private func row(_ game: Game) -> some View {
@@ -201,7 +250,7 @@ struct DownloadsPanel: View {
                         StoreBadge(store: game.provider.label)
                     }
                 }
-                DownloadBar(fraction: fraction(game))
+                DownloadBar(fraction: fraction(game), resting: resting(game))
                 statusLines(line(game))
             }
             if model.canUninstall(game) {
@@ -281,8 +330,10 @@ struct DownloadsPanel: View {
     /// "37 % of 12 GB" and "12 MB/s · 25 min left" – as much as is known.
     private func line(_ game: Game) -> (progress: String, speed: String?) {
         if game.downloadNeedsSpace != nil { return (L10n.t("Paused – not enough space"), nil) }
-        guard case .downloading(let fraction?) = game.install else { return (L10n.t("Preparing …"), nil) }
-        return Self.status(fraction: fraction, total: game.sizeOnDisk, rate: model.downloadRates[game.gameID])
+        let rest = resting(game) ? (game.downloadPaused ? L10n.t("Paused") : L10n.t("Stopped")) : nil
+        guard case .downloading(let fraction?) = game.install else { return (rest ?? L10n.t("Preparing …"), nil) }
+        let status = Self.status(fraction: fraction, total: game.sizeOnDisk, rate: model.downloadRates[game.gameID])
+        return rest.map { ($0, status.progress) } ?? status
     }
 
     /// "37 % of 12 GB" (or "37 %" while the size isn't known), and the speed and time left once
@@ -316,6 +367,7 @@ private struct DownloadCover: View {
 /// A thin sodium bar; without a known share, a short piece sweeps across while Steam prepares.
 private struct DownloadBar: View {
     let fraction: Double?
+    var resting = false
     @State private var sweep = false
     @Environment(\.reduceMotion) private var reduceMotion
 
@@ -324,10 +376,10 @@ private struct DownloadBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.1))
                 if let fraction {
-                    Capsule().fill(Theme.sodium)
+                    Capsule().fill(resting ? Theme.ink.opacity(0.34) : Theme.sodium)
                         .frame(width: max(5, geo.size.width * fraction))
                         .animation(.easeOut(duration: 0.5), value: fraction)
-                } else {
+                } else if !resting {  // nothing moves while nothing is coming down
                     Capsule().fill(Theme.sodium.opacity(0.7))
                         .frame(width: geo.size.width * 0.25)
                         .offset(x: sweep ? geo.size.width * 0.75 : 0)
