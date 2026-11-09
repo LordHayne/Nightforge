@@ -4710,7 +4710,16 @@ final class LibraryModel: ObservableObject {
 
                 // The first start with this way: is the game still there after its first seconds? Not known
                 // (no process list): nothing learned either way – only a picture confirms it then (confirmOnceDrawing).
-                if await survivesFirstSeconds(game, logMark: logMark, layer: layer, startedAt: startedAt) != .ended {
+                var firstSeconds = await survivesFirstSeconds(game, logMark: logMark, layer: layer, startedAt: startedAt)
+                // A way not proven yet hasn't started until there's a picture. Not for what starts through another
+                // launcher or with an anti-cheat, whose hand-overs and sign-ins take as long as they take.
+                var noPicture: String?
+                if firstSeconds == .survived, automatic, !attempts.isEmpty, !wayConfirmed, !GameTest.active,
+                   analysis?.launcher == nil, analysis?.antiCheat.isEmpty != false {
+                    noPicture = await waitForPicture(game, logMark: logMark, startedAt: startedAt)
+                    if noPicture != nil { firstSeconds = .ended }
+                }
+                if firstSeconds != .ended {
                     if judging?.id == game.id { judging = nil }  // its end is a session's like any other
                     confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
@@ -4813,7 +4822,7 @@ final class LibraryModel: ObservableObject {
                     GameLog.crashMessages(installDir: installDir, since: startedAt)
                 }.value
                 if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
-                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first)
+                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture)
                 if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts)) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
@@ -5261,12 +5270,7 @@ final class LibraryModel: ObservableObject {
                 }.value
                 if crashed {
                     GameLog.note("\(game.name) left a crash report in its first seconds, at \(GameLog.clock())")
-                    for _ in 0..<15 {
-                        let rest = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
-                        guard case .running(let pid) = rest, !Task.isCancelled else { break }
-                        kill(pid, SIGTERM)
-                        try? await Task.sleep(for: .seconds(1))
-                    }
+                    await endWhatsLeft(of: game, folders: folders)
                     return .ended
                 }
             }
@@ -5282,6 +5286,53 @@ final class LibraryModel: ObservableObject {
             }
         }
         return watch.verdictAtEnd
+    }
+
+    /// Ends what's left of a start that failed. Steam has to see it gone before the next way can start.
+    private func endWhatsLeft(of game: Game, folders: [String: String]) async {
+        for _ in 0..<15 {
+            let rest = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
+            guard case .running(let pid) = rest, !Task.isCancelled else { return }
+            kill(pid, SIGTERM)
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    /// Waits for the first picture of a way not proven yet. Nil once there is one, or the wait is called off;
+    /// otherwise why it didn't start: gone without one, or hung (PictureWatch).
+    private func waitForPicture(_ game: Game, logMark: UInt64, startedAt: Date) async -> String? {
+        let installDir = game.installDir
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        let folders = Self.processFolders([game])
+        let programs = await Task.detached(priority: .utility) { Set(Engine.executables(in: installDir)) }.value
+        var watch = PictureWatch()
+        var absent = 0
+        while true {
+            try? await Task.sleep(for: .seconds(5))
+            if Task.isCancelled { return nil }
+            if LaunchHealth.showedPicture(game.gameID, since: startedAt) { return nil }
+            let seen = await Task.detached(priority: .utility) {
+                let pids = GameProcesses.lookup().freshValue.map { GameProcesses.targets(windows: marker, mac: folder, in: $0) } ?? []
+                return (log: GameLog.text(since: logMark), presence: GameProcesses.presence(of: game.id, folders: folders),
+                        window: GameProcesses.windowSize(Set(pids)), cpu: GameProcesses.cpuSeconds(pids))
+            }.value
+            if LaunchHealth.drewFrames(in: seen.log, programs: programs) || PictureWatch.isPicture(windowSize: seen.window) { return nil }
+            if case .running = seen.presence { firstSecondsRunning[game.id] = Date() }
+            absent = seen.presence == .gone ? absent + 1 : 0
+            if absent >= 2 {  // two looks: a launcher handing over leaves a shorter gap
+                GameLog.note("\(game.name) ended without a picture, at \(GameLog.clock())")
+                return "ended without a picture"
+            }
+            let asked = windowsQuestion?.id == game.id || launchNeedsConfirmation || saveChoice != nil
+                || (GameOverlay.isOpen && !GameOverlay.asksAboutStart)
+            if watch.look(span: 5, cpu: seen.cpu, playerAsked: asked) == .hung {
+                GameLog.note("\(game.name) shows no picture and doesn't get anywhere: the next way, at \(GameLog.clock())")
+                if GameOverlay.asksAboutStart { GameOverlay.close() }
+                await endWhatsLeft(of: game, folders: folders)
+                return "hung without a picture"
+            }
+        }
     }
 
     /// What a game's files reveal (read once per game and app run) and the ways to start it.

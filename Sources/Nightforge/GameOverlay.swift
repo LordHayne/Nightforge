@@ -720,6 +720,20 @@ enum GameProcesses {
         return pids.max { resident($0) < resident($1) }
     }
 
+    /// The processor time `pids` have used so far, in seconds; nil with none to ask.
+    nonisolated static func cpuSeconds(_ pids: [pid_t]) -> TimeInterval? {
+        guard !pids.isEmpty else { return nil }
+        var timebase = mach_timebase_info()
+        mach_timebase_info(&timebase)
+        let size = Int32(MemoryLayout<proc_taskinfo>.size)
+        var ticks: UInt64 = 0
+        for pid in pids {
+            var info = proc_taskinfo()
+            if proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &info, size) == size { ticks &+= info.pti_total_user &+ info.pti_total_system }
+        }
+        return Double(ticks) * Double(timebase.numer) / Double(max(timebase.denom, 1)) / 1_000_000_000
+    }
+
     /// When a process started; nil for one that's gone.
     nonisolated static func started(_ pid: pid_t) -> Date? {
         var info = proc_bsdinfo()

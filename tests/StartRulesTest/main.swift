@@ -186,6 +186,37 @@ struct StartRulesTest {
         check(!Engine.steamHadTimeToHang(began: began, quietFor: 45, now: began.addingTimeInterval(25)), "25 s after its start, quiet logs are the last session's")
         check(Engine.steamHadTimeToHang(began: began, quietFor: 45, now: began.addingTimeInterval(45)), "after 45 s they say something")
 
+        // MARK: No picture means it didn't start (It Takes Two, 9.11.2026)
+        var quiet = PictureWatch()
+        var cpu: TimeInterval = 10
+        func run(_ watch: inout PictureWatch, seconds: Int, cpuPerLook: TimeInterval, asked: Bool = false) -> PictureWatch.Step {
+            var last = PictureWatch.Step.wait
+            for _ in stride(from: 0, to: seconds, by: 5) where last == .wait {
+                cpu += cpuPerLook
+                last = watch.look(span: 5, cpu: cpu, playerAsked: asked)
+            }
+            return last
+        }
+        check(run(&quiet, seconds: 85, cpuPerLook: 0) == .wait, "85 s of nothing: still waiting")
+        check(run(&quiet, seconds: 15, cpuPerLook: 0) == .hung, "after 90 s of nothing it's a hang")
+        var shaders = PictureWatch()
+        check(run(&shaders, seconds: 265, cpuPerLook: 4) == .wait, "building shaders: it waits")
+        check(run(&shaders, seconds: 10, cpuPerLook: 4) == .hung, "…but not for ever")
+        var pausing = PictureWatch()
+        check(run(&pausing, seconds: 60, cpuPerLook: 0) == .wait && run(&pausing, seconds: 20, cpuPerLook: 4) == .wait, "work again")
+        check(run(&pausing, seconds: 85, cpuPerLook: 0) == .wait, "the idle time starts over after work")
+        var asked = PictureWatch()
+        check(run(&asked, seconds: 600, cpuPerLook: 0, asked: true) == .wait, "a question stands: the time isn't the game's")
+        check(run(&asked, seconds: 85, cpuPerLook: 0) == .wait, "…and doesn't count afterwards")
+        var unknown = PictureWatch()
+        var result = PictureWatch.Step.wait
+        for _ in 0..<200 where result == .wait { result = unknown.look(span: 5, cpu: nil, playerAsked: false) }
+        check(result == .wait, "no process to ask: nothing is ended")
+        check(PictureWatch.isPicture(windowSize: "1512×982") && PictureWatch.isPicture(windowSize: "790×445"), "a window that size is a picture")
+        check(!PictureWatch.isPicture(windowSize: "98×108") && !PictureWatch.isPicture(windowSize: nil), "It Takes Two's speck isn't")
+        check(GameProcesses.cpuSeconds([]) == nil, "no process: no figure")
+        check((GameProcesses.cpuSeconds([getpid()]) ?? -1) > 0, "this process has used some")
+
         // MARK: First starts, the number that counts
         let file = folder().appendingPathComponent("evidence.jsonl")
         func started(_ id: Int, _ way: String, known: Bool = false) {

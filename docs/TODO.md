@@ -17,6 +17,8 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
 - **Protokoll:** `start-evidence.jsonl` je Versuch; „First starts so far“ steht im Log. Bleibt auf dem Mac.
 - **Highball:** `reported` in `profiles.json` (CC0), nur Grafikweg; `profiles.yml` holt die Liste.
 
+- **Kein Bild heißt nicht gestartet:** Ein unbewiesener Weg wird bis zum ersten Bild beobachtet. Endet er ohne Bild oder hängt (90 s ohne Arbeit, höchstens 270 s), kommt der nächste (`PictureWatch`). Nicht bei fremden Launchern und Anti-Cheat; die Zeit offener Fragen zählt nicht.
+
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
 
 ## Rosetta und macOS 28

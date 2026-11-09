@@ -29,6 +29,43 @@ enum StartFailure: Equatable {
     }
 }
 
+/// How long a start on a way not proven yet may stand without a picture. No picture means it didn't
+/// start: It Takes Two hung at a small window on DXMT and crashed silently on DXVK past its first seconds
+/// (9.11.2026), and neither moved on. Nothing happening for this long is a hang; building shaders keeps
+/// a processor busy, so that gets longer. What the player is asked doesn't count.
+struct PictureWatch {
+    enum Step: Equatable { case wait, hung }
+
+    /// Seconds without work, and seconds altogether, on top of the first half minute already watched.
+    static let idleLimit: TimeInterval = 90
+    static let totalLimit: TimeInterval = 270
+    /// Less of a core than this is nothing going on.
+    static let busyShare = 0.05
+
+    private var counted: TimeInterval = 0
+    private var idle: TimeInterval = 0
+    private var lastCPU: TimeInterval?
+
+    /// A look `span` seconds after the last. `cpu`: the processor time the game's processes have used,
+    /// nil when that can't be told. `playerAsked`: a question stands, or the player has a menu open.
+    mutating func look(span: TimeInterval, cpu: TimeInterval?, playerAsked: Bool) -> Step {
+        defer { lastCPU = cpu ?? lastCPU }
+        guard !playerAsked, let cpu else {
+            if playerAsked { idle = 0 }
+            return .wait
+        }
+        counted += span
+        if let lastCPU { idle = cpu - lastCPU >= Self.busyShare * span ? 0 : idle + span }
+        return counted >= Self.totalLimit || idle >= Self.idleLimit ? .hung : .wait
+    }
+
+    /// Whether the biggest window ("1512×982") is a picture rather than a splash or a helper's speck.
+    static func isPicture(windowSize: String?) -> Bool {
+        let parts = (windowSize ?? "").split(separator: "×").compactMap { Int($0) }
+        return parts.count == 2 && parts[0] >= 320 && parts[1] >= 200
+    }
+}
+
 extension LaunchHealth {
     /// What a game's files say to try first, where no profile or report names a layer. A game with
     /// DirectX 12 that nothing can hold to 11 picks for itself, and DXMT and DXVK have no DirectX 12;
