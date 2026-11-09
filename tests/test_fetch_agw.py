@@ -110,21 +110,45 @@ pcgw_spec.loader.exec_module(pcgw)
 
 
 class PCGamingWikiTests(unittest.TestCase):
-    def test_rows_become_versions_by_app(self):
-        rows = [{"title": {"steam": "990080", "d3d": "12"}}, {"title": {"steam": "870780, 1", "d3d": "12,11"}},
-                {"title": {"steam": "", "d3d": "12"}}, {"title": {"steam": "5", "d3d": ""}}, {"title": {"steam": "x", "d3d": "12"}}]
-        self.assertEqual(pcgw.directx_by_app(rows), {"1": ["11", "12"], "870780": ["11", "12"], "990080": ["12"]})
+    ROWS = [{"title": {"page": "Hogwarts Legacy", "steam": "990080", "d3d": "12", "engines": "Unreal Engine 4",
+                       "win64": "true", "win32": "false", "drm": "Steam,Denuvo Anti-Tamper"}},
+            {"title": {"page": "Mafia II", "steam": "50130", "gog": "1816059595", "d3d": "9.0c", "physics": "PhysX",
+                       "win32": "true", "win64": "false", "drm": "Steam"}},
+            {"title": {"page": "Control", "steam": "870780, 1", "d3d": "12,11", "anticheat": ""}},
+            {"title": {"page": "Old", "steam": "", "d3d": "12"}},
+            {"title": {"page": "", "steam": "5", "d3d": "12"}}]
+
+    def test_facts_by_page_without_empty_values(self):
+        pages = pcgw.facts(self.ROWS)
+        self.assertEqual(list(pages), ["Control", "Hogwarts Legacy", "Mafia II", "Old"])
+        self.assertEqual(pages["Mafia II"], {"steam": ["50130"], "gog": ["1816059595"], "d3d": ["9.0c"],
+                                             "physics": ["PhysX"], "win32": "true", "win64": "false", "drm": ["Steam"]})
+        self.assertEqual(pages["Control"]["d3d"], ["11", "12"])
+        self.assertNotIn("anticheat", pages["Control"])
+
+    def test_what_nightforge_uses(self):
+        data = pcgw.derived(pcgw.facts(self.ROWS))
+        self.assertEqual(data["directX"], {"1": ["11", "12"], "870780": ["11", "12"], "990080": ["12"]})
+        self.assertEqual(data["physX"], ["50130"])
+        self.assertEqual(data["only32bit"], ["50130"])
+        self.assertEqual(data["drm"], {"990080": ["Denuvo Anti-Tamper"]})
+        self.assertEqual(data["anticheat"], {})
 
     def test_the_date_only_moves_with_the_content(self):
         now = datetime.datetime(2026, 11, 9, tzinfo=datetime.timezone.utc)
-        first = pcgw.document({"1": ["12"]}, None, now)
+        first = pcgw.document({"physX": ["1"]}, None, now)
         later = now + datetime.timedelta(days=1)
-        self.assertEqual(pcgw.document({"1": ["12"]}, first, later)["generated"], first["generated"])
-        self.assertNotEqual(pcgw.document({"2": ["12"]}, first, later)["generated"], first["generated"])
+        self.assertEqual(pcgw.document({"physX": ["1"]}, first, later)["generated"], first["generated"])
+        self.assertNotEqual(pcgw.document({"physX": ["2"]}, first, later)["generated"], first["generated"])
 
-    def test_the_wiki_list_carries_them_when_there_are_any(self):
+    def test_the_wiki_list_carries_directx_when_there_is_any(self):
         self.assertEqual(agw.document({}, {"steam": {}, "gog": {}}, directx={"1": ["12"]})["directX"], {"1": ["12"]})
         self.assertNotIn("directX", agw.document({}, {"steam": {}, "gog": {}}, directx={}))
+
+    def test_the_list_in_the_repository_reads(self):
+        document = json.loads((pathlib.Path(__file__).parent.parent / "profiles" / "pcgw.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["license"], "CC BY-NC-SA 3.0")
+        self.assertIn("990080", document["directX"])
 
 
 class HintTests(unittest.TestCase):

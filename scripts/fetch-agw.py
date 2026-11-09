@@ -629,7 +629,7 @@ def main() -> int:
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "agw.json")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
     parser.add_argument("--notes", type=pathlib.Path, default=ROOT / "profiles" / "agw-notes.json")
-    parser.add_argument("--directx", type=pathlib.Path, default=ROOT / "profiles" / "pcgw-directx.json")
+    parser.add_argument("--pcgw", type=pathlib.Path, default=ROOT / "profiles" / "pcgw.json")
     parser.add_argument("--pages", type=pathlib.Path, help="read the pages from a file --save-pages wrote, offline")
     parser.add_argument("--save-pages", type=pathlib.Path, help="also keep the fetched pages, for --pages")
     parser.add_argument("--wikidata", type=pathlib.Path, help="read Wikidata's answer from a file --save-wikidata wrote")
@@ -650,7 +650,7 @@ def main() -> int:
     notes = json.loads(options.notes.read_text(encoding="utf-8")).get("games", {}) if options.notes.exists() else {}
     games, aliases, stats = build(pages, mac, notes)
     previous = json.loads(options.out.read_text(encoding="utf-8")) if options.out.exists() else None
-    directx = json.loads(options.directx.read_text(encoding="utf-8")).get("games", {}) if options.directx.exists() else {}
+    directx = json.loads(options.pcgw.read_text(encoding="utf-8")).get("directX", {}) if options.pcgw.exists() else {}
     doc = document(games, aliases, previous, directx=directx)
     validate(doc, options.minimum)
     options.out.parent.mkdir(parents=True, exist_ok=True)

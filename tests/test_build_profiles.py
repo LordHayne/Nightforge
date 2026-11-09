@@ -300,6 +300,20 @@ class AntiCheatTests(unittest.TestCase):
             "1088850": {"graphics": "d3dmetal", "status": "verified-local", "date": "2026-09-13"},
         })
 
+    def test_reports_from_the_same_engine_stack(self):
+        reports = build_profiles.same_stack_reports([
+            {"steam_appid": "516750", "renderer": "d3dmetal", "rating": "5", "engine": "x64-crossover26.3-r12"},
+            {"steam_appid": "516750", "renderer": "d3dmetal", "rating": "4", "engine": "x64-crossover26.3-r5"},
+            {"steam_appid": "516750", "renderer": "dxmt", "rating": "5", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "7", "renderer": "dxmt", "rating": "5", "engine": "x64-sikarugir10.0_6-r21"},
+            {"steam_appid": "8", "renderer": "dxmt", "rating": "5", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "8", "renderer": "d3dmetal", "rating": "5", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "9", "renderer": "dxvk", "rating": "4", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "9", "renderer": "dxvk", "rating": "1", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "10", "renderer": "wined3d", "rating": "5", "engine": "x64-crossover26.3-r9"},
+        ])
+        self.assertEqual(reports, {"516750": {"graphics": "d3dmetal", "status": "same-stack", "reports": 2}})
+
     def test_an_anticheat_the_player_may_switch_off_costs_only_online_play(self):
         # Rockstar lets the player turn BattlEye off for GTA V's story; the same status for another game stays a block.
         denied = {"status": "Denied", "anticheats": ["BattlEye"]}

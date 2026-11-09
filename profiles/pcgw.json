@@ -1,9 +1,9 @@
 {
- "about": "The DirectX versions PCGamingWiki lists for games it knows a DirectX 12 for, by Steam app ID. Built by scripts/fetch-pcgw.py.",
+ "about": "What PCGamingWiki lists about games, by Steam app ID, as far as Nightforge uses it (scripts/fetch-pcgw.py): DirectX versions where one is 12, PhysX, only a 32-bit program, DRM and anti-cheat other than Steam's. The full facts stay with the run that fetched them.",
  "license": "CC BY-NC-SA 3.0",
  "licenseURL": "https://creativecommons.org/licenses/by-nc-sa/3.0/",
  "attribution": "PCGamingWiki contributors, https://www.pcgamingwiki.com",
- "games": {
+ "directX": {
   "8500": [
    "11",
    "12"

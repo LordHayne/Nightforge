@@ -64,12 +64,13 @@ jobs:
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/anticheat.json" https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/HEAD/games.json
           python3 -I scripts/fetch-geforce-now.py "$RUNNER_TEMP/geforcenow.json"
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/highball.json" https://gethighball.com/data/games.json
+          git clone --quiet --depth 1 https://github.com/gauthierpiarrette/highball-db "$RUNNER_TEMP/highball-db"
 
       - name: Build profiles
         run: |
           python3 -I scripts/build-profiles.py "$RUNNER_TEMP/umu-protonfixes" \
             --anticheat "$RUNNER_TEMP/anticheat.json" --geforcenow "$RUNNER_TEMP/geforcenow.json" \
-            --highball "$RUNNER_TEMP/highball.json"
+            --highball "$RUNNER_TEMP/highball.json" --highball-reports "$RUNNER_TEMP/highball-db/db/reports"
 
       - name: Validate
         run: |
@@ -145,7 +146,7 @@ jobs:
           path: |
             profiles/profiles.json
             profiles/agw.json
-            profiles/pcgw-directx.json
+            profiles/pcgw.json
           if-no-files-found: error
           retention-days: 1
 
@@ -171,7 +172,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet profiles/profiles.json profiles/agw.json profiles/pcgw-directx.json; then
+          if git diff --quiet profiles/profiles.json profiles/agw.json profiles/pcgw.json; then
             echo "No profile changes."
             exit 0
           fi
@@ -179,7 +180,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$branch"
-          git add profiles/profiles.json profiles/agw.json profiles/pcgw-directx.json
+          git add profiles/profiles.json profiles/agw.json profiles/pcgw.json
           git commit -m "Update game profiles"
           # The bot's own branch: this night's list replaces yesterday's if it wasn't merged (and with
           # it a signature made for yesterday's).

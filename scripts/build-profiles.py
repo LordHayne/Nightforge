@@ -99,6 +99,9 @@ PLAYER_SWITCHES_ANTICHEAT_OFF = {"271590"}  # Grand Theft Auto V Legacy
 # the ways a game is started. Its notes, arguments and recipes stay out.
 HIGHBALL_LAYERS = {"dxmt", "d3dmetal", "dxvk"}
 HIGHBALL_STATUSES = {"verified-local", "reported-upstream", "community"}
+# Highball's players' reports (db/reports, CC0) from an engine built on CrossOver 26 – the tree Nightforge's
+# own engine comes from – say more for Nightforge than a summary over other engines.
+SAME_STACK = re.compile(r"^x64-crossover26\.")
 
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
@@ -462,6 +465,44 @@ def highball_reports(document):
     return dict(sorted(reports.items(), key=lambda item: int(item[0])))
 
 
+def same_stack_reports(lines):
+    """Steam app ID → {"graphics", "status": "same-stack", "reports"} from Highball's reports on an engine like
+    Nightforge's: the layer the good ones (4 or 5 of 5) name most, where one does. A layer a bad one (1 or 2)
+    names as often is no answer."""
+    good, bad = {}, {}
+    for report in lines:
+        app, layer = str(report.get("steam_appid") or ""), report.get("renderer")
+        if not app.isdigit() or layer not in HIGHBALL_LAYERS or not SAME_STACK.match(str(report.get("engine") or "")):
+            continue
+        rating = str(report.get("rating"))
+        if rating in ("4", "5"):
+            good.setdefault(app, []).append(layer)
+        elif rating in ("1", "2"):
+            bad.setdefault(app, []).append(layer)
+    reports = {}
+    for app, layers in good.items():
+        ranked = sorted({layer: layers.count(layer) for layer in layers}.items(), key=lambda item: -item[1])
+        if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+            continue
+        layer, count = ranked[0]
+        if bad.get(app, []).count(layer) >= count:
+            continue
+        reports[app] = {"graphics": layer, "status": "same-stack", "reports": count}
+    return reports
+
+
+def report_lines(folder: pathlib.Path):
+    """Every report in Highball's db/reports, one JSON object a line."""
+    for path in sorted(folder.rglob("*")):
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.strip().startswith("{"):
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+
 def anticheat_block(game):
     """{"name", and "antiCheat" or "antiCheatOnline": anti-cheat names} for an AreWeAntiCheatYet
     game that can't run on a Mac, or not online; None for one that runs."""
@@ -590,6 +631,7 @@ def main() -> int:
     parser.add_argument("--anticheat", type=pathlib.Path, help="AreWeAntiCheatYet games.json")
     parser.add_argument("--geforcenow", type=pathlib.Path, help="GeForce Now catalog from fetch-geforce-now.py")
     parser.add_argument("--highball", type=pathlib.Path, help="Highball's curated games.json (CC0-1.0)")
+    parser.add_argument("--highball-reports", type=pathlib.Path, help="db/reports of Highball's database (CC0-1.0)")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "profiles.json")
     options = parser.parse_args()
@@ -667,6 +709,9 @@ def main() -> int:
     }
     if options.highball:
         document["reported"] = highball_reports(json.loads(options.highball.read_text(encoding="utf-8")))
+        if options.highball_reports:
+            document["reported"].update(same_stack_reports(report_lines(options.highball_reports)))
+            document["reported"] = dict(sorted(document["reported"].items(), key=lambda item: int(item[0])))
         document["sources"]["highball"] = {"url": "https://gethighball.com/database", "license": "CC0-1.0"}
     previous = None
     if options.out.exists():
