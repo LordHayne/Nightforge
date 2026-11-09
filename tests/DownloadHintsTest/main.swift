@@ -51,6 +51,13 @@ struct DownloadHintsTest {
 
         check(!DownloadStanding.silent.mayDoze && !DownloadStanding.awake.mayDoze && !DownloadStanding.awakeLidOpen.mayDoze, "the ring stays lit while it's held")
         check(DownloadStanding.paused.mayDoze && DownloadStanding.storeStopped("Steam").mayDoze, "and goes grey when nothing fetches")
+        check(!DownloadStanding.silent.rulesOutSleep(listed: false), "nothing listed: the menu may offer sleep")
+        check(DownloadStanding.awake.rulesOutSleep(listed: true) && DownloadStanding.awakeLidOpen.rulesOutSleep(listed: true), "on its way: no sleep in the menu")
+        check(DownloadStanding.silent.rulesOutSleep(listed: true), "on its way with the Mac not held: still none")
+        check(!DownloadStanding.paused.rulesOutSleep(listed: true), "paused: the ring says the Mac may sleep, and the menu offers it")
+        check(!DownloadStanding.storeStopped("Steam").rulesOutSleep(listed: true), "its store gone: the same")
+        check(((try? String(contentsOfFile: "Sources/Nightforge/LauncherViews.swift", encoding: .utf8)) ?? "").contains("model.downloadStanding.rulesOutSleep(listed: !model.downloads.isEmpty)"),
+              "and the small menu goes by that")
     }
 
     /// Against the real hold rules: the five minutes a store may be away, and the stores that can't be looked at.

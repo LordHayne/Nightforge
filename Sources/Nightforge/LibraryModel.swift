@@ -1439,7 +1439,7 @@ final class LibraryModel: ObservableObject {
                     steamAsked = true
                     noProcessSince = nil  // the question's time isn't the game's
                     if GameOverlay.asksWayOut { GameOverlay.close() }
-                    if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil) {
+                    if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil, battleNet: game.provider == .battlenet) {
                         steamWindowSeen = Date()
                         GameBackdrop.setSteamAsks(true, licence: launchAsksLicence ? licenceLook : nil)
                         offerWayOut(game, reason: .steamAsks)
@@ -1447,7 +1447,7 @@ final class LibraryModel: ObservableObject {
                     } else {
                         offerWayOut(game, reason: nil)
                         GameBackdrop.hide(after: .zero)
-                        GameLog.note("Curtain away for \(game.name): the saves to choose are on Nightforge's page")
+                        GameLog.note("Curtain away for \(game.name): the saves to choose or Battle.net's window are what's asked")
                     }
                     continue
                 case .wait:
@@ -1767,6 +1767,13 @@ final class LibraryModel: ObservableObject {
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
         stage = GameStage()
+        // Over with the game. Left standing, the next finger on the touchpad would give that window's app
+        // the front, with the player back in Nightforge.
+        defer {
+            overGame = nil
+            overGameFront = false
+            overGameHanded = nil
+        }
         var pids = Set<pid_t>()
         var companion = false
         var askers = Set<pid_t>()
@@ -1890,8 +1897,9 @@ final class LibraryModel: ObservableObject {
     /// Black Myth: Wukong's start (1.11.) ran without a curtain or a look for the game's own driver
     /// warning. A start that ended or went wrong meanwhile ends the watch; one that went wrong
     /// without a question is the watch's own business (`none`).
-    /// The choice of saves is a sheet in Nightforge's own window, under the curtain: only that takes it away.
-    nonisolated static func steamAsksOnCurtain(savesToChoose: Bool) -> Bool { !savesToChoose }
+    /// The choice of saves is a sheet in Nightforge's own window, under the curtain, and Battle.net's question
+    /// stands in Battle.net's window, which `steamWindowsOnScreen` doesn't look for: only those take it away.
+    nonisolated static func steamAsksOnCurtain(savesToChoose: Bool, battleNet: Bool = false) -> Bool { !savesToChoose && !battleNet }
 
     enum SteamOnCurtain: Equatable { case wait, lieUnder(Int), giveUp }
 
@@ -2178,7 +2186,8 @@ final class LibraryModel: ObservableObject {
     /// The app of the window over the game gets the front, when that's due (PadPointerRules.handsFront):
     /// while the game has it, the game keeps the mouse for itself. `touched`: a finger on the touchpad.
     func reachWindowOverGame(touched: Bool = true) {
-        guard PadPointerRules.handsFront(over: overGame, gameFront: overGameFront, alreadyHanded: overGameHanded, touched: touched),
+        guard PadPointerRules.handsFront(over: overGame, gameFront: overGameFront, alreadyHanded: overGameHanded, touched: touched,
+                                         overlay: GameOverlay.isOpen),
               let over = overGame, let app = NSRunningApplication(processIdentifier: over.owner)
         else { return }
         overGameHanded = over.number

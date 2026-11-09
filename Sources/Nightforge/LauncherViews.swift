@@ -192,7 +192,7 @@ struct LauncherMenu: View {
     var body: some View {
         VStack(spacing: 8) {
             ForEach(model.launchers) { LauncherRow(state: $0) }
-            let power = PowerMenu.entries(gameOn: model.gameOnScreen, downloading: !model.downloads.isEmpty)
+            let power = PowerMenu.entries(gameOn: model.gameOnScreen, downloading: model.downloadStanding.rulesOutSleep(listed: !model.downloads.isEmpty))
             if !power.isEmpty {
                 Rectangle().fill(Theme.ink.opacity(0.1)).frame(height: 1).padding(.vertical, 2)
                 ForEach(power) { PowerRow(entry: $0) }

@@ -209,6 +209,12 @@ struct TouchpadPointerTest {
         check(!PadPointerRules.handsFront(over: big, gameFront: true, alreadyHanded: 5, touched: true), "once per window, no fight with the player")
         check(!PadPointerRules.handsFront(over: big, gameFront: false, alreadyHanded: nil, touched: true), "it has the front already")
         check(!PadPointerRules.handsFront(over: nil, gameFront: true, alreadyHanded: nil, touched: true), "nothing over the game")
+        check(!PadPointerRules.handsFront(over: big, gameFront: true, alreadyHanded: nil, touched: true, overlay: true), "the overlay is up: nothing moves under it")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        let watch = model.components(separatedBy: "private func watchStage(").last?.components(separatedBy: "while !Task.isCancelled").first ?? ""
+        check(watch.contains("defer {") && watch.contains("overGame = nil") && watch.contains("overGameFront = false") && watch.contains("overGameHanded = nil"),
+              "the stage watch's end forgets the window: a touch in Nightforge later mustn't give its app the front")
+        check(model.contains("overlay: GameOverlay.isOpen),"), "the model says whether the overlay is up")
     }
 
     @MainActor

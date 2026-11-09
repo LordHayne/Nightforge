@@ -49,6 +49,10 @@ enum DownloadStanding: Equatable {
         }
     }
 
+    /// The small menu's "Put the Mac to sleep": gone only for a download that's really on its way. Paused, or
+    /// with its store gone, the ring says the Mac may sleep, and the menu offers it (the user, 8.11.).
+    func rulesOutSleep(listed: Bool) -> Bool { listed && !mayDoze }
+
     var ringWord: String? {
         switch self {
         case .silent: return nil

@@ -651,6 +651,7 @@ struct GameOverlayTest {
 
         // Steam's question on the curtain (the board's variant C).
         check(LibraryModel.steamAsksOnCurtain(savesToChoose: false), "Steam's question or its sign-in: the curtain stays")
+        check(!LibraryModel.steamAsksOnCurtain(savesToChoose: false, battleNet: true), "Battle.net's question isn't Steam's: its window comes, the curtain goes")
         check(!LibraryModel.steamAsksOnCurtain(savesToChoose: true), "the saves' sheet is in Nightforge's window, under the curtain: it goes")
         func onCurtain(_ lowest: Int? = nil, since: TimeInterval = 1, saves: Bool = false) -> LibraryModel.SteamOnCurtain {
             LibraryModel.steamOnCurtainStep(lowest: lowest, sinceSeen: since, savesToChoose: saves)
