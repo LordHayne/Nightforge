@@ -113,6 +113,23 @@ struct LaunchEdgeTest {
         say("changed task to CheckShaderDepotManifest with \"\"")
         check(earlier.poll() == .continued && !earlier.licenceContinued, "a new start going past it ends that wait, and says nothing of a yes")
 
+        // The game's own installers: Steam says nothing more until they're done, however long that takes.
+        say("continues with user response \"ShowEula\"")
+        var install = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        check(!install.runningInstallScript, "nothing running yet")
+        say("changed task to CheckShaderDepotManifest with \"\"")
+        _ = install.poll()
+        check(!install.runningInstallScript, "another step")
+        say("changed task to RunningInstallScript with \"\"")
+        check(install.poll() == nil && install.runningInstallScript, "the install script: no event, but Steam is busy")
+        check(install.poll() == nil && install.runningInstallScript, "and stays so while nothing is written")
+        append("[2026] GameAction [AppID 142621, ActionID 1] : LaunchApp changed task to SynchronizingStats with \"\"\n", to: log(steam))
+        _ = install.poll()
+        check(install.runningInstallScript, "another game's step changes nothing")
+        say("changed task to SynchronizingStats with \"\"")
+        _ = install.poll()
+        check(!install.runningInstallScript, "the next step ends it")
+
         let interfaceLog = steam.appendingPathComponent("logs/webhelper_js.txt")
         append("SteamUI: INFO: accepted eula 1426210_eula_1\nSteamUI: INFO: eulas complete 1426210_eula_1\n", to: interfaceLog)
         var answers = SteamLicenceLog(steamRoot: steam, appID: 1_426_210)

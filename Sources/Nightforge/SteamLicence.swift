@@ -23,7 +23,7 @@ enum SteamLicence {
     /// Whether Steam will show a licence at this start, as far as can be told. Only ever a word on the
     /// loading screen: Steam decides in its client, and the frame comes when it asks, said or not.
     /// One limited to some countries isn't counted, the player's country being unknown here.
-    /// `answeredInLog`: Steam only writes localconfig later (06:31:05 answered, written as it quit at 06:32:39).
+    /// `answeredInLog`: the log has a yes a moment before localconfig does (`answeredInConfig`).
     static func stillOpen(_ entries: [Entry], accepted: [String: Int], answeredInLog: Set<String>) -> Bool {
         entries.contains { entry in
             guard entry.countries == nil, !entry.id.isEmpty, !answeredInLog.contains(entry.id) else { return false }
@@ -101,17 +101,31 @@ enum SteamLicence {
         }
     }
 
+    /// Whether Steam has stored a yes: its record had the licence open when it asked and doesn't now. Its
+    /// configstore_log says "Flushed store 'userlocal'" 0 to 1 s after a yes, 7 of 7 (9.11.). A No or a closed
+    /// window stores nothing. Nil, unknown, is no yes: a licence for some countries isn't in `stillOpen`.
+    static func answeredInConfig(openWhenAsked: Bool?, openNow: Bool?) -> Bool {
+        openWhenAsked == true && openNow == false
+    }
+
     enum AfterAnswer: Equatable { case nothing, wait, startAgain }
 
-    /// How long Steam gets to go on by itself after the yes. Steam for Mac takes less than a second; the
-    /// quickest new start seen to work came 25 s after one, so this is a first value for the live test.
+    /// How long Steam gets to go on by itself after the yes, with its answer stored. Steam for Mac takes
+    /// less than a second, the Windows Steam never did (7 of 7).
     static let startAgainAfter = 5
+
+    /// The new start goes out by now in any case, the answer seen in Steam's record or not: the quickest
+    /// new start seen to work came 25 s after a yes.
+    static let startAgainAtLatest = 25
 
     /// After the player's yes. The Windows Steam is sent the start once more, the one the player asked
     /// for: once per start, and only if Steam hasn't moved on by itself. Steam for Mac always does.
-    static func afterAnswer(windowsSteam: Bool, answeredAgo: Int?, steamWentOn: Bool, startedAgain: Bool) -> AfterAnswer {
+    /// It waits for `answerStored`, there being one shot: a start Steam takes before it knows the answer
+    /// only shows the licence again (asked and unanswered, a new start was taken at once, 2 of 2).
+    static func afterAnswer(windowsSteam: Bool, answeredAgo: Int?, steamWentOn: Bool, startedAgain: Bool,
+                            answerStored: Bool) -> AfterAnswer {
         guard windowsSteam, let answeredAgo, !steamWentOn, !startedAgain else { return .nothing }
-        return answeredAgo >= startAgainAfter ? .startAgain : .wait
+        return answeredAgo >= (answerStored ? startAgainAfter : startAgainAtLatest) ? .startAgain : .wait
     }
 
     /// How the player answers, for the bar on the curtain.
@@ -153,6 +167,14 @@ enum SteamLicenceFiles {
         else { return false }
         return SteamLicence.stillOpen(entries, accepted: SteamLicence.accepted(inLocalConfig: String(decoding: data, as: UTF8.self)),
                                       answeredInLog: answeredInLog(steamRoot: steamRoot))
+    }
+
+    /// Whether one of these stands open in Steam's own record, read just now. Nil when it can't be told.
+    static func openInConfig(entries: [SteamLicence.Entry], steamRoot: URL) -> Bool? {
+        guard !entries.isEmpty, let config = localConfig(steamRoot: steamRoot), let data = try? Data(contentsOf: config)
+        else { return nil }
+        return SteamLicence.stillOpen(entries, accepted: SteamLicence.accepted(inLocalConfig: String(decoding: data, as: UTF8.self)),
+                                      answeredInLog: [])
     }
 
     private static func localConfig(steamRoot: URL) -> URL? {
