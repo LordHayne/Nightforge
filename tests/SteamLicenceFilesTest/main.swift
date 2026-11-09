@@ -340,9 +340,10 @@ struct SteamLicenceFilesTest {
 
             // Nothing but a real yes starts anything again, once.
             let windows = Bool.random(using: &random), ago = Bool.random(using: &random) ? nil : Int.random(in: -3...600, using: &random)
-            let on = Bool.random(using: &random), again = Bool.random(using: &random)
-            let step = SteamLicence.afterAnswer(windowsSteam: windows, answeredAgo: ago, steamWentOn: on, startedAgain: again)
-            if step == .startAgain { check(windows && (ago ?? -1) >= SteamLicence.startAgainAfter && !on && !again, "a new start without its reasons") }
+            let on = Bool.random(using: &random), again = Bool.random(using: &random), stored = Bool.random(using: &random)
+            let step = SteamLicence.afterAnswer(windowsSteam: windows, answeredAgo: ago, steamWentOn: on, startedAgain: again, answerStored: stored)
+            let waited = stored ? SteamLicence.startAgainAfter : SteamLicence.startAgainAtLatest
+            if step == .startAgain { check(windows && (ago ?? -1) >= waited && !on && !again, "a new start without its reasons") }
             if !windows || ago == nil || on || again { check(step == .nothing, "nothing to do, and it does something") }
             if failures > 0 { return }
         }
