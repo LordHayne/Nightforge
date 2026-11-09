@@ -64,6 +64,13 @@ enum GameOverlay {
     private static var pausedKey: String { "overlayPaused" }
 
     static var isOpen: Bool { panel?.isVisible == true }
+
+    /// Up over a game that isn't stopped and shows its picture (a Mac game that only runs online, a Windows
+    /// one our pad driver keeps the pad from): whatever the pointer does, the game sees it.
+    static var gameRunsUnder: Bool { isOpen && runsUnder(centered: state.centered, paused: state.paused) }
+
+    /// `centered`: a question about a start, with no picture yet.
+    nonisolated static func runsUnder(centered: Bool, paused: Bool) -> Bool { !centered && !paused }
     /// Set when a controller came late; the next overlay asks, then it's cleared (close).
     static var lateController: Bool {
         get { state.lateController }

@@ -102,10 +102,12 @@ final class InputRouter {
             let controller = note.object as? GCController
             MainActor.assumeIsolated { self?.attach(controller) }
         })
-        observers.append(center.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] _ in
+        observers.append(center.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
+            let gone = note.object as? GCController
             MainActor.assumeIsolated {
                 self?.letGo()
-                self?.pointer.controllerLeft()
+                self?.pointer.controllerLeft(connected: Set(GCController.controllers().filter { $0 !== gone }
+                    .compactMap(\.extendedGamepad).map(ObjectIdentifier.init)))
                 self?.haptics.forgetGone()
                 self?.refreshConnected()
             }
@@ -1054,16 +1056,19 @@ final class InputRouter {
     }
 
     /// Whether the pad is the Mac's pointer now (PadPointerRules.works). Looked at when a finger lands.
-    private var pointerWorks: Bool {
+    private var pointerWorks: Bool { pointerWorks(windowOverGame: model?.overGame != nil) }
+
+    private func pointerWorks(windowOverGame: Bool) -> Bool {
         guard let model else { return false }
         return PadPointerRules.works(setting: Prefs.padPointer, keyboardOpen: model.padKeyboard != nil, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                      curtain: GameBackdrop.isRaised, gamePlaying: model.gamePlaying,
                                      frontIsGame: Self.frontAppIsGame(), macOSAsks: PadPointer.macOSAsks,
-                                     windowOverGame: model.overGame != nil)
+                                     windowOverGame: windowOverGame, gameRunsUnderOverlay: GameOverlay.gameRunsUnder)
     }
 
     private var stickIsPointer: Bool {
-        PadPointerRules.stickIsPointer(works: pointerWorks, hasTouchpad: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
+        PadPointerRules.stickIsPointer(works: pointerWorks(windowOverGame: PadPointerRules.stickReaches(windowOver: model?.overGame != nil, gameFront: model?.overGameFront ?? false)),
+                                       hasTouchpad: false, inFront: NSApp.isActive, overlay: GameOverlay.isOpen,
                                        curtain: GameBackdrop.isRaised)
     }
 

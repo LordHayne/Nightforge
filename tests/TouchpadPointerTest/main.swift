@@ -49,7 +49,40 @@ struct TouchpadPointerTest {
     static func finger(_ x: Float, _ y: Float) -> Finger { Finger(x: x, y: y) }
 
     @MainActor
+    /// Two pads without a touchpad and one pointer.
+    static func hands() {
+        var hands = PointerHands<String>()
+        check(hands.moveStick("a", moving: true) && hands.stickHolder == "a", "the first stick out of its middle has the pointer")
+        check(!hands.moveStick("b", moving: false) && hands.stickHolder == "a", "a second pad's resting stick doesn't stop it")
+        check(!hands.moveStick("b", moving: true) && hands.stickHolder == "a", "nor does its pushed one take over")
+        check(hands.moveStick("a", moving: false) && hands.stickHolder == nil, "back in the middle: free")
+        check(hands.moveStick("b", moving: true) && hands.stickHolder == "b", "and the other may have it")
+
+        var buttons = PointerHands<String>()
+        check(buttons.press(.left, by: "a") && !buttons.press(.left, by: "b"), "one pad holds a button")
+        check(buttons.press(.right, by: "b"), "the other button is free")
+        check(!buttons.release(.left, by: "b") && buttons.triggers[.left] == "a", "only the one who pressed lets go")
+        check(buttons.release(.left, by: "a") && buttons.triggers[.left] == nil, "and then it is up")
+
+        var leaving = PointerHands<String>()
+        _ = leaving.moveStick("a", moving: true)
+        _ = leaving.press(.left, by: "a")
+        _ = leaving.press(.right, by: "b")
+        let first = leaving.padsLeft(connected: ["a"])
+        check(!first.stick && first.triggers == [.right], "b left: only its button is let go of")
+        check(leaving.stickHolder == "a" && leaving.triggers == [.left: "a"], "a holds on")
+        let second = leaving.padsLeft(connected: [])
+        check(second.stick && second.triggers == [.left] && leaving.stickHolder == nil && leaving.triggers.isEmpty, "a left too: all of it goes")
+        check(leaving.padsLeft(connected: []) == (stick: false, triggers: []), "nothing held, nothing to let go of")
+
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/PadPointer.swift", encoding: .utf8)) ?? ""
+        check(source.contains("hands.moveStick(id, moving: true)") && source.contains("hands.press(button, by: id)") && source.contains("hands.padsLeft(connected: connected)")
+              && !source.contains("heldTriggers"), "PadPointer goes by who holds what")
+        check(source.contains("if let owner, !connected.contains(owner) {"), "a finger stays on its touchpad when another controller leaves")
+    }
+
     static func main() {
+        hands()
         movement()
         fingers()
         clicks()
@@ -159,6 +192,19 @@ struct TouchpadPointerTest {
                                   frontIsGame: false, macOSAsks: { asked = true; return true }())
         check(!asked, "the window list is only read when the answer depends on it")
 
+        check(!PadPointerRules.stickReaches(windowOver: true, gameFront: true), "a small notice over the game: the stick and R2 stay the game's")
+        check(PadPointerRules.stickReaches(windowOver: true, gameFront: false), "the window's app has the front: they are the mouse")
+        check(!PadPointerRules.stickReaches(windowOver: false, gameFront: false), "no window over the game: nothing to reach")
+        let router = (try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? ""
+        check(router.contains("works: pointerWorks(windowOverGame: PadPointerRules.stickReaches("), "the stick goes by that, the touchpad doesn't")
+        func overRunning(asks: Bool) -> Bool {
+            PadPointerRules.works(setting: true, keyboardOpen: false, inFront: false, overlay: true, curtain: false, gamePlaying: true,
+                                  frontIsGame: true, macOSAsks: asks, gameRunsUnderOverlay: true)
+        }
+        check(!overRunning(asks: false), "a game running on under the overlay: the pointer stays out of it")
+        check(overRunning(asks: true), "unless macOS asks something, which only a pointer answers")
+        check(PadPointerRules.works(setting: true, keyboardOpen: false, inFront: false, overlay: true, curtain: false, gamePlaying: true,
+                                    frontIsGame: true, macOSAsks: false), "a game stopped under the overlay: the pointer is free")
         check(PadPointerRules.stickIsPointer(works: true, hasTouchpad: false, inFront: false, overlay: false, curtain: false), "Xbox pad, Steam in front: the right stick is the mouse")
         check(!PadPointerRules.stickIsPointer(works: true, hasTouchpad: true, inFront: false, overlay: false, curtain: false), "with a touchpad it stays free")
         check(!PadPointerRules.stickIsPointer(works: true, hasTouchpad: false, inFront: true, overlay: false, curtain: false), "in Nightforge the stick scrolls")

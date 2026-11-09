@@ -1,6 +1,18 @@
 // Checks what "Remove Nightforge completely" deletes, keeps and copies first – on fake folders:
 // tests/CompleteRemovalTest/run.sh
 import Foundation
+import ServiceManagement
+
+/// macOS's login items, as a stand-in: the real ones are never touched here.
+private final class LoginStandIn: LoginService {
+    var status: SMAppService.Status = .enabled
+    var unregistered = 0
+    func register() throws {}
+    func unregister() throws {
+        unregistered += 1
+        status = .notRegistered
+    }
+}
 
 @main
 struct CompleteRemovalTest {
@@ -220,6 +232,15 @@ struct CompleteRemovalTest {
             let phases = Phases()
             let saves = try? CompleteRemoval.remove(scenario.places, defaults: scenario.defaults, phase: { phases.add($0) })
             check(saves != nil && phases.list == [.copyingSaves, .deleting], "phases: copying saves, then deleting: \(phases.list)")
+
+            let gone = fixture(root.appendingPathComponent("login", isDirectory: true))
+            let login = LoginStandIn()
+            check(works { try CompleteRemoval.remove(gone.places, defaults: gone.defaults, login: login) } && login.unregistered == 1,
+                  "everything gone: Nightforge no longer opens at login")
+            let source = (try? String(contentsOfFile: "Sources/Nightforge/CompleteRemoval.swift", encoding: .utf8)) ?? ""
+            let run = source.components(separatedBy: "static func run(phase:").last ?? ""
+            check(run.contains("login: SMAppService.mainApp") && run.range(of: "login: SMAppService.mainApp")!.lowerBound < run.range(of: "trashItem")!.lowerBound,
+                  "the app's real entry goes, before the app itself is in the Bin")
         }
 
         // A folder without write permission (some installers leave one) doesn't stop the removal.
@@ -241,7 +262,9 @@ struct CompleteRemovalTest {
             try? FileManager.default.setAttributes([.immutable: true], ofItemAtPath: stuck.path)
             scenario.defaults.set(true, forKey: "library.hidden")
             var thrown: Error?
-            do { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults) } catch { thrown = error }
+            let login = LoginStandIn()
+            do { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults, login: login) } catch { thrown = error }
+            check(login.unregistered == 0, "one target stuck: it stays in the login items, like the settings, until the second try")
             check(!exists(scenario.places.support), "one target stuck: the others are deleted all the same")
             check(exists(scenario.places.caches), "… the stuck one is still there")
             check(scenario.defaults.object(forKey: "library.hidden") != nil, "… and the settings stay, for the second try")

@@ -26,6 +26,13 @@ enum LoginItem {
         }
     }
 
+    /// Nightforge is being removed: nothing stays behind that opens it at login. Only one that's registered:
+    /// macOS answers the others with an error, and there's nobody left to tell.
+    static func forget(service: LoginService) {
+        guard state(of: service.status) != .off else { return }
+        try? service.unregister()
+    }
+
     /// The state after trying. A failure leaves things as they were and says why through `note`.
     @discardableResult
     static func set(_ on: Bool, service: LoginService, note: (String) -> Void = { _ in }) -> State {

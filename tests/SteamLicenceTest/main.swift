@@ -14,7 +14,28 @@ struct SteamLicenceTest {
         }
     }
 
+    /// A question that turns out to be the licence after it stood on the curtain.
+    static func late() {
+        check(SteamLicence.framesLate(steamAsks: true, framed: false), "on the curtain without a frame: it comes now")
+        check(!SteamLicence.framesLate(steamAsks: true, framed: true), "framed already: once")
+        check(!SteamLicence.framesLate(steamAsks: false, framed: false), "nothing on the curtain: nothing to frame")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("if GameBackdrop.licenceStillToSay { GameBackdrop.sayLicence(licenceLook) }"), "the curtain's watch looks at every round")
+    }
+
+    /// The bar goes by the pad in the player's hand.
+    static func inHand() {
+        check(SteamLicence.pad(inHandHasTouchpad: true) == .touchpad, "a DualSense in hand: the touchpad")
+        check(SteamLicence.pad(inHandHasTouchpad: false) == .stick, "an Xbox pad in hand, a DualSense beside it: the stick")
+        check(SteamLicence.pad(inHandHasTouchpad: nil) == .none, "no pad: the mouse")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("GCController.current?.extendedGamepad") && model.contains("SteamLicence.pad(inHandHasTouchpad:")
+              && !model.contains("pads.contains { Touchpad($0) != nil }"), "the model asks for the pad last used, not for any")
+    }
+
     static func main() {
+        inHand()
+        late()
         beforehand()
         localConfig()
         account()

@@ -1005,7 +1005,7 @@ final class LibraryModel: ObservableObject {
     private var stageAskers = Set<pid_t>()
     /// Another app's window over the game's picture, as of the stage watch's last look.
     private(set) var overGame: PadPointerRules.OverGame?
-    private var overGameFront = false
+    private(set) var overGameFront = false
     private var overGameHanded: Int?
 
     /// A game's process ended: the curtain now, in the same moment, not at the look it cuts short. A Mac
@@ -1348,8 +1348,8 @@ final class LibraryModel: ObservableObject {
 
     /// How the player can answer Steam's licence, for the bar on the curtain.
     private var licenceLook: GameBackdrop.LicenceLook {
-        let pads = GCController.controllers().compactMap(\.extendedGamepad)
-        let pad: SteamLicence.Pad = pads.isEmpty ? .none : pads.contains { Touchpad($0) != nil } ? .touchpad : .stick
+        let inHand = GCController.current?.extendedGamepad ?? GCController.controllers().compactMap(\.extendedGamepad).first
+        let pad = SteamLicence.pad(inHandHasTouchpad: inHand.map { Touchpad($0) != nil })
         return GameBackdrop.LicenceLook(answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
                                         click: PadPart.r2.name(padSymbols.layout))
     }
@@ -1459,6 +1459,7 @@ final class LibraryModel: ObservableObject {
                     guard let seen = steamWindowSeen else { continue }
                     let steamWindows = await steamWindowsOnScreen(game)
                     if launchAsksLicence {
+                        if GameBackdrop.licenceStillToSay { GameBackdrop.sayLicence(licenceLook) }
                         let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
                         let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
                         GameBackdrop.frameSteamWindow(frame)

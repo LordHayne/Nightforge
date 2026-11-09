@@ -123,6 +123,11 @@ struct GameOverlayTest {
         check(!GameOverlay.takesKeys(.menu), "the menu over a game leaves it its keys")
         check(!GameOverlay.takesKeys(.confirmQuit) && !GameOverlay.takesKeys(.quitting), "… so does the question after it")
         check(GameOverlay.takesKeys(.notStarting), "\"Not starting?\" has no picture to lose: the keyboard works there")
+        check(GameOverlay.runsUnder(centered: false, paused: false), "the side bar over a game that isn't stopped: the game runs under it")
+        check(!GameOverlay.runsUnder(centered: false, paused: true), "a stopped game sees nothing")
+        check(!GameOverlay.runsUnder(centered: true, paused: false), "a question about a start has no picture under it yet")
+        check(((try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? "").contains("gameRunsUnderOverlay: GameOverlay.gameRunsUnder"),
+              "the pointer's rule is told so")
         let padFolder = FileManager.default.temporaryDirectory.appendingPathComponent("pad-late-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: padFolder) }
         func file(_ path: String) {

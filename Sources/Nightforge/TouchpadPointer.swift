@@ -145,10 +145,13 @@ enum PadPointerRules {
     /// overlay, under the curtain (a question before the picture comes), in another app. With a game
     /// on screen the touchpad is the game's and a moved pointer would turn its camera; only a question
     /// from macOS (the microphone in Left 4 Dead 2, 8.11.) comes first. Never while the keyboard is
-    /// open: the touchpad types there.
+    /// open: the touchpad types there. Nor over a game that runs on under the overlay (`gameRunsUnderOverlay`),
+    /// which would see the pointer: the player's rule, 8.11., is that it gets nothing while the overlay is up.
     static func works(setting: Bool, keyboardOpen: Bool, inFront: Bool, overlay: Bool, curtain: Bool, gamePlaying: Bool,
-                      frontIsGame: Bool, macOSAsks: @autoclosure () -> Bool, windowOverGame: Bool = false) -> Bool {
+                      frontIsGame: Bool, macOSAsks: @autoclosure () -> Bool, windowOverGame: Bool = false,
+                      gameRunsUnderOverlay: Bool = false) -> Bool {
         guard setting, !keyboardOpen else { return false }
+        if gameRunsUnderOverlay { return macOSAsks() }
         if inFront || overlay || curtain || windowOverGame { return true }
         return !gamePlaying && !frontIsGame || macOSAsks()
     }
@@ -187,6 +190,10 @@ enum PadPointerRules {
         guard let over, gameFront, over.number != alreadyHanded, !overlay else { return false }
         return touched || (over.size.width >= 600 && over.size.height >= 400)
     }
+
+    /// For the right stick and R2 a window over the game counts only once its app has the front. While the game
+    /// has it, they are the game's: a small notice over the picture mustn't turn its camera stick into a mouse.
+    static func stickReaches(windowOver: Bool, gameFront: Bool) -> Bool { windowOver && !gameFront }
 
     /// Pads without a touchpad use the right stick and R2, but only where Nightforge doesn't need
     /// them itself: with Nightforge in front the stick scrolls and R2 goes to the last game.
@@ -233,6 +240,44 @@ enum PadPointerRules {
 
     /// 1 on a screen 1920 points wide, in steps with the width, within reason.
     static func screenScale(width: CGFloat) -> CGFloat { min(max(width / 1920, 0.75), 2) }
+}
+
+/// Who works the pointer on pads without a touchpad: the stick and each trigger belong to one pad until it
+/// lets go. A second player's resting stick is no reason to stop, and a controller that leaves only lets go
+/// of what it held itself.
+struct PointerHands<Pad: Hashable> {
+    private(set) var stickHolder: Pad?
+    private(set) var triggers: [TouchpadPointer.Button: Pad] = [:]
+
+    /// This pad's stick is out of its middle (`moving`) or back in it. False: another pad's has the pointer.
+    mutating func moveStick(_ pad: Pad, moving: Bool) -> Bool {
+        if let stickHolder, stickHolder != pad { return false }
+        stickHolder = moving ? pad : nil
+        return true
+    }
+
+    /// False: another pad holds this button.
+    mutating func press(_ button: TouchpadPointer.Button, by pad: Pad) -> Bool {
+        if let holder = triggers[button], holder != pad { return false }
+        triggers[button] = pad
+        return true
+    }
+
+    /// True if the press was this pad's.
+    mutating func release(_ button: TouchpadPointer.Button, by pad: Pad) -> Bool {
+        guard triggers[button] == pad else { return false }
+        triggers[button] = nil
+        return true
+    }
+
+    /// `connected`: the pads still here. What the others held is let go of, and said.
+    mutating func padsLeft(connected: Set<Pad>) -> (stick: Bool, triggers: [TouchpadPointer.Button]) {
+        let stick = stickHolder.map { !connected.contains($0) } ?? false
+        if stick { stickHolder = nil }
+        let buttons = triggers.filter { !connected.contains($0.value) }.map(\.key)
+        buttons.forEach { triggers[$0] = nil }
+        return (stick, buttons)
+    }
 }
 
 /// What PointerDriver needs from the Mac; a stand-in in the tests.

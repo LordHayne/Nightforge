@@ -272,7 +272,7 @@ Offen, alle niedrig:
 - **N2, Pad ohne Touchpad:** Ein kleines Fenster über dem Spiel bekommt die Front nur per Finger (`pointer.works`). Der Stick fragt `stickIsPointer` und ruft die Übergabe nie auf.
 - **N3, zwei Pads:** Die Leiste der Lizenz sagt „Touchpad“, sobald irgendein Pad eins hat, auch wenn das andere in der Hand liegt (`LibraryModel.swift:1347`).
 - **N4, spätes Lizenz-Wort:** Kommt `.licence` erst, nachdem Steam schon allgemein gefragt hat, bleibt die Leiste „Steam fragt etwas“ ohne Rahmen (`LibraryModel.swift:1444` wird nur einmal erreicht). Der Start läuft normal weiter.
-- **O2, O3, O4** von oben sind weiter offen.
+- **O2, O3, O4** von oben: behoben, siehe „Nachtrag: die kleinen Befunde“. N2 bis N4 ebenso, N1 bleibt offen.
 
 ### 2 · Download-Hinweise mit Wachhalten, Pause, Spielstart, Steam nur bei Bedarf
 
@@ -348,3 +348,29 @@ Die Regel „main schützen“ lässt nur Pull Requests zu, ohne Pflicht-Checks 
 2. Kleines Steam-Fenster beim Spielende offen lassen, zurück in Nightforge den Finger aufs Touchpad: Steam kommt nicht nach vorn.
 3. Battle.net fragt beim Start: Der Vorhang geht sofort, das Client-Fenster steht vorne, kein „Steam fragt etwas“.
 4. Download in Steam pausieren: Im kleinen Menü erscheint „Mac schlafen legen“.
+
+### Nachtrag: die kleinen Befunde (9.11.)
+
+Zweig `claude/audit-033-rest` von `claude/staging-033` (`f5dd846`), je Befund ein Commit mit Test. E1 und E2 bleiben beim Nutzer.
+
+| Nr. | Ergebnis | Was jetzt gilt | Commit |
+|---|---|---|---|
+| O2 | behoben | „Nightforge komplett entfernen“ meldet das Anmeldeobjekt ab, sobald alles andere weg ist. Bleibt etwas liegen, bleibt es wie die Einstellungen für den zweiten Versuch. Nur im Test mit Ersatz geprüft, nie ausgeführt | 98e2a4c |
+| O3 | behoben | Das Touchpad bewegt den Zeiger nicht mehr über einem Spiel, das unter dem Overlay weiterläuft. Eine Frage von macOS bekommt ihn weiterhin. Das Overlay selbst geht weiter mit der Pad-Markierung | ab7d937 |
+| O4 | behoben | Stick und jeder Trigger gehören dem Pad, das sie zuerst nahm, bis es loslässt. Geht ein Controller, lässt nur er los | eed0ff5 |
+| N2 | teilweise | Solange das Spiel die Front hat, bleiben Stick und R2 auch unter einem kleinen Fenster beim Spiel; als Maus zählen sie erst, wenn die App des Fensters vorne ist | 5b0fb45 |
+| N3 | behoben | Die Lizenz-Leiste richtet sich nach dem zuletzt benutzten Pad | 4fcde7d |
+| N4 | behoben | Stellt sich eine schon stehende Frage als Lizenz heraus, kommt der Rahmen beim nächsten Blick | a81097f |
+
+**O3 ist enger als oben beschrieben:** Seit dem großen Overlay werden auch Mac-Spiele ohne Online-Zwang angehalten (`OverlayRules.stillness`). Betroffen waren nur noch die Spiele, die weiterlaufen.
+
+**Entscheidung offen (N2):** Mit einem Pad ohne Touchpad lässt sich ein kleines Fenster über dem Spiel nur mit der Maus erreichen. Der rechte Stick und R2 gehören dem Spiel, also bräuchte es eine eigene Geste. Große Fenster bekommen die Front ohnehin von selbst.
+
+**Offen:** N1 (Fenster in den ersten 8 s nach dem Vorhang). Der Eingriff in das Zusammenspiel von Vorhang und Bühnenwache ist den kleinen Nutzen vor dem Release nicht wert.
+
+Live prüfen:
+
+1. Mac-Spiel mit Online-Zwang unter dem Overlay: Der Finger auf dem Touchpad bewegt weder Zeiger noch Kamera.
+2. Zwei Pads ohne Touchpad über einem Steam-Fenster: Spieler 1 bewegt den Zeiger, der Stick von Spieler 2 stört nicht. Spieler 2 schaltet ab, während Spieler 1 R2 hält: Der Klick bleibt gedrückt.
+3. Pad ohne Touchpad, kleiner Steam-Hinweis über dem Spiel: Stick und R2 wirken nur im Spiel. Großes Steam-Fenster: Nach spätestens einer Sekunde ist der Stick die Maus.
+4. DualSense und Xbox-Pad, Lizenz beim ersten Start: Die Leiste passt zum Pad, das zuletzt benutzt wurde. **Vermutung:** `GCController.current` folgt dem Pad auch, solange Steam vorne ist.
