@@ -833,8 +833,9 @@ struct UpdateState: Equatable {
 
     /// How far it is, by the download's bytes or the unpacked ones, whichever is further along.
     var fraction: Double? {
-        let shares = [toDownload > 0 ? downloaded / toDownload : nil, toStage > 0 ? staged / toStage : nil].compactMap { $0 }
-        return shares.max().map { min($0, 0.99) }
+        // "nan" and "inf" are numbers to Double(_:), and a damaged manifest's NaN would stop the percentage on the card.
+        let shares = [toDownload > 0 ? downloaded / toDownload : nil, toStage > 0 ? staged / toStage : nil].compactMap { $0 }.filter { !$0.isNaN }
+        return shares.max().map { min(max($0, 0), 0.99) }
     }
 
 }
