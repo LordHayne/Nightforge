@@ -85,8 +85,15 @@ def facts(rows: list) -> dict:
 def derived(pages: dict) -> dict:
     """What Nightforge uses, by Steam app ID: DirectX versions where one is 12, PhysX, games with only a
     32-bit program, DRM and anti-cheat beyond Steam's own."""
-    directx, physx, only32, drm, anticheat = {}, set(), set(), {}, {}
+    directx, physx, only32, drm, anticheat, runtimes = {}, set(), set(), {}, {}, {}
     for entry in pages.values():
+        # PhysX in an older game with only a 32-bit program is NVIDIA's legacy PhysX, which the game expects
+        # installed ("PhysX SDK not initialized", Mafia II); newer engines carry theirs along.
+        legacy_physx = any("physx" in p.lower() for p in entry.get("physics", [])) \
+            and entry.get("win32") == "true" and entry.get("win64") != "true"
+        if legacy_physx:
+            for key in [a for a in entry.get("steam", []) if a.isdigit()] + ["gog." + g for g in entry.get("gog", []) if g.isdigit()]:
+                runtimes[key] = ["physx"]
         for app in entry.get("steam", []):
             if not app.isdigit():
                 continue
@@ -105,13 +112,14 @@ def derived(pages: dict) -> dict:
     number = lambda items: sorted(items, key=int)
     by_app = lambda mapping: {app: mapping[app] for app in number(mapping)}
     return {"directX": by_app(directx), "physX": number(physx), "only32bit": number(only32), "drm": by_app(drm),
-            "anticheat": by_app(anticheat)}
+            "anticheat": by_app(anticheat), "runtimes": dict(sorted(runtimes.items()))}
 
 
 def document(data: dict, previous: dict = None, now: datetime.datetime = None) -> dict:
     doc = {
         "about": "What PCGamingWiki lists about games, by Steam app ID, as far as Nightforge uses it (scripts/fetch-pcgw.py): "
-                 "DirectX versions where one is 12, PhysX, only a 32-bit program, DRM and anti-cheat other than Steam's. "
+                 "DirectX versions where one is 12, PhysX, only a 32-bit program, DRM and anti-cheat other than Steam's, "
+                 "and the runtimes to install before a game's first start (Steam app IDs and \"gog.<id>\"). "
                  "The full facts stay with the run that fetched them.",
         "license": "CC BY-NC-SA 3.0",
         "licenseURL": "https://creativecommons.org/licenses/by-nc-sa/3.0/",

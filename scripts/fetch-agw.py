@@ -487,7 +487,8 @@ def order(games: dict) -> dict:
     return dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0])))
 
 
-def document(games: dict, aliases: dict, previous: dict = None, now: datetime.datetime = None, directx: dict = None) -> dict:
+def document(games: dict, aliases: dict, previous: dict = None, now: datetime.datetime = None, directx: dict = None,
+             runtimes: dict = None) -> dict:
     doc = {
         "formatVersion": FORMAT_VERSION,
         "about": "What AppleGamingWiki says about running each game on a Mac. Per way (native, rosetta, crossover, "
@@ -512,6 +513,9 @@ def document(games: dict, aliases: dict, previous: dict = None, now: datetime.da
         # What PCGamingWiki lists for games with DirectX 12 (fetch-pcgw.py): the same licence, and like this file not bundled.
         doc["directX"] = directx
         doc["directXSource"] = "PCGamingWiki contributors, https://www.pcgamingwiki.com (CC BY-NC-SA 3.0)"
+    if runtimes:
+        # What a game needs installed before its first start, from PCGamingWiki's lists (Steam app IDs, "gog.<id>").
+        doc["runtimes"] = runtimes
     unchanged = previous and {k: v for k, v in previous.items() if k != "generated"} == doc
     doc["generated"] = previous["generated"] if unchanged else \
         (now or datetime.datetime.now(datetime.timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -650,8 +654,8 @@ def main() -> int:
     notes = json.loads(options.notes.read_text(encoding="utf-8")).get("games", {}) if options.notes.exists() else {}
     games, aliases, stats = build(pages, mac, notes)
     previous = json.loads(options.out.read_text(encoding="utf-8")) if options.out.exists() else None
-    directx = json.loads(options.pcgw.read_text(encoding="utf-8")).get("directX", {}) if options.pcgw.exists() else {}
-    doc = document(games, aliases, previous, directx=directx)
+    pcgw = json.loads(options.pcgw.read_text(encoding="utf-8")) if options.pcgw.exists() else {}
+    doc = document(games, aliases, previous, directx=pcgw.get("directX", {}), runtimes=pcgw.get("runtimes", {}))
     validate(doc, options.minimum)
     options.out.parent.mkdir(parents=True, exist_ok=True)
     options.out.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")

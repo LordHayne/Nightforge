@@ -147,6 +147,18 @@ struct AGWIndex: Equatable {
     var gogAliases: [String: String] = [:]
     /// The DirectX versions PCGamingWiki lists for games with DirectX 12, by Steam app ID (fetch-pcgw.py).
     var directX: [String: [String]] = [:]
+    /// Runtimes (winetricks verbs) a game needs before its first start, by Steam app ID or "gog.<id>": PhysX for
+    /// an older 32-bit game (fetch-pcgw.py). Installed with the game, not after the error it would show.
+    var runtimes: [String: [String]] = [:]
+
+    func runtimes(steamAppID: Int?, gogID: String?) -> [String] {
+        let verbs = (steamAppID.flatMap { runtimes[String($0)] } ?? []) + (gogID.flatMap { runtimes["gog." + $0] } ?? [])
+        return verbs.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
+    }
+
+    func runtimes(for game: Game) -> [String] {
+        runtimes(steamAppID: game.steamAppID, gogID: game.provider == .gog ? game.gameID.id : nil)
+    }
 
     var isEmpty: Bool { games.isEmpty }
 
@@ -178,7 +190,7 @@ struct AGWIndex: Equatable {
         else { return nil }
         return AGWIndex(games: document.games.compactMapValues(\.entry),
                         steamAliases: document.aliases?["steam"] ?? [:], gogAliases: document.aliases?["gog"] ?? [:],
-                        directX: document.directX ?? [:])
+                        directX: document.directX ?? [:], runtimes: document.runtimes ?? [:])
     }
 }
 
@@ -189,6 +201,7 @@ private struct AGWDocument: Decodable {
     let games: [String: Lenient]
     let aliases: [String: [String: String]]?
     var directX: [String: [String]]?
+    var runtimes: [String: [String]]?
 
     struct Lenient: Decodable {
         let entry: AGWEntry?

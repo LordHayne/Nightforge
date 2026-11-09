@@ -4845,7 +4845,9 @@ final class LibraryModel: ObservableObject {
     private func installRuntimes(for game: Game, profile: GameProfile?, analysis: GameAnalysis?,
                                  wine: URL, showStatus: Bool) async {
         let learned = LearnedFixes.winetricks(game.gameID)
-        let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono })
+        // What the game is known to need from the start (PCGamingWiki, macSources) goes in before its first start.
+        let known = macSources.runtimes(for: game)
+        let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono } + known)
             .filter(Engine.isSafeWinetricksVerb)
         // The game test fetches nothing: what a game lacks goes into its report instead (GameTestRun).
         if !missing.isEmpty, !GameTest.active {

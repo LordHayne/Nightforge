@@ -154,6 +154,16 @@ struct StartRulesTest {
         check(decoded?.directX["990080"] == ["12"], "the wiki list brings them along")
         check(AGWIndex.decode(Data(#"{"formatVersion":1,"games":{}}"#.utf8))?.directX.isEmpty == true, "a list without them still reads")
 
+        // MARK: Runtimes before the first start (Mafia II and PhysX)
+        var known = AGWIndex()
+        known.runtimes = ["50130": ["physx"], "gog.1816059595": ["physx"]]
+        check(known.runtimes(steamAppID: 50130, gogID: nil) == ["physx"], "the Steam version")
+        check(known.runtimes(steamAppID: nil, gogID: "1816059595") == ["physx"], "the GOG version by its own ID")
+        check(known.runtimes(steamAppID: 50130, gogID: "1816059595") == ["physx"], "both: once")
+        check(known.runtimes(steamAppID: 1, gogID: nil).isEmpty, "a game without: nothing")
+        check(AGWIndex.decode(Data(#"{"formatVersion":1,"games":{},"runtimes":{"50130":["physx"]}}"#.utf8))?.runtimes(steamAppID: 50130, gogID: nil) == ["physx"],
+              "the wiki list brings them along")
+
         // MARK: A program that hides what it links
         let hidden = folder()
         var bytes = Data(count: 64)

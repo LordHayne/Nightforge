@@ -135,6 +135,7 @@ class PCGamingWikiTests(unittest.TestCase):
         self.assertEqual(data["only32bit"], ["50130"])
         self.assertEqual(data["drm"], {"990080": ["Denuvo Anti-Tamper"], "1426210": ["EA app"]})
         self.assertEqual(data["anticheat"], {})
+        self.assertEqual(data["runtimes"], {"50130": ["physx"], "gog.1816059595": ["physx"]})
 
     def test_the_date_only_moves_with_the_content(self):
         now = datetime.datetime(2026, 11, 9, tzinfo=datetime.timezone.utc)
@@ -145,6 +146,8 @@ class PCGamingWikiTests(unittest.TestCase):
 
     def test_the_wiki_list_carries_directx_when_there_is_any(self):
         self.assertEqual(agw.document({}, {"steam": {}, "gog": {}}, directx={"1": ["12"]})["directX"], {"1": ["12"]})
+        self.assertEqual(agw.document({}, {"steam": {}, "gog": {}}, runtimes={"1": ["physx"]})["runtimes"], {"1": ["physx"]})
+        self.assertNotIn("runtimes", agw.document({}, {"steam": {}, "gog": {}}))
         self.assertNotIn("directX", agw.document({}, {"steam": {}, "gog": {}}, directx={}))
 
     def test_the_list_in_the_repository_reads(self):
