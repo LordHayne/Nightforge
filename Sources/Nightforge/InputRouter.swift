@@ -523,6 +523,7 @@ final class InputRouter {
                 if self?.reach != .overlay, self?.model?.lightbox != nil, self?.dialog == nil {
                     self?.model?.lightbox = nil  // A on a big screenshot: back to the page
                 } else if let key = GameOverlay.window ?? NSApp.keyWindow, let item = PadFocus.shared.focusedItem(in: key) {
+                    if key === GameOverlay.window { GameLog.note("Overlay: A on \(PadFocus.shared.focused ?? "?")") }
                     item.activate()
                 } else if let window = self?.padWindow, window !== Self.mainWindow {
                     // Nothing highlighted yet: the first press shows where you are, it doesn't save.
@@ -1236,7 +1237,14 @@ final class InputRouter {
         if let window = padWindow {
             let focus = PadFocus.shared
             if window !== Self.mainWindow {
-                focus.move(dx: step.dx, dy: step.dy, in: window)
+                let before = focus.focused
+                let moved = focus.move(dx: step.dx, dy: step.dy, in: window)
+                // In wine.log: whether the pad's steps reach the overlay's buttons (Hogwarts Legacy, 9.11.2026:
+                // "only with the mouse").
+                if window === GameOverlay.window {
+                    GameLog.note("Overlay: pad \(step.dx),\(step.dy) from \(before ?? "nothing") to \(focus.focused ?? "nothing")"
+                                 + (moved ? "" : ", \(focus.hasItems(in: window) ? "nothing that way" : "no buttons found in the panel")"))
+                }
                 return false
             }
             // Home in three parts (PadRules): the top bar, the games, the game's buttons – up and down
