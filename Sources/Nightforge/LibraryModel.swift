@@ -1439,7 +1439,7 @@ final class LibraryModel: ObservableObject {
                     steamAsked = true
                     noProcessSince = nil  // the question's time isn't the game's
                     if GameOverlay.asksWayOut { GameOverlay.close() }
-                    if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil) {
+                    if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil, battleNet: game.provider == .battlenet) {
                         steamWindowSeen = Date()
                         GameBackdrop.setSteamAsks(true, licence: launchAsksLicence ? licenceLook : nil)
                         offerWayOut(game, reason: .steamAsks)
@@ -1447,7 +1447,7 @@ final class LibraryModel: ObservableObject {
                     } else {
                         offerWayOut(game, reason: nil)
                         GameBackdrop.hide(after: .zero)
-                        GameLog.note("Curtain away for \(game.name): the saves to choose are on Nightforge's page")
+                        GameLog.note("Curtain away for \(game.name): the saves to choose or Battle.net's window are what's asked")
                     }
                     continue
                 case .wait:
@@ -1897,8 +1897,9 @@ final class LibraryModel: ObservableObject {
     /// Black Myth: Wukong's start (1.11.) ran without a curtain or a look for the game's own driver
     /// warning. A start that ended or went wrong meanwhile ends the watch; one that went wrong
     /// without a question is the watch's own business (`none`).
-    /// The choice of saves is a sheet in Nightforge's own window, under the curtain: only that takes it away.
-    nonisolated static func steamAsksOnCurtain(savesToChoose: Bool) -> Bool { !savesToChoose }
+    /// The choice of saves is a sheet in Nightforge's own window, under the curtain, and Battle.net's question
+    /// stands in Battle.net's window, which `steamWindowsOnScreen` doesn't look for: only those take it away.
+    nonisolated static func steamAsksOnCurtain(savesToChoose: Bool, battleNet: Bool = false) -> Bool { !savesToChoose && !battleNet }
 
     enum SteamOnCurtain: Equatable { case wait, lieUnder(Int), giveUp }
 
