@@ -393,6 +393,7 @@ final class LibraryModel: ObservableObject {
         // Back from buying in the browser (or from Steam): pick up newly owned games.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.lookNow()
                 self?.wakeSteam()
                 self?.reload(quiet: true)
                 self?.refreshStores()
@@ -804,22 +805,24 @@ final class LibraryModel: ObservableObject {
                 offerFullScreenIfDue()
                 input.takeHomeButton()
                 DarkWatch.shared.look()
-                let busy = NSApp.isActive || !found.isEmpty || launchingID != nil
                 watchExits(found)
                 if NotificationMoment.asksNow(alreadyAsked: askedAboutNotifications, setting: Prefs.notifyDownloads, inFront: NSApp.isActive,
                                               gameOn: gameOnScreen, firstStart: showsFirstStart, padUsedLast: InputRouter.padUsedLast) {
                     askedAboutNotifications = true
                     MacIntegration.askIfUndecided()
                 }
-                let pause = Duration.seconds(goneFor > 0 ? 1 : busy || GameBackdrop.isRaised ? 3 : 10)
+                let pause = Duration.seconds(IdleRest.lookPause(gameEnding: goneFor > 0, gameOrStart: !found.isEmpty || launchingID != nil || GameBackdrop.isRaised,
+                                                                downloading: !downloads.isEmpty, inFront: NSApp.isActive,
+                                                                nobodyThere: IdleRest.nobodyThere(idle: InputRouter.secondsSinceUse)))
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
             }
         }
     }
 
-    /// The pause between looks; a game's process ending cuts it short.
+    /// The pause between looks; a game's process ending cuts it short, and so does the player coming back.
     private var nap: Task<Void, Never>?
+    func lookNow() { nap?.cancel() }
     private var exitWatches: [pid_t: DispatchSourceProcess] = [:]
 
     /// The processes of the games being played, watched for their end (kqueue): the look that
@@ -4335,6 +4338,7 @@ final class LibraryModel: ObservableObject {
     private func beginLaunch(_ game: Game) -> Int {
         launchNumber += 1
         launchingID = game.id
+        lookNow()
         curtainNote = nil
         startsAgain = false
         GameDisplay.enterGame()
