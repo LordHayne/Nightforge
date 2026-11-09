@@ -1767,6 +1767,13 @@ final class LibraryModel: ObservableObject {
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil
         stage = GameStage()
+        // Over with the game. Left standing, the next finger on the touchpad would give that window's app
+        // the front, with the player back in Nightforge.
+        defer {
+            overGame = nil
+            overGameFront = false
+            overGameHanded = nil
+        }
         var pids = Set<pid_t>()
         var companion = false
         var askers = Set<pid_t>()
@@ -2178,7 +2185,8 @@ final class LibraryModel: ObservableObject {
     /// The app of the window over the game gets the front, when that's due (PadPointerRules.handsFront):
     /// while the game has it, the game keeps the mouse for itself. `touched`: a finger on the touchpad.
     func reachWindowOverGame(touched: Bool = true) {
-        guard PadPointerRules.handsFront(over: overGame, gameFront: overGameFront, alreadyHanded: overGameHanded, touched: touched),
+        guard PadPointerRules.handsFront(over: overGame, gameFront: overGameFront, alreadyHanded: overGameHanded, touched: touched,
+                                         overlay: GameOverlay.isOpen),
               let over = overGame, let app = NSRunningApplication(processIdentifier: over.owner)
         else { return }
         overGameHanded = over.number

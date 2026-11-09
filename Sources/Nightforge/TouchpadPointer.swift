@@ -181,9 +181,10 @@ enum PadPointerRules {
 
     /// Whether that window's app gets the front: while the game has it, its hold on the mouse makes the
     /// window out of reach, for the real mouse too. A big window at once, a small one (which may be
-    /// only a notice) when the player puts a finger on the touchpad. Once per window.
-    static func handsFront(over: OverGame?, gameFront: Bool, alreadyHanded: Int?, touched: Bool) -> Bool {
-        guard let over, gameFront, over.number != alreadyHanded else { return false }
+    /// only a notice) when the player puts a finger on the touchpad. Once per window. Not while the overlay
+    /// is up: the stage keeps its hands off then, and the panel has the pad.
+    static func handsFront(over: OverGame?, gameFront: Bool, alreadyHanded: Int?, touched: Bool, overlay: Bool = false) -> Bool {
+        guard let over, gameFront, over.number != alreadyHanded, !overlay else { return false }
         return touched || (over.size.width >= 600 && over.size.height >= 400)
     }
 
