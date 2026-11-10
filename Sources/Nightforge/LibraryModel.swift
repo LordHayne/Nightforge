@@ -4544,6 +4544,8 @@ final class LibraryModel: ObservableObject {
                 await preparing.value
                 launchPhase = nil
             }
+            // The one quiet second start a confirmed way gets after an early end (LaunchHealth.startsAgainQuietly).
+            var startedQuietlyAgain = false
             while true {
                 // Another way after one that didn't take: the curtain stays up through all the next
                 // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
@@ -4769,13 +4771,18 @@ final class LibraryModel: ObservableObject {
                 // Called off by a new start: that one has the curtain, nothing here starts again, and
                 // a game gone only a moment (a launcher handing over) isn't judged.
                 if Task.isCancelled { return }
+                let quietly = wayConfirmed && LaunchHealth.startsAgainQuietly(outcome, alreadyAgain: startedQuietlyAgain,
+                                                                              ownLauncher: analysis?.launcher != nil,
+                                                                              antiCheat: analysis?.antiCheat.isEmpty == false)
                 if wayConfirmed {
                     if outcome == .keep {
-                        // Quit early, by the look of it: the game is gone, Nightforge stays in front.
                         LaunchHealth.noteStart(game.gameID, attempts, short: true)
-                        return
+                        // Quit early, by the look of it: the game is gone, Nightforge stays in front – after one
+                        // more start on the same way, which ABZU needed now and then.
+                        if !quietly { return }
+                    } else {
+                        LaunchHealth.unconfirm(game.gameID, attempts)
                     }
-                    LaunchHealth.unconfirm(game.gameID, attempts)
                 }
                 launchingID = game.id
                 startsAgain = true
@@ -4786,6 +4793,13 @@ final class LibraryModel: ObservableObject {
                 let folders = Self.processFolders([game])
                 let presence = await Task.detached(priority: .utility) { GameProcesses.presence(of: game.id, folders: folders) }.value
                 if Task.isCancelled { return }
+                if quietly {
+                    // Not sure it's gone: as before, Nightforge stays in front and says nothing.
+                    if presence.mayBeRunning { return }
+                    startedQuietlyAgain = true
+                    GameLog.note("\(game.name) ended in its first seconds without a picture on its proven way: started once more on it")
+                    continue
+                }
                 // Not known (no process list, or an old one from before the start) counts as running too.
                 if presence.mayBeRunning {
                     if presence == .unknown { GameLog.note("\(game.name): no process list to tell if it still runs – not started again") }

@@ -69,6 +69,16 @@ enum LaunchHealth {
         return crashed || shortEndsBefore + 1 >= 2 ? .unconfirm : .keep
     }
 
+    /// A confirmed way that ended in its first seconds with nothing against it (`.keep`: no picture, no
+    /// crash, no graphics error) starts once more on the same way before the player is back in the
+    /// library. ABZU on DXMT, 10.11.2026: 2 of 7 starts ended before Direct3D, the next start on the same
+    /// way had a picture every time. Once only: a second such end counts (`earlyEnd`). Not for games that
+    /// hand over to a launcher of their own or carry an anti-cheat: their processes go and come by design,
+    /// and a start then would be a second copy.
+    static func startsAgainQuietly(_ outcome: Outcome, alreadyAgain: Bool, ownLauncher: Bool, antiCheat: Bool) -> Bool {
+        outcome == .keep && !alreadyAgain && !ownLauncher && !antiCheat
+    }
+
     /// A start that ran past its first seconds, once its verdict is in: confirmed when it drew (or
     /// ran `drawingWindow`). Ending earlier without a picture changes nothing – no frames in the
     /// log says nothing on most layers; it isn't a short start either.

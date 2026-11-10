@@ -326,6 +326,23 @@ struct LaunchHealthTest {
               "a graphics error: the next way")
         check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
               "a way not confirmed yet without a picture moves on, as before")
+        // ABZU, 10.11.2026: a proven way ended before Direct3D now and then; the next start had a picture.
+        let first = LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0)
+        check(LaunchHealth.startsAgainQuietly(first, alreadyAgain: false, ownLauncher: false, antiCheat: false),
+              "a proven way that ended early with nothing against it starts once more")
+        check(!LaunchHealth.startsAgainQuietly(first, alreadyAgain: true, ownLauncher: false, antiCheat: false),
+              "once only")
+        let second = LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 1)
+        check(!LaunchHealth.startsAgainQuietly(second, alreadyAgain: false, ownLauncher: false, antiCheat: false),
+              "the second short end in a row unconfirms instead")
+        check(!LaunchHealth.startsAgainQuietly(first, alreadyAgain: false, ownLauncher: true, antiCheat: false),
+              "not for a game that hands over to a launcher of its own: a second copy")
+        check(!LaunchHealth.startsAgainQuietly(first, alreadyAgain: false, ownLauncher: false, antiCheat: true),
+              "nor for one with an anti-cheat")
+        for outcome in [LaunchHealth.Outcome.confirm, .unconfirm, .nextWay] {
+            check(!LaunchHealth.startsAgainQuietly(outcome, alreadyAgain: false, ownLauncher: false, antiCheat: false),
+                  "a picture, a crash or a graphics error: no quiet second start (\(outcome))")
+        }
         // A picture – the curtain sank, or frame lines in the log – then the end within 30 s (OxyRail, Mafia II, 1.11.).
         check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 0) == .confirm,
               "a way not confirmed yet that showed a picture: confirmed, no start again")
