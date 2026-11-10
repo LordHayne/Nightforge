@@ -50,8 +50,8 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     einmal still neu; nicht bei eigenem Launcher oder Anti-Cheat. Eingespielt 10.11. 20:00, live noch nicht gesehen
     (Protokollzeile „started once more on it“).
   - GTA V Enhanced (3240220) steht nicht als BattlEye-Spiel in profiles.json (nur 271590 und Epic); der Test startete
-    PlayGTAV.exe, ein 332×134-Fenster wartete 5 min. Entscheiden: Enhanced als Anti-Cheat-Spiel führen (Online), und
-    was das Fenster sagt (Rockstar-Launcher, offen).
+    PlayGTAV.exe, ein 332×134-Fenster wartete 5 min. Der Nutzer, 10.11.: „Nein, so lassen“ – Enhanced bleibt ohne
+    Anti-Cheat-Eintrag (wie am 9.11. entschieden). Offen bleibt, was das Fenster sagt (Rockstar-Launcher).
   - Hogwarts: Das Overlay „startet nicht?“ kam beim ersten D3DMetal-Start nach 60 s (`curtainPatience`), Bild kam
     nach 80 s (Shader). Für die Ladescreen-Session: Geduld beim ersten Start eines Weges länger, oder an CPU-Last messen.
   - Der Spieletest bestätigt nie einen Weg: `LaunchHealth` braucht FPS-Zeilen oder 180 s mit Bild, der Test spielt 60 s.
