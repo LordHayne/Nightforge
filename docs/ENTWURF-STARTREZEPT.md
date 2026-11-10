@@ -1,6 +1,6 @@
 # Entwurf: Startrezept und Lernkreislauf
 
-Stand 10.11.2026, Entwurf, nichts davon gebaut. Auslöser: der Nutzer, 10.11.: „Wie können wir den Startvorgang
+Stand 10.11.2026. Stufe 1 und 2 sind gebaut (Abschnitt 3.1), sie ändern keinen Start. Stufe 3 bis 6 sind Entwurf. Auslöser: der Nutzer, 10.11.: „Wie können wir den Startvorgang
 komplett automatisieren, damit wir nicht jedes Game testen müssen? Mir kommt es so vor, als ob die einzelnen
 Bauteile nicht richtig vernetzt sind.“
 
@@ -114,6 +114,26 @@ Jede Stufe ist für sich nützlich und einzeln testbar.
 | 6 | Rezepte teilen: aus bewiesenen Rezepten Vorschläge für `mac.json`, mit OK je Bericht. | Jeder Mac lernt von jedem. | Entscheidung des Nutzers, Datenschutz |
 
 Stufe 1 und 2 ändern keinen Start und können sofort gebaut werden. Stufe 3 ist der eigentliche Umbau.
+
+### 3.1 Gebaut am 10.11.2026 (Stufe 1 und 2)
+
+- `GameKind` (Steckbrief): Engine mit Version, Schnittstellen, Middleware, Launcher, Anti-Cheat, 32/64 Bit. Unreals
+  Version steht in der Versionsressource des Programms (`PEImports.facts`), Unitys am Anfang der Spieldaten.
+  Schlüssel `coarse` und `fine`. An den installierten Spielen geprüft: ABZU `unreal4.12`, It Takes Two `unreal4.26`,
+  Hogwarts `unreal4.27`, Wukong `unreal5.0`, REANIMAL `unreal5.4`, The Forest `unity5.6`, OxyRail `unity6000.3`.
+- `StartRecipe`: Grafikweg, Argumente, alle DLL-Schalter, Laufzeiten, AVX, Windows-Version als ein Wert.
+- `StartEvidence` schreibt bei jedem Start `kind` und `recipe`, bei einem Fehlschlag `diagnosis`. Alte Zeilen lesen sich weiter.
+- `CrashDump`: liest Minidumps als Datei (x64 und x86): Ausnahme, Modul der Adresse, Module auf dem Stapel des
+  abgestürzten Threads. Kaputte Dateien ergeben nichts (Kürzungen und 400 Zufallsfehler im Test).
+- `StartDiagnosis`: die Tabelle Fehlerbild → Abhilfe (`rules`), `finding` sammelt Meldungen, Dumps und Protokoll. Das
+  Ergebnis steht im Protokoll („Diagnosis for …“), in der Evidenz und im Problembericht. Nie bei Anti-Cheat-Spielen.
+- Probe an den 28 echten Dumps dieses Macs: alle acht von It Takes Two → `physx-update-loader`. Neue Fehlerbilder, die
+  dabei sichtbar wurden und noch keine Regel haben: Unity `0xc06d007e` (nachgeladenes Modul fehlt) über `winemetal.dll`
+  (OxyRail); Unreal-Assert `0x4000` über `kernelbase` (Hogwarts, steht schon als Meldung da).
+- Offen aus diesen Stufen: Die Diagnose läuft nur nach einem frühen Ende ohne Bild, nicht bei Abstürzen mitten im Spiel.
+  Live an einem scheiternden Start noch nicht gesehen (nur an den vorhandenen Dumps und in `StartDiagnosisTest`).
+- Live gesehen am 10.11. 20:55 (988e721): Die Evidenzzeile von It Takes Two trägt `kind` (unreal 4.26, aftermath, apex,
+  physx3, steamworks) und `recipe` (d3dmetal, `-dx12`, zehn DLL-Schalter).
 
 ## 4. Offene Fragen
 

@@ -60,8 +60,10 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   - `open -b` startete das Release aus /Applications statt des Testbuilds: Testläufe immer per Pfad starten.
 
 - **Startrezept und Lernkreislauf (Entwurf 10.11., `docs/ENTWURF-STARTREZEPT.md`):** ein Rezept statt Grafikweg-Leiter,
-  Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. Stufen 1 und 2 ändern keinen Start. Wartet auf die Wahl
-  des Nutzers.
+  Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
+  Minidump-Leser und Diagnose im Protokoll, noch ohne Wirkung auf den Start). Nächste Entscheidung: Stufe 3, die Diagnose
+  ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
+  von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
 
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
 
