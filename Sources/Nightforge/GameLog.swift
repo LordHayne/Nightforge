@@ -128,6 +128,30 @@ enum GameLog {
         crashReports(installDir: installDir, since: date, prefix: prefix).compactMap { crashContext(reportText($0)).message }
     }
 
+    /// The minidumps of a start: Unreal's lies beside its crash report (UE4Minidump.dmp, UEMinidump.dmp),
+    /// Unity's in %TEMP%\<company>\<product>\Crashes\<crash>\crash.dmp.
+    static func crashDumps(installDir: URL, since date: Date, prefix: URL = Engine.prefix) -> [URL] {
+        let fm = FileManager.default
+        func folders(_ url: URL) -> [URL] {
+            (try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+        }
+        func dumps(in folder: URL) -> [URL] {
+            folders(folder).filter { file in
+                file.pathExtension.lowercased() == "dmp"
+                    && ((try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate).map { $0 >= date } == true
+            }
+        }
+        var found = crashReports(installDir: installDir, since: date, prefix: prefix).flatMap { dumps(in: $0.deletingLastPathComponent()) }
+        for user in folders(prefix.appendingPathComponent("drive_c/users")) {
+            for company in folders(user.appendingPathComponent("AppData/Local/Temp")) {
+                for product in folders(company) {
+                    for crash in folders(product.appendingPathComponent("Crashes")) { found += dumps(in: crash) }
+                }
+            }
+        }
+        return found
+    }
+
     /// A crash report's kind ("Crash", "Assert", "Ensure") and its message.
     static func crashContext(_ text: String) -> (type: String?, message: String?) {
         func field(_ name: String) -> String? {

@@ -47,6 +47,12 @@ struct GameAnalysis: Codable, Equatable {
     /// The switch past the game's own launcher window (Play, Options, …), where its program knows one:
     /// Guardians of the Galaxy's gotg.exe takes -nolauncher (9.11.2026). Given at every start, not a way of its own.
     var launcherSwitch: String?
+    /// The engine's version, major and minor ("4.26", "2017.4"), where the files say it (GameKind).
+    var engineVersion: String?
+    /// The libraries the game brings along ("physx3", "steamworks", …; GameKind.middleware).
+    var middleware: [String] = []
+    /// Its program is a 64-bit one; nil when its header wasn't read.
+    var is64Bit: Bool?
 
     /// Direct3D 10/11 is what DXMT and DXVK translate.
     var usesD3D11: Bool { apis.contains(.d3d10) || apis.contains(.d3d11) }
@@ -112,9 +118,11 @@ extension GameAnalysis {
         // Overwatch_loader.dll, which links Direct3D 11 – taken for a pure DirectX 12 game, it ran
         // on D3DMetal alone, 1.11.2026).
         var agilitySDK = false
+        var linked = Set<String>()
         for (index, file) in targets.enumerated() where fm.fileExists(atPath: file.path) {
             if index == fallback, !analysis.apis.isEmpty || analysis.engine == .unity { break }
             guard let imports = PEImports.dlls(of: file) else { continue }
+            linked.formUnion(imports)
             let folder = file.deletingLastPathComponent()
             analysis.apis.formUnion(imports.compactMap(api(forDLL:)))
             if imports.contains("mscoree.dll") { analysis.usesDotNet = true }
@@ -171,6 +179,26 @@ extension GameAnalysis {
         analysis.launcher = launchers.first { $0.paths.contains(where: contents.has) }?.name
         analysis.usesWebView2 = contents.hasItem(named: "webview2loader.dll")
         analysis.usesDLSS = contents.hasItem(named: "nvngx_dlss.dll")
+        // The game's sort (GameKind): what it brings along, its program's width, its engine's version.
+        analysis.middleware = GameKind.middleware(in: linked.union(contents.paths.map { ($0 as NSString).lastPathComponent }))
+        let program = largest ?? targets.first { fm.fileExists(atPath: $0.path) }
+        let facts = program.flatMap(PEImports.facts(of:))
+        analysis.is64Bit = facts?.is64Bit
+        switch analysis.engine {
+        case .unreal: analysis.engineVersion = GameKind.unrealVersion(facts?.fileVersion)
+        case .unity:
+            // The started program's own data folder first: The Forest has three (its own on Unity 5.6, its VR
+            // build's on 2017.4).
+            let started = targets.first { fm.fileExists(atPath: $0.path) }
+            let own = started.flatMap { program in
+                ["globalgamemanagers", "data.unity3d"].lazy.map {
+                    program.deletingLastPathComponent()
+                        .appendingPathComponent(program.deletingPathExtension().lastPathComponent + "_Data").appendingPathComponent($0)
+                }.first { fm.fileExists(atPath: $0.path) }
+            }
+            analysis.engineVersion = (own ?? contents.unityData).flatMap(head).flatMap(GameKind.unityVersion(inHead:))
+        case .other: break
+        }
         return analysis
     }
 
@@ -218,6 +246,9 @@ extension GameAnalysis {
         var programs: [URL] = []
         /// Every file and folder, lower-cased and relative to the game folder.
         var paths = Set<String>()
+        /// Unity's data file that begins with the engine's version (<Game>_Data/globalgamemanagers, or
+        /// data.unity3d where the data is packed).
+        var unityData: URL?
 
         /// `path` relative to the game folder, or a bare name anywhere in it.
         func has(_ path: String) -> Bool { path.contains("/") ? paths.contains(path) : hasItem(named: path) }
@@ -274,12 +305,22 @@ extension GameAnalysis {
             let name = file.lastPathComponent.lowercased()
             let installers = path.hasPrefix("_commonredist") || path.hasPrefix("__installer")
             if name.hasSuffix(".exe"), !installers, !helpers.contains(where: name.contains) { contents.programs.append(file) }
+            if path.contains("_data/"), name == "globalgamemanagers" || (name == "data.unity3d" && contents.unityData == nil) {
+                contents.unityData = file
+            }
         }
         return contents
     }
 
     private static func size(_ file: URL) -> Int {
         (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+    }
+
+    /// A file's first 4 KB.
+    private static func head(_ file: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        return try? handle.read(upToCount: 4096)
     }
 
     /// Windows file names ignore case; the Mac's disk usually does too, but not always.
@@ -415,6 +456,44 @@ enum PEImports {
             }
         }
         return names
+    }
+
+    /// Whether a program is a 64-bit one, and the version in its version resource (VS_FIXEDFILEINFO's
+    /// file version, four numbers) – found by its signature in the resource section, which is read up
+    /// to 32 MB: icons come before it.
+    static func facts(of file: URL) -> (is64Bit: Bool, fileVersion: [Int]?)? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        func read(_ offset: UInt64, _ count: Int) -> Data? {
+            guard (try? handle.seek(toOffset: offset)) != nil else { return nil }
+            return try? handle.read(upToCount: count)
+        }
+        guard let dos = read(0, 64), dos.count == 64, dos.u16(0) == 0x5A4D else { return nil }
+        let pe = UInt64(dos.u32(0x3C))
+        guard let coff = read(pe, 24), coff.count == 24, coff.u32(0) == 0x4550 else { return nil }
+        let sectionCount = Int(coff.u16(6))
+        let optionalSize = Int(coff.u16(20))
+        guard let optional = read(pe + 24, optionalSize), optional.count == optionalSize, optionalSize >= 96 else { return nil }
+        let is64 = optional.u16(0) == 0x20B
+        let resources = (is64 ? 112 : 96) + 2 * 8
+        guard resources + 8 <= optional.count, optional.u32(resources) != 0, sectionCount <= 96,
+              let table = read(pe + 24 + UInt64(optionalSize), sectionCount * 40), table.count == sectionCount * 40
+        else { return (is64, nil) }
+        let rva = optional.u32(resources), size = Int(optional.u32(resources + 4))
+        var offset: UInt64?
+        for index in 0..<sectionCount {
+            let at = index * 40
+            let virtualSize = table.u32(at + 8), address = table.u32(at + 12)
+            let rawSize = table.u32(at + 16), rawPointer = table.u32(at + 20)
+            if rva >= address, rva < address &+ max(virtualSize, rawSize) { offset = UInt64(rawPointer) + UInt64(rva - address) }
+        }
+        guard let offset, let block = read(offset, min(size, 32 << 20)),
+              let found = block.range(of: Data([0xBD, 0x04, 0xEF, 0xFE]))
+        else { return (is64, nil) }
+        let at = found.lowerBound - block.startIndex
+        guard at + 16 <= block.count else { return (is64, nil) }
+        let high = block.u32(at + 8), low = block.u32(at + 12)
+        return (is64, [Int(high >> 16), Int(high & 0xFFFF), Int(low >> 16), Int(low & 0xFFFF)])
     }
 }
 

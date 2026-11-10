@@ -20,6 +20,12 @@ enum StartEvidence {
         var known: Bool?
         /// The game's own words, without what identifies the player.
         var reason: String?
+        /// With a start: the game's sort and all the start was made of, so that what one game taught can be
+        /// asked for by sort later.
+        var kind: GameKind?
+        var recipe: StartRecipe?
+        /// With a failure: what the diagnosis made of it (StartDiagnosis.line).
+        var diagnosis: [String]?
     }
 
     /// Games Nightforge had never seen, by how their first start went (`worked`: it drew a picture,
@@ -34,8 +40,12 @@ enum StartEvidence {
     static var url: URL { Engine.supportDir.appendingPathComponent("start-evidence.jsonl") }
 
     static func note(_ event: Event, game: GameID, way: String, engine: String? = nil, known: Bool? = nil,
-                     reason: String? = nil, to file: URL = url) {
+                     reason: String? = nil, kind: GameKind? = nil, recipe: StartRecipe? = nil, diagnosis: [String]? = nil,
+                     to file: URL = url) {
         var entry = Entry(at: Date(), game: game.key, event: event, way: way, engine: engine, known: known)
+        entry.kind = kind
+        entry.recipe = recipe
+        entry.diagnosis = diagnosis.flatMap { $0.isEmpty ? nil : $0.map { GameLog.redacted(String($0.prefix(240))) } }
         if event == .started { entry.mac = "\(ProblemReport.chip) · macOS \(ProblemReport.osVersion)" }
         entry.reason = reason.map { GameLog.redacted(String($0.prefix(240))) }
         append(entry, to: file)

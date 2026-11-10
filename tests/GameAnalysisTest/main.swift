@@ -244,6 +244,33 @@ struct GameAnalysisTest {
         check(kept == unreal, "kept and read back unchanged")
 
         try? fm.removeItem(at: root)
+        // MARK: The game's sort (GameKind)
+        let sort = try analyze("sort", [
+            "Game.exe": program(["d3d11.dll", "steam_api64.dll"], delayed: ["physx3_x64.dll"]),
+            "Engine/Binaries/ThirdParty/PhysX3/Win64/VS2015/PhysX3_x64.dll": empty,
+            "Engine/Binaries/ThirdParty/Steamworks/x.txt": empty,
+            "bink2w64.dll": empty, "binkies.png": empty, "nvngx_dlss.dll": empty,
+        ])
+        check(sort.middleware == ["bink", "dlss", "physx3", "steamworks"],
+              "what a game brings along: from its imports, its DLLs and Unreal's ThirdParty folders (\(sort.middleware))")
+        check(sort.is64Bit == true && sort.engine == .unreal && sort.engineVersion == nil, "its width; no version resource, no engine version")
+        check(sort.kind.coarse == "unreal|d3d11" && sort.kind.fine == "unreal|d3d11|bink+dlss+physx3+steamworks", "its sort (\(sort.kind.fine))")
+        let old32 = try analyze("sort32", ["Game.exe": program(["d3d9.dll", "physxloader.dll"], is64: false)])
+        check(old32.is64Bit == false && old32.middleware == ["physx2"] && old32.kind.bits == 32, "a 32-bit game with PhysX 2")
+        func unityData(_ version: String) -> Data { Data([0, 0, 0, 0, 0, 0, 0, 22]) + Data((version + "\0").utf8) + Data(count: 64) }
+        let forest = try analyze("forest", [
+            "TheForest.exe": program(["kernel32.dll"]), "UnityPlayer.dll": program(["d3d11.dll"]),
+            "TheForest_Data/globalgamemanagers": unityData("5.6.5p4"),
+            "TheForestVR_Data/globalgamemanagers": unityData("2017.4.30f1"),
+        ], launch: "TheForest.exe")
+        check(forest.engine == .unity && forest.engineVersion == "5.6", "Unity's version from the started program's own data (\(forest.engineVersion ?? "–"))")
+        let packed = try analyze("packed", [
+            "Game.exe": program(["kernel32.dll"]), "UnityPlayer.dll": program(["d3d11.dll"]),
+            "Other_Data/data.unity3d": Data("UnityFS\0\0\0\0\u{8}5.x.x\06000.3.10f1\0".utf8),
+        ])
+        check(packed.engineVersion == "6000.3" && packed.kind.coarse == "unity6000|d3d11", "… or from whatever data folder there is (\(packed.kind.coarse))")
+        check(try analyze("plain", ["Game.exe": program(["d3d11.dll"])]).kind.fine == "other|d3d11|", "a game that brings nothing along")
+
         print(failures == 0 ? "✓ GameAnalysis" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

@@ -4630,7 +4630,15 @@ final class LibraryModel: ObservableObject {
                 // Watched once with each new engine build or way, so one the newest engine crashes is noticed.
                 let way = LaunchAttempt(graphics: layer, arguments: arguments).id
                 if let build, EngineRollback.shared.needsWatch(game.gameID, build: build, way: way) { watchFirstSeconds = true }
-                if automatic, !attempts.isEmpty { StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed) }
+                StartDiagnosis.remember([], for: game.gameID)  // an earlier start's
+                if automatic, !attempts.isEmpty {
+                    let recipe = StartRecipe.of(layer: layer, arguments: Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch),
+                                                profile: profile, learnedRuntimes: LearnedFixes.winetricks(game.gameID),
+                                                avx: LearnedFixes.avx(game.gameID, profile: profile),
+                                                d3dMetalEngine: runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true)
+                    StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
+                                       kind: analysis?.kind, recipe: recipe)
+                }
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
                     ? await Engine.offMain { [options] in
@@ -4756,6 +4764,20 @@ final class LibraryModel: ObservableObject {
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 }
+                // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
+                // the record and the problem report – not acted on yet. Never for a game with an anti-cheat.
+                var diagnosis: [String] = []
+                if !Task.isCancelled {
+                    let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
+                    diagnosis = await Task.detached(priority: .utility) {
+                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return [] }
+                        return StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
+                                                                              since: startedAt, layer: layer, hung: hung))
+                            .map { GameLog.redacted($0.line) }
+                    }.value
+                    for line in diagnosis { GameLog.note("Diagnosis for \(game.name): \(line)") }
+                    StartDiagnosis.remember(diagnosis, for: game.gameID)
+                }
                 // Closed at a question of its own (the curtain saw it): the player's choice too – unless
                 // the log says the graphics failed or it crashed, as after Play in Unity's window it might.
                 if let end = LaunchHealth.ownQuestionEnd(game.gameID), end >= startedAt {
@@ -4840,7 +4862,7 @@ final class LibraryModel: ObservableObject {
                     GameLog.crashMessages(installDir: installDir, since: startedAt)
                 }.value
                 if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
-                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture)
+                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
                 if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts)) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)

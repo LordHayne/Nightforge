@@ -78,7 +78,12 @@ enum ProblemReport {
         let learned = LearnedFixes.winetricks(game.gameID)
         if !learned.isEmpty { facts.append(("Installed by itself", learned.joined(separator: ", "))) }
 
-        let errors = GameLog.errors(since: LearnedFixes.lastLaunchMark(game.gameID) ?? GameLog.mark())
+        // What the last start's diagnosis found: its names among the facts, its lines with the errors.
+        let diagnosis = StartDiagnosis.remembered(game.gameID)
+        if !diagnosis.isEmpty {
+            facts.append(("Diagnosis", diagnosis.map { String($0.prefix { $0 != ":" }) }.joined(separator: ", ")))
+        }
+        let errors = diagnosis.map { "diagnosis: " + $0 } + GameLog.errors(since: LearnedFixes.lastLaunchMark(game.gameID) ?? GameLog.mark())
         // A GOG download that stopped: how gogdl ended it.
         var downloadFailure: [String] = []
         if game.provider == .gog, let text = try? String(contentsOf: GOGDL.failedLog(for: game.gameID.id), encoding: .utf8) {
