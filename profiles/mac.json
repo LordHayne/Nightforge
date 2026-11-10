@@ -58,7 +58,7 @@
    "arguments": [
     "-dx12"
    ],
-   "note": "Tested 2026-11-09 on M5 with D3DMetal on winecx 4.7.3: it starts on D3DMetal with -dx12. With -dx11 on DXMT and DXVK it stays at a small window without a picture."
+   "note": "Tested 2026-11-10 on M5, macOS 27.0, winecx 4.7.3, the Steam version from Nightforge: a picture on D3DMetal with -dx12 after 84 s at the first start (shaders), 37 s after that; the way confirmed after 180 s. Before 0df3c58 every start crashed in its first second, on every way (PhysXUpdateLoader64 from the PhysX System Software calling D3DMetal's nvapi64); DXMT and DXVK not tried since."
   },
   "1623730": {
    "name": "Palworld",

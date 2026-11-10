@@ -4,6 +4,20 @@ Stand 31.10.2026. Gemessen auf `claude/ux-roadmap-next` 159acfa (GOG gemergt), d
 aufsetzt. Zum Vergleich steht auch 001a3e0 da, der Stand vor dem GOG-Merge. Die Prozentzahlen sind Zeilenabdeckung
 laut `llvm-cov`.
 
+## Stand 10.11.2026, Nachtmessung (0.3.3, auf `claude/staging-033` 0df3c58)
+
+Nur gemessen, keine neuen Reihen: `scripts/coverage.sh -P 2` nach dem Spieletest der Nacht, alle 114 Reihen grün.
+
+| | 9.11. (1e6ed95) | 10.11. (0df3c58) |
+|---|---|---|
+| Zeilen | 36,92 % | 37,34 % |
+| Funktionen | 50,40 % | 50,90 % |
+| Regionen | 47,70 % | 48,12 % |
+
+Der Zuwachs kommt von der neuen Startlogik und ihren Reihen (`StartEvidence` 98 %, `LaunchHealth` 97 %, `GameAnalysis`
+und `Profiles` 99 %). Die großen Lücken bleiben die Abläufe mit dem System: `LibraryModel` 22 %, `InputRouter` 5 %,
+`Launcher` 55 %, `Engine` 63 %.
+
 ## Stand 9.11.2026, vierte Runde (0.3.3, auf `claude/staging-033` 1e6ed95)
 
 Volllauf mit `scripts/coverage.sh -P 2` vorher und nachher. Alle 112 Reihen grün, je Reihe am Exit-Code abgelesen, aus einem

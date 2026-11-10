@@ -29,15 +29,33 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   - Hogwarts Legacy: Unreals Treiber-Warnung kam trotz `r.WarnOfBadDrivers=0`: Das stand nur im Spielordner, Hogwarts
     liest `AppData/Local/HogwartsLegacy/Saved/Config/WindowsNoEditor`, und sein Programm heißt nicht `-Shipping`.
     `Engine.unrealUserConfigs` schreibt jetzt auch dorthin (vor dem ersten Start beide Ordner).
-  - Live prüfen: Guardians startet ohne Startfenster und im Vollbild; Hogwarts ohne Warnung.
+  - Live bestätigt im Nachttest 10.11. (fd58000): Guardians ohne Startfenster, Vollbild 1512×982 (`Fullscreen=1` in user.reg);
+    Hogwarts ohne Warnung (`r.WarnOfBadDrivers=0` in AppData/…/WindowsNoEditor/Engine.ini).
 - **Offen vom selben Abend:**
-  - It Takes Two auf Automatisch: Steam wartet auf eine Antwort (`ShowInterstitials`), seine Fenster bleiben versteckt
-    (500×500, nicht auf dem Schirm), auch nach vier `ExecCommandLine` von „Steam-Fenster zeigen“. Der Vorhang gibt nach
-    der Geduld auf, der Start endet still. Vorher lief ein DXVK-Start (von Hand gewählt) in den bekannten stillen Absturz.
+  - It Takes Two: ~~stiller Fehlstart~~ behoben in 0df3c58, live bestätigt 10.11. (Bild auf D3DMetal nach 84 s, beim
+    zweiten Mal 37 s, `worked` in der Startevidenz). Ursache: Alle acht Absturzberichte seit 9.11. zeigen
+    PhysXUpdateLoader64 → nvapi64 → Adresse 0, auf jedem Weg. Den Loader bringt die PhysX System Software mit, die seit
+    31.10. für Mafia II im Prefix liegt; `Engine.physXUpdateLoaderOff` schaltet ihn für Spielprogramme ab (Mafia II hat
+    weiter Bild). `ShowInterstitials` hing im Nachttest nicht mehr (Antwort in derselben Sekunde). daaf05f: Das `-dx12`
+    des Profils ging auf DXMT und DXVK mit („-dx12 -dx11“), jetzt nur auf dem Weg des Profils.
   - „Composited“ in Rot bei D3DMetal (Hogwarts, Guardians): bekannt, D3DMetal zeichnet ohne Retina in halber
     Pixelzahl (siehe Direct-Ziel).
   - Pad im Spiel: Der Nutzer konnte „das Controller-Menü“ bei Hogwarts nur mit der Maus bedienen. Noch klären, ob
     Nightforges Overlay oder das Menü des Spiels gemeint ist (Log: Overlay kam dreimal, `back` zweimal).
+- **Nachttest 10.11. (fd58000, dann 0df3c58), Bericht `docs/spieletest/2026-11-10.md`:** 15 von 18 mit Bild.
+  - ABZU: sporadisch ohne Fenster (2 von 7 Starts in der Nacht, beide in langen Läufen; nachgestellt mit Steam an/aus,
+    nach L4D2 und nach It Takes Two: immer Bild). DXMT meldet sich in den Fehlschlägen gar nicht, das Spiel endet vor
+    Direct3D und schreibt nur seine INIs. Vorschlag: Ein bestätigter Weg, der ohne Fenster kurz endet, wird einmal
+    still wiederholt, bevor der Spieler etwas merkt (Startlogik, mit dem Nutzer klären).
+  - GTA V Enhanced (3240220) steht nicht als BattlEye-Spiel in profiles.json (nur 271590 und Epic); der Test startete
+    PlayGTAV.exe, ein 332×134-Fenster wartete 5 min. Entscheiden: Enhanced als Anti-Cheat-Spiel führen (Online), und
+    was das Fenster sagt (Rockstar-Launcher, offen).
+  - Hogwarts: Das Overlay „startet nicht?“ kam beim ersten D3DMetal-Start nach 60 s (`curtainPatience`), Bild kam
+    nach 80 s (Shader). Für die Ladescreen-Session: Geduld beim ersten Start eines Weges länger, oder an CPU-Last messen.
+  - Der Spieletest bestätigt nie einen Weg: `LaunchHealth` braucht FPS-Zeilen oder 180 s mit Bild, der Test spielt 60 s.
+    D3DMetal-Spiele bleiben so unbestätigt. `gameTest.playSeconds` ≥ 190 für Erststarts, oder der Test spielt bis zur
+    Bestätigung.
+  - `open -b` startete das Release aus /Applications statt des Testbuilds: Testläufe immer per Pfad starten.
 
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
 
