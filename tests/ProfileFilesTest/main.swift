@@ -247,6 +247,14 @@ struct ProfileFilesTest {
         let odd = profile(#"{"graphics": "metal5", "winetricks": "xact", "arguments": ["-dx11"], "frameLimit": "sixty"}"#)
         check(odd?.graphics == nil && odd?.winetricks == nil && odd?.frameLimit == nil && odd?.arguments == ["-dx11"],
               "an unknown layer or a wrong type is no preference; the rest stays")
+        check(odd?.arguments(on: .dxvk) == ["-dx11"] && odd?.arguments(on: .d3dmetal) == ["-dx11"],
+              "arguments of a profile without a layer go along on every way")
+        // It Takes Two, 10.11.2026: the ladder's DXMT and DXVK starts ran with "-dx12 -dx11".
+        let tested = profile(#"{"graphics": "d3dmetal", "arguments": ["-dx12"]}"#)
+        check(tested?.arguments(on: .d3dmetal) == ["-dx12"], "a profile's arguments go along on its own layer")
+        check(tested?.arguments(on: .dxmt) == [] && tested?.arguments(on: .dxvk) == [] && tested?.arguments(on: .wined3d) == [],
+              "and stay out on another way")
+        check(profile(#"{"graphics": "dxmt"}"#)?.arguments(on: .dxmt) == [], "no arguments, none on its layer either")
         let saves = profile(#"{"saves": [{"root": "WinAppDataLocal", "path": "Game/Saved", "mac": "MacAppSupport"},"#
                             + #"{"root": "WinMyDocuments", "path": "My Games", "pattern": "*.sav", "recursive": false, "mac": "MacDocuments", "macPath": "Game"}]}"#)?.saves
         check(saves == [SaveRule(root: "WinAppDataLocal", path: "Game/Saved", pattern: "*", recursive: true, macRoot: "MacAppSupport", macAddPath: ""),

@@ -619,7 +619,7 @@ enum Launcher {
         var gameArguments: [String] = []
         if game.bottle.isBuiltIn {
             gameArguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
-            gameArguments += profile?.arguments ?? []
+            gameArguments += profile?.arguments(on: layer) ?? []
             gameArguments += extraArguments
         }
         gameArguments += splitArguments(options.extraArgs)
@@ -689,7 +689,7 @@ enum Launcher {
         }
         let loader = Engine.loader(for: runner)
         if loader != runner { environment["WINELOADER"] = loader.path }
-        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments ?? [])
+        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments(on: layer) ?? [])
             + extraArguments + splitArguments(options.extraArgs))
         process.currentDirectoryURL = otherProgram ? program.deletingLastPathComponent() : command.workingDirectory
         process.environment = environment

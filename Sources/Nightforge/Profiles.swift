@@ -13,6 +13,16 @@ struct GameProfile: Decodable, Equatable {
     var graphics: GraphicsLayer?
     /// Appended to the game's command line.
     var arguments: [String]?
+
+    /// The arguments for a start on `layer`. A profile that names a layer was tested with its arguments on that
+    /// layer: on another way – the ladder moving on, or the player's pick – they stay out. It Takes Two's -dx12
+    /// went along with DXMT's and DXVK's -dx11 ("-dx12 -dx11"), and the game took DirectX 12 there (10.11.2026).
+    func arguments(on layer: GraphicsLayer) -> [String] {
+        guard let arguments else { return [] }
+        guard let graphics, graphics != .automatic else { return arguments }
+        return graphics == layer ? arguments : []
+    }
+
     /// DLL → load order as Wine writes it ("native,builtin", "" = disabled), for the game's programs.
     var dllOverrides: [String: String]?
     var registry: [RegistryEntry]?
