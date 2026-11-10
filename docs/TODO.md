@@ -59,6 +59,10 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     Bestätigung.
   - `open -b` startete das Release aus /Applications statt des Testbuilds: Testläufe immer per Pfad starten.
 
+- **Startrezept und Lernkreislauf (Entwurf 10.11., `docs/ENTWURF-STARTREZEPT.md`):** ein Rezept statt Grafikweg-Leiter,
+  Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. Stufen 1 und 2 ändern keinen Start. Wartet auf die Wahl
+  des Nutzers.
+
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
 
 ## Rosetta und macOS 28
