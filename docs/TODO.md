@@ -45,8 +45,10 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
 - **Nachttest 10.11. (fd58000, dann 0df3c58), Bericht `docs/spieletest/2026-11-10.md`:** 15 von 18 mit Bild.
   - ABZU: sporadisch ohne Fenster (2 von 7 Starts in der Nacht, beide in langen Läufen; nachgestellt mit Steam an/aus,
     nach L4D2 und nach It Takes Two: immer Bild). DXMT meldet sich in den Fehlschlägen gar nicht, das Spiel endet vor
-    Direct3D und schreibt nur seine INIs. Vorschlag: Ein bestätigter Weg, der ohne Fenster kurz endet, wird einmal
-    still wiederholt, bevor der Spieler etwas merkt (Startlogik, mit dem Nutzer klären).
+    Direct3D und schreibt nur seine INIs. Der Nutzer, 10.11.: „Ja, wiederholen“ → 03f3c2a
+    (`LaunchHealth.startsAgainQuietly`): Ein bestätigter Weg, der früh ohne Bild, Absturz und Grafikfehler endet, startet
+    einmal still neu; nicht bei eigenem Launcher oder Anti-Cheat. Eingespielt 10.11. 20:00, live noch nicht gesehen
+    (Protokollzeile „started once more on it“).
   - GTA V Enhanced (3240220) steht nicht als BattlEye-Spiel in profiles.json (nur 271590 und Epic); der Test startete
     PlayGTAV.exe, ein 332×134-Fenster wartete 5 min. Entscheiden: Enhanced als Anti-Cheat-Spiel führen (Online), und
     was das Fenster sagt (Rockstar-Launcher, offen).
