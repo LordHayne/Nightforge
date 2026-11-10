@@ -1975,6 +1975,21 @@ enum Engine {
         }
     }
 
+    /// NVIDIA's PhysX System Software, in the prefix for older games' PhysX (Mafia II, 31.10.2026), puts
+    /// its PhysXUpdateLoader on the path. PhysX 3 in a game asks it for a newer PhysX from the driver; it
+    /// asks NVAPI, and D3DMetal's nvapi64 calls a null pointer there: It Takes Two crashed in its first second
+    /// at every start, on every way (PhysXUpdateLoader64 → nvapi64 → 0, 10.11.2026). Without the loader PhysX
+    /// takes the game's own DLLs; PhysX 2 (PhysXLoader) doesn't use it.
+    static let physXUpdateLoaderOff = ["physxupdateloader": "", "physxupdateloader64": ""]
+
+    /// The DLL overrides of a game's programs: the PhysX update loader off, the profile's over that, and
+    /// the layer's copies of the Direct3D DLLs over both.
+    static func gameDllOverrides(_ layer: GraphicsLayer, profile: GameProfile?, d3dMetalEngine: Bool) -> [String: String] {
+        var overrides = physXUpdateLoaderOff.merging(profile?.dllOverrides ?? [:]) { _, profile in profile }
+        overrides.merge(layerOverrides(layer, d3dMetalEngine: d3dMetalEngine)) { _, layer in layer }
+        return overrides
+    }
+
     /// Per-program settings for a game's executables (Wine's AppDefaults): the Direct3D layer, the
     /// profile's DLL overrides and Windows version. Rewritten in full when anything in them differs
     /// from what the prefix holds (GameRegistryRecord), so a changed choice or profile never leaves
@@ -1991,8 +2006,7 @@ enum Engine {
         var sections = [GameRegistryRecord.Section(key: "WineDbg", text: crashDialogOff)]
         for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
-            var overrides = profile?.dllOverrides ?? [:]
-            overrides.merge(layerOverrides(layer, d3dMetalEngine: d3dMetalEngine)) { _, layer in layer }
+            let overrides = gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine)
             var section = "[-\(app)\\DllOverrides]"
             if !overrides.isEmpty {
                 section += "\n[\(app)\\DllOverrides]\n" + overrides.sorted { $0.key < $1.key }

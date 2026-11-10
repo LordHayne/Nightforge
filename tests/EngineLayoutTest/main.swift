@@ -61,6 +61,20 @@ struct EngineLayoutTest {
         let metal = Engine.layerOverrides(.d3dmetal, d3dMetalEngine: true)
         check(["dxgi", "d3d11", "d3d12", "d3d12core"].allSatisfy { metal[$0] == "builtin" }, "D3DMetal takes the builtins")
         check(Engine.layerOverrides(.wined3d, d3dMetalEngine: true) == ["d3d9": "builtin"], "WineD3D unchanged")
+        // It Takes Two, 10.11.2026: PhysX 3 → the PhysX System Software's update loader → nvapi64 → null.
+        for layer in [GraphicsLayer.d3dmetal, .dxmt, .dxvk, .wined3d] {
+            let plain = Engine.gameDllOverrides(layer, profile: nil, d3dMetalEngine: true)
+            check(plain["physxupdateloader64"] == "" && plain["physxupdateloader"] == "", "PhysX's update loader is off on \(layer)")
+        }
+        let profile = { (json: String) in try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let recall = profile(#"{"graphics": "dxmt", "dllOverrides": {"nvapi64": "", "nvngx": ""}}"#)
+        let ow = Engine.gameDllOverrides(.dxmt, profile: recall, d3dMetalEngine: true)
+        check(ow["nvapi64"] == "" && ow["nvngx"] == "" && ow["d3d11"] == "native" && ow["physxupdateloader64"] == "",
+              "a profile's overrides stay, beside the layer's and the loader's")
+        let wants = profile(#"{"dllOverrides": {"physxupdateloader64": "native", "d3d11": "builtin"}}"#)
+        let w = Engine.gameDllOverrides(.dxvk, profile: wants, d3dMetalEngine: true)
+        check(w["physxupdateloader64"] == "native", "a profile that wants the loader gets it")
+        check(w["d3d11"] == "native", "the layer's Direct3D copies win over a profile's")
         check(Engine.defaultLoadOrder("dxgi", d3dMetalEngine: true) == "builtin"
               && Engine.defaultLoadOrder("d3d9", d3dMetalEngine: true) == "native,builtin",
               "winecx: programs without a choice (Steam's browser) don't get DXMT")
