@@ -135,6 +135,32 @@ Stufe 1 und 2 ändern keinen Start und können sofort gebaut werden. Stufe 3 ist
 - Live gesehen am 10.11. 20:55 (988e721): Die Evidenzzeile von It Takes Two trägt `kind` (unreal 4.26, aftermath, apex,
   physx3, steamworks) und `recipe` (d3dmetal, `-dx12`, zehn DLL-Schalter).
 
+### 3.2 Gebaut am 11.11.2026 (Evidenz vollständig, Stufe 4 in erster Form)
+
+Auslöser war der Engine-Test vom 11.11. (vier Spiele mit nie gestarteten Engines, `docs/TODO.md`): Kein Fehlstart lag
+am Grafikweg, und die Diagnose schwieg, weil die Information im Fehlerfenster des Spiels und in Wines Debug-Ausgabe
+stand. Daraus die Reihenfolge A bis E:
+
+- **A, gebaut (4d7806c):** Jeder aufgezeichnete Start bekommt einen Ausgang. Neu ist `ended` (vom Spieler beendet, an
+  einer eigenen Frage geschlossen, vor der Bestätigung beendet), mit `picture` und `seconds`; ein bewährter Weg, der
+  wieder früh endet, bekommt `failed`.
+- **B, gebaut (4d7806c), Stufe 4 in erster Form:** `StartEvidence.proofs` liest je Spiel Sorte und Wege,
+  `kinship` wiegt die Verwandtschaft (gleiche Sorte 4, gleiche Engine-Version und Schnittstellen 3, gleiche Generation
+  und Schnittstellen 2, gleiche Generation 1), `sortScores` wertet die Wege, `LaunchHealth.ordered` stellt sie um.
+  Rang: Profil > eigener Stand des Spiels > Beweise gleicher Sorte > Berichte > Dateien. Nur Reihenfolge; ein Spiel
+  behält die Ordnung, mit der es gestartet ist. Der Startplan nennt den Grund.
+  Bewusst eng, nach einer Probe an den echten Daten: nur Erfolge zählen (It Takes Two „scheiterte“ auf DXMT wegen
+  PhysX, nicht wegen des Wegs); nur Starts ohne Profil (`GameProfile.shapesStart`, `speaksForItsWay`: It Takes Two
+  läuft auf D3DMetal mit dem `-dx12` des Profils); nur Unreal und Unity mit bekannter Version.
+  Live 11.11.: Dishonored auf WineD3D bestätigt; für Batman (gleiche Generation `unreal3`) sagt der Plan aus den echten
+  Daten „a game of its sort (unreal3) runs on it on this Mac“. Batmans echter Start steht aus (Fassungswechsel).
+- **C, offen:** Diagnose-Start – nach einem Fehlstart ohne Befund ein stiller zweiter Start mit Debug-Schaltern
+  (`+wintrust,+chain`, `+loaddll`, `+debugstr`), gezielt gelesen. Neue Regel dazu: fehlende Wurzel (`800b0109`).
+  Vorher klären: `wineDebug` greift heute nur bei frischem Nightforge-Start.
+- **D, offen:** den Text im Fehlerfenster des Spiels lesen (Machbarkeit prüfen).
+- **E, offen:** `StartRecipe` als das, womit gestartet wird (Umbau der Startschleife). Die Probe zu B zeigt, warum:
+  Ein Beweis gilt für ein Rezept, nicht für einen Grafikweg.
+
 ## 4. Offene Fragen
 
 - **Probelauf nach dem Download:** Fenster unterdrücken? Denuvo-Aktivierungen? Spielzeit bei Steam? Erst prüfen.

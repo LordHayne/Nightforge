@@ -60,7 +60,9 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   - `open -b` startete das Release aus /Applications statt des Testbuilds: Testläufe immer per Pfad starten.
 
 - **Startrezept und Lernkreislauf (Entwurf 10.11., `docs/ENTWURF-STARTREZEPT.md`):** ein Rezept statt Grafikweg-Leiter,
-  Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
+  Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. 11.11.: A (jeder Start bekommt einen Ausgang) und Stufe 4 in erster Form (Leiter nach
+  Beweisen gleicher Sorte) gebaut und eingespielt (4d7806c, Entwurf 3.2); offen C Diagnose-Start, D Fehlerfenster lesen,
+  E Rezept als Startgrundlage. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
   Minidump-Leser und Diagnose im Protokoll, noch ohne Wirkung auf den Start). Nächste Entscheidung: Stufe 3, die Diagnose
   ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
   von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
