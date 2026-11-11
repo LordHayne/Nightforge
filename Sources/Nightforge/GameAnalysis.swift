@@ -152,6 +152,30 @@ extension GameAnalysis {
         if analysis.apis.isEmpty, contents.hasItem(named: "shaderapidx9.dll") {
             analysis.apis.insert(.d3d9)
         }
+        // Still nothing: the game's own libraries beside its programs, whatever their size – some engines keep
+        // their renderer in a small one, linked by another (Alan Wake: d3d_f_Win32.dll, 190 KB, links Direct3D 9;
+        // taken for a game that shows nothing, it started on D3DMetal, which has no Direct3D 9; 11.11.2026). Not
+        // the graphics DLLs themselves: DXVK's copies lie beside a game that runs on it (Engine.placeDXVK).
+        if analysis.apis.isEmpty, analysis.engine != .unity {
+            let folders = Set(targets.filter { fm.fileExists(atPath: $0.path) }.map { $0.deletingLastPathComponent() })
+            let beside = folders.flatMap { (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil)) ?? [] }
+                .filter { file in
+                    let name = file.lastPathComponent.lowercased()
+                    return name.hasSuffix(".dll") && !middleware.contains(where: name.hasPrefix) && !name.hasPrefix("api-ms-")
+                        && api(forDLL: name) == nil && !graphicsLayerDLLs.contains(name)
+                }
+                .sorted { $0.path < $1.path }
+            for library in beside.prefix(64) {
+                analysis.apis.formUnion((PEImports.dlls(of: library) ?? []).compactMap(api(forDLL:)))
+            }
+            // … or what the small ones name in their text: a renderer loaded by name (d3d_f_Win32.dll holds
+            // "D3D9.DLL" and "Direct3DCreate9", and links neither).
+            if analysis.apis.isEmpty {
+                for library in beside.filter({ size($0) <= 8 << 20 }).prefix(24) {
+                    analysis.apis.formUnion(ProgramText.apis(in: library))
+                }
+            }
+        }
         // No import table says anything: a copy protection hides it, or the renderer is loaded at run
         // time. The program's own text still names what it can draw with (Guardians of the Galaxy and
         // GTA V Enhanced, 9.11.2026: nothing detected, so they started on DXMT, which has no DirectX 12).
@@ -172,6 +196,14 @@ extension GameAnalysis {
             || fm.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path) {
             analysis.engine = .unreal
         }
+        // Unreal Engine 3 keeps Binaries beside Engine and its game in <Name>Game/CookedPC… (Batman: Arkham Asylum,
+        // Dishonored; 11.11.2026): no Engine/Binaries and no -Win64-Shipping program to know it by.
+        var unreal3 = false
+        if analysis.engine == .other, contents.paths.contains("engine/config"), contents.paths.contains("binaries"),
+           contents.paths.contains(where: { $0.split(separator: "/").count == 2 && $0.contains("game/cookedpc") }) {
+            analysis.engine = .unreal
+            unreal3 = true
+        }
         if let started = targets.first(where: { fm.fileExists(atPath: $0.path) }) {
             analysis.launcherSwitch = ProgramText.launcherSwitch(in: started)
         }
@@ -185,7 +217,7 @@ extension GameAnalysis {
         let facts = program.flatMap(PEImports.facts(of:))
         analysis.is64Bit = facts?.is64Bit
         switch analysis.engine {
-        case .unreal: analysis.engineVersion = GameKind.unrealVersion(facts?.fileVersion)
+        case .unreal: analysis.engineVersion = GameKind.unrealVersion(facts?.fileVersion) ?? (unreal3 ? "3" : nil)
         case .unity:
             // The started program's own data folder first: The Forest has three (its own on Unity 5.6, its VR
             // build's on 2017.4).
@@ -229,7 +261,13 @@ extension GameAnalysis {
         case "d3d12.dll", "d3d12core.dll": return .d3d12
         case "vulkan-1.dll": return .vulkan
         case "opengl32.dll": return .openGL
-        default: return nil
+        default:
+            // D3DX is made for one Direct3D each: a game that links d3dx9_43.dll draws with Direct3D 9, also when
+            // it loads d3d9.dll by name at run time (Alan Wake, 11.11.2026).
+            if dll.hasPrefix("d3dx9_") { return .d3d9 }
+            if dll.hasPrefix("d3dx10_") { return .d3d10 }
+            if dll.hasPrefix("d3dx11_") { return .d3d11 }
+            return nil
         }
     }
 
@@ -238,7 +276,11 @@ extension GameAnalysis {
     private static let middleware = [
         "sl.", "libxess", "nvngx", "gfsdk", "amd_", "ffx", "nvlowlatency", "openvr", "steam_api", "eossdk",
         "galaxy", "discord", "bink", "fmod", "physx", "nvapi", "d3dcompiler", "msvcp", "vcruntime", "ucrtbase",
+        "msvcr", "d3dx", "xinput", "reshade",
     ]
+
+    /// Graphics DLLs that aren't a game's own, though they may lie beside it: a layer's copies.
+    private static let graphicsLayerDLLs: Set<String> = ["dxgi.dll", "winemetal.dll", "d3d10_1.dll", "d3d12core.dll", "nvapi64.dll"]
 
     /// The game folder a few levels deep (where Unity and Unreal put their programs).
     private struct Contents {

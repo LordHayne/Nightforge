@@ -43,7 +43,20 @@ struct StartRulesTest {
 
         // MARK: The files decide where nothing else does
         check(ids(bothNoSwitch) == ["d3dmetal", "dxmt", "dxvk"], "DirectX 12 and no known switch: the game picks 12 by itself, D3DMetal first")
-        check(ids(GameAnalysis()) == ["d3dmetal", "dxmt", "dxvk"], "files that say nothing: D3DMetal runs DirectX 11 and 12")
+        check(ids(GameAnalysis()) == ["d3dmetal", "dxmt", "dxvk", "wined3d"],
+              "files that say nothing: D3DMetal runs DirectX 11 and 12 – and Wine's own Direct3D is the last way, should it be DirectX 9")
+        // Alan Wake, 11.11.2026: 32-bit, nothing detected, and it draws with Direct3D 9.
+        let old = GameAnalysis(is64Bit: false)
+        check(ids(old) == ["dxvk", "wined3d", "dxmt", "d3dmetal"], "… a 32-bit game's ways in Direct3D 9's order (\(ids(old)))")
+        check(LaunchHealth.attempts(for: old, profile: nil, d3dMetal: true, vulkanLayer: false, kosmicKrisp: false).map(\.id)
+              == ["wined3d", "dxmt", "dxvk", "d3dmetal"], "… under winecx, where DXVK gets no Direct3D 9 device: Wine's own first")
+        check(ids(old, profile: #"{"graphics": "dxmt"}"#) == ["dxmt", "dxvk", "d3dmetal", "wined3d"], "a profile's layer still goes first")
+        check(LaunchHealth.attempts(for: old, profile: nil, d3dMetal: true, vulkanLayer: false, kosmicKrisp: false, filesDecide: false)
+              .map(\.id) == ["dxmt", "dxvk", "d3dmetal", "wined3d"], "the list from before the files decided only grows at its end")
+        check(ids(GameAnalysis(apis: [.d3d11], is64Bit: false)) == ["dxmt", "dxvk", "d3dmetal"], "a 32-bit game that shows DirectX 11: as before")
+        check(LaunchHealth.plan("Old", attempts: LaunchHealth.attempts(for: old, profile: nil, d3dMetal: true, vulkanLayer: false, kosmicKrisp: false),
+                                index: 0, confirmed: false, analysis: old, profile: nil, hint: nil, source: nil)
+              .hasSuffix("now wined3d, its files show nothing, and a 32-bit game mostly draws with DirectX 9"), "… and the plan says why")
         check(ids(GameAnalysis(apis: [.d3d12])) == ["d3dmetal"], "DirectX 12 only (GTA V Enhanced): D3DMetal alone")
         check(ids(GameAnalysis(apis: [.d3d11])) == ["dxmt", "dxvk", "d3dmetal"], "DirectX 11 only: as before")
         check(ids(unreal).first == "dxmt -dx11", "Unreal: held to DirectX 11, as measured with ABZU and REANIMAL")
@@ -81,6 +94,20 @@ struct StartRulesTest {
         check(StartFailure.read(["This game requires DirectX 12."]) == .needsD3D12, "a game that says it needs DirectX 12")
         check(StartFailure.read(["Access violation at 0x0"]) == nil, "other crashes say nothing about the way")
         check(StartFailure.read([]) == nil, "nothing said")
+        // Direct3D 9 on a way whose Direct3D 9 is DXVK's.
+        let noDevice = "[mvk-error] VK_ERROR_FEATURE_NOT_PRESENT: vkCreateDevice()\nerr:   DxvkAdapter: Failed to create device\n"
+        check(GameLog.direct3D9Failed(in: noDevice, layer: .d3dmetal) && GameLog.direct3D9Failed(in: noDevice, layer: .dxmt),
+              "DXVK without a device on D3DMetal or DXMT: the game draws with Direct3D 9")
+        check(!GameLog.direct3D9Failed(in: noDevice, layer: .dxvk) && !GameLog.direct3D9Failed(in: noDevice, layer: .wined3d)
+              && !GameLog.direct3D9Failed(in: "all fine", layer: .d3dmetal), "not on DXVK's own way, not on Wine's, not without the lines")
+        check(StartFailure.needsD3D9.answered(by: LaunchAttempt(graphics: .wined3d))
+              && !StartFailure.needsD3D9.answered(by: LaunchAttempt(graphics: .dxvk)), "answered by Wine's own Direct3D only")
+        let alanWake = GameID.steam(991_003)
+        let unknownWays = LaunchHealth.attempts(for: GameAnalysis(), profile: nil, d3dMetal: true, vulkanLayer: false, kosmicKrisp: false)
+        LaunchHealth.reset(alanWake)
+        check(LaunchHealth.advance(alanWake, unknownWays, answering: .needsD3D9)
+              && unknownWays[LaunchHealth.current(alanWake, unknownWays).index].id == "wined3d", "… and the ladder goes straight to it, past DXMT and DXVK")
+        LaunchHealth.reset(alanWake)
         let hogwarts = GameID.steam(991_002)
         let ways = LaunchHealth.attempts(for: unreal, profile: nil, d3dMetal: true, vulkanLayer: true, kosmicKrisp: false)
         LaunchHealth.reset(hogwarts)

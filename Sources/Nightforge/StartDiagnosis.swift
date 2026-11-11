@@ -11,6 +11,8 @@ struct StartFinding: Equatable {
     var illegalInstruction = false
     /// The graphics layer said it can't draw (GameLog.graphicsFailed).
     var graphicsFailed = false
+    /// DXVK got no device on a start that isn't DXVK's own: Direct3D 9 (GameLog.direct3D9Failed).
+    var direct3D9Failed = false
     /// It ran without a picture and without work (PictureWatch).
     var hung = false
 }
@@ -96,6 +98,10 @@ struct StartDiagnosis: Equatable {
         ("graphics-crash", { finding in
             finding.dumps.first { $0.chain.first.map(graphicsModules.contains) == true }.map { ($0.summary, .nextLayer) }
         }),
+        // Alan Wake, 11.11.2026: started on D3DMetal, where Direct3D 9 is DXVK's and gets no device.
+        ("direct3d9", { finding in
+            finding.direct3D9Failed ? ("DXVK got no device on a way that isn't DXVK's: the game draws with Direct3D 9", .layer(.wined3d)) : nil
+        }),
         ("graphics-failed", { finding in
             finding.graphicsFailed ? ("the graphics layer says it can't draw", .nextLayer) : nil
         }),
@@ -140,6 +146,7 @@ struct StartDiagnosis: Equatable {
                      missingRuntimes: GameLog.missingRuntimes(in: logText, gameFolder: gameFolder),
                      illegalInstruction: GameLog.illegalInstruction(in: logText),
                      graphicsFailed: GameLog.graphicsFailed(in: logText, layer: layer),
+                     direct3D9Failed: GameLog.direct3D9Failed(in: logText, layer: layer),
                      hung: hung)
     }
 

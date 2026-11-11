@@ -7,6 +7,9 @@ enum StartFailure: Equatable {
     case refusedSwitch
     /// It needs DirectX 12: D3DMetal, the one way that has it.
     case needsD3D12
+    /// It draws with Direct3D 9, which on this way is DXVK's and got no device (`GameLog.direct3D9Failed`):
+    /// Wine's own Direct3D, the way that draws it here (Alan Wake, 11.11.2026).
+    case needsD3D9
 
     /// The first thing in a start's crash messages that points to a way; nil when none does.
     static func read(_ messages: [String]) -> StartFailure? {
@@ -25,6 +28,7 @@ enum StartFailure: Equatable {
         switch self {
         case .refusedSwitch: return attempt.arguments.isEmpty
         case .needsD3D12: return attempt.graphics == .d3dmetal
+        case .needsD3D9: return attempt.graphics == .wined3d
         }
     }
 }
@@ -73,7 +77,8 @@ extension LaunchHealth {
     /// Control and GTA V Enhanced ended on DXMT, 2. and 9.11.2026.)
     static func fromFiles(_ analysis: GameAnalysis, d3dMetal: Bool) -> GraphicsLayer? {
         guard d3dMetal else { return nil }
-        if analysis.apis.isEmpty { return .d3dmetal }
+        // … unless it's a 32-bit game: an old one, whose ways `attempts` puts in Direct3D 9's order.
+        if analysis.apis.isEmpty { return analysis.is64Bit == false ? nil : .d3dmetal }
         return analysis.apis.contains(.d3d12) && analysis.preferD3D11Arguments.isEmpty ? .d3dmetal : nil
     }
 
@@ -106,6 +111,7 @@ extension LaunchHealth {
             return analysis.apis.isEmpty ? "its files show nothing, and D3DMetal runs DirectX 11 and 12"
                 : "its files show DirectX 12 and no switch to hold it to 11 is known"
         }
+        if analysis.apis.isEmpty, analysis.is64Bit == false { return "its files show nothing, and a 32-bit game mostly draws with DirectX 9" }
         if !way.arguments.isEmpty { return "\(analysis.engine.rawValue) is held to DirectX 11" }
         return "the usual first way for \(analysis.summary.isEmpty ? "this game" : analysis.summary)"
     }

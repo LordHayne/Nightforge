@@ -114,13 +114,23 @@ enum LaunchHealth {
             return [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt, arguments: arguments),
                     LaunchAttempt(graphics: .dxvk, arguments: arguments)]
         }
+        // A game whose files name no renderer may draw with Direct3D 9 after all: Wine's own Direct3D is its last
+        // way then – without it no way could draw it (Alan Wake, 11.11.2026: D3DMetal, DXMT and DXVK, none of
+        // which has a Direct3D 9 that gets a device here).
+        let unknown = analysis.apis.isEmpty ? [LaunchAttempt(graphics: .wined3d)] : []
+        // … and an older 32-bit one draws with Direct3D 9 far more often than with 11: its ways first.
+        if analysis.apis.isEmpty, analysis.is64Bit == false, preferred == nil, filesDecide {
+            let old: [GraphicsLayer] = vulkanLayer || kosmicKrisp ? [.dxvk, .wined3d] : [.wined3d]
+            let rest: [GraphicsLayer] = [.dxmt, .dxvk] + (d3dMetal ? [.d3dmetal] : [])
+            return (old + rest.filter { !old.contains($0) }).map { LaunchAttempt(graphics: $0) }
+        }
         if analysis.usesD3D11 || analysis.apis.isEmpty {
             let arguments = analysis.preferD3D11Arguments
             let first = preferred.flatMap { $0 == .d3dmetal && !d3dMetal ? nil : $0 } ?? Engine.defaultGraphics
             if first == .d3dmetal {
                 // Apple's Direct3D 11 first (Control's DX11 build runs only there, 2.11.2026), then the usual two.
                 return [LaunchAttempt(graphics: .d3dmetal, arguments: arguments), LaunchAttempt(graphics: .dxmt, arguments: arguments),
-                        LaunchAttempt(graphics: .dxvk, arguments: arguments)]
+                        LaunchAttempt(graphics: .dxvk, arguments: arguments)] + unknown
             }
             let second: GraphicsLayer = first == .dxmt ? .dxvk : .dxmt
             var list = [LaunchAttempt(graphics: first, arguments: arguments), LaunchAttempt(graphics: second, arguments: arguments)]
@@ -131,7 +141,7 @@ enum LaunchHealth {
             } else if !arguments.isEmpty {
                 list.append(LaunchAttempt(graphics: first))
             }
-            return list
+            return list + unknown.filter { way in !list.contains { $0.graphics == way.graphics } }
         }
         if analysis.usesD3D9 {
             // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device on MoltenVK – it

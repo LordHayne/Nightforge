@@ -237,6 +237,15 @@ struct StartDiagnosisTest {
         check(StartDiagnosis.diagnose(StartFinding(missingRuntimes: ["xact", "d3dx9"])).map(\.remedy) == [.runtimes(["xact", "d3dx9"])],
               "a missing DLL: its runtime")
         check(ids(StartFinding(graphicsFailed: true)) == ["graphics-failed"], "the layer said it can't draw")
+        // Alan Wake, 11.11.2026: started on D3DMetal, where Direct3D 9 is DXVK's.
+        let direct3D9 = StartDiagnosis.diagnose(StartFinding(direct3D9Failed: true))
+        check(direct3D9.map(\.id) == ["direct3d9"] && direct3D9.first?.remedy == .layer(.wined3d), "DXVK without a device on another way: Wine's own Direct3D")
+        let alanWake = StartDiagnosis.finding(logText: "err:   DxvkAdapter: Failed to create device\n", installDir: work, gameFolder: "AlanWake",
+                                              since: Date(), layer: .d3dmetal, hung: false, prefix: work.appendingPathComponent("none"))
+        check(alanWake.direct3D9Failed && !alanWake.graphicsFailed, "… read from a start's log")
+        check(!StartDiagnosis.finding(logText: "err:   DxvkAdapter: Failed to create device\n", installDir: work, gameFolder: "AlanWake",
+                                      since: Date(), layer: .dxvk, hung: false, prefix: work.appendingPathComponent("none")).direct3D9Failed,
+              "on DXVK's own way it's the layer failing, as before")
         check(StartDiagnosis.diagnose(StartFinding(hung: true)).map(\.remedy) == [.nextWay], "no picture and no work: the next way")
         check(ids(StartFinding(messages: ["Fatal error!"])) == ["said"], "words no rule knows are still said")
         check(ids(StartFinding(messages: ["Fatal error!"], hung: true)) == ["hung"], "… unless something else explains the start")

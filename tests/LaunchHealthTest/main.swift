@@ -56,7 +56,7 @@ struct LaunchHealthTest {
         check(ids(GameAnalysis(apis: [.d3d9])) == ["dxvk", "wined3d"], "DirectX 9: DXVK, then WineD3D")
         check(ids(GameAnalysis(apis: [.vulkan])) == ["dxmt"], "Vulkan has one way")
         check(ids(GameAnalysis(apis: [.d3d12])) == ["dxmt"] && GameAnalysis(apis: [.d3d12]).onlyD3D12, "DirectX 12 only")
-        check(ids(GameAnalysis()) == ["dxmt", "dxvk"], "nothing detected: the DirectX 11 ladder")
+        check(ids(GameAnalysis()) == ["dxmt", "dxvk", "wined3d"], "nothing detected: the DirectX 11 ladder, and Wine's own Direct3D last")
 
         // With D3DMetal in the engine, DirectX 12 has a way to run; DirectX 11 keeps DXMT first.
         check(ids(GameAnalysis(apis: [.d3d12]), d3dMetal: true) == ["d3dmetal"], "DirectX 12 only: D3DMetal")

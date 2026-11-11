@@ -4751,6 +4751,8 @@ final class LibraryModel: ObservableObject {
                     (GameLog.text(since: logMark), Set(Engine.executables(in: installDir)))
                 }.value
                 let drew = LaunchHealth.showedPicture(game.gameID, since: startedAt) || LaunchHealth.drewFrames(in: log, programs: programs)
+                // Direct3D 9 on a way whose Direct3D 9 is DXVK's: no way of the player's to answer that.
+                let direct3D9Failed = !drew && GameLog.direct3D9Failed(in: log, layer: layer)
                 let crashed = wayConfirmed && !drew
                     && (GameLog.crashed(in: log) || !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty)
                 let outcome = LaunchHealth.earlyEnd(trusted: wayConfirmed, graphicsFailed: graphicsFailed, crashed: crashed, drew: drew,
@@ -4784,7 +4786,7 @@ final class LibraryModel: ObservableObject {
                     let crashedAtAll = GameLog.crashed(in: log) || !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty
                     let cannotDraw = automatic && !wayConfirmed && LaunchHealth.layerCannotDraw(analysis, layer: layer)
                     if Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
-                                                 graphicsFailed: graphicsFailed || cannotDraw, crashed: crashedAtAll) {
+                                                 graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll) {
                         GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
                         return
                     }
@@ -4863,7 +4865,7 @@ final class LibraryModel: ObservableObject {
                 }.value
                 if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
                 StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
-                if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts)) {
+                if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts) ?? (direct3D9Failed ? .needsD3D9 : nil)) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
                     continue

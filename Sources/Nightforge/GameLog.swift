@@ -253,6 +253,14 @@ enum GameLog {
         layer == .dxvk && graphicsFailed(in: text)
     }
 
+    /// DXVK's signs on a start that isn't DXVK's: under D3DMetal and DXMT Direct3D 9 is still DXVK's, which gets
+    /// no device on MoltenVK – so the game draws with Direct3D 9 (Alan Wake on D3DMetal: "could not initialize
+    /// your 3D graphics card", 11.11.2026). The log is shared: it counts once the start has failed anyway, never
+    /// as a reason to end a game that runs.
+    static func direct3D9Failed(in text: String, layer: GraphicsLayer) -> Bool {
+        (layer == .d3dmetal || layer == .dxmt) && graphicsFailed(in: text)
+    }
+
     static func graphicsFailed(in text: String) -> Bool {
         let signs = ["dxvkadapter: failed to create device", "dxvkbuffer: failed to create buffer",
                      "dxvk: no adapters found", "failed to create vulkan device"]

@@ -244,6 +244,54 @@ struct GameAnalysisTest {
         check(kept == unreal, "kept and read back unchanged")
 
         try? fm.removeItem(at: root)
+        // MARK: A renderer in a small library of the game's own (Alan Wake, 11.11.2026)
+        // As Alan Wake is: the program links D3DX 9 and its own libraries, none links d3d9.dll.
+        let alanWake = try analyze("alanwake", [
+            "alanwake.exe": program(["d3dx9_43.dll", "kernel32.dll", "renderer_f_win32.dll", "d3d_f_win32.dll"], is64: false),
+            "renderer_f_Win32.dll": program(["d3dx9_43.dll", "d3d_f_win32.dll"], is64: false),
+            "d3d_f_Win32.dll": program(["d3dx9_43.dll", "kernel32.dll"], is64: false) + Data("D3D9.DLL\0Direct3DCreate9\0".utf8),
+            "fmodex.dll": program(["d3d11.dll"], is64: false),
+        ], launch: "alanwake.exe")
+        check(alanWake.apis == [.d3d9], "D3DX 9 linked: the game draws with Direct3D 9 (\(alanWake.apis))")
+        check(alanWake.is64Bit == false && alanWake.kind.fine == "other|d3d9|fmod", "… and its sort (\(alanWake.kind.fine))")
+        check(try analyze("d3dx11", ["Game.exe": program(["d3dx11_43.dll", "d3dx10_43.dll"])]).apis == [.d3d10, .d3d11], "D3DX 10 and 11 likewise")
+        // A renderer in a library beside the program, linked or only named there.
+        let beside = try analyze("beside", [
+            "Game.exe": program(["kernel32.dll", "render.dll"], is64: false),
+            "render.dll": program(["d3d9.dll"], is64: false),
+            "fmodex.dll": program(["d3d11.dll"], is64: false),          // an SDK that links what it supports
+            "d3d11.dll": program(["vulkan-1.dll"], is64: false),         // DXVK's copy beside the game
+            "dxgi.dll": program(["vulkan-1.dll"], is64: false),
+            "tools/editor.dll": program(["opengl32.dll"], is64: false),  // not beside the program
+        ])
+        check(beside.apis == [.d3d9], "Direct3D 9 linked by a small library beside the program (\(beside.apis))")
+        let byName = try analyze("byname", [
+            "Game.exe": program(["kernel32.dll"]),
+            "gfx.dll": program(["kernel32.dll"]) + Data("LoadLibrary d3d11.dll D3D11CreateDevice".utf8),
+            "bink2w64.dll": program(["kernel32.dll"]) + Data("d3d9.dll Direct3DCreate9".utf8),
+        ])
+        check(byName.apis == [.d3d11], "… or only named in one, and not by an SDK (\(byName.apis))")
+        let silent = try analyze("silent", ["Game.exe": program(["kernel32.dll"]), "helper.dll": program(["user32.dll"])])
+        check(silent.apis.isEmpty, "libraries that link no graphics: still nothing")
+        let named = try analyze("named", ["Game.exe": program(["d3d11.dll"]), "old_d3d9.dll": program(["d3d9.dll"])])
+        check(named.apis == [.d3d11], "what the program itself links stands: the libraries beside it aren't asked")
+
+        // MARK: Unreal Engine 3 (Batman: Arkham Asylum, Dishonored; 11.11.2026)
+        let batman = try analyze("batman", [
+            "Binaries/ShippingPC-BmGame.exe": program(["d3d9.dll", "physxloader.dll"], is64: false),
+            "Engine/Config/BaseEngine.ini": empty, "BmGame/CookedPC/Startup.upk": empty,
+        ], launch: "Binaries/ShippingPC-BmGame.exe")
+        check(batman.engine == .unreal && batman.engineVersion == "3" && batman.kind.coarse == "unreal3|d3d9",
+              "Unreal Engine 3 by its folders (\(batman.kind.coarse))")
+        check(batman.preferD3D11Arguments.isEmpty, "… and no switch added to it")
+        let dishonored = try analyze("dishonored", [
+            "Binaries/Win64/Dishonored.exe": program(["d3d9.dll"]),
+            "Engine/Config/BaseEngine.ini": empty, "DishonoredGame/CookedPCConsole/x.upk": empty,
+        ], launch: "Binaries/Win64/Dishonored.exe")
+        check(dishonored.kind.fine == "unreal3|d3d9|" && dishonored.is64Bit == true, "… also with CookedPCConsole (\(dishonored.kind.fine))")
+        let notUnreal = try analyze("notunreal", ["Binaries/Game.exe": program(["d3d9.dll"]), "Engine/Config/x.ini": empty])
+        check(notUnreal.engine == .other && notUnreal.engineVersion == nil, "an Engine folder alone isn't Unreal's")
+
         // MARK: The game's sort (GameKind)
         let sort = try analyze("sort", [
             "Game.exe": program(["d3d11.dll", "steam_api64.dll"], delayed: ["physx3_x64.dll"]),
