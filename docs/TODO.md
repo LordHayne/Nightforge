@@ -69,16 +69,24 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   1 von 3 mit Bild, 1 nicht gestartet.
   - Dishonored (Epic, Unreal 3, 64 Bit): Bild auf WineD3D nach 17 s, endete vor 200 s von selbst (unbestätigt).
   - Alan Wake (Epic, MAX-FX, 32 Bit, DirectX 9): „could not initialize your 3D graphics card, DEVICE_CREATE_ERROR“.
-    Ursachen: (1) `GameAnalysis` sieht nur importierte Bibliotheken über 3 MB an; DirectX 9 lädt hier `d3d_f_Win32.dll`
-    (190 KB) → „nichts erkannt“ → D3DMetal. (2) Die Leiter für „nichts erkannt“ ist d3dmetal, dxmt, dxvk: WineD3D fehlt,
-    ein unerkanntes DirectX-9-Spiel kann auf keinem Weg starten. (3) DXVKs „Failed to create device“ zählt nur auf dem
-    DXVK-Weg als Grafikfehler; auf D3DMetal/DXMT heißt es „das Spiel zeichnet mit Direct3D 9“ und wäre eine Diagnose-Regel.
-    (4) Das Ende am Fehlerfenster galt als „Wahl des Spielers“, kein weiterer Weg. PCGamingWiki nennt 9.0c (nur 12 genutzt).
-  - Metal Gear Solid V (Steam, Fox Engine, DirectX 11, Denuvo): „Failed to load SteamAPI“ bei jedem Start, auch mit
-    frisch gestartetem Steam. Belegt: Steam startet es regulär (-applaunch, Prozess erkannt), `steam_api64.dll` (2015)
-    ist geladen, `steamclient64.dll` nie; Registry `ActiveProcess` stimmt (pid 508 = steamwebhelpers -steampid). Offen:
-    welcher der vier Gründe der DLL greift („IsSteamRunning failed“, „Sys_LoadModule failed“, „no appID“, „unable to
-    locate“) → Start mit `+debugstr` nötig. `wineDebug` griff nicht: Der Hintergrund-Steam wurde dafür nicht neu gestartet.
+    **Behoben in fe1b8fa, live bestätigt 11.11. 20:06** (Startplan „wined3d, the usual first way for DirectX 9“, Bild nach
+    10 s, `worked`). Ursachen waren: `GameAnalysis` sah nur importierte Bibliotheken über 3 MB an (das Programm bindet
+    `d3dx9_43.dll` ein und lädt `d3d9.dll` per Namen aus `d3d_f_Win32.dll`); die Leiter für „nichts erkannt“ hatte kein
+    WineD3D; DXVKs „Failed to create device“ zählte nur auf dem DXVK-Weg; das Ende am Fehlerfenster galt als Wahl des
+    Spielers. Jetzt: D3DX nennt sein Direct3D, eigene kleine Bibliotheken werden gefragt, WineD3D ist letzter Weg für
+    Unerkanntes (bei 32 Bit erster), `GameLog.direct3D9Failed` → Diagnose `direct3d9` und Sprung zu WineD3D.
+    Dishonored: Bild nach 14 s, Steckbrief `unreal3` (Unreal 3 wird an den Ordnern erkannt).
+  - Metal Gear Solid V (Steam, Fox Engine, DirectX 11): „Failed to load SteamAPI“ bei jedem Start, auf D3DMetal und DXMT.
+    **Ursache bewiesen (11.11.):** Das Spiel prüft die Authenticode-Signatur seiner `steam_api64.dll` (Valve, 19.5.2015,
+    Kette VeriSign Class 3 Code Signing 2010 CA → Wurzel „VeriSign Class 3 Public Primary CA – G5“, SHA-1
+    4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5, gültig bis 2036). Wines Wurzelspeicher im Prefix hat 163 Wurzeln, alle aus
+    macOS übernommen; Apple führt keine VeriSign-Wurzel mehr, Windows schon. `+wintrust,+chain` zeigt
+    `CertGetCertificateChain error status 00000020` und `WinVerifyTrust returning 800b0109` (CERT_E_UNTRUSTEDROOT).
+    Mit Steam hat es nichts zu tun: `SteamAPI_Init` wird gar nicht erst aufgerufen. **Entscheidung des Nutzers offen:**
+    Nightforge trägt die Wurzel in den Speicher des Prefix ein (HKCU\…\SystemCertificates\Root, überlebt Wines Abgleich
+    mit macOS), fest nach Fingerabdruck. Betrifft vermutlich weitere Spiele aus 2010–2016 mit Signaturprüfung.
+    Nebenbefunde: `wineDebug` greift nur, wenn Nightforge nach dem Setzen frisch startet (einmal hatte das
+    Beenden-Skript Nightforge selbst wieder geöffnet); Alan Wake und Dishonored: siehe unten.
   - Batman: Arkham Asylum (Steam, Unreal 3): vom Test ausgelassen (`versionSwitch`: Wechsel Mac↔Windows mit
     Spielstand-Übertragung). Braucht einen normalen Start durch den Nutzer.
   - Diagnose (Stufe 2) schwieg bei beiden Fehlstarts: kein Dump, keine Protokollzeile. Lücken: den Text im Fehlerfenster
