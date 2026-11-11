@@ -91,18 +91,24 @@ extension LaunchHealth {
     }
 
     /// The line for the log: the ways, the one now, and why that one.
+    /// `sortGames`: how many games of its sort stand behind the first way with a picture on this Mac.
     static func plan(_ name: String, attempts: [LaunchAttempt], index: Int, confirmed: Bool, analysis: GameAnalysis,
-                     profile: GameProfile?, hint: GraphicsLayer?, source: String?) -> String {
+                     profile: GameProfile?, hint: GraphicsLayer?, source: String?, sortGames: Int = 0) -> String {
         let way = attempts[index]
         return "Start plan for \(name): \(attempts.map(\.id).joined(separator: ", ")); now \(way.id), "
-            + why(way, index: index, confirmed: confirmed, analysis: analysis, profile: profile, hint: hint, source: source)
+            + why(way, index: index, confirmed: confirmed, analysis: analysis, profile: profile, hint: hint, source: source,
+                  sortGames: sortGames)
     }
 
     private static func why(_ way: LaunchAttempt, index: Int, confirmed: Bool, analysis: GameAnalysis, profile: GameProfile?,
-                            hint: GraphicsLayer?, source: String?) -> String {
+                            hint: GraphicsLayer?, source: String?, sortGames: Int) -> String {
         if confirmed { return "it has worked on this Mac" }
         if index > 0 { return "the ways before it didn't work" }
         if profile?.graphics == way.graphics { return "a profile tested on a Mac names it" }
+        if sortGames > 0 {
+            let sort = analysis.kind.generation ?? analysis.kind.engine
+            return sortGames == 1 ? "a game of its sort (\(sort)) runs on it on this Mac" : "\(sortGames) games of its sort (\(sort)) run on it on this Mac"
+        }
         if hint == way.graphics {
             return source == "pcgw" ? "PCGamingWiki lists only DirectX 12" : "reports name it (\(SourceHint.name(of: source)))"
         }

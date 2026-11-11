@@ -201,6 +201,40 @@ enum LaunchHealth {
         return (chosen, layer)
     }
 
+    /// The ways in the order the proofs of games of the same sort put them (StartEvidence.sortScores): more
+    /// points first, the rest as they were. An order only – no way is ever left out for it.
+    static func ordered(_ attempts: [LaunchAttempt], bySort points: [String: Int]) -> [LaunchAttempt] {
+        guard attempts.contains(where: { (points[$0.id] ?? 0) != 0 }) else { return attempts }
+        return attempts.enumerated()
+            .sorted { a, b in
+                let (pa, pb) = (points[a.element.id] ?? 0, points[b.element.id] ?? 0)
+                return pa != pb ? pa > pb : a.offset < b.offset
+            }
+            .map(\.element)
+    }
+
+    /// The ways for a game, with what games of its sort have proven on this Mac put first – after a profile and
+    /// the game's own state, before reports and files (docs/ENTWURF-STARTREZEPT.md, stage 4). A profile's layer
+    /// stands; "Most compatible" has its own order; a game that has started on the list as it was keeps it; and
+    /// one that has started on an order its sort gave it keeps that, whatever the sort has learned since.
+    static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
+                         preset: GraphicsPreset, sort points: [String: Int], d3dMetal: Bool = Engine.d3dMetalReady,
+                         vulkanLayer: Bool = Engine.vulkanLayerLoads,
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?, bySort: Bool) {
+        let base = attempts(for: analysis, profile: profile, hint: hint, game: game, preset: preset, d3dMetal: d3dMetal,
+                            vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
+        guard profile?.graphics == nil, preset != .compatible, base.attempts.count > 1 else { return (base.attempts, base.hint, false) }
+        if peek(game, base.attempts) != nil { return (base.attempts, base.hint, false) }
+        let ids = base.attempts.map(\.id)
+        func keepsHint(_ list: [LaunchAttempt]) -> GraphicsLayer? { list.first?.graphics == base.attempts.first?.graphics ? base.hint : nil }
+        if let kept = savedLadder(game), kept != ids, kept.count == ids.count, Set(kept) == Set(ids) {
+            let list = kept.compactMap { id in base.attempts.first { $0.id == id } }
+            return (list, keepsHint(list), true)
+        }
+        let sorted = ordered(base.attempts, bySort: points)
+        return (sorted, keepsHint(sorted), sorted != base.attempts)
+    }
+
     /// The ways in the order a preset tries them. "Most compatible" starts with the safest: the
     /// layer a profile names (tested on a Mac) or else the one a source's hint put first (`hint`, as
     /// `GameInsight.hint` has it), then Wine's own Direct3D, DXVK, DXMT, D3DMetal.
@@ -269,6 +303,11 @@ enum LaunchHealth {
 
     private static func save(_ game: GameID, _ state: State) {
         if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: key(game)) }
+    }
+
+    /// The list the game's state was saved for, whatever list is asked about now; nil when it has none.
+    static func savedLadder(_ game: GameID) -> [String]? {
+        UserDefaults.standard.data(forKey: key(game)).flatMap { try? JSONDecoder().decode(State.self, from: $0) }?.ladder
     }
 
     /// The way to start the game now.

@@ -312,6 +312,133 @@ struct StartRulesTest {
         check(StartEvidence.load(from: file).count == entries.count, "a broken line costs only itself")
         check(StartEvidence.load(from: file.appendingPathExtension("none")).isEmpty, "no record yet")
 
+        // MARK: Every recorded start gets an outcome
+        let outcomes = file.deletingLastPathComponent().appendingPathComponent("outcomes-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: outcomes) }
+        StartEvidence.note(.started, game: .steam(7), way: "wined3d", known: false, to: outcomes)
+        StartEvidence.note(.ended, game: .steam(7), way: "wined3d", reason: "ended before it counted as working", picture: true, seconds: 74, to: outcomes)
+        StartEvidence.note(.started, game: .steam(8), way: "d3dmetal", known: false, to: outcomes)
+        StartEvidence.note(.ended, game: .steam(8), way: "d3dmetal", reason: "closed at a question of its own", diagnosis: ["said: Failed to load SteamAPI"],
+                           picture: false, seconds: 12, to: outcomes)
+        let ended = StartEvidence.load(from: outcomes)
+        check(ended.count == 4 && ended[1].event == .ended && ended[1].picture == true && ended[1].seconds == 74, "an end with a picture, and how long it ran")
+        check(ended[3].picture == false && ended[3].diagnosis == ["said: Failed to load SteamAPI"] && ended[3].reason == "closed at a question of its own",
+              "an end at the game's own question, with what was found")
+        check(StartEvidence.summary(ended) == StartEvidence.Summary(firstWay: 0, laterWay: 0, noWay: 0, open: 2), "an end is neither worked nor given up")
+
+        // MARK: What a sort of game has proven (docs/ENTWURF-STARTREZEPT.md, stage 4)
+        func kind(_ engine: String, _ version: String?, _ apis: [String], _ middleware: [String] = []) -> GameKind {
+            GameKind(engine: engine, engineVersion: version, apis: apis, middleware: middleware, launcher: nil, antiCheat: false, bits: 64)
+        }
+        let both = ["d3d11", "d3d12"]
+        let ue427 = kind("unreal", "4.27", both)
+        check(StartEvidence.kinship(ue427, ue427) == 4, "the same sort in full")
+        check(StartEvidence.kinship(ue427, kind("unreal", "4.27", both, ["physx3"])) == 3, "the same engine version and interfaces, other libraries")
+        check(StartEvidence.kinship(ue427, kind("unreal", "4.26", both)) == 2, "the same generation and interfaces")
+        check(StartEvidence.kinship(ue427, kind("unreal", "4.12", ["d3d9", "d3d11"])) == 1, "the same generation")
+        check(StartEvidence.kinship(ue427, kind("unreal", "5.4", both)) == 0 && StartEvidence.kinship(ue427, kind("unity", "4.27", both)) == 0,
+              "another generation or another engine: no kin")
+        check(StartEvidence.kinship(kind("other", nil, ["d3d11"]), kind("other", nil, ["d3d11"])) == 0, "an engine nobody knows is no sort")
+        check(StartEvidence.kinship(kind("unreal", nil, both), kind("unreal", nil, both)) == 0, "nor is one whose version isn't known")
+        check(kind("unreal", "4.27", both).generation == "unreal4" && kind("unity", "2017.4", []).generation == "unity2017" && kind("unreal", nil, []).generation == nil,
+              "the generation: engine and major version")
+
+        let sorts = file.deletingLastPathComponent().appendingPathComponent("sorts-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: sorts) }
+        // Hogwarts Legacy as it went: -dx11 refused, D3DMetal worked.
+        StartEvidence.note(.started, game: .steam(11), way: "dxmt -dx11", known: false, kind: ue427, to: sorts)
+        StartEvidence.note(.failed, game: .steam(11), way: "dxmt -dx11", reason: "mutually exclusive", to: sorts)
+        StartEvidence.note(.started, game: .steam(11), way: "d3dmetal", known: false, kind: ue427, to: sorts)
+        StartEvidence.note(.worked, game: .steam(11), way: "d3dmetal", to: sorts)
+        // A game on its proven way: one more time it worked.
+        StartEvidence.note(.started, game: .steam(12), way: "d3dmetal", known: true, kind: kind("unreal", "4.26", both), to: sorts)
+        // One that reached a picture and was quit.
+        StartEvidence.note(.started, game: .steam(13), way: "dxmt -dx11", known: false, kind: kind("unreal", "4.12", ["d3d9", "d3d11"]), to: sorts)
+        StartEvidence.note(.ended, game: .steam(13), way: "dxmt -dx11", picture: true, seconds: 80, to: sorts)
+        // Another engine, and a start from before sorts were recorded.
+        StartEvidence.note(.started, game: .steam(14), way: "dxmt", known: false, kind: kind("unity", "2017.4", ["d3d11"]), to: sorts)
+        StartEvidence.note(.worked, game: .steam(14), way: "dxmt", to: sorts)
+        StartEvidence.note(.started, game: .steam(15), way: "dxvk -dx11", known: false, to: sorts)
+        StartEvidence.note(.worked, game: .steam(15), way: "dxvk -dx11", to: sorts)
+        let proofs = StartEvidence.proofs(StartEvidence.load(from: sorts))
+        check(proofs["steam.11"] == StartEvidence.Proof(kind: ue427, worked: ["d3dmetal"], failed: ["dxmt -dx11"]), "a game's proof: what worked and what failed")
+        check(proofs["steam.12"]?.worked == ["d3dmetal"] && proofs["steam.13"]?.picture == ["dxmt -dx11"] && proofs["steam.15"]?.kind == nil,
+              "a proven way started again counts, a picture counts as one, a start without its sort has none")
+        let scores = StartEvidence.sortScores(for: ue427, excluding: "steam.99", proofs: proofs)
+        check(scores["d3dmetal"] == StartEvidence.SortScore(points: 12, games: 2), "D3DMetal: the same sort (2×4) and its generation (2×2) (\(String(describing: scores["d3dmetal"])))")
+        check(scores["dxmt -dx11"] == StartEvidence.SortScore(points: 1, games: 1),
+              "DXMT held to 11: a picture for a cousin (+1) – that it failed for the same sort doesn't count against it")
+        check(scores["dxmt"] == nil && scores["dxvk -dx11"] == nil, "Unity's proof and one without a sort say nothing about it")
+        check(StartEvidence.sortScores(for: ue427, excluding: "steam.11", proofs: proofs)["d3dmetal"] == StartEvidence.SortScore(points: 4, games: 1),
+              "a game's own starts aren't its sort's")
+        check(StartEvidence.sortScores(for: kind("other", nil, both), excluding: "x", proofs: proofs).isEmpty, "nothing for a game without a sort")
+        check(StartEvidence.sortScores(for: ue427, excluding: "steam.99", file: sorts) == scores
+              && StartEvidence.sortScores(for: ue427, excluding: "steam.99", file: sorts) == scores, "read from the record, and again from memory")
+        StartEvidence.note(.started, game: .steam(16), way: "dxvk -dx11", known: true, kind: ue427, to: sorts)
+        check(StartEvidence.sortScores(for: ue427, excluding: "steam.99", file: sorts)["dxvk -dx11"]?.games == 1, "a record that grew is read again")
+
+        // The ladder by those points: an order only.
+        let unrealBoth = GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal, engineVersion: "4.27")
+        let ladder = LaunchHealth.attempts(for: unrealBoth, profile: nil, d3dMetal: true, vulkanLayer: true, kosmicKrisp: false)
+        check(ladder.map(\.id) == ["dxmt -dx11", "dxvk -dx11", "d3dmetal"], "Unreal with both, by its files")
+        let points = scores.mapValues(\.points)
+        check(LaunchHealth.ordered(ladder, bySort: points).map(\.id) == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"],
+              "what its sort proved goes first, the rest as it was – none left out")
+        // A start a profile shaped proves the profile, not the way (It Takes Two: D3DMetal with -dx12).
+        let shaped = file.deletingLastPathComponent().appendingPathComponent("shaped-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: shaped) }
+        let dx12 = StartRecipe(graphics: "d3dmetal", arguments: ["-dx12"], dllOverrides: [:], runtimes: [], avx: true, windowsVersion: nil)
+        StartEvidence.note(.started, game: .steam(21), way: "d3dmetal", known: true, kind: ue427, recipe: dx12, to: shaped)
+        StartEvidence.note(.started, game: .steam(22), way: "dxmt -dx11", known: false, kind: ue427,
+                           recipe: StartRecipe(graphics: "dxmt", arguments: ["-dx11", "-nolauncher"], dllOverrides: [:], runtimes: [], avx: true, windowsVersion: nil),
+                           to: shaped)
+        StartEvidence.note(.worked, game: .steam(22), way: "dxmt -dx11", to: shaped)
+        StartEvidence.note(.started, game: .steam(23), way: "dxvk -dx11", known: true, kind: ue427, profiled: true, to: shaped)
+        let shapedProofs = StartEvidence.proofs(StartEvidence.load(from: shaped))
+        check(shapedProofs["steam.21"]?.worked.isEmpty == true && shapedProofs["steam.21"]?.kind == ue427, "arguments beyond the way's own: no proof for the sort")
+        check(shapedProofs["steam.22"]?.worked == ["dxmt -dx11"], "the way's own arguments and a launcher switch: a proof")
+        check(shapedProofs["steam.23"]?.worked.isEmpty == true, "a start marked as a profile's: none")
+        check(profile(#"{"graphics": "d3dmetal"}"#)?.shapesStart == true && profile(#"{"dllOverrides": {"nvapi64": ""}}"#)?.shapesStart == true
+              && profile(#"{"name": "X", "note": "n", "metalFX": false, "frameLimit": 60}"#)?.shapesStart == false,
+              "a profile shapes a start by its layer, arguments, DLLs and the like – not by a note or a frame limit")
+        check(LaunchHealth.ordered(ladder, bySort: [:]) == ladder && LaunchHealth.ordered(ladder, bySort: ["wined3d": 9]) == ladder,
+              "no points for its ways: the list as it was")
+        func bySort(_ game: GameID, _ points: [String: Int], profile json: String? = nil, preset: GraphicsPreset = .automatic)
+            -> (attempts: [LaunchAttempt], hint: GraphicsLayer?, bySort: Bool) {
+            LaunchHealth.attempts(for: unrealBoth, profile: profile(json), hint: nil, game: game, preset: preset, sort: points,
+                                  d3dMetal: true, vulkanLayer: true, kosmicKrisp: false)
+        }
+        let fresh = GameID.steam(991_010)
+        LaunchHealth.reset(fresh)
+        let first = bySort(fresh, points)
+        check(first.attempts.map(\.id) == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"] && first.bySort, "a game never started takes its sort's order")
+        check(bySort(fresh, [:]).attempts == ladder && !bySort(fresh, [:]).bySort, "… and the usual one where its sort has proven nothing")
+        check(bySort(fresh, points, profile: #"{"graphics": "dxvk"}"#).attempts.first?.graphics == .dxvk && !bySort(fresh, points, profile: #"{"graphics": "dxvk"}"#).bySort,
+              "a profile's layer stands")
+        check(!bySort(fresh, points, preset: .compatible).bySort, "Most compatible keeps its own order")
+        // Started on its sort's order, it keeps it – whatever the sort learns later.
+        LaunchHealth.recordStart(fresh, first.attempts)
+        _ = LaunchHealth.advance(fresh, first.attempts)
+        check(bySort(fresh, [:]).attempts == first.attempts && bySort(fresh, ["dxmt -dx11": 50]).attempts == first.attempts,
+              "its state stays with the order it started on")
+        check(LaunchHealth.current(fresh, bySort(fresh, [:]).attempts).index == 1, "… and so does how far it got")
+        LaunchHealth.reset(fresh)
+        // One that has started on the list as it was keeps that.
+        let earlier = GameID.steam(991_011)
+        LaunchHealth.reset(earlier)
+        LaunchHealth.recordStart(earlier, ladder)
+        check(bySort(earlier, points).attempts == ladder && !bySort(earlier, points).bySort, "a game's own state goes before its sort's proofs")
+        LaunchHealth.reset(earlier)
+        let single = LaunchHealth.attempts(for: GameAnalysis(apis: [.d3d12]), profile: nil, hint: nil, game: fresh, preset: .automatic, sort: ["d3dmetal": 8],
+                                           d3dMetal: true, vulkanLayer: true, kosmicKrisp: false)
+        check(single.attempts.map(\.id) == ["d3dmetal"] && !single.bySort, "one way: nothing to order")
+        check(LaunchHealth.plan("New", attempts: first.attempts, index: 0, confirmed: false, analysis: unrealBoth, profile: nil, hint: nil, source: nil, sortGames: 2)
+              .hasSuffix("now d3dmetal, 2 games of its sort (unreal4) run on it on this Mac"), "the plan names its sort's proof")
+        check(LaunchHealth.plan("New", attempts: first.attempts, index: 0, confirmed: false, analysis: unrealBoth, profile: nil, hint: nil, source: nil, sortGames: 1)
+              .hasSuffix("a game of its sort (unreal4) runs on it on this Mac"), "… also a single one")
+        check(LaunchHealth.plan("New", attempts: first.attempts, index: 0, confirmed: true, analysis: unrealBoth, profile: nil, hint: nil, source: nil, sortGames: 2)
+              .hasSuffix("it has worked on this Mac"), "its own proof is named before its sort's")
+
         if failures > 0 {
             print("\(failures) failed")
             exit(1)

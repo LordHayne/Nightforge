@@ -23,6 +23,14 @@ struct GameProfile: Decodable, Equatable {
         return graphics == layer ? arguments : []
     }
 
+    /// Whether the profile changes how the game starts – its layer, arguments, DLLs, registry, runtimes, files.
+    /// A start it shaped proves the profile, not the way for other games of the sort (StartEvidence.speaksForItsWay).
+    var shapesStart: Bool {
+        graphics != nil || arguments != nil || !(dllOverrides ?? [:]).isEmpty || !(registry ?? []).isEmpty
+            || !(winetricks ?? []).isEmpty || windowsVersion != nil || avx == false || !(fileEdits ?? []).isEmpty
+            || !(iniSettings ?? []).isEmpty
+    }
+
     /// DLL → load order as Wine writes it ("native,builtin", "" = disabled), for the game's programs.
     var dllOverrides: [String: String]?
     var registry: [RegistryEntry]?

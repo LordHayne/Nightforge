@@ -4530,7 +4530,8 @@ final class LibraryModel: ObservableObject {
             if automatic, !attempts.isEmpty, let analysis {
                 let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
                 GameLog.note(LaunchHealth.plan(game.name, attempts: attempts, index: index, confirmed: confirmed, analysis: analysis,
-                                               profile: profile, hint: insight?.hint, source: insight?.hintSource))
+                                               profile: profile, hint: insight?.hint, source: insight?.hintSource,
+                                               sortGames: insight?.sortGames ?? 0))
             }
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
@@ -4637,7 +4638,7 @@ final class LibraryModel: ObservableObject {
                                                 avx: LearnedFixes.avx(game.gameID, profile: profile),
                                                 d3dMetalEngine: runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true)
                     StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
-                                       kind: analysis?.kind, recipe: recipe)
+                                       kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart)
                 }
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
@@ -4739,8 +4740,19 @@ final class LibraryModel: ObservableObject {
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
                 }
+                // Every start that was recorded gets its outcome in the record (StartEvidence.Event.ended).
+                let recorded = automatic && !attempts.isEmpty
+                func noteEnded(_ reason: String, diagnosis: [String] = []) {
+                    guard recorded else { return }
+                    StartEvidence.note(.ended, game: game.gameID, way: way, reason: reason, diagnosis: diagnosis,
+                                       picture: LaunchHealth.showedPicture(game.gameID, since: startedAt),
+                                       seconds: Int(Date().timeIntervalSince(startedAt)))
+                }
                 // Quit Game in the overlay: the player's end, nothing learned from it.
-                if LaunchHealth.quitByPlayer(game.gameID, since: startedAt) { return }
+                if LaunchHealth.quitByPlayer(game.gameID, since: startedAt) {
+                    noteEnded("quit by the player")
+                    return
+                }
                 // It ended within its first seconds – or a new start called this one off (Task.isCancelled).
                 // One that showed a picture worked; without one a confirmed way loses its confirmation
                 // only on evidence, and moves on only on a graphics error (Mafia II on DXVK:
@@ -4788,6 +4800,7 @@ final class LibraryModel: ObservableObject {
                     if Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
                                                  graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll) {
                         GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
+                        noteEnded("closed at a question of its own", diagnosis: diagnosis)
                         return
                     }
                     LaunchHealth.forgetOwnQuestion(game.gameID)  // nor does the next start's review go by it
@@ -4801,6 +4814,7 @@ final class LibraryModel: ObservableObject {
                 if wayConfirmed {
                     if outcome == .keep {
                         LaunchHealth.noteStart(game.gameID, attempts, short: true)
+                        noteEnded("ended in its first seconds without a picture", diagnosis: diagnosis)
                         // Quit early, by the look of it: the game is gone, Nightforge stays in front – after one
                         // more start on the same way, which ABZU needed now and then.
                         if !quietly { return }
@@ -4858,7 +4872,11 @@ final class LibraryModel: ObservableObject {
                 guard automatic, !attempts.isEmpty else { break }
                 // A way that worked before and ended without a graphics error keeps its place:
                 // watched again at the next start. Nightforge stays in front.
-                if wayConfirmed && !graphicsFailed { return }
+                if wayConfirmed && !graphicsFailed {
+                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
+                                       diagnosis: diagnosis)
+                    return
+                }
                 // What the game itself said goes first: it can rule out ways without trying them.
                 let crashTexts = await Task.detached(priority: .utility) {
                     GameLog.crashMessages(installDir: installDir, since: startedAt)
@@ -5274,6 +5292,12 @@ final class LibraryModel: ObservableObject {
                     // Past its first seconds without a picture: no evidence against a confirmed way
                     // (most layers log no frames), and no short start either.
                     if wasConfirmed, !attempts.isEmpty { LaunchHealth.noteStart(game.gameID, attempts, short: false) }
+                    // Its outcome for the record: ended before it counted as working, with or without a picture.
+                    if !attempts.isEmpty {
+                        StartEvidence.note(.ended, game: game.gameID, way: way, reason: "ended before it counted as working",
+                                           picture: LaunchHealth.showedPicture(game.gameID, since: startedAt),
+                                           seconds: Int(Date().timeIntervalSince(startedAt)))
+                    }
                     return
                 default:
                     try? await Task.sleep(for: .seconds(5))
@@ -5411,10 +5435,13 @@ final class LibraryModel: ObservableObject {
         // Highball's Mac database, what PCGamingWiki says it can draw with, then AppleGamingWiki's reports.
         let report = await ProfileStore.shared.reportedWay(steamAppID: game.steamAppID)
             ?? macSources.directXHint(steamAppID: game.steamAppID) ?? macSources.entry(for: game)?.weightedHint
-        let (attempts, hint) = LaunchHealth.attempts(for: analysis, profile: profile, hint: report,
-                                                     game: game.gameID, preset: GameOptionsStore.load(game.gameID).preset)
+        // … after what games of its sort have proven on this Mac.
+        let sort = await Engine.offMain { StartEvidence.sortScores(for: analysis.kind, excluding: game.gameID.key) }
+        let (attempts, hint, _) = LaunchHealth.attempts(for: analysis, profile: profile, hint: report, game: game.gameID,
+                                                        preset: GameOptionsStore.load(game.gameID).preset, sort: sort.mapValues(\.points))
         let insight = GameInsight(analysis: analysis, attempts: attempts, hint: hint,
-                                  hintSource: hint == nil ? nil : report?.source)
+                                  hintSource: hint == nil ? nil : report?.source,
+                                  sortGames: profile?.graphics == nil ? attempts.first.flatMap { sort[$0.id]?.games } ?? 0 : 0)
         if insights[game.gameID] != insight { insights[game.gameID] = insight }
         return insight
     }

@@ -19,6 +19,11 @@ struct GameKind: Codable, Equatable {
     /// 32 or 64, where the program's header was read.
     var bits: Int?
 
+    /// The engine with its major version ("unreal4", "unity2017"); nil where the version isn't known.
+    var generation: String? {
+        engineVersion?.split(separator: ".").first.map { engine + $0 }
+    }
+
     /// The engine with its major version, and what it draws with: "unreal4|d3d11+d3d12".
     var coarse: String {
         [engine + (engineVersion?.split(separator: ".").first.map(String.init) ?? ""), apis.joined(separator: "+")]

@@ -10,6 +10,8 @@ struct GameInsight: Equatable {
     var hint: GraphicsLayer?
     /// Where that hint comes from (SourceHint.source).
     var hintSource: String?
+    /// How many games of its sort stand behind the first way with a picture on this Mac (StartEvidence.sortScores).
+    var sortGames = 0
 }
 
 /// A game that ended right after starting with every way Nightforge knows.
