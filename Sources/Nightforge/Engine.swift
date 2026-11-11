@@ -2004,6 +2004,9 @@ enum Engine {
         if layer == .d3dmetal, d3dMetalEngine { clearUnrealDriverDenyList(installDir: installDir, prefix: prefix) }
         let exes = executables(in: installDir)
         var sections = [GameRegistryRecord.Section(key: "WineDbg", text: crashDialogOff)]
+        // Roots Windows trusts and the Mac no longer carries, for games that check signatures (WindowsRoots).
+        let roots = WindowsRoots.registrySection
+        if !roots.isEmpty { sections.append(GameRegistryRecord.Section(key: "WindowsRoots", text: roots)) }
         for exe in exes where isPlainProgramName(exe) {
             let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
             let overrides = gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine)
