@@ -65,6 +65,24 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
   von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
 
+- **Engine-Test 11.11. (988e721), vier Spiele mit Engines, die nie gestartet waren** (Bericht GameTests/2026-11-11-1925):
+  1 von 3 mit Bild, 1 nicht gestartet.
+  - Dishonored (Epic, Unreal 3, 64 Bit): Bild auf WineD3D nach 17 s, endete vor 200 s von selbst (unbestätigt).
+  - Alan Wake (Epic, MAX-FX, 32 Bit, DirectX 9): „could not initialize your 3D graphics card, DEVICE_CREATE_ERROR“.
+    Ursachen: (1) `GameAnalysis` sieht nur importierte Bibliotheken über 3 MB an; DirectX 9 lädt hier `d3d_f_Win32.dll`
+    (190 KB) → „nichts erkannt“ → D3DMetal. (2) Die Leiter für „nichts erkannt“ ist d3dmetal, dxmt, dxvk: WineD3D fehlt,
+    ein unerkanntes DirectX-9-Spiel kann auf keinem Weg starten. (3) DXVKs „Failed to create device“ zählt nur auf dem
+    DXVK-Weg als Grafikfehler; auf D3DMetal/DXMT heißt es „das Spiel zeichnet mit Direct3D 9“ und wäre eine Diagnose-Regel.
+    (4) Das Ende am Fehlerfenster galt als „Wahl des Spielers“, kein weiterer Weg. PCGamingWiki nennt 9.0c (nur 12 genutzt).
+  - Metal Gear Solid V (Steam, Fox Engine, DirectX 11, Denuvo): „Failed to load SteamAPI“ bei jedem Start, auch mit
+    frisch gestartetem Steam. Belegt: Steam startet es regulär (-applaunch, Prozess erkannt), `steam_api64.dll` (2015)
+    ist geladen, `steamclient64.dll` nie; Registry `ActiveProcess` stimmt (pid 508 = steamwebhelpers -steampid). Offen:
+    welcher der vier Gründe der DLL greift („IsSteamRunning failed“, „Sys_LoadModule failed“, „no appID“, „unable to
+    locate“) → Start mit `+debugstr` nötig. `wineDebug` griff nicht: Der Hintergrund-Steam wurde dafür nicht neu gestartet.
+  - Batman: Arkham Asylum (Steam, Unreal 3): vom Test ausgelassen (`versionSwitch`: Wechsel Mac↔Windows mit
+    Spielstand-Übertragung). Braucht einen normalen Start durch den Nutzer.
+  - Diagnose (Stufe 2) schwieg bei beiden Fehlstarts: kein Dump, keine Protokollzeile. Lücken: den Text im Fehlerfenster
+    des Spiels liest niemand; Steckbrief erkennt Unreal 3 nicht (`Engine/Config` + `Binaries` + `<Name>Game`, Engine „other“).
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
 
 ## Rosetta und macOS 28
