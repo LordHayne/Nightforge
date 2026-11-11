@@ -82,9 +82,13 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5, gültig bis 2036). Wines Wurzelspeicher im Prefix hat 163 Wurzeln, alle aus
     macOS übernommen; Apple führt keine VeriSign-Wurzel mehr, Windows schon. `+wintrust,+chain` zeigt
     `CertGetCertificateChain error status 00000020` und `WinVerifyTrust returning 800b0109` (CERT_E_UNTRUSTEDROOT).
-    Mit Steam hat es nichts zu tun: `SteamAPI_Init` wird gar nicht erst aufgerufen. **Entscheidung des Nutzers offen:**
-    Nightforge trägt die Wurzel in den Speicher des Prefix ein (HKCU\…\SystemCertificates\Root, überlebt Wines Abgleich
-    mit macOS), fest nach Fingerabdruck. Betrifft vermutlich weitere Spiele aus 2010–2016 mit Signaturprüfung.
+    Mit Steam hat es nichts zu tun: `SteamAPI_Init` wird gar nicht erst aufgerufen. **Der Nutzer, 11.11.: „Ja,
+    eintragen“ → e9135bc** (`WindowsRoots`): Die Wurzel steht mit SHA-1 und SHA-256 fest im Code und geht mit den
+    Spieleinstellungen vor einem Start in den Root-Speicher des aktuellen Nutzers im Prefix (HKCU, überlebt Wines
+    Abgleich mit macOS). Am Mac und am Schlüsselbund ändert sich nichts. **Live bestätigt 11.11. 20:24:** Bild nach 57 s,
+    rund 60 FPS auf DXMT, `worked`. Betrifft vermutlich weitere Spiele aus 2010–2016 mit Signaturprüfung; weitere
+    Wurzeln nur nach demselben Muster (Windows führt sie, Fingerabdrücke fest) und mit dem OK des Nutzers.
+    D3DMetal bekam bei diesem Spiel nie einen fairen Versuch (es scheiterte dort an der Signatur): später vergleichen.
     Nebenbefunde: `wineDebug` greift nur, wenn Nightforge nach dem Setzen frisch startet (einmal hatte das
     Beenden-Skript Nightforge selbst wieder geöffnet); Alan Wake und Dishonored: siehe unten.
   - Batman: Arkham Asylum (Steam, Unreal 3): vom Test ausgelassen (`versionSwitch`: Wechsel Mac↔Windows mit
