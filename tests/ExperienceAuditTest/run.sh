@@ -1,6 +1,6 @@
 #!/bin/bash
 # What the experience audit of 0.3.3 found (docs/AUDIT-ERLEBNIS-0.3.3.md), each finding with its rule: the hint
-# bar's word for Return and A against what the press does:
+# bar's word for Return and A against what the press does, whose word about a save "Welcome back" waits for:
 # tests/ExperienceAuditTest/run.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."

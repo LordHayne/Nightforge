@@ -19,6 +19,7 @@ struct ExperienceAuditTest {
         TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         hintWords()
+        saveLine()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -29,6 +30,14 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// "Welcome back" after a Battle.net game said its save was uploading: every store but Steam counted as one
+    /// Nightforge uploads for, and nothing ever answers for Battle.net (LibraryModel.storeSaves stays empty).
+    static func saveLine() {
+        check(CloudSaves.watch(for: .battlenet) == .none, "Battle.net: no line about a save Nightforge doesn't move")
+        check(CloudSaves.watch(for: .steam) == .steamRecord, "Steam: its own cloud record")
+        check(CloudSaves.watch(for: .epic) == .storeUpload && CloudSaves.watch(for: .gog) == .storeUpload, "Epic and GOG: Nightforge's upload")
     }
 
     /// The hint bar said "Play" under every game on Home's stage, and under a download on a game's page: the word
