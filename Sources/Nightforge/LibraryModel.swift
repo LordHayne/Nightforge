@@ -2951,6 +2951,11 @@ final class LibraryModel: ObservableObject {
 
     func installUpdate() {
         guard let update = availableUpdate, !updating else { return }
+        // Not under a game or a move (Updater.Hold): said, as "Restart Nightforge" says it.
+        if let hold = Updater.hold(gameUnderWay: gameUnderWay, moving: move != nil) {
+            errorMessage = hold.message
+            return
+        }
         updating = true
         Task {
             do {

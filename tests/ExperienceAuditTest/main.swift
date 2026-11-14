@@ -24,6 +24,7 @@ struct ExperienceAuditTest {
         overlayAfterItsGame()
         keysUnderAPanel()
         keyboardWithoutItsPad()
+        updateUnderAGame()
         await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -35,6 +36,19 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// The app's update went in under a running game: Nightforge quit, and the one that opened in its place didn't
+    /// know the game (no curtain at its end, no "Welcome back"). "Restart Nightforge" was held for that all along.
+    static func updateUnderAGame() {
+        check(Updater.hold(gameUnderWay: false, moving: false) == nil, "nothing runs: the update goes in")
+        check(Updater.hold(gameUnderWay: true, moving: false) == .game, "a game runs or starts: the update waits")
+        check(Updater.hold(gameUnderWay: false, moving: true) == .move, "a game moves to another drive: the update waits")
+        check(Updater.hold(gameUnderWay: true, moving: true) == .game, "both: the game is said first")
+        check(Updater.Hold.game.message != Updater.Hold.move.message && !Updater.Hold.game.message.isEmpty, "each says what it waits for")
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        check(Updater.Hold.game.message.hasPrefix("Beende zuerst das Spiel"), "in German too: \(Updater.Hold.game.message)")
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
     }
 
     /// The on-screen keyboard open and its pad switched off: the look at the pad only asked whether its object
