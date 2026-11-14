@@ -82,7 +82,7 @@ extension GameTest {
 
     struct Report: Codable, Equatable {
         /// 2 (14.11.2026): `measure`, `check` and `sizeBytes` per game, the frames' slowest and source, `built`,
-        /// `onBattery`, `lowPower`, `frameLog`.
+        /// `onBattery`, `lowPower`, `frameLog`, `wineFps`.
         /// A format 1 report reads as before.
         static let format = 2
         static let underRosetta = "x86_64 under Rosetta"
@@ -119,6 +119,10 @@ extension GameTest {
         /// frame rates on D3DMetal or DXVK then says the HUD logged none, not that the way reports none.
         /// Only written when true.
         var frameLog: Bool?
+        /// Wine's fps channel was on for the run (the engine test's switch `wineDebug` with "+fps",
+        /// GameTest.wineFpsOn): Wine's own Direct3D then says its frame rate, and a picture on it without one
+        /// says the log held none. Only written when true.
+        var wineFps: Bool?
         /// The test basket it went by: when it was built, how many games it has, how many of them are installed here.
         var basket: BasketUse?
         /// In German, for people: what else came up (a basket that couldn't be read).
@@ -207,6 +211,9 @@ extension GameTest {
         if report.frameLog == true {
             lines.append("Apples Metal-HUD hat die Frames mitgeschrieben (unsichtbar, wo die Leistungsanzeige aus ist): "
                          + "FPS-Werte auf jedem Weg, der über Metal zeichnet.")
+        }
+        if report.wineFps == true {
+            lines.append("Wines fps-Kanal war an: WineD3D-Spiele melden ihre Bildrate (Ø und tiefste zehn Sekunden, kein 1-%-Tief).")
         }
         let busy = report.games.filter { $0.load?.low == false && $0.outcome != .skipped }.count
         if busy > 0 {

@@ -432,11 +432,93 @@ struct GameTestTest {
               && GameTest.sizeText(GameTest.Measure(window: "1512×982")) == "Fenster 1512×982 Punkte" && GameTest.sizeText(mac) == "nicht gemessen",
               "the size's text: what was drawn, else the mode, else the window")
         hudAndCheck()
+        wineFps()
         check(GameTest.slowestText(full) == "üblich 76 ms, schlimmster 4446 ms" && GameTest.slowestText(plain) == "nicht gemessen" && GameTest.slowestText(nil) == "nicht gemessen",
               "the slowest frame's text")
     }
 
     /// Apple's Metal HUD frame by frame, and whether a run has seen all a game needs to be done with.
+    /// Wine's own Direct3D through Wine's fps channel (WINEDEBUG=+fps): the lines as Wine 11.17 writes them
+    /// (dlls/wined3d/cs.c "%p @ approx %.2ffps", the header of dlls/ntdll/unix/debug.c).
+    static func wineFps() {
+        let game: Set<String> = ["ShippingPC-BmGame.exe", "BmLauncher.exe"]
+        func load(_ time: String, _ pid: String, _ path: String) -> String {
+            "\(time):\(pid):0804:trace:loaddll:build_module Loaded L\"\(path)\" at 0000000140000000: native"
+        }
+        func rate(_ time: String?, _ pid: String?, _ swapchain: String, _ fps: String, function: String = "wined3d_cs_exec_present") -> String {
+            (time.map { $0 + ":" } ?? "") + (pid.map { $0 + ":" } ?? "") + "0124:trace:fps:\(function) \(swapchain) @ approx \(fps)fps"
+        }
+        // All four channels: Steam's helper presents through Wine's Direct3D too, and more often than the game.
+        var lines = [load("253517.239", "0294", "C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\cef\\\\steamwebhelper.exe"),
+                     load("253518.000", "0810", "Z:\\\\Volumes\\\\Games\\\\Batman\\\\Binaries\\\\ShippingPC-BmGame.exe"),
+                     "253518.010:0810:0804:trace:loaddll:build_ntdll_module Loaded L\"C:\\\\windows\\\\system32\\\\ntdll.dll\" at 00006FFFFFF90000: builtin",
+                     "253518.020:0810:0804:trace:loaddll:build_module Loaded L\"C:\\\\windows\\\\system32\\\\wined3d.dll\" at 00006FFFFE110000: builtin"]
+        for step in 0..<40 { lines.append(rate(String(format: "%.3f", 253519.0 + Double(step)), "0294", "0000000000A1B2C0", "30.00")) }
+        lines.append(rate("253520.000", "0810", "00000000012A3B40", "0.00"))  // the swapchain's first line: since Wine's start
+        for step in 1...8 { lines.append(rate(String(format: "%.3f", 253520.0 + 1.5 * Double(step)), "0810", "00000000012A3B40", "60.00")) }
+        lines.append(rate("253535.000", "0810", "00000000012A3B40", "20.00"))  // three seconds without a line: a slow stretch
+        for step in 1...6 { lines.append(rate(String(format: "%.3f", 253535.0 + 1.5 * Double(step)), "0810", "00000000012A3B40", "60.00")) }
+        lines.append("253520.500:0810:0124:fixme:d3d:wined3d_check_device_format_conversion output is 0000000000000000 @ approx nothing")
+        let full = lines.joined(separator: "\n")
+        let rates = GameTest.wineRates(in: full, programs: game)
+        check(rates.count == 15 && rates.first == GameTest.WineRate(fps: 60, seconds: 1.5) && rates[8].fps == 20
+              && abs(rates[8].seconds - 3) < 0.001, "the game's swapchain, each rate with the time since the line before: \(rates.count) \(rates.prefix(1))")
+        let frames = GameTest.wineFrames(rates)
+        // 14 × 1.5 s at 60 and 3 s at 20: 1320 frames in 24 s. Stretches: 7 × 1.5 s at 60, then 1.5 + 3 + 4 × 1.5 s with 510 frames.
+        check(frames?.average == 55 && frames?.seconds == 24 && frames?.periods == 2 && frames?.low == 48.6 && frames?.source == "wine-fps",
+              "the average by time, the lowest ten seconds: \(String(describing: frames))")
+        check(frames?.slowestFrame == nil && frames?.slowestTypical == nil && frames?.onePercentLow == nil && frames?.gpuTime == nil,
+              "a rate says nothing of single frames: no slowest frame, no slowest percent")
+        check(GameTest.slowestText(frames) == "nicht gemessen", "… and the report says so")
+        // Without +timestamp: each rate stands for the 1.5 s the channel waits at least.
+        let untimed = [load("1", "0810", "C:\\\\Game\\\\BmLauncher.exe").dropFirst(2).description,
+                       rate(nil, "0810", "012A3B40", "0.03"), rate(nil, "0810", "012A3B40", "59.94"), rate(nil, "0810", "012A3B40", "30.06")]
+        let plain = GameTest.wineRates(in: untimed.joined(separator: "\n"), programs: game)
+        check(plain == [GameTest.WineRate(fps: 59.94, seconds: 1.5), GameTest.WineRate(fps: 30.06, seconds: 1.5)], "no times: 1.5 s each: \(plain)")
+        check(GameTest.wineFrames(plain)?.average == 45 && GameTest.wineFrames(plain)?.periods == 1 && GameTest.wineFrames(plain)?.seconds == 3,
+              "less than ten seconds: one stretch of all there is")
+        // Neither +pid nor +loaddll: nobody says whose a line is – the swapchain with the most lines.
+        let bare = (0..<5).map { _ in rate(nil, nil, "00A1B2C0", "30.00") } + (0..<9).map { _ in rate(nil, nil, "012A3B40", "60.00") }
+        check(GameTest.wineRates(in: bare.joined(separator: "\n"), programs: game) == Array(repeating: GameTest.WineRate(fps: 60, seconds: 1.5), count: 8),
+              "without a process: whoever logged most, its first line left out")
+        // Only another program's process logged, and its load says so: not the game's rate.
+        let foreign = [load("10.000", "0294", "C:\\\\Steam\\\\steamwebhelper.exe")] + (0..<6).map { rate("\(20 + $0).000", "0294", "00A1B2C0", "30.00") }
+        check(GameTest.wineRates(in: foreign.joined(separator: "\n"), programs: game).isEmpty && GameTest.wineFrames([]) == nil,
+              "Steam's window alone: nothing measured")
+        // Wine hands a pid out again: what a helper logged under it isn't the game's, what the game logs after its own load is.
+        let reused = [load("10.000", "0810", "C:\\\\windows\\\\system32\\\\conhost.exe"), rate("11.000", "0810", "00A1B2C0", "5.00"), rate("12.500", "0810", "00A1B2C0", "5.00"),
+                      rate("14.000", "0810", "00A1B2C0", "5.00"), rate("15.500", "0810", "00A1B2C0", "5.00"),
+                      load("20.000", "0810", "D:\\\\Batman\\\\Binaries\\\\shippingpc-bmgame.EXE"), rate("21.000", "0810", "00A1B2C0", "0.00"),
+                      rate("22.500", "0810", "00A1B2C0", "58.00"), rate("24.000", "0810", "00A1B2C0", "62.00")]
+        check(GameTest.wineRates(in: reused.joined(separator: "\n"), programs: game).map(\.fps) == [58, 62], "a pid from one program's load to the next")
+        // Whatever function Wine names (it moved between versions), and a second, smaller swapchain beside the game's.
+        let other = [rate("1.000", "0810", "012A3B40", "0.00", function: "swapchain_gl_present"), rate("2.500", "0810", "012A3B40", "40.00", function: "swapchain_gl_present"),
+                     rate("2.600", "0810", "0FFFF000", "0.00"), rate("4.000", "0810", "012A3B40", "41.00", function: "swapchain_gl_present"),
+                     rate("4.100", "0810", "0FFFF000", "1.00"), rate("5.500", "0810", "012A3B40", "42.00", function: "wined3d_swapchain_present")]
+        check(GameTest.wineRates(in: other.joined(separator: "\n"), programs: game).map(\.fps) == [40, 41, 42], "read by channel and text, the swapchain with the most lines")
+        check(GameTest.wineRates(in: "0124:trace:fps:x 00 @ approx fastfps\n0124:err:fps:x 00 @ approx\ninfo:  [nightforge] fps", programs: game).isEmpty,
+              "lines that are none")
+        // The switch, and what a picture without a rate says with it.
+        check(GameTest.wineFpsOn("+fps,+pid,+loaddll,+timestamp") && GameTest.wineFpsOn("+pid,+fps") && !GameTest.wineFpsOn("+loaddll,+timestamp,+pid")
+              && !GameTest.wineFpsOn(nil) && !GameTest.wineFpsOn("-fps") && !GameTest.wineFpsOn("+fpsx"), "Wine's fps channel among the switch's channels")
+        check(GameTest.noFrames(way: "wined3d", wineFps: true) == .noneInLog && GameTest.noFrames(way: "wined3d", frameLog: true) == .wayReportsNone
+              && GameTest.noFrames(way: "mac", frameLog: true, wineFps: true) == .wayReportsNone
+              && GameTest.noFrames(way: "d3dmetal", wineFps: true) == .wayReportsNone && GameTest.noFrames(way: "d3dmetal", frameLog: true, wineFps: true) == .noneInLog,
+              "with the channel on Wine's own Direct3D reports; a Mac version never, D3DMetal by the HUD's log")
+        check(GameTest.measure(of: "Batman", way: "wined3d", in: "", frames: nil, held: nil, wineFps: true).noFrames == "noneInLog", "… and the measure says so")
+        // Done with a WineD3D game: a clean start and the rate Wine gave.
+        var batman = GameTest.Entry(candidate("steam.35140", "Batman", .steam), outcome: .picture)
+        batman.ways = [GameTest.Way(way: "wined3d", outcome: .picture)]
+        batman.way = "wined3d"
+        batman.frames = frames
+        batman.measure = GameTest.measure(of: "Batman", way: "wined3d", in: "", frames: frames, held: GameTest.Held(frameLimit: 0, refreshRate: 120, metalFX: false), wineFps: true)
+        check(GameTest.check(batman, playSeconds: 190, onBattery: false, lowPower: false) == GameTest.Check(start: "ok", fps: "ok"), "a rate from Wine counts as one")
+        check(GameTest.framesText(batman) == "55 / 49", "… in the report as any other: \(GameTest.framesText(batman))")
+        batman.frames = nil
+        batman.measure?.noFrames = "wayReportsNone"
+        check(GameTest.framesText(batman) == "nicht gemessen (WineD3D meldet keine ohne Wines fps-Kanal)", "without the channel: said why")
+    }
+
     static func hudAndCheck() {
         // The game's process logs a line a second; a launcher's window a few frames of its own.
         var lines = ["2026-11-07 02:51:10.950 wine[111:1] metal-HUD: 1,300.00,3000.00,100.00,5.00,16.67,5.00"]
