@@ -404,8 +404,73 @@ struct GameTestTest {
               && GameTest.sizeText(GameTest.Measure(window: "1512×982", displayMode: "1512×982@120")) == "1512×982@120 (Modus des Spiels)"
               && GameTest.sizeText(GameTest.Measure(window: "1512×982")) == "Fenster 1512×982 Punkte" && GameTest.sizeText(mac) == "nicht gemessen",
               "the size's text: what was drawn, else the mode, else the window")
+        hudAndCheck()
         check(GameTest.slowestText(full) == "üblich 76 ms, schlimmster 4446 ms" && GameTest.slowestText(plain) == "nicht gemessen" && GameTest.slowestText(nil) == "nicht gemessen",
               "the slowest frame's text")
+    }
+
+    /// Apple's Metal HUD frame by frame, and whether a run has seen all a game needs to be done with.
+    static func hudAndCheck() {
+        // The game's process logs a line a second; a launcher's window a few frames of its own.
+        var lines = ["2026-11-07 02:51:10.950 wine[111:1] metal-HUD: 1,300.00,3000.00,100.00,5.00,16.67,5.00"]
+        for second in 0..<25 {
+            let slow = second == 12 ? "33.33,9.00" : "16.67,10.00"
+            lines.append("2026-11-07 02:51:\(10 + second).950 wine[18259:1984832] metal-HUD: \(second * 60),335.58,3079.71,"
+                         + ([slow] + Array(repeating: "16.67,10.00", count: second == 12 ? 58 : 59)).joined(separator: ","))
+        }
+        lines += ["wine[18259:7] metal-HUD: 9,1.0,2.0,16.67", "wine[18259:7] metal-HUD: broken,1,2,3,4", "info:  [nightforge] metal-HUD is on"]
+        let sample = GameTest.hudSample(in: lines.joined(separator: "\n"))
+        check(sample?.intervals.count == 25 * 60 - 1 && sample?.gpuTimes.count == sample?.intervals.count,
+              "the game's frames, not the launcher's, lines that are none left out: \(String(describing: sample?.intervals.count))")
+        let hud = sample.flatMap { GameTest.measuredFrames($0) }
+        check(hud?.average == 59.9 && hud?.periods == 2 && hud?.seconds == 25 && hud?.source == "metal-hud",
+              "the average over all frames, two full stretches of ten seconds: \(String(describing: hud))")
+        check(hud?.low == 59.9 && hud?.slowestFrame == 33.3 && hud?.slowestTypical == 16.7, "the lowest stretch and the slowest frames: \(String(describing: hud))")
+        check(hud?.onePercentLow == 60 && hud?.gpuTime == 10, "the slowest percent and the GPU's time: \(String(describing: hud))")
+        let stutter = GameTest.measuredFrames(GameTest.HUDSample(intervals: Array(repeating: 16.67, count: 95) + Array(repeating: 50, count: 5),
+                                                                 gpuTimes: Array(repeating: 0, count: 100)))
+        check(stutter?.onePercentLow == 20 && stutter?.periods == 1 && stutter?.gpuTime == nil, "five slow frames in a hundred show in the slowest percent: \(String(describing: stutter))")
+        check(GameTest.hudSample(in: "info:  nothing here") == nil && GameTest.measuredFrames(GameTest.HUDSample(intervals: [16.67], gpuTimes: [1])) == nil,
+              "no HUD lines, or a single frame: not measured")
+
+        // Done with a game: a clean start and a frame rate that counts.
+        func check2(_ entry: GameTest.Entry, play: Double = 200, battery: Bool = false, lowPower: Bool = false) -> GameTest.Check? {
+            GameTest.check(entry, playSeconds: play, onBattery: battery, lowPower: lowPower)
+        }
+        var clean = GameTest.Entry(candidate("steam.287700", "MGS V", .steam), outcome: .picture)
+        clean.ways = [GameTest.Way(way: "dxmt", outcome: .picture)]
+        clean.way = "dxmt"
+        clean.frames = GameTest.Frames(average: 59, low: 57, periods: 12)
+        clean.load = GameTest.Load(average: 1, cores: 10)
+        check(check2(clean) == GameTest.Check(start: "ok", fps: "ok") && check2(clean)?.done == true, "a picture on the first way with frames: done")
+        check(check2(clean, play: 60)?.start == "ok", "frames counted: working whatever the run's length")
+        var quiet = clean
+        quiet.frames = nil
+        quiet.way = "d3dmetal"
+        check(check2(quiet) == GameTest.Check(start: "ok", fps: "wayReportsNone") && check2(quiet)?.done == false, "180 s with a picture is a start; D3DMetal gives no frames")
+        check(check2(quiet, play: 60)?.start == "tooShort", "60 s without frames can't have seen it work")
+        quiet.way = "dxmt"
+        check(check2(quiet)?.fps == "noneInLog", "DXMT without a line")
+        var twice = clean
+        twice.ways = [GameTest.Way(way: "d3dmetal", outcome: .crash), GameTest.Way(way: "dxmt", outcome: .picture)]
+        check(check2(twice)?.start == "severalWays" && check2(twice)?.fps == "ok", "a second way is no clean start, its frames count all the same")
+        var crashed = clean
+        crashed.issues = ["crashed"]
+        check(check2(crashed)?.start == "endedByItself", "ended by itself while playing")
+        check(check2(clean, battery: true)?.fps == "throttled" && check2(clean, lowPower: true)?.fps == "throttled", "battery and Low Power Mode: no frame rate that counts")
+        var capped = clean
+        capped.measure = GameTest.Measure(frameLimit: 30, throttled: "battery")
+        check(check2(capped)?.fps == "throttled", "a limit lowered for the battery")
+        var busy = clean
+        busy.load = GameTest.Load(average: 9, cores: 10)
+        check(check2(busy)?.fps == "loadHigh" && check2(busy)?.start == "ok", "a busy Mac: the start counts, the frames don't")
+        let hung = GameTest.Entry(candidate("steam.1", "Hung", .steam), outcome: .hang)
+        check(check2(hung) == GameTest.Check(start: "noPicture", fps: "noPicture"), "no picture: neither")
+        let asked = GameTest.Entry(candidate("steam.2", "Asked", .steam), outcome: .needsPlayer, skip: .steamAsks)
+        check(check2(asked)?.start == "neededPlayer", "called off for the player")
+        check(check2(.skipped(candidate("steam.3", "Skipped", .steam), .antiCheat)) == nil, "not started: nothing to check")
+        let held = GameTest.Held(frameLimit: 30, refreshRate: 120, metalFX: false, throttled: "battery")
+        check(GameTest.measure(of: "X", way: "dxmt", in: "", frames: nil, held: held).throttled == "battery", "what the limit was lowered for goes into the measure")
     }
 
     static func hangsAndCalm() {
@@ -461,11 +526,15 @@ struct GameTestTest {
         good.result = "good"
         good.secondsToPicture = 34.4
         good.measure = GameTest.Measure(window: "1512×982", screen: "1512×982", frameLimit: 0, refreshRate: 120, metalFX: false, noFrames: "wayReportsNone")
+        good.sizeBytes = 48_392_303_260
+        good.check = GameTest.Check(start: "ok", fps: "wayReportsNone")
         var dxmt = GameTest.Entry(candidate("steam.728880", "Overcooked 2", .steam), outcome: .picture)
         dxmt.way = "dxmt"
         dxmt.frames = GameTest.Frames(average: 59.6, low: 41, periods: 5, seconds: 50, slowestFrame: 310, slowestTypical: 24, source: "dxmt")
         dxmt.measure = GameTest.Measure(window: "1512×982", screen: "1512×982", displayMode: "1512×982@120", frameLimit: 60, refreshRate: 120, metalFX: true)
         dxmt.result = "good"
+        dxmt.sizeBytes = 8_471_095_333
+        dxmt.check = GameTest.Check(start: "ok", fps: "ok")
         dxmt.load = GameTest.Load(average: 1.5, cores: 10)
         var busy = GameTest.Entry(candidate("steam.892970", "Valheim", .steam), outcome: .picture)
         busy.way = "dxmt"
@@ -475,6 +544,9 @@ struct GameTestTest {
         var skipped = GameTest.Candidate(key: "steam.9", name: "Shooter", store: .steam, storeID: "9", platform: .windows,
                                          skip: .runtimes, skipNote: "fehlt: vcrun2019")
         skipped.notYet = true
+        skipped.sizeBytes = 1_500_000_000
+        var guarded = GameTest.Candidate(key: "steam.7", name: "Guarded", store: .steam, storeID: "7", platform: .windows, skip: .antiCheat)
+        guarded.sizeBytes = 84_222_583_639
         let started = Date(timeIntervalSince1970: 1_793_664_720)  // 2026-11-03 00:12 UTC
         var report = GameTest.Report(started: started, finished: started.addingTimeInterval(3600), nightforge: "0.3.1",
                                      engine: ["winecx@4.7.3", "dxmt@0.80"], mac: "Apple M5 · macOS 26.1",
@@ -494,6 +566,7 @@ struct GameTestTest {
         var asked = GameTest.Entry(candidate("steam.203160", "Tomb Raider", .steam, .mac), outcome: .needsPlayer, skip: .macOSAsks)
         asked.way = "mac"
         report.waitedProcessList = 7
+        report.built = started.addingTimeInterval(-7200)
         report.games = [dxmt, busy, good, hung.redacted(home: home, user: "jdoe"), dialog, forest, blind, asked, .skipped(skipped, .runtimes),
                         GameTest.Entry(candidate("steam.1", "Store", .steam), outcome: .needsPlayer, skip: .signIn)]
 
@@ -525,6 +598,9 @@ struct GameTestTest {
         check(frames?["slowestFrame"] as? Double == 310 && frames?["slowestTypical"] as? Double == 24 && frames?["source"] as? String == "dxmt"
               && frames?["seconds"] as? Double == 50, "the frames' slowest and source: \(String(describing: frames))")
         check(object?["onBattery"] == nil && object?["lowPower"] == nil, "on mains: nothing said about power")
+        check(object?["built"] as? String == "2026-11-02T22:12:00Z", "when this Nightforge was built")
+        check(first?["sizeBytes"] as? Int == 8_471_095_333 && (first?["check"] as? [String: String]) == ["start": "ok", "fps": "ok"],
+              "the size and the check in each entry: \(String(describing: first?["check"]))")
         // A report from before format 2 reads as it was written.
         let old = """
         {"formatVersion": 1, "started": "2026-11-03T00:12:00Z", "nightforge": "0.3.0", "mac": "Apple M5 · macOS 27.0", "pictureWait": 120,
@@ -586,6 +662,17 @@ struct GameTestTest {
         var noPicture = report
         noPicture.games = [blind]
         check(!GameTest.summary(noPicture).contains("## Messwerte"), "no picture: no measures")
+        // The checklist: every installed game, what this run saw of it, what a tick would free.
+        check(summary.contains("## Abhakliste") && summary.contains("Deinstalliert wird hier nie etwas."), "the checklist and what it never does")
+        check(summary.contains("| Overcooked 2 | Windows | 8,5 GB | ja | ja | fertig |"), "done: a clean start and frames\n\(summary)")
+        check(summary.contains("| Control \\| Ultimate | Windows | 48,4 GB | ja | der Weg meldet keine | fehlt: FPS |"), "a start without frames: FPS missing")
+        check(summary.contains("| Shooter | Windows | 1,5 GB | – | – | nicht gestartet: bräuchte erst Laufzeiten (würde laden) |"), "skipped for something that can be mended")
+        check(summary.contains("Fertig in diesem Lauf: 1 von 10 Spielen, zusammen 8,5 GB."), "what the ticks free")
+        var withGuarded = report
+        withGuarded.games = [.skipped(guarded, .antiCheat)]
+        check(GameTest.summary(withGuarded).contains("| Guarded | Windows | 84,2 GB | – | – | von Hand zu prüfen: Anti-Cheat sperrt es auf dem Mac |"),
+              "an anti-cheat game: to be looked at by hand")
+        check(GameTest.byHand.contains(.versionSwitch) && !GameTest.byHand.contains(.update), "the other version's first start is by hand, an update isn't")
         check(summary.contains("| Overcooked 2 | Steam | Windows | dxmt | Bild | – | 60 / 41 |"), "DXMT's frame rates")
         check(summary.contains("### Overwatch (Steam, Windows)") && summary.contains("hängt ohne Bild. Wege: dxmt."), "the hang's section")
         check(summary.contains("read (in libsystem_kernel.dylib) 3000"), "where it hangs")

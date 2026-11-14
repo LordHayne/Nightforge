@@ -50,6 +50,7 @@ final class GameTestRun {
                                  engine: EngineRollback.shared.history().current?.parts,
                                  mac: "\(ProblemReport.chip) · macOS \(ProblemReport.osVersion)",
                                  pictureWait: settings.pictureWait, playSeconds: settings.playSeconds)
+        report.built = Bundle.main.executablePath.flatMap { try? FileManager.default.attributesOfItem(atPath: $0)[.modificationDate] as? Date }
         if model.power.onBattery { report.onBattery = true }
         if ProcessInfo.processInfo.isLowPowerModeEnabled { report.lowPower = true }
     }
@@ -183,7 +184,8 @@ final class GameTestRun {
         let skip = GameTest.skip(facts)
         return GameTest.Candidate(key: game.gameID.key, name: game.name, store: game.provider, storeID: game.gameID.id,
                                   platform: game.platform, notYet: game.antiCheatBlock?.notYet != nil, skip: skip,
-                                  skipNote: skip == .runtimes ? "fehlt: " + facts.missingRuntimes.joined(separator: ", ") : nil)
+                                  skipNote: skip == .runtimes ? "fehlt: " + facts.missingRuntimes.joined(separator: ", ") : nil,
+                                  sizeBytes: game.sizeOnDisk > 0 ? game.sizeOnDisk : nil)
     }
 
     // MARK: - One game
@@ -399,7 +401,9 @@ final class GameTestRun {
         }
         seen.crashSigns = GameLog.crashed(in: log) || unrealCrash
         let outcome = GameTest.outcome(seen)
-        let frames = GameTest.measuredFrames(GameTest.periods(in: log, programs: programs))
+        // Apple's HUD frame by frame where its logging is on, else the layer's periods.
+        let frames = GameTest.hudSample(in: log).flatMap { GameTest.measuredFrames($0) }
+            ?? GameTest.measuredFrames(GameTest.periods(in: log, programs: programs))
         var entry = GameTest.Entry(candidate, outcome: outcome, skip: seen.needs)
         entry.ways = game.platform == .mac ? [GameTest.Way(way: "mac", outcome: outcome)]
             : GameTest.ways(of: game.name, in: log, last: outcome)
@@ -414,6 +418,7 @@ final class GameTestRun {
         if outcome == .picture {
             entry.measure = GameTest.measure(of: game.name, way: entry.way, in: log, frames: frames, held: await held(game))
         }
+        entry.check = GameTest.check(entry, playSeconds: settings.playSeconds, onBattery: report.onBattery == true, lowPower: report.lowPower == true)
         entry.stack = stack
         let learned = LearnedFixes.winetricks(game.gameID).filter { !learnedBefore.contains($0) }
         if !learned.isEmpty { notes.append("laut Log fehlen Laufzeiten, im Test nicht installiert: " + learned.joined(separator: ", ")) }
@@ -447,8 +452,9 @@ final class GameTestRun {
         let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
         let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: refreshRate, profile: profile)
         let limit = FramePacing.automaticLimit(game: game.gameID, options: options, profile: profile, refreshRate: refreshRate).limit
-        return GameTest.Held(frameLimit: PowerSource.cappedLimit(limit, onBattery: model.power.onBattery, saveBattery: Prefs.saveBattery),
-                             refreshRate: refreshRate, metalFX: options.effectiveUpscaling(profile: profile))
+        let capped = PowerSource.cappedLimit(limit, onBattery: model.power.onBattery, saveBattery: Prefs.saveBattery)
+        return GameTest.Held(frameLimit: capped, refreshRate: refreshRate, metalFX: options.effectiveUpscaling(profile: profile),
+                             throttled: capped != limit ? "battery" : Hardware.current.lowPower ? "lowPower" : nil)
     }
 
     /// Nightforge in front before each start: only from there does the curtain hand the front to the

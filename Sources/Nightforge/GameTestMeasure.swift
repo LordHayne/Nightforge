@@ -76,6 +76,9 @@ extension GameTest {
         var frameLimit: Int?
         var refreshRate: Int?
         var metalFX: Bool?
+        /// The limit was lower than Nightforge's own for this screen because of the power: "battery" (the
+        /// battery's 30 FPS) or "lowPower" (Low Power Mode). Such a number isn't one for a public list.
+        var throttled: String?
         /// Why a picture has no frame rates (`NoFrames`).
         var noFrames: String?
     }
@@ -85,6 +88,7 @@ extension GameTest {
         var frameLimit: Int
         var refreshRate: Int
         var metalFX: Bool
+        var throttled: String?
     }
 
     /// Why a picture has no frame rates: its way reports none (D3DMetal, Wine's own Direct3D, a Mac
@@ -165,8 +169,172 @@ extension GameTest {
         measure.frameLimit = held?.frameLimit
         measure.refreshRate = held?.refreshRate
         measure.metalFX = held?.metalFX
+        measure.throttled = held?.throttled
         if frames == nil { measure.noFrames = noFrames(way: way).rawValue }
         return measure
+    }
+
+    // MARK: - Apple's Metal HUD
+
+    /// The frames Apple's Metal Performance HUD logged while its logging was on (MTL_HUD_ENABLED=1 with
+    /// MTL_HUD_LOG_ENABLED=1, or ⌘F8 in the game's menu) – once a second
+    /// "metal-HUD: <first frame>,<graphics memory>,<process memory>,<present interval>,<GPU time>,…", a pair
+    /// per frame (Apple, "Monitoring your Metal app's graphics performance"; the unit isn't named there, the
+    /// log shows milliseconds: 16.67 at 60 FPS). Wine's process writes it to wine.log:
+    /// "… wine[18259:1984832] metal-HUD: 48,335.58,3079.71,139.45,4.70,16.67,4.58" (Overwatch on DXMT, 7.11.2026).
+    /// It's the one count that doesn't hang on the layer: whatever draws through Metal can have it.
+    struct HUDSample: Equatable {
+        /// Each frame's present interval and GPU time in milliseconds, in the log's order.
+        var intervals: [Double]
+        var gpuTimes: [Double]
+    }
+
+    /// The frames of the process that logged the most (the game; a launcher's window logs a few).
+    static func hudSample(in log: String) -> HUDSample? {
+        var byProcess: [String: HUDSample] = [:]
+        for line in log.split(whereSeparator: \.isNewline) {
+            guard let marker = line.range(of: "metal-HUD: ") else { continue }
+            let values = line[marker.upperBound...].split(separator: ",").map { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard values.count >= 5, values.count % 2 == 1, !values.contains(nil) else { continue }
+            // "wine[18259:1984832] ": the process's number, "" where the line has none.
+            let before = line[..<marker.lowerBound]
+            let process = before.range(of: "[", options: .backwards).map { before[$0.upperBound...].prefix { $0.isNumber } }.map(String.init) ?? ""
+            var sample = byProcess[process] ?? HUDSample(intervals: [], gpuTimes: [])
+            for index in stride(from: 3, to: values.count - 1, by: 2) {
+                sample.intervals.append(values[index] ?? 0)
+                sample.gpuTimes.append(values[index + 1] ?? 0)
+            }
+            byProcess[process] = sample
+        }
+        return byProcess.max { ($0.value.intervals.count, $1.key) < ($1.value.intervals.count, $0.key) }?.value
+    }
+
+    /// The HUD's frames in the report's shape: the average over all of them, the lowest stretch of ten
+    /// seconds and its slowest frames (as the layers' periods are; a last stretch shorter than that is left
+    /// out), and what only single frames give: the slowest percent and the GPU's time.
+    static func measuredFrames(_ hud: HUDSample) -> Frames? {
+        let intervals = hud.intervals.filter { $0 > 0 }
+        let total = intervals.reduce(0, +)
+        guard intervals.count >= 2, total > 0 else { return nil }
+        func tenth(_ value: Double) -> Double { (value * 10).rounded() / 10 }
+        var rates: [Double] = [], slowest: [Double] = []
+        var count = 0.0, time = 0.0, worst = 0.0
+        for interval in intervals {
+            count += 1
+            time += interval
+            worst = max(worst, interval)
+            if time >= 10_000 {
+                rates.append(count * 1000 / time)
+                slowest.append(worst)
+                (count, time, worst) = (0, 0, 0)
+            }
+        }
+        if rates.isEmpty {
+            rates.append(count * 1000 / time)
+            slowest.append(worst)
+        }
+        let sorted = intervals.sorted()
+        slowest.sort()
+        var frames = Frames(average: tenth(Double(intervals.count) * 1000 / total), low: tenth(rates.min() ?? 0), periods: rates.count)
+        frames.seconds = (total / 1000).rounded()
+        frames.slowestFrame = tenth(sorted[sorted.count - 1])
+        frames.slowestTypical = tenth(slowest[(slowest.count - 1) / 2])
+        frames.onePercentLow = tenth(1000 / sorted[max(0, Int((Double(sorted.count) * 0.99).rounded(.up)) - 1)])
+        let gpu = hud.gpuTimes.filter { $0 > 0 }.sorted()
+        if !gpu.isEmpty { frames.gpuTime = tenth(gpu[(gpu.count - 1) / 2]) }
+        frames.source = "metal-hud"
+        return frames
+    }
+
+    // MARK: - Done with a game?
+
+    /// What a run saw of the two things a game needs before it's done with ("fertig, darf weg",
+    /// docs/LAEUFT-LISTE.md): a clean start and a frame rate that counts. "ok", or what is missing.
+    struct Check: Codable, Equatable {
+        /// ok · neededPlayer · noPicture · severalWays · endedByItself · tooShort
+        var start: String
+        /// ok · noPicture · wayReportsNone · noneInLog · throttled · loadHigh
+        var fps: String
+
+        var done: Bool { start == "ok" && fps == "ok" }
+    }
+
+    /// A clean start: a picture on the first and only way, not ended by itself, and working by LaunchHealth's
+    /// own measure – frames counted, or `drawingWindow` (180 s) with the picture, which a run shorter than
+    /// that can't have seen. A frame rate that counts: measured, on mains and out of Low Power Mode, with the
+    /// Mac not busy. Nil for a game that wasn't started.
+    static func check(_ entry: Entry, playSeconds: TimeInterval, onBattery: Bool, lowPower: Bool) -> Check? {
+        guard entry.outcome != .skipped else { return nil }
+        let picture = entry.outcome == .picture
+        let start: String
+        if entry.outcome == .needsPlayer {
+            start = "neededPlayer"
+        } else if !picture {
+            start = "noPicture"
+        } else if entry.ways.count > 1 {
+            start = "severalWays"
+        } else if entry.issues.contains("crashed") {
+            start = "endedByItself"
+        } else if entry.frames == nil, playSeconds < LaunchHealth.drawingWindow {
+            start = "tooShort"
+        } else {
+            start = "ok"
+        }
+        let fps: String
+        if !picture {
+            fps = "noPicture"
+        } else if entry.frames == nil {
+            fps = entry.measure?.noFrames ?? noFrames(way: entry.way).rawValue
+        } else if onBattery || lowPower || entry.measure?.throttled != nil {
+            fps = "throttled"
+        } else if entry.load?.low == false {
+            fps = "loadHigh"
+        } else {
+            fps = "ok"
+        }
+        return Check(start: start, fps: fps)
+    }
+
+    static let checkWords: [String: String] = [
+        "ok": "ja", "neededPlayer": "brauchte den Spieler", "noPicture": "kein Bild", "severalWays": "brauchte mehrere Wege",
+        "endedByItself": "endete von selbst", "tooShort": "Bild, aber unter 180 s beobachtet und keine Frames gezählt",
+        "wayReportsNone": "der Weg meldet keine", "noneInLog": "keine im Log", "throttled": "auf Akku oder gedrosselt gemessen",
+        "loadHigh": "Last war hoch",
+    ]
+
+    /// The skips a run can't mend by itself or by waiting: someone has to look at the game by hand.
+    static let byHand: Set<Skip> = [.antiCheat, .vrOnly, .otherBottle, .versionSwitch, .battleNet]
+
+    /// "## Abhakliste": every installed game with its size and whether this run saw both – so a run over
+    /// all of them ends with what is done and what is missing. Nothing is ever uninstalled from here.
+    static func checklist(_ report: Report) -> [String] {
+        guard !report.games.isEmpty else { return [] }
+        func size(_ bytes: Int64?) -> String {
+            bytes.map { String(format: "%.1f GB", Double($0) / 1_000_000_000).replacingOccurrences(of: ".", with: ",") } ?? "–"
+        }
+        var lines = ["## Abhakliste", "",
+                     "Je geladenem Spiel, ob dieser Lauf einen sauberen Start (Bild auf dem ersten Weg, nicht von selbst beendet, "
+                     + "Frames gezählt oder 180 s mit Bild) und einen FPS-Wert gesehen hat. Deinstalliert wird hier nie etwas.", "",
+                     "| Spiel | Fassung | Größe | Start | FPS | Fazit |", "|---|---|---|---|---|---|"]
+        var done: Int64 = 0, doneCount = 0
+        for entry in report.games {
+            var cells = [entry.game.replacingOccurrences(of: "|", with: "\\|"), entry.platform == "mac" ? "Mac" : "Windows", size(entry.sizeBytes)]
+            if let check = entry.check {
+                let start = checkWords[check.start] ?? check.start, fps = checkWords[check.fps] ?? check.fps
+                cells += [start, fps, check.done ? "fertig" : "fehlt: " + [check.start == "ok" ? nil : "Start", check.fps == "ok" ? nil : "FPS"]
+                    .compactMap { $0 }.joined(separator: ", ")]
+                if check.done {
+                    done += entry.sizeBytes ?? 0
+                    doneCount += 1
+                }
+            } else {
+                let why = entry.skip?.german ?? "nicht gestartet"
+                cells += ["–", "–", entry.skip.map(byHand.contains) == true ? "von Hand zu prüfen: \(why)" : "nicht gestartet: \(why)"]
+            }
+            lines.append("| " + cells.joined(separator: " | ") + " |")
+        }
+        lines += ["", "Fertig in diesem Lauf: \(doneCount) von \(report.games.count) Spielen, zusammen \(size(done)).", ""]
+        return lines
     }
 
     // MARK: - In the German summary

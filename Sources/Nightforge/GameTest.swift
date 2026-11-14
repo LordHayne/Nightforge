@@ -135,6 +135,8 @@ enum GameTest {
         var inBasket = false
         var hint: String?
         var standsFor: [String]?
+        /// What it takes on the disk, as its store says.
+        var sizeBytes: Int64?
     }
 
     /// Which games matter most to test (compat-db, scripts/test-basket.py): by `score`, with the way
@@ -445,8 +447,12 @@ enum GameTest {
         var slowestFrame: Double?
         /// The slowest frame of a usual period: the median of the periods' slowest, in milliseconds.
         var slowestTypical: Double?
-        /// The layer that logged them: "dxmt", "vulkan".
+        /// Who logged them: "dxmt", "vulkan" (a layer, by period) or "metal-hud" (Apple's HUD, frame by frame).
         var source: String?
+        /// Only from the Metal HUD's frames: the rate at the 99th percentile of the frame times (99 of 100
+        /// frames were faster), and the median GPU time of a frame in milliseconds.
+        var onePercentLow: Double?
+        var gpuTime: Double?
     }
 
     /// The frame rates the game logged (FramePacing.periods): DXMT does, every 10 s from its first

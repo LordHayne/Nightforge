@@ -37,6 +37,10 @@ extension GameTest {
         var frames: Frames?
         /// With a picture, since format 2: the size it drew at, the limit it was held to, why no frames (GameTestMeasure).
         var measure: Measure?
+        /// Since format 2: whether this run saw a clean start and a frame rate that counts (`GameTest.check`);
+        /// nil when it wasn't started. And what the game takes on the disk.
+        var check: Check?
+        var sizeBytes: Int64?
         /// wine.log's error lines since the start (GameLog.errors), when it had no picture or ended.
         var errors: [String]?
         /// Where it hung (`topOfStack`).
@@ -56,6 +60,7 @@ extension GameTest {
             notYet = candidate.notYet ? true : nil
             hint = candidate.hint
             standsFor = candidate.standsFor
+            sizeBytes = candidate.sizeBytes
             if skip != nil, let note = candidate.skipNote { notes = [note] }
         }
 
@@ -76,7 +81,8 @@ extension GameTest {
     }
 
     struct Report: Codable, Equatable {
-        /// 2 (14.11.2026): `measure` per game, the frames' slowest and source, `onBattery`, `lowPower`.
+        /// 2 (14.11.2026): `measure`, `check` and `sizeBytes` per game, the frames' slowest and source, `built`,
+        /// `onBattery`, `lowPower`.
         /// A format 1 report reads as before.
         static let format = 2
         static let underRosetta = "x86_64 under Rosetta"
@@ -87,6 +93,9 @@ extension GameTest {
         /// Ended early by `gameTest.stop`.
         var stopped = false
         var nightforge: String
+        /// When this Nightforge was built (its program's date): test builds between two versions share the
+        /// version, not this. Since format 2.
+        var built: Date?
         /// The engine's parts (EngineBuild.parts): "winecx@4.7.3", "dxmt@…".
         var engine: [String]?
         /// Chip and macOS.
@@ -234,6 +243,7 @@ extension GameTest {
         }
 
         lines += measures(report)
+        lines += checklist(report)
 
         let troubled = report.games.filter { entry in
             entry.outcome != .skipped && (entry.outcome != .picture || !entry.issues.isEmpty || entry.notes != nil)
