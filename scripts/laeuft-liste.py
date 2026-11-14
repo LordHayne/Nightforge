@@ -34,8 +34,6 @@ LEVELS = ("laeuft", "startet", "anti-cheat", "kein-bild")
 LAYERS = ("wined3d", "dxvk", "dxmt", "d3dmetal", "mac")
 # Ways that report no frame rates at all (GameTest.noFrames).
 SILENT = ("d3dmetal", "wined3d", "mac")
-# … and with Apple's Metal HUD logging the frames (a game test since 14.11.2026): only what doesn't present through Metal.
-SILENT_LOGGED = ("wined3d", "mac")
 # Outcomes of a game test that say nothing about the game: nobody tried, or only the player could go on.
 UNTRIED = ("skipped", "needsPlayer", "unknown")
 UNKNOWN_MAC = "unbekannt"
@@ -275,6 +273,7 @@ def from_reports(reports):
                 "nightforge": report.get("nightforge"), "engine": report.get("engine") or [], "built": report.get("built"),
                 "check": entry.get("check"), "platform": entry.get("platform") or "windows",
                 "runsOn": report.get("runsOn"), "playSeconds": report.get("playSeconds"), "frameLog": bool(report.get("frameLog")),
+                "wineFps": bool(report.get("wineFps")),
                 "onBattery": bool(report.get("onBattery")), "lowPower": bool(report.get("lowPower")),
                 "outcome": entry.get("outcome"), "skip": entry.get("skip"), "ways": ways, "way": ways[-1] if ways else None,
                 "secondsToPicture": entry.get("secondsToPicture"), "frames": entry.get("frames"),
@@ -291,7 +290,8 @@ def build_of(run):
 
 def no_frames(run):
     """Why a picture has no frame rate (GameTest.noFrames): the run's own word, else by its way."""
-    silent = SILENT_LOGGED if run["frameLog"] else SILENT
+    # With Apple's Metal HUD logging the frames, D3DMetal reports; with Wine's fps channel on, Wine's own Direct3D.
+    silent = [way for way in SILENT if not (way == "d3dmetal" and run["frameLog"]) and not (way == "wined3d" and run["wineFps"])]
     return run["measure"].get("noFrames") or ("wayReportsNone" if layer(run["way"]) in silent else "noneInLog")
 
 
@@ -372,6 +372,7 @@ def measured(run):
         "secondsToPicture": run["secondsToPicture"], "loadLow": run["loadLow"],
         "onBattery": run["onBattery"], "lowPower": run["lowPower"],
         "endedByItself": "crashed" in run["issues"], "fps": fps, "noFrames": none, "frameLog": run["frameLog"],
+        "wineFps": run["wineFps"],
         "frameLimit": measure.get("frameLimit"), "refreshRate": measure.get("refreshRate"), "metalFX": measure.get("metalFX"),
         "window": measure.get("window"), "screen": measure.get("screen"), "swapchain": measure.get("swapchain"),
         "upscaledTo": measure.get("upscaledTo"), "displayMode": measure.get("displayMode"),
@@ -853,6 +854,8 @@ def frames_text(m):
     if m["fps"]:
         fps = m["fps"]
         text = f"Ø {number(fps['average'])}, tiefste Periode {number(fps['low'])}"
+        if fps.get("source") == "wine-fps":
+            text += " (Wines fps-Kanal)"
         if fps.get("onePercentLow") is not None:
             text += f", 1-%-Tief {number(fps['onePercentLow'])}"
         if fps.get("seconds"):
@@ -860,12 +863,14 @@ def frames_text(m):
         if m["kind"] == "holdsLimit":
             return ("hält das Limit: " if m["holds"] else "hält das Limit nicht: ") + text
         return "frei: " + text if m["kind"] == "free" else text + " (Limit nicht aufgezeichnet)"
-    silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine", "mac": "Mac-Fassung meldet keine"}
+    silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine ohne Wines fps-Kanal", "mac": "Mac-Fassung meldet keine"}
     # With the HUD's frame log a way through Metal had its chance: then the log held none.
     return f"nicht gemessen ({'keine im Log' if m['noFrames'] == 'noneInLog' else silent.get(layer(m['way']), 'keine im Log')})"
 
 
 def slowest_text(m):
+    if m and m["fps"] and m["fps"].get("source") == "wine-fps":
+        return "gibt Wines fps-Kanal nicht her"  # a rate every 1.5 s, no single frames
     if not m or not m["fps"] or m["fps"].get("slowestFrame") is None:
         return "nicht gemessen"
     usual = m["fps"].get("slowestTypical")
@@ -1059,7 +1064,7 @@ def fps_text(fps, nowhere=False):
     if fps["ok"]:
         held = "frei gemessen" if fps["kind"] == "free" else ("hält" if fps["holds"] else "hält nicht") + f" {fps['frameLimit']} FPS" if fps["kind"] else None
         return "ja: " + ", ".join(filter(None, [held, value, where]))
-    silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine", "mac": "Mac-Fassung meldet keine"}
+    silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine ohne Wines fps-Kanal", "mac": "Mac-Fassung meldet keine"}
     why = silent.get(layer(fps["way"]), "der Weg meldet keine") if fps["why"] == "wayReportsNone" else NO_FPS.get(fps["why"], fps["why"])
     if fps["why"] == "never" and not fps["at"] and nowhere:
         why = NO_FPS["nowhere"]

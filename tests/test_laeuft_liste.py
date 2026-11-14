@@ -256,7 +256,7 @@ class GameTestTests(unittest.TestCase):
                  played("Sized", "steam.5", way="d3dmetal", measure={"window": "1512×982", "frameLimit": 0, "noFrames": "wayReportsNone"})]
         document = liste.build([], [report("2026-11-10T00:00:00Z", games)])
         table = liste.markdown(document)
-        for text in ("nicht gemessen (D3DMetal meldet keine)", "nicht gemessen (WineD3D meldet keine)", "nicht gemessen (Mac-Fassung meldet keine)",
+        for text in ("nicht gemessen (D3DMetal meldet keine)", "nicht gemessen (WineD3D meldet keine ohne Wines fps-Kanal)", "nicht gemessen (Mac-Fassung meldet keine)",
                      "nicht gemessen (keine im Log)", "| keins | nicht gemessen (D3DMetal meldet keine) | nicht gemessen | Fenster 1512×982 Punkte |"):
             self.assertIn(text, table)
         self.assertEqual(entry(document, "epic.Calluna")["measured"]["noFrames"], "wayReportsNone")
@@ -279,6 +279,32 @@ class GameTestTests(unittest.TestCase):
         document = liste.build([], [logged])
         self.assertTrue(entry(document, "steam.1")["measured"]["frameLog"])
         self.assertIn("nicht gemessen (keine im Log)", liste.markdown(document))
+
+    def test_wines_own_direct3d_brings_a_rate_through_wines_fps_channel(self):
+        low = {"average": 2, "cores": 10, "low": True}
+        rate = {"average": 55.0, "low": 48.6, "periods": 2, "seconds": 24.0, "source": "wine-fps"}
+        batman = played("Batman", "steam.35140", way="wined3d", frames=rate, load=low, check={"start": "ok", "fps": "ok"},
+                        measure={"window": "1512×982", "frameLimit": 0, "refreshRate": 120, "metalFX": False})
+        run = report("2026-11-15T20:00:00Z", [batman], version=2, built="2026-11-15T18:00:00Z", playSeconds=190, frameLog=True, wineFps=True)
+        document = liste.build([], [run])
+        m = entry(document, "steam.35140")["measured"]
+        # A rate without a limit is a free number; what the channel doesn't give stays null and is said in words.
+        self.assertEqual((m["fps"]["source"], m["kind"], m["public"], m["wineFps"]), ("wine-fps", "free", True, True))
+        self.assertEqual((m["fps"]["onePercentLow"], m["fps"]["slowestFrame"], m["fps"]["slowestTypical"]), (None, None, None))
+        row = next(line for line in liste.markdown(document).splitlines() if line.startswith("| Batman"))
+        self.assertIn("| keins | frei: Ø 55, tiefste Periode 49 (Wines fps-Kanal), über 24 s | gibt Wines fps-Kanal nicht her |", row)
+        # With the channel on and no line of the game's: the log held none. Without it, WineD3D reports none – a Mac version never does.
+        def why(way, platform="windows", **more):
+            runs = [report("2026-11-15T20:00:00Z", [played("X", "steam.1", way=way, platform=platform)], version=2, **more)]
+            return entry(liste.build([], runs), "steam.1", platform)["measured"]["noFrames"]
+
+        self.assertEqual((why("wined3d", wineFps=True), why("wined3d", frameLog=True), why("mac", "mac", wineFps=True), why("d3dmetal", wineFps=True)),
+                         ("noneInLog", "wayReportsNone", "wayReportsNone", "wayReportsNone"))
+        # On the checklist it's a frame rate like any other: with a clean start on the same build, done.
+        stock = [{"key": "steam.35140", "platform": "windows", "name": "Batman", "sizeBytes": 8471095333, "location": "extern"}]
+        game = liste.checklist(stock, [], [run])["games"][0]
+        self.assertEqual((game["status"], game["fps"]["kind"], game["fps"]["average"]), ("fertig", "free", 55.0))
+        self.assertIn("ja: frei gemessen, Ø 55, 15.11.2026, wined3d", liste.checklist_markdown(liste.checklist(stock, [], [run])))
 
     def test_a_picture_stays_one_and_a_run_without_it_is_said_beside_it(self):
         tests = [report("2026-11-09T20:00:00Z", [played("Wukong", "steam.3132990", way="d3dmetal", secondsToPicture=87.1)]),
