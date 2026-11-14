@@ -29,6 +29,11 @@ nirgends stand:
 Abgegeben am 14.11.: Schritt C des Startrezepts (Diagnose-Start, mit dem Text der Fehlerfenster als erster Form von D)
 an eine eigene Session, Zweig von `claude/start-logik-033`. Schritt E wartet darauf (gleiche Startschleife).
 
+**Läuft-Liste (Idee des Nutzers, 14.11.):** eine Liste der Spiele, die eindeutig starten und laufen, mit Messwerten,
+als Referenz für Community und Landingpage. Ebenfalls an eine eigene Session abgegeben (Definition, Generator aus
+Evidenz und Spieletest-Berichten, Messwerte im Spieletest; `site/` bleibt bei der Landingpage-Session, Design zuerst).
+Danach: ein Messabend mit dem Nutzer (Spieletest mit `gameTest.playSeconds` 200 über die geladenen Spiele).
+
 ## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
 
 Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel. Gebaut: `StartRules.swift`, `StartEvidence.swift`.
