@@ -2247,7 +2247,10 @@ private struct HintBar: View {
                     }
                 case .home:
                     if let game = model.heroGame {
-                        Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Play"))
+                        // The big button's word, as on the game's page: a start to download isn't "Play".
+                        if let word = primaryWord(game) {
+                            Hint(controller ? .pad(pad.confirm) : .key("↵"), text: word)
+                        }
                         Hint(controller ? .pad(pad.details) : .key("I"), text: L10n.t("Details"))
                         if controller {
                             Hint(.pad(pad.menu), text: Self.menuHint(game))
@@ -2279,9 +2282,8 @@ private struct HintBar: View {
                 case .detail(_, let from):
                     if let game = model.selected, game.install != .inStore {
                         // What Return does here: the big button's word, short – nothing when it only says why not.
-                        if game.antiCheatBlock == nil || game.playsInCloud {
-                            Hint(controller ? .pad(pad.confirm) : .key("↵"),
-                                 text: game.install == .notInstalled && !game.playsInCloud ? L10n.t("Download") : L10n.t("Play"))
+                        if let word = primaryWord(game) {
+                            Hint(controller ? .pad(pad.confirm) : .key("↵"), text: word)
                         }
                         Hint(controller ? .pad(pad.menu) : .key("O"), text: L10n.t("Options"))
                         if !controller {
@@ -2300,6 +2302,12 @@ private struct HintBar: View {
         .opacity(model.games.isEmpty && !model.showsFirstStart && !model.showsLauncherCards ? 0 : 1)
     }
 
+    private func primaryWord(_ game: Game) -> String? {
+        PrimaryHint.word(for: game, running: model.isRunning(game),
+                         busy: model.launchingID == game.id || model.sizingID == game.id || model.uninstallingID == game.id
+                             || model.waitsForMove(game))
+    }
+
     /// Where B goes with a control highlighted: an open panel closes, a game's page goes back, Home
     /// and the library go back to their games.
     private var backWithHighlight: String {
@@ -2313,6 +2321,29 @@ private struct HintBar: View {
     /// What ☰ does on a selected card: a store hit has no options, only the menu.
     private static func menuHint(_ game: Game) -> String {
         game.install == .inStore ? L10n.t("Hold: Quick menu") : L10n.t("Options · Hold: Quick menu")
+    }
+}
+
+/// What Return and A do on the selected game, in a word for the hint bar: the big button's, short
+/// (LibraryModel.primaryAction). Nil where that button only says why not or how far something is – the
+/// hint names nothing the press wouldn't do. Home's stage holds games still to download (the first
+/// starts of a new library, the Play Later list) and ones downloading: "Play" stood under all of them.
+enum PrimaryHint {
+    /// `busy`: it's starting, being uninstalled or waits for a move – the press does nothing new.
+    static func word(for game: Game, running: Bool, busy: Bool = false) -> String? {
+        if busy { return nil }
+        if running { return L10n.t("Switch to Game") }
+        if game.playsInCloud { return L10n.t("Play") }
+        switch game.install {
+        case .installed:
+            return game.antiCheatBlock == nil ? L10n.t("Play") : nil
+        case .notInstalled:
+            return game.isVROnly || game.antiCheatBlock != nil || game.missingDrive != nil ? nil : L10n.t("Download")
+        case .downloading:
+            return game.downloadNeedsSpace != nil ? L10n.t("Continue Download") : nil
+        case .inStore:
+            return nil
+        }
     }
 }
 
