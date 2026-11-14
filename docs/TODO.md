@@ -111,6 +111,15 @@ bei Deckkraft 0 (die Leistungsanzeige des Nutzers ist an).
   die Abhakliste braucht es dort einen eigenen Messweg oder eine Entscheidung des Nutzers.
 - **Messabend:** am Netzteil, ohne laufende Sessions (Last), Befehle in `docs/LAEUFT-LISTE.md` Abschnitt 6.
 
+**Messlauf gestartet, 14.11., 19:41 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** 20 von 24
+geladenen Spielen, 190 s je Spiel, am Netzteil, mit `wineDebug` `+fps,+pid,+loaddll,+timestamp` für die
+WineD3D-Spiele. Im Build: die Abendrunde des Erlebnis-Audits (E4, E8, Beenden an jedem Blatt vorbei, Testreihen
+schreiben nicht mehr ins echte Protokoll) und der Leser für Wines fps-Kanal; Kette 118 Testreihen, 271 pytest.
+Danach: Bericht lesen, `python3 scripts/laeuft-liste.py`, die erste echte fps-Zeile an die Läuft-Liste-Session.
+Schritt E, Teil 1 (`claude/diagnose-start-033-92f729`, `d0d6e22`) ist gebaut und wartet auf Prüfung und
+Zusammenführen nach dem Lauf; dazu vier Entscheidungen des Nutzers (Entwurf 3.3) und die Frage, wie Mac-Fassungen
+gemessen werden (Probe mit Valheim oder „nur der Start zählt“).
+
 **Stand 14.11., 19:15:** Die Abhak-Regel („einmal sauber gemessen bleibt abgehakt“) ist im Testzweig (`70b38c1`,
 pytest 270). Der Messlauf startet, wenn der Nutzer schlafen geht (er sagt Bescheid; Bildschirm entsperrt, Netzteil).
 Drei Sessions arbeiten, jede in ihren Dateien:
