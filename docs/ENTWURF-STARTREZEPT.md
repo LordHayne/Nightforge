@@ -202,9 +202,9 @@ stand. Daraus die Reihenfolge A bis E:
 
 ### 3.3 Plan für E (Stufe 3): Das Rezept trägt den Start
 
-Stand 14.11.2026. **Teil 1 ist gebaut:** die reine Logik mit Tests (`tests/StartRecipeTest`, `CloserLookTest`).
-**Nichts davon ist verdrahtet**, kein Start läuft anders als vorher. Teil 2 ist der Umbau der Startschleife in den
-Schritten E1 bis E6 unten.
+Stand 14.11.2026, spät. **Teil 1 ist gebaut:** die reine Logik mit Tests (`tests/StartRecipeTest`, `CloserLookTest`).
+**Teil 2 verdrahtet sie** in der Startschleife, in den Schritten E1 bis E6 unten; was davon steht, sagt der Abschnitt
+„Teil 2: Was verdrahtet ist“. Der Nutzer hat die vier Entscheidungen am 14.11. getroffen, alle wie empfohlen.
 
 **Der Gedanke.** Ein Rezept hat drei Quellen: den Weg der Leiter (Grafikweg mit seinen Schaltern), das Profil und
 das, was die Diagnose-Tabelle für dieses Spiel schon geändert hat (`StartRecipe.Learned`: DLLs aus, Laufzeiten, ohne
@@ -297,6 +297,54 @@ Jeder Schritt ist einzeln testbar und einzeln einspielbar. In Klammern die Datei
   Vorhang (Board zuerst).
 
 E1 vor E2 vor E3; E4 braucht E1; E5 steht für sich.
+
+#### Teil 2: Was verdrahtet ist
+
+| Schritt | Stand | Was sich am Start ändert |
+|---|---|---|
+| E1 | gebaut | Nichts. Die Schleife liest das Gelernte einmal je Start und baut daraus mit Weg und Profil das Rezept; DLL-Schalter und Windows-Version im Prefix, die Argumente und AVX kommen aus diesem Wert, die Evidenz schreibt ihn. |
+| E2 | gebaut | Zwei Dinge, wie geplant: alles, was auf demselben Weg zu ändern ist, in einem Start; höchstens drei Starts „derselbe Weg noch einmal“ je „Spielen“. Sonst entscheidet `NextStart.after` wie die Zweige vorher. |
+| E3 | gebaut | Jede Abhilfe der Tabelle wirkt, für Spiele ohne Anti-Cheat: DLLs aus und derselbe Weg noch einmal; der Weg, auf den ein Befund zeigt. |
+
+**E1 im Einzelnen.** `Engine.applyGameSettings` und `Launcher.launch`/`launchDirect` bekommen das Rezept; der Launcher
+nimmt die Argumente nur noch von dort. Eine Falle dabei: Das Spiel bekam schon immer Profil, dann Weg, dann den
+Schalter am Launcher-Fenster vorbei; das Rezept in der Evidenz stand als Weg, Schalter, Profil. Das Rezept hat jetzt
+die Reihenfolge des Starts, und `startsLike` vergleicht die Argumente ohne Reihenfolge, damit die Beweise von vor dem
+14.11. gelten. Die Argumente gegen ein Anti-Cheat (`SteamCatalog.antiCheatOffArguments`) und die eigenen des Spielers
+stehen weiter außerhalb des Rezepts. Der Schalter am Launcher-Fenster vorbei steht nur noch in
+`StartRecipe.pastLauncher`.
+
+**E2 im Einzelnen.** Die Schleife sammelt die Tatsachen (Engine davor, Dateikorrektur, die Worte des Spiels, Wines
+Protokoll, den genaueren Blick), fragt einmal und tut, was die Antwort sagt. Ein Test hält die Entscheidung gegen
+die alten Zweige, als Funktion ausgeschrieben, auf 4.000 erfundenen Fehlstarts (`StartRecipeTest`, „Step E2“); mit
+dem Filter `NextStart.asBefore` wirkten in E2 nur die Abhilfen von vorher. Genauer als geplant: Ein Start, der AVX gar
+nicht angeboten hat (Profil), wird wegen „illegal instruction“ nicht wiederholt, wie vorher
+(`NextStart.Failed.recipe`).
+
+**E3 im Einzelnen.**
+
+- Für ein Spiel ohne Anti-Cheat entscheidet die ganze Diagnose. Neu wirken damit: `nvidia-interface` und
+  `physx-update-loader` (DLLs aus, derselbe Weg), `graphics-crash` und `graphics-failed` (ein Weg auf einem anderen
+  Layer statt einfach der nächste), `loads-direct3d9` (Wines eigenes Direct3D). Ein Fenstertext zählt als Wort des
+  Spiels, sobald ein Start `+msgbox` trägt.
+- Was der Fehlstart schon hatte, ist keine Änderung: Eine DLL, die im Rezept schon aus war (der PhysX-Update-Loader
+  für alle, eine aus dem Profil), löst keinen Start aus.
+- Zeigen mehrere Befunde auf einen Weg, gilt zuerst der, der den Weg benennt (Layer, ohne Schalter), dann „anderer
+  Layer“, dann „der nächste“ (`NextStart.pointer`). Sonst schickte ein Absturz in `d3d9.dll` Alan Wake von D3DMetal
+  zu DXMT, wo Direct3D 9 genauso DXVKs ist.
+- Für ein Spiel mit Anti-Cheat bleibt alles wie vor E: Der Befund kommt aus Wines Protokoll und den Absturzberichten
+  wie bisher, und es wirken nur die Abhilfen von vorher (`NextStart.asBefore` bleibt dafür stehen). Keine DLL aus.
+- Evidenz: Ändert ein Fehlstart das Rezept, steht er jetzt als `failed` in der Aufzeichnung, mit Diagnose. Vorher
+  schrieben die Zweige „Laufzeit“ und „AVX“ dafür nichts. So kennt `failedWith` das Rezept, das scheiterte.
+- Die Erststart-Zählung (`StartEvidence.summary`) zählt Wege, nicht Starts: Ein Spiel, das auf seinem ersten Weg beim
+  zweiten Start kommt, kam auf dem ersten Weg. **Das ändert die Zahl auch rückwirkend** für Spiele, die auf
+  demselben Weg zwei „Spielen“ brauchten; vorher zählten sie als „späterer Weg“.
+- `StartDiagnosis.finding` liest „illegal instruction“ jetzt auch aus den Absturzberichten (Unreal fängt es selbst),
+  wie der alte Zweig es tat.
+
+**Live zu prüfen** (die Anleitung liegt im Notizordner, `closer-look/live-pruefung-schritt-e.md`): E2 mit einem
+Spiel, dem eine Laufzeit fehlt, und Hogwarts Legacy ohne Profil; E3 mit It Takes Two und einem Testprofil, das den
+Loader zurückholt.
 
 #### Beweise gelten für ein Rezept
 
