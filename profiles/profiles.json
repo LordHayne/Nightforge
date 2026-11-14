@@ -3,7 +3,7 @@
  "sources": {
   "umu-protonfixes": {
    "url": "https://github.com/Open-Wine-Components/umu-protonfixes",
-   "commit": "28a02c25e4b895131c9ebdeda411ec3646b38151",
+   "commit": "9466f1e638d4a66fe5415c1d903979490ad687c8",
    "license": "BSD-2-Clause"
   },
   "geforce-now": {
@@ -4797,8 +4797,7 @@
     "nvngx": ""
    },
    "note": "Tested 2026-11-07 on M5, macOS 27.0, winecx 4.7.3, the Steam version from Nightforge: reaches a match on DXMT at about 57 FPS, Direct in the Metal HUD, MetalFX spatial 1512x982 to 3024x1964. Needs CX_APPLEGPTK_LIBD3DSHARED_PATH (set for all winecx programs) and nvapi64 and nvngx off, as Recall does.",
-   "source": "mac",
-   "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
+   "source": "mac"
   },
   "2359600": {
    "name": "Perfect New World",
@@ -4827,6 +4826,13 @@
    "antiCheat": [
     "BattlEye"
    ]
+  },
+  "2399420": {
+   "name": "Le Mans Ultimate",
+   "dllOverrides": {
+    "d3dx11_43": "builtin"
+   },
+   "source": "umu"
   },
   "2399830": {
    "name": "ARK: Survival Ascended",
@@ -5915,5 +5921,5 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-07T21:50:08Z"
+ "generated": "2026-11-14T11:43:23Z"
 }
