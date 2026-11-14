@@ -26,6 +26,7 @@ struct ExperienceAuditTest {
         keyboardWithoutItsPad()
         updateUnderAGame()
         everySheetClosesForAQuit()
+        whoWritesTheLog()
         await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -37,6 +38,15 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// Test series are bare programs, most in the real home: Nightforge's log there is the player's.
+    static func whoWritesTheLog() {
+        check(GameLog.writes(bundled: true, ownHome: false), "Nightforge writes its log")
+        check(GameLog.writes(bundled: true, ownHome: true), "in a first-start test's own home too")
+        check(GameLog.writes(bundled: false, ownHome: true), "a test series in a home of its own writes the log there")
+        check(!GameLog.writes(bundled: false, ownHome: false), "a test series in the real home writes none")
+        check(!GameLog.writes && GameLog.handleForSteam() == nil, "this series is one of those: no line, and no log handed to a stand-in Steam")
     }
 
     /// A quit closes the sheets over the library through the model's state (LibraryModel.closeAllSheets), and one

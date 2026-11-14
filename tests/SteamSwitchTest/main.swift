@@ -1,6 +1,7 @@
 // Checks which of the two Steams runs (SteamSwitch), their sign-in as they log it (SteamLogin),
 // Steam for Mac in the first start (MacSteamPrep, its lines, the reveal's Mac count) and its test
 // home: tests/SteamSwitchTest/run.sh. Nothing here starts, stops or reads a real Steam.
+import AppKit
 import Foundation
 
 @main
@@ -181,6 +182,7 @@ struct SteamSwitchTest {
         let realLog = realHome + "/Library/Application Support/Steam/logs/connection_log.txt"
         let realLogBefore = try? fm.attributesOfItem(atPath: realLog)[.modificationDate] as? Date
         check(MacSteam.isTestHome, "a home of its own is a test home")
+        check(GameLog.writes, "and there the log is the test's own: it's written")
         check(path(MacSteam.root.path).hasPrefix(path(home) + "/"), "Steam for Mac's folder is in the test home: \(MacSteam.root.path)")
         check(MacSteam.app == nil, "the player's Steam.app doesn't count there: \(MacSteam.app?.path ?? "none")")
         check(!MacSteam.isInstalled && !MacSteam.isReady, "so Steam for Mac isn't set up there")
@@ -435,8 +437,17 @@ struct SteamSwitchTest {
         turn.macTakesAccount()
         check(turn.macHasAccount && Engine.windowsSteamHeldBack, "a Mac version's start takes it")
         let lastStart = Engine.lastSteamStart?.at
+        // This series runs in the real home (above: "the real home isn't a test home"), and the held-back start
+        // says so in wine.log: the line stood in the player's log on 14.11., once in the middle of a real start.
+        check(!GameLog.writes, "a test series in the real home writes nothing into the player's wine.log")
+        let realLog = (try? FileManager.default.attributesOfItem(atPath: GameLog.url.path))?[.size] as? UInt64
         check((try? Engine.startSteam(URL(fileURLWithPath: "/nowhere/bin/wine"), arguments: ["-silent"])) != nil
               && Engine.lastSteamStart?.at == lastStart, "a background start meanwhile does nothing at all")
+        // Only with no Nightforge running is the log's length this series' own doing.
+        if let realLog, NSRunningApplication.runningApplications(withBundleIdentifier: "io.github.lordhayne.nightforge").isEmpty {
+            check((try? FileManager.default.attributesOfItem(atPath: GameLog.url.path))?[.size] as? UInt64 == realLog,
+                  "the player's wine.log is as long as before the held-back start")
+        }
         turn.macGivesAccountBack()
         check(!turn.macHasAccount && !Engine.windowsSteamHeldBack, "handed back, the Windows Steam may come")
 
