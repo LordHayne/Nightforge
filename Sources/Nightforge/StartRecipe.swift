@@ -4,7 +4,8 @@ import Foundation
 /// gets or doesn't, the runtimes set up for it. Today these come together from the profile, the ladder
 /// and what earlier starts taught (LaunchHealth, LearnedFixes, Engine.gameDllOverrides); the recipe is
 /// what a start is recorded with (StartEvidence), so that what worked can be told from what was only
-/// tried. Nothing decides by it yet (docs/ENTWURF-STARTREZEPT.md, stage 1).
+/// tried. The start itself doesn't go by it yet: step E makes it what a start is made of
+/// (docs/ENTWURF-STARTREZEPT.md 3.3).
 struct StartRecipe: Codable, Equatable {
     var graphics: String
     var arguments: [String]
@@ -13,6 +14,10 @@ struct StartRecipe: Codable, Equatable {
     /// Rosetta's AVX is offered to the game.
     var avx: Bool
     var windowsVersion: String?
+    /// The rules of the diagnosis table whose remedies it carries ("nvidia-interface"), in the order they
+    /// came: what sets it apart from its way's and its profile's own. nil where there are none, and in
+    /// every line recorded before 14.11.2026.
+    var steps: [String]?
 
     /// The recipe of a start on `layer`. `arguments`: the way's own and the switch past the game's
     /// launcher window; the profile's come on top where they belong to this layer.
@@ -24,5 +29,72 @@ struct StartRecipe: Codable, Equatable {
                     runtimes: Array(Set((profile?.winetricks ?? []) + learnedRuntimes)).sorted(),
                     avx: avx,
                     windowsVersion: profile?.windowsVersion)
+    }
+
+    /// The recipe of a start on `way` with what the diagnosis has taught about the game (`learned`).
+    /// `launcherSwitch`: the switch past the game's own launcher window (ProgramText.launcherSwitch), which
+    /// goes with every start and isn't part of the way. What was learned goes over the profile's and the
+    /// layer's DLLs: it answers a failure seen in this game on this Mac.
+    static func of(way: LaunchAttempt, learned: Learned, profile: GameProfile?, launcherSwitch: String? = nil,
+                   d3dMetalEngine: Bool) -> StartRecipe {
+        var arguments = way.arguments
+        if let launcherSwitch, !arguments.contains(where: { $0.caseInsensitiveCompare(launcherSwitch) == .orderedSame }) {
+            arguments.append(launcherSwitch)
+        }
+        var recipe = of(layer: way.graphics, arguments: arguments, profile: profile, learnedRuntimes: learned.runtimes,
+                        avx: profile?.avx != false && !learned.noAVX, d3dMetalEngine: d3dMetalEngine)
+        for dll in learned.dllsOff { recipe.dllOverrides[dll] = "" }
+        recipe.steps = learned.steps.isEmpty ? nil : learned.steps
+        return recipe
+    }
+
+    /// The same start, whatever led to it: all that reaches Wine, not which rule asked for it (`steps`).
+    func startsLike(_ other: StartRecipe) -> Bool {
+        graphics == other.graphics && arguments == other.arguments && dllOverrides == other.dllOverrides
+            && Set(runtimes) == Set(other.runtimes) && avx == other.avx && windowsVersion == other.windowsVersion
+    }
+
+    /// What the diagnosis has changed about a game's starts, kept with the game (LearnedFixes.learned): the
+    /// part of its recipe that is neither its way's nor its profile's. Every entry answers a failure the
+    /// table knows (StartDiagnosis.rules) – nothing gets in here by a guess. Runtimes and the AVX hint have
+    /// been learned this way since 0.2; DLLs kept unloaded and the rules' names are step E's.
+    struct Learned: Codable, Equatable {
+        /// DLLs that stay unloaded: lower case, without ".dll".
+        var dllsOff: [String] = []
+        /// winetricks verbs (and GameLog.wineMono).
+        var runtimes: [String] = []
+        var noAVX = false
+        /// The rules that asked for a change, each once, in the order they came.
+        var steps: [String] = []
+
+        /// With what `remedy` asks for, noted as `rule`'s. nil when the remedy isn't a change to the recipe
+        /// on the same way – another layer, other arguments and the next way are the ladder's
+        /// (NextStart.way), a root needs the player's OK – or when it changes nothing: it's all in already.
+        /// A Direct3D DLL is never switched off here: which copy of those loads is the way's.
+        func applying(_ remedy: StartRemedy, rule: String) -> Learned? {
+            var changed = self
+            switch remedy {
+            case .dllsOff(let dlls):
+                for dll in dlls.map(Self.dllName) where !dll.isEmpty && !StartDiagnosis.graphicsModules.contains(dll + ".dll")
+                    && !changed.dllsOff.contains(dll) {
+                    changed.dllsOff.append(dll)
+                }
+            case .runtimes(let verbs):
+                for verb in verbs where !verb.isEmpty && !changed.runtimes.contains(verb) { changed.runtimes.append(verb) }
+            case .noAVX:
+                changed.noAVX = true
+            case .dropArguments, .layer, .nextLayer, .trustRoot, .nextWay:
+                return nil
+            }
+            guard changed != self else { return nil }
+            if !changed.steps.contains(rule) { changed.steps.append(rule) }
+            return changed
+        }
+
+        /// "NVAPI64.dll" → "nvapi64": a DLL as Wine's overrides name it.
+        static func dllName(_ name: String) -> String {
+            let lower = name.lowercased()
+            return lower.hasSuffix(".dll") ? String(lower.dropLast(4)) : lower
+        }
     }
 }

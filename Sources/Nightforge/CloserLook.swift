@@ -15,6 +15,14 @@ enum CloserLook {
     /// WINEDEBUG of a start that looks closer.
     static var wineDebug: String { GameLog.wineDebug + "," + channels }
 
+    /// The part of them every start could carry (a proposal, docs/ENTWURF-STARTREZEPT.md 3.3 – no start
+    /// does yet): each line's process, the libraries a process loads, and the texts of message boxes. They
+    /// print at a process's start and when a box opens, not while a game runs: Alan Wake's start on
+    /// 14.11.2026 came to 88 such lines, 10 KB. What a game puts out for a debugger and certificate chains
+    /// stay a closer look's: a game can write the first with every frame, and Steam's browser builds chains
+    /// as long as it runs (3,204 of the 4,423 lines of Batman's start with all channels on).
+    static let everyStart = "+pid,+loaddll,+msgbox"
+
     /// An engine test's switch: every start carries the channels, with `defaults write
     /// io.github.lordhayne.nightforge closerLook -bool true` (docs/TODO.md › Engine-Tests; there's no
     /// switch in the app). Read once per app run, like GameLog.extraWineDebug. The first start restarts
@@ -60,6 +68,9 @@ enum CloserLook {
         var debugOutput: [String] = []
         /// The texts of its message boxes: the game's error window, when it is one of Windows' own.
         var boxes: [String] = []
+        /// The text of its last message box, when the process that showed it loaded nothing after it: the
+        /// window the game ended at, if it ended. A game that goes on after a box loads more.
+        var endedAtBox: String?
         /// The Direct3D, OpenGL and Vulkan libraries it loaded, in the order they came.
         var graphics: [String] = []
         /// The last libraries it loaded at all.
@@ -127,7 +138,8 @@ enum CloserLook {
         var loads: [(process: Int, name: String, inFolder: Bool)] = []
         var lastLoad: [Substring: Int] = [:]
         var said: [(process: Int, text: String)] = []
-        var boxes: [(process: Int, text: String)] = []
+        /// `loads`: how many libraries had loaded when it opened.
+        var boxes: [(process: Int, text: String, loads: Int)] = []
 
         // A signature check as it goes, by the thread that makes it.
         struct Check {
@@ -171,7 +183,7 @@ enum CloserLook {
                 guard line.function == "MSGBOX_OnInit", let pid = line.pid, let text = unquoted(line.text) else { continue }
                 let words = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
                     .filter { !$0.isEmpty }.joined(separator: " ")
-                if !words.isEmpty { boxes.append((process(pid), cut(words, to: 300))) }
+                if !words.isEmpty { boxes.append((process(pid), cut(words, to: 300), loads.count)) }
             case "wintrust", "chain":
                 let thread = (line.pid.map { $0 + ":" } ?? "") + line.thread
                 switch (line.function, line.text) {
@@ -213,6 +225,9 @@ enum CloserLook {
         // The last six lines, a repeated one where it came last.
         reading.debugOutput = unique(said.filter { game[$0.process] }.map(\.text).reversed()).prefix(6).reversed()
         reading.boxes = Array(unique(boxes.filter { game[$0.process] }.map(\.text)).suffix(3))
+        if let last = boxes.last(where: { game[$0.process] }), !loads[last.loads...].contains(where: { $0.process == last.process }) {
+            reading.endedAtBox = last.text
+        }
         for check in checks where check.inFolder || check.process.map({ game[$0] }) == true {
             if !reading.signatures.contains(check.signature) { reading.signatures.append(check.signature) }
         }
@@ -291,6 +306,31 @@ enum CloserLook {
         let string = wide ? String(decoding: units, as: UTF16.self)
             : String(bytes: bytes, encoding: .utf8) ?? String(bytes: bytes, encoding: .windowsCP1252) ?? String(decoding: bytes, as: UTF8.self)
         return cutOff ? string + "…" : string
+    }
+
+    // MARK: - A message box: a question or a notice
+
+    enum Box: Equatable {
+        /// The player can answer it either way, and the game's end after it can be the answer.
+        case question
+        /// It says something and has the player confirm it: nothing to choose.
+        case notice
+    }
+
+    /// Words of a text that reports a failure, whatever it asks after that ("… has crashed. Send a report?").
+    /// English, which such boxes mostly stay in, and German, which this Mac's prefix speaks.
+    static let failureWords = [
+        "error", "failed", "failure", "fatal", "crash", "could not", "couldn't", "cannot", "can't", "unable to", "exception",
+        "fehler", "fehlgeschlagen", "abgestürzt", "konnte nicht", "kann nicht",
+    ]
+
+    /// What a message box's text is. Wine's channel prints the text alone, not the buttons, so the text
+    /// decides: without a question mark it's a notice – a box that asks nothing has only OK to press – and so
+    /// is one that reports a failure before it asks.
+    static func box(_ text: String) -> Box {
+        let lower = text.lowercased()
+        guard lower.contains(where: { $0 == "?" || $0 == "？" || $0 == "؟" }) else { return .notice }
+        return failureWords.contains(where: lower.contains) ? .notice : .question
     }
 
     // MARK: - When to look closer

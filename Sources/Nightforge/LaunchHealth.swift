@@ -371,6 +371,19 @@ enum LaunchHealth {
         return next != nil
     }
 
+    /// Moves on to the way at `index`, picked by the caller (NextStart.Step.way) – what `advance` does with
+    /// a way of its own choice. An index outside the list changes nothing.
+    static func advance(_ game: GameID, _ attempts: [LaunchAttempt], to index: Int) {
+        guard attempts.indices.contains(index) else { return }
+        var state = load(game, attempts)
+        state.startedAt = nil
+        state.confirmed = false
+        state.proof = nil
+        state.shortEnds = nil
+        state.index = index
+        save(game, state)
+    }
+
     /// Games whose way is confirmed, with that way's id: what they ran well with so far
     /// (EngineRollback starts from it).
     static func confirmedWays(_ defaults: UserDefaults = .standard) -> [GameID: String] {
@@ -436,6 +449,24 @@ enum LaunchHealth {
     }
 
     private static func questionKey(_ game: GameID) -> String { "launchHealth.ownQuestion.\(game.key)" }
+
+    /// Whether an end at a window of the game's own was the player's choice, by what the start left – on top
+    /// of what the start flow asks already (LibraryModel.ownQuestionEndStands: no graphics error, no crash,
+    /// nothing running after it). Alan Wake, 14.11.2026: its error box ("could not initialize your 3D graphics
+    /// card", OK) stood under the curtain as a question, the player pressed OK, and the curtain's watch wrote
+    /// "answered by the player: no other way" – the start took it for a failure only because DXVK's own words
+    /// stood against it. Metal Gear Solid V's "Failed to load SteamAPI" on 11.11. had nothing else against it
+    /// and went into the record as "closed at a question of its own".
+    /// `explained`: the table found why the start ended (not StartDiagnosis.unexplained) – then it failed,
+    /// whatever the player pressed. `endedAtBox`: the text of the message box the game ended at
+    /// (CloserLook.Reading.endedAtBox), known only in a start that carried Wine's channel for them; a notice
+    /// leaves nothing to choose (CloserLook.box). Unity's window before the game and a launcher's are no
+    /// message boxes: without one the end stays the player's, as before.
+    /// Not wired in yet (docs/ENTWURF-STARTREZEPT.md 3.3).
+    static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?) -> Bool {
+        if explained { return false }
+        return endedAtBox.map { CloserLook.box($0) == .question } ?? true
+    }
 
     /// The curtain sank for the game: its window in picture size had the front. Kept like Quit
     /// Game, so a start that ends soon after still counts as one that showed a picture – in the
@@ -544,6 +575,30 @@ enum LearnedFixes {
     /// Whether Rosetta advertises AVX to this game.
     static func avx(_ game: GameID, profile: GameProfile?) -> Bool {
         profile?.avx != false && !noAVX(game)
+    }
+
+    private static func dllsOffKey(_ game: GameID) -> String { "learned.dllsOff.\(game.key)" }
+    private static func stepsKey(_ game: GameID) -> String { "learned.steps.\(game.key)" }
+
+    /// All the diagnosis has taught about the game so far, as the part of its recipe it is
+    /// (StartRecipe.Learned): the runtimes and the AVX hint under the keys they have had since 0.2, and from
+    /// step E on the DLLs kept unloaded and which rule asked for what.
+    static func learned(_ game: GameID, defaults: UserDefaults = .standard) -> StartRecipe.Learned {
+        StartRecipe.Learned(dllsOff: defaults.stringArray(forKey: dllsOffKey(game)) ?? [],
+                            runtimes: defaults.stringArray(forKey: winetricksKey(game)) ?? [],
+                            noAVX: defaults.bool(forKey: noAVXKey(game)),
+                            steps: defaults.stringArray(forKey: stepsKey(game)) ?? [])
+    }
+
+    /// Keeps it, under the same keys: `winetricks` and `noAVX` answer what was learned through the table too.
+    static func keep(_ learned: StartRecipe.Learned, for game: GameID, defaults: UserDefaults = .standard) {
+        func set(_ list: [String], _ key: String) {
+            if list.isEmpty { defaults.removeObject(forKey: key) } else { defaults.set(list, forKey: key) }
+        }
+        set(learned.dllsOff, dllsOffKey(game))
+        set(learned.runtimes, winetricksKey(game))
+        set(learned.steps, stepsKey(game))
+        if learned.noAVX { defaults.set(true, forKey: noAVXKey(game)) } else { defaults.removeObject(forKey: noAVXKey(game)) }
     }
 
     static func setLastLaunch(_ game: GameID, logMark: UInt64) {
