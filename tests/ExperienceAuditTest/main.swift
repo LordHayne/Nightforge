@@ -18,8 +18,10 @@ struct ExperienceAuditTest {
     static func main() async {
         TestDefaults.useWorkFolder()
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        _ = NSApplication.shared  // a message asks NSApp for the main window; no window, no Dock icon without run()
         hintWords()
         saveLine()
+        await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -30,6 +32,32 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// A click on a message's button takes the message away under the pointer, and SwiftUI then never reports
+    /// the pointer gone: the next message waited for it to leave, for good.
+    static func messageAfterAClick() async {
+        let toasts = Toasts.shared
+        var undone = false
+        toasts.show("Hidden from your library", action: .init(label: "Undo") { undone = true })
+        toasts.setHovering(true)  // the pointer on it, as for a click
+        toasts.runAction()
+        check(undone && toasts.current == nil, "the button does its action and the message goes")
+        toasts.show("Back in your library")
+        try? await Task.sleep(for: .seconds(3.4))  // a message without a button goes after 2.8 s
+        check(toasts.current == nil, "the message after a clicked one still stands after 3.4 s: it waits for a pointer that left with the last one")
+        // One replaced under the pointer is the same case.
+        toasts.show("First")
+        toasts.setHovering(true)
+        toasts.show("Second")
+        try? await Task.sleep(for: .seconds(3.4))
+        check(toasts.current == nil, "a message that replaced one under the pointer still stands after 3.4 s")
+        // And the pointer on a message still holds it.
+        toasts.show("Held")
+        toasts.setHovering(true)
+        try? await Task.sleep(for: .seconds(3.4))
+        check(toasts.current != nil, "the pointer on a message no longer holds it")
+        toasts.dismiss()
     }
 
     /// "Welcome back" after a Battle.net game said its save was uploading: every store but Steam counted as one
