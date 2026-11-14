@@ -40,6 +40,21 @@ ist und ein FPS-Wert in der Benchmark-Liste steht; die Werte sollen offen auf di
 **Erlebnis-Audit (der Nutzer, 14.11.):** eine Session sucht Fehler in Oberfläche und Logik entlang der Wege des Spielers,
 belegt sie mit Tests, behebt die klaren und listet den Rest in `docs/AUDIT-ERLEBNIS-0.3.3.md`. Die Dateien der beiden
 anderen Sessions fasst sie nicht an, Fehler dort beschreibt sie nur.
+
+**Eingespielt 14.11., 15:40 (`ed9b785`), mit OK des Nutzers:** Die drei Zweige (Diagnose-Start, Läuft-Liste,
+Erlebnis-Audit) stecken im Testzweig (`claude/staging-033` = `claude/start-logik-033`). Kette grün: 118 Testreihen,
+264 pytest, Signatur in Ordnung. Live noch nicht gesehen: Schritt C/D (Prüfschritte in der Übergabe der Session,
+Testschalter `closerLook`), die sechs Korrekturen des Erlebnis-Audits, das HUD-Protokoll auf D3DMetal, MoltenVK und
+WineD3D. Der Reihe nach, weil dieselben Dateien: Läuft-Liste (HUD-Protokoll im Spieletest, `started` mit Version und
+Engine-Teilen), dann Erlebnis-Audit E4 und E8, dann Schritt E.
+
+- **Eine Testreihe schreibt ins echte Protokoll (gefunden 14.11.):** `tests/SteamSwitchTest/main.swift:438` ruft
+  `Engine.startSteam(…, ["-silent"])` bei zurückgehaltenem Windows-Steam; `GameLog.note` schreibt dabei die Zeile
+  „Steam switch: the Windows Steam waits, Steam for Mac has the account, at …“ ins echte `Logs/wine.log`
+  (`Engine.supportDir` folgt `HOME` nicht). Gesehen um 15:38:40, als kein Nightforge lief. Harmlos (eine Zeile je Lauf,
+  kein Start), aber sie sieht aus wie von Nightforge. Anfang: nur `Engine.holdsBack` prüfen oder der Reihe ein eigenes
+  Zuhause geben.
+
 ## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
 
 Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, sobald ein 100%iger Start und ein
@@ -159,7 +174,7 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
   von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
 
-- **Genauerer Blick (Schritt C, 14.11., Zweig `claude/diagnose-start-033-92f729`, noch nicht eingespielt):** Nach einem
+- **Genauerer Blick (Schritt C, 14.11., Zweig `claude/diagnose-start-033-92f729`, eingespielt als `ed9b785`, live noch nicht gesehen):** Nach einem
   Fehlstart der Leiter, den die Diagnose nicht erklärt, tragen die folgenden Starts Wines Debug-Kanäle
   (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`); beim letzten Weg startet derselbe Weg einmal still noch
   einmal. Gelesen werden nur die Prozesse des Spiels (`CloserLook.read`). Neue Regeln `untrusted-root`, `signature`,
