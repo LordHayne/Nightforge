@@ -130,9 +130,14 @@ Zeit am Netzteil, Last zu Beginn 4,6 bei 10 Kernen, keine Session arbeitete. 19 
 Befunde aus dem Lauf:
 
 - [ ] **D3DMetal hält das Frame-Limit nicht, in vier Spielen.** Limit 60 aufgezeichnet, gemessen Wukong Ø 201,
-  Control Ø 113, Hogwarts Ø 102, It Takes Two Ø 74 (üblicher Frame bei Control 8 ms = 120 Hz). `D3DM_MAX_FPS`
-  greift also nicht. DXMT und DXVK halten es (MGS V 60, Frostpunk 60, The Forest 60). Der Nutzer mag gerade die
-  Sperre auf 60. An die Läuft-Liste-Session gegeben (Ursache suchen).
+  Control Ø 113, Hogwarts Ø 102, It Takes Two Ø 74 (üblicher Frame bei Control 8 ms = 120 Hz). **Ursache
+  gefunden: Apples D3DMetal in winecx 4.7.3 kennt `D3DM_MAX_FPS` gar nicht.** `strings` auf
+  `lib/external/D3DMetal.framework/Versions/A/D3DMetal` zeigt 27 `D3DM_`-Schalter (darunter
+  `D3DM_ENABLE_METALFX`, `D3DM_SUPPORT_DXR`), keinen für die Bildrate; einzig `setDisplaySyncEnabled:`. Das Limit
+  hat auf D3DMetal mit diesem Stand also nie gegriffen, die Zeile „Frame limit of …: 60 FPS“ und der Kommentar in
+  `Engine.prepareLaunchEnvironment` („Apple's readme“) stimmen dafür nicht. DXMT und DXVK halten es (MGS V 60,
+  Frostpunk 60, The Forest 60). Der Nutzer mag gerade die Sperre auf 60. An die Läuft-Liste-Session gegeben
+  (Wege suchen, wie sich D3DMetal begrenzen lässt; erst ein Vorschlag, kein Bau).
 - [ ] **Die Listen sagen dazu „hält das Limit: Ø 201“.** Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
 - [ ] **Overwatch: der Spieletest sagt „hängt ohne Bild“, das Spiel zeichnete aber** (DXMT-Protokoll Ø 49 über
