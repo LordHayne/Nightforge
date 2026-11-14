@@ -45,10 +45,12 @@
    "1192126527": "550320",
    "1193013642": "440880",
    "1207658755": "223470",
+   "1207658827": "63650",
    "1207658997": "211600",
    "1207659014": "1500",
    "1207659017": "40700",
    "1207659024": "207690",
+   "1207659029": "208110",
    "1207659037": "108710",
    "1207659102": "212680",
    "1207659133": "203830",
@@ -61,6 +63,7 @@
    "1207665533": "400430",
    "1207667013": "248310",
    "1214553287": "2521380",
+   "1216902049": "1255560",
    "1217471463": "976590",
    "1224800338": "1092790",
    "1231448648": "603960",
@@ -176,6 +179,7 @@
    "1752654506": "8870",
    "1756057997": "826940",
    "1762582591": "661680",
+   "1766899243": "925930",
    "1771589310": "632470",
    "1785384169": "953490",
    "1786995757": "22650",
@@ -205,6 +209,7 @@
    "1948823323": "17390",
    "1950350062": "1708010",
    "1950574400": "1681430",
+   "1956555724": "925940",
    "1957528513": "1139900",
    "1958338581": "914710",
    "1962176043": "2097230",
@@ -519,7 +524,7 @@
   },
   "730": {
    "page": "Counter-Strike 2",
-   "edited": "2025-08-10",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "perfect",
@@ -546,9 +551,10 @@
       "d3dmetal"
      ],
      "chips": [
-      "M1 Max"
+      "M1 Max",
+      "M3 Pro"
      ],
-     "date": "2023-10-06"
+     "date": "2026-09-30"
     }
    }
   },
@@ -1103,7 +1109,7 @@
   },
   "9050": {
    "page": "Doom 3",
-   "edited": "2022-09-30",
+   "edited": "2026-11-04",
    "paths": {
     "native": {
      "rating": "perfect",
@@ -2693,22 +2699,14 @@
    },
    "ids": "name"
   },
-  "63660": {
-   "page": "Myst",
-   "edited": "2021-10-04",
+  "63650": {
+   "page": "Uru: Ages Beyond Myst",
+   "edited": "2026-11-05",
    "paths": {
     "native": {
-     "rating": "perfect"
-    },
-    "rosetta": {
-     "rating": "perfect",
-     "note": "Playable.",
-     "chips": [
-      "M1"
-     ]
+     "rating": "playable"
     }
-   },
-   "ids": "wikidata"
+   }
   },
   "65540": {
    "page": "Gothic",
@@ -3375,6 +3373,15 @@
     },
     "crossover": {
      "rating": "perfect"
+    }
+   }
+  },
+  "208110": {
+   "page": "Myst V: End of Ages",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "playable"
     }
    }
   },
@@ -4183,7 +4190,7 @@
   },
   "231430": {
    "page": "Company of Heroes 2",
-   "edited": "2022-07-21",
+   "edited": "2026-11-14",
    "paths": {
     "rosetta": {
      "rating": "perfect",
@@ -4191,6 +4198,14 @@
      "chips": [
       "M1"
      ]
+    },
+    "crossover": {
+     "rating": "perfect",
+     "note": "In case of Desync Error, I created a fix for it.",
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-11-13"
     }
    },
    "ids": "wikidata"
@@ -4963,7 +4978,7 @@
   },
   "244210": {
    "page": "Assetto Corsa",
-   "edited": "2025-01-22",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "perfect",
@@ -4980,7 +4995,15 @@
     },
     "wine": {
      "rating": "unplayable",
-     "note": "Is able toinstall and gives prompt to open but when opened Assetto Corsa closes and send back to steam page."
+     "note": "Is able toinstall and gives prompt to open but when opened Assetto Corsa closes and send back to steam page. Runs in Uncork through Steam after installing .NET Framework 4.8, d3dx11_43/d3dcompiler and fonts (Uncork's free \"Prepare to run\" does this); the Steam overlay must be off for the game. …",
+     "graphics": [
+      "d3dmetal",
+      "dxmt"
+     ],
+     "chips": [
+      "M3 Pro"
+     ],
+     "date": "2026-10-03"
     }
    },
    "ids": "wikidata"
@@ -6021,7 +6044,7 @@
   },
   "284160": {
    "page": "BeamNG.drive",
-   "edited": "2025-10-20",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "perfect",
@@ -6038,7 +6061,13 @@
     },
     "wine": {
      "rating": "runs",
-     "note": "https://www.reddit.com/r/BeamNG/comments/16iioxj/back_at_it_again_macos_sonoma_rc_game_porting/"
+     "note": "https://www.reddit.com/r/BeamNG/comments/16iioxj/back_at_it_again_macos_sonoma_rc_game_porting/ Runs in Uncork with D3DMetal: 100-110 fps on Hirochi at medium-high settings (no recording of the run, resolution not noted). Tested by the Uncork developer.",
+     "graphics": [
+      "d3dmetal"
+     ],
+     "chips": [
+      "M3 Pro"
+     ]
     }
    },
    "ids": "wikidata"
@@ -14918,6 +14947,24 @@
    },
    "ids": "wikidata"
   },
+  "925930": {
+   "page": "Myst III: Exile",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "playable"
+    }
+   }
+  },
+  "925940": {
+   "page": "Myst IV: Revelation",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "playable"
+    }
+   }
+  },
   "927380": {
    "page": "Yakuza Kiwami 2",
    "edited": "2025-10-02",
@@ -17637,7 +17684,7 @@
   },
   "1167630": {
    "page": "Teardown",
-   "edited": "2025-02-07",
+   "edited": "2026-11-05",
    "codeweavers": "teardown",
    "paths": {
     "crossover": {
@@ -17654,14 +17701,15 @@
     },
     "wine": {
      "rating": "perfect",
-     "note": "With Whisky, it's possible to run Teardown on macOS Sequoia.",
+     "note": "With Whisky, it's possible to run Teardown on macOS Sequoia. Runs in Uncork on the built-in OpenGL renderer: Ultra settings, 95-100 fps by eye, 72 fps in a heavy fog-and-water scene, about 74 fps on a heavier map (no average recorded). Tested by the Uncork developer.",
      "versions": [
       "Whisky"
      ],
      "chips": [
-      "M1"
+      "M1",
+      "M3 Pro"
      ],
-     "date": "2024-11-24"
+     "date": "2026-10-06"
     }
    },
    "hint": {
@@ -18610,7 +18658,7 @@
   },
   "1245620": {
    "page": "Elden Ring",
-   "edited": "2025-05-12",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "playable",
@@ -18626,8 +18674,29 @@
     },
     "wine": {
      "rating": "perfect",
-     "note": "Requires bypassing Easy Anti-Cheat"
+     "note": "Requires bypassing Easy Anti-Cheat. Also runs via MacRunner 1.1 (free; Wine + own x86 translator HyperBridge, no Rosetta; own DX12-to-Metal layer), offline only: ~45 FPS average (up to 57) at 1920x1200 High on M1 Pro, vs ~25 FPS (up to 30) with CrossOver Preview + GPTK 4.0b3 on the same Mac.",
+     "versions": [
+      "GPTK 4"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ],
+     "directX": [
+      "12"
+     ],
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-11-04"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "directX": "12",
+    "from": [
+     "wine"
+    ],
+    "source": "agw"
    }
   },
   "1247170": {
@@ -18735,6 +18804,22 @@
       "M1"
      ],
      "date": "2022-10-20"
+    }
+   }
+  },
+  "1255560": {
+   "page": "Myst",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "perfect"
+    },
+    "rosetta": {
+     "rating": "perfect",
+     "note": "Playable.",
+     "chips": [
+      "M1"
+     ]
     }
    }
   },
@@ -22236,18 +22321,24 @@
   },
   "1903340": {
    "page": "Clair Obscur: Expedition 33",
-   "edited": "2025-08-19",
+   "edited": "2026-11-07",
    "paths": {
     "crossover": {
      "rating": "perfect",
-     "note": "Works perfect",
+     "note": "Works perfect Works alright",
      "versions": [
-      "CrossOver 25.0.1"
+      "CrossOver 25.0.1",
+      "CrossOver 26.1",
+      "GPTK 4"
+     ],
+     "graphics": [
+      "d3dmetal"
      ],
      "chips": [
-      "M4 Max"
+      "M4 Max",
+      "M1 Pro"
      ],
-     "date": "2025-06-03"
+     "date": "2026-11-07"
     },
     "wine": {
      "rating": "perfect",
@@ -24042,6 +24133,19 @@
    },
    "ids": "name"
   },
+  "2948190": {
+   "page": "World of Sea Battle",
+   "edited": "2026-11-09",
+   "paths": {
+    "wine": {
+     "rating": "unplayable",
+     "note": "Unplayable.",
+     "chips": [
+      "M4"
+     ]
+    }
+   }
+  },
   "3008130": {
    "page": "Dying Light: The Beast",
    "edited": "2025-09-20",
@@ -24456,6 +24560,19 @@
     "source": "agw"
    }
   },
+  "4358690": {
+   "page": "Graveyard Keeper 2",
+   "edited": "2026-11-09",
+   "paths": {
+    "wine": {
+     "rating": "perfect",
+     "note": "Playable.",
+     "chips": [
+      "M4"
+     ]
+    }
+   }
+  },
   "4555040": {
    "page": "Sushiamo",
    "edited": "2026-08-06",
@@ -24523,5 +24640,5 @@
    }
   }
  },
- "generated": "2026-11-02T22:25:16Z"
+ "generated": "2026-11-14T11:44:07Z"
 }
