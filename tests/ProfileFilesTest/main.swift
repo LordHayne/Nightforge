@@ -32,6 +32,10 @@ struct ProfileFilesTest {
             check(SignedLists.isOlder(lastSignedWithout, than: list), "the list with needsRosettaLibrary is newer than the last one signed without it")
             let text = String(decoding: list, as: UTF8.self)
             check(text.contains("\"needsRosettaLibrary\": true"), "Overwatch's field is in the list that ships")
+            // The same for ownAntiCheat (14.11.2026): the stamp moved with the hand edit, so a list kept from before loses.
+            let lastWithout = Data(#"{"generated": "2026-11-09T21:42:07Z"}"#.utf8)
+            check(SignedLists.isOlder(lastWithout, than: list), "the list with ownAntiCheat is newer than the last one without it")
+            check(text.contains("\"ownAntiCheat\": true"), "Overwatch's own cheat protection is in the list that ships")
         } else {
             check(false, "profiles/profiles.json not found from the repository's root")
         }
@@ -44,6 +48,8 @@ struct ProfileFilesTest {
                            {"path": "b1/Settings.ini", "find": "B=1", "replace": "B=0"}]}
             """)
         check(decoded?.retina == true, "retina is read")
+        check(profile(#"{"ownAntiCheat": true}"#)?.ownAntiCheat == true && profile(#"{"ownAntiCheat": true}"#)?.shapesStart == false
+              && decoded?.ownAntiCheat == nil, "a cheat protection of its own is read, and changes nothing about the start")
         let saved = profile(#"{"resolution": {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg", "fields": {"width": 2, "height": 3, "fullscreen": 4}}}"#)?.resolution
         check(saved?.root == "WinAppDataLocal" && saved?.fields?.width == 2 && saved?.fields?.fullscreen == 4 && saved?.keys == nil,
               "a resolution in a line of values is read")

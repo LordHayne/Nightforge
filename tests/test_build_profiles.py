@@ -226,9 +226,12 @@ class FileRuleTests(unittest.TestCase):
             "1": {"winetricks": ["win98", "vcrun2019"]}, "2": {"saves": [{"root": "WinAppDataLocal", "path": "", "mac": "MacAppSupport"}]},
             "3": {"fileEdits": [{"path": "x.ini", "find": "a", "replace": "aa"}]}, "4": {"arguments": ["--config=/etc/x"]},
             "5": {"registry": [{"key": "HKCU\\Software\\Microsoft\\x"}]}, "6": {"windowsVersion": "win95"},
+            "7": {"ownAntiCheat": "yes"}, "8": {"ownAntiCheat": 1}, "9": {"ownAntiCheat": True}, "10": {"ownAntiCheat": False},
         })
         self.assertEqual(problems, ["1: winetricks 'win98' (say windowsVersion)", "2: saves", "3: fileEdits", "4: arguments",
-                                    "5: registry", "6: windowsVersion"])
+                                    "5: registry", "6: windowsVersion", "7: ownAntiCheat", "8: ownAntiCheat"])
+        # Overwatch brings a cheat protection of its own: the list that ships says so, and nothing else does without a source.
+        self.assertEqual([key for key, profile in shipped.items() if profile.get("ownAntiCheat")], ["2357570"])
 
     def test_winetricks_verbs_the_app_wont_run_dont_get_through(self):
         self.assertFalse(build_profiles.safe_verb("dsound"))

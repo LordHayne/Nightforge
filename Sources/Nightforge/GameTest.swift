@@ -35,10 +35,40 @@ enum GameTest {
     nonisolated(unsafe) static var active = false
 
     /// Whether the start about to happen has Apple's Metal HUD log its frames (Engine.setFrameLog): a game
-    /// test's, so that every way that presents through Metal gets a frame rate (GameTestMeasure) – never a
-    /// start by Play.
+    /// test's, so that every way that presents through Metal gets a frame rate (GameTestMeasure) – and a
+    /// start by Play only with the hidden switch for measuring play (`measuresPlay`). Without that switch no
+    /// start by Play logs anything.
     static func logsFrames(active: Bool = active, defaults: UserDefaults = .standard) -> Bool {
-        active && defaults.object(forKey: Keys.frameLog) as? Bool != false
+        (active && defaults.object(forKey: Keys.frameLog) as? Bool != false) || measuresPlay(defaults: defaults)
+    }
+
+    /// The hidden switch for measuring while a game is played, for Nightforge's own tests: no entry in the
+    /// interface, off unless someone sets it (`defaults write io.github.lordhayne.nightforge measurePlay -bool true`).
+    /// A menu or an intro says nothing of how a game runs (the user, 15.11.2026), so a frame rate for the list
+    /// comes from play. With the switch a start by Play has Apple's Metal HUD log its frames as a game test's
+    /// has – invisible where the performance display is off. Nothing leaves the Mac and nothing is kept but
+    /// those lines in wine.log; the list's script reads a session from there (scripts/laeuft-liste.py).
+    ///
+    /// A build made with NIGHTFORGE_RELEASE (swift build -Xswiftc -DNIGHTFORGE_RELEASE) has no such switch at
+    /// all, not even its name: the finished build tracks nothing (the user, 15.11.2026).
+    #if NIGHTFORGE_RELEASE
+    static func measuresPlay(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let measurePlayKey = "measurePlay"
+
+    static func measuresPlay(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: measurePlayKey)
+    }
+    #endif
+
+    /// When a measured session of play began and under what, a line for the log beside the start's limit
+    /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record, and
+    /// finds the start in the evidence by the moment (scripts/laeuft-liste.py, PLAY_LINE).
+    /// "Play measuring of <game>: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores" ·
+    /// "Play measuring of <game>: 2026-11-15T20:10:29Z, on battery, Low Power Mode, load 7.4 on 10 cores".
+    static func playNote(game: String, at: Date = Date(), onBattery: Bool, lowPower: Bool, load: Load?) -> String {
+        "Play measuring of \(game): \(ISO8601DateFormatter().string(from: at)), " + (onBattery ? "on battery" : "on mains")
+            + (lowPower ? ", Low Power Mode" : "") + (load.map { ", load \($0.average) on \($0.cores) cores" } ?? "")
     }
 
     /// Whether Wine's debug channels (GameLog.extraWineDebug, the switch `wineDebug`) have its fps channel on:
@@ -431,12 +461,34 @@ enum GameTest {
     /// Below this a picture counts as a low frame rate (GameRating's lowFrameRate).
     static let lowFrameRate: Double = 25
 
-    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low.
-    static func issues(endedWhilePlaying: Bool, frames: Frames?) -> [String] {
+    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low. A rate that
+    /// hardly moved (`steady`) is a film's or a lock's pace, not the game running badly.
+    static func issues(endedWhilePlaying: Bool, frames: Frames?, steady: Bool = false) -> [String] {
         var issues: [String] = []
         if endedWhilePlaying { issues.append("crashed") }
-        if let frames, frames.average < lowFrameRate { issues.append("lowFrameRate") }
+        if let frames, frames.average < lowFrameRate, !steady { issues.append("lowFrameRate") }
         return issues
+    }
+
+    /// Why no tool may attach to a game's process – `sample` does – or nil when nothing speaks against it:
+    /// "ownAntiCheat" where its profile says it brings a cheat protection of its own, "antiCheat" where
+    /// Nightforge knows of an anti-cheat otherwise (ShaderCaches.hasAntiCheat: its profile's lists, the
+    /// stores' word, the files in its folder). The player's account is at stake (the user, 14.11.2026).
+    static func handsOff(profile: GameProfile?, knownAntiCheat: Bool) -> String? {
+        if profile?.ownAntiCheat == true { return "ownAntiCheat" }
+        return knownAntiCheat ? "antiCheat" : nil
+    }
+
+    /// A hanging game's sample for the report, or the word why none was taken: with a reason to keep hands
+    /// off, `take` isn't called at all.
+    static func hangSample(handsOff: String?, take: () async -> String?) async -> (sample: String?, skipped: String?) {
+        if let handsOff { return (nil, handsOff) }
+        return (await take(), nil)
+    }
+
+    /// `Entry.noSample` in the report's words.
+    static func noSampleText(_ why: String) -> String {
+        "kein sample: Spiel mit " + (why == "ownAntiCheat" ? "eigenem Cheat-Schutz" : "Anti-Cheat")
     }
 
     /// compat-report.yml's words (CompatReport.result), so a count of reports takes an entry as it
