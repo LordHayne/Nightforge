@@ -87,8 +87,10 @@ Funde dabei:
   Frage unterscheiden; dazu müsste der Kanal aber bei jedem Start mitlaufen, nicht erst beim genaueren Blick. Für
   Schritt E. Anfang: `LaunchHealth.endedAtOwnQuestion`, `LibraryModel.swift` um Zeile 1620 und 3509.
 
-**Nachzug der Läuft-Liste im Testzweig (14.11., 18:38, `5cf8e12`, noch nicht eingespielt):** Kette des Koordinators
-grün (118 Testreihen, 267 pytest). Erlebnis-Audit baut darauf E4, E8, das Beenden und die Testreihe.
+**Nachzug der Läuft-Liste eingespielt (14.11., 18:41, `548a4eb`, mit OK des Nutzers):** Kette des Koordinators grün
+(118 Testreihen, 267 pytest), Signatur in Ordnung. Erlebnis-Audit baut darauf E4, E8, das Beenden und die Testreihe.
+Entscheidung des Nutzers (14.11.): Ein Spiel mit sauberem Start und sauberem FPS-Wert bleibt abgehakt, auch wenn
+später ein neuer Testbuild kommt; der Build steht am Wert. Die Läuft-Liste-Session baut die Regel um.
 
 ## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
 
