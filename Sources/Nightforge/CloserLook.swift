@@ -346,7 +346,7 @@ enum CloserLook {
         case none
         /// The ways still to come start with the channels: no start of its own.
         case nextWay
-        /// No way is left: the last one once more, with the channels.
+        /// No way is left, or the way had worked before and keeps its place: this one once more, with the channels.
         case sameWayAgain
     }
 
@@ -355,10 +355,14 @@ enum CloserLook {
     /// one look per Play. `takenBefore`: one was taken for this game on this engine build (`taken`): a game
     /// that fails every time isn't started twice at every Play. `canCarry`: the start to come can have the
     /// channels at all – a game through Steam gets them from a Steam started with them, and Steam doesn't
-    /// restart under another game.
-    static func step(unexplained: Bool, antiCheat: Bool, carried: Bool, takenBefore: Bool, canCarry: Bool, lastWay: Bool) -> Step {
+    /// restart under another game. `proven`: the way had worked before this Play (step E6, the player's
+    /// decision of 14.11.2026) – it keeps its place whatever the look finds, so no way to come could carry the
+    /// channels: this one starts once more with them, quietly, and what it ended over is on record before
+    /// the next Play watches it again.
+    static func step(unexplained: Bool, antiCheat: Bool, carried: Bool, takenBefore: Bool, canCarry: Bool, lastWay: Bool,
+                     proven: Bool = false) -> Step {
         guard unexplained, !antiCheat, !carried, !takenBefore, canCarry else { return .none }
-        return lastWay ? .sameWayAgain : .nextWay
+        return lastWay || proven ? .sameWayAgain : .nextWay
     }
 
     private static func key(_ game: GameID) -> String { "closerLook.\(game.key)" }

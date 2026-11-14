@@ -4588,6 +4588,9 @@ final class LibraryModel: ObservableObject {
             var looksCloser = false
             // Step E2: starts on the same way again in this Play, for the cap on them (NextStart.againLimit).
             var sameWayAgain = 0
+            // Step E6: the way that had worked before and got a closer look in this Play. It keeps its place after
+            // the one start more the look takes on it, which runs as a way not confirmed.
+            var lookedAtProven: String?
             starts: while true {
                 // Another way after one that didn't take: the curtain stays up through all the next
                 // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
@@ -4976,18 +4979,19 @@ final class LibraryModel: ObservableObject {
                 let index = onLadder ? LaunchHealth.current(game.gameID, attempts).index : 0
                 // Step C: nothing explains this end – the ways still to come carry Wine's debug channels, and
                 // with no way left the last one starts once more with them, as quietly as a proven way's
-                // second start; after that the ladder ends as before. Once per game and engine build. A way
-                // that worked before keeps its place without one.
+                // second start; after that the ladder ends as before. Once per game and engine build.
+                // Step E6: a way that had worked before gets that one start more too, and keeps its place after it.
+                let proven = wayConfirmed || lookedAtProven == way
                 let engineID = build?.engine ?? "unknown"
-                let look = !onLadder || (wayConfirmed && !graphicsFailed) ? CloserLook.Step.none
-                    : CloserLook.step(unexplained: unexplained, antiCheat: analysis?.antiCheat.isEmpty == false,
+                let look = !onLadder ? CloserLook.Step.none
+                    : CloserLook.step(unexplained: unexplained, antiCheat: antiCheat,
                                       carried: closerLook, takenBefore: CloserLook.taken(game.gameID, engine: engineID),
                                       // Steam restarts for them only with no other Windows game running; this
                                       // one may still be on the list for a moment.
                                       canCarry: game.bottle.isBuiltIn && (!viaSteam || runningGame(.windows).map { $0.id == game.id } != false),
-                                      lastWay: index + 1 >= attempts.count)
+                                      lastWay: index + 1 >= attempts.count, proven: proven)
                 let next = NextStart.after(NextStart.Failed(
-                    ladder: onLadder ? attempts : [], index: index, proven: wayConfirmed, learned: learned, recipe: recipe,
+                    ladder: onLadder ? attempts : [], index: index, proven: proven, learned: learned, recipe: recipe,
                     found: decides, antiCheat: antiCheat,
                     againSoFar: sameWayAgain, filesFixed: filesFixed, look: look))
                 /// What the ladder's own steps – a closer look, the next way, giving up – put on record first.
@@ -5009,6 +5013,7 @@ final class LibraryModel: ObservableObject {
                     sameWayAgain += 1
                     if why == [NextStart.closerLook] {
                         noteFailed()
+                        if proven { lookedAtProven = way }
                         lookCloser("it starts once more on this way with Wine's debug channels")
                     } else {
                         if changed != learned {

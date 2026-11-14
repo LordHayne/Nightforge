@@ -97,7 +97,8 @@ enum NextStart {
         if !why.isEmpty, mayRepeat { return .again(learned, why: why) }
 
         guard failed.ladder.indices.contains(failed.index) else { return .noOtherWay }
-        // Nothing explains it and no way is left to carry the channels: this one again, with them.
+        // Nothing explains it and no way is left to carry the channels – the last way, or one that had worked
+        // before and keeps its place (step E6): this one again, with them.
         if failed.look == .sameWayAgain, mayRepeat { return .again(failed.learned, why: [closerLook]) }
         if failed.proven, !StartDiagnosis.layerRefused(failed.found) { return .keepsItsPlace }
         let pointer = pointer(in: failed.found)
@@ -137,6 +138,40 @@ enum NextStart {
         default: answers = nil
         }
         return answers.flatMap { answers in following.first { answers(ladder[$0]) } } ?? following.first
+    }
+
+    // MARK: - A root the player is asked about
+
+    // Step E6, the player's decision of 14.11.2026: "untrusted-root" becomes a question, for a root
+    // WindowsRoots knows by fixed fingerprints; any other is only said, as before. The decision is here; the
+    // question itself isn't built – its board comes first – so nothing asks yet, and WindowsRoots has no root
+    // that waits for a yes (all it knows go into every prefix, each with the user's OK).
+
+    static let untrustedRoot = "untrusted-root"
+
+    /// The root a failed start's signature check stopped at, when the player can be asked about it: the
+    /// finding names it, `known` says it can be put into the prefix (by fingerprint, and it isn't there yet),
+    /// and this Play hasn't asked about it. A game with an anti-cheat has no such finding: its files aren't read.
+    static func rootToAskAbout(_ found: [StartDiagnosis], known: (String) -> Bool, askedBefore: Set<String> = []) -> String? {
+        for finding in found where finding.id == untrustedRoot {
+            if case .trustRoot(let name?) = finding.remedy, known(name), !askedBefore.contains(name) { return name }
+        }
+        return nil
+    }
+
+    enum AfterRoot: Equatable {
+        /// The root is in the prefix: the same way once more, noted as the rule's.
+        case again(why: [String])
+        /// No start comes after this one in this Play.
+        case ends
+    }
+
+    /// What comes after the player's answer. Yes – the caller has put the root into the prefix: the same way
+    /// once more, within the cap on such starts (past it the next Play starts with the root in place). No:
+    /// the start ends here – the game checks the same file on every way, so going through the others would
+    /// only take the player's time – and the ladder stays where it is.
+    static func after(rootTrusted: Bool, againSoFar: Int) -> AfterRoot {
+        rootTrusted && againSoFar < againLimit ? .again(why: [untrustedRoot]) : .ends
     }
 
     /// The rules whose remedies changed a start before step E: the three things a game says that point to a

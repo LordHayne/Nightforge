@@ -39,7 +39,7 @@ struct StartRecipeTest {
             guard let found = finds(starts, index, learned) else { break }
             let look = !looks || ladder.isEmpty ? CloserLook.Step.none
                 : CloserLook.step(unexplained: StartDiagnosis.unexplained(found), antiCheat: antiCheat, carried: carried,
-                                  takenBefore: false, canCarry: true, lastWay: index + 1 >= ladder.count)
+                                  takenBefore: false, canCarry: true, lastWay: index + 1 >= ladder.count, proven: proven && index == 0)
             if look != .none { carried = true }
             let step = NextStart.after(NextStart.Failed(ladder: ladder, index: index, proven: proven && index == 0, learned: learned,
                                                         found: found, antiCheat: antiCheat, againSoFar: again,
@@ -501,6 +501,41 @@ struct StartRecipeTest {
               "… its runtime as before, then simply the next way")
         check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 2, recipe: plain, found: nvidiaFound, antiCheat: true)) == .giveUp,
               "… and never a DLL off")
+
+        // MARK: Step E6 – a closer look for a way that had worked, and a root the player is asked about
+
+        // A proven way that ends again with nothing that says why: once more on it with the channels, quietly,
+        // and it keeps its place whatever that start shows.
+        let lookedAt = play(ladder: hogwarts, proven: true, looks: true) { _, _, _ in [found("crash", nil)] }
+        check(lookedAt.steps == [.again(none, why: [NextStart.closerLook]), .keepsItsPlace] && lookedAt.starts == 2 && lookedAt.way == 0,
+              "a proven way gets one start more for a closer look, then keeps its place (\(lookedAt.steps))")
+        check(play(ladder: hogwarts, proven: true, looks: true) { start, _, _ in start == 1 ? [found("crash", nil)] : nil }.starts == 2,
+              "… and where that start works, the Play is a start longer")
+        check(play(ladder: hogwarts, proven: true, looks: true) { _, _, _ in [found("graphics-crash", .nextLayer)] }.steps == [.keepsItsPlace],
+              "a failure the table explains needs no look: the place is kept at once")
+        check(play(ladder: hogwarts, proven: true, antiCheat: true, looks: true) { _, _, _ in [] }.steps == [.keepsItsPlace],
+              "never for a game with an anti-cheat")
+        check(CloserLook.step(unexplained: true, antiCheat: false, carried: false, takenBefore: false, canCarry: true, lastWay: false, proven: true) == .sameWayAgain
+              && CloserLook.step(unexplained: true, antiCheat: false, carried: false, takenBefore: true, canCarry: true, lastWay: false, proven: true) == .none
+              && CloserLook.step(unexplained: true, antiCheat: false, carried: true, takenBefore: false, canCarry: true, lastWay: false, proven: true) == .none
+              && CloserLook.step(unexplained: true, antiCheat: false, carried: false, takenBefore: false, canCarry: false, lastWay: false, proven: true) == .none
+              && CloserLook.step(unexplained: true, antiCheat: false, carried: false, takenBefore: false, canCarry: true, lastWay: false) == .nextWay,
+              "once per game and engine build, once per Play, only where the start can carry the channels; a way not proven as before")
+        // The root a signature check stopped at: asked about only when it is one that can go into the prefix.
+        let verisign = "VeriSign Class 3 Public Primary Certification Authority - G5"
+        let rootFound = [found("said", nil), found("untrusted-root", .trustRoot(verisign))]
+        check(NextStart.rootToAskAbout(rootFound, known: { $0 == verisign }) == verisign, "a root that is known: the player can be asked")
+        check(NextStart.rootToAskAbout(rootFound, known: { _ in false }) == nil
+              && NextStart.rootToAskAbout([found("untrusted-root", .trustRoot(nil))], known: { _ in true }) == nil
+              && NextStart.rootToAskAbout([found("signature", nil), found("crash", nil)], known: { _ in true }) == nil,
+              "an unknown root, a chain that named none, another finding: only said, as before")
+        check(NextStart.rootToAskAbout(rootFound, known: { $0 == verisign }, askedBefore: [verisign]) == nil, "asked once per Play")
+        check(NextStart.after(rootTrusted: true, againSoFar: 0) == .again(why: ["untrusted-root"])
+              && NextStart.after(rootTrusted: true, againSoFar: NextStart.againLimit) == .ends, "yes: the same way once more, within the cap")
+        check(NextStart.after(rootTrusted: false, againSoFar: 0) == .ends, "no: the start ends here, the other ways aren't gone through")
+        // Until the question is built, a root changes nothing by itself: the decision goes on as without it.
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, found: rootFound)) == .way(1, why: nil), "the finding alone moves nothing")
+        check(WindowsRoots.all.contains { $0.name == verisign }, "the one root Nightforge knows is in every prefix already: nothing waits for a yes today")
 
         // MARK: Proofs hold for a recipe
 
