@@ -182,6 +182,28 @@ enum Engine {
         set { launchSettings.withLock { $0.msync = newValue } }
     }
 
+    /// Wine's debug channels for the start about to happen: GameLog.wineDebug, or with a closer look's
+    /// channels on top (`setCloserLook`). What Steam, the process that hands a game to it and a store's
+    /// game started straight get as WINEDEBUG.
+    static var wineDebug: String {
+        launchSettings.withLock { $0.environment["WINEDEBUG"] } ?? GameLog.wineDebug
+    }
+
+    /// Whether the start about to happen carries a closer look's channels (CloserLook, step C of
+    /// docs/ENTWURF-STARTREZEPT.md). Kept in `launchEnvironment`, so `steamEnvironment` and
+    /// `steamConfigSignature` say it too, and `prepareLaunchEnvironment` leaves it as it is. True when it
+    /// changed: a game through Steam takes WINEDEBUG from the Steam that starts it, so that Steam has to
+    /// restart – on, and off again at the next start without it.
+    @discardableResult
+    static func setCloserLook(_ on: Bool) -> Bool {
+        launchSettings.withLock { settings in
+            let wanted = on ? CloserLook.wineDebug : nil
+            guard settings.environment["WINEDEBUG"] != wanted else { return false }
+            settings.environment["WINEDEBUG"] = wanted
+            return true
+        }
+    }
+
     /// All of them, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
     /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
     /// Dictionary read while it's being replaced can crash.
@@ -3082,7 +3104,7 @@ enum Engine {
             var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
             env["WINEDLLOVERRIDES"] = steamDLLOverrides
             if loader != wine { env["WINELOADER"] = loader.path }
-            env["WINEDEBUG"] = GameLog.wineDebug
+            env["WINEDEBUG"] = wineDebug
             process.environment = env.merging(extraEnvironment) { _, new in new }
             process.standardInput = FileHandle.nullDevice
             // Its games inherit this, so their errors end up in the log too.

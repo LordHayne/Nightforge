@@ -398,6 +398,12 @@ struct EngineLayoutTest {
                   "the start's analysis says no: no loader, though a second look at the files would say Direct3D 9")
             check(direct(work.appendingPathComponent("direct/not there"), usesD3D9: true)["CX_LIBVULKAN"] == loader.path,
                   "the start's analysis says yes: the loader, with no game folder there to read")
+            // A closer look (CloserLook): a store's game gets the channels with its own start.
+            check(direct(source, usesD3D9: false)["WINEDEBUG"] == GameLog.wineDebug, "a direct start: Wine's usual channels")
+            Engine.setCloserLook(true)
+            check(direct(source, usesD3D9: false)["WINEDEBUG"] == CloserLook.wineDebug, "… and a closer look's on top when the start carries them")
+            Engine.setCloserLook(false)
+            check(direct(source, usesD3D9: false)["WINEDEBUG"] == GameLog.wineDebug, "… gone again with the next start")
             UserDefaults.standard.removeObject(forKey: "vulkanLoader")
             switches.set("/nowhere/libvulkan.1.dylib", forKey: "vulkanLoader")
             check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "a path that isn't there: off")
@@ -467,6 +473,29 @@ struct EngineLayoutTest {
               && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == nil, "the next game without it: Steam restarts without it")
         check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false),
               "and one more game without it: no restart")
+        // A closer look's debug channels (CloserLook, step C): one place sets them for the start about to happen.
+        let quietSignature = Engine.steamConfigSignature
+        check(Engine.wineDebug == GameLog.wineDebug && Engine.steamEnvironment["WINEDEBUG"] == GameLog.wineDebug,
+              "without a closer look: Wine's usual channels, for Steam too")
+        check(!Engine.setCloserLook(false), "off while it's off: nothing changes")
+        check(Engine.setCloserLook(true), "a closer look: the channels change, Steam has to restart")
+        check(Engine.wineDebug == CloserLook.wineDebug && Engine.steamEnvironment["WINEDEBUG"] == CloserLook.wineDebug
+              && Engine.wineDebug == "-all,err+module,err+mscoree,+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox",
+              "… Steam and its games get them on top of the usual ones")
+        check(Engine.steamConfigSignature != quietSignature && Engine.steamConfigSignature.contains("WINEDEBUG=" + CloserLook.wineDebug),
+              "… and Steam's signature says so")
+        check(!Engine.setCloserLook(true), "the next start with them: no restart")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.wineDebug == CloserLook.wineDebug, "preparing a start leaves them on, and asks for no restart of its own")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                              environment: ["WINE_SIMULATE_WRITECOPY": "1"])
+              && Engine.wineDebug == CloserLook.wineDebug && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == "1",
+              "… also beside a game's own switch")
+        check(Engine.setCloserLook(false) && Engine.wineDebug == GameLog.wineDebug && Engine.steamEnvironment["WINEDEBUG"] == GameLog.wineDebug,
+              "a start without them again: Steam restarts once more, quiet as before")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.wineDebug == GameLog.wineDebug && Engine.steamConfigSignature == quietSignature,
+              "preparing a start doesn't bring them back, and the signature is as before")
         Engine.launchEnvironment = launchBefore
 
         // MARK: CrossOver's user folder
