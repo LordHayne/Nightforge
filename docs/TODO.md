@@ -177,7 +177,11 @@ Punkte 10 bis 12) ist geprüft (GameTestTest grün) und im Testzweig (`35e3c1b`)
 - **D3DMetal auf 60 halten, drei Wege, nichts gebaut:** A Takt in `-[WineMetalLayer nextDrawable]` im
   Mac-Treiber von Wine (Patch für `enginefix`, etwa ein Tag mit Engine-Build und Probe; empfohlen), B Bildschirm
   für die Dauer des Spiels auf 60 Hz (hält nur Spiele mit VSync: Control ja, Wukong nicht), C DXMT statt
-  D3DMetal, wo ein Spiel dort läuft. Entscheidung des Nutzers offen.
+  D3DMetal, wo ein Spiel dort läuft.
+  **Entschieden vom Nutzer, 14.11. („Ja, nach Schritt E“): Weg A wird gebaut, nach Schritt E.** Zuerst eine
+  Stunde den Quelltext von `WineMetalLayer` lesen (noch ungelesen), dann der Patch für `enginefix`, Engine-Build
+  und Probe mit dem Wukong-Benchmark (Ø 201 ohne Sperre). Der Engine-Build braucht das OK des Nutzers für den
+  Workflow; der Quelltext des Patches wird wie bei `enginefix` offen gelegt (LGPL).
 - Danach an die Reihe: die Protokollzeile „none possible on D3DMetal (asked 60 FPS)“ in `LibraryModel.swift`,
   `GameLog.d3dMetalStart` und der Kommentar in `Engine.swift` (erst nach Teil 2 von Schritt E, dieselben Dateien);
   Left 4 Dead 2 mit `-novid` über das Profil neu messen.
