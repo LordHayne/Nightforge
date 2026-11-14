@@ -7,6 +7,20 @@ import SystemConfiguration
 enum GameLog {
     static var url: URL { Engine.supportDir.appendingPathComponent("Logs/wine.log") }
 
+    /// Whether this program writes Nightforge's log. Nightforge does. A bare program – a test series, no
+    /// app bundle – only in a home of its own, where the log is its own too (MacSteam.isTestHome). Most
+    /// series run in the real home, and there the log is the player's: "Steam switch: the Windows Steam
+    /// waits …" from tests/SteamSwitchTest stood in wine.log on 14.11., once with no Nightforge running and
+    /// once in the middle of a real start – and a Steam start with a stand-in would have moved an 8 MB
+    /// log aside (`handleForSteam`).
+    static let writes: Bool = {
+        guard let entry = getpwuid(getuid()), let real = entry.pointee.pw_dir else { return true }
+        let path = { (path: String) in URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+        return writes(bundled: Bundle.main.bundleIdentifier != nil, ownHome: path(NSHomeDirectory()) != path(String(cString: real)))
+    }()
+
+    static func writes(bundled: Bool, ownHome: Bool) -> Bool { bundled || ownHome }
+
     /// Wine's own messages that help: libraries a program can't load, and .NET without Mono.
     /// Everything else stays quiet – unless an engine test asks for more (`extraWineDebug`).
     static let wineDebug = "-all,err+module,err+mscoree" + (extraWineDebug.map { "," + $0 } ?? "")
@@ -27,6 +41,7 @@ enum GameLog {
 
     /// A line of Nightforge's own, for problem reports and to see in a live test what happened.
     static func note(_ text: String) {
+        guard writes else { return }
         let descriptor = open(url.path, O_WRONLY | O_APPEND)
         guard descriptor >= 0 else { return }
         FileHandle(fileDescriptor: descriptor, closeOnDealloc: true).write(Data(("info:  [nightforge] " + text + "\n").utf8))
@@ -51,6 +66,7 @@ enum GameLog {
 
     /// For a Steam about to start: appends to the log, starting a fresh one when it has grown large.
     static func handleForSteam() -> FileHandle? {
+        guard writes else { return nil }
         let fm = FileManager.default
         try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? UInt64, size > 8_000_000 {

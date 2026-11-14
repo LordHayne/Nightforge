@@ -54,6 +54,8 @@ enum L10n {
         "Restart Nightforge": "Nightforge neu starten",
         "Nightforge restarts in %ld s, once your game's cloud saves are through.": "Nightforge startet in %ld s neu, sobald die Cloud-Spielstände deines Spiels durch sind.",
         "Quit the game first, then restart Nightforge.": "Beende zuerst das Spiel, dann starte Nightforge neu.",
+        "Quit the game first, then update Nightforge.": "Beende zuerst das Spiel, dann aktualisiere Nightforge.",
+        "Wait until the game has moved, then update Nightforge.": "Warte, bis das Spiel verschoben ist, dann aktualisiere Nightforge.",
         "Ends Steam, Wine and everything else Nightforge runs in the background, then starts Nightforge again. Helps when something hangs.":
             "Beendet Steam, Wine und alles, was Nightforge im Hintergrund laufen lässt, und startet Nightforge dann neu. Hilft, wenn etwas hängt.",
         "Quit Nightforge": "Nightforge beenden",

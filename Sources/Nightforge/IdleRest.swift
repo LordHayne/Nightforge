@@ -87,17 +87,28 @@ extension Engine {
         return [engine, graphics] + ids.compactMap(manifest.component)
     }
 
-    /// Fetches those and changes nothing else: beside a start or a game nothing notices. True when something new came.
-    static func fetchComponents() async throws -> Bool {
-        let store = ComponentStore.shared
-        var found = false
-        for component in wantedAhead(try await store.manifest()) {
-            try Task.checkCancellation()
-            if await store.installedPath(for: component) != nil { continue }
-            _ = try await store.install(component)
-            found = true
+    /// Asks for the component list once more and fetches what the next `ensureEngine` would want from a
+    /// newer one, to wait beside what's installed (ComponentStore.fetchAhead): nothing in use changes, so
+    /// beside a start or a game nothing notices, and a start that calls this off goes on with the list it
+    /// had. True when a newer list waits with all of that here, or something the list in use lacked came:
+    /// `applyFetchedComponents` takes it from there.
+    static func fetchComponents(from store: ComponentStore = .shared) async throws -> Bool {
+        let inUse = try await store.manifest()
+        guard let newer = await store.askAgain() else {
+            var found = false
+            for component in wantedAhead(inUse) {
+                try Task.checkCancellation()
+                if await store.installedPath(for: component) != nil { continue }
+                _ = try await store.install(component)
+                found = true
+            }
+            return found
         }
-        return found
+        for component in wantedAhead(newer) {
+            try Task.checkCancellation()
+            try await store.fetchAhead(component)
+        }
+        return true
     }
 }
 
@@ -151,6 +162,12 @@ extension LibraryModel {
             guard self.running.isEmpty, self.launchingID == nil else {
                 self.wakeCatchUp.fetched()
                 return
+            }
+            // The list that was asked for after the wake is the one in use from here: its components are
+            // here already, and `ensureEngine` sets them up in the same breath.
+            if await ComponentStore.shared.hasWaitingList {
+                await ComponentStore.shared.adoptWaiting()
+                GameLog.note("The component list fetched after the wake is in use now, at \(GameLog.clock())")
             }
             let steamWasUp = await Engine.offMain { Engine.isSteamRunning }
             guard let wine = try? await Engine.ensureEngine(gameRunning: false), steamWasUp, !self.macSteamBusy else { return }

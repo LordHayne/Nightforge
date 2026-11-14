@@ -18,6 +18,13 @@ import Foundation
 
 @MainActor func game(_ model: LibraryModel, _ name: String) -> Game? { model.allGames.first { $0.name == name } }
 
+/// Waits until `done` holds, three seconds at most. A fixed pause is a bet on the Mac: 80 ms for a beat of 30 ms
+/// was lost once with two series running (14.11.), and the series was red for nothing.
+@MainActor func until(_ done: () -> Bool) async {
+    let start = Date()
+    while !done(), Date().timeIntervalSince(start) < 3 { await ModelWorld.settle(20) }
+}
+
 @MainActor func downloads() async {
     clean()
     let model = LibraryModel()
@@ -654,13 +661,13 @@ func scansInLine() {
     guard let session = model.openPadKeyboard() else { return check(false, "a keyboard with games to search") }
     check(model.padKeyboard === session && model.route == .library, "it opens over the library, where the hits show")
     check(model.searchBarFloats, "and the search bar floats up with it")
-    await ModelWorld.settle(80)
+    await until { model.searchBarRaised }
     check(model.searchBarRaised, "after a beat for the field to be measured")
     let again = model.openPadKeyboard()
     check(again != nil && model.padKeyboard === again, "opened over itself: one keyboard, the newest")
     model.closePadKeyboard()
     check(model.padKeyboard == nil && !model.searchBarRaised, "closed, the bar goes back")
-    await ModelWorld.settle(500)
+    await until { !model.searchBarFloats }
     check(!model.searchBarFloats, "and is in its place once it has arrived")
 
     // Reopened while the last one's bar is still on its way back: that way back mustn't end the new one's float.
@@ -681,9 +688,33 @@ func scansInLine() {
     check(model.route == before && model.errorMessage == nil, "B and A with nothing to answer do nothing")
 }
 
+/// A quit closes every sheet over the library through its state (Quit.closeModelSheets): one it doesn't know stays
+/// up, what AppKit ends of it comes back with the next redraw, and `NSApp.terminate` under a sheet does nothing –
+/// "didn't go through: a sheet is still open (SheetPresentationWindow)", twice on 14.11.
+@MainActor func quitClosesEverySheet() {
+    clean()
+    let model = LibraryModel()
+    check(model.openSheets.isEmpty, "nothing is up at first: \(model.openSheets)")
+    model.offersFullScreen = true
+    check(model.openSheets == ["offersFullScreen"], "the full-screen offer is named for wine.log: \(model.openSheets)")
+    model.closeAllSheets()
+    check(!model.offersFullScreen, "the full-screen offer for the controller goes with a quit")
+    model.pendingPower = .quitNightforge
+    model.closeAllSheets()
+    check(model.pendingPower == nil, "and the small menu's own \"Quit Nightforge?\"")
+    model.errorMessage = "A late word"
+    model.showingSettings = true
+    model.pendingPower = .sleepMac
+    check(model.openSheets == ["showingSettings", "errorMessage", "pendingPower"], "what's up, by its state: \(model.openSheets)")
+    model.closeAllSheets()
+    model.closeAllSheets()  // a quit closes them again while one is up
+    check(model.openSheets.isEmpty, "all of them go, and closing twice changes nothing: \(model.openSheets)")
+}
+
 @main struct Main {
     static func main() async {
         await ModelWorld.begin()
+        quitClosesEverySheet()
         await downloads()
         await staysOnItsGame()
         await marks()

@@ -368,6 +368,7 @@ final class LibraryModel: ObservableObject {
         }
         input.start(model: self)
         Quit.closeModelSheets = { [weak self] in self?.closeAllSheets() }
+        Quit.modelSheets = { [weak self] in self?.openSheets ?? [] }
         watchRunningGames()
         beginWakeWatch()
         NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -2951,6 +2952,11 @@ final class LibraryModel: ObservableObject {
 
     func installUpdate() {
         guard let update = availableUpdate, !updating else { return }
+        // Not under a game or a move (Updater.Hold): said, as "Restart Nightforge" says it.
+        if let hold = Updater.hold(gameUnderWay: gameUnderWay, moving: move != nil) {
+            errorMessage = hold.message
+            return
+        }
         updating = true
         Task {
             do {
@@ -3331,6 +3337,22 @@ final class LibraryModel: ObservableObject {
         pendingCloudGame = nil
         pendingUninstall = nil
         pendingLeftoverRemoval = nil
+        // Two it didn't know (14.11.): either one up, and no quit got past it.
+        pendingPower = nil
+        offersFullScreen = false
+    }
+
+    /// The sheets over the library that are up, each by the state that holds it: what wine.log names when
+    /// a quit waits for one (SwiftUI's sheet windows all go by one name). Every `.sheet` of LibraryView is
+    /// here and in `closeAllSheets` (tests/ExperienceAuditTest reads the three against each other).
+    var openSheets: [String] {
+        [("showingOptions", showingOptions), ("showingSettings", showingSettings), ("pendingSpace", pendingSpace != nil),
+         ("pendingMove", pendingMove != nil), ("managedLauncher", managedLauncher != nil), ("macSetup", macSetup != nil),
+         ("errorMessage", errorMessage != nil), ("sessionSummary", sessionSummary != nil), ("failedLaunch", failedLaunch != nil),
+         ("saveChoice", saveChoice != nil), ("pendingDemoLicense", pendingDemoLicense != nil), ("d3dMetalDialog", d3dMetalDialog != nil),
+         ("pendingCloudGame", pendingCloudGame != nil), ("pendingUninstall", pendingUninstall != nil),
+         ("pendingLeftoverRemoval", pendingLeftoverRemoval != nil), ("pendingPower", pendingPower != nil),
+         ("offersFullScreen", offersFullScreen)].filter(\.1).map(\.0)
     }
 
     /// From the setup sheet: this game keeps to its Windows version.

@@ -174,22 +174,32 @@ Zu entscheiden (der Nutzer):
 
 ## Erlebnis-Audit (14.11., Zweig `claude/erlebnis-audit-033-0f5292`, `docs/AUDIT-ERLEBNIS-0.3.3.md`)
 
-Sechs Fehler behoben, je mit Test in `tests/ExperienceAuditTest`: Hinweisleiste nennt, was A tut (E1), Bildschirmtastatur
-schließt mit ihrem Controller (E2), Overlay geht mit dem Spiel (E3), Meldung bleibt nicht mehr stehen (E5), keine
-Battle.net-Speicherzeile in „Willkommen zurück“ (E6), offene Felder haben die Tasten (E7). Sechs Live-Prüfungen im Bericht.
+Sechs Fehler behoben (im Testbuild `ed9b785`): Hinweisleiste nennt, was A tut (E1), Bildschirmtastatur schließt mit ihrem
+Controller (E2), Overlay geht mit dem Spiel (E3), Meldung bleibt nicht mehr stehen (E5), keine Battle.net-Speicherzeile in
+„Willkommen zurück“ (E6), offene Felder haben die Tasten (E7).
 
-- **Komponenten nach dem Aufwachen (E4, offen):** `ComponentStore.manifest()` fragt die Online-Liste je Programmlauf nur
-  einmal, „The Mac woke: Nightforge looks for updates“ findet also nie neue Pakete. Probe im Notizordner
-  (`erlebnis-audit-komponentenliste-probe.swift`). Lösung: Liste getrennt holen, Pakete laden, erst dann gültig machen;
-  `removeUnusedComponents` muss die neuen Versionen stehen lassen. Anfang: `Components.swift:136`, `IdleRest.swift:91`,
-  `Engine.swift:898`. Braucht einen Live-Test mit echtem Paketwechsel.
-- **Update unter einem laufenden Spiel (E8, offen):** `installUpdate()` sperren wie „Nightforge neu starten“
-  (`LibraryModel.swift:2939`, ein neuer Satz).
+**Nachtrag vom Abend (auf `5cf8e12`, noch nicht im Testbuild):**
+
+- **Komponenten nach dem Aufwachen (E4):** Die Liste wird nach dem Aufwachen wirklich neu gefragt, ihre Pakete warten in
+  `Components/.ahead` und gelten erst, wenn alle da sind (`ComponentStore.askAgain`, `fetchAhead`, `adoptWaiting`).
+  Live offen: der echte Wechsel einer Engine im laufenden Nightforge (Live-Prüfung 7 im Bericht).
+- **Update-Sperre unter einem Spiel oder Umzug (E8):** `Updater.hold`.
+- **Beenden bei offenem Blatt (E12):** `closeAllSheets` kannte die Vollbild-Frage und die Rückfrage des kleinen Menüs
+  nicht; das Beenden schloss nur einmal und gab nach zwei Sekunden auf. Jetzt: alle Blätter, erneut alle halbe Sekunde,
+  und Nightforge geht, sobald keins mehr steht (zehn Sekunden lang). Das Protokoll nennt das Blatt beim Namen. Welches
+  Blatt es am 14.11. war, ist nicht belegt (am ehesten die Vollbild-Frage); der hängende dritte Versuch auch nicht.
+- **Testreihen schreiben nicht mehr ins echte `wine.log` (E13):** `GameLog.writes`.
+- **`ModelFlowsTest`** wartet auf die Suchleiste statt 80 ms (war einmal grundlos rot).
+
+Offen:
+
 - **Fürs Board:** A auf dem Suchfeld öffnet die Bildschirmtastatur (E9); A auf einem laufenden Download auf der
   Startseite zeigt die Downloads (E10).
 - **Frage:** `GlassSpinner` zeichnet mit Bildschirmfrequenz (`Glass.swift:473`): mit Instruments messen, bevor es jemand umbaut.
 - **Später:** die Hinweisleiste als Regel mit Matrix-Reihe; eine Regel für Tastatur und Pad („was offen ist, hat die
-  Eingabe“, heute zweimal von Hand: `PadRules.back` und `InputRouter.handleKey`).
+  Eingabe“, heute zweimal von Hand: `PadRules.back` und `InputRouter.handleKey`); die Blätter aus einer Liste im Modell;
+  jede Testreihe in einem eigenen Zuhause (`CFFIXED_USER_HOME`), `SteamSwitchTest` ausgenommen.
+- **Zehn Live-Prüfungen** im Bericht, 7 bis 10 für den Nachtrag.
 
 ## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
 

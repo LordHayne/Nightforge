@@ -140,6 +140,24 @@ enum Updater {
         return needed > (running.majorVersion, running.minorVersion, running.patchVersion)
     }
 
+    /// What an update waits for before it may go in: it quits Nightforge, and the one that opens in its
+    /// place didn't start the game that runs – no curtain at its end, no way back, no "Welcome back" – and
+    /// a game half moved to another drive would stay half moved. "Restart Nightforge" waits for the same.
+    enum Hold: Equatable {
+        case game, move
+
+        var message: String {
+            switch self {
+            case .game: return L10n.t("Quit the game first, then update Nightforge.")
+            case .move: return L10n.t("Wait until the game has moved, then update Nightforge.")
+            }
+        }
+    }
+
+    static func hold(gameUnderWay: Bool, moving: Bool) -> Hold? {
+        gameUnderWay ? .game : moving ? .move : nil
+    }
+
     /// Downloads and installs `update` over the running app, then restarts it. `keys`: whose signature counts.
     static func install(_ update: AppUpdate, keys: [String] = SigningKeys.trusted) async throws {
         let fm = FileManager.default

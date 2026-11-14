@@ -130,7 +130,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // The script goes through the detached helper, which can take its time (Launch Services busy:
+        // up to 30 s, DetachedProcess.run): Nightforge is still listed meanwhile, a quit that looks hung.
+        let start = Date()
         Engine.scheduleSteamShutdown(restart: Engine.restarting)
+        let took = Date().timeIntervalSince(start)
+        if took >= 2 { GameLog.note("Quit: handing Steam's shutdown to its script took \(Int(took)) s") }
         GameDisplay.quitting()
         GameOverlay.close()  // a game paused under the overlay runs on
     }

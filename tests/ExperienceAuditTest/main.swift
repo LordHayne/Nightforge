@@ -24,6 +24,9 @@ struct ExperienceAuditTest {
         overlayAfterItsGame()
         keysUnderAPanel()
         keyboardWithoutItsPad()
+        updateUnderAGame()
+        everySheetClosesForAQuit()
+        whoWritesTheLog()
         await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -35,6 +38,54 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// Test series are bare programs, most in the real home: Nightforge's log there is the player's.
+    static func whoWritesTheLog() {
+        check(GameLog.writes(bundled: true, ownHome: false), "Nightforge writes its log")
+        check(GameLog.writes(bundled: true, ownHome: true), "in a first-start test's own home too")
+        check(GameLog.writes(bundled: false, ownHome: true), "a test series in a home of its own writes the log there")
+        check(!GameLog.writes(bundled: false, ownHome: false), "a test series in the real home writes none")
+        check(!GameLog.writes && GameLog.handleForSteam() == nil, "this series is one of those: no line, and no log handed to a stand-in Steam")
+    }
+
+    /// A quit closes the sheets over the library through the model's state (LibraryModel.closeAllSheets), and one
+    /// that isn't in there keeps Nightforge from quitting: the full-screen offer and the small menu's "Quit
+    /// Nightforge?" were missing (14.11.). The three lists are read against each other, so the next sheet
+    /// added to LibraryView can't be forgotten: the view's `.sheet`s, what a quit closes, what wine.log names.
+    static func everySheetClosesForAQuit() {
+        guard let view = try? String(contentsOfFile: "Sources/Nightforge/LibraryView.swift", encoding: .utf8),
+              let model = try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8) else {
+            return check(false, "the sources aren't where the test runs (the repository's root)")
+        }
+        // `.sheet(item: $model.x`, `.sheet(isPresented: $model.x`, through DialogMessage.item(…) or a Binding of its own.
+        let pattern = #"\.sheet\((?:item|isPresented): (?:DialogMessage\.item\(\$model\.|\$model\.|Binding\(get: \{ model\.)(\w+)"#
+        let regex = try! NSRegularExpression(pattern: pattern)
+        let sheets = regex.matches(in: view, range: NSRange(view.startIndex..., in: view)).compactMap { Range($0.range(at: 1), in: view).map { String(view[$0]) } }
+        let all = view.components(separatedBy: ".sheet(").count - 1
+        check(sheets.count == all && all >= 17, "every .sheet of LibraryView is read: \(sheets.count) of \(all)")
+        func body(of name: String) -> String {
+            guard let start = model.range(of: name)?.upperBound, let end = model.range(of: "\n    }\n", range: start..<model.endIndex)?.lowerBound else { return "" }
+            return String(model[start..<end])
+        }
+        let closes = body(of: "func closeAllSheets() {"), names = body(of: "var openSheets: [String] {")
+        for sheet in sheets {
+            check(closes.contains(sheet), "a quit doesn't close the sheet held by `\(sheet)` (LibraryModel.closeAllSheets)")
+            check(names.contains("\"\(sheet)\""), "wine.log couldn't name the sheet held by `\(sheet)` (LibraryModel.openSheets)")
+        }
+    }
+
+    /// The app's update went in under a running game: Nightforge quit, and the one that opened in its place didn't
+    /// know the game (no curtain at its end, no "Welcome back"). "Restart Nightforge" was held for that all along.
+    static func updateUnderAGame() {
+        check(Updater.hold(gameUnderWay: false, moving: false) == nil, "nothing runs: the update goes in")
+        check(Updater.hold(gameUnderWay: true, moving: false) == .game, "a game runs or starts: the update waits")
+        check(Updater.hold(gameUnderWay: false, moving: true) == .move, "a game moves to another drive: the update waits")
+        check(Updater.hold(gameUnderWay: true, moving: true) == .game, "both: the game is said first")
+        check(Updater.Hold.game.message != Updater.Hold.move.message && !Updater.Hold.game.message.isEmpty, "each says what it waits for")
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        check(Updater.Hold.game.message.hasPrefix("Beende zuerst das Spiel"), "in German too: \(Updater.Hold.game.message)")
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
     }
 
     /// The on-screen keyboard open and its pad switched off: the look at the pad only asked whether its object
