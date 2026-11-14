@@ -106,6 +106,7 @@ final class InputRouter {
             let gone = note.object as? GCController
             MainActor.assumeIsolated {
                 self?.letGo()
+                if let gone, self?.keyboardPad?.controller === gone { self?.closeKeyboard() }  // PadRules.keyboardStays
                 self?.pointer.controllerLeft(connected: Set(GCController.controllers().filter { $0 !== gone }
                     .compactMap(\.extendedGamepad).map(ObjectIdentifier.init)))
                 self?.haptics.forgetGone()
@@ -718,7 +719,9 @@ final class InputRouter {
 
     /// The keyboard takes the whole pad while it's open. Without the pad or Nightforge in front it closes.
     private func lookAtKeyboardPad() {
-        guard let model, let session = model.padKeyboard, let pad = keyboardPad, reach == .app else { return closeKeyboard() }
+        guard let model, let session = model.padKeyboard, let pad = keyboardPad,
+              PadRules.keyboardStays(padConnected: GCController.controllers().contains { $0.extendedGamepad === pad }, inFront: reach == .app)
+        else { return closeKeyboard() }
         for event in session.feed(Self.keyboardInput(pad)) {
             switch event {
             case let .hover(side, _): feel(.keyHover, on: pad.controller, hand: side)

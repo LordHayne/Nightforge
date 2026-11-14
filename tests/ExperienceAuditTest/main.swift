@@ -23,6 +23,7 @@ struct ExperienceAuditTest {
         saveLine()
         overlayAfterItsGame()
         keysUnderAPanel()
+        keyboardWithoutItsPad()
         await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -34,6 +35,14 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// The on-screen keyboard open and its pad switched off: the look at the pad only asked whether its object
+    /// still existed, and the disconnect didn't close it.
+    static func keyboardWithoutItsPad() {
+        check(PadRules.keyboardStays(padConnected: true, inFront: true), "its pad there, Nightforge in front: it stays")
+        check(!PadRules.keyboardStays(padConnected: false, inFront: true), "its pad gone: it closes, whatever other pad is there")
+        check(!PadRules.keyboardStays(padConnected: true, inFront: false), "another app in front: it closes, as before")
     }
 
     /// With the downloads panel or a chip's list open, the keyboard reached the games behind it (the pad never did).
