@@ -38,6 +38,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-11T19:05:54Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": true,
     "engine": [
@@ -51,19 +52,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 200,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 10.6,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
     "window": null
@@ -156,6 +164,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:32:48Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -169,19 +178,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 88.7,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
     "window": null
@@ -232,6 +248,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:54:25Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -245,19 +262,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 9.5,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
     "window": null
@@ -311,6 +335,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-11T19:46:37Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -324,19 +349,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 200,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 18,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
     "window": null
@@ -387,6 +419,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:51:42Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -400,19 +433,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 80.8,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
     "window": null
@@ -468,6 +508,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T19:54:37Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -481,19 +522,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 30,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 79.6,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
     "window": null
@@ -544,6 +592,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:55:57Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -557,7 +606,9 @@
     ],
     "fps": {
      "average": 46.8,
+     "gpuTime": null,
      "low": 11.5,
+     "onePercentLow": null,
      "periods": 5,
      "seconds": null,
      "slowestFrame": null,
@@ -565,19 +616,28 @@
      "source": null
     },
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": null,
+    "notPublic": [
+     "limitUnknown",
+     "sizeUnknown",
+     "durationUnknown"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 7.5,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxmt",
     "window": null
@@ -628,6 +688,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:53:51Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -641,19 +702,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 13.8,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
     "window": null
@@ -704,6 +772,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:34:03Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -717,19 +786,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 200,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 19.2,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
     "window": null
@@ -781,6 +857,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-11T19:23:05Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": true,
     "engine": [
@@ -794,7 +871,9 @@
     ],
     "fps": {
      "average": 59.3,
+     "gpuTime": null,
      "low": 56.7,
+     "onePercentLow": null,
      "periods": 11,
      "seconds": null,
      "slowestFrame": null,
@@ -802,19 +881,28 @@
      "source": null
     },
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": null,
+    "notPublic": [
+     "limitUnknown",
+     "sizeUnknown",
+     "durationUnknown"
+    ],
     "onBattery": false,
     "playSeconds": 200,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 57.4,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxmt",
     "window": null
@@ -867,6 +955,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:49:25Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -880,7 +969,9 @@
     ],
     "fps": {
      "average": 28.4,
+     "gpuTime": null,
      "low": 22.3,
+     "onePercentLow": null,
      "periods": 5,
      "seconds": null,
      "slowestFrame": null,
@@ -888,19 +979,28 @@
      "source": null
     },
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": null,
+    "notPublic": [
+     "limitUnknown",
+     "sizeUnknown",
+     "durationUnknown"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 9.6,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxmt",
     "window": null
@@ -951,6 +1051,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:47:55Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -964,19 +1065,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "noneInLog",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 8.3,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxvk",
     "window": null
@@ -1027,6 +1135,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:45:04Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1040,7 +1149,9 @@
     ],
     "fps": {
      "average": 57.2,
+     "gpuTime": null,
      "low": 43.4,
+     "onePercentLow": null,
      "periods": 6,
      "seconds": null,
      "slowestFrame": null,
@@ -1048,19 +1159,28 @@
      "source": null
     },
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": null,
+    "notPublic": [
+     "limitUnknown",
+     "sizeUnknown",
+     "durationUnknown"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 12.7,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxmt -dx11",
     "window": null
@@ -1111,6 +1231,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:41:41Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1124,7 +1245,9 @@
     ],
     "fps": {
      "average": 58.4,
+     "gpuTime": null,
      "low": 50.2,
+     "onePercentLow": null,
      "periods": 6,
      "seconds": null,
      "slowestFrame": null,
@@ -1132,19 +1255,28 @@
      "source": null
     },
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": null,
+    "notPublic": [
+     "limitUnknown",
+     "sizeUnknown",
+     "durationUnknown"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 32.2,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxvk",
     "window": null
@@ -1186,6 +1318,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:59:13Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1199,7 +1332,9 @@
     ],
     "fps": {
      "average": 54.8,
+     "gpuTime": null,
      "low": 42.3,
+     "onePercentLow": null,
      "periods": 6,
      "seconds": null,
      "slowestFrame": null,
@@ -1207,19 +1342,28 @@
      "source": null
     },
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": null,
+    "notPublic": [
+     "limitUnknown",
+     "sizeUnknown",
+     "durationUnknown"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 11.7,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "dxmt -dx11",
     "window": null
@@ -1262,6 +1406,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:01:00Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1275,19 +1420,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 30.9,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "mac",
     "window": null
@@ -1324,6 +1476,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:03:05Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1337,19 +1490,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": false,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 31.9,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "mac",
     "window": null
@@ -1398,6 +1558,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-09T23:57:27Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1411,19 +1572,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 30.7,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
     "window": null
@@ -1460,6 +1628,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:05:02Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1473,19 +1642,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 31.9,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "mac",
     "window": null
@@ -1522,6 +1698,7 @@
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
     "at": "2026-11-10T00:07:03Z",
+    "built": null,
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1535,19 +1712,26 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "holds": null,
+    "kind": null,
     "loadLow": true,
     "lowPower": false,
     "metalFX": null,
     "nightforge": "0.3.2",
     "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
     "onBattery": false,
     "playSeconds": 60,
+    "public": false,
     "refreshRate": null,
     "reportFormat": 1,
     "runsOn": "x86_64 under Rosetta",
     "screen": null,
     "secondsToPicture": 30.7,
     "swapchain": null,
+    "throttled": null,
     "upscaledTo": null,
     "way": "mac",
     "window": null

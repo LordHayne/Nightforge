@@ -8,16 +8,22 @@ game test's reports (GameTest, report.json, formats 1 and 2). Nothing from other
 what no record holds is null in the JSON and "nicht gemessen" in the table. The inputs are only read.
 The same inputs give the same files, byte for byte: nothing in them depends on when or where this ran.
 
-Usage: laeuft-liste.py [--evidence FILE]... [--names FILE] [--out DIR] [REPORT.json | FOLDER]...
-Defaults: this Mac's evidence and game test runs, docs/laeuft/namen.json, docs/laeuft.
+With the stores' own lists of what is installed (Steam, Epic, GOG – read only, never changed) it also writes
+the checklist, abhakliste.json and ABHAKLISTE.md: per installed game its size and whether a clean start and a
+frame rate that counts are on record for the current build – what the player may uninstall, which only they do.
+
+Usage: laeuft-liste.py [--evidence FILE]... [--names FILE] [--out DIR] [--since DATE] [--no-stock] [REPORT.json | FOLDER]...
+Defaults: this Mac's evidence, game test runs and stores, docs/laeuft/namen.json, docs/laeuft.
 """
 
 import argparse
+import datetime
 import getpass
 import json
 import pathlib
 import re
 import sys
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SUPPORT = pathlib.Path.home() / "Library/Application Support/Nightforge"
@@ -31,6 +37,13 @@ SILENT = ("d3dmetal", "wined3d", "mac")
 # Outcomes of a game test that say nothing about the game: nobody tried, or only the player could go on.
 UNTRIED = ("skipped", "needsPlayer", "unknown")
 UNKNOWN_MAC = "unbekannt"
+# Skips of a game test that no run mends: someone has to look at the game by hand (GameTest.byHand).
+BY_HAND = {"antiCheat": "Anti-Cheat sperrt es auf dem Mac", "vrOnly": "nur mit VR-Brille", "otherBottle": "liegt in einer CrossOver-Flasche",
+           "versionSwitch": "erster Start der anderen Fassung (Spielstände würden übertragen)", "battleNet": "Battle.net-Spiele prüft der Spieletest nicht"}
+# LaunchHealth.drawingWindow: this long with a picture counts as working.
+WATCHED = 180
+# Steam's tools, no games (Library.ignoredAppIDs).
+NO_GAMES = {"228980", "1070560", "1391110", "1628350", "1493710", "2180100", "2805730"}
 STORES = {"steam": "Steam", "epic": "Epic Games", "gog": "GOG", "battlenet": "Battle.net"}
 OUTCOMES = {
     "hang": "hängt ohne Bild", "noWindow": "kein Fenster, beendet", "crash": "abgestürzt ohne Bild",
@@ -98,6 +111,30 @@ def layer(way):
     return (way or "").split(" ")[0]
 
 
+def seconds_between(earlier, later):
+    def moment(stamp):
+        return datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    try:
+        return (moment(later) - moment(earlier)).total_seconds()
+    except ValueError:
+        return float("inf")
+
+
+def launch_verdict(launch):
+    """What one launch says about a clean start, and whether that settles it. Clean: one start, no failure, and
+    working – `worked`, or a way already confirmed that kept its picture for `WATCHED` seconds."""
+    if launch["starts"] > 1:
+        return "severalWays", True
+    if launch["failed"] or launch["gaveUp"]:
+        return "failed", True
+    ended = launch["ended"]
+    if launch["worked"] or (launch["known"] and ended and ended["picture"] and (ended["seconds"] or 0) >= WATCHED):
+        return "ok", True
+    if ended is None:
+        return "noOutcome", False
+    return ("tooShort" if ended["picture"] else "endedEarly"), False
+
+
 def from_evidence(entries):
     """Per game and Mac: its starts, the way that is confirmed and how it got there, what came after.
     `worked`, `failed`, `ended` and `gaveUp` carry no Mac or engine: they belong to the game's start before them.
@@ -114,7 +151,7 @@ def from_evidence(entries):
         game = games.setdefault((key, mac), {
             "starts": 0, "ways": [], "confirmed": {}, "currentWay": None, "failedSince": {}, "picture": None,
             "failed": 0, "gaveUp": False, "sawKnown": False, "last": None, "lastWay": None, "antiCheat": None,
-            "kind": None, "profiled": {}, "withdrawn": {},
+            "kind": None, "profiled": {}, "withdrawn": {}, "launches": [],
         })
         game["last"] = entry["at"]
         if way:
@@ -134,6 +171,29 @@ def from_evidence(entries):
             game["currentWay"] = way
             game["failedSince"][way] = 0
             game["withdrawn"].pop(way, None)
+
+        # One launch: a start, and each further way the ladder went on to right after a failure.
+        launches = game["launches"]
+        if event == "started":
+            last = launches[-1] if launches else None
+            if not (last and last["open"] and last["failedAt"] and seconds_between(last["failedAt"], entry["at"]) <= 15):
+                launches.append({"at": entry["at"], "starts": 0, "ways": [], "failed": 0, "failedAt": None, "open": True, "worked": False,
+                                 "gaveUp": False, "known": bool(entry.get("known")), "ended": None, "engine": entry.get("engine"),
+                                 "nightforge": entry.get("nightforge")})
+            launches[-1]["starts"] += 1
+            launches[-1]["failedAt"] = None
+            if way and way not in launches[-1]["ways"]:
+                launches[-1]["ways"].append(way)
+        elif launches and launches[-1]["open"]:
+            if event == "failed":
+                launches[-1]["failed"] += 1
+                launches[-1]["failedAt"] = entry["at"]
+            elif event == "worked":
+                launches[-1]["worked"] = True
+            elif event == "ended":
+                launches[-1].update(ended={"picture": bool(entry.get("picture")), "seconds": entry.get("seconds")}, open=False)
+            elif event == "gaveUp":
+                launches[-1].update(gaveUp=True, open=False)
 
         if event == "started":
             game["starts"] += 1
@@ -191,7 +251,8 @@ def from_reports(reports):
             ways = clean_ways(entry)
             games.setdefault((key, entry.get("platform") or "windows", mac), []).append({
                 "at": entry.get("startedAt") or report["started"], "format": report.get("formatVersion"),
-                "nightforge": report.get("nightforge"), "engine": report.get("engine") or [],
+                "nightforge": report.get("nightforge"), "engine": report.get("engine") or [], "built": report.get("built"),
+                "check": entry.get("check"), "platform": entry.get("platform") or "windows",
                 "runsOn": report.get("runsOn"), "playSeconds": report.get("playSeconds"),
                 "onBattery": bool(report.get("onBattery")), "lowPower": bool(report.get("lowPower")),
                 "outcome": entry.get("outcome"), "skip": entry.get("skip"), "ways": ways, "way": ways[-1] if ways else None,
@@ -202,16 +263,83 @@ def from_reports(reports):
     return games, names
 
 
+def build_of(run):
+    """What tells one build from another: the version, the program's date (format 2), the engine's parts."""
+    return (run.get("nightforge"), run.get("built"), tuple(run.get("engine") or []))
+
+
+def check_of(run):
+    """A run's check of one game (GameTest.check), worked out the same way for reports from before it was written."""
+    if isinstance(run["check"], dict) and run["check"].get("start") and run["check"].get("fps"):
+        return run["check"]["start"], run["check"]["fps"]
+    picture, frames = run["outcome"] == "picture", isinstance(run["frames"], dict)
+    if run["outcome"] == "needsPlayer":
+        start = "neededPlayer"
+    elif not picture:
+        start = "noPicture"
+    elif len(run["ways"]) > 1:
+        start = "severalWays"
+    elif "crashed" in run["issues"]:
+        start = "endedByItself"
+    elif not frames and (run["playSeconds"] or 0) < WATCHED:
+        start = "tooShort"
+    else:
+        start = "ok"
+    if not picture:
+        fps = "noPicture"
+    elif not frames:
+        fps = run["measure"].get("noFrames") or ("wayReportsNone" if layer(run["way"]) in SILENT else "noneInLog")
+    elif run["onBattery"] or run["lowPower"] or run["measure"].get("throttled"):
+        fps = "throttled"
+    elif run["loadLow"] is False:
+        fps = "loadHigh"
+    else:
+        fps = "ok"
+    return start, fps
+
+
+def public_gaps(run, fps):
+    """Why a run's frame rate can't stand in a public list – empty when it can: every number needs its
+    conditions on record, and none measured on battery, throttled or on a busy Mac belongs there."""
+    measure, gaps = run["measure"], []
+    if fps is None:
+        return ["noFps"]
+    if run["platform"] != "mac" and measure.get("frameLimit") is None:
+        gaps.append("limitUnknown")
+    if run["onBattery"]:
+        gaps.append("onBattery")
+    if run["lowPower"]:
+        gaps.append("lowPower")
+    if measure.get("throttled"):
+        gaps.append("throttled")
+    if run["loadLow"] is not True:
+        gaps.append("loadHigh" if run["loadLow"] is False else "loadUnknown")
+    if not run["nightforge"] or not run["engine"]:
+        gaps.append("buildUnknown")
+    if not (measure.get("swapchain") or measure.get("displayMode") or measure.get("window")):
+        gaps.append("sizeUnknown")
+    if not fps.get("seconds"):
+        gaps.append("durationUnknown")
+    return gaps
+
+
 def measured(run):
     """What one run with a picture measured, in one shape whatever the report's format: what it doesn't hold is null."""
     frames, measure = run["frames"], run["measure"]
     fps = None
     if isinstance(frames, dict) and frames.get("average") is not None:
-        fps = {name: frames.get(name) for name in ("average", "low", "periods", "seconds", "slowestFrame", "slowestTypical", "source")}
+        fps = {name: frames.get(name) for name in ("average", "low", "periods", "seconds", "slowestFrame", "slowestTypical", "source",
+                                                   "onePercentLow", "gpuTime")}
     no_frames = None
     if fps is None:
         no_frames = measure.get("noFrames") or ("wayReportsNone" if layer(run["way"]) in SILENT else "noneInLog")
+    # Under a limit a number says whether the game holds it (FramePacing's 95 %), not what the Mac could do.
+    limit = measure.get("frameLimit")
+    kind = None if limit is None else "holdsLimit" if limit > 0 else "free"
+    holds = fps["average"] >= limit * 0.95 if fps and kind == "holdsLimit" else None
+    gaps = public_gaps(run, fps)
     return {
+        "kind": kind, "holds": holds, "public": not gaps, "notPublic": gaps, "throttled": measure.get("throttled"), "built": run["built"],
         "at": run["at"], "nightforge": run["nightforge"], "engine": run["engine"], "runsOn": run["runsOn"],
         "reportFormat": run["format"], "way": run["way"], "playSeconds": run["playSeconds"],
         "secondsToPicture": run["secondsToPicture"], "loadLow": run["loadLow"],
@@ -223,11 +351,134 @@ def measured(run):
     }
 
 
+# MARK: - What is installed
+
+def parse_vdf(text):
+    """Valve's key-value text ("key" "value", "key" { … }) as nested dicts."""
+    tokens = re.findall(r'"((?:[^"\\]|\\.)*)"|([{}])', text)
+
+    def block(index):
+        out = {}
+        while index < len(tokens):
+            text_, brace = tokens[index]
+            if brace == "}":
+                return out, index + 1
+            if brace == "{" or index + 1 >= len(tokens):
+                index += 1
+                continue
+            key, index = text_.replace("\\\\", "\\"), index + 1
+            if tokens[index][1] == "{":
+                out[key], index = block(index + 1)
+            else:
+                out[key], index = tokens[index][0].replace("\\\\", "\\"), index + 1
+        return out, index
+
+    return block(0)[0]
+
+
+def read_text(path):
+    try:
+        return pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def read_json(path):
+    try:
+        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def place(path):
+    """Where a game lies, without the drive's name: that one is the player's."""
+    return "extern" if str(path).startswith("/Volumes/") else "intern"
+
+
+def steam_stock(steam, platform, prefix=None):
+    """Steam's installed games from libraryfolders.vdf and each library's appmanifest files. Under Wine a
+    library's path is a Windows one: C: is the prefix's drive_c, Z: the Mac's root."""
+    folders = parse_vdf(read_text(pathlib.Path(steam) / "steamapps/libraryfolders.vdf") or "").get("libraryfolders", {})
+    games = []
+    for folder in folders.values():
+        if not isinstance(folder, dict) or not folder.get("path"):
+            continue
+        path = folder["path"]
+        if prefix is not None:
+            drive, rest = path[:2].upper(), path[2:].replace("\\", "/")
+            if drive == "C:":
+                path = str(pathlib.Path(prefix) / "drive_c") + rest
+            elif drive == "Z:":
+                path = rest
+            else:
+                continue
+        apps = folder.get("apps") if isinstance(folder.get("apps"), dict) else {}
+        for app, listed in sorted(apps.items()):
+            if app in NO_GAMES:
+                continue
+            manifest = parse_vdf(read_text(pathlib.Path(path) / f"steamapps/appmanifest_{app}.acf") or "").get("AppState", {})
+            sizes = [int(value) for value in (manifest.get("SizeOnDisk"), listed) if str(value or "").isdigit() and int(value) > 0]
+            if not sizes:
+                continue  # listed, nothing on the disk yet
+            games.append({"key": f"steam.{app}", "platform": platform, "name": (manifest.get("name") or "").strip() or None,
+                          "sizeBytes": sizes[0], "location": place(path)})
+    return games
+
+
+def epic_stock(support):
+    """Epic's installed games from legendary's installed.json; an add-on's size counts for the game it lies in."""
+    installed = read_json(pathlib.Path(support) / "Epic/legendary/installed.json")
+    games, extra = [], {}
+    for item in (installed or {}).values() if isinstance(installed, dict) else []:
+        if not isinstance(item, dict) or not item.get("app_name"):
+            continue
+        size = item.get("install_size") if isinstance(item.get("install_size"), int) else 0
+        if item.get("is_dlc"):
+            extra[item.get("install_path")] = extra.get(item.get("install_path"), 0) + size
+            continue
+        games.append({"key": f"epic.{item['app_name']}", "platform": "mac" if str(item.get("platform", "")).lower() == "mac" else "windows",
+                      "name": (item.get("title") or "").strip() or None, "sizeBytes": size, "location": place(item.get("install_path") or ""),
+                      "_path": item.get("install_path")})
+    for game in games:
+        game["sizeBytes"] += extra.get(game.pop("_path"), 0)
+    return games
+
+
+def gog_stock(support):
+    """GOG's installed games from Nightforge's own installed.json, their names from its library.json."""
+    installed = read_json(pathlib.Path(support) / "GOG/installed.json")
+    library = read_json(pathlib.Path(support) / "GOG/library.json") or {}
+    titles = {str(game.get("id")): game.get("title") for game in library.get("games", []) if isinstance(game, dict)} if isinstance(library, dict) else {}
+    games = []
+    for ident, item in (installed or {}).items() if isinstance(installed, dict) else []:
+        if not isinstance(item, dict):
+            continue
+        path = urllib.parse.unquote(urllib.parse.urlparse(str(item.get("path") or "")).path)
+        games.append({"key": f"gog.{ident}", "platform": "windows" if str(item.get("platform", "windows")).lower() == "windows" else "mac",
+                      "name": (titles.get(str(ident)) or "").strip() or None,
+                      "sizeBytes": item.get("size") if isinstance(item.get("size"), int) else 0, "location": place(path)})
+    return games
+
+
+def read_stock(support=SUPPORT, mac_steam=None):
+    """Every installed game of Steam (Windows and Mac), Epic and GOG, by key and version. Only read."""
+    support = pathlib.Path(support)
+    mac_steam = pathlib.Path(mac_steam) if mac_steam else pathlib.Path.home() / "Library/Application Support/Steam"
+    prefix = support / "Prefix"
+    games = (steam_stock(prefix / "drive_c/Program Files (x86)/Steam", "windows", prefix) + steam_stock(mac_steam, "mac")
+             + epic_stock(support) + gog_stock(support))
+    unique = {}
+    for game in games:
+        unique.setdefault((game["key"], game["platform"]), game)
+    return [unique[key] for key in sorted(unique)]
+
+
 # MARK: - The list
 
-def build(evidence_lists, reports, names=None):
+def build(evidence_lists, reports, names=None, stock=None):
     """The list's document: one entry per game, version and Mac that anything was recorded of."""
     names = names or {}
+    stock_names = {game["key"]: game["name"] for game in stock or [] if game.get("name")}
     starts = {}
     for entries in evidence_lists:
         for (key, mac), game in from_evidence(entries).items():
@@ -295,10 +546,10 @@ def build(evidence_lists, reports, names=None):
 
         kind = evidence["kind"] if evidence else None
         store, _, store_id = key.partition(".")
-        name = report_names.get(key) or names.get(key)
+        name = report_names.get(key) or names.get(key) or stock_names.get(key)
         entries.append({
             "key": key, "store": store, "storeID": store_id, "platform": platform, "mac": mac,
-            "name": name, "nameFrom": "report" if key in report_names else "names" if name else None,
+            "name": name, "nameFrom": "report" if key in report_names else "names" if key in names else "stock" if name else None,
             "level": level, "way": way, "antiCheat": anti_cheat,
             "confirmed": dict(confirmed, failedSince=evidence["failedSince"].get(way, 0)) if confirmed else None,
             "withdrawn": withdrawn,
@@ -323,6 +574,96 @@ def build(evidence_lists, reports, names=None):
         "sources": {"evidenceEntries": sum(len(e) for e in evidence_lists), "gameTestRuns": len(reports)},
         "entries": entries,
     }
+
+
+# MARK: - The checklist
+
+def current_build(reports, since=None):
+    """The build the checklist asks about: the newest report's, and since when it has been seen – or `since`,
+    for a build no game test has run on yet."""
+    if not reports:
+        return None
+    newest = reports[-1]
+    first = next(report["started"] for report in reports if build_of(report) == build_of(newest))
+    return {"nightforge": newest.get("nightforge"), "built": newest.get("built"), "engine": newest.get("engine") or [],
+            "mac": newest.get("mac") or UNKNOWN_MAC, "since": since or first, "sinceFrom": "argument" if since else "firstRun"}
+
+
+def checklist(stock, evidence_lists, reports, names=None, since=None):
+    """Per installed game: its size, and whether a clean start and a frame rate that counts are on record for
+    the current build. "fertig" needs both; "von-hand" is what no game test will ever start."""
+    names = names or {}
+    build = current_build(reports, since)
+    stamps = [entry["at"] for entries in evidence_lists for entry in entries] + [report["started"] for report in reports]
+    starts = {}
+    for entries in evidence_lists:
+        starts.update(from_evidence(entries))
+    tests, report_names = from_reports(reports)
+    mac = build["mac"] if build else next((key[1] for key in reversed(list(starts))), UNKNOWN_MAC)
+    since = build["since"] if build else since
+    winecx = next((part for part in build["engine"] if part.startswith("winecx@")), None) if build else None
+    games = []
+    for item in stock:
+        key, platform = item["key"], item["platform"]
+        evidence = starts.get((key, mac)) if platform == "windows" else None
+        runs = tests.get((key, platform, mac), [])
+        on_build = [run for run in runs if build and build_of(run) == build_of(build) and run["at"] >= since and run["outcome"] != "skipped"]
+
+        seen = []
+        for run in on_build:
+            code = check_of(run)[0]
+            seen.append((run["at"], code, code not in ("tooShort", "neededPlayer"), "gameTest", run["way"]))
+        for launch in evidence["launches"] if evidence else []:
+            if since and launch["at"] < since:
+                continue
+            if (winecx and launch["engine"] not in (None, winecx)) or (build and launch["nightforge"] not in (None, build["nightforge"])):
+                continue
+            code, settles = launch_verdict(launch)
+            seen.append((launch["at"], code, settles, "evidence", launch["ways"][-1] if launch["ways"] else None))
+        seen.sort(key=lambda one: one[0])
+        # The newest start decides. One that settles nothing (too short, no outcome on record) leaves a clean
+        # start before it standing, and is itself the answer after anything else.
+        newest = seen[-1] if seen else None
+        if newest and not newest[2]:
+            settled = next((one for one in reversed(seen) if one[2]), None)
+            if settled and settled[1] == "ok":
+                newest = settled
+        start = {"ok": bool(newest and newest[1] == "ok"), "why": newest[1] if newest else "never",
+                 "at": newest[0] if newest else None, "by": newest[3] if newest else None, "way": newest[4] if newest else None}
+
+        fps = {"ok": False, "why": "never", "at": None, "way": None, "average": None, "frameLimit": None, "kind": None, "holds": None, "public": False}
+        for run in reversed([run for run in on_build if run["outcome"] == "picture"]):
+            m, code = measured(run), check_of(run)[1]
+            if code == "ok" and "limitUnknown" in m["notPublic"]:
+                code = "limitUnknown"  # a number without its limit isn't one with its conditions
+            found = {"ok": code == "ok", "why": code, "at": run["at"], "way": run["way"], "average": m["fps"]["average"] if m["fps"] else None,
+                     "frameLimit": m["frameLimit"], "kind": m["kind"], "holds": m["holds"], "public": m["public"]}
+            if found["ok"] or fps["why"] == "never":
+                fps = found
+            if found["ok"]:
+                break
+
+        # What the newest game test left it out for – unless it has been started since: the other version's
+        # first start is over once the player has made it.
+        skipped = runs[-1]["skip"] if runs and runs[-1]["outcome"] == "skipped" else None
+        if skipped and evidence and evidence["launches"] and evidence["launches"][-1]["at"] > runs[-1]["at"]:
+            skipped = None
+        by_hand = skipped if skipped in BY_HAND else "antiCheat" if evidence and evidence["antiCheat"] else None
+        status = "von-hand" if by_hand else "fertig" if start["ok"] and fps["ok"] else "offen"
+        store, _, store_id = key.partition(".")
+        games.append({
+            "key": key, "store": store, "storeID": store_id, "platform": platform,
+            "name": report_names.get(key) or item.get("name") or names.get(key),
+            "sizeBytes": item["sizeBytes"], "location": item["location"], "status": status,
+            "missing": [] if status == "fertig" else [what for what, have in (("start", start["ok"]), ("fps", fps["ok"])) if not have],
+            "byHand": by_hand, "skipped": skipped, "start": start, "fps": fps,
+        })
+    order = ("fertig", "offen", "von-hand")
+    games.sort(key=lambda game: (order.index(game["status"]), -game["sizeBytes"], (game["name"] or game["key"]).casefold(), game["key"], game["platform"]))
+    totals = {status: {"games": sum(1 for game in games if game["status"] == status),
+                       "bytes": sum(game["sizeBytes"] for game in games if game["status"] == status)} for status in order}
+    return {"formatVersion": FORMAT_VERSION, "dataUntil": max(stamps) if stamps else None, "mac": mac, "build": build,
+            "totals": totals, "games": games}
 
 
 # MARK: - The German table
@@ -364,11 +705,19 @@ def proof_text(entry):
 
 
 def frames_text(m):
+    """Under a limit: whether the game holds it. Without one: a free number. Never the one for the other."""
     if not m:
         return "nicht gemessen"
     if m["fps"]:
-        text = f"{number(m['fps']['average'])} / {number(m['fps']['low'])}"
-        return text + (f" über {number(m['fps']['seconds'])} s" if m["fps"].get("seconds") else "")
+        fps = m["fps"]
+        text = f"Ø {number(fps['average'])}, tiefste Periode {number(fps['low'])}"
+        if fps.get("onePercentLow") is not None:
+            text += f", 1-%-Tief {number(fps['onePercentLow'])}"
+        if fps.get("seconds"):
+            text += f", über {number(fps['seconds'])} s"
+        if m["kind"] == "holdsLimit":
+            return ("hält das Limit: " if m["holds"] else "hält das Limit nicht: ") + text
+        return "frei: " + text if m["kind"] == "free" else text + " (Limit nicht aufgezeichnet)"
     silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine", "mac": "Mac-Fassung meldet keine"}
     return f"nicht gemessen ({silent.get(layer(m['way']), 'keine im Log')})"
 
@@ -406,7 +755,8 @@ def run_text(m):
     wanted = [] if layer(m["way"]) == "mac" else ["winecx", "graphics"] + (["d3dmetal"] if layer(m["way"]) == "d3dmetal" else [])
     parts = [part for part in m["engine"] if part.split("@")[0] in wanted]
     seconds = f"{number(m['playSeconds'])} s" if m["playSeconds"] else None
-    return " · ".join(filter(None, [date(m["at"]), f"Nightforge {m['nightforge']}" if m["nightforge"] else None] + parts + [seconds]))
+    version = f"Nightforge {m['nightforge']}" + (f" (gebaut {date(m['built'])})" if m["built"] else "") if m["nightforge"] else None
+    return " · ".join(filter(None, [date(m["at"]), version] + parts + [seconds]))
 
 
 NOTES = {
@@ -417,6 +767,11 @@ NOTES = {
     "loadHigh": "Last beim Messen hoch",
     "batteryOrLowPower": "auf Akku oder im Stromsparmodus gemessen",
     "endedByItself": "endete im Spielfenster von selbst",
+}
+GAPS = {
+    "limitUnknown": "Limit nicht aufgezeichnet", "onBattery": "auf Akku", "lowPower": "Stromsparmodus", "throttled": "Limit gedrosselt",
+    "loadHigh": "Last hoch", "loadUnknown": "Last nicht aufgezeichnet", "buildUnknown": "Build nicht aufgezeichnet",
+    "sizeUnknown": "Größe nicht aufgezeichnet", "durationUnknown": "Messdauer nicht aufgezeichnet",
 }
 
 
@@ -429,13 +784,15 @@ def notes_text(entry):
         gone = entry["withdrawn"]
         notes.append(f"{gone['way']} war bestätigt, seit {date(gone['at'])} nicht mehr")
     m = entry["measured"]
+    if m and m["fps"] and not m["public"]:
+        notes.append("FPS nicht für die öffentliche Liste: " + ", ".join(GAPS.get(gap, gap) for gap in m["notPublic"]))
     if m and m["way"] and "measuredOnAnotherWay" in entry["notes"]:
         notes[notes.index(NOTES["measuredOnAnotherWay"])] = f"Messung auf {m['way']}"
     return "; ".join(notes) or "–"
 
 
 def rows(entries):
-    lines = ["| Spiel | Laden | Fassung | Weg | Beleg | Spieletest | Bild nach | Frame-Limit | FPS Ø / tiefste Periode | Langsamster Frame | Größe | Messung | Hinweis |",
+    lines = ["| Spiel | Laden | Fassung | Weg | Beleg | Spieletest | Bild nach | Frame-Limit | FPS | Langsamster Frame | Größe | Messung | Hinweis |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for entry in entries:
         m, test = entry["measured"], entry["gameTest"]
@@ -505,6 +862,78 @@ def markdown(document):
     return "\n".join(lines)
 
 
+START = {
+    "severalWays": "brauchte mehrere Wege", "failed": "Fehlstart", "endedByItself": "endete von selbst", "noPicture": "kein Bild",
+    "tooShort": "Bild, aber unter 180 s beobachtet", "neededPlayer": "brauchte den Spieler", "noOutcome": "Ausgang nicht aufgezeichnet",
+    "endedEarly": "vor dem Bild beendet", "never": "auf diesem Build nie gestartet",
+}
+NO_FPS = {
+    "noPicture": "kein Bild", "noneInLog": "keine im Log", "throttled": "auf Akku oder gedrosselt gemessen", "loadHigh": "Last war hoch",
+    "limitUnknown": "Wert ohne aufgezeichnetes Limit (altes Berichtsformat)", "never": "auf diesem Build nie gemessen",
+}
+SKIPS = dict(BY_HAND, signIn="bräuchte eine Anmeldung", update="ein Update stünde an", runtimes="bräuchte erst Laufzeiten",
+             d3dMetal="braucht D3DMetal, das nicht eingerichtet ist", macSteamSetup="Steam für Mac ist nicht eingerichtet",
+             steamAsks="Steam fragte etwas", macOSAsks="macOS fragt um Erlaubnis", stopped="Test vorher angehalten", gone="nicht mehr installiert")
+
+
+def size_gb(count):
+    return number(count / 1_000_000_000, 1) + " GB"
+
+
+def start_text(start):
+    source = "Spieletest" if start["by"] == "gameTest" else "Evidenz"
+    where = f" ({source} {date(start['at'])}" + (f", {start['way']}" if start["way"] else "") + ")" if start["at"] else ""
+    return ("ja" if start["ok"] else "fehlt: " + START.get(start["why"], start["why"])) + where
+
+
+def fps_text(fps):
+    value = f"Ø {number(fps['average'])}" if fps["average"] is not None else None
+    where = f"{date(fps['at'])}" + (f", {fps['way']}" if fps["way"] else "") if fps["at"] else None
+    if fps["ok"]:
+        held = "frei gemessen" if fps["kind"] == "free" else ("hält" if fps["holds"] else "hält nicht") + f" {fps['frameLimit']} FPS" if fps["kind"] else None
+        return "ja: " + ", ".join(filter(None, [held, value, where]))
+    silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine", "mac": "Mac-Fassung meldet keine"}
+    why = silent.get(layer(fps["way"]), "der Weg meldet keine") if fps["why"] == "wayReportsNone" else NO_FPS.get(fps["why"], fps["why"])
+    return "fehlt: " + why + (" (" + ", ".join(filter(None, [value, where])) + ")" if where else "")
+
+
+def checklist_markdown(document):
+    build, totals = document["build"], document["totals"]
+    lines = [
+        "# Abhakliste: Was darf weg?", "",
+        "Erzeugt von `scripts/laeuft-liste.py` aus dem Bestand der Läden (Steam, Epic, GOG – nur gelesen), der Start-Evidenz und den "
+        "Spieletests – nicht von Hand ändern. Die Regeln stehen in [LAEUFT-LISTE.md](../LAEUFT-LISTE.md). "
+        "**Deinstalliert wird von hier aus nie etwas: Das macht der Nutzer selbst.**", "",
+        f"Mac: {document['mac']}. Stand der Daten: {date(document['dataUntil'])} (Tage in UTC).",
+    ]
+    if build:
+        parts = " · ".join([f"Nightforge {build['nightforge']}" + (f" (gebaut {date(build['built'])})" if build["built"] else "")] + build["engine"])
+        since = "so angegeben" if build["sinceFrom"] == "argument" else "erster Spieletest auf diesem Build"
+        lines.append(f"Aktueller Build: {parts}. Gezählt wird, was seit dem {date(build['since'])} aufgezeichnet ist ({since}).")
+    else:
+        lines.append("Kein Spieletest-Bericht: Der Build ist unbekannt, FPS-Werte gibt es keine.")
+    lines += ["",
+              "**Fertig** ist ein Spiel mit beidem auf dem aktuellen Build: einem sauberen Start (Bild auf dem ersten und einzigen Weg, kein "
+              "Fehlversuch, nicht von selbst beendet, als laufend bestätigt) und einem FPS-Wert mit seinen Bedingungen (Limit aufgezeichnet, "
+              "am Netz, Last niedrig).", "",
+              "**" + " ".join(f"{label}: {totals[status]['games']} {'Spiel' if totals[status]['games'] == 1 else 'Spiele'}, "
+                              f"{size_gb(totals[status]['bytes'])}." for label, status in
+                              (("Fertig", "fertig"), ("Offen", "offen"), ("Von Hand zu prüfen", "von-hand"))) + "**", "",
+              "| Spiel | Laden | Fassung | Größe | Start (100 %) | FPS | Status |", "|---|---|---|---|---|---|---|"]
+    for game in document["games"]:
+        if game["status"] == "fertig":
+            status = "**fertig – darf weg**"
+        elif game["status"] == "von-hand":
+            status = "von Hand zu prüfen: " + BY_HAND.get(game["byHand"], game["byHand"])
+        else:
+            status = "offen" + (f" (Spieletest ließ es aus: {SKIPS.get(game['skipped'], game['skipped'])})" if game["skipped"] else "")
+        name = cell(game["name"]) if game["name"] else f"`{game['key']}`"
+        lines.append("| " + " | ".join([name, STORES.get(game["store"], game["store"]), "Mac" if game["platform"] == "mac" else "Windows",
+                                         size_gb(game["sizeBytes"]), start_text(game["start"]), fps_text(game["fps"]), status]) + " |")
+    lines.append("")
+    return "\n".join(lines)
+
+
 # MARK: - Writing
 
 def leaks(text, home=None, user=None):
@@ -518,16 +947,19 @@ def leaks(text, home=None, user=None):
     return bool(re.search(r"/Users/|/Volumes/|[A-Za-z]:\\+users\\", text, re.IGNORECASE))
 
 
-def write(document, out, home=None, user=None):
-    """laeuft.json and LAEUFT.md into `out` – or nothing at all when either would give the player away."""
-    data = json.dumps(document, indent=1, ensure_ascii=False, sort_keys=True) + "\n"
-    table = markdown(document)
-    if leaks(data, home, user) or leaks(table, home, user):
+def write(document, out, home=None, user=None, check=None):
+    """laeuft.json and LAEUFT.md into `out`, with a checklist abhakliste.json and ABHAKLISTE.md too – or
+    nothing at all when any of them would give the player away."""
+    files = {"laeuft.json": json.dumps(document, indent=1, ensure_ascii=False, sort_keys=True) + "\n", "LAEUFT.md": markdown(document)}
+    if check is not None:
+        files["abhakliste.json"] = json.dumps(check, indent=1, ensure_ascii=False, sort_keys=True) + "\n"
+        files["ABHAKLISTE.md"] = checklist_markdown(check)
+    if any(leaks(text, home, user) for text in files.values()):
         raise SystemExit("✗ the list would name a home folder, an account or a drive – nothing written")
     out = pathlib.Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "laeuft.json").write_text(data, encoding="utf-8")
-    (out / "LAEUFT.md").write_text(table, encoding="utf-8")
+    for name, text in files.items():
+        (out / name).write_text(text, encoding="utf-8")
     return out / "laeuft.json", out / "LAEUFT.md"
 
 
@@ -537,14 +969,24 @@ def main(argv=None):
     parser.add_argument("--evidence", action="append", help="a start-evidence.jsonl; may be given more than once (default: this Mac's)")
     parser.add_argument("--names", default=str(ROOT / "docs/laeuft/namen.json"), help="names for games no report names")
     parser.add_argument("--out", default=str(ROOT / "docs/laeuft"), help="where laeuft.json and LAEUFT.md go")
+    parser.add_argument("--since", help="the checklist counts what was recorded from this UTC moment on (2026-11-11T20:00:00Z): "
+                                        "for a build no game test has run on yet (default: its first game test)")
+    parser.add_argument("--stock", default=str(SUPPORT), help="Nightforge's folder with the stores' lists of installed games")
+    parser.add_argument("--mac-steam", help="Steam for Mac's folder (default: the one in Application Support)")
+    parser.add_argument("--no-stock", action="store_true", help="don't read what is installed: no checklist")
     options = parser.parse_args(argv)
     evidence = options.evidence if options.evidence is not None else [str(SUPPORT / "start-evidence.jsonl")]
     reports = options.reports or [str(SUPPORT / "GameTests")]
     lists = [read_evidence(path) for path in evidence if pathlib.Path(path).is_file()]
-    document = build(lists, read_reports(reports), read_names(options.names))
-    data, table = write(document, options.out)
+    runs, names = read_reports(reports), read_names(options.names)
+    stock = [] if options.no_stock else read_stock(options.stock, options.mac_steam)
+    document = build(lists, runs, names, stock)
+    check = checklist(stock, lists, runs, names, options.since) if stock else None
+    data, table = write(document, options.out, check=check)
     counts = {level: sum(1 for entry in document["entries"] if entry["level"] == level) for level in LEVELS}
     print(f"✓ {data} and {table.name}: " + ", ".join(f"{count} {level}" for level, count in counts.items()))
+    if check:
+        print("✓ abhakliste.json and ABHAKLISTE.md: " + ", ".join(f"{check['totals'][status]['games']} {status}" for status in check["totals"]))
     unnamed = sorted({entry["key"] for entry in document["entries"] if not entry["name"]})
     if unnamed:
         print("! no name for: " + ", ".join(unnamed) + f" – add them to {options.names}", file=sys.stderr)

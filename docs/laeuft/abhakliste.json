@@ -1,0 +1,808 @@
+{
+ "build": {
+  "built": null,
+  "engine": [
+   "winecx@4.7.3",
+   "d3dmetal@apple-3.0",
+   "dxvk-macos@1.10.3-20230507",
+   "enginefix@4.7.3-4",
+   "gamepad@4.7.3-15",
+   "graphics@11.18-dxmt0.80-17",
+   "moltenvk@1.4.2"
+  ],
+  "mac": "Apple M5 · macOS 27.0",
+  "nightforge": "0.3.2",
+  "since": "2026-11-09T22:45:04Z",
+  "sinceFrom": "firstRun"
+ },
+ "dataUntil": "2026-11-14T12:22:35Z",
+ "formatVersion": 1,
+ "games": [
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:49:25Z",
+    "average": 28.4,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxmt",
+    "why": "limitUnknown"
+   },
+   "key": "steam.2357570",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Overwatch®",
+   "platform": "windows",
+   "sizeBytes": 84222583639,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:49:25Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "2357570"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:57:27Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "d3dmetal",
+    "why": "wayReportsNone"
+   },
+   "key": "epic.63a665088eb1480298f1e57943b225d8",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Marvel's Guardians of the Galaxy",
+   "platform": "windows",
+   "sizeBytes": 82615812112,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:57:28Z",
+    "by": "evidence",
+    "ok": false,
+    "way": "d3dmetal",
+    "why": "noOutcome"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "63a665088eb1480298f1e57943b225d8"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:51:42Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "d3dmetal",
+    "why": "wayReportsNone"
+   },
+   "key": "epic.fa4240e57a3c46b39f169041b7811293",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Hogwarts Legacy",
+   "platform": "windows",
+   "sizeBytes": 76700981001,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:51:43Z",
+    "by": "evidence",
+    "ok": false,
+    "way": "d3dmetal",
+    "why": "noOutcome"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "fa4240e57a3c46b39f169041b7811293"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:55:57Z",
+    "average": 46.8,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxmt",
+    "why": "limitUnknown"
+   },
+   "key": "epic.Kakopo",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Just Cause 4",
+   "platform": "windows",
+   "sizeBytes": 50528184896,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:55:57Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "Kakopo"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T19:54:37Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "d3dmetal",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.1426210",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "It Takes Two",
+   "platform": "windows",
+   "sizeBytes": 48392303260,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:28:48Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "1426210"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:54:25Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "d3dmetal",
+    "why": "wayReportsNone"
+   },
+   "key": "epic.Calluna",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Control",
+   "platform": "windows",
+   "sizeBytes": 45010292103,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:54:26Z",
+    "by": "evidence",
+    "ok": false,
+    "way": "d3dmetal",
+    "why": "noOutcome"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "Calluna"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": null,
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": null,
+    "why": "never"
+   },
+   "key": "steam.239140",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Dying Light",
+   "platform": "mac",
+   "sizeBytes": 33640621009,
+   "skipped": null,
+   "start": {
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "239140"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-11T19:23:05Z",
+    "average": 59.3,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxmt",
+    "why": "limitUnknown"
+   },
+   "key": "steam.287700",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "METAL GEAR SOLID V: THE PHANTOM PAIN",
+   "platform": "windows",
+   "sizeBytes": 31106322849,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-11T19:23:41Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "287700"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-11T19:46:37Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "wined3d",
+    "why": "wayReportsNone"
+   },
+   "key": "epic.d2da64bd4c4e422da4b1a88041492a3a",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Dishonored - Definitive Edition",
+   "platform": "windows",
+   "sizeBytes": 17357748207,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-11T19:46:38Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "d2da64bd4c4e422da4b1a88041492a3a"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:45:04Z",
+    "average": 57.2,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxmt -dx11",
+    "why": "limitUnknown"
+   },
+   "key": "steam.2129530",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "REANIMAL",
+   "platform": "windows",
+   "sizeBytes": 17112452967,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:45:04Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxmt -dx11",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "2129530"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:05:02Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "mac",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.203160",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Tomb Raider",
+   "platform": "mac",
+   "sizeBytes": 16493299501,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:05:02Z",
+    "by": "gameTest",
+    "ok": false,
+    "way": "mac",
+    "why": "tooShort"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "203160"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:53:51Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "wined3d",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.550",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Left 4 Dead 2",
+   "platform": "windows",
+   "sizeBytes": 14964354280,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:53:51Z",
+    "by": "evidence",
+    "ok": false,
+    "way": "wined3d",
+    "why": "noOutcome"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "550"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-11T19:05:54Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "wined3d",
+    "why": "wayReportsNone"
+   },
+   "key": "epic.Heron",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Alan Wake",
+   "platform": "windows",
+   "sizeBytes": 9666507981,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-11T19:05:56Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "Heron"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": null,
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": null,
+    "why": "never"
+   },
+   "key": "epic.b2e00fc16632475782a7730d1bd7cb60",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Frostpunk",
+   "platform": "windows",
+   "sizeBytes": 9640470926,
+   "skipped": null,
+   "start": {
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "b2e00fc16632475782a7730d1bd7cb60"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:01:00Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "mac",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.1815780",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Asphalt Legends",
+   "platform": "mac",
+   "sizeBytes": 9064369430,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:01:00Z",
+    "by": "gameTest",
+    "ok": false,
+    "way": "mac",
+    "why": "tooShort"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "1815780"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": null,
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": null,
+    "why": "never"
+   },
+   "key": "steam.35140",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Batman: Arkham Asylum GOTY Edition",
+   "platform": "windows",
+   "sizeBytes": 8471095333,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T12:08:12Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "35140"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:34:03Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "wined3d",
+    "why": "wayReportsNone"
+   },
+   "key": "gog.1816059595",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Mafia II (Classic)",
+   "platform": "windows",
+   "sizeBytes": 8441968765,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:34:03Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "gog",
+   "storeID": "1816059595"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:32:48Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "d3dmetal",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.3132990",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Black Myth: Wukong Benchmark Tool",
+   "platform": "windows",
+   "sizeBytes": 8365222843,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:33:30Z",
+    "by": "evidence",
+    "ok": false,
+    "way": "d3dmetal",
+    "why": "noOutcome"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "3132990"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:47:55Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxvk",
+    "why": "noneInLog"
+   },
+   "key": "steam.3907790",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "OxyRail",
+   "platform": "windows",
+   "sizeBytes": 7359381270,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:47:56Z",
+    "by": "evidence",
+    "ok": false,
+    "way": "dxvk",
+    "why": "noOutcome"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "3907790"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-09T23:41:41Z",
+    "average": 58.4,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxvk",
+    "why": "limitUnknown"
+   },
+   "key": "steam.242760",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "The Forest",
+   "platform": "windows",
+   "sizeBytes": 5950220689,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-09T23:41:41Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxvk",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "242760"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:59:13Z",
+    "average": 54.8,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "dxmt -dx11",
+    "why": "limitUnknown"
+   },
+   "key": "epic.Curry",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "ABZU",
+   "platform": "windows",
+   "sizeBytes": 4818969865,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:59:13Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxmt -dx11",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "Curry"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:07:03Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "mac",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.892970",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Valheim",
+   "platform": "mac",
+   "sizeBytes": 4586639854,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:07:03Z",
+    "by": "gameTest",
+    "ok": false,
+    "way": "mac",
+    "why": "tooShort"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "892970"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-10T00:03:05Z",
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": "mac",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.442070",
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Drawful 2",
+   "platform": "mac",
+   "sizeBytes": 248585110,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-10T00:03:05Z",
+    "by": "gameTest",
+    "ok": false,
+    "way": "mac",
+    "why": "tooShort"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "442070"
+  }
+ ],
+ "mac": "Apple M5 · macOS 27.0",
+ "totals": {
+  "fertig": {
+   "bytes": 0,
+   "games": 0
+  },
+  "offen": {
+   "bytes": 594758387890,
+   "games": 23
+  },
+  "von-hand": {
+   "bytes": 0,
+   "games": 0
+  }
+ }
+}
