@@ -138,7 +138,8 @@ Befunde aus dem Lauf:
   `Engine.prepareLaunchEnvironment` („Apple's readme“) stimmen dafür nicht. DXMT und DXVK halten es (MGS V 60,
   Frostpunk 60, The Forest 60). Der Nutzer mag gerade die Sperre auf 60. An die Läuft-Liste-Session gegeben
   (Wege suchen, wie sich D3DMetal begrenzen lässt; erst ein Vorschlag, kein Bau).
-- [ ] **Die Listen sagen dazu „hält das Limit: Ø 201“.** Gemeint ist „erreicht es“, es liest sich aber, als
+- [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
+  `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
 - [ ] **Overwatch: der Spieletest sagt „hängt ohne Bild“, das Spiel zeichnete aber** (DXMT-Protokoll Ø 49 über
   170 s, Limit 40). Vorhang: erst „picture here“ (1512×853 L0), dann das Fenster auf der Abschirmungsebene
@@ -148,7 +149,10 @@ Befunde aus dem Lauf:
 - [ ] **Der Spieletest nahm dabei ein `sample` von Overwatch** (steam.2357570.sample.txt). Overwatch bringt einen
   eigenen Cheat-Schutz mit; für solche Spiele gilt sonst „kein sample“. Frage an den Nutzer: der Spieletest lässt
   das `sample` bei Online-Spielen mit Cheat-Schutz weg (Feld im Profil).
-- [ ] **Left 4 Dead 2: 122 von 123 Werten zwischen 22 und 26 FPS, drei Minuten lang.** Das sieht nach einem Film
+- [x] **Left 4 Dead 2: 122 von 123 Werten zwischen 22 und 26 FPS, drei Minuten lang.** (Geklärt 14.11. von der
+  Läuft-Liste-Session: Das Messfenster war der Vorspann, `valve.bik` 13 s und `l4d2_intro.bik` 174 s mit 23,98
+  Bildern je Sekunde. Die Liste markiert so einen Wert jetzt als „starr, kein Leistungswert“; er zählt nicht.
+  Offen: ein Lauf, der am Vorspann vorbeikommt.) Das sieht nach einem Film
   oder einer Begrenzung aus, nicht nach der Leistung des Spiels; der Bericht meldet „wenig FPS“. Ungeprüft. Der
   Wert taugt nicht für die Landingpage.
 - [ ] **ABZU endete beim ersten Anlauf nach Sekunden ohne Fenster, der zweite auf demselben Weg zeigte nach 11 s
@@ -158,6 +162,14 @@ Befunde aus dem Lauf:
   erste Prozess endete, ein zweiter kam. Zählt als sauberer Start. Für den Spieler sind das zweieinhalb Minuten
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
+
+**Stand 14.11., 23:30:** Um etwa 21:20 traf das Nutzungslimit beide Sessions, seit 23:20 arbeiten sie wieder
+(Diagnose-Start an Teil 2 von Schritt E, bisher kein Code; Läuft-Liste am Rest ihrer vier Punkte: Abschnitt 9,
+Vorschlag für ein Limit auf D3DMetal, die Anzeige bei Overwatch). Die Listen-Korrektur `ce7647c` ist geprüft
+(pytest 273) und im Testzweig (`4c8c392`), die Listen neu erzeugt: **13 fertig (402,2 GB), 10 offen, 1 von Hand.**
+Left 4 Dead 2 ist wieder offen (starrer Wert). Neu geladen und offen: Rise of the Tomb Raider (Epic, 38,6 GB),
+noch nie gestartet. Eingespielt bleibt `c453e40`; der Mac läuft seit dem Abend auf Akku (Messungen zählen so
+nicht). Offen beim Nutzer: `sample` bei Spielen mit Cheat-Schutz, Mac-Fassungen (Probe mit Valheim).
 
 **Schritt E, Teil 1 ist im Testzweig (14.11., 21:13, Zusammenführung `dd99a43`):** Kette grün, 119 Testreihen
 (neu: StartRecipeTest), 271 pytest. Nichts außerhalb der eigenen Dateien ruft `NextStart`,
