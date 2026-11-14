@@ -233,7 +233,7 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
 - **Startrezept und Lernkreislauf (Entwurf 10.11., `docs/ENTWURF-STARTREZEPT.md`):** ein Rezept statt Grafikweg-Leiter,
   Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. 11.11.: A (jeder Start bekommt einen Ausgang) und Stufe 4 in erster Form (Leiter nach
   Beweisen gleicher Sorte) gebaut und eingespielt (4d7806c, Entwurf 3.2); C (genauerer Blick) und D in erster Form
-  gebaut am 14.11., siehe den nächsten Punkt; offen E Rezept als Startgrundlage. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
+  gebaut am 14.11., siehe den nächsten Punkt; E Rezept als Startgrundlage: Teil 1 (reine Logik) gebaut am 14.11., das Verdrahten ist offen, siehe den übernächsten Punkt. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
   Minidump-Leser und Diagnose im Protokoll, noch ohne Wirkung auf den Start). Nächste Entscheidung: Stufe 3, die Diagnose
   ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
   von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
@@ -253,6 +253,26 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     Schnellster Weg zu (1) bis (4): der Testschalter `closerLook` (unten bei Engine-Tests) und ein Spiel, das scheitert.
   - Nicht gebaut: der Blick für einen bewährten Weg, der wieder scheitert (gehört zu E); Fehlerfenster, die kein
     Windows-`MessageBox` sind; die Wurzel trägt niemand von selbst ein (`WindowsRoots`, je Wurzel das OK des Nutzers).
+- **Schritt E, Teil 1 (14.11., Zweig `claude/diagnose-start-033-92f729`, noch nicht eingespielt): die reine Logik,
+  nichts verdrahtet.** Kein Start läuft anders als vorher. Plan, Ausgänge der Schleife und Schritte E1 bis E6 stehen
+  im Entwurf 3.3.
+  - Gebaut und in Tests geprüft (`StartRecipeTest` neu, `CloserLookTest` mit Alan Wakes echtem Protokoll vom 14.11.):
+    Abhilfe ändert das Rezept (`StartRecipe.Learned`, `StartRecipe.of(way:learned:…)`); die Entscheidung nach einem
+    Fehlstart (`NextStart.after`: derselbe Weg mit geändertem Rezept, ein anderer Weg, Aufgeben; höchstens drei Starts
+    auf demselben Weg je „Spielen“); das Gelernte als ein Wert (`LearnedFixes.learned`/`keep`); Beweise je Rezept
+    (`StartEvidence.Proof.workedWith`, `failedWith`, `holds`; alte Zeilen gelten weiter für ihren Weg); die Regel
+    Fehlerfenster gegen Frage (`LaunchHealth.ownQuestionWasAChoice`, `CloserLook.box`, `Reading.endedAtBox`).
+  - Maßstab im Test: It Takes Two heilt beim ersten „Spielen“ – ein Fehlstart, derselbe Weg mit dem Loader aus, Bild.
+  - Zum Fund „Fehlerfenster zählt als Wahl des Spielers“: Am 14.11. schrieb die Vorhangwache die Zeile; der Start
+    selbst nahm das Ende nicht als Wahl, weil `direct3D9Failed` dagegen sprach. Die Lücke bleibt für Fenster ohne
+    anderen Befund (Metal Gear Solid V am 11.11.: „closed at a question of its own“ in der Evidenz).
+  - **Teil 2 (Verdrahten) offen**, in dieser Reihenfolge: E1 ein Rezept je Start ohne Wirkung, E2 die Entscheidung
+    ersetzt die sieben Zweige bei gleichem Verhalten, E3 DLL-Abhilfen wirken, E4 Beweise je Rezept wirken, E5
+    Fehlerfenster mit `+pid,+loaddll,+msgbox` bei jedem Start. Berührt `LibraryModel`, `Engine`, `Launcher`, `GameLog`.
+  - **Entscheidungen des Nutzers offen** (Entwurf 3.3, je mit Empfehlung): genauerer Blick für einen bewährten Weg;
+    `untrusted-root` als Frage; die drei Kanäle bei jedem Start; der Text auf dem Vorhang (Board zuerst).
+  - Offen dabei: Eine gelernte Änderung bleibt beim Spiel, auch wenn sie nicht half. `physx-update-loader` greift nur
+    noch, wenn ein Profil den Loader zurückholt; als neue Wirkung bleibt zunächst `nvidia-interface`.
 - **Engine-Test 11.11. (988e721), vier Spiele mit Engines, die nie gestartet waren** (Bericht GameTests/2026-11-11-1925):
   1 von 3 mit Bild, 1 nicht gestartet.
   - Dishonored (Epic, Unreal 3, 64 Bit): Bild auf WineD3D nach 17 s, endete vor 200 s von selbst (unbestätigt).

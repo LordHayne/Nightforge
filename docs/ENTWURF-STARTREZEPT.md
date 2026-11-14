@@ -1,6 +1,6 @@
 # Entwurf: Startrezept und Lernkreislauf
 
-Stand 10.11.2026. Stufe 1 und 2 sind gebaut (Abschnitt 3.1), sie ändern keinen Start. Stufe 3 bis 6 sind Entwurf. Auslöser: der Nutzer, 10.11.: „Wie können wir den Startvorgang
+Stand 14.11.2026. Stufe 1 und 2 sind gebaut (Abschnitt 3.1), sie ändern keinen Start. Von Stufe 3 steht die reine Logik (3.3), verdrahtet ist sie nicht; Stufe 4 läuft in erster Form (3.2), 5 und 6 sind Entwurf. Auslöser: der Nutzer, 10.11.: „Wie können wir den Startvorgang
 komplett automatisieren, damit wir nicht jedes Game testen müssen? Mir kommt es so vor, als ob die einzelnen
 Bauteile nicht richtig vernetzt sind.“
 
@@ -196,8 +196,223 @@ stand. Daraus die Reihenfolge A bis E:
   speist `refused-switch`, `needs-d3d12` und `said`. Grenzen: nur der Text, nicht der Titel; nur echte
   `MessageBox`-Fenster, keine selbst gezeichneten Dialoge (eigene Launcher, SDL); Wine kürzt bei rund 290 Zeichen; nur
   in Starts mit Kanälen, also nach dem ersten unerklärten Fehlstart. Was bleibt für D: Fenster ohne `MessageBox`.
-- **E, offen:** `StartRecipe` als das, womit gestartet wird (Umbau der Startschleife). Die Probe zu B zeigt, warum:
-  Ein Beweis gilt für ein Rezept, nicht für einen Grafikweg.
+- **E, Teil 1 gebaut am 14.11.2026, nicht verdrahtet:** `StartRecipe` als das, womit gestartet wird (Umbau der
+  Startschleife). Die Probe zu B zeigt, warum: Ein Beweis gilt für ein Rezept, nicht für einen Grafikweg. Plan und
+  Stand in 3.3.
+
+### 3.3 Plan für E (Stufe 3): Das Rezept trägt den Start
+
+Stand 14.11.2026. **Teil 1 ist gebaut:** die reine Logik mit Tests (`tests/StartRecipeTest`, `CloserLookTest`).
+**Nichts davon ist verdrahtet**, kein Start läuft anders als vorher. Teil 2 ist der Umbau der Startschleife in den
+Schritten E1 bis E6 unten.
+
+**Der Gedanke.** Ein Rezept hat drei Quellen: den Weg der Leiter (Grafikweg mit seinen Schaltern), das Profil und
+das, was die Diagnose-Tabelle für dieses Spiel schon geändert hat (`StartRecipe.Learned`: DLLs aus, Laufzeiten, ohne
+AVX, dazu die Namen der Regeln). `StartRecipe.of(way:learned:profile:…)` setzt daraus zusammen, was Wine bekommt.
+Nach einem Fehlstart ändert eine einzige Entscheidung (`NextStart.after`) entweder das Gelernte – derselbe Weg noch
+einmal – oder den Weg. Eine Abhilfe kommt nur aus der Tabelle (`StartDiagnosis.rules`) oder aus einem geprüften
+Profil, nie geraten.
+
+**Maßstab.** It Takes Two (10.11.): Der erste Fehlstart nennt im Minidump den PhysX-Update-Loader, derselbe Weg
+startet noch einmal mit dem Loader aus, der zweite Start hat ein Bild. Der Spieler merkt eine längere Wartezeit. Als
+Test nachgestellt (`StartRecipeTest`, mit einem Profil, das den seit 0df3c58 für alle abgeschalteten Loader
+zurückholt): zwei Starts statt drei Wege und Aufgeben.
+
+#### Was Teil 1 gebaut hat
+
+| Baustein | Wo | Was es tut |
+|---|---|---|
+| Abhilfe ändert das Rezept | `StartRecipe.Learned.applying`, `StartRecipe.of(way:learned:…)` | DLLs aus, Laufzeiten, ohne AVX; die Regel steht in `steps`. Was schon drin ist, ändert nichts. Eine Direct3D-DLL wird nie abgeschaltet. Gelerntes geht über die DLL-Schalter von Profil und Layer. |
+| Abhilfe wählt einen Weg | `NextStart.way(answering:)` | Schalter weg, bestimmter Layer, anderer Layer: der erste passende Weg, der noch kommt, sonst der nächste. Für die drei Meldungen von heute wählt es wie `LaunchHealth.advance(answering:)` (auf fünf Leitern, jedem Platz geprüft). |
+| Entscheidung nach einem Fehlstart | `NextStart.after` | Eingang: Leiter und Platz, bewährt oder nicht, Gelerntes, Diagnose, Anti-Cheat, wie oft schon derselbe Weg, dazu drei Tatsachen von außerhalb der Tabelle (Engine davor, Datei korrigiert, genauerer Blick). Ausgang: derselbe Weg noch einmal, ein anderer Weg, „behält seinen Platz“, „kein anderer Weg“, Aufgeben. |
+| Gedächtnis | `LearnedFixes.learned` / `keep` | Alles Gelernte eines Spiels als ein Wert. Laufzeiten und AVX liegen unter den Schlüsseln, die sie seit 0.2 haben; neu sind `learned.dllsOff.<Spiel>` und `learned.steps.<Spiel>`. |
+| Leiter | `LaunchHealth.advance(_:_:to:)` | Setzt die Leiter auf den gewählten Weg. |
+| Beweise je Rezept | `StartEvidence.Proof.workedWith`, `failedWith`, `holds`, `steps(on:)` | Siehe „Beweise“ unten. |
+| Fehlerfenster | `CloserLook.Reading.endedAtBox`, `CloserLook.box`, `LaunchHealth.ownQuestionWasAChoice`, `CloserLook.everyStart` | Siehe „Fehlerfenster oder Frage“ unten. |
+
+**Die Entscheidung, in dieser Reihenfolge:**
+
+1. Die Engine davor (EngineRollback hat sie schon festgehalten): derselbe Weg noch einmal.
+2. Alles, was die Tabelle am Rezept ändert, **in einem Start** – nicht ein Start je Abhilfe – zusammen mit den
+   Dateikorrekturen des Profils. Auch für einen bewährten und einen von Hand gewählten Weg, wie heute.
+3. Keine Leiter (Grafikweg von Hand): Ende ohne Wechsel.
+4. Genauerer Blick am letzten Weg: derselbe Weg einmal mit den Kanälen.
+5. Ein bewährter Weg behält seinen Platz, außer der Layer selbst sagt, dass er nicht zeichnen kann (`graphics-failed`).
+6. Der Weg, auf den die Befunde zeigen, sonst der nächste. Keiner mehr: Aufgeben.
+
+Grenzen darin: höchstens drei Starts „derselbe Weg noch einmal“ je „Spielen“ (`NextStart.againLimit`; heute gibt es
+keinen Deckel), der Start auf der Engine davor zählt nicht mit. Bei Anti-Cheat wird nie eine DLL abgeschaltet;
+Laufzeiten und AVX aus Wines Protokoll wirken dort wie bisher. Eine Wurzel ändert nichts von selbst. 3.000
+zufällige „Spielen“, die nie gelingen, enden alle (Test): die Leiter geht nur vorwärts, der Deckel hält.
+
+#### Die Ausgänge der Schleife heute und wohin sie gehen
+
+`LibraryModel.launch`, Stand 70b38c1, in der Reihenfolge der Schleife:
+
+| Heute | Künftig |
+|---|---|
+| Start kam nicht zustande; nicht beobachtet; überlebt; vom Spieler beendet; Bild, dann Ende | bleibt: Das ist Beobachten, vor jeder Abhilfe. |
+| Ende an einer eigenen Frage | bleibt, bekommt die Fenster-Regel (E5). |
+| Bewährter Weg, stiller zweiter Start (ABZU) | bleibt eigener Zweig: Er entscheidet ohne Diagnose und vor der Prozessprüfung. |
+| Spiel läuft noch oder hängt | bleibt: Schutz vor einer zweiten Kopie. |
+| Engine-Rückfall | bleibt bei `EngineRollback`, geht als Tatsache in die Entscheidung. |
+| Fehlende Laufzeit → installieren, derselbe Weg | Tabelle: `missing-runtime` → `.runtimes`. |
+| Dateikorrektur des Profils → derselbe Weg | Tatsache `filesFixed`: Das Profil ist geprüft, nur der Zeitpunkt ist besonders. |
+| Illegal instruction → ohne AVX, derselbe Weg | Tabelle: `illegal-instruction` → `.noAVX`. |
+| Von Hand gewählt oder keine Leiter | `.noOtherWay`. |
+| Bewährter Weg ohne Grafikfehler behält seinen Platz | `.keepsItsPlace`. |
+| Genauerer Blick (C) | Tatsache `look`. |
+| Nächster Weg, der auf die Meldung antwortet | `.way`: jede Zeile der Tabelle mit einem Weg als Abhilfe, nicht nur die drei Meldungen. |
+| Aufgeben | `.giveUp`. |
+| neu | Tabelle: `physx-update-loader`, `nvidia-interface` → `.dllsOff`, derselbe Weg. |
+
+Sieben Zweige werden eine Entscheidung. In die Tabelle ziehen die Laufzeit und AVX; was sie lernen, steht mit den
+abgeschalteten DLLs in einem Wert (`StartRecipe.Learned`). Engine-Rückfall, Dateikorrektur und genauerer Blick
+bleiben, was sie sind, mit ihrem eigenen Gedächtnis, und kommen als Tatsachen dazu.
+
+#### Umbau in Schritten
+
+Jeder Schritt ist einzeln testbar und einzeln einspielbar. In Klammern die Dateien außerhalb der reinen Logik.
+
+- **E1 – ein Rezept je Start, ohne Wirkung.** Die Schleife baut das Rezept einmal aus Weg, Profil und
+  `LearnedFixes.learned`. Evidenz, DLL-Schalter und Windows-Version im Prefix, Laufzeiten und AVX lesen aus diesem
+  einen Wert. Solange nichts Neues gelernt ist, ändert sich kein Start. Test: Das Rezept in der Evidenz ist das, was
+  im Prefix landet. (`LibraryModel`, `Engine.gameDllOverrides`/`applyGameSettings`, `Launcher`. Der Schalter am
+  Launcher-Fenster vorbei steht dann nur noch an einer Stelle, heute doppelt in `argumentsPastLauncher` und
+  `StartRecipe.of`.)
+- **E2 – eine Entscheidung statt sieben Zweige, gleiches Verhalten.** `NextStart.after` ersetzt die Zweige von
+  „Engine-Rückfall“ bis „Aufgeben“. Es wirken nur die Regeln, die heute schon wirken. Für ein Spiel mit Anti-Cheat
+  kommt der Befund wie bisher aus Wines Protokoll allein. Sichtbar anders: mehrere Abhilfen in einem Start, der
+  Deckel von drei. Live: ein Spiel mit fehlender Laufzeit, Hogwarts ohne Profil. (`LibraryModel`)
+- **E3 – DLL-Abhilfen wirken.** `physx-update-loader` und `nvidia-interface` ändern das Rezept. Live: It Takes Two
+  mit einem Testprofil, das den Loader zurückholt – ein Fehlstart, dann Bild, `steps` in der Evidenz.
+  (`LibraryModel`: Der Filter aus E2 fällt weg.)
+- **E4 – Beweise je Rezept wirken.** `LaunchHealth` hält zum bestätigten Weg fest, womit er lief. Ein Start mit
+  anderem Rezept gilt nicht als bewährt und wird wieder bis zum Bild beobachtet. Preis: Ändert ein Profil den Start
+  eines Spiels, kostet das einen beobachteten Start. (`LaunchHealth`, `LibraryModel`)
+- **E5 – Fehlerfenster.** Jeder Start trägt `+pid,+loaddll,+msgbox`, und das Ende an einer eigenen Frage fragt
+  zusätzlich `LaunchHealth.ownQuestionWasAChoice`. Unabhängig von E1 bis E4. (`GameLog`/`Engine` für den Grundwert,
+  `LibraryModel`)
+- **E6 – nach Entscheidung des Nutzers.** Frage zur Wurzel, genauerer Blick für den bewährten Weg, Text auf dem
+  Vorhang (Board zuerst).
+
+E1 vor E2 vor E3; E4 braucht E1; E5 steht für sich.
+
+#### Beweise gelten für ein Rezept
+
+`StartEvidence.proofs` liest zu jedem `worked` und `failed` das Rezept des Starts, zu dem es gehört:
+
+- `workedWith[Weg]`: das Rezept des Starts, der zählte. `failedWith[Weg]`: die Rezepte, mit denen der Weg ohne Bild
+  endete, auch wenn er mit einem anderen später lief. It Takes Two im Test: D3DMetal lief mit dem Loader aus und
+  scheiterte mit ihm – ein Weg, zwei Rezepte.
+- `holds(for:on:)`: Der eigene Beweis eines Spiels gilt für das Rezept, das lief (`StartRecipe.startsLike`: alles, was
+  Wine bekommt; welche Regel es verlangt hat, zählt nicht).
+- **Alte Zeilen behalten ihren Wert:** Ein `worked` aus der Zeit vor den Rezepten (vor dem 10.11.) hat kein Rezept und
+  gilt weiter für seinen Weg, mit welchem Rezept auch immer. Probe an der echten Aufzeichnung dieses Macs (14.11., 74
+  Zeilen, 18 Spiele): acht Wege mit `worked`, fünf tragen ein Rezept, drei stammen von davor; kein `failed` trägt
+  bisher eines.
+- **Für die Sorte ändert sich nichts:** `worked`, `picture`, `failed` und `sortScores` rechnen wie vorher. Ein Weg, der
+  erst mit geändertem Rezept lief, zählt für die Sorte als der Weg, der er ist – weiter nur als Reihenfolge.
+  `steps(on:)` sagt, welche Regeln das Rezept trug. Ob ein Spiel gleicher Sorte diese Änderungen gleich mitbekommt,
+  ist Stufe 4 in ihrer nächsten Form und nicht Teil von E.
+- Auch der Start eines Profils wird gelesen: Sein Rezept ist genau das, was er beweist. Für die Sorte beweist er
+  weiter nichts.
+
+#### Fehlerfenster oder Frage
+
+Der Fund vom 14.11.: Alan Wakes Fehlerfenster stand unter dem Vorhang als Frage, der Spieler drückte OK, und der
+Vorhang schrieb „ended right at a question of its own, answered by the player: no other way“. Genauer hingesehen
+(Code und Protokoll gelesen, nicht nachgestellt): Die Zeile stammt von der Vorhangwache. Der Start selbst hat das
+Ende in diesem Fall **nicht** als Wahl des Spielers genommen, weil `direct3D9Failed` dagegen sprach (fe1b8fa); im
+Protokoll fehlt die Zeile „Start of Alan Wake: it ended at a question of its own“. Die Lücke ist trotzdem echt: Metal Gear Solid V steht am 11.11. mit „closed at a
+question of its own“ in der Evidenz, weil außer dem Fenster nichts gegen den Start sprach.
+
+**Die Regel** (`LaunchHealth.ownQuestionWasAChoice`, zusätzlich zu dem, was der Start heute schon fragt):
+
+1. Erklärt die Tabelle das Ende (irgendeine Zeile außer den Auffangzeilen), war es keine Wahl. Das kostet nichts
+   und braucht keinen Kanal.
+2. Endete das Spiel an einem Windows-Meldungsfenster und dessen Text ist eine Mitteilung, war es keine Wahl. Der
+   Text ist dann das Wort des Spiels.
+3. Sonst bleibt es die Wahl des Spielers wie heute. Unitys Fenster vor dem Spiel und die Fenster eigener Launcher
+   sind keine Meldungsfenster, `+msgbox` druckt für sie nichts.
+
+**Mitteilung oder Frage** (`CloserLook.box`): Wine druckt nur den Text, nicht die Knöpfe. Ein Fenster, das nichts
+fragt, hat nur OK. Also entscheidet der Text: ohne Fragezeichen eine Mitteilung; mit Fragezeichen eine Frage, außer
+der Text meldet einen Fehler („… has crashed. Send a report?“, Wörter auf Englisch und Deutsch). An welchem Fenster
+das Spiel endete, sagt `Reading.endedAtBox`: das letzte Fenster, nach dem sein Prozess nichts mehr geladen hat.
+Grenzen: Die Wortliste kennt zwei Sprachen; ein echtes Ja/Nein ohne Fragezeichen gälte als Mitteilung.
+
+**Was es braucht:** den Kanal `+msgbox` bei jedem Start, und damit der Leser das Fenster dem Spiel zuordnet, auch
+`+pid` und `+loaddll` (`CloserLook.everyStart`). Die Ausgabe für den Debugger und die Zertifikatsketten bleiben
+dem genaueren Blick: Ein Spiel kann die erste mit jedem Frame schreiben, und Steams Browser baut Ketten, solange
+er läuft.
+
+**Was es kostet:**
+
+- Protokoll: Alan Wakes Direktstart am 14.11. kam auf 88 Zeilen, 10 KB. Batmans Start über Steam samt
+  Steam-Neustart hatte mit allen Kanälen 4.423 Zeilen, davon 3.204 Ketten; für die drei Kanäle bleiben höchstens
+  rund 1.200 Zeilen, die meisten einmal je Steam-Start. `wine.log` wechselt bei 8 MB in `wine.previous.log`.
+- Laufzeit: eine Zeile je geladener Bibliothek beim Prozessstart, eine je Meldungsfenster, nichts während des Spiels.
+- Steam: ein Neustart beim ersten Start nach der Umstellung, danach keiner mehr für diese Kanäle. Der genauere
+  Blick braucht seinen Neustart weiter.
+- Risiko: `+pid` setzt vor jede Wine-Zeile die Prozessnummer. Die Leser in `GameLog` suchen in der Zeile, nicht am
+  Anfang (nachgesehen bei fehlenden Laufzeiten, Absturz, illegal instruction und Grafikfehler); in E5 mit Zeilen
+  dieser Form zu testen.
+
+**Nebenbei gewonnen:** `loads-direct3d9` und der Fenstertext wirken dann schon beim ersten Fehlstart, ohne
+zweiten Start. Der offene Punkt „`+loaddll` beim ersten Start“ wäre erledigt.
+
+#### Was sich für den Spieler ändert – und was nicht
+
+Es ändert sich:
+
+- Ein Fehlstart mit bekannter Ursache heilt im selben „Spielen“. Der Vorhang bleibt oben, das Spiel startet auf
+  demselben Weg noch einmal, statt alle Wege durchzugehen und aufzugeben.
+- Mehrere Abhilfen kommen in einem Start, und es gibt höchstens drei solche Starts je „Spielen“.
+- Ein Spiel verlässt seinen Grafikweg seltener wegen einer Ursache, die nicht am Weg liegt.
+- Mit E5 zählt ein Fehlerfenster als Fehlstart: Der nächste Weg oder die Abhilfe kommt, wo Nightforge heute still
+  in die Bibliothek zurückgeht.
+
+Es ändert sich nicht:
+
+- Keine neue Oberfläche und kein neuer Text, bis ein Board entschieden ist.
+- Die erste Wahl: Profil, eigener Beweis, Beweise der Sorte, Berichte, Dateien.
+- Ein bewährter Weg behält seinen Platz. Ein von Hand gewählter Weg wird nie gewechselt.
+- Anti-Cheat: keine Diagnose aus Spieldateien, kein genauerer Blick, keine DLL aus.
+- Wurzeln nur im Prefix und jede weitere nur mit OK. Lizenzen und Anmeldungen bleiben beim Spieler.
+- Die Evidenz bleibt auf dem Mac.
+
+#### Entscheidungen für den Nutzer
+
+1. **Bekommt ein bewährter Weg, der wieder scheitert, den genaueren Blick?** Empfehlung: ja – ein stiller Start
+   mehr im selben „Spielen“, einmal je Spiel und Engine-Stand; sonst verlässt das nächste „Spielen“ den bewährten
+   Weg, ohne dass jemand weiß, warum er scheiterte. `NextStart.after` kann es schon.
+2. **Wird `untrusted-root` eine Frage an den Spieler?** Empfehlung: ja, aber nur für eine Wurzel, die `WindowsRoots`
+   mit festen Fingerabdrücken kennt – bei Ja kommt sie in den Prefix und derselbe Weg startet noch einmal, bei Nein
+   endet der Start, ohne die übrigen Wege durchzugehen; eine unbekannte Wurzel wird weiter nur gesagt. Die Frage
+   braucht ein Board.
+3. **Tragen alle Starts `+pid,+loaddll,+msgbox`?** Empfehlung: ja – die Kosten stehen oben, und nur so lässt sich
+   ein Fehlerfenster schon beim ersten Fehlstart lesen.
+4. **Was sagt der Vorhang, während Nightforge ein Rezept ändert?** Oberfläche, also Board zuerst. Heute steht beim
+   Wegwechsel „Starting again with %@ …“ mit dem Hinweis „It closed right away – Nightforge starts it the next way and
+   remembers what works.“ Drei Vorlagen für Zeile und Hinweis beim Start auf demselben Weg:
+   - A, ruhig, ohne Technik: „Noch ein Versuch …“ / darunter „Das Spiel ist gleich wieder zugegangen. Nightforge
+     hat die Ursache gefunden und startet es noch einmal.“
+   - B, sagt, was geändert wird: „Startet noch einmal, ohne %@ …“ (z. B. „ohne NVIDIAs Zusatz“, „mit einer
+     fehlenden Laufzeit“) / darunter wie A.
+   - C, gar kein eigener Text: Der Vorhang bleibt bei „Startet …“, der Spieler merkt nur die längere Wartezeit.
+   Empfehlung: A – es erklärt die Wartezeit, ohne Mechanik zu zeigen.
+
+#### Offen und Risiken
+
+- Eine gelernte Änderung bleibt beim Spiel, für alle Wege, auch wenn sie nicht geholfen hat (wie Laufzeiten und AVX
+  heute). Zurücknehmen, wenn derselbe Befund danach wieder kommt, wäre genauer; noch nicht gebaut.
+- Gelerntes geht über das Profil. Begründung: Es antwortet auf einen Fehler, der auf diesem Mac in diesem Spiel
+  gesehen wurde, und Profile aus umu sind auf dem Mac nicht geprüft. Für die erste Wahl behält das Profil den Vorrang.
+- `nvapi64` und `nvngx` aus nimmt einem Spiel auf D3DMetal DLSS über MetalFX. Das ist der Preis dafür, dass es startet.
+- Der gemeinsame Prefix: Eine Laufzeit für Spiel A wirkt auf Spiel B (Abschnitt 4).
+- `physx-update-loader` ist seit 0df3c58 für alle aus und greift nur noch, wenn ein Profil den Loader zurückholt.
+  Als echte neue Wirkung bleibt zunächst `nvidia-interface`.
 
 ## 4. Offene Fragen
 
@@ -207,7 +422,8 @@ stand. Daraus die Reihenfolge A bis E:
 - **Wie viel Beweis verallgemeinert?** Vorschlag: ab zwei Spielen gleicher feiner Sorte, grob erst ab drei.
 - **Gemeinsamer Prefix:** Laufzeiten für Spiel A wirken auf Spiel B (PhysX). Soll das Rezept festhalten, was es im
   Prefix voraussetzt, damit der Nachttest nach jeder neuen Laufzeit gezielt die betroffenen Spiele prüft?
-- **Anzeige:** Was sagt der Vorhang, während Nightforge ein Rezept ändert? Design zuerst (Board).
+- **Anzeige:** Was sagt der Vorhang, während Nightforge ein Rezept ändert? Design zuerst (Board). Drei Vorlagen
+  stehen in 3.3 › Entscheidungen.
 
 ## 5. Grenzen, die bleiben
 
