@@ -523,6 +523,8 @@ struct CompleteRemovalTest {
             let model: Bool, appKit: Bool
             /// How often AppKit takes no quit although nothing is in the way (a sheet on its way out).
             var refusals = 0
+            /// The first try neither quits nor comes back: AppKit waits inside it, its run loop going on.
+            var holds = false
             var gone = false
             /// `model`: the sheets go when the model closes them (SwiftUI's, a moment later);
             /// `appKit`: when AppKit ends them (its own).
@@ -553,6 +555,13 @@ struct CompleteRemovalTest {
                     refusals -= 1
                     events.append("not taken")
                     return false
+                }
+                if holds {
+                    holds = false
+                    events.append("held")
+                    let limit = Date().addingTimeInterval(4)
+                    while !gone, Date() < limit { RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02)) }
+                    return gone
                 }
                 events.append("terminate")
                 gone = true
@@ -626,6 +635,19 @@ struct CompleteRemovalTest {
         for _ in 0..<80 where !slow.gone { try? await Task.sleep(for: .milliseconds(25)) }
         check(slow.gone && slow.events == ["model", "not taken", "not taken", "terminate"], "a quit AppKit doesn't take is tried again: \(slow.events)")
         check(slow.notes == ["Quit by the Dock", "Quit by the Dock didn't go through: AppKit didn't take it"], "said once: \(slow.notes)")
+
+        // AppKit neither quits nor comes back from the first try (14.11.: "Quit by", then nothing for 24 s, until
+        // another quit came and went through at once). The next try comes by itself, from inside that wait.
+        // Asked from the run loop itself, as a key or an Apple Event is: a job of the main queue (this test) would
+        // hold the queue for as long as its try hangs, and nothing else on it would run.
+        let held = Stage([])
+        held.holds = true
+        let heldStart = Date()
+        RunLoop.main.perform { MainActor.assumeIsolated { _ = Quit.now(by: "osascript", on: held) } }
+        while !held.gone, Date().timeIntervalSince(heldStart) < 6 { try? await Task.sleep(for: .milliseconds(25)) }
+        let heldTook = Date().timeIntervalSince(heldStart)
+        check(held.gone && held.events == ["model", "held", "terminate"], "a first try that hangs is followed by another: \(held.events)")
+        check(heldTook < 2, "within the next half second, not when someone asks again: \(heldTook) s")
 
         check(Quit.reason(sheetsLeft: [], panelWaiting: true) == "a panel still waits for a file", "a panel's wait named")
         check(Quit.reason(sheetsLeft: [], panelWaiting: false) == "AppKit didn't take it", "else AppKit's silence")

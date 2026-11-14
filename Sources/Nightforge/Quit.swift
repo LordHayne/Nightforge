@@ -57,10 +57,10 @@ enum Quit {
     /// are ended after `endSheetsAfter`; after `saysWhyAfter` wine.log hears what it waits for; and after
     /// `giveUpAfter` it tries all the same, once, and stays if AppKit doesn't take it. By the clock: a
     /// main thread busy redrawing made 50 ms steps take twice as long.
-    static let closeAgainEvery: TimeInterval = 0.5
-    static let endSheetsAfter: TimeInterval = 1
-    static let saysWhyAfter: TimeInterval = 2
-    static let giveUpAfter: TimeInterval = 10
+    nonisolated static let closeAgainEvery: TimeInterval = 0.5
+    nonisolated static let endSheetsAfter: TimeInterval = 1
+    nonisolated static let saysWhyAfter: TimeInterval = 2
+    nonisolated static let giveUpAfter: TimeInterval = 10
 
     /// Why a quit didn't go through, for wine.log.
     nonisolated static func reason(sheetsLeft: [String], panelWaiting: Bool) -> String {
@@ -93,21 +93,24 @@ enum Quit {
                 stage.note("Quit by \(by)")
                 beforeQuitting?()
             }
-            return stage.terminate()
+            if stage.terminate() { attempt.gone = true }
+            return attempt.gone
         }
         func waiting() -> Bool { waits(panelWaiting: stage.panelWaiting, sheetsLeft: !stage.sheetsLeft.isEmpty) }
         func why() -> String { reason(sheetsLeft: stage.sheetsLeft, panelWaiting: stage.panelWaiting) }
-        if !waiting(), tryQuit() { return true }
+        // The loop that keeps at it starts before the first try: `NSApp.terminate` may neither quit nor come
+        // back for a while (14.11.: "Quit by", then nothing for 24 s, until the next quit went through at
+        // once), and from inside that wait only another try ends it. It gets there when the first try came
+        // from the run loop (a key, the menu, an Apple Event), whose wait lets the main queue go on; a try
+        // from a task of the main queue holds that queue for as long as it hangs.
         Task {
             let start = Date()
-            var endedSheets = false, said = attempt.answered
+            var endedSheets = false
             var closeAgain = closeAgainEvery, nextTry = closeAgainEvery
-            // Still here with nothing in the way: AppKit didn't take it. Said, and tried again below.
-            if attempt.answered { stage.note("Quit by \(by) didn't go through: \(why())") }
-            while true {
+            while !attempt.gone {
                 try? await Task.sleep(for: .milliseconds(50))
                 let elapsed = Date().timeIntervalSince(start)
-                guard elapsed < patience else { break }
+                guard !attempt.gone, elapsed < patience else { break }
                 if waiting() {
                     if elapsed >= closeAgain {
                         closeAgain = elapsed + closeAgainEvery
@@ -117,31 +120,40 @@ enum Quit {
                         endedSheets = true
                         stage.endSheets()
                     }
-                    if !said, elapsed >= saysWhyAfter {
-                        said = true
+                    if !attempt.said, elapsed >= saysWhyAfter {
+                        attempt.said = true
                         stage.note("Quit by \(by) waits: \(why()). It goes the moment that's gone")
                     }
                 } else if elapsed >= nextTry || !attempt.answered {
-                    if tryQuit() { return }
                     nextTry = elapsed + closeAgainEvery
-                    if !said {
-                        said = true
+                    if tryQuit() { return }
+                    if !attempt.said {
+                        attempt.said = true
                         stage.note("Quit by \(by) didn't go through: \(why())")
                     }
                 }
             }
+            guard !attempt.gone else { return }
             // The last try, under whatever is still open: AppKit may take it all the same.
             if tryQuit() { return }
+            stage.note("Quit by \(by) didn't go through: \(why())")
+        }
+        if !waiting(), !tryQuit(), !attempt.gone, !attempt.said {
+            // Still here with nothing in the way: AppKit didn't take it. Said, and tried again by the loop.
+            attempt.said = true
             stage.note("Quit by \(by) didn't go through: \(why())")
         }
         return true
     }
 }
 
-/// One quit's tries: whether its sender has been answered.
+/// One quit's tries: whether its sender has been answered, wine.log has heard why it waits, and –
+/// for a stand-in, the real one never comes back from it – whether Nightforge is gone.
 @MainActor
 private final class Attempt {
     var answered = false
+    var said = false
+    var gone = false
 }
 
 /// What a quit acts on: AppKit and the model's sheets – or a test's stand-in (CompleteRemovalTest).
