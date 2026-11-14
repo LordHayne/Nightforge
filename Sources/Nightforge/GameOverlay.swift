@@ -76,8 +76,14 @@ enum GameOverlay {
         get { state.lateController }
         set { state.lateController = newValue }
     }
-    /// A game ended: what the overlay was to ask about it isn't for the next one.
-    static func gameEnded() { state.lateController = false }
+    /// The games being played have ended: what the overlay was to ask about them isn't for the next one,
+    /// and a side bar still up goes with them (OverlayRules.goesWithGame).
+    static func gameEnded() {
+        state.lateController = false
+        guard OverlayRules.goesWithGame(open: isOpen, openedFor: openedFor, leaving: leaving) else { return }
+        GameLog.note("Overlay: \(state.game) ended under it, the panel goes with it")
+        close()
+    }
     /// The player went back to the game from here (LibraryModel, GameStage).
     static var resumed: (@MainActor () -> Void)?
     /// Whether nothing is held on any pad (InputRouter).

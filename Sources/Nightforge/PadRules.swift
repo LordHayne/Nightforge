@@ -79,6 +79,22 @@ enum PadRules {
         inFront && !sheet && !panel
     }
 
+    /// Whether the open on-screen keyboard stays. It reads one pad, the one that opened it, and while
+    /// it's open every pad's buttons are kept from the page behind it. So it closes with that pad – switched
+    /// off, its battery empty, asleep after a while on the sofa – and what's typed stays: left open, no
+    /// button on the pad that came back, or on another one, closed it or did anything else.
+    static func keyboardStays(padConnected: Bool, inFront: Bool) -> Bool {
+        padConnected && inFront
+    }
+
+    /// The downloads panel or a chip's list is open over the levels: the keyboard's arrows, Return and
+    /// letters are its own, as the pad's steps are. They went to the games behind it: Return under the
+    /// open downloads started (or downloaded) Home's selected game, in the library it opened a game's
+    /// page, and the arrows moved a selection half hidden. A big screenshot over them has the keys first.
+    static func panelHasKeys(downloads: Bool, list: Bool, lightbox: Bool) -> Bool {
+        (downloads || list) && !lightbox
+    }
+
     /// The curtain is up over Nightforge's levels. Nightforge often still is the active app then, until the
     /// game takes the front: a start's first seconds, or minutes of Steam updating it. What's under the
     /// curtain can't be seen, so it isn't reached either, as with B (`back`). The overlay over it has the pad.

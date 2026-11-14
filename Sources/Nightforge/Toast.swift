@@ -29,6 +29,7 @@ final class Toasts: ObservableObject {
 
     func show(_ message: String, action: Action? = nil) {
         let toast = Toast(message: message, action: action)
+        hovering = false  // a new message is a new view: the pointer says so again if it's on it
         current = toast
         scheduleHide(after: action == nil ? 2.8 : 5)
         // VoiceOver reads it out without moving the focus.
@@ -45,8 +46,11 @@ final class Toasts: ObservableObject {
         action.run()
     }
 
+    /// The pointer leaves with the message: a view taken away under it never says so, and "the pointer
+    /// is on it" then held every later message for good (a click on Undo, then the next message stayed).
     func dismiss() {
         hideTask?.cancel()
+        hovering = false
         if PadFocus.shared.focused == Self.padID { PadFocus.shared.clear() }
         current = nil
     }

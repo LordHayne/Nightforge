@@ -106,6 +106,7 @@ final class InputRouter {
             let gone = note.object as? GCController
             MainActor.assumeIsolated {
                 self?.letGo()
+                if let gone, self?.keyboardPad?.controller === gone { self?.closeKeyboard() }  // PadRules.keyboardStays
                 self?.pointer.controllerLeft(connected: Set(GCController.controllers().filter { $0 !== gone }
                     .compactMap(\.extendedGamepad).map(ObjectIdentifier.init)))
                 self?.haptics.forgetGone()
@@ -185,6 +186,9 @@ final class InputRouter {
         if model.quickMenu != nil || model.launcherMenuOpen { return handleMenuKey(code, in: window, model) }
         if window.firstResponder is NSText { return false }
         if model.showsLauncherCards, handleCardKey(code, in: window, model) { return true }
+        if PadRules.panelHasKeys(downloads: model.showingDownloads, list: model.libraryMenu != nil, lightbox: model.lightbox != nil) {
+            return handlePanelKey(code, chars, in: window, model)
+        }
 
         switch code {
         case 123 where model.lightbox != nil: model.lightbox?.step(-1); return true
@@ -253,6 +257,26 @@ final class InputRouter {
         case 36, 76: focus.focusedItem(in: window)?.activate()
         case 53: model.back()
         default: return false
+        }
+        return true
+    }
+
+    /// The open downloads panel or a chip's list has the keys, as it has the pad (`perform`): the arrows
+    /// between its controls, Return on the one highlighted, Esc closes it, and D the downloads as it
+    /// opened them. Nothing reaches the games behind it.
+    private func handlePanelKey(_ code: UInt16, _ chars: String, in window: NSWindow, _ model: LibraryModel) -> Bool {
+        let focus = PadFocus.shared
+        switch code {
+        case 53:
+            if model.showingDownloads { model.showingDownloads = false } else if let menu = model.libraryMenu { model.closeLibraryMenu(menu) }
+        case 123: focus.move(dx: -1, dy: 0, in: window, within: .panel)
+        case 124: focus.move(dx: 1, dy: 0, in: window, within: .panel)
+        case 125: focus.move(dx: 0, dy: 1, in: window, within: .panel)
+        case 126: focus.move(dx: 0, dy: -1, in: window, within: .panel)
+        case 36, 76:
+            if let item = focus.focusedItem(in: window) { item.activate() } else { focus.move(dx: 0, dy: 1, in: window, within: .panel) }
+        default:
+            if chars.lowercased() == "d", model.showingDownloads { model.showingDownloads = false }
         }
         return true
     }
@@ -695,7 +719,9 @@ final class InputRouter {
 
     /// The keyboard takes the whole pad while it's open. Without the pad or Nightforge in front it closes.
     private func lookAtKeyboardPad() {
-        guard let model, let session = model.padKeyboard, let pad = keyboardPad, reach == .app else { return closeKeyboard() }
+        guard let model, let session = model.padKeyboard, let pad = keyboardPad,
+              PadRules.keyboardStays(padConnected: GCController.controllers().contains { $0.extendedGamepad === pad }, inFront: reach == .app)
+        else { return closeKeyboard() }
         for event in session.feed(Self.keyboardInput(pad)) {
             switch event {
             case let .hover(side, _): feel(.keyHover, on: pad.controller, hand: side)
