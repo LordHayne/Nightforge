@@ -20,6 +20,7 @@ import argparse
 import datetime
 import getpass
 import json
+import math
 import pathlib
 import re
 import sys
@@ -409,6 +410,207 @@ def measured(run):
         "window": measure.get("window"), "screen": measure.get("screen"), "swapchain": measure.get("swapchain"),
         "upscaledTo": measure.get("upscaledTo"), "displayMode": measure.get("displayMode"),
     }
+
+
+# MARK: - Play, measured from the log
+
+# A menu or an intro says nothing of how a game runs: a frame rate for the list comes from play. With the
+# hidden switch `measurePlay` (GameTest.measuresPlay) a start by Play has Apple's Metal HUD log its frames, and
+# those lines are in Nightforge's wine.log and nowhere else. What counts of a session: not its first PLAY_SKIP
+# seconds from the first frame on (films, menus, loading – all a game test's three minutes ever saw), not its
+# last PLAY_TAIL (the way out through a menu), and PLAY_MIN seconds or more between the two.
+PLAY_SKIP, PLAY_TAIL, PLAY_MIN = 300, 60, 600
+# A session's start in the evidence and its line in the log are written in the same moment; its first frame
+# may come much later (shaders, a launcher).
+PLAY_NOTE_APART, PLAY_FRAME_AFTER = 120, 1800
+START_LINE = re.compile(r"\[nightforge\] Start of (.+): ((?:" + "|".join(("wined3d", "dxvk", "dxmt", "d3dmetal")) + r")(?: \S+)*) on (\S+)\s*$")
+LIMIT_LINE = re.compile(r"\[nightforge\] Frame limit of (.+): (none|\d+ FPS) at (\d+) Hz, MetalFX (on|off)(?:, throttled by (\w+))?\s*$")
+PLAY_LINE = re.compile(r"\[nightforge\] Play measuring of (.+): (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), on (mains|battery)(, Low Power Mode)?"
+                       r"(?:, load ([0-9.]+) on (\d+) cores)?\s*$")
+HUD_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d+)?) [^\[\]]*\[(\d+)(?::\d+)?\] metal-HUD: (.+)$")
+# Wine's fps channel as Direct3D writes it ("… @ approx 59.94fps"); the OpenGL side's line ("…, total 59.90fps") isn't one.
+FPS_LINE = re.compile(r"^\s*(?:(\d+\.\d+):)?(?:([0-9a-f]{4}):)?[0-9a-f]{4}:trace:fps:\w+ (\S+) @ approx (\d+(?:\.\d+)?)fps\s*$")
+LOW_LOAD_SHARE = 0.5  # GameTest.lowLoadShare: under half the cores busy
+
+
+def rounded(value):
+    """Swift's rounded(): halves away from zero, where Python's round goes to the even one."""
+    return math.floor(value + 0.5)
+
+
+def tenth(value):
+    return rounded(value * 10) / 10
+
+
+def hud_values(text):
+    """One HUD line's frames, as GameTest.hudSample reads it: after three numbers, a present interval and a GPU
+    time in milliseconds for each frame. None for a line that isn't one."""
+    try:
+        values = [float(value) for value in text.split(",")]
+    except ValueError:
+        return None
+    if len(values) < 5 or len(values) % 2 == 0:
+        return None
+    return values[3:-1:2], values[4::2]
+
+
+def hud_frames(lines):
+    """The HUD's frames in the report's shape, the same arithmetic as GameTest.measuredFrames: the average over
+    all of them, the lowest stretch of ten seconds, the slowest frame and the usual slowest of a stretch, the
+    slowest percent and the GPU's time. `lines` are (intervals, GPU times) as `hud_values` gives them."""
+    intervals = [value for line in lines for value in line[0] if value > 0]
+    total = sum(intervals)
+    if len(intervals) < 2 or total <= 0:
+        return None
+    rates, slowest = [], []
+    count = time = worst = 0.0
+    for interval in intervals:
+        count, time, worst = count + 1, time + interval, max(worst, interval)
+        if time >= 10_000:
+            rates.append(count * 1000 / time)
+            slowest.append(worst)
+            count = time = worst = 0.0
+    if not rates:
+        rates.append(count * 1000 / time)
+        slowest.append(worst)
+    ordered = sorted(intervals)
+    slowest.sort()
+    gpu = sorted(value for line in lines for value in line[1] if value > 0)
+    return {
+        "average": tenth(len(intervals) * 1000 / total), "low": tenth(min(rates)), "periods": len(rates), "seconds": rounded(total / 1000),
+        "slowestFrame": tenth(ordered[-1]), "slowestTypical": tenth(slowest[(len(slowest) - 1) // 2]),
+        "onePercentLow": tenth(1000 / ordered[max(0, math.ceil(len(ordered) * 0.99) - 1)]),
+        "gpuTime": tenth(gpu[(len(gpu) - 1) // 2]) if gpu else None,
+    }
+
+
+def rate_frames(rates):
+    """Wine's rates in the report's shape, as GameTest.wineFrames: `rates` are (frames a second, the seconds it
+    covers). No slowest frame and no slowest percent: the channel says a rate, not its frames."""
+    rates = [(fps, seconds) for fps, seconds in rates if fps > 0 and seconds > 0]
+    if not rates:
+        return None
+    stretches = []
+    count = time = 0.0
+    for fps, seconds in rates:
+        count, time = count + fps * seconds, time + seconds
+        if time >= 10:
+            stretches.append(count / time)
+            count = time = 0.0
+    if not stretches:
+        stretches.append(count / time)
+    seconds = sum(seconds for _, seconds in rates)
+    return {
+        "average": tenth(sum(fps * seconds for fps, seconds in rates) / seconds), "low": tenth(min(stretches)), "periods": len(stretches),
+        "seconds": tenth(seconds), "slowestFrame": None, "slowestTypical": None, "onePercentLow": None, "gpuTime": None,
+    }
+
+
+def utc(local, zone=None):
+    """A HUD line's own time ("2026-11-14 19:43:37.926", the Mac's local time) as a UTC stamp. `zone`: the zone it
+    was written in, this Mac's when not given."""
+    moment = datetime.datetime.strptime(local[:19], "%Y-%m-%d %H:%M:%S")
+    moment = moment.replace(tzinfo=zone) if zone else moment.astimezone()
+    return moment.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def play_sessions(log, zone=None, skip=PLAY_SKIP, tail=PLAY_TAIL, least=PLAY_MIN):
+    """The sessions of play a log holds, each from its start line to the game's last frame, outside game tests
+    (those have their reports). Per session what was measured of it – `fps` in the report's shape with source
+    "play" – or why nothing was (`why`: noFrames, tooShort), and the conditions it began under as far as the
+    log says them."""
+    sessions, current, in_test = [], None, False
+    for line in log.splitlines():
+        if "[nightforge] " in line:
+            if "[nightforge] Game test begins" in line:
+                in_test, current = True, None
+            elif "[nightforge] Game test ends" in line:
+                in_test = False
+            start = START_LINE.search(line)
+            if start and not in_test:
+                name, way = start.group(1), start.group(2)
+                if current and current["name"] == name and not current["hud"] and not current["rates"]:
+                    current["way"], current["engine"] = way, start.group(3)  # the ladder went on to another way
+                else:
+                    current = {"name": name, "way": way, "engine": start.group(3), "hud": {}, "rates": {}, "limit": None, "note": None}
+                    sessions.append(current)
+                continue
+            limit = LIMIT_LINE.search(line)
+            if limit and current and current["name"] == limit.group(1):
+                current["limit"] = {"frameLimit": 0 if limit.group(2) == "none" else int(limit.group(2).split()[0]),
+                                    "refreshRate": int(limit.group(3)), "metalFX": limit.group(4) == "on", "throttled": limit.group(5)}
+                continue
+            note = PLAY_LINE.search(line)
+            if note and current and current["name"] == note.group(1):
+                load = None
+                if note.group(5):
+                    average, cores = float(note.group(5)), int(note.group(6))
+                    load = {"average": average, "cores": cores, "low": average < max(cores, 1) * LOW_LOAD_SHARE}
+                current["note"] = {"at": note.group(2), "onBattery": note.group(3) == "battery", "lowPower": bool(note.group(4)), "load": load}
+            continue
+        if not current or in_test:
+            continue
+        hud = HUD_LINE.match(line)
+        if hud:
+            values = hud_values(hud.group(3))
+            if values:
+                current["hud"].setdefault(hud.group(2), []).append((hud.group(1), values))
+            continue
+        rate = FPS_LINE.match(line)
+        if rate:
+            time = float(rate.group(1)) if rate.group(1) else None
+            current["rates"].setdefault((rate.group(2) or "-", rate.group(3)), []).append((time, float(rate.group(4))))
+
+    def stamp(local):
+        return datetime.datetime.strptime(local[:19], "%Y-%m-%d %H:%M:%S").timestamp() + float("0" + (local[19:] or ".0"))
+
+    found = []
+    for session in sessions:
+        one = dict({"name": session["name"], "way": session["way"], "engine": session["engine"], "at": None, "firstFrame": None,
+                    "playedSeconds": None, "fps": None, "why": "noFrames", "skipped": skip, "cutEnd": tail,
+                    "onBattery": None, "lowPower": None, "load": None},
+                   **(session["limit"] or {"frameLimit": None, "refreshRate": None, "metalFX": None, "throttled": None}))
+        if session["note"]:
+            one.update(at=session["note"]["at"], onBattery=session["note"]["onBattery"], lowPower=session["note"]["lowPower"],
+                       load=session["note"]["load"])
+        frames = logged = None
+        # The game's process: the one that logged the most frames (Steam's windows present through Metal too).
+        if session["hud"]:
+            lines = max(session["hud"].values(), key=lambda lines: sum(len(values[0]) for _, values in lines))
+            times = [stamp(local) for local, _ in lines]
+            one["firstFrame"] = utc(lines[0][0], zone)
+            one["playedSeconds"] = rounded(sum(v for _, values in lines for v in values[0] if v > 0) / 1000)
+            kept = [values for time, (_, values) in zip(times, lines) if times[0] + skip <= time <= times[-1] - tail]
+            frames, logged = hud_frames(kept), "metal-hud"
+        elif session["rates"]:
+            # One swapchain of one process: the one with the most lines. Its first line counts from Wine's start.
+            chain = max(session["rates"].values(), key=len)
+            spans, clock = [], 0.0
+            for (before, _), (time, fps) in zip(chain, chain[1:]):
+                seconds = time - before if time is not None and before is not None and time > before else 1.5
+                clock += seconds
+                spans.append((clock, fps, seconds))
+            one["playedSeconds"] = rounded(clock)
+            frames = rate_frames([(fps, seconds) for end, fps, seconds in spans if end - seconds >= skip and end <= clock - tail])
+            logged = "wine-fps"
+        if frames and frames["seconds"] >= least:
+            one.update(fps=dict(frames, source="play", logged=logged), why=None)
+        elif one["playedSeconds"]:
+            one["why"] = "tooShort"
+        found.append(one)
+    return found
+
+
+def read_logs(paths):
+    """The play sessions of Nightforge's logs, oldest file first. Only read; what goes on from them is numbers
+    and the game's name as its start line says it."""
+    sessions = []
+    for path in paths:
+        try:
+            sessions += play_sessions(pathlib.Path(path).read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    return sessions
 
 
 # MARK: - What is installed

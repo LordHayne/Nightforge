@@ -59,13 +59,14 @@ enum GameTest {
         #endif
     }
 
-    /// What a measured session of play began under, a line for the log beside the start's limit
-    /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record.
-    /// "Play measuring of <game>: on mains, load 2.1 on 10 cores" ·
-    /// "Play measuring of <game>: on battery, Low Power Mode, load 7.4 on 10 cores".
-    static func playNote(game: String, onBattery: Bool, lowPower: Bool, load: Load?) -> String {
-        "Play measuring of \(game): " + (onBattery ? "on battery" : "on mains") + (lowPower ? ", Low Power Mode" : "")
-            + (load.map { ", load \($0.average) on \($0.cores) cores" } ?? "")
+    /// When a measured session of play began and under what, a line for the log beside the start's limit
+    /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record, and
+    /// finds the start in the evidence by the moment (scripts/laeuft-liste.py, PLAY_LINE).
+    /// "Play measuring of <game>: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores" ·
+    /// "Play measuring of <game>: 2026-11-15T20:10:29Z, on battery, Low Power Mode, load 7.4 on 10 cores".
+    static func playNote(game: String, at: Date = Date(), onBattery: Bool, lowPower: Bool, load: Load?) -> String {
+        "Play measuring of \(game): \(ISO8601DateFormatter().string(from: at)), " + (onBattery ? "on battery" : "on mains")
+            + (lowPower ? ", Low Power Mode" : "") + (load.map { ", load \($0.average) on \($0.cores) cores" } ?? "")
     }
 
     /// Whether Wine's debug channels (GameLog.extraWineDebug, the switch `wineDebug`) have its fps channel on:

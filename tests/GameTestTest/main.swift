@@ -25,6 +25,7 @@ struct GameTestTest {
         await handsOff()
         steadyRates()
         wineFpsAsSeen()
+        measuringRunFixture()
         settings()
         skips()
         plan()
@@ -500,6 +501,26 @@ struct GameTestTest {
               "report.json has a field of its own for it")
     }
 
+    /// Two games' lines from the measuring run of 14.11.2026, as wine.log had them (tests/fixtures): what the run's
+    /// report said of them. The list's script reads the same file and has to say the same (tests/test_laeuft_liste.py):
+    /// a session of play is measured by the script, with this arithmetic.
+    static func measuringRunFixture() {
+        guard let log = try? String(contentsOf: URL(fileURLWithPath: "tests/fixtures/messlauf-2026-11-14.log"), encoding: .utf8) else {
+            check(false, "tests/fixtures/messlauf-2026-11-14.log not found from the repository's root")
+            return
+        }
+        var guardians = GameTest.Frames(average: 49.8, low: 29.3, periods: 19, seconds: 191, slowestFrame: 616.7, slowestTypical: 21.8, source: "metal-hud")
+        guardians.onePercentLow = 26.7
+        guardians.gpuTime = 18.7
+        let hud = GameTest.hudSample(in: log).flatMap { GameTest.measuredFrames($0) }
+        check(hud == guardians, "Guardians of the Galaxy by the HUD's lines, as the report had it: \(String(describing: hud))")
+        let rate = GameTest.wineFrames(GameTest.wineRates(in: log, programs: ["left4dead2.exe"]))
+        check(rate == GameTest.Frames(average: 23.9, low: 23.3, periods: 17, seconds: 186, source: "wine-fps"),
+              "Left 4 Dead 2 by Wine's fps channel, as the report had it: \(String(describing: rate))")
+        check(GameTest.held(of: "Marvel's Guardians of the Galaxy", in: log)?.frameLimit == 60 && GameTest.held(of: "Left 4 Dead 2", in: log)?.frameLimit == 0,
+              "each start's limit line")
+    }
+
     /// A free number that hardly moved is a film's or a lock's pace: no frame rate that counts, and no low one.
     static func steadyRates() {
         func entry(_ way: String, limit: Int?, _ average: Double, _ low: Double, seconds: Double = 186, outcome: GameTest.Outcome = .picture) -> GameTest.Entry {
@@ -697,10 +718,11 @@ struct GameTestTest {
         play.set(false, forKey: GameTest.Keys.frameLog)
         check(GameTest.logsFrames(active: true, defaults: play), "… and a game test's start does then too")
         check(GameTest.measurePlayKey == "measurePlay", "the switch's name, as the rules give it")
-        check(GameTest.playNote(game: "Control", onBattery: false, lowPower: false, load: GameTest.Load(average: 2.14, cores: 10))
-              == "Play measuring of Control: on mains, load 2.1 on 10 cores", "the conditions a measured session began under")
-        check(GameTest.playNote(game: "Control", onBattery: true, lowPower: true, load: nil) == "Play measuring of Control: on battery, Low Power Mode",
-              "on battery, in Low Power Mode, without a load")
+        let began = Date(timeIntervalSince1970: 1794773429)
+        check(GameTest.playNote(game: "Control", at: began, onBattery: false, lowPower: false, load: GameTest.Load(average: 2.14, cores: 10))
+              == "Play measuring of Control: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores", "when a measured session began, and under what")
+        check(GameTest.playNote(game: "Control", at: began, onBattery: true, lowPower: true, load: nil)
+              == "Play measuring of Control: 2026-11-15T20:10:29Z, on battery, Low Power Mode", "on battery, in Low Power Mode, without a load")
 
         // Done with a game: a clean start and a frame rate that counts.
         func check2(_ entry: GameTest.Entry, play: Double = 200, battery: Bool = false, lowPower: Bool = false) -> GameTest.Check? {

@@ -1,6 +1,7 @@
 """scripts/laeuft-liste.py builds the list of games that run from Nightforge's own records only: a way the
 evidence confirmed is "laeuft", a picture without that is "startet", what no record holds stays null and
 "nicht gemessen" – and the same inputs give the same files, with nothing in them that names the player."""
+import datetime
 import importlib.util
 import json
 import pathlib
@@ -476,6 +477,100 @@ def stores(base):
         "id": "1816059595", "platform": "windows", "size": 8441968765, "path": "file://" + str(drive).replace(" ", "%20") + "/GOG%20Games/Mafia%20II/"}}))
     (support / "GOG/library.json").write_text(json.dumps({"games": [{"id": "1816059595", "title": "Mafia II (Classic)"}]}))
     return support, mac
+
+
+class PlayTests(unittest.TestCase):
+    """A session of play is read from wine.log by the script, with the game test's arithmetic: the fixture is two
+    games' lines from the measuring run of 14.11.2026, and tests/GameTestTest asserts the same numbers of it."""
+    LOG = (ROOT / "tests/fixtures/messlauf-2026-11-14.log").read_text(encoding="utf-8")
+    BERLIN = datetime.timezone(datetime.timedelta(hours=1))
+    GUARDIANS = "Marvel's Guardians of the Galaxy"
+
+    def sessions(self, log=None, **rule):
+        return {one["name"]: one for one in liste.play_sessions(self.LOG if log is None else log, zone=self.BERLIN, **rule)}
+
+    def hud_lines(self):
+        return [line for line in self.LOG.splitlines() if "metal-HUD:" in line]
+
+    def long_session(self, minutes=20, note=True, limit=True, name="Control", way="dxmt"):
+        """The fixture's HUD lines one after the other until they cover `minutes`, each a second after the one before."""
+        begins = datetime.datetime(2026, 11, 15, 21, 10, 40)
+        lines = ["info:  [nightforge] Start of %s: %s on winecx@4.7.3" % (name, way)]
+        if limit:
+            lines.append("info:  [nightforge] Frame limit of %s: 60 FPS at 120 Hz, MetalFX on" % name)
+        if note:
+            lines.append("info:  [nightforge] Play measuring of %s: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores" % name)
+        real = self.hud_lines()
+        for second in range(minutes * 60):
+            moment = (begins + datetime.timedelta(seconds=second)).strftime("%Y-%m-%d %H:%M:%S.000")
+            lines.append(moment + " wine[4242:1] metal-HUD: " + real[60 + second % 120].split("metal-HUD: ")[1])
+        return "\n".join(lines) + "\n"
+
+    def test_the_readers_arithmetic_is_the_game_tests(self):
+        # Read without cutting anything, the two stretches give what the run's report said of them.
+        found = self.sessions(skip=0, tail=0, least=0)
+        guardians, left = found[self.GUARDIANS], found["Left 4 Dead 2"]
+        self.assertEqual({name: guardians["fps"][name] for name in ("average", "low", "periods", "seconds", "slowestFrame", "slowestTypical",
+                                                                    "onePercentLow", "gpuTime", "source", "logged")},
+                         {"average": 49.8, "low": 29.3, "periods": 19, "seconds": 191, "slowestFrame": 616.7, "slowestTypical": 21.8,
+                          "onePercentLow": 26.7, "gpuTime": 18.7, "source": "play", "logged": "metal-hud"})
+        self.assertEqual((guardians["way"], guardians["engine"], guardians["frameLimit"], guardians["refreshRate"], guardians["metalFX"]),
+                         ("d3dmetal", "winecx@4.7.3", 60, 120, True))
+        self.assertEqual(guardians["firstFrame"], "2026-11-14T19:42:27Z")  # 20:42:27 where the Mac stood
+        self.assertEqual({name: left["fps"][name] for name in ("average", "low", "periods", "seconds", "onePercentLow", "slowestFrame", "logged")},
+                         {"average": 23.9, "low": 23.3, "periods": 17, "seconds": 186.0, "onePercentLow": None, "slowestFrame": None,
+                          "logged": "wine-fps"})
+        self.assertEqual((left["way"], left["frameLimit"], left["metalFX"]), ("wined3d", 0, False))
+
+    def test_three_minutes_are_no_session_and_a_game_tests_stretch_is_none_at_all(self):
+        found = self.sessions()
+        self.assertEqual([(one["fps"], one["why"], one["playedSeconds"]) for one in found.values()], [(None, "tooShort", 191), (None, "tooShort", 186)])
+        self.assertEqual((liste.PLAY_SKIP, liste.PLAY_TAIL, liste.PLAY_MIN), (300, 60, 600))
+        in_test = "info:  [nightforge] Game test begins: 2 of 2 installed games to start, into 2026-11-14-1941\n" + self.LOG \
+            + "info:  [nightforge] Game test ends: 2 of 2 started games showed a picture – 2026-11-14-1941\n"
+        self.assertEqual(self.sessions(in_test, skip=0, tail=0, least=0), {})
+        # … and what is played after the test counts again.
+        self.assertEqual(list(self.sessions(in_test + self.long_session())), ["Control"])
+
+    def test_the_beginning_and_the_end_of_a_session_stay_out(self):
+        # The first half minute of the Guardians' stretch ran at 30 (a film), the rest at 54: cut, the number is the rest's.
+        whole = self.sessions(skip=0, tail=0, least=0)[self.GUARDIANS]["fps"]
+        cut = self.sessions(skip=60, tail=30, least=60)[self.GUARDIANS]
+        self.assertEqual((cut["why"], cut["skipped"], cut["cutEnd"], cut["playedSeconds"]), (None, 60, 30, 191))
+        self.assertEqual((whole["average"], whole["low"], whole["slowestFrame"], whole["onePercentLow"]), (49.8, 29.3, 616.7, 26.7))
+        self.assertEqual({name: cut["fps"][name] for name in ("average", "low", "periods", "seconds", "slowestFrame", "onePercentLow")},
+                         {"average": 53.0, "low": 52.5, "periods": 10, "seconds": 101, "slowestFrame": 32.0, "onePercentLow": 48.9})
+        self.assertEqual(self.sessions(skip=60, tail=30, least=120)[self.GUARDIANS]["why"], "tooShort")
+        # Wine's fps channel by its own clock: the same rule.
+        left = self.sessions(skip=60, tail=30, least=60)["Left 4 Dead 2"]
+        self.assertTrue(94 <= left["fps"]["seconds"] <= 97 and left["fps"]["source"] == "play", left["fps"])
+
+    def test_a_session_of_twenty_minutes_counts_with_the_conditions_it_began_under(self):
+        one = self.sessions(self.long_session())["Control"]
+        self.assertEqual((one["why"], one["at"], one["firstFrame"], one["onBattery"], one["lowPower"], one["load"]),
+                         (None, "2026-11-15T20:10:29Z", "2026-11-15T20:10:40Z", False, False, {"average": 2.1, "cores": 10, "low": True}))
+        self.assertEqual((one["frameLimit"], one["refreshRate"], one["metalFX"], one["throttled"], one["fps"]["source"], one["fps"]["logged"]),
+                         (60, 120, True, None, "play", "metal-hud"))
+        # Twenty minutes less the first five and the last one.
+        self.assertTrue(820 <= one["fps"]["seconds"] <= 860 and one["playedSeconds"] > 1150, (one["fps"], one["playedSeconds"]))
+        # Fifteen minutes leave nine: too short. And a session without its line of conditions says so by having none.
+        self.assertEqual(self.sessions(self.long_session(minutes=15))["Control"]["why"], "tooShort")
+        bare = self.sessions(self.long_session(note=False, limit=False))["Control"]
+        self.assertEqual((bare["at"], bare["onBattery"], bare["load"], bare["frameLimit"], bare["why"]), (None, None, None, None, None))
+        battery = self.long_session().replace("on mains, load 2.1", "on battery, Low Power Mode, load 7.4")
+        one = self.sessions(battery)["Control"]
+        self.assertEqual((one["onBattery"], one["lowPower"], one["load"]["low"]), (True, True, False))
+
+    def test_the_ladders_next_way_is_the_sessions_way_and_another_start_is_another_session(self):
+        log = "info:  [nightforge] Start of Control: dxmt on winecx@4.7.3\n" + self.long_session(way="d3dmetal -dx12") + self.long_session(name="ABZU")
+        found = liste.play_sessions(log, zone=self.BERLIN)
+        self.assertEqual([(one["name"], one["way"], one["why"]) for one in found], [("Control", "d3dmetal -dx12", None), ("ABZU", "dxmt", None)])
+        # A line that only looks like a start is none (LibraryModel's "it ended at a question of its own").
+        odd = "info:  [nightforge] Start of Control: it ended at a question of its own – the player's choice, no other way\n"
+        self.assertEqual(liste.play_sessions(odd), [])
+        # Wine's OpenGL lines alone are no rate.
+        lines = [line for line in self.LOG.splitlines() if "wined3d_cs_exec_present" not in line and "Guardians" not in line and "metal-HUD" not in line]
+        self.assertEqual(self.sessions("\n".join(lines), skip=0, tail=0, least=0)["Left 4 Dead 2"]["why"], "noFrames")
 
 
 class StockTests(unittest.TestCase):
