@@ -163,6 +163,24 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.; aus dem Code gelesen, nicht live
+probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
+
+- [ ] **Steam (Windows):** Installiert ist, was in Steams `libraryfolders.vdf` steht (`LibraryScanner.libraryFolders`,
+  `Library.swift`). Die Liste einer frischen Installation kennt die Bibliothek auf dem Laufwerk nicht.
+  `SteamLibraries.ensure` trägt sie mit den Spielen ein, die schon dort liegen – wird aber nur beim Laden oder
+  Verschieben auf das Laufwerk gerufen (`DriveMoves.swift`). `watchDrives` lädt beim Anstecken nur neu. Folge:
+  Alle Steam-Spiele des Laufwerks stehen als „nicht installiert“ da, bis der Spieler irgendein Steam-Spiel auf
+  dieses Laufwerk lädt; dann kommen alle zurück, ohne neu zu laden (`requestDownload` lässt ein vorhandenes
+  Manifest stehen). Steam für Mac ebenso über seine eigene Liste.
+- [ ] **Epic:** Installiert ist, was in legendarys `installed.json` in Nightforges Daten steht; nach der
+  Neuinstallation leer. Nichts ruft `legendary import`. Lädt der Spieler das Spiel erneut auf das Laufwerk,
+  geht `legendary install --base-path` in den vorhandenen Ordner (ungeprüft: vermutlich lädt es alles neu).
+- [ ] **GOG:** Nightforges eigene `GOG/installed.json`; nach der Neuinstallation leer, nichts liest die Ordner.
+- In Einstellungen › Speicher steht das Laufwerk mit seinem Balken, aber ohne Spiele.
+- Vorschlag (eigene Session, Karte gestellt): ein Laufwerk mit „Nightforge Games“ beim Anstecken und beim Start
+  wiedererkennen und übernehmen, je Laden, ohne neu zu laden; Hinweis an den Spieler erst als Board.
+
 **Entschieden vom Nutzer, 15.11. kurz nach Mitternacht:** „aber das menü sagt halt echt nichts aus über die
 leistung im spiel“ – die FPS-Werte des Spieletests (Vorspann, Menü) belegen den Start, nicht die Leistung. Ein
 Leistungswert ist nur einer, der beim Spielen gemessen wurde. Zum Mitschreiben beim normalen Spielen: „ja aber
