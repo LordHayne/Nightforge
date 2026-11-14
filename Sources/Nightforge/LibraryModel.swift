@@ -4695,6 +4695,15 @@ final class LibraryModel: ObservableObject {
                 // Rosetta's AVX are all read from it, so what is recorded is what started.
                 let recipe = StartRecipe.of(way: LaunchAttempt(graphics: layer, arguments: arguments), learned: learned, profile: profile,
                                             launcherSwitch: analysis?.launcherSwitch, d3dMetalEngine: winecx)
+                // Step E4: a way is proven for what it was started with (LaunchHealth.holds). Made of something
+                // else now – its profile changed, a start taught something, another engine's DLLs – it counts
+                // as not proven for this start: watched to its picture again, and confirmed anew with this recipe.
+                if wayConfirmed, !LaunchHealth.holds(game.gameID, attempts, for: recipe) {
+                    GameLog.note("\(game.name): its way was proven with another recipe – this start is watched to its picture again")
+                    LaunchHealth.unconfirm(game.gameID, attempts)
+                    LaunchHealth.recordStart(game.gameID, attempts)
+                    wayConfirmed = false
+                }
                 if automatic, !attempts.isEmpty {
                     StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
                                        kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook,
@@ -4806,7 +4815,7 @@ final class LibraryModel: ObservableObject {
                 }
                 if firstSeconds != .ended {
                     if judging?.id == game.id { judging = nil }  // its end is a session's like any other
-                    confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
+                    confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, recipe: recipe, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
                 }
@@ -4842,7 +4851,7 @@ final class LibraryModel: ObservableObject {
                 if outcome == .confirm {
                     // The game is gone; Nightforge comes back as after any game (watchForGameEnd).
                     if automatic, !attempts.isEmpty {
-                        LaunchHealth.confirm(game.gameID, attempts)
+                        LaunchHealth.confirm(game.gameID, attempts, recipe: recipe)
                         if !wayConfirmed { StartEvidence.note(.worked, game: game.gameID, way: way) }
                     }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
@@ -5393,7 +5402,7 @@ final class LibraryModel: ObservableObject {
     /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching
     /// in the background from the end of its first seconds. One that ends without a frame stays
     /// unconfirmed and is watched again next time.
-    private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String,
+    private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String, recipe: StartRecipe,
                                     logMark: UInt64, startedAt: Date, wasConfirmed: Bool = false) {
         let folders = Self.processFolders([game])
         let installDir = game.installDir
@@ -5414,7 +5423,7 @@ final class LibraryModel: ObservableObject {
                 switch LaunchHealth.afterFirstSeconds(verdict) {
                 case .confirm:
                     if !attempts.isEmpty {
-                        LaunchHealth.confirm(game.gameID, attempts)
+                        LaunchHealth.confirm(game.gameID, attempts, recipe: recipe)  // proven for what it was made of (step E4)
                         if !wasConfirmed { StartEvidence.note(.worked, game: game.gameID, way: way) }
                     }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
