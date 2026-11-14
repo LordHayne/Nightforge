@@ -92,10 +92,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -119,6 +121,28 @@
     "picture": false
    },
    "platform": "windows",
+   "played": {
+    "at": "2026-11-09T18:41:28Z",
+    "built": null,
+    "cutEnd": 60,
+    "engine": null,
+    "fps": null,
+    "frameLimit": null,
+    "limitState": null,
+    "loadLow": null,
+    "lowPower": null,
+    "metalFX": null,
+    "nightforge": null,
+    "notPublic": [],
+    "onBattery": null,
+    "playedSeconds": 28,
+    "public": false,
+    "refreshRate": null,
+    "skipped": 300,
+    "throttled": null,
+    "way": "dxmt -dx11",
+    "why": "tooShort"
+   },
    "seen": null,
    "store": "epic",
    "storeID": "Curry",
@@ -195,10 +219,12 @@
     "metalFX": false,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -222,6 +248,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "Heron",
@@ -300,10 +327,12 @@
     "metalFX": false,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -327,6 +356,7 @@
     "picture": true
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "35140",
@@ -405,10 +435,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -434,6 +466,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "3132990",
@@ -509,10 +542,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -538,6 +573,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "Calluna",
@@ -616,10 +652,12 @@
     "metalFX": false,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -643,6 +681,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "d2da64bd4c4e422da4b1a88041492a3a",
@@ -726,10 +765,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -753,6 +794,7 @@
     "picture": true
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "b2e00fc16632475782a7730d1bd7cb60",
@@ -831,10 +873,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -858,6 +902,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "fa4240e57a3c46b39f169041b7811293",
@@ -938,10 +983,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -967,6 +1014,7 @@
     "picture": true
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "1426210",
@@ -1042,10 +1090,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -1069,6 +1119,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "Kakopo",
@@ -1145,6 +1196,7 @@
     "nightforge": "0.3.2",
     "noFrames": null,
     "notPublic": [
+     "firstMinutes",
      "steady"
     ],
     "onBattery": false,
@@ -1173,6 +1225,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "550",
@@ -1248,10 +1301,12 @@
     "metalFX": false,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -1277,6 +1332,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "gog",
    "storeID": "1816059595",
@@ -1362,10 +1418,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -1389,6 +1447,7 @@
     "picture": true
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "epic",
    "storeID": "63a665088eb1480298f1e57943b225d8",
@@ -1465,10 +1524,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -1492,6 +1553,7 @@
     "picture": true
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "287700",
@@ -1568,6 +1630,7 @@
     "nightforge": "0.3.2",
     "noFrames": null,
     "notPublic": [
+     "firstMinutes",
      "limitUnknown",
      "sizeUnknown",
      "durationUnknown"
@@ -1600,6 +1663,28 @@
     "picture": false
    },
    "platform": "windows",
+   "played": {
+    "at": "2026-11-07T01:54:52Z",
+    "built": null,
+    "cutEnd": 60,
+    "engine": null,
+    "fps": null,
+    "frameLimit": null,
+    "limitState": null,
+    "loadLow": null,
+    "lowPower": null,
+    "metalFX": null,
+    "nightforge": null,
+    "notPublic": [],
+    "onBattery": null,
+    "playedSeconds": 238,
+    "public": false,
+    "refreshRate": null,
+    "skipped": 300,
+    "throttled": null,
+    "way": "dxmt",
+    "why": "tooShort"
+   },
    "seen": null,
    "store": "steam",
    "storeID": "2357570",
@@ -1690,6 +1775,7 @@
    "notes": [],
    "onCurrentBuild": null,
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "3907790",
@@ -1769,6 +1855,7 @@
     "nightforge": "0.3.2",
     "noFrames": null,
     "notPublic": [
+     "firstMinutes",
      "limitUnknown",
      "sizeUnknown",
      "durationUnknown"
@@ -1799,6 +1886,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "2129530",
@@ -1877,10 +1965,12 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [],
+    "notPublic": [
+     "firstMinutes"
+    ],
     "onBattery": false,
     "playSeconds": 190,
-    "public": true,
+    "public": false,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
@@ -1904,6 +1994,7 @@
     "picture": false
    },
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "242760",
@@ -1979,6 +2070,7 @@
     "picture": true
    },
    "platform": "mac",
+   "played": null,
    "seen": {
     "at": "2026-11-14T19:49:49Z",
     "by": "gameTest"
@@ -2055,6 +2147,7 @@
    ],
    "onCurrentBuild": null,
    "platform": "mac",
+   "played": null,
    "seen": {
     "at": "2026-11-10T00:03:05Z",
     "by": "gameTest"
@@ -2133,6 +2226,7 @@
     "picture": true
    },
    "platform": "mac",
+   "played": null,
    "seen": {
     "at": "2026-11-14T19:54:22Z",
     "by": "gameTest"
@@ -2211,6 +2305,7 @@
     "picture": true
    },
    "platform": "mac",
+   "played": null,
    "seen": {
     "at": "2026-11-14T19:58:30Z",
     "by": "gameTest"
@@ -2252,6 +2347,7 @@
    "notes": [],
    "onCurrentBuild": null,
    "platform": "windows",
+   "played": null,
    "seen": null,
    "store": "steam",
    "storeID": "3240220",
@@ -2262,6 +2358,7 @@
  "formatVersion": 1,
  "sources": {
   "evidenceEntries": 95,
-  "gameTestRuns": 30
+  "gameTestRuns": 30,
+  "playSessions": 77
  }
 }
