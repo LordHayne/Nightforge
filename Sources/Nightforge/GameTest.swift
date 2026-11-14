@@ -438,10 +438,20 @@ enum GameTest {
         /// The lowest period.
         var low: Double
         var periods: Int
+        // Since report format 2 (GameTestMeasure):
+        /// The seconds the periods cover.
+        var seconds: Double?
+        /// The slowest single frame of all periods, in milliseconds – a loading hitch counts.
+        var slowestFrame: Double?
+        /// The slowest frame of a usual period: the median of the periods' slowest, in milliseconds.
+        var slowestTypical: Double?
+        /// The layer that logged them: "dxmt", "vulkan".
+        var source: String?
     }
 
     /// The frame rates the game logged (FramePacing.periods): DXMT does, every 10 s from its first
-    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none.
+    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none. `measuredFrames` adds the
+    /// slowest frames.
     static func frames(_ periods: [(fps: Double, seconds: Double)]) -> Frames? {
         let periods = periods.filter { $0.fps > 0 && $0.seconds > 0 }
         guard !periods.isEmpty else { return nil }
@@ -468,7 +478,11 @@ enum GameTest {
             lines = []
         }
         for line in log.split(separator: "\n", omittingEmptySubsequences: false) {
-            guard let range = line.range(of: marker) else {
+            // Only a way's line: LibraryModel also notes "Start of <game>: it ended at a question of its own – …",
+            // which counted as one more way (Alan Wake, 11.11.2026).
+            guard let range = line.range(of: marker), let layer = line[range.upperBound...].split(separator: " ").first,
+                  GraphicsLayer(rawValue: String(layer)) != nil
+            else {
                 if !starts.isEmpty { lines.append(line) }
                 continue
             }

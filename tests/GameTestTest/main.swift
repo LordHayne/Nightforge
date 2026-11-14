@@ -38,7 +38,7 @@ struct GameTestTest {
             print("\(failures) failure(s)")
             exit(1)
         }
-        print("✓ GameTest: switches, order, looks, outcomes, ways, frames, sample, calm, report")
+        print("✓ GameTest: switches, order, looks, outcomes, ways, frames, measures, sample, calm, report")
     }
 
     static func settings() {
@@ -336,6 +336,76 @@ struct GameTestTest {
         let frames = GameTest.frames(periods)
         check(frames == GameTest.Frames(average: 57.5, low: 50, periods: 2), "frames by length, the game's own: \(String(describing: frames))")
         check(GameTest.frames([]) == nil, "D3DMetal logs none")
+
+        // LibraryModel's other "Start of <game>: …" note is no way (Alan Wake, 11.11.2026).
+        let asked = """
+        info:  [nightforge] Start of Alan Wake: d3dmetal on winecx@4.7.3
+        info:  [nightforge] Start of Alan Wake: it ended at a question of its own – the player's choice, no other way
+        """
+        check(GameTest.starts(of: "Alan Wake", in: asked).map(\.way) == ["d3dmetal"], "a note about the start is no way")
+        check(GameTest.ways(of: "Alan Wake", in: asked, last: .noWindow).map(\.outcome) == [.noWindow], "the way keeps the start's outcome")
+        check(GameTest.starts(of: "Alan Wake", in: asked).first?.log.contains("question of its own") == true, "and the note stays in its log")
+
+        // The lines as DXMT and the Vulkan layer write them: the slowest frame and who logged it.
+        let measured = """
+        info:  [nightforge-dxmt] prepare: on, level 1
+        info:  [nightforge-dxmt] mgsvtpp: 30.0 FPS over 10 s, frames 33.3 ms on average, slowest 4446 ms
+        info:  [nightforge-dxmt] mgsvtpp: 59.9 FPS over 10 s, frames 16.7 ms on average, slowest 20 ms
+        info:  [nightforge-dxmt] MGSVTPP: 57.8 FPS over 10 s, frames 17.3 ms on average, slowest 76 ms
+        info:  [nightforge-dxmt] steamwebhelper: 10.0 FPS over 10 s, frames 100.0 ms on average, slowest 900 ms
+        [nightforge-vulkan] TheForest.exe: 58.0 FPS over 10 s, frames 17.2 ms on average, slowest 31 ms
+        """
+        let own = GameTest.periods(in: measured, programs: ["mgsvtpp.exe"])
+        check(own.map(\.fps) == [30, 59.9, 57.8] && own.map(\.slowest) == [4446, 20, 76] && own.allSatisfy { $0.source == "dxmt" },
+              "the game's periods with their slowest frames: \(own)")
+        check(own.map(\.fps) == FramePacing.periods(in: measured, programs: ["mgsvtpp.exe"]).map(\.fps), "the same periods FramePacing reads")
+        let full = GameTest.measuredFrames(own)
+        check(full?.average == 49.2 && full?.low == 30 && full?.periods == 3 && full?.seconds == 30, "average, lowest period, seconds: \(String(describing: full))")
+        check(full?.slowestFrame == 4446 && full?.slowestTypical == 76 && full?.source == "dxmt",
+              "the slowest frame of all and of a usual period: \(String(describing: full))")
+        let layer = GameTest.periods(in: measured, programs: ["TheForest.exe"])
+        check(layer.count == 1 && layer.first?.source == "vulkan" && layer.first?.slowest == 31, "the Vulkan layer's line, its program with .exe")
+        let plain = GameTest.measuredFrames(GameTest.periods(in: log, programs: ["b1-Win64-Shipping.exe"]))
+        check(plain?.average == 57.5 && plain?.slowestFrame == nil && plain?.slowestTypical == nil, "a line without frame times: no slowest frame")
+        check(GameTest.measuredFrames([]) == nil, "no periods: not measured")
+
+        // The size: the curtain's window, the Vulkan layer's swapchain, DXMT's display mode.
+        let sizes = """
+        info:  [nightforge] Curtain down for Control Ultimate: Nightforge Game in front, its window 800×600 on 1512×982
+        info:  [nightforge] Curtain down for Control: Nightforge Game in front, its window 1800×1125 on 1512×982
+        info:  [nightforge] Curtain down for Batman: nobody in front, its window none on 1512×982
+        [nightforge-vulkan] swapchain 1280x720 format 44 colour space 0
+        [nightforge-vulkan] swapchain 1512x982 format 44 colour space 0, MetalFX to 3024x1964
+        info:  Setting display mode: 1280x720@60
+        info:  Setting display mode: 1512x982@120
+        """
+        let picture = GameTest.pictureSize(of: "Control", in: sizes)
+        check(picture?.window == "1800×1125" && picture?.screen == "1512×982", "the game's window and the screen, not another game's: \(String(describing: picture))")
+        check(GameTest.pictureSize(of: "Batman", in: sizes)?.window == nil && GameTest.pictureSize(of: "Batman", in: sizes)?.screen == "1512×982",
+              "no window, the screen all the same")
+        check(GameTest.pictureSize(of: "Mafia II", in: sizes) == nil, "no curtain line: no size")
+        check(GameTest.swapchain(in: sizes)?.size == "1512×982" && GameTest.swapchain(in: sizes)?.upscaledTo == "3024×1964", "the last swapchain, with MetalFX's target")
+        check(GameTest.swapchain(in: log) == nil, "no Vulkan layer: no swapchain")
+        check(GameTest.displayMode(in: sizes) == "1512×982@120" && GameTest.displayMode(in: log) == nil, "the last display mode")
+
+        let held = GameTest.Held(frameLimit: 60, refreshRate: 120, metalFX: true)
+        let onDXMT = GameTest.measure(of: "Control", way: "dxmt -dx11", in: sizes, frames: full, held: held)
+        check(onDXMT == GameTest.Measure(window: "1800×1125", screen: "1512×982", swapchain: "1512×982", upscaledTo: "3024×1964",
+                                         displayMode: "1512×982@120", frameLimit: 60, refreshRate: 120, metalFX: true, noFrames: nil),
+              "all a DXMT start says: \(onDXMT)")
+        let onD3DMetal = GameTest.measure(of: "Control", way: "d3dmetal", in: sizes, frames: nil, held: held)
+        check(onD3DMetal.displayMode == nil && onD3DMetal.noFrames == "wayReportsNone", "D3DMetal: no display mode of DXMT's, and its way reports no frames")
+        check(GameTest.noFrames(way: "wined3d") == .wayReportsNone && GameTest.noFrames(way: "mac") == .wayReportsNone
+              && GameTest.noFrames(way: "dxmt -dx11") == .noneInLog && GameTest.noFrames(way: "dxvk") == .noneInLog && GameTest.noFrames(way: nil) == .noneInLog,
+              "which ways report none, and which only logged none")
+        let mac = GameTest.measure(of: "Valheim", way: "mac", in: "", frames: nil, held: nil)
+        check(mac == GameTest.Measure(noFrames: "wayReportsNone"), "a Mac version: nothing but that nothing reports")
+        check(GameTest.sizeText(onDXMT) == "1512×982 px, MetalFX auf 3024×1964" && GameTest.sizeText(onD3DMetal) == "1512×982 px, MetalFX auf 3024×1964"
+              && GameTest.sizeText(GameTest.Measure(window: "1512×982", displayMode: "1512×982@120")) == "1512×982@120 (Modus des Spiels)"
+              && GameTest.sizeText(GameTest.Measure(window: "1512×982")) == "Fenster 1512×982 Punkte" && GameTest.sizeText(mac) == "nicht gemessen",
+              "the size's text: what was drawn, else the mode, else the window")
+        check(GameTest.slowestText(full) == "üblich 76 ms, schlimmster 4446 ms" && GameTest.slowestText(plain) == "nicht gemessen" && GameTest.slowestText(nil) == "nicht gemessen",
+              "the slowest frame's text")
     }
 
     static func hangsAndCalm() {
@@ -390,9 +460,11 @@ struct GameTestTest {
         good.way = "d3dmetal"
         good.result = "good"
         good.secondsToPicture = 34.4
+        good.measure = GameTest.Measure(window: "1512×982", screen: "1512×982", frameLimit: 0, refreshRate: 120, metalFX: false, noFrames: "wayReportsNone")
         var dxmt = GameTest.Entry(candidate("steam.728880", "Overcooked 2", .steam), outcome: .picture)
         dxmt.way = "dxmt"
-        dxmt.frames = GameTest.Frames(average: 59.6, low: 41, periods: 5)
+        dxmt.frames = GameTest.Frames(average: 59.6, low: 41, periods: 5, seconds: 50, slowestFrame: 310, slowestTypical: 24, source: "dxmt")
+        dxmt.measure = GameTest.Measure(window: "1512×982", screen: "1512×982", displayMode: "1512×982@120", frameLimit: 60, refreshRate: 120, metalFX: true)
         dxmt.result = "good"
         dxmt.load = GameTest.Load(average: 1.5, cores: 10)
         var busy = GameTest.Entry(candidate("steam.892970", "Valheim", .steam), outcome: .picture)
@@ -446,7 +518,22 @@ struct GameTestTest {
         check(GameTest.report(from: json) == report, "report.json reads back as written")
         let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any]
         let first = (object?["games"] as? [[String: Any]])?.first
-        check(object?["formatVersion"] as? Int == 1, "format 1")
+        check(object?["formatVersion"] as? Int == 2, "format 2")
+        let measure = first?["measure"] as? [String: Any], frames = first?["frames"] as? [String: Any]
+        check(measure?["frameLimit"] as? Int == 60 && measure?["displayMode"] as? String == "1512×982@120" && measure?["window"] as? String == "1512×982",
+              "the measure's conditions in each entry with a picture: \(String(describing: measure))")
+        check(frames?["slowestFrame"] as? Double == 310 && frames?["slowestTypical"] as? Double == 24 && frames?["source"] as? String == "dxmt"
+              && frames?["seconds"] as? Double == 50, "the frames' slowest and source: \(String(describing: frames))")
+        check(object?["onBattery"] == nil && object?["lowPower"] == nil, "on mains: nothing said about power")
+        // A report from before format 2 reads as it was written.
+        let old = """
+        {"formatVersion": 1, "started": "2026-11-03T00:12:00Z", "nightforge": "0.3.0", "mac": "Apple M5 · macOS 27.0", "pictureWait": 120,
+         "playSeconds": 60, "stopped": false, "games": [{"game": "ABZU", "store": "epic", "storeID": "Curry", "platform": "windows",
+         "outcome": "picture", "issues": [], "ways": [], "frames": {"average": 58.3, "low": 41.6, "periods": 13}}]}
+        """
+        let read = GameTest.report(from: Data(old.utf8))
+        check(read?.formatVersion == 1 && read?.games.first?.frames == GameTest.Frames(average: 58.3, low: 41.6, periods: 13)
+              && read?.games.first?.measure == nil && read?.onBattery == nil, "a format 1 report still reads: \(String(describing: read?.games.first))")
         for field in ["game", "store", "storeID", "result", "way", "issues"] {
             check(first?[field] != nil, "compat-report's field \(field) in each entry")
         }
@@ -481,8 +568,24 @@ struct GameTestTest {
         busyRun.load = GameTest.Load(average: 38.2, cores: 10)
         check(GameTest.summary(busyRun).contains("38,2 bei 10 Kernen – hoch: Andere Arbeit lief mit, die FPS-Werte sind nicht verlässlich."),
               "a busy Mac at the start is said plainly")
-        check(summary.contains("| Control \\| Ultimate | Epic Games | Windows | d3dmetal | Bild | 34 s | – (D3DMetal meldet keine) |"),
+        check(summary.contains("| Control \\| Ultimate | Epic Games | Windows | d3dmetal | Bild | 34 s | nicht gemessen (D3DMetal meldet keine) |"),
               "a table row, its pipe escaped")
+        check(summary.contains("## Messwerte") && summary.contains("(60 s nach dem ersten Bild)") && summary.contains("Das 1-%-Tief meldet kein Weg"),
+              "what the measures stand for")
+        check(summary.contains("| Overcooked 2 | dxmt | 60 FPS | 1512×982@120 (Modus des Spiels) | 60 / 41 über 50 s | üblich 24 ms, schlimmster 310 ms |"),
+              "a measured row:\n\(summary)")
+        check(summary.contains("| Control \\| Ultimate | d3dmetal | keins | Fenster 1512×982 Punkte | nicht gemessen (D3DMetal meldet keine) | nicht gemessen |"),
+              "a row of a way that reports nothing")
+        check(summary.contains("| Valheim | dxmt | nicht gemessen | nicht gemessen | 31 / 12 (Last hoch) | nicht gemessen |"), "a row without a measure")
+        check(!summary.contains("auf Akku"), "on mains: no word about power")
+        var onBattery = report
+        onBattery.onBattery = true
+        onBattery.lowPower = true
+        check(GameTest.summary(onBattery).contains("Der Mac lief auf Akku und im Stromsparmodus: Die Werte sind mit anderen Läufen nicht vergleichbar."),
+              "battery and Low Power Mode said plainly")
+        var noPicture = report
+        noPicture.games = [blind]
+        check(!GameTest.summary(noPicture).contains("## Messwerte"), "no picture: no measures")
         check(summary.contains("| Overcooked 2 | Steam | Windows | dxmt | Bild | – | 60 / 41 |"), "DXMT's frame rates")
         check(summary.contains("### Overwatch (Steam, Windows)") && summary.contains("hängt ohne Bild. Wege: dxmt."), "the hang's section")
         check(summary.contains("read (in libsystem_kernel.dylib) 3000"), "where it hangs")

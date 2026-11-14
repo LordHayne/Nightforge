@@ -35,6 +35,8 @@ extension GameTest {
         var secondsToProcess: Double?
         var secondsToPicture: Double?
         var frames: Frames?
+        /// With a picture, since format 2: the size it drew at, the limit it was held to, why no frames (GameTestMeasure).
+        var measure: Measure?
         /// wine.log's error lines since the start (GameLog.errors), when it had no picture or ended.
         var errors: [String]?
         /// Where it hung (`topOfStack`).
@@ -74,7 +76,9 @@ extension GameTest {
     }
 
     struct Report: Codable, Equatable {
-        static let format = 1
+        /// 2 (14.11.2026): `measure` per game, the frames' slowest and source, `onBattery`, `lowPower`.
+        /// A format 1 report reads as before.
+        static let format = 2
         static let underRosetta = "x86_64 under Rosetta"
 
         var formatVersion = Report.format
@@ -98,6 +102,10 @@ extension GameTest {
         var waitedProcessList: Int?
         /// The Mac's load when the first game started, after waiting up to `loadPatience` for it to drop.
         var load: Load?
+        /// The Mac ran on battery, or in Low Power Mode, when the run began: its frame rates don't compare
+        /// with a run on mains (the battery's 30 FPS, a CPU and GPU held back). Only written when true.
+        var onBattery: Bool?
+        var lowPower: Bool?
         /// The test basket it went by: when it was built, how many games it has, how many of them are installed here.
         var basket: BasketUse?
         /// In German, for people: what else came up (a basket that couldn't be read).
@@ -225,6 +233,8 @@ extension GameTest {
             lines.append("")
         }
 
+        lines += measures(report)
+
         let troubled = report.games.filter { entry in
             entry.outcome != .skipped && (entry.outcome != .picture || !entry.issues.isEmpty || entry.notes != nil)
         }
@@ -294,17 +304,5 @@ extension GameTest {
 
     private static func decimal(_ value: Double) -> String {
         String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
-    }
-
-    private static func framesText(_ entry: Entry) -> String {
-        if let frames = entry.frames {
-            return "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))" + (entry.load?.low == false ? " (Last hoch)" : "")
-        }
-        guard entry.outcome == .picture else { return "–" }
-        let way = entry.way ?? ""
-        if way.hasPrefix("d3dmetal") { return "– (D3DMetal meldet keine)" }
-        if way == "mac" { return "– (Mac-Fassung meldet keine)" }
-        if way.hasPrefix("dxmt") { return "– (keine im Log)" }
-        return "– (meldet keine)"
     }
 }
