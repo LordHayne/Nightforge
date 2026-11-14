@@ -711,8 +711,12 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
         loadFromDisk()
         guard isConnected else { return nil }
         let json = (try? Data(contentsOf: Legendary.configDir.appendingPathComponent("installed.json"))) ?? Data()
+        // A download that stopped keeps legendary's note of how far it got (tmp/<app>.resume): its folder is
+        // that download's to carry on, not a game to take over.
+        let notes = (try? FileManager.default.contentsOfDirectory(atPath: Legendary.configDir.appendingPathComponent("tmp").path)) ?? []
+        let stopped = notes.filter { $0.hasSuffix(".resume") }.map { String($0.dropLast(".resume".count)) }
         return KnownInstalls.Epic(signedIn: isSignedIn, installed: EpicInstall.all(fromJSON: json).mapValues(\.path),
-                                  games: catalog.games, downloading: Set(wanted))
+                                  games: catalog.games, downloading: Set(wanted).union(stopped))
     }
 
     /// `legendary import`: takes what lies in `folder` into its list as `appName` without downloading the

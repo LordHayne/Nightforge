@@ -164,7 +164,7 @@ Befunde aus dem Lauf:
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
 **Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.):** gebaut auf
-`claude/sad-nightingale-196da3` (vier Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
+`claude/sad-nightingale-196da3` (Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
 Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entwuerfe/LaufwerkUebernahme.dc.html`.
 
 - [x] **Befund nachgelesen, zwei Korrekturen.** Steam und GOG wie notiert. Epic: legendary legt im Spielordner nichts
@@ -178,7 +178,8 @@ Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entw
   Steam, eingereiht wie jeder Steam-Start; Epic über `legendary import` (aus der mitgelieferten 0.21.1 gelesen: braucht
   Anmeldung und Netz, holt das Manifest, prüft Programmdatei und Dateien, endet auch nach einer Weigerung mit 0 –
   darum entscheidet legendarys Liste); GOG als Eintrag in Nightforges `GOG/installed.json`. Nur Spiele des
-  angemeldeten Kontos. `tests/DriveTakeoverTest` (leeres HOME, Ersatz-legendary).
+  angemeldeten Kontos; ein Epic-Download, der abbrach (legendarys `tmp/<App>.resume`), und ein GOG-Download mit
+  `.gogdl-resume` bleiben dem Download. `tests/DriveTakeoverTest` (leeres HOME, Ersatz-legendary).
 - [x] **Wann:** einmal nach dem Start, nach dem Anstecken, und sobald etwas Wartendes dran sein könnte (Spiel,
   Download oder Umzug vorbei; Steam eingerichtet; Laden angemeldet; Liste des Ladens da). Eine Zeile in
   `LibraryModel.swift` (`lookAtDrives()` in der Schleife, die die laufenden Spiele beobachtet).

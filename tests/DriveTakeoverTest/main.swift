@@ -270,6 +270,12 @@ struct DriveTakeoverTest {
         var finds = DriveFinds.look(drive: drive, contents: contents, known: KnownInstalls(epic: store.knownInstalls()))
         check(finds.epic.map(\.appName) == ["Quail", "Heron", "Stubborn"], "signed in: the three folders are games of the account: \(finds.epic.map(\.appName))")
 
+        // A download that stopped: legendary's note of how far it got keeps the folder for that download.
+        write("{}", config.appendingPathComponent("tmp/Quail.resume"))
+        let stopped = DriveFinds.look(drive: drive, contents: contents, known: KnownInstalls(epic: EpicStore().knownInstalls()))
+        check(stopped.epic.map(\.appName) == ["Heron", "Stubborn"], "a download that stopped isn't offered to legendary as a game: \(stopped.epic.map(\.appName))")
+        try? fm.removeItem(at: config.appendingPathComponent("tmp/Quail.resume"))
+
         // A whole game with one add-on there, one without files and one that isn't on the drive.
         let taken = await store.adopt(find(quail))
         check(taken == .taken, "a game that's all there is taken: \(taken)")

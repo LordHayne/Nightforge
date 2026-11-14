@@ -71,12 +71,16 @@ final class DriveTakeover {
     private var retriesLeft = DriveTakeoverRules.retries
     /// Epic games offered to legendary, by folder, and how often.
     private var epicTries: [String: Int] = [:]
+    /// Steam libraries handed to a Steam's list since the last plug-in, by folder: said once. (The scan reads
+    /// the list's copy in steamapps/, which a Steam that hasn't run since may not have written yet.)
+    private var handedOver: Set<String> = []
 
     /// A drive was plugged in: its games are looked at the next time round.
     func ask() {
         asked = true
         retriesLeft = DriveTakeoverRules.retries
         epicTries = [:]
+        handedOver = []
     }
 
     /// One look, from the loop that watches the running games – so it's known what runs. Without a
@@ -112,6 +116,8 @@ final class DriveTakeover {
             guard !contents.isEmpty else { continue }
             var finds = DriveFinds.look(drive: drive.url, contents: contents, known: await model.knownInstalls())
             finds.epic.removeAll { epicTries[$0.folder.path, default: 0] >= DriveTakeoverRules.epicTries }
+            if handedOver.contains(DriveLibrary.windowsSteam(on: drive.url).path) { finds.windowsSteam = [] }
+            if handedOver.contains(DriveLibrary.macSteam(on: drive.url).path) { finds.macSteam = [] }
             if !finds.waiting.isEmpty {
                 waits = true
                 GameLog.note("Drive takeover: on \(drive.name), \(Self.summary(finds.waiting))")
@@ -176,6 +182,7 @@ final class DriveTakeover {
         if !finds.windowsSteam.isEmpty {
             do {
                 try await model.takeOverSteamLibrary(on: drive.url)
+                handedOver.insert(DriveLibrary.windowsSteam(on: drive.url).path)
                 games += finds.windowsSteam.map { TakenGame(name: $0.name, provider: .steam, platform: .windows) }
             } catch {
                 failed = true
@@ -185,6 +192,7 @@ final class DriveTakeover {
         if !finds.macSteam.isEmpty {
             do {
                 try await model.takeOverMacSteamLibrary(on: drive.url)
+                handedOver.insert(DriveLibrary.macSteam(on: drive.url).path)
                 games += finds.macSteam.map { TakenGame(name: $0.name, provider: .steam, platform: .mac) }
             } catch {
                 failed = true
