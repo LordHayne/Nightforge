@@ -163,6 +163,12 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Schritt E, Teil 2 ist im Testzweig (15.11., 00:14, Zusammenführung `7d12b51`):** E1 bis E5 und die Logik von E6
+in neun Commits der Diagnose-Session. Kette des Koordinators grün: 119 Testreihen, 273 pytest. **Nicht
+eingespielt, live nichts gesehen.** Nach dem Einspielen (OK des Nutzers) live: E2 mit einem Spiel mit fehlender
+Laufzeit und Hogwarts ohne Profil, E3 mit It Takes Two und einem Testprofil, dazu ein gewöhnlicher Start je Weg.
+Die zwei Oberflächen von E6 (Frage zur Wurzel, Vorhangzeile) warten auf ihr Board.
+
 **Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.; aus dem Code gelesen, nicht live
 probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
 
