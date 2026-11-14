@@ -95,12 +95,27 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
 
 - **Startrezept und Lernkreislauf (Entwurf 10.11., `docs/ENTWURF-STARTREZEPT.md`):** ein Rezept statt Grafikweg-Leiter,
   Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. 11.11.: A (jeder Start bekommt einen Ausgang) und Stufe 4 in erster Form (Leiter nach
-  Beweisen gleicher Sorte) gebaut und eingespielt (4d7806c, Entwurf 3.2); offen C Diagnose-Start, D Fehlerfenster lesen,
-  E Rezept als Startgrundlage. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
+  Beweisen gleicher Sorte) gebaut und eingespielt (4d7806c, Entwurf 3.2); C (genauerer Blick) und D in erster Form
+  gebaut am 14.11., siehe den nächsten Punkt; offen E Rezept als Startgrundlage. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
   Minidump-Leser und Diagnose im Protokoll, noch ohne Wirkung auf den Start). Nächste Entscheidung: Stufe 3, die Diagnose
   ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
   von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
 
+- **Genauerer Blick (Schritt C, 14.11., Zweig `claude/diagnose-start-033-92f729`, noch nicht eingespielt):** Nach einem
+  Fehlstart der Leiter, den die Diagnose nicht erklärt, tragen die folgenden Starts Wines Debug-Kanäle
+  (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`); beim letzten Weg startet derselbe Weg einmal still noch
+  einmal. Gelesen werden nur die Prozesse des Spiels (`CloserLook.read`). Neue Regeln `untrusted-root`, `signature`,
+  `loads-direct3d9`, Auffangzeile `debug-said`; der Text von Meldungsfenstern zählt als Wort des Spiels (erste Form
+  von D). Einmal je Spiel und Engine-Stand, nie bei Anti-Cheat. Details im Entwurf 3.2.
+  - Gebaut und in Tests geprüft (`CloserLookTest` mit dem echten Protokoll vom 11.11., `StartDiagnosisTest`,
+    `EngineLayoutTest`): Leser, Regeln, Entscheidung, `Engine.setCloserLook`/`Engine.wineDebug`.
+  - **Live offen:** (1) ein unerklärter Fehlstart, danach die Zeile „nothing explains why it ended“ und ein Start mit
+    Kanälen; (2) Steam startet dafür neu, und beim nächsten normalen Start noch einmal ohne Kanäle; (3) Direktstart
+    eines Epic- oder GOG-Spiels mit Kanälen, ohne Steam-Neustart; (4) `+msgbox` druckt wirklich den Text eines
+    Fehlerfensters; (5) wie groß `wine.log` in einem solchen Start wird (gelesen werden die letzten 4 MB).
+    Schnellster Weg zu (1) bis (4): der Testschalter `closerLook` (unten bei Engine-Tests) und ein Spiel, das scheitert.
+  - Nicht gebaut: der Blick für einen bewährten Weg, der wieder scheitert (gehört zu E); Fehlerfenster, die kein
+    Windows-`MessageBox` sind; die Wurzel trägt niemand von selbst ein (`WindowsRoots`, je Wurzel das OK des Nutzers).
 - **Engine-Test 11.11. (988e721), vier Spiele mit Engines, die nie gestartet waren** (Bericht GameTests/2026-11-11-1925):
   1 von 3 mit Bild, 1 nicht gestartet.
   - Dishonored (Epic, Unreal 3, 64 Bit): Bild auf WineD3D nach 17 s, endete vor 200 s von selbst (unbestätigt).
@@ -728,6 +743,10 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
   `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
   danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+- `defaults write io.github.lordhayne.nightforge closerLook -bool true`: Jeder Start trägt die Kanäle des genaueren
+  Blicks (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`, `CloserLook`), nicht erst der nach einem unerklärten
+  Fehlstart; die Diagnose liest sie nach jedem Fehlstart. Beim ersten Spielstart startet Steam dafür neu. Das Log
+  wächst schnell, danach `defaults delete io.github.lordhayne.nightforge closerLook`.
 - `defaults write io.github.lordhayne.nightforge wineSandbox -bool true`: Wine startet in einer macOS-Sandbox, die
   Anmeldedaten sperrt (unten bei „Aus dem Code-Audit“ › Wine-Sandbox). Steam startet dafür neu. Zurück mit
   `defaults delete io.github.lordhayne.nightforge wineSandbox`.

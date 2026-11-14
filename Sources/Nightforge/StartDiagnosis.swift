@@ -15,6 +15,10 @@ struct StartFinding: Equatable {
     var direct3D9Failed = false
     /// It ran without a picture and without work (PictureWatch).
     var hung = false
+    /// The way the start was on, where a rule needs it.
+    var layer: GraphicsLayer?
+    /// What Wine's debug channels printed for the game, when the start carried them (CloserLook).
+    var reading = CloserLook.Reading()
 }
 
 /// What can be changed about a start. Every one is a change to its recipe (StartRecipe).
@@ -27,6 +31,9 @@ enum StartRemedy: Equatable {
     case dllsOff([String])
     case runtimes([String])
     case noAVX
+    /// This root certificate into the prefix's own store (WindowsRoots). Never by itself: each root needs
+    /// the player's OK. nil: the chain named no root.
+    case trustRoot(String?)
     /// Nothing known to change: the next way as it stands.
     case nextWay
 
@@ -38,6 +45,7 @@ enum StartRemedy: Equatable {
         case .dllsOff(let dlls): return "keep \(dlls.joined(separator: ", ")) unloaded"
         case .runtimes(let verbs): return "install \(verbs.joined(separator: ", "))"
         case .noAVX: return "start without AVX"
+        case .trustRoot(let root): return "trust " + (root.map { "the root \"\($0)\"" } ?? "its root") + " in the prefix, with the player's OK"
         case .nextWay: return "the next way"
         }
     }
@@ -76,6 +84,21 @@ struct StartDiagnosis: Equatable {
         ("needs-d3d12", { finding in
             StartFailure.read(finding.messages) == .needsD3D12 ? (finding.messages.first ?? "", .layer(.d3dmetal)) : nil
         }),
+        // Metal Gear Solid V, 11.11.2026: it checks steam_api64.dll's signature (Valve, 2015), whose root macOS
+        // no longer carries, and says "Failed to load SteamAPI". Seen only by a start with the channels on.
+        ("untrusted-root", { finding in
+            finding.reading.signatures.first { $0.code == CloserLook.untrustedRootCode }.map { check in
+                ((check.file ?? "a file") + "'s signature" + (check.signer.map { " (\($0))" } ?? "") + " leads to "
+                    + (check.root.map { "the root \"\($0)\", which this Mac doesn't trust" } ?? "a root this Mac doesn't trust"),
+                 .trustRoot(check.root))
+            }
+        }),
+        ("signature", { finding in
+            finding.reading.signatures.first { $0.code != CloserLook.untrustedRootCode }.map { check in
+                ((check.file ?? "a file") + "'s signature check answered " + String(format: "%08x", check.code)
+                    + (CloserLook.meaning(of: check.code).map { " (\($0))" } ?? ""), nil)
+            }
+        }),
         // It Takes Two, 10.11.2026: the PhysX System Software's update loader asks NVAPI, D3DMetal's
         // nvapi64 jumps to 0. Off for every game since 0df3c58; a profile can bring the loader back.
         ("physx-update-loader", { finding in
@@ -102,6 +125,12 @@ struct StartDiagnosis: Equatable {
         ("direct3d9", { finding in
             finding.direct3D9Failed ? ("DXVK got no device on a way that isn't DXVK's: the game draws with Direct3D 9", .layer(.wined3d)) : nil
         }),
+        // The same without DXVK's own words: the game loaded Direct3D 9 and nothing newer.
+        ("loads-direct3d9", { finding in
+            guard !finding.direct3D9Failed, let layer = finding.layer, GameLog.direct3D9IsDXVKs(on: layer),
+                  finding.reading.loadsOnlyDirect3D9 else { return nil }
+            return ("the game loaded d3d9.dll and no newer Direct3D, on a way whose Direct3D 9 is DXVK's", .layer(.wined3d))
+        }),
         ("graphics-failed", { finding in
             finding.graphicsFailed ? ("the graphics layer says it can't draw", .nextLayer) : nil
         }),
@@ -127,8 +156,20 @@ struct StartDiagnosis: Equatable {
             found.append(StartDiagnosis(id: "crash", because: dump.summary, remedy: nil))
         } else if found.isEmpty, let said = finding.messages.first {
             found.append(StartDiagnosis(id: "said", because: said, remedy: nil))
+        } else if found.isEmpty, !finding.reading.debugOutput.isEmpty {
+            // What the game put out for a debugger last, newest at the end.
+            found.append(StartDiagnosis(id: "debug-said", because: finding.reading.debugOutput.suffix(3).joined(separator: " | "), remedy: nil))
         }
         return found
+    }
+
+    /// What says that something happened, not why: a crash or words no rule knows, and a start that hung.
+    private static let fallbacks: Set<String> = ["crash", "said", "debug-said", "hung"]
+
+    /// Nothing in `found` explains the start – also when nothing was found at all. Then a closer look is
+    /// worth a start (CloserLook.step).
+    static func unexplained(_ found: [StartDiagnosis]) -> Bool {
+        found.allSatisfy { fallbacks.contains($0.id) }
     }
 
     private static func said(_ finding: StartFinding, _ part: String) -> String {
@@ -138,16 +179,19 @@ struct StartDiagnosis: Equatable {
     // MARK: - A start's finding, from its files
 
     /// Gathers what a start since `startedAt` left: its crash reports and dumps, and Wine's log from
-    /// `logText`. The caller leaves games with an anti-cheat out: their files aren't looked into.
+    /// `logText` – with what a closer look's channels printed, when the start carried them. A message box's
+    /// text counts as the game's own words, behind its crash reports'. The caller leaves games with an
+    /// anti-cheat out: their files aren't looked into.
     static func finding(logText: String, installDir: URL, gameFolder: String, since startedAt: Date, layer: GraphicsLayer,
                         hung: Bool, prefix: URL = Engine.prefix) -> StartFinding {
-        StartFinding(messages: GameLog.crashMessages(installDir: installDir, since: startedAt, prefix: prefix),
+        let reading = CloserLook.read(logText, gameFolder: gameFolder)
+        return StartFinding(messages: GameLog.crashMessages(installDir: installDir, since: startedAt, prefix: prefix) + reading.boxes,
                      dumps: GameLog.crashDumps(installDir: installDir, since: startedAt, prefix: prefix).compactMap(CrashDump.read),
                      missingRuntimes: GameLog.missingRuntimes(in: logText, gameFolder: gameFolder),
                      illegalInstruction: GameLog.illegalInstruction(in: logText),
                      graphicsFailed: GameLog.graphicsFailed(in: logText, layer: layer),
                      direct3D9Failed: GameLog.direct3D9Failed(in: logText, layer: layer),
-                     hung: hung)
+                     hung: hung, layer: layer, reading: reading)
     }
 
     // MARK: - The last start's diagnosis, for the problem report

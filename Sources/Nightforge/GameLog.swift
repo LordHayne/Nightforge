@@ -258,8 +258,11 @@ enum GameLog {
     /// your 3D graphics card", 11.11.2026). The log is shared: it counts once the start has failed anyway, never
     /// as a reason to end a game that runs.
     static func direct3D9Failed(in text: String, layer: GraphicsLayer) -> Bool {
-        (layer == .d3dmetal || layer == .dxmt) && graphicsFailed(in: text)
+        direct3D9IsDXVKs(on: layer) && graphicsFailed(in: text)
     }
+
+    /// The ways that aren't DXVK's and leave Direct3D 9 to it all the same.
+    static func direct3D9IsDXVKs(on layer: GraphicsLayer) -> Bool { layer == .d3dmetal || layer == .dxmt }
 
     static func graphicsFailed(in text: String) -> Bool {
         let signs = ["dxvkadapter: failed to create device", "dxvkbuffer: failed to create buffer",

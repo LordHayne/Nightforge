@@ -1,0 +1,186 @@
+info:  [nightforge] Game test: METAL GEAR SOLID V: THE PHANTOM PAIN (1 of 1)
+info:  [nightforge] Curtain watch for METAL GEAR SOLID V: THE PHANTOM PAIN begins
+info:  [nightforge]   at 20:15:58
+info:  [nightforge] Start plan for METAL GEAR SOLID V: THE PHANTOM PAIN: d3dmetal, dxmt, dxvk; now dxmt, the ways before it didn't work
+info:  [nightforge] Start of METAL GEAR SOLID V: THE PHANTOM PAIN: dxmt on winecx@4.7.3
+info:  [nightforge] Curtain watch for METAL GEAR SOLID V: THE PHANTOM PAIN ends: a new start or Go to Nightforge
+info:  [nightforge] Curtain watch for METAL GEAR SOLID V: THE PHANTOM PAIN begins
+info:  [nightforge]   at 20:15:58
+info:  [nightforge] Game settings as the prefix has them: no regedit
+info:  [nightforge] Curtain look at METAL GEAR SOLID V: THE PHANTOM PAIN: 0 processes, in front Nightforge (6036, not the game's), windows none, picture none, asks no, curtain up
+info:  [nightforge] The curtain goes over a captured display's shield
+info:  [nightforge] Curtain look at METAL GEAR SOLID V: THE PHANTOM PAIN: 1 processes, in front Nightforge (6036, not the game's), windows none, picture none, asks no, curtain up
+0454:trace:wintrust:WinVerifyTrust (0000000000000000, {00aac56b-cd44-11d0-8cc2-00c04fc295ee}, 0000000000103B90)
+0454:trace:wintrust:dump_wintrust_data 0000000000103B90
+0454:trace:wintrust:dump_wintrust_data cbStruct: 88
+0454:trace:wintrust:dump_wintrust_data pPolicyCallbackData: 0000000000000000
+0454:trace:wintrust:dump_wintrust_data pSIPClientData: 0000000000000000
+0454:trace:wintrust:dump_wintrust_data dwUIChoice: 2
+0454:trace:wintrust:dump_wintrust_data fdwRevocationChecks: 00000000
+0454:trace:wintrust:dump_wintrust_data dwUnionChoice: 1
+0454:trace:wintrust:dump_file_info 0000000000104288
+0454:trace:wintrust:dump_file_info cbStruct: 32
+0454:trace:wintrust:dump_file_info pcwszFilePath: L"Z:\\Volumes\\Games\\Nightforge Games\\steamapps\\common\\MGS_TPP\\steam_api64.dll"
+0454:trace:wintrust:dump_file_info hFile: 0000000000000000
+0454:trace:wintrust:dump_file_info pgKnownSubject: (null)
+0454:trace:wintrust:dump_wintrust_data dwStateAction: 1
+0454:trace:wintrust:dump_wintrust_data hWVTStateData: 0000000000000000
+0454:trace:wintrust:dump_wintrust_data pwszURLReference: (null)
+0454:trace:wintrust:dump_wintrust_data dwProvFlags: 00001000
+0454:trace:wintrust:dump_wintrust_data dwUIContext: 0
+0454:trace:wintrust:WINTRUST_DefaultVerify (0000000000000000, {00aac56b-cd44-11d0-8cc2-00c04fc295ee}, 0000000000103B90)
+0454:trace:wintrust:WintrustLoadFunctionPointers ({00aac56b-cd44-11d0-8cc2-00c04fc295ee} 00000000002FD9F0)
+0454:trace:wintrust:WintrustGetRegPolicyFlags 0000000000303548
+0454:trace:wintrust:SoftpubInitialize (0000000000303510)
+0454:trace:wintrust:SoftpubInitialize returning 00000000
+0454:trace:wintrust:SoftpubLoadMessage (0000000000303510)
+0454:trace:wintrust:SOFTPUB_OpenFile returning 0
+0454:trace:wintrust:SOFTPUB_GetFileSubject returning 0
+0454:trace:wintrust:SOFTPUB_GetSIP returning 0
+0454:trace:wintrust:CryptSIPGetSignedDataMsg (00000000002FDA80 0000000000303578 0 0000000000101EFC 0000000000000000)
+0454:trace:wintrust:WINTRUST_GetSignedMsgFromPEFile (00000000002FDA80 0000000000303578 0 0000000000101EFC 0000000000000000)
+0454:trace:wintrust:CryptSIPGetSignedDataMsg returning 1
+0454:trace:wintrust:CryptSIPGetSignedDataMsg (00000000002FDA80 0000000000303578 0 0000000000101EFC 0000000000306090)
+0454:trace:wintrust:WINTRUST_GetSignedMsgFromPEFile (00000000002FDA80 0000000000303578 0 0000000000101EFC 0000000000306090)
+0454:trace:wintrust:CryptSIPGetSignedDataMsg returning 1
+0454:trace:wintrust:SOFTPUB_GetMessageFromFile returning 0
+0454:trace:wintrust:WINTRUST_AddStore (0000000000303510, 0000000000305410)
+0454:trace:wintrust:SOFTPUB_CreateStoreFromMessage returning 0
+0454:trace:wintrust:SOFTPUB_DecodeInnerContent returning 0
+0454:trace:wintrust:SoftpubLoadMessage returning 0 (00000000)
+0454:trace:wintrust:SoftpubLoadSignature (0000000000303510)
+0454:trace:wintrust:WINTRUST_GetTimeFromSigner returning time from message 19.5.2015
+0454:trace:wintrust:WINTRUST_AddSgnr (0000000000303510, 0, 0, 0000000000101F40)
+0454:trace:wintrust:WINTRUST_AddCert (0000000000303510, 0, 0, 0, 00000000002E3668)
+0454:trace:wintrust:WintrustCertificateTrust (0000000000303510)
+0454:trace:chain:dump_chain_para 32
+0454:trace:chain:CRYPT_CheckSimpleChain checking chain with 1 elements for time (null)
+0454:trace:chain:dump_element 000000000037BF88: version 2
+0454:trace:chain:dump_element issued by L"Apple Platform Bootstrap ECC Root CA - G1"
+0454:trace:chain:dump_element issued to L"Apple Platform Bootstrap ECC Root CA - G1"
+0454:trace:chain:dump_element valid from 13.12.2024 to 9.12.2054
+0454:trace:chain:dump_element 3 extensions
+0454:trace:chain:dump_extension "2.5.29.19" (critical)
+0454:trace:chain:dump_basic_constraints2 basic constraints:
+0454:trace:chain:dump_basic_constraints2 can be a CA
+0454:trace:chain:dump_basic_constraints2 doesn't have path length constraint
+0454:trace:chain:dump_basic_constraints2 path length=0
+0454:trace:chain:dump_extension "2.5.29.14" (not critical)
+0454:trace:chain:dump_extension "2.5.29.15" (critical)
+0454:trace:chain:dump_key_usage CERT_KEY_CERT_SIGN_KEY_USAGE
+0454:trace:chain:dump_key_usage CERT_CRL_SIGN_KEY_USAGE
+0454:trace:chain:CRYPT_CheckRootCert Last certificate's signature is invalid
+0454:trace:chain:CertGetCertificateChain error status: 00000008
+0454:trace:chain:dump_chain_para 32
+0454:trace:chain:CRYPT_GetIssuer issuer found by key id
+0454:trace:chain:CRYPT_GetIssuer issuer found by key id
+0454:trace:chain:CRYPT_CheckSimpleChain checking chain with 3 elements for time 19.5.2015
+0454:trace:chain:dump_element 00000000003644B8: version 2
+0454:trace:chain:dump_element issued by L"VeriSign Class 3 Public Primary Certification Authority - G5"
+0454:trace:chain:dump_element issued to L"VeriSign Class 3 Public Primary Certification Authority - G5"
+0454:trace:chain:dump_element valid from 8.11.2006 to 16.7.2036
+0454:trace:chain:dump_element 4 extensions
+0454:trace:chain:dump_extension "2.5.29.19" (critical)
+0454:trace:chain:dump_basic_constraints2 basic constraints:
+0454:trace:chain:dump_basic_constraints2 can be a CA
+0454:trace:chain:dump_basic_constraints2 doesn't have path length constraint
+0454:trace:chain:dump_basic_constraints2 path length=0
+0454:trace:chain:dump_extension "2.5.29.15" (critical)
+0454:trace:chain:dump_key_usage CERT_KEY_CERT_SIGN_KEY_USAGE
+0454:trace:chain:dump_key_usage CERT_CRL_SIGN_KEY_USAGE
+0454:trace:chain:dump_extension "1.3.6.1.5.5.7.1.12" (not critical)
+0454:trace:chain:dump_extension "2.5.29.14" (not critical)
+0454:trace:chain:dump_element 0000000000364448: version 2
+0454:trace:chain:dump_element issued by L"VeriSign Class 3 Public Primary Certification Authority - G5"
+0454:trace:chain:dump_element issued to L"VeriSign Class 3 Code Signing 2010 CA"
+0454:trace:chain:dump_element valid from 8.2.2010 to 7.2.2020
+0454:trace:chain:dump_element 10 extensions
+0454:trace:chain:dump_extension "2.5.29.19" (critical)
+0454:trace:chain:dump_basic_constraints2 basic constraints:
+0454:trace:chain:dump_basic_constraints2 can be a CA
+0454:trace:chain:dump_basic_constraints2 has path length constraint
+0454:trace:chain:dump_basic_constraints2 path length=0
+0454:trace:chain:dump_extension "2.5.29.32" (not critical)
+0454:trace:chain:dump_cert_policies 1 policies:
+0454:trace:chain:dump_cert_policies policy identifier: "2.16.840.1.113733.1.7.23.3"
+0454:trace:chain:dump_cert_policies 2 policy qualifiers:
+0454:trace:chain:dump_cert_policies "1.3.6.1.5.5.7.2.1"
+0454:trace:chain:dump_cert_policies "1.3.6.1.5.5.7.2.2"
+0454:trace:chain:dump_extension "2.5.29.15" (critical)
+0454:trace:chain:dump_key_usage CERT_KEY_CERT_SIGN_KEY_USAGE
+0454:trace:chain:dump_key_usage CERT_CRL_SIGN_KEY_USAGE
+0454:trace:chain:dump_extension "1.3.6.1.5.5.7.1.12" (not critical)
+0454:trace:chain:dump_extension "2.5.29.31" (not critical)
+0454:trace:chain:dump_extension "1.3.6.1.5.5.7.1.1" (not critical)
+0454:trace:chain:dump_extension "2.5.29.37" (not critical)
+0454:trace:chain:dump_enhanced_key_usage 2 usages:
+0454:trace:chain:dump_enhanced_key_usage 1.3.6.1.5.5.7.3.2
+0454:trace:chain:dump_enhanced_key_usage 1.3.6.1.5.5.7.3.3
+0454:trace:chain:dump_extension "2.5.29.17" (not critical)
+0454:trace:chain:dump_alt_name subject alt name 2:
+0454:trace:chain:dump_alt_name 1 alt name entries:
+0454:trace:chain:dump_alt_name_entry CERT_ALT_NAME_DIRECTORY_NAME: L"VeriSignMPKI-2-8"
+0454:trace:chain:dump_extension "2.5.29.14" (not critical)
+0454:trace:chain:dump_extension "2.5.29.35" (not critical)
+0454:trace:chain:CRYPT_CheckBasicConstraintsForCA setting path length constraint to 0
+0454:trace:chain:dump_element 00000000002E3668: version 2
+0454:trace:chain:dump_element issued by L"VeriSign Class 3 Code Signing 2010 CA"
+0454:trace:chain:dump_element issued to L"Valve"
+0454:trace:chain:dump_element valid from 28.9.2012 to 23.11.2015
+0454:trace:chain:dump_element 9 extensions
+0454:trace:chain:dump_extension "2.5.29.19" (not critical)
+0454:trace:chain:dump_basic_constraints2 basic constraints:
+0454:trace:chain:dump_basic_constraints2 cannot be a CA
+0454:trace:chain:dump_basic_constraints2 doesn't have path length constraint
+0454:trace:chain:dump_basic_constraints2 path length=0
+0454:trace:chain:dump_extension "2.5.29.15" (critical)
+0454:trace:chain:dump_key_usage CERT_DIGITAL_SIGNATURE_KEY_USAGE
+0454:trace:chain:dump_extension "2.5.29.31" (not critical)
+0454:trace:chain:dump_extension "2.5.29.32" (not critical)
+0454:trace:chain:dump_cert_policies 1 policies:
+0454:trace:chain:dump_cert_policies policy identifier: "2.16.840.1.113733.1.7.23.3"
+0454:trace:chain:dump_cert_policies 1 policy qualifiers:
+0454:trace:chain:dump_cert_policies "1.3.6.1.5.5.7.2.1"
+0454:trace:chain:dump_extension "2.5.29.37" (not critical)
+0454:trace:chain:dump_enhanced_key_usage 1 usages:
+0454:trace:chain:dump_enhanced_key_usage 1.3.6.1.5.5.7.3.3
+0454:trace:chain:dump_extension "1.3.6.1.5.5.7.1.1" (not critical)
+0454:trace:chain:dump_extension "2.5.29.35" (not critical)
+0454:trace:chain:dump_extension "2.16.840.1.113730.1.1" (not critical)
+0454:trace:chain:dump_netscape_cert_type NETSCAPE_SIGN_CERT_TYPE
+0454:trace:chain:dump_extension "1.3.6.1.4.1.311.2.1.27" (not critical)
+0454:trace:chain:CertGetCertificateChain error status: 00000020
+0454:trace:wintrust:WINTRUST_AddCert (0000000000303510, 0, 0, 0, 0000000000364448)
+0454:trace:wintrust:WINTRUST_AddCert (0000000000303510, 0, 0, 0, 00000000003644B8)
+0454:trace:wintrust:SoftpubCheckCert (0000000000303510, 0, 0, 0)
+0454:trace:wintrust:WintrustCertificateTrust returning 0 (00000000)
+0454:trace:wintrust:SoftpubAuthenticode (0000000000303510)
+0454:trace:chain:dump_policy_para cbSize = 16
+0454:trace:chain:dump_policy_para dwFlags = 00000000
+0454:trace:chain:dump_policy_para pvExtraPolicyPara = 0000000000000000
+0454:trace:wintrust:SoftpubAuthenticode returning 1 (800b0109)
+0454:trace:wintrust:WINTRUST_DefaultVerify returning 800b0109
+0454:trace:wintrust:WinVerifyTrust returning 800b0109
+0454:trace:wintrust:WinVerifyTrust (0000000000000000, {00aac56b-cd44-11d0-8cc2-00c04fc295ee}, 0000000000103B90)
+0454:trace:wintrust:dump_wintrust_data 0000000000103B90
+0454:trace:wintrust:dump_wintrust_data cbStruct: 88
+0454:trace:wintrust:dump_wintrust_data pPolicyCallbackData: 0000000000000000
+0454:trace:wintrust:dump_wintrust_data pSIPClientData: 0000000000000000
+0454:trace:wintrust:dump_wintrust_data dwUIChoice: 2
+0454:trace:wintrust:dump_wintrust_data fdwRevocationChecks: 00000000
+0454:trace:wintrust:dump_wintrust_data dwUnionChoice: 1
+0454:trace:wintrust:dump_file_info 0000000000104288
+0454:trace:wintrust:dump_file_info cbStruct: 32
+0454:trace:wintrust:dump_file_info pcwszFilePath: L"Z:\\Volumes\\Games\\Nightforge Games\\steamapps\\common\\MGS_TPP\\steam_api64.dll"
+0454:trace:wintrust:dump_file_info hFile: 00000000000000D4
+0454:trace:wintrust:dump_file_info pgKnownSubject: (null)
+0454:trace:wintrust:dump_wintrust_data dwStateAction: 2
+0454:trace:wintrust:dump_wintrust_data hWVTStateData: 0000000000303510
+0454:trace:wintrust:dump_wintrust_data pwszURLReference: (null)
+0454:trace:wintrust:dump_wintrust_data dwProvFlags: 00001000
+0454:trace:wintrust:dump_wintrust_data dwUIContext: 0
+0454:trace:wintrust:WINTRUST_DefaultClose (0000000000000000, {00aac56b-cd44-11d0-8cc2-00c04fc295ee}, 0000000000103B90)
+0454:trace:wintrust:WINTRUST_DefaultClose returning 00000000
+0454:trace:wintrust:WinVerifyTrust returning 00000000
+info:  [nightforge] In front under the curtain: Nightforge Game (6273)
+info:  [nightforge] Curtain look at METAL GEAR SOLID V: THE PHANTOM PAIN: 1 processes, in front Nightforge (6036, not the game's), windows 1 hidden, picture none, asks no, curtain up

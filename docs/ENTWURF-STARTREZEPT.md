@@ -68,6 +68,7 @@ Eine Tabelle Fehlerbild → Abhilfe, in der App, getestet wie `StartFailure` heu
 | Minidump: Rücksprung in `nvapi64` aus `PhysXUpdateLoader*` | Update-Loader aus (0df3c58, heute fest für alle) |
 | Minidump: Absturz in `nvapi64`/`nvngx` | `nvapi64`, `nvngx` aus (Overwatch, 7.11.) |
 | Protokoll: fehlende DLL | Laufzeit dazu (heute `missingRuntimes`) |
+| Signaturprüfung antwortet `800b0109` (Wurzel fehlt, nur mit Debug-Kanälen sichtbar, 3.2 C) | Wurzel in den Prefix, je Wurzel mit OK des Nutzers (`WindowsRoots`) |
 | Protokoll: illegal instruction | AVX aus (heute `setNoAVX`) |
 | Grafikfehler des Layers | nächster Grafikweg (heute `graphicsFailed`) |
 | kein Bild, keine Arbeit | hängt: nächstes Rezept (heute `PictureWatch`) |
@@ -157,10 +158,44 @@ stand. Daraus die Reihenfolge A bis E:
   Live 14.11.: Batmans echter Erststart (normaler Start des Nutzers) trug genau diesen Plan im Protokoll, begann auf
   WineD3D, zeigte nach 90 s ein Bild und wurde nach 181 s als `worked` festgehalten – ohne einen Fehlversuch.
   Damit ist die Kette Steckbrief → Beweis einer Sorte → erster Weg eines neuen Spiels einmal ganz gesehen.
-- **C, offen:** Diagnose-Start – nach einem Fehlstart ohne Befund ein stiller zweiter Start mit Debug-Schaltern
-  (`+wintrust,+chain`, `+loaddll`, `+debugstr`), gezielt gelesen. Neue Regel dazu: fehlende Wurzel (`800b0109`).
-  Vorher klären: `wineDebug` greift heute nur bei frischem Nightforge-Start.
-- **D, offen:** den Text im Fehlerfenster des Spiels lesen (Machbarkeit prüfen).
+- **C, gebaut am 14.11.2026 (`CloserLook`), live noch nicht gesehen:** der genauere Blick. Endet ein Start der Leiter
+  und die Diagnose findet nichts außer ihren Auffangzeilen (`StartDiagnosis.unexplained`: gar nichts, `crash`, `said`,
+  `debug-said`, `hung`), tragen die folgenden Starts dieses „Spielen“ Wines Debug-Kanäle
+  (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`), und was sie drucken, liest die Diagnose.
+  - **Wann.** Gibt es noch einen Weg, startet der nächste und der Rest der Leiter mit den Kanälen; das kostet keinen
+    eigenen Start. War es der letzte Weg (auch bei nur einem), startet derselbe Weg einmal still noch einmal mit den
+    Kanälen, danach endet die Leiter wie bisher. Einmal je „Spielen“, einmal je Spiel und Engine-Stand
+    (`closerLook.<Spiel>` = z. B. `winecx@4.7.3`). Nie bei Anti-Cheat, nie bei von Hand gewähltem Grafikweg, nicht
+    solange ein anderes Windows-Spiel läuft (Steam startet dann nicht neu). Die Entscheidung ist `CloserLook.step`.
+  - **Nicht dabei:** Ein bewährter Weg, der wieder früh endet, bekommt den Blick noch nicht. Er behält heute seinen
+    Platz ohne zweiten Start; ein Start mehr würde ihn in derselben Runde auf die Leiter schicken. Das gehört zu E.
+  - **Wie die Kanäle zum Spiel kommen.** `Engine.setCloserLook` legt `WINEDEBUG` in die Startumgebung;
+    `Engine.wineDebug` geben Steam, der Prozess, der ein Spiel an Steam übergibt, und der Direktstart (Epic, GOG)
+    weiter. Ein Steam-Spiel erbt die Umgebung seines Steam: Steam startet dafür neu, und beim nächsten Start ohne
+    Kanäle noch einmal. Der Direktstart braucht keinen Neustart. Damit ist die Frage von vorher erledigt: Der Blick
+    hängt nicht am Schalter `wineDebug`, der nur beim App-Start gelesen wird.
+  - **Was gelesen wird (`CloserLook.read`).** Nur die Prozesse des Spiels: Ein Prozess gehört dazu, wenn er eine Datei
+    aus dem Spielordner lädt. Wine vergibt Prozessnummern neu, sobald genug frei sind (`server/process.c`, die am
+    längsten freie zuerst), und eine Steam-Sitzung lebt lange; darum zählt eine Nummer nur von einem `ntdll`-Laden
+    bis zum nächsten. Daraus: Signaturprüfungen mit Antwort ≠ 0 (Datei, Code, Unterzeichner
+    und Wurzel der letzten Kette vor der Antwort; der Abschluss-Aufruf mit Antwort 0 zählt nicht), die letzten Zeilen
+    für den Debugger, die geladenen Grafik-Bibliotheken, die Texte der Meldungsfenster. Prüfungen einer Datei im
+    Spielordner zählen auch ohne `+pid`, wie am 11.11.
+  - **Neue Regeln.** `untrusted-root` (`800b0109`, Abhilfe „Wurzel in den Prefix“ nur als Aussage: jede Wurzel
+    braucht das OK des Nutzers und geht über `WindowsRoots`), `signature` (andere Antwort für eine Datei des Spiels,
+    ohne Abhilfe), `loads-direct3d9` (nur `d3d9.dll` geladen auf D3DMetal oder DXMT → WineD3D, nur gesagt),
+    Auffangzeile `debug-said`. Die Diagnose bleibt Aussage: Protokoll, Evidenz, Problembericht.
+  - **Evidenz und Testschalter.** `started` hält fest, dass der Start die Kanäle trug (`closerLook`).
+    `defaults write io.github.lordhayne.nightforge closerLook -bool true` lässt jeden Start die Kanäle tragen.
+  - **Geprüft** am echten Protokoll vom 11.11. (`tests/CloserLookTest/fixtures`): Die Regel nennt `steam_api64.dll`,
+    Valve und die VeriSign-Wurzel. 4 MB Protokoll liest der Leser in 0,15 s. **Offen, nur live zu sehen:** ein
+    scheiternder Start mit Kanälen, der Steam-Neustart hin und zurück, der Direktstart eines Epic-Spiels.
+- **D, erste Form mit C gebaut, live noch nicht gesehen:** `+msgbox` druckt den Text jedes Windows-Meldungsfensters,
+  `trace:msgbox:MSGBOX_OnInit L"…"` (`dlls/user32/msgbox.c`, in Wine 9.0 und 10.0 gleich; Kanal und Funktionsname
+  stehen in der `user32.dll` von winecx 4.7.3). Der Text aus den Prozessen des Spiels zählt als Wort des Spiels: Er
+  speist `refused-switch`, `needs-d3d12` und `said`. Grenzen: nur der Text, nicht der Titel; nur echte
+  `MessageBox`-Fenster, keine selbst gezeichneten Dialoge (eigene Launcher, SDL); Wine kürzt bei rund 290 Zeichen; nur
+  in Starts mit Kanälen, also nach dem ersten unerklärten Fehlstart. Was bleibt für D: Fenster ohne `MessageBox`.
 - **E, offen:** `StartRecipe` als das, womit gestartet wird (Umbau der Startschleife). Die Probe zu B zeigt, warum:
   Ein Beweis gilt für ein Rezept, nicht für einen Grafikweg.
 

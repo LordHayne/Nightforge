@@ -254,6 +254,76 @@ struct StartDiagnosisTest {
               "several things at once, the most exact first")
         check(Set(StartDiagnosis.rules.map(\.id)).count == StartDiagnosis.rules.count, "every rule has a name of its own")
 
+        // MARK: What a closer look adds (CloserLook)
+
+        // Metal Gear Solid V, 11.11.2026: steam_api64.dll's signature leads to a root macOS no longer carries.
+        let verisign = "VeriSign Class 3 Public Primary Certification Authority - G5"
+        let valve = CloserLook.Signature(file: "steam_api64.dll", code: 0x800B_0109, signer: "Valve", root: verisign, untrustedRoot: true)
+        let untrusted = StartDiagnosis.diagnose(StartFinding(reading: CloserLook.Reading(channelsOn: true, signatures: [valve])))
+        check(untrusted.map(\.id) == ["untrusted-root"] && untrusted.first?.remedy == .trustRoot(verisign), "a root this Mac doesn't trust: the root to trust")
+        check(untrusted.first?.line == "untrusted-root: steam_api64.dll's signature (Valve) leads to the root \"\(verisign)\", which this Mac doesn't trust"
+              + " → trust the root \"\(verisign)\" in the prefix, with the player's OK", "… in words (\(untrusted.first?.line ?? "–"))")
+        let rootless = StartDiagnosis.diagnose(StartFinding(reading: CloserLook.Reading(signatures: [CloserLook.Signature(file: nil, code: 0x800B_0109)])))
+        check(rootless.first?.line == "untrusted-root: a file's signature leads to a root this Mac doesn't trust → trust its root in the prefix, with the player's OK",
+              "… also when the log names neither file nor root (\(rootless.first?.line ?? "–"))")
+        let unsigned = StartDiagnosis.diagnose(StartFinding(reading: CloserLook.Reading(signatures: [
+            CloserLook.Signature(file: "game.dll", code: 0x800B_0100), CloserLook.Signature(file: "other.dll", code: 0x8009_6010)])))
+        check(unsigned.map(\.id) == ["signature"] && unsigned.first?.remedy == nil
+              && unsigned.first?.because == "game.dll's signature check answered 800b0100 (no signature)", "another answer of a signature check: said, no remedy")
+        check(StartDiagnosis.diagnose(StartFinding(reading: CloserLook.Reading(signatures: [CloserLook.Signature(file: "a.dll", code: 0x800B_0004)])))
+              .first?.because == "a.dll's signature check answered 800b0004", "an answer without a name: its number")
+        check(CloserLook.meaning(of: 0x8009_6010) == "the file doesn't match its signature" && CloserLook.meaning(of: 0x800B_0101) == "expired"
+              && CloserLook.meaning(of: 0x800B_010A) == "its chain can't be built" && CloserLook.meaning(of: 0) == nil, "the common answers by name")
+        check(ids(StartFinding(reading: CloserLook.Reading(signatures: [CloserLook.Signature(file: "game.dll", code: 0x800B_0100), valve])))
+              == ["untrusted-root", "signature"], "both kinds at once, the untrusted root first")
+
+        // Direct3D 9 by what the game loaded, without DXVK's own words.
+        let loadsNine = CloserLook.Reading(channelsOn: true, graphics: ["d3d9.dll"])
+        let nine = StartDiagnosis.diagnose(StartFinding(layer: .dxmt, reading: loadsNine))
+        check(nine.map(\.id) == ["loads-direct3d9"] && nine.first?.remedy == .layer(.wined3d), "d3d9.dll alone on DXMT: Wine's own Direct3D")
+        check(ids(StartFinding(layer: .d3dmetal, reading: loadsNine)) == ["loads-direct3d9"], "… on D3DMetal too")
+        check(ids(StartFinding(layer: .dxvk, reading: loadsNine)).isEmpty && ids(StartFinding(layer: .wined3d, reading: loadsNine)).isEmpty
+              && ids(StartFinding(reading: loadsNine)).isEmpty, "not on DXVK's own way, not on Wine's, not without a way")
+        check(ids(StartFinding(layer: .dxmt, reading: CloserLook.Reading(graphics: ["d3d9.dll", "dxgi.dll", "d3d11.dll"]))).isEmpty,
+              "Direct3D 11 beside it: the game doesn't draw with Direct3D 9")
+        check(ids(StartFinding(direct3D9Failed: true, layer: .dxmt, reading: loadsNine)) == ["direct3d9"], "DXVK's own words say it already: once")
+
+        // What the game put out for a debugger, when nothing else says anything.
+        let chatty = CloserLook.Reading(channelsOn: true, debugOutput: ["one", "two", "three", "Failed to load SteamAPI"])
+        let debugSaid = StartDiagnosis.diagnose(StartFinding(reading: chatty))
+        check(debugSaid.map(\.id) == ["debug-said"] && debugSaid.first?.because == "two | three | Failed to load SteamAPI" && debugSaid.first?.remedy == nil,
+              "its last debug output, newest last (\(debugSaid.first?.because ?? "–"))")
+        check(ids(StartFinding(messages: ["Fatal error!"], reading: chatty)) == ["said"] && ids(StartFinding(hung: true, reading: chatty)) == ["hung"]
+              && ids(StartFinding(dumps: [own], reading: chatty)) == ["crash"], "… only then: its own words, a hang or a crash come first")
+
+        // Nothing but the fallbacks: a closer look is worth a start.
+        func unexplained(_ finding: StartFinding) -> Bool { StartDiagnosis.unexplained(StartDiagnosis.diagnose(finding)) }
+        check(unexplained(StartFinding()) && StartDiagnosis.unexplained([]), "nothing found at all: unexplained")
+        check(unexplained(StartFinding(messages: ["Fatal error!"])) && unexplained(StartFinding(dumps: [own])) && unexplained(StartFinding(hung: true))
+              && unexplained(StartFinding(reading: chatty)) && unexplained(StartFinding(messages: ["Fatal error!"], dumps: [own], hung: true)),
+              "words no rule knows, a crash in the game's own code, a hang, debug output: unexplained")
+        check(!unexplained(StartFinding(dumps: [dump!])) && !unexplained(StartFinding(missingRuntimes: ["xact"])) && !unexplained(StartFinding(graphicsFailed: true))
+              && !unexplained(StartFinding(direct3D9Failed: true)) && !unexplained(StartFinding(illegalInstruction: true))
+              && !unexplained(StartFinding(messages: ["This game requires DirectX 12."])) && !unexplained(StartFinding(dumps: [own], missingRuntimes: ["xact"]))
+              && !unexplained(StartFinding(reading: CloserLook.Reading(signatures: [valve]))) && !unexplained(StartFinding(layer: .dxmt, reading: loadsNine)),
+              "whatever a rule reads: explained")
+
+        // A message box's text is the game's own words: it feeds the rules that read them.
+        let gameProcess = ["0810:0454:trace:loaddll:build_module Loaded L\"Z:\\\\Games\\\\Hogwarts Legacy\\\\Phoenix.exe\" at 0000000140000000: native",
+                           "0810:0454:trace:loaddll:build_ntdll_module Loaded L\"C:\\\\windows\\\\system32\\\\ntdll.dll\" at 00006FFFFFF20000: builtin"]
+        func boxed(_ text: String, folder: String = "Hogwarts Legacy") -> StartFinding {
+            StartDiagnosis.finding(logText: (gameProcess + ["0810:0454:trace:msgbox:MSGBOX_OnInit L\"\(text)\""]).joined(separator: "\n"),
+                                   installDir: work, gameFolder: folder, since: Date(), layer: .dxmt, hung: false, prefix: work.appendingPathComponent("none"))
+        }
+        let refusedBox = boxed("-d3d12, -d3d11, -vulkan, and -opengl are mutually exclusive options")
+        check(refusedBox.messages == ["-d3d12, -d3d11, -vulkan, and -opengl are mutually exclusive options"] && refusedBox.reading.channelsOn
+              && refusedBox.layer == .dxmt, "a start's finding takes the box's text among the game's words, with the way it was on")
+        check(StartDiagnosis.diagnose(refusedBox).map(\.remedy) == [.dropArguments], "a refused switch said in a message box: without the added ones")
+        check(StartDiagnosis.diagnose(boxed("This game requires DirectX 12.")).map(\.id) == ["needs-d3d12"], "DirectX 12 asked for in a message box")
+        let steamAPI = StartDiagnosis.diagnose(boxed("Failed to load SteamAPI"))
+        check(steamAPI.map(\.id) == ["said"] && steamAPI.first?.because == "Failed to load SteamAPI", "words no rule knows, from a message box: said")
+        check(StartDiagnosis.diagnose(boxed("Failed to load SteamAPI", folder: "Another Game")).isEmpty, "another program's message box isn't the game's")
+
         // MARK: Where a start's dumps are
 
         let prefix = work.appendingPathComponent("prefix", isDirectory: true)
@@ -363,6 +433,9 @@ struct StartDiagnosisTest {
         check(entries.count == 3 && entries[0].kind == analysis.kind && entries[0].recipe == recipe, "a start is recorded with its sort and its recipe")
         check(entries[1].diagnosis?.first?.hasPrefix("physx-update-loader:") == true && entries[1].kind == nil, "a failure with its diagnosis")
         check(entries[2].diagnosis == nil, "no diagnosis, no field")
+        check(entries[0].closerLook == nil, "a start without a closer look's channels: no field")
+        StartEvidence.note(.started, game: .steam(287700), way: "dxvk", engine: "winecx@4.7.3", known: false, closerLook: true, to: record)
+        check(StartEvidence.load(from: record).last?.closerLook == true, "a start that carried them says so")
         // A line from before 10.11.2026 still reads.
         let before = #"{"at":"2026-11-09T21:58:47Z","engine":"winecx@4.7.3","event":"started","game":"steam.1426210","known":false,"mac":"Apple M5 · macOS 27.0","way":"d3dmetal"}"#
         try Data((before + "\n").utf8).write(to: record)

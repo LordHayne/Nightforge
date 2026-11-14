@@ -567,7 +567,7 @@ enum Launcher {
 
         if game.bottle.isBuiltIn {
             environment["WINEDLLOVERRIDES"] = Engine.steamDLLOverrides
-            environment["WINEDEBUG"] = GameLog.wineDebug
+            environment["WINEDEBUG"] = Engine.wineDebug
             Engine.installWebHelperWrapper()
         } else if runnerPath.contains("CrossOver.app") {
             arguments += ["--bottle", game.bottle.name]
@@ -722,7 +722,8 @@ enum Launcher {
             environment.merge(vulkan) { _, loader in loader }
             GameLog.note("\(game.name) draws Direct3D 9 on DXVK through the Vulkan loader (engine test)")
         }
-        environment["WINEDEBUG"] = GameLog.wineDebug
+        // With a closer look's channels when this start carries them (Engine.setCloserLook).
+        environment["WINEDEBUG"] = Engine.wineDebug
         if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
         return environment
     }

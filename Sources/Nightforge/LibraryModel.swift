@@ -4547,6 +4547,10 @@ final class LibraryModel: ObservableObject {
             }
             // The one quiet second start a confirmed way gets after an early end (LaunchHealth.startsAgainQuietly).
             var startedQuietlyAgain = false
+            // Step C (docs/ENTWURF-STARTREZEPT.md 3.2): after a start nothing explains, this Play's starts
+            // carry Wine's debug channels (CloserLook). The places below are marked "Step C": where a start
+            // gets them, what the diagnosis says of its end, and the decision after a failure.
+            var looksCloser = false
             while true {
                 // Another way after one that didn't take: the curtain stays up through all the next
                 // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
@@ -4632,13 +4636,18 @@ final class LibraryModel: ObservableObject {
                 let way = LaunchAttempt(graphics: layer, arguments: arguments).id
                 if let build, EngineRollback.shared.needsWatch(game.gameID, build: build, way: way) { watchFirstSeconds = true }
                 StartDiagnosis.remember([], for: game.gameID)  // an earlier start's
+                // Step C: this start's debug channels – on for a closer look or the engine test's switch, off
+                // again for the next start without one. A game through Steam gets them from the Steam that
+                // starts it (restarted below when they changed); a store's game from its own start.
+                let closerLook = game.bottle.isBuiltIn && (looksCloser || CloserLook.always)
+                let debugChanged = game.bottle.isBuiltIn && Engine.setCloserLook(closerLook)
                 if automatic, !attempts.isEmpty {
                     let recipe = StartRecipe.of(layer: layer, arguments: Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch),
                                                 profile: profile, learnedRuntimes: LearnedFixes.winetricks(game.gameID),
                                                 avx: LearnedFixes.avx(game.gameID, profile: profile),
                                                 d3dMetalEngine: runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true)
                     StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
-                                       kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart)
+                                       kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook)
                 }
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
@@ -4661,7 +4670,7 @@ final class LibraryModel: ObservableObject {
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted) || programChanged,
+                                                   msyncWanted: msyncWanted) || programChanged || debugChanged,
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
@@ -4708,6 +4717,8 @@ final class LibraryModel: ObservableObject {
                     ? await start(game, runner: runner, options: options, profile: profile, arguments: startArguments, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, arguments: startArguments,
                                         frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
+                // Step C: a store's game has the channels from its own start; Steam's settings don't keep them.
+                if !viaSteam, closerLook { Engine.setCloserLook(false) }
                 guard started else { return }
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false
@@ -4781,13 +4792,15 @@ final class LibraryModel: ObservableObject {
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
                 // the record and the problem report – not acted on yet. Never for a game with an anti-cheat.
                 var diagnosis: [String] = []
+                // Step C: nothing in the diagnosis says why (StartDiagnosis.unexplained). Never for an anti-cheat game.
+                var unexplained = false
                 if !Task.isCancelled {
                     let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
-                    diagnosis = await Task.detached(priority: .utility) {
-                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return [] }
-                        return StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
-                                                                              since: startedAt, layer: layer, hung: hung))
-                            .map { GameLog.redacted($0.line) }
+                    (diagnosis, unexplained) = await Task.detached(priority: .utility) {
+                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return ([], false) }
+                        let found = StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
+                                                                                   since: startedAt, layer: layer, hung: hung))
+                        return (found.map { GameLog.redacted($0.line) }, StartDiagnosis.unexplained(found))
                     }.value
                     for line in diagnosis { GameLog.note("Diagnosis for \(game.name): \(line)") }
                     StartDiagnosis.remember(diagnosis, for: game.gameID)
@@ -4883,6 +4896,25 @@ final class LibraryModel: ObservableObject {
                 }.value
                 if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
                 StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
+                // Step C: nothing explains this end – the ways still to come carry Wine's debug channels, and
+                // with no way left the last one starts once more with them, as quietly as a proven way's
+                // second start; after that the ladder ends as before. Once per game and engine build.
+                // Decided before `advance`, which sets the ladder back to its first way when none is left.
+                let engineID = build?.engine ?? "unknown"
+                let look = CloserLook.step(unexplained: unexplained, antiCheat: analysis?.antiCheat.isEmpty == false,
+                                           carried: closerLook, takenBefore: CloserLook.taken(game.gameID, engine: engineID),
+                                           // Steam restarts for them only with no other Windows game running; this
+                                           // one may still be on the list for a moment.
+                                           canCarry: game.bottle.isBuiltIn && (!viaSteam || runningGame(.windows).map { $0.id == game.id } != false),
+                                           lastWay: LaunchHealth.current(game.gameID, attempts).index + 1 >= attempts.count)
+                if look != .none {
+                    looksCloser = true
+                    CloserLook.noteTaken(game.gameID, engine: engineID)
+                    GameLog.note("\(game.name): nothing explains why it ended – "
+                                 + (look == .sameWayAgain ? "it starts once more on this way with Wine's debug channels"
+                                                          : "the next start carries Wine's debug channels"))
+                    if look == .sameWayAgain { continue }
+                }
                 if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts) ?? (direct3D9Failed ? .needsD3D9 : nil)) {
                     let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
                     launchPhase = .retrying(next.label)
