@@ -18,6 +18,13 @@ der echte Bildschirm entscheidet. Zeilen gelten für die Spitze dieses Zweigs.
 - Die Texte sind sauber: 1100+ Schlüssel, alle über `L10n.t`, kein fest eingetragener sichtbarer Text ohne Übersetzung
   gefunden (zwei `grep`-Läufe über alle `Text(`, `Button(`, `Label(`, `.help(`, `errorMessage =`).
 
+## Testergebnis
+
+`scripts/run-tests.sh -P 2` auf `157e754` (alle sechs Fixes): **117 von 117 Reihen grün.** Gezählt an
+`build/test-logs/*.rc`: 117 Dateien, jede mit `0`, so viele wie es `tests/*Test` gibt. Die Python-Tests liefen nicht
+(das Python der Command Line Tools hat kein pytest); keine Änderung betrifft sie. Rot ohne Fix und grün mit ihm ist für
+E5 nachgestellt; die übrigen Tests prüfen Regeln, die es vor dem Fix nicht gab.
+
 ## Funde, nach Wirkung aufs Erlebnis
 
 | Nr. | Wirkung | Fund | Stelle | Stand |
