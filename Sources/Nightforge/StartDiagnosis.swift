@@ -37,6 +37,15 @@ enum StartRemedy: Equatable {
     /// Nothing known to change: the next way as it stands.
     case nextWay
 
+    /// It is answered by another way of the ladder (NextStart.way), not by a change on the same one
+    /// (StartRecipe.Learned.applying).
+    var picksAWay: Bool {
+        switch self {
+        case .dropArguments, .layer, .nextLayer, .nextWay: return true
+        case .dllsOff, .runtimes, .noAVX, .trustRoot: return false
+        }
+    }
+
     var label: String {
         switch self {
         case .dropArguments: return "start without the added switches"
@@ -170,6 +179,12 @@ struct StartDiagnosis: Equatable {
     /// worth a start (CloserLook.step).
     static func unexplained(_ found: [StartDiagnosis]) -> Bool {
         found.allSatisfy { fallbacks.contains($0.id) }
+    }
+
+    /// The graphics layer itself said it can't draw (GameLog.graphicsFailed): the one finding that moves a
+    /// way on that had worked before. Anything else leaves a proven way its place (LaunchHealth.earlyEnd).
+    static func layerRefused(_ found: [StartDiagnosis]) -> Bool {
+        found.contains { $0.id == "graphics-failed" }
     }
 
     private static func said(_ finding: StartFinding, _ part: String) -> String {

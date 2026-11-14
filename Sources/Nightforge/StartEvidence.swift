@@ -112,6 +112,26 @@ enum StartEvidence {
         /// Reached a picture and ended before that counted as working (LaunchHealth.verdict).
         var picture: Set<String> = []
         var failed: Set<String> = []
+        /// What a way was made of when it worked: the recipe of the start that counted. A proof holds for a
+        /// recipe, not for a graphics layer – It Takes Two runs on D3DMetal with its profile's -dx12 and the
+        /// PhysX update loader off, and failed on DXMT over PhysX, not over DXMT (10.11.2026). Every start of
+        /// the game is read for this, also one a profile shaped: that is the recipe it proves. A way that
+        /// worked in a line from before recipes were recorded has none here and stands for whatever it is
+        /// started with (`holds`).
+        var workedWith: [String: StartRecipe] = [:]
+        /// The recipes a way ended without a picture with – also when it worked with another one since.
+        var failedWith: [String: [StartRecipe]] = [:]
+
+        /// Whether the game's own proof holds for a start on `way` made of `recipe`: it worked with the same
+        /// start (StartRecipe.startsLike), or it worked before recipes were recorded.
+        func holds(for recipe: StartRecipe, on way: String) -> Bool {
+            if let with = workedWith[way] { return with.startsLike(recipe) }
+            return worked.contains(way)
+        }
+
+        /// What the diagnosis had changed about the start that worked on `way` (StartRecipe.steps): what a
+        /// game of the same sort may need there too.
+        func steps(on way: String) -> [String] { workedWith[way]?.steps ?? [] }
     }
 
     /// Whether a start speaks for its way as such: not shaped by a profile, and started with the way's own
@@ -126,17 +146,38 @@ enum StartEvidence {
 
     /// Each game's proof, read from the record in order. A start on a way already proven counts as one more
     /// time it worked; a way that worked isn't made a failure by a later bad start. Starts that don't speak for
-    /// their way (`speaksForItsWay`) leave no proof.
+    /// their way (`speaksForItsWay`) leave no proof of a way – what their recipe was and how it went is kept
+    /// all the same (`workedWith`, `failedWith`): the outcome of a start belongs to the recipe it began with.
     static func proofs(_ entries: [Entry]) -> [String: Proof] {
         var proofs: [String: Proof] = [:]
         var speaks: [String: Bool] = [:]
+        /// The game's start still open: its way and what it was made of.
+        var begun: [String: (way: String, recipe: StartRecipe?)] = [:]
         for entry in entries {
             guard let way = entry.way else { continue }
             var proof = proofs[entry.game] ?? Proof()
             if entry.event == .started {
                 speaks[entry.game] = speaksForItsWay(entry)
                 if let kind = entry.kind { proof.kind = kind }
+                begun[entry.game] = (way, entry.recipe)
             }
+            if let start = begun[entry.game], start.way == way, let recipe = start.recipe {
+                switch entry.event {
+                case .worked:
+                    proof.workedWith[way] = recipe
+                    proof.failedWith[way]?.removeAll { $0.startsLike(recipe) }
+                    if proof.failedWith[way]?.isEmpty == true { proof.failedWith[way] = nil }
+                case .failed:
+                    // A later bad start doesn't undo a recipe that worked, as with the ways below.
+                    if proof.workedWith[way]?.startsLike(recipe) != true,
+                       proof.failedWith[way]?.contains(where: { $0.startsLike(recipe) }) != true {
+                        proof.failedWith[way, default: []].append(recipe)
+                    }
+                case .started, .ended, .gaveUp:
+                    break
+                }
+            }
+            if entry.event == .worked || entry.event == .failed, begun[entry.game]?.way == way { begun[entry.game] = nil }
             if speaks[entry.game] ?? true {
                 switch entry.event {
                 case .started:

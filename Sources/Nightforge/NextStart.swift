@@ -1,0 +1,123 @@
+import Foundation
+
+/// What comes after a start that ended without a picture: the same way once more with its recipe changed,
+/// another way of the ladder, or no start at all. One decision for what the start loop does today in
+/// branches of its own, each with its own memory – the engine before, a missing runtime, a settings file
+/// fixed, no AVX, a closer look, the next way (docs/ENTWURF-STARTREZEPT.md 3.3, step E). It only reads
+/// and answers; the loop starts, saves and says.
+///
+/// The measure is It Takes Two, 10.11.2026: it crashed the same way on all three graphics layers
+/// (PhysXUpdateLoader64 → nvapi64 → 0), the ladder could only change the layer, and its crash dump named
+/// the module all along. Here the first failure answers with the same way and the loader off, and the
+/// player notices a longer wait.
+///
+/// Not wired in yet: LibraryModel's loop still decides by its branches.
+enum NextStart {
+    /// The start that failed and what is known about it.
+    struct Failed {
+        /// The ways to try (empty: the layer was chosen by hand, or nothing is known about the game) and
+        /// the one the start was on.
+        var ladder: [LaunchAttempt] = []
+        var index = 0
+        /// The way had worked before this start.
+        var proven = false
+        /// What its recipe carried from the table already (LearnedFixes.learned).
+        var learned = StartRecipe.Learned()
+        /// What the table read from the start (StartDiagnosis.diagnose). For a game with an anti-cheat: from
+        /// Wine's log alone, as before – its files aren't looked into.
+        var found: [StartDiagnosis] = []
+        /// No DLL of such a game is ever switched off, whatever was found: what its programs load stays
+        /// as the game ships it.
+        var antiCheat = false
+        /// Starts on the same way again so far in this Play.
+        var againSoFar = 0
+        /// The game ran on this way with the engine before and ended at once on the newest: the next start
+        /// uses the one before (EngineRollback.afterFailedStart said so, and holds it).
+        var engineBefore = false
+        /// The profile's edits just changed a settings file the game wrote at this start (Engine.applyFileEdits).
+        var filesFixed = false
+        /// What a closer look asks for (CloserLook.step).
+        var look = CloserLook.Step.none
+    }
+
+    enum Step: Equatable {
+        /// The same way once more. `learned`: what the game's recipe carries from now on, changed or not.
+        /// `why`: the rules of the table that asked for it, or one of the reasons below.
+        case again(StartRecipe.Learned, why: [String])
+        /// On to this way of the ladder. `why`: the rule that picked it; nil for simply the next.
+        case way(Int, why: String?)
+        /// A way that had worked keeps its place and is watched again at the next Play.
+        case keepsItsPlace
+        /// No ladder: nothing to switch to.
+        case noOtherWay
+        /// Every way tried.
+        case giveUp
+    }
+
+    /// Reasons for the same way again that aren't rules of the table.
+    static let engineBefore = "engine-before"
+    static let fileEdits = "file-edits"
+    static let closerLook = "closer-look"
+
+    /// Starts on the same way again in one Play, at most. Each costs the player the time of a start, and
+    /// the cap holds whatever a rule keeps finding. The start on the engine before doesn't count: that one
+    /// is held by EngineRollback already and comes once.
+    static let againLimit = 3
+
+    /// In order: the engine before; all the table changes about the recipe, at once, with the profile's
+    /// file edits; then the ladder – a closer look at the last way, a proven way's place, the way the
+    /// findings point to.
+    static func after(_ failed: Failed) -> Step {
+        if failed.engineBefore { return .again(failed.learned, why: [engineBefore]) }
+        let mayRepeat = failed.againSoFar < againLimit
+
+        // What the table knows to change on the same way: every finding's remedy in one start, not one
+        // start each – the player waits for starts, not for certainty about which of them it was.
+        var learned = failed.learned
+        var why: [String] = []
+        for diagnosis in failed.found {
+            guard let remedy = diagnosis.remedy else { continue }
+            if failed.antiCheat, case .dllsOff = remedy { continue }
+            if let changed = learned.applying(remedy, rule: diagnosis.id) {
+                learned = changed
+                why.append(diagnosis.id)
+            }
+        }
+        if failed.filesFixed { why.append(fileEdits) }
+        if !why.isEmpty, mayRepeat { return .again(learned, why: why) }
+
+        guard failed.ladder.indices.contains(failed.index) else { return .noOtherWay }
+        // Nothing explains it and no way is left to carry the channels: this one again, with them.
+        if failed.look == .sameWayAgain, mayRepeat { return .again(failed.learned, why: [closerLook]) }
+        if failed.proven, !StartDiagnosis.layerRefused(failed.found) { return .keepsItsPlace }
+        let pointer = failed.found.first { $0.remedy?.picksAWay == true }
+        guard let next = way(answering: pointer?.remedy, after: failed.index, in: failed.ladder) else { return .giveUp }
+        return .way(next, why: pointer?.id)
+    }
+
+    /// The way of `ladder` after `index` that answers `remedy`, and the next one where none does or the
+    /// remedy names none – as LaunchHealth.advance(answering:) picks for what a game said. Only ways still
+    /// to come: the ones before had their start. nil: no way is left.
+    static func way(answering remedy: StartRemedy?, after index: Int, in ladder: [LaunchAttempt]) -> Int? {
+        let following = ladder.indices.dropFirst(index + 1)
+        let answers: ((LaunchAttempt) -> Bool)?
+        switch remedy {
+        case .dropArguments?: answers = { $0.arguments.isEmpty }
+        case .layer(let layer)?: answers = { $0.graphics == layer }
+        case .nextLayer?:
+            let now = ladder.indices.contains(index) ? ladder[index].graphics : nil
+            answers = { $0.graphics != now }
+        default: answers = nil
+        }
+        return answers.flatMap { answers in following.first { answers(ladder[$0]) } } ?? following.first
+    }
+
+    /// What a game said, as the remedy the table gives for it (StartDiagnosis.rules).
+    static func remedy(for failure: StartFailure) -> StartRemedy {
+        switch failure {
+        case .refusedSwitch: return .dropArguments
+        case .needsD3D12: return .layer(.d3dmetal)
+        case .needsD3D9: return .layer(.wined3d)
+        }
+    }
+}

@@ -1,7 +1,8 @@
 // Checks the closer look at a start nothing explains: Wine's debug lines as they come with and without a
 // process id, strings as Wine quotes them, Metal Gear Solid V's real signature check of 11.11.2026
 // (fixtures/), what counts as the game's own (its processes, files in its folder), process ids handed out
-// again, and the rule for when a start carries the channels.
+// again, Alan Wake's real error box of 14.11.2026 and what tells a notice from a question, and the rule for
+// when a start carries the channels.
 import Foundation
 
 @main
@@ -158,6 +159,48 @@ struct CloserLookTest {
             + ["\(game):0454:trace:wintrust:WinVerifyTrust (0, {x}, 0)", "\(game):0454:trace:wintrust:WinVerifyTrust returning 80096010"]
         check(CloserLook.read(nameless.joined(separator: "\n"), gameFolder: folder).signatures == [CloserLook.Signature(file: nil, code: 0x8009_6010)],
               "a check without a file's name still counts for the process that made it")
+
+        // MARK: Alan Wake, 14.11.2026 – a start with the channels as it was: its error box
+
+        let wake = try String(contentsOf: URL(fileURLWithPath: "tests/CloserLookTest/fixtures/msgbox-alanwake-2026-11-14.log"), encoding: .utf8)
+        let wakeBox = "Alan Wake could not initialize your 3D graphics card. Please see that your system conforms with the minimum "
+            + "specification and ensure you have the latest graphics card drivers installed. Technical: DEVICE_CREATE_ERROR - Not available"
+        let woke = CloserLook.read(wake, gameFolder: "AlanWake")
+        check(woke.channelsOn && woke.boxes == [wakeBox], "the box's text as +msgbox printed it, in one line (\(woke.boxes))")
+        check(woke.endedAtBox == wakeBox, "… and the game loaded nothing after it: the window it ended at")
+        check(woke.graphics == ["opengl32.dll", "d3d9.dll", "vulkan-1.dll"] && woke.loadsOnlyDirect3D9, "it loaded Direct3D 9 and nothing newer (\(woke.graphics))")
+        check(woke.debugOutput.last == "Loaded String table in 57 ms" && woke.debugOutput.count == 6, "the last of what it said for a debugger (\(woke.debugOutput))")
+        check(woke.signatures.isEmpty, "no signature check in it")
+        check(CloserLook.read(wake, gameFolder: "Dishonored") == CloserLook.Reading(channelsOn: true), "another game's reading of the same log: nothing")
+        check(GameLog.direct3D9Failed(in: wake, layer: .d3dmetal) && !GameLog.direct3D9Failed(in: wake, layer: .dxvk),
+              "DXVK's own words stand in it too: the rule that spoke on 14.11.")
+        check(looked.endedAtBox == "Failed to load SteamAPI. Please restart „Steam“.", "Metal Gear Solid V's box was its last word as well")
+        // A game that goes on after a box loads more; another process of the game's doesn't make it go on.
+        let helper = "0820"
+        var went = begins(game, program: gamePath + "game.exe")
+        went += ["\(game):0454:trace:msgbox:MSGBOX_OnInit L\"No controller found.\"", load(game, #"C:\\windows\\system32\\d3d11.dll"#)]
+        let wentOn = CloserLook.read(went.joined(separator: "\n"), gameFolder: folder)
+        check(wentOn.boxes == ["No controller found."] && wentOn.endedAtBox == nil, "a box the game went on after isn't the one it ended at")
+        went = begins(game, program: gamePath + "game.exe") + ["\(game):0454:trace:msgbox:MSGBOX_OnInit L\"Fatal error!\""]
+        went += begins(helper, program: gamePath + "CrashReportClient.exe") + [load(helper, #"C:\\windows\\system32\\dbghelp.dll"#)]
+        check(CloserLook.read(went.joined(separator: "\n"), gameFolder: folder).endedAtBox == "Fatal error!",
+              "its crash reporter starting behind the box doesn't change that")
+        went = begins(game, program: gamePath + "game.exe") + ["\(game):0454:trace:msgbox:MSGBOX_OnInit L\"First.\"",
+                                                             "\(game):0454:trace:msgbox:MSGBOX_OnInit L\"Then this.\""]
+        check(CloserLook.read(went.joined(separator: "\n"), gameFolder: folder).endedAtBox == "Then this.", "of two boxes the last")
+
+        // MARK: A question or a notice
+
+        check(CloserLook.box(wakeBox) == .notice && CloserLook.box("Failed to load SteamAPI") == .notice, "the two real ones: notices")
+        check(CloserLook.box("DX12 is not supported on your system. Try running without the -dx12 or -d3d12 command line argument.") == .notice
+              && CloserLook.box("Die Grafikkarte wird nicht unterstützt.") == .notice, "no question mark: nothing asked, in any language")
+        check(CloserLook.box("Do you want to start in safe mode?") == .question && CloserLook.box("Möchtest du im Fenster starten?") == .question
+              && CloserLook.box("セーフモードで起動しますか？") == .question, "a question the player can answer either way")
+        check(CloserLook.box("The UE4 game has crashed and will close. Send a report?") == .notice
+              && CloserLook.box("Fatal error! Would you like to send a crash report?") == .notice
+              && CloserLook.box("Das Spiel ist abgestürzt. Bericht senden?") == .notice, "a failure that asks what to do about it is still a failure")
+        check(CloserLook.everyStart == "+pid,+loaddll,+msgbox" && CloserLook.everyStart.split(separator: ",").allSatisfy { CloserLook.channels.contains($0) },
+              "the channels proposed for every start are a part of a closer look's")
 
         // MARK: When a start carries the channels
 

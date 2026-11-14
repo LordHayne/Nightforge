@@ -1,0 +1,198 @@
+info:  [nightforge] The Windows Steam starts in the background at 15:59:06
+msync: bootstrapped mach port on wine-2a9b917-msync.
+msync: up and running.
+info:  [nightforge] Game test begins: 1 of 1 installed games to start, into 2026-11-14-1559
+info:  [nightforge] Game test: load 4.0 on 10 cores
+info:  [nightforge] Game test: Alan Wake (1 of 1)
+info:  [nightforge] Curtain watch for Alan Wake begins
+info:  [nightforge]   at 15:59:12
+info:  [nightforge] Curtain over Alan Wake: no process of it for a while (ownSaves), B and Esc lead out
+info:  [nightforge] Curtain look at Alan Wake: 0 processes, in front Nightforge (72561, not the game's), windows none, picture none, asks no, curtain up
+info:  [nightforge] Start of Alan Wake: d3dmetal on winecx@4.7.3
+info:  [nightforge] Curtain watch for Alan Wake ends: a new start or Go to Nightforge
+info:  [nightforge] Curtain over Alan Wake: the way out is closed again
+info:  [nightforge] Curtain watch for Alan Wake begins
+info:  [nightforge]   at 15:59:14
+info:  [nightforge] Curtain look at Alan Wake: 0 processes, in front Nightforge (72561, not the game's), windows none, picture none, asks no, curtain up
+info:  [nightforge] Alan Wake starts on D3DMetal: D3DM_ENABLE_METALFX=1 D3DM_MAX_FPS=1 D3DM_VENDOR_ID=0 D3DM_DEVICE_ID=0 D3DM_SUPPORT_DXR=0 retina=0
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\start.exe" at 0000000140000000: builtin
+02f4:02f8:trace:loaddll:build_ntdll_module Loaded L"C:\\windows\\system32\\ntdll.dll" at 00006FFFFFF20000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\kernelbase.dll" at 00006FFFFFD60000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\kernel32.dll" at 00006FFFFFEB0000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\msvcrt.dll" at 00006FFFFFC40000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\ucrtbase.dll" at 00006FFFFFB10000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\sechost.dll" at 00006FFFFFC00000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\advapi32.dll" at 00006FFFFFD00000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\win32u.dll" at 00006FFFFF610000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\user32.dll" at 00006FFFFF660000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\gdi32.dll" at 00006FFFFF830000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\shcore.dll" at 00006FFFFEC50000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\shlwapi.dll" at 00006FFFFEC80000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\shell32.dll" at 00006FFFFECE0000: builtin
+02f4:02f8:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\imm32.dll" at 00006FFFFE7D0000: builtin
+0308:030c:trace:loaddll:build_ntdll_module Loaded L"C:\\windows\\system32\\ntdll.dll" at 00006FFFFFF20000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\wow64.dll" at 00006FFFEC650000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\wow64cpu.dll" at 000000007BD90000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\win32u.dll" at 00006FFFFF610000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\wow64win.dll" at 00006FFFEB560000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\alanwake.exe" at 00400000: native
+0308:030c:trace:loaddll:build_ntdll_module Loaded L"C:\\windows\\system32\\ntdll.dll" at 7BDB0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\kernelbase.dll" at 7BBD0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\kernel32.dll" at 7BD20000: builtin
+info:  [nightforge] The curtain goes over a captured display's shield
+info:  [nightforge] Curtain look at Alan Wake: 2 processes, in front Nightforge (72561, not the game's), windows none, picture none, asks no, curtain up
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\ucrtbase.dll" at 7B7D0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\msvcrt.dll" at 7B8F0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\sechost.dll" at 7B8C0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\advapi32.dll" at 7B9B0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\win32u.dll" at 7B6F0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\user32.dll" at 7BA00000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\gdi32.dll" at 7B740000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\opengl32.dll" at 79B40000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\wined3d.dll" at 79CC0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\d3dcompiler_43.dll" at 7A010000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\d3dxof.dll" at 79B00000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\cryptbase.dll" at 7AB80000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\rpcrt4.dll" at 7ABA0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\combase.dll" at 7AC40000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\coml2.dll" at 7AB50000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\ole32.dll" at 7ACA0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\d3dx9_43.dll" at 7A050000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\msacm32.dll" at 79A70000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\WINMM.dll" at 79AA0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\binkw32.dll" at 10000000: native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\comctl32.dll" at 798D0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\shcore.dll" at 7AD70000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\shlwapi.dll" at 7ADA0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\shell32.dll" at 7AE00000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\COMDLG32.dll" at 799F0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\hid.dll" at 79880000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\cfgmgr32.dll" at 7A180000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\setupapi.dll" at 7A100000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\XINPUT1_3.dll" at 798A0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\winsxs\\x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.30729.6161_none_deadbeef\\msvcr90.dll" at 796B0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\winsxs\\x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.30729.6161_none_deadbeef\\MSVCP90.dll" at 79770000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\rl_f_Win32.dll" at 007B0000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\grph_f_Win32.dll" at 003D0000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\d3d_f_Win32.dll" at 00A00000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\renderer_f_Win32.dll" at 00840000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\app_f_Win32.dll" at 00390000: native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\WS2_32.dll" at 7AA40000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\physics_f_Win32.dll" at 00A40000: native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\dnsapi.dll" at 79620000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\nsi.dll" at 79600000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\iphlpapi.dll" at 79650000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\WSOCK32.dll" at 79690000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\fmodex.dll" at 00F80000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\snd_f_Win32.dll" at 003E0000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\dm_f_Win32.dll" at 013D0000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\ai_f_Win32.dll" at 01250000: native
+0308:030c:trace:loaddll:build_module Loaded L"Z:\\Volumes\\Games\\Nightforge Games\\Epic Games\\AlanWake\\loc_f_Win32.dll" at 01410000: native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\dbghelp.dll" at 79560000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\imm32.dll" at 7A870000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"c:\\windows\\system32\\winemac.drv" at 79540000: builtin
+0338:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\Program Files (x86)\\Steam\\bin\\gldriverquery.exe") not found
+0338:err:module:loader_init Importing dlls for L"C:\\Program Files (x86)\\Steam\\bin\\gldriverquery.exe" failed, status c0000135
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\uxtheme.dll" at 794F0000: builtin
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-000.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-001.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-002.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-003.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-004.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-005.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-006.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-007.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-000-en.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-001-en.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-002-en.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-003-en.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loading PackFile: .\\data\\ep999-004-en.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-jp.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-jp.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-jp.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-jp.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-jp.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-de.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-de.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-de.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-de.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-de.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-fr.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-fr.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-fr.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-fr.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-fr.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-es.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-es.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-es.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-es.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-es.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-esm.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-esm.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-esm.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-esm.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-esm.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-it.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-it.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-it.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-it.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-it.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-ko.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-ko.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-ko.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-ko.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-ko.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-cht.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-cht.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-cht.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-cht.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-cht.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-pl.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-pl.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-pl.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-pl.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-pl.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-ru.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-ru.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-ru.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-ru.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-ru.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-000-cz.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-001-cz.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-002-cz.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-003-cz.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Skipping non-active locale pack: .\\data\\ep999-004-cz.rmdp\n"
+0308:030c:warn:debugstr:OutputDebugStringA "Loaded String table in 57 ms\n"
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\D3D9.DLL" at 791D0000: native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\vulkan-1.dll" at 791B0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\winevulkan.dll" at 79150000: builtin
+0308:030c:trace:loaddll:free_modref Unloaded module L"C:\\windows\\system32\\winevulkan.dll" : builtin
+0308:030c:trace:loaddll:free_modref Unloaded module L"C:\\windows\\system32\\vulkan-1.dll" : builtin
+0308:030c:trace:loaddll:free_modref Unloaded module L"C:\\windows\\system32\\D3D9.DLL" : native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\D3D9.DLL" at 791B0000: native
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\vulkan-1.dll" at 794D0000: builtin
+0308:030c:trace:loaddll:build_module Loaded L"C:\\windows\\system32\\winevulkan.dll" at 79150000: builtin
+[mvk-error] VK_ERROR_FEATURE_NOT_PRESENT: vkCreateDevice(): Requested physical device feature specified by the 5th flag in VkPhysicalDeviceFeatures is not available on this device.
+[mvk-error] VK_ERROR_FEATURE_NOT_PRESENT: vkCreateDevice(): Requested physical device feature specified by the 39th flag in VkPhysicalDeviceFeatures is not available on this device.
+err:   DxvkAdapter: Failed to create device
+0308:030c:trace:loaddll:free_modref Unloaded module L"C:\\windows\\system32\\winevulkan.dll" : builtin
+0308:030c:trace:loaddll:free_modref Unloaded module L"C:\\windows\\system32\\vulkan-1.dll" : builtin
+0308:030c:trace:loaddll:free_modref Unloaded module L"C:\\windows\\system32\\D3D9.DLL" : native
+info:  [nightforge] Curtain look at Alan Wake: 2 processes, in front Nightforge (72561, not the game's), windows 1492×970 L21, 1 hidden, picture here, asks no, curtain up
+info:  [nightforge] In front under the curtain: Nightforge Game (79008)
+0308:030c:trace:msgbox:MSGBOX_OnInit L"Alan Wake could not initialize your 3D graphics card. Please see that your system conforms with the minimum specification and ensure you have the latest graphics card drivers installed. Technical: DEVICE_CREATE_ERROR - Not available"
+info:  [nightforge] Curtain look at Alan Wake: 2 processes, in front Nightforge Game (79008, the game's), windows 331×147 L0, 5 hidden, picture none, asks yes, curtain up
+info:  [nightforge] Pointer: the sheer panel takes the keys from Nightforge Game
+info:  [nightforge] Curtain under a window of Alan Wake's: it asks something
+info:  [nightforge] Curtain look at Alan Wake: 2 processes, in front Nightforge Game (79008, the game's), windows 331×147 L0, 5 hidden, picture none, asks yes, curtain under the question
+info:  [nightforge] Steam switch: the Windows Steam waits, Steam for Mac has the account, at 15:59:30
+info:  [nightforge] In front under the curtain: Nightforge (72561)
+info:  [nightforge] Curtain look at Alan Wake: 0 processes, in front Nightforge (72561, not the game's), windows none, picture none, asks no, curtain under the question
+info:  [nightforge] Curtain look at Alan Wake: 0 processes, in front Nightforge (72561, not the game's), windows none, picture none, asks no, curtain up
+info:  [nightforge] Alan Wake ended right at a question of its own, answered by the player: no other way
+info:  [nightforge] Curtain watch for Alan Wake ends: its processes are gone, the start decides what's next
+info:  [nightforge] Diagnosis for Alan Wake: direct3d9: DXVK got no device on a way that isn't DXVK's: the game draws with Direct3D 9 → start on wined3d
+info:  [nightforge] Back to Nightforge at 16:00:40
+info:  [nightforge] Game test: Alan Wake – noWindow on d3dmetal
+info:  [nightforge] Game test ends: 0 of 1 started games showed a picture – 2026-11-14-1559
+info:  [nightforge] Quit by an Apple Event from osascript
