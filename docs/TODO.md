@@ -163,6 +163,22 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Entschieden vom Nutzer, 15.11. kurz nach Mitternacht:** „aber das menü sagt halt echt nichts aus über die
+leistung im spiel“ – die FPS-Werte des Spieletests (Vorspann, Menü) belegen den Start, nicht die Leistung. Ein
+Leistungswert ist nur einer, der beim Spielen gemessen wurde. Zum Mitschreiben beim normalen Spielen: „ja aber
+nur für unsere tests. im fertigen build soll kein tracking laufen“.
+
+- [ ] **Messen beim Spielen, nur als Testschalter** (Auftrag an die Läuft-Liste-Session, nach der sample-Regel):
+  versteckter Schalter in den Defaults, ohne ihn schreibt kein Start etwas mit (Test), nichts verlässt den Mac;
+  Leser für eine normale Spielsitzung, der Anfang bleibt weg (Regel als Vorschlag); WineD3D über Wines
+  fps-Kanal. Zeilen in `LibraryModel.swift`/`Engine.swift` kommen als Patch nach Teil 2 von Schritt E.
+- [ ] **Listen umstellen:** Werte des Spieletests unter „Start geprüft“, nicht öffentlich als FPS; Abhakliste mit
+  zwei getrennten Aussagen („Start geprüft“, „im Spiel gemessen“). Die Landingpage bekommt FPS nur aus Messungen
+  beim Spielen.
+- Der Nutzer löscht acht Spiele schon jetzt, wenn ihm „startet sauber“ genügt (Guardians, Just Cause 4, Control,
+  Dishonored, Alan Wake, Frostpunk, Batman, The Forest). Behalten für Prüfungen: Hogwarts und It Takes Two
+  (Schritt E live), MGS V (Frage zur Wurzel), Wukong Benchmark (Limit auf D3DMetal), Mafia II (Ruckeln, Ton).
+
 **Stand 14.11., 23:50:** Der zweite Commit der Läuft-Liste-Session (`15bc24a`: der Bericht des Spieletests nennt
 für D3DMetal „keins möglich (verlangt: 60 FPS)“; Regeln und drei Vorschläge in `docs/LAEUFT-LISTE.md` Abschnitt 9,
 Punkte 10 bis 12) ist geprüft (GameTestTest grün) und im Testzweig (`35e3c1b`).
