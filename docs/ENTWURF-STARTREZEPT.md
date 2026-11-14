@@ -507,6 +507,13 @@ ihr Board, die Vorlagen dafür stehen unter der Liste.
    - C, gar kein eigener Text: Der Vorhang bleibt bei „Startet …“, der Spieler merkt nur die längere Wartezeit.
    Empfehlung: A – es erklärt die Wartezeit, ohne Mechanik zu zeigen.
 
+**Das Board steht seit 15.11.2026:** https://claude.ai/artifact/DFFsf6UN2SqAEubqUCWWy3 (Design-Leinwand im
+Nightforge-Designsystem, privat; die Quellen der fünf Artboards liegen in `docs/entwuerfe/fehlstart/`). Es zeigt
+drei Vorlagen für den Vorhang bei einem Fehlstart (A ruhig, B mit Lebenszeichen – empfohlen, C erzählt mit), drei
+Wege für das Fehlerfenster des Spiels (einordnen – empfohlen als erster Schritt, selbst sagen, selbst OK drücken)
+und die Frage zur Wurzel (auf dem Vorhang – empfohlen, oder auf der Seite des Spiels), alles deutsch und englisch.
+Der Nutzer wählt; gebaut ist davon nichts. Die Tabelle unten war der erste Stand der Texte.
+
 **Vorlage für das Board, zwei Oberflächen, deutsch und englisch.** Nichts davon ist gebaut.
 
 *Vorhang beim Start auf demselben Weg (Vorlage A).* Es gibt drei Anlässe, und der Satz darunter stimmt nicht für
