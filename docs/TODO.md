@@ -163,6 +163,13 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Zuschnitt von 0.3.3 (entschieden vom Nutzer, 15.11.: „ja machen wir 0.3.3 so zugeschnitten. sonst kommen wir
+langsamer voran“):** 0.3.3 = „Der Start repariert sich selbst, sichtbar“ (Schritt E live, Vorhang nach dem Board)
+und „Laufwerk wiedererkennen“, dazu was schon fertig im Testzweig liegt und geprüft ist. Auf 0.3.4: das Limit auf
+D3DMetal (Weg A) und die älteren Punkte des 0.3.3-Plans, die noch ein Board oder einen Live-Test brauchen. Die
+genaue Liste (hinein / auf 0.3.4) legt der Koordinator dem Nutzer vor. Der Nutzer will die Laufwerks-Übernahme
+selbst auf dem Mac mini testen (frische Installation, Platte anstecken); vorher hier mit nachgebautem Laufwerk.
+
 **Ziel für den Start (der Nutzer, 15.11.):** Nightforge reagiert smart, behebt Fehlstarts selbst und vermittelt
 dem Spieler dabei, dass es aktiv an der Lösung arbeitet – „voller Problembehebung bei Fehlern automatisiert“.
 
