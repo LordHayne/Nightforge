@@ -684,6 +684,23 @@ struct GameTestTest {
         defaults.set(true, forKey: GameTest.Keys.frameLog)
         check(GameTest.logsFrames(active: true, defaults: defaults) && !GameTest.logsFrames(active: false, defaults: defaults),
               "set to true: still only in a game test")
+        // Measuring play is a hidden switch of its own: without it no start by Play logs a frame, whatever else is set.
+        let play = TestDefaults.suite("measurePlay")
+        check(!GameTest.measuresPlay(defaults: play) && !GameTest.logsFrames(active: false, defaults: play), "no switch: a start by Play logs nothing")
+        play.set(false, forKey: GameTest.measurePlayKey)
+        check(!GameTest.measuresPlay(defaults: play) && !GameTest.logsFrames(active: false, defaults: play), "set to false: nothing either")
+        play.set("yes please", forKey: GameTest.measurePlayKey)
+        play.set(true, forKey: GameTest.Keys.frameLog)
+        check(!GameTest.logsFrames(active: false, defaults: play), "the game test's own switch doesn't reach a start by Play")
+        play.set(true, forKey: GameTest.measurePlayKey)
+        check(GameTest.measuresPlay(defaults: play) && GameTest.logsFrames(active: false, defaults: play), "the switch on: a start by Play logs its frames")
+        play.set(false, forKey: GameTest.Keys.frameLog)
+        check(GameTest.logsFrames(active: true, defaults: play), "… and a game test's start does then too")
+        check(GameTest.measurePlayKey == "measurePlay", "the switch's name, as the rules give it")
+        check(GameTest.playNote(game: "Control", onBattery: false, lowPower: false, load: GameTest.Load(average: 2.14, cores: 10))
+              == "Play measuring of Control: on mains, load 2.1 on 10 cores", "the conditions a measured session began under")
+        check(GameTest.playNote(game: "Control", onBattery: true, lowPower: true, load: nil) == "Play measuring of Control: on battery, Low Power Mode",
+              "on battery, in Low Power Mode, without a load")
 
         // Done with a game: a clean start and a frame rate that counts.
         func check2(_ entry: GameTest.Entry, play: Double = 200, battery: Bool = false, lowPower: Bool = false) -> GameTest.Check? {

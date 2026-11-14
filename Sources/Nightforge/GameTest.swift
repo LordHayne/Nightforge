@@ -35,10 +35,37 @@ enum GameTest {
     nonisolated(unsafe) static var active = false
 
     /// Whether the start about to happen has Apple's Metal HUD log its frames (Engine.setFrameLog): a game
-    /// test's, so that every way that presents through Metal gets a frame rate (GameTestMeasure) – never a
-    /// start by Play.
+    /// test's, so that every way that presents through Metal gets a frame rate (GameTestMeasure) – and a
+    /// start by Play only with the hidden switch for measuring play (`measuresPlay`). Without that switch no
+    /// start by Play logs anything.
     static func logsFrames(active: Bool = active, defaults: UserDefaults = .standard) -> Bool {
-        active && defaults.object(forKey: Keys.frameLog) as? Bool != false
+        (active && defaults.object(forKey: Keys.frameLog) as? Bool != false) || measuresPlay(defaults: defaults)
+    }
+
+    /// The hidden switch for measuring while a game is played, for Nightforge's own tests: no entry in the
+    /// interface, off unless someone sets it (`defaults write io.github.lordhayne.nightforge measurePlay -bool true`).
+    /// A menu or an intro says nothing of how a game runs (the user, 15.11.2026), so a frame rate for the list
+    /// comes from play. With the switch a start by Play has Apple's Metal HUD log its frames as a game test's
+    /// has – invisible where the performance display is off. Nothing leaves the Mac and nothing is kept but
+    /// those lines in wine.log; the list's script reads a session from there (scripts/laeuft-liste.py).
+    static let measurePlayKey = "measurePlay"
+
+    /// A build made with NIGHTFORGE_RELEASE has no such switch at all: the finished build tracks nothing.
+    static func measuresPlay(defaults: UserDefaults = .standard) -> Bool {
+        #if NIGHTFORGE_RELEASE
+        return false
+        #else
+        return defaults.bool(forKey: measurePlayKey)
+        #endif
+    }
+
+    /// What a measured session of play began under, a line for the log beside the start's limit
+    /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record.
+    /// "Play measuring of <game>: on mains, load 2.1 on 10 cores" ·
+    /// "Play measuring of <game>: on battery, Low Power Mode, load 7.4 on 10 cores".
+    static func playNote(game: String, onBattery: Bool, lowPower: Bool, load: Load?) -> String {
+        "Play measuring of \(game): " + (onBattery ? "on battery" : "on mains") + (lowPower ? ", Low Power Mode" : "")
+            + (load.map { ", load \($0.average) on \($0.cores) cores" } ?? "")
     }
 
     /// Whether Wine's debug channels (GameLog.extraWineDebug, the switch `wineDebug`) have its fps channel on:
