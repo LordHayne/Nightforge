@@ -1,6 +1,6 @@
 {
  "build": {
-  "built": null,
+  "built": "2026-11-14T14:40:10Z",
   "engine": [
    "winecx@4.7.3",
    "d3dmetal@apple-3.0",
@@ -12,28 +12,29 @@
   ],
   "mac": "Apple M5 · macOS 27.0",
   "nightforge": "0.3.2",
-  "since": "2026-11-09T22:45:04Z",
+  "since": "2026-11-14T14:47:10Z",
   "sinceFrom": "firstRun"
  },
- "dataUntil": "2026-11-14T12:22:35Z",
+ "dataUntil": "2026-11-14T14:59:07Z",
  "formatVersion": 1,
  "games": [
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:49:25Z",
-    "average": 28.4,
+    "at": null,
+    "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxmt",
-    "why": "limitUnknown"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.2357570",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "Overwatch®",
@@ -41,11 +42,11 @@
    "sizeBytes": 84222583639,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:49:25Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "dxmt",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -54,15 +55,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:57:27Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.63a665088eb1480298f1e57943b225d8",
    "location": "extern",
@@ -75,11 +76,11 @@
    "sizeBytes": 82615812112,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:57:28Z",
-    "by": "evidence",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "d3dmetal",
-    "why": "noOutcome"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "epic",
@@ -88,15 +89,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:51:42Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.fa4240e57a3c46b39f169041b7811293",
    "location": "extern",
@@ -109,11 +110,11 @@
    "sizeBytes": 76700981001,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:51:43Z",
-    "by": "evidence",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "d3dmetal",
-    "why": "noOutcome"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "epic",
@@ -122,19 +123,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:55:57Z",
-    "average": 46.8,
+    "at": null,
+    "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxmt",
-    "why": "limitUnknown"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.Kakopo",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "Just Cause 4",
@@ -142,11 +144,11 @@
    "sizeBytes": 50528184896,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:55:57Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "dxmt",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "epic",
@@ -155,19 +157,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T19:54:37Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.1426210",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "It Takes Two",
@@ -175,11 +178,11 @@
    "sizeBytes": 48392303260,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:28:48Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "d3dmetal",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -188,15 +191,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:54:25Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.Calluna",
    "location": "extern",
@@ -209,11 +212,11 @@
    "sizeBytes": 45010292103,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:54:26Z",
-    "by": "evidence",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "d3dmetal",
-    "why": "noOutcome"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "epic",
@@ -256,19 +259,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-11T19:23:05Z",
-    "average": 59.3,
+    "at": null,
+    "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxmt",
-    "why": "limitUnknown"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.287700",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "METAL GEAR SOLID V: THE PHANTOM PAIN",
@@ -276,11 +280,11 @@
    "sizeBytes": 31106322849,
    "skipped": null,
    "start": {
-    "at": "2026-11-11T19:23:41Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "dxmt",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -289,19 +293,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-11T19:46:37Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.d2da64bd4c4e422da4b1a88041492a3a",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "Dishonored - Definitive Edition",
@@ -309,11 +314,11 @@
    "sizeBytes": 17357748207,
    "skipped": null,
    "start": {
-    "at": "2026-11-11T19:46:38Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "epic",
@@ -322,19 +327,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:45:04Z",
-    "average": 57.2,
+    "at": null,
+    "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxmt -dx11",
-    "why": "limitUnknown"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.2129530",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "REANIMAL",
@@ -342,11 +348,11 @@
    "sizeBytes": 17112452967,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:45:04Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "dxmt -dx11",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -355,15 +361,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:05:02Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "mac",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.203160",
    "location": "extern",
@@ -376,11 +382,11 @@
    "sizeBytes": 16493299501,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:05:02Z",
-    "by": "gameTest",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "mac",
-    "why": "tooShort"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -389,15 +395,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:53:51Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.550",
    "location": "extern",
@@ -410,11 +416,11 @@
    "sizeBytes": 14964354280,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:53:51Z",
-    "by": "evidence",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "wined3d",
-    "why": "noOutcome"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -423,19 +429,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-11T19:05:54Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.Heron",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "Alan Wake",
@@ -443,11 +450,11 @@
    "sizeBytes": 9666507981,
    "skipped": null,
    "start": {
-    "at": "2026-11-11T19:05:56Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
+    "at": "2026-11-14T14:59:12Z",
+    "by": "gameTest",
+    "ok": false,
+    "way": "d3dmetal",
+    "why": "noPicture"
    },
    "status": "offen",
    "store": "epic",
@@ -490,15 +497,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:01:00Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "mac",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.1815780",
    "location": "extern",
@@ -511,15 +518,48 @@
    "sizeBytes": 9064369430,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:01:00Z",
-    "by": "gameTest",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "mac",
-    "why": "tooShort"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
    "storeID": "1815780"
+  },
+  {
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T14:47:16Z",
+    "average": null,
+    "frameLimit": 60,
+    "holds": null,
+    "kind": "holdsLimit",
+    "ok": false,
+    "public": false,
+    "way": "wined3d",
+    "why": "wayReportsNone"
+   },
+   "key": "steam.35140",
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Batman: Arkham Asylum GOTY Edition",
+   "platform": "windows",
+   "sizeBytes": 8471095333,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T14:47:16Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "35140"
   },
   {
    "byHand": null,
@@ -534,42 +574,10 @@
     "way": null,
     "why": "never"
    },
-   "key": "steam.35140",
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Batman: Arkham Asylum GOTY Edition",
-   "platform": "windows",
-   "sizeBytes": 8471095333,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-14T12:08:12Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "35140"
-  },
-  {
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-10T00:34:03Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
-   },
    "key": "gog.1816059595",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "Mafia II (Classic)",
@@ -577,11 +585,11 @@
    "sizeBytes": 8441968765,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:34:03Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "gog",
@@ -590,15 +598,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:32:48Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.3132990",
    "location": "extern",
@@ -611,11 +619,11 @@
    "sizeBytes": 8365222843,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:33:30Z",
-    "by": "evidence",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "d3dmetal",
-    "why": "noOutcome"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -624,15 +632,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:47:55Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxvk",
-    "why": "noneInLog"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.3907790",
    "location": "extern",
@@ -645,11 +653,11 @@
    "sizeBytes": 7359381270,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:47:56Z",
-    "by": "evidence",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "dxvk",
-    "why": "noOutcome"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -658,19 +666,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:41:41Z",
-    "average": 58.4,
+    "at": null,
+    "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxvk",
-    "why": "limitUnknown"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.242760",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "The Forest",
@@ -678,11 +687,11 @@
    "sizeBytes": 5950220689,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:41:41Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "dxvk",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -691,19 +700,20 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:59:13Z",
-    "average": 54.8,
+    "at": null,
+    "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "dxmt -dx11",
-    "why": "limitUnknown"
+    "way": null,
+    "why": "never"
    },
    "key": "epic.Curry",
    "location": "extern",
    "missing": [
+    "start",
     "fps"
    ],
    "name": "ABZU",
@@ -711,11 +721,11 @@
    "sizeBytes": 4818969865,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:59:13Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "dxmt -dx11",
-    "why": "ok"
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "epic",
@@ -724,15 +734,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:07:03Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "mac",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.892970",
    "location": "extern",
@@ -745,11 +755,11 @@
    "sizeBytes": 4586639854,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:07:03Z",
-    "by": "gameTest",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "mac",
-    "why": "tooShort"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",
@@ -758,15 +768,15 @@
   {
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:03:05Z",
+    "at": null,
     "average": null,
     "frameLimit": null,
     "holds": null,
     "kind": null,
     "ok": false,
     "public": false,
-    "way": "mac",
-    "why": "wayReportsNone"
+    "way": null,
+    "why": "never"
    },
    "key": "steam.442070",
    "location": "extern",
@@ -779,11 +789,11 @@
    "sizeBytes": 248585110,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:03:05Z",
-    "by": "gameTest",
+    "at": null,
+    "by": null,
     "ok": false,
-    "way": "mac",
-    "why": "tooShort"
+    "way": null,
+    "why": "never"
    },
    "status": "offen",
    "store": "steam",

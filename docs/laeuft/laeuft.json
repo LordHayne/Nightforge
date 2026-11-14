@@ -1,14 +1,16 @@
 {
- "dataUntil": "2026-11-14T12:22:35Z",
+ "dataUntil": "2026-11-14T14:59:07Z",
  "entries": [
   {
    "antiCheat": false,
    "confirmed": {
     "at": "2026-11-11T19:07:14Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 2,
     "way": "wined3d",
     "ways": 2
@@ -25,13 +27,13 @@
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-11T19:05:54Z",
-    "lastOutcome": "picture",
+    "last": "2026-11-14T14:59:12Z",
+    "lastOutcome": "noWindow",
     "lastWays": [
-     "wined3d"
+     "d3dmetal"
     ],
     "pictures": 1,
-    "runs": 2
+    "runs": 3
    },
    "key": "epic.Heron",
    "level": "laeuft",
@@ -52,6 +54,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -93,9 +96,11 @@
    "confirmed": {
     "at": "2026-11-14T12:11:13Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 1,
     "way": "wined3d",
     "ways": 1
@@ -103,8 +108,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-14T12:11:13Z",
-    "starts": 1,
+    "last": "2026-11-14T14:47:47Z",
+    "starts": 2,
     "ways": [
      "wined3d"
     ]
@@ -113,11 +118,59 @@
     "engine": "unreal",
     "version": "3"
    },
-   "gameTest": null,
+   "gameTest": {
+    "last": "2026-11-14T14:47:16Z",
+    "lastOutcome": "picture",
+    "lastWays": [
+     "wined3d"
+    ],
+    "pictures": 1,
+    "runs": 1
+   },
    "key": "steam.35140",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
-   "measured": null,
+   "measured": {
+    "at": "2026-11-14T14:47:16Z",
+    "built": "2026-11-14T14:40:10Z",
+    "displayMode": null,
+    "endedByItself": false,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "fps": null,
+    "frameLimit": 60,
+    "frameLog": false,
+    "holds": null,
+    "kind": "holdsLimit",
+    "loadLow": true,
+    "lowPower": false,
+    "metalFX": true,
+    "nightforge": "0.3.2",
+    "noFrames": "wayReportsNone",
+    "notPublic": [
+     "noFps"
+    ],
+    "onBattery": false,
+    "playSeconds": 190,
+    "public": false,
+    "refreshRate": 120,
+    "reportFormat": 2,
+    "runsOn": "x86_64 under Rosetta",
+    "screen": "1512×982",
+    "secondsToPicture": 141.4,
+    "swapchain": null,
+    "throttled": null,
+    "upscaledTo": null,
+    "way": "wined3d",
+    "window": "1800×1125"
+   },
    "name": "Batman: Arkham Asylum GOTY Edition",
    "nameFrom": "report",
    "notes": [],
@@ -133,9 +186,11 @@
    "confirmed": {
     "at": "2026-11-09T23:33:30Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "d3dmetal",
     "ways": null
@@ -178,6 +233,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -217,9 +273,11 @@
    "confirmed": {
     "at": "2026-11-09T21:56:35Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "d3dmetal",
     "ways": null
@@ -262,6 +320,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -301,9 +360,11 @@
    "confirmed": {
     "at": "2026-11-11T19:49:41Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 3,
     "way": "wined3d",
     "ways": 1
@@ -349,6 +410,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -388,9 +450,11 @@
    "confirmed": {
     "at": "2026-11-09T20:34:07Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 1,
     "way": "d3dmetal",
     "ways": 1
@@ -433,6 +497,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -472,9 +537,11 @@
    "confirmed": {
     "at": "2026-11-10T00:31:50Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 6,
     "way": "d3dmetal",
     "ways": 3
@@ -522,6 +589,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -561,9 +629,11 @@
    "confirmed": {
     "at": "2026-11-09T20:56:29Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 1,
     "way": "dxmt",
     "ways": 1
@@ -616,6 +686,7 @@
      "source": null
     },
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -657,9 +728,11 @@
    "confirmed": {
     "at": "2026-11-09T23:43:34Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "wined3d",
     "ways": null
@@ -702,6 +775,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -741,9 +815,11 @@
    "confirmed": {
     "at": "2026-11-09T22:00:52Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "wined3d",
     "ways": null
@@ -786,6 +862,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -825,9 +902,11 @@
    "confirmed": {
     "at": "2026-11-11T19:24:30Z",
     "basis": "worked",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": 7,
     "way": "dxmt",
     "ways": 2
@@ -881,6 +960,7 @@
      "source": null
     },
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -924,9 +1004,11 @@
    "confirmed": {
     "at": "2026-11-09T23:49:25Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "dxmt",
     "ways": null
@@ -979,6 +1061,7 @@
      "source": null
     },
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1020,9 +1103,11 @@
    "confirmed": {
     "at": "2026-11-09T23:47:56Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "dxvk",
     "ways": null
@@ -1065,6 +1150,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1104,9 +1190,11 @@
    "confirmed": {
     "at": "2026-11-09T23:45:04Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "dxmt -dx11",
     "ways": null
@@ -1159,6 +1247,7 @@
      "source": null
     },
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1200,9 +1289,11 @@
    "confirmed": {
     "at": "2026-11-09T23:41:41Z",
     "basis": "known",
+    "built": null,
     "engine": "winecx@4.7.3",
     "failedSince": 0,
     "nightforge": null,
+    "parts": null,
     "starts": null,
     "way": "dxvk",
     "ways": null
@@ -1255,6 +1346,7 @@
      "source": null
     },
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1342,6 +1434,7 @@
      "source": null
     },
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1420,6 +1513,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1490,6 +1584,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": false,
@@ -1572,6 +1667,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1642,6 +1738,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1712,6 +1809,7 @@
     ],
     "fps": null,
     "frameLimit": null,
+    "frameLog": false,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1788,7 +1886,7 @@
  ],
  "formatVersion": 1,
  "sources": {
-  "evidenceEntries": 66,
-  "gameTestRuns": 26
+  "evidenceEntries": 67,
+  "gameTestRuns": 28
  }
 }

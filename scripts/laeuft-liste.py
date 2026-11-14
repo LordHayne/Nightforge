@@ -34,6 +34,8 @@ LEVELS = ("laeuft", "startet", "anti-cheat", "kein-bild")
 LAYERS = ("wined3d", "dxvk", "dxmt", "d3dmetal", "mac")
 # Ways that report no frame rates at all (GameTest.noFrames).
 SILENT = ("d3dmetal", "wined3d", "mac")
+# … and with Apple's Metal HUD logging the frames (a game test since 14.11.2026): only what doesn't present through Metal.
+SILENT_LOGGED = ("wined3d", "mac")
 # Outcomes of a game test that say nothing about the game: nobody tried, or only the player could go on.
 UNTRIED = ("skipped", "needsPlayer", "unknown")
 UNKNOWN_MAC = "unbekannt"
@@ -120,6 +122,12 @@ def seconds_between(earlier, later):
         return float("inf")
 
 
+def parts_of(start):
+    """The engine's parts a start names, or None."""
+    parts = start.get("parts")
+    return [part for part in parts if isinstance(part, str)] if isinstance(parts, list) and parts else None
+
+
 def launch_verdict(launch):
     """What one launch says about a clean start, and whether that settles it. Clean: one start, no failure, and
     working – `worked`, or a way already confirmed that kept its picture for `WATCHED` seconds."""
@@ -133,6 +141,14 @@ def launch_verdict(launch):
     if ended is None:
         return "noOutcome", False
     return ("tooShort" if ended["picture"] else "endedEarly"), False
+
+
+def stated(start):
+    """The build a start names – Nightforge's version, when it was built, the engine's parts, as `build_of`
+    gives a report's – or None for a line from before 14.11.2026, which says the engine only."""
+    if not start.get("nightforge") or not start.get("parts"):
+        return None
+    return (start["nightforge"], start.get("built"), tuple(start["parts"]))
 
 
 def from_evidence(entries):
@@ -151,7 +167,7 @@ def from_evidence(entries):
         game = games.setdefault((key, mac), {
             "starts": 0, "ways": [], "confirmed": {}, "currentWay": None, "failedSince": {}, "picture": None,
             "failed": 0, "gaveUp": False, "sawKnown": False, "last": None, "lastWay": None, "antiCheat": None,
-            "kind": None, "profiled": {}, "withdrawn": {}, "launches": [],
+            "kind": None, "profiled": {}, "withdrawn": {}, "launches": [], "name": None,
         })
         game["last"] = entry["at"]
         if way:
@@ -164,6 +180,8 @@ def from_evidence(entries):
                     "way": way, "at": entry["at"], "basis": basis,
                     "engine": start.get("engine") if start.get("way") == way else None,
                     "nightforge": start.get("nightforge") if start.get("way") == way else None,
+                    "built": start.get("built") if start.get("way") == way else None,
+                    "parts": parts_of(start) if start.get("way") == way else None,
                     # How many starts and ways it took – only for a game the record saw from its first start.
                     "starts": game["starts"] if first else None,
                     "ways": len(game["ways"]) if first else None,
@@ -179,7 +197,8 @@ def from_evidence(entries):
             if not (last and last["open"] and last["failedAt"] and seconds_between(last["failedAt"], entry["at"]) <= 15):
                 launches.append({"at": entry["at"], "starts": 0, "ways": [], "failed": 0, "failedAt": None, "open": True, "worked": False,
                                  "gaveUp": False, "known": bool(entry.get("known")), "ended": None, "engine": entry.get("engine"),
-                                 "nightforge": entry.get("nightforge")})
+                                 "nightforge": entry.get("nightforge"), "built": entry.get("built"), "parts": parts_of(entry),
+                                 "mac": mac})
             launches[-1]["starts"] += 1
             launches[-1]["failedAt"] = None
             if way and way not in launches[-1]["ways"]:
@@ -199,6 +218,8 @@ def from_evidence(entries):
             game["starts"] += 1
             if way and way not in game["ways"]:
                 game["ways"].append(way)
+            if isinstance(entry.get("name"), str) and entry["name"].strip():
+                game["name"] = entry["name"].strip()
             kind = entry.get("kind")
             if isinstance(kind, dict):
                 game["kind"] = kind
@@ -253,7 +274,7 @@ def from_reports(reports):
                 "at": entry.get("startedAt") or report["started"], "format": report.get("formatVersion"),
                 "nightforge": report.get("nightforge"), "engine": report.get("engine") or [], "built": report.get("built"),
                 "check": entry.get("check"), "platform": entry.get("platform") or "windows",
-                "runsOn": report.get("runsOn"), "playSeconds": report.get("playSeconds"),
+                "runsOn": report.get("runsOn"), "playSeconds": report.get("playSeconds"), "frameLog": bool(report.get("frameLog")),
                 "onBattery": bool(report.get("onBattery")), "lowPower": bool(report.get("lowPower")),
                 "outcome": entry.get("outcome"), "skip": entry.get("skip"), "ways": ways, "way": ways[-1] if ways else None,
                 "secondsToPicture": entry.get("secondsToPicture"), "frames": entry.get("frames"),
@@ -266,6 +287,12 @@ def from_reports(reports):
 def build_of(run):
     """What tells one build from another: the version, the program's date (format 2), the engine's parts."""
     return (run.get("nightforge"), run.get("built"), tuple(run.get("engine") or []))
+
+
+def no_frames(run):
+    """Why a picture has no frame rate (GameTest.noFrames): the run's own word, else by its way."""
+    silent = SILENT_LOGGED if run["frameLog"] else SILENT
+    return run["measure"].get("noFrames") or ("wayReportsNone" if layer(run["way"]) in silent else "noneInLog")
 
 
 def check_of(run):
@@ -288,7 +315,7 @@ def check_of(run):
     if not picture:
         fps = "noPicture"
     elif not frames:
-        fps = run["measure"].get("noFrames") or ("wayReportsNone" if layer(run["way"]) in SILENT else "noneInLog")
+        fps = no_frames(run)
     elif run["onBattery"] or run["lowPower"] or run["measure"].get("throttled"):
         fps = "throttled"
     elif run["loadLow"] is False:
@@ -330,9 +357,9 @@ def measured(run):
     if isinstance(frames, dict) and frames.get("average") is not None:
         fps = {name: frames.get(name) for name in ("average", "low", "periods", "seconds", "slowestFrame", "slowestTypical", "source",
                                                    "onePercentLow", "gpuTime")}
-    no_frames = None
+    none = None
     if fps is None:
-        no_frames = measure.get("noFrames") or ("wayReportsNone" if layer(run["way"]) in SILENT else "noneInLog")
+        none = no_frames(run)
     # Under a limit a number says whether the game holds it (FramePacing's 95 %), not what the Mac could do.
     limit = measure.get("frameLimit")
     kind = None if limit is None else "holdsLimit" if limit > 0 else "free"
@@ -344,7 +371,7 @@ def measured(run):
         "reportFormat": run["format"], "way": run["way"], "playSeconds": run["playSeconds"],
         "secondsToPicture": run["secondsToPicture"], "loadLow": run["loadLow"],
         "onBattery": run["onBattery"], "lowPower": run["lowPower"],
-        "endedByItself": "crashed" in run["issues"], "fps": fps, "noFrames": no_frames,
+        "endedByItself": "crashed" in run["issues"], "fps": fps, "noFrames": none, "frameLog": run["frameLog"],
         "frameLimit": measure.get("frameLimit"), "refreshRate": measure.get("refreshRate"), "metalFX": measure.get("metalFX"),
         "window": measure.get("window"), "screen": measure.get("screen"), "swapchain": measure.get("swapchain"),
         "upscaledTo": measure.get("upscaledTo"), "displayMode": measure.get("displayMode"),
@@ -479,10 +506,12 @@ def build(evidence_lists, reports, names=None, stock=None):
     """The list's document: one entry per game, version and Mac that anything was recorded of."""
     names = names or {}
     stock_names = {game["key"]: game["name"] for game in stock or [] if game.get("name")}
-    starts = {}
+    starts, evidence_names = {}, {}
     for entries in evidence_lists:
         for (key, mac), game in from_evidence(entries).items():
             starts[(key, "windows", mac)] = game  # the evidence records Windows versions only
+            if game["name"]:
+                evidence_names[key] = game["name"]
     tests, report_names = from_reports(reports)
     entries = []
     for key, platform, mac in sorted(set(starts) | set(tests)):
@@ -546,10 +575,12 @@ def build(evidence_lists, reports, names=None, stock=None):
 
         kind = evidence["kind"] if evidence else None
         store, _, store_id = key.partition(".")
-        name = report_names.get(key) or names.get(key) or stock_names.get(key)
+        said = evidence_names.get(key)
+        name = report_names.get(key) or said or names.get(key) or stock_names.get(key)
         entries.append({
             "key": key, "store": store, "storeID": store_id, "platform": platform, "mac": mac,
-            "name": name, "nameFrom": "report" if key in report_names else "names" if key in names else "stock" if name else None,
+            "name": name, "nameFrom": "report" if key in report_names else "evidence" if said else "names" if key in names
+            else "stock" if name else None,
             "level": level, "way": way, "antiCheat": anti_cheat,
             "confirmed": dict(confirmed, failedSince=evidence["failedSince"].get(way, 0)) if confirmed else None,
             "withdrawn": withdrawn,
@@ -578,26 +609,30 @@ def build(evidence_lists, reports, names=None, stock=None):
 
 # MARK: - The checklist
 
-def current_build(reports, since=None):
-    """The build the checklist asks about: the newest report's, and since when it has been seen – or `since`,
-    for a build no game test has run on yet."""
-    if not reports:
+def current_build(reports, launches=(), since=None):
+    """The build the checklist asks about: the one the newest game test or the newest start that names its
+    build ran on, and since when it has been seen – or `since`, for a build nothing names yet."""
+    seen = [(report["started"], build_of(report), report.get("mac") or UNKNOWN_MAC, "firstRun") for report in reports]
+    seen += [(launch["at"], stated(launch), launch["mac"], "firstStart") for launch in launches if stated(launch)]
+    if not seen:
         return None
-    newest = reports[-1]
-    first = next(report["started"] for report in reports if build_of(report) == build_of(newest))
-    return {"nightforge": newest.get("nightforge"), "built": newest.get("built"), "engine": newest.get("engine") or [],
-            "mac": newest.get("mac") or UNKNOWN_MAC, "since": since or first, "sinceFrom": "argument" if since else "firstRun"}
+    seen.sort(key=lambda one: (one[0], one[3]))
+    newest = seen[-1]
+    first = next(one for one in seen if one[1] == newest[1])
+    nightforge, built, engine = newest[1]
+    return {"nightforge": nightforge, "built": built, "engine": list(engine), "mac": newest[2],
+            "since": since or first[0], "sinceFrom": "argument" if since else first[3]}
 
 
 def checklist(stock, evidence_lists, reports, names=None, since=None):
     """Per installed game: its size, and whether a clean start and a frame rate that counts are on record for
     the current build. "fertig" needs both; "von-hand" is what no game test will ever start."""
     names = names or {}
-    build = current_build(reports, since)
     stamps = [entry["at"] for entries in evidence_lists for entry in entries] + [report["started"] for report in reports]
     starts = {}
     for entries in evidence_lists:
         starts.update(from_evidence(entries))
+    build = current_build(reports, [launch for game in starts.values() for launch in game["launches"]], since)
     tests, report_names = from_reports(reports)
     mac = build["mac"] if build else next((key[1] for key in reversed(list(starts))), UNKNOWN_MAC)
     since = build["since"] if build else since
@@ -616,7 +651,11 @@ def checklist(stock, evidence_lists, reports, names=None, since=None):
         for launch in evidence["launches"] if evidence else []:
             if since and launch["at"] < since:
                 continue
-            if (winecx and launch["engine"] not in (None, winecx)) or (build and launch["nightforge"] not in (None, build["nightforge"])):
+            # A start that names its build counts on that build only; an older line by its date and engine.
+            if stated(launch):
+                if not build or stated(launch) != build_of(build):
+                    continue
+            elif (winecx and launch["engine"] not in (None, winecx)) or (build and launch["nightforge"] not in (None, build["nightforge"])):
                 continue
             code, settles = launch_verdict(launch)
             seen.append((launch["at"], code, settles, "evidence", launch["ways"][-1] if launch["ways"] else None))
@@ -653,7 +692,7 @@ def checklist(stock, evidence_lists, reports, names=None, since=None):
         store, _, store_id = key.partition(".")
         games.append({
             "key": key, "store": store, "storeID": store_id, "platform": platform,
-            "name": report_names.get(key) or item.get("name") or names.get(key),
+            "name": report_names.get(key) or (evidence["name"] if evidence else None) or item.get("name") or names.get(key),
             "sizeBytes": item["sizeBytes"], "location": item["location"], "status": status,
             "missing": [] if status == "fertig" else [what for what, have in (("start", start["ok"]), ("fps", fps["ok"])) if not have],
             "byHand": by_hand, "skipped": skipped, "start": start, "fps": fps,
@@ -697,7 +736,9 @@ def proof_text(entry):
                 text += f", {confirmed['starts']}. Start"
                 if confirmed["ways"] and confirmed["ways"] > 1:
                     text += f", {confirmed['ways']} Wege"
-        return text + (f" · {confirmed['engine']}" if confirmed["engine"] else "")
+        version = f"Nightforge {confirmed['nightforge']}" + (f" (gebaut {date(confirmed['built'])})" if confirmed.get("built") else "") \
+            if confirmed.get("nightforge") else None
+        return " · ".join(filter(None, [text, version, confirmed["engine"]]))
     seen = entry["seen"]
     if seen:
         return f"Bild im Spieletest {date(seen['at'])}" if seen["by"] == "gameTest" else f"Bild beim Start {date(seen['at'])} (Evidenz)"
@@ -719,7 +760,8 @@ def frames_text(m):
             return ("hält das Limit: " if m["holds"] else "hält das Limit nicht: ") + text
         return "frei: " + text if m["kind"] == "free" else text + " (Limit nicht aufgezeichnet)"
     silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine", "mac": "Mac-Fassung meldet keine"}
-    return f"nicht gemessen ({silent.get(layer(m['way']), 'keine im Log')})"
+    # With the HUD's frame log a way through Metal had its chance: then the log held none.
+    return f"nicht gemessen ({'keine im Log' if m['noFrames'] == 'noneInLog' else silent.get(layer(m['way']), 'keine im Log')})"
 
 
 def slowest_text(m):
@@ -858,7 +900,8 @@ def markdown(document):
             lines.append("")
     unnamed = sorted({entry["key"] for entry in entries if not entry["name"]})
     if unnamed:
-        lines += ["Ohne Namen (kein Spieletest hat sie gespielt, und `namen.json` kennt sie nicht): " + ", ".join(f"`{key}`" for key in unnamed), ""]
+        lines += ["Ohne Namen (kein Spieletest hat sie gespielt, ihre Starts nennen keinen, und `namen.json` kennt sie nicht): "
+                  + ", ".join(f"`{key}`" for key in unnamed), ""]
     return "\n".join(lines)
 
 
@@ -869,7 +912,7 @@ START = {
 }
 NO_FPS = {
     "noPicture": "kein Bild", "noneInLog": "keine im Log", "throttled": "auf Akku oder gedrosselt gemessen", "loadHigh": "Last war hoch",
-    "limitUnknown": "Wert ohne aufgezeichnetes Limit (altes Berichtsformat)", "never": "auf diesem Build nie gemessen",
+    "limitUnknown": "Wert ohne aufgezeichnetes Limit", "never": "auf diesem Build nie gemessen",
 }
 SKIPS = dict(BY_HAND, signIn="bräuchte eine Anmeldung", update="ein Update stünde an", runtimes="bräuchte erst Laufzeiten",
              d3dMetal="braucht D3DMetal, das nicht eingerichtet ist", macSteamSetup="Steam für Mac ist nicht eingerichtet",
@@ -908,10 +951,11 @@ def checklist_markdown(document):
     ]
     if build:
         parts = " · ".join([f"Nightforge {build['nightforge']}" + (f" (gebaut {date(build['built'])})" if build["built"] else "")] + build["engine"])
-        since = "so angegeben" if build["sinceFrom"] == "argument" else "erster Spieletest auf diesem Build"
+        since = {"argument": "so angegeben", "firstStart": "erster aufgezeichneter Start auf diesem Build"}.get(
+            build["sinceFrom"], "erster Spieletest auf diesem Build")
         lines.append(f"Aktueller Build: {parts}. Gezählt wird, was seit dem {date(build['since'])} aufgezeichnet ist ({since}).")
     else:
-        lines.append("Kein Spieletest-Bericht: Der Build ist unbekannt, FPS-Werte gibt es keine.")
+        lines.append("Kein Spieletest-Bericht und kein Start, der seinen Build nennt: Der Build ist unbekannt, FPS-Werte gibt es keine.")
     lines += ["",
               "**Fertig** ist ein Spiel mit beidem auf dem aktuellen Build: einem sauberen Start (Bild auf dem ersten und einzigen Weg, kein "
               "Fehlversuch, nicht von selbst beendet, als laufend bestätigt) und einem FPS-Wert mit seinen Bedingungen (Limit aufgezeichnet, "

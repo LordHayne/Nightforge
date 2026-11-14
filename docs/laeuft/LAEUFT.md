@@ -2,7 +2,7 @@
 
 Erzeugt von `scripts/laeuft-liste.py` aus Nightforges eigenen Aufzeichnungen (Start-Evidenz und Spieletest) – nicht von Hand ändern. Was die Stufen bedeuten, unter welchen Bedingungen gemessen wird und was die Zahlen nicht aussagen: [LAEUFT-LISTE.md](../LAEUFT-LISTE.md). Maschinenlesbar: [laeuft.json](laeuft.json).
 
-Stand der Daten: 14.11.2026 (Tage in UTC). Quellen: 66 Einträge der Start-Evidenz, 26 Spieletest-Läufe.
+Stand der Daten: 14.11.2026 (Tage in UTC). Quellen: 67 Einträge der Start-Evidenz, 28 Spieletest-Läufe.
 
 ## Apple M5 · macOS 27.0
 
@@ -12,8 +12,8 @@ Der Weg ist bestätigt: Das Spiel hat gemessene Frames gezeichnet oder lief 180 
 
 | Spiel | Laden | Fassung | Weg | Beleg | Spieletest | Bild nach | Frame-Limit | FPS | Langsamster Frame | Größe | Messung | Hinweis |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Alan Wake | Epic Games | Windows | wined3d | bestätigt 11.11.2026, 2. Start, 2 Wege · winecx@4.7.3 | Bild in 1 von 2 | 11 s | nicht gemessen | nicht gemessen (WineD3D meldet keine) | nicht gemessen | nicht gemessen | 11.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 200 s | endete im Spielfenster von selbst |
-| Batman: Arkham Asylum GOTY Edition | Steam | Windows | wined3d | bestätigt 14.11.2026, 1. Start · winecx@4.7.3 | – | nicht gemessen | nicht gemessen | nicht gemessen | nicht gemessen | nicht gemessen | – | – |
+| Alan Wake | Epic Games | Windows | wined3d | bestätigt 11.11.2026, 2. Start, 2 Wege · winecx@4.7.3 | Bild in 1 von 3 | 11 s | nicht gemessen | nicht gemessen (WineD3D meldet keine) | nicht gemessen | nicht gemessen | 11.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 200 s | endete im Spielfenster von selbst |
+| Batman: Arkham Asylum GOTY Edition | Steam | Windows | wined3d | bestätigt 14.11.2026, 1. Start · winecx@4.7.3 | Bild in 1 von 1 | 141 s | 60 FPS | nicht gemessen (WineD3D meldet keine) | nicht gemessen | Fenster 1800×1125 Punkte | 14.11.2026 · Nightforge 0.3.2 (gebaut 14.11.2026) · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 190 s | – |
 | Black Myth: Wukong Benchmark Tool | Steam | Windows | d3dmetal | bestätigt vor dem 9.11.2026 (vor der Aufzeichnung) · winecx@4.7.3 | Bild in 2 von 5 | 89 s | nicht gemessen | nicht gemessen (D3DMetal meldet keine) | nicht gemessen | nicht gemessen | 9.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · d3dmetal@apple-3.0 · graphics@11.18-dxmt0.80-17 · 60 s | – |
 | Control | Epic Games | Windows | d3dmetal | bestätigt vor dem 9.11.2026 (vor der Aufzeichnung) · winecx@4.7.3 | Bild in 4 von 4 | 10 s | nicht gemessen | nicht gemessen (D3DMetal meldet keine) | nicht gemessen | nicht gemessen | 9.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · d3dmetal@apple-3.0 · graphics@11.18-dxmt0.80-17 · 60 s | – |
 | Dishonored - Definitive Edition | Epic Games | Windows | wined3d | bestätigt 11.11.2026, 3. Start · winecx@4.7.3 | Bild in 3 von 3 | 18 s | nicht gemessen | nicht gemessen (WineD3D meldet keine) | nicht gemessen | nicht gemessen | 11.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 200 s | – |

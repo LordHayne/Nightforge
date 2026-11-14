@@ -48,11 +48,29 @@ class EvidenceTests(unittest.TestCase):
         batman = entry(document, "steam.35140")
         self.assertEqual((batman["level"], batman["way"], batman["mac"]), ("laeuft", "wined3d", MAC))
         self.assertEqual(batman["confirmed"], {"way": "wined3d", "at": "2026-11-14T12:11:13Z", "basis": "worked", "engine": "winecx@4.7.3",
-                                               "nightforge": None, "starts": 1, "ways": 1, "failedSince": 0})
+                                               "nightforge": None, "built": None, "parts": None, "starts": 1, "ways": 1, "failedSince": 0})
         self.assertEqual((batman["name"], batman["nameFrom"]), ("Batman: Arkham Asylum GOTY Edition", "names"))
         self.assertIsNone(batman["measured"])
         self.assertIsNone(batman["antiCheat"])  # no record says
         self.assertEqual(document["dataUntil"], "2026-11-14T12:11:13Z")
+
+    def test_a_start_that_names_its_build_and_its_game_brings_both(self):
+        parts = ["winecx@4.7.3", "graphics@11.18-dxmt0.80-17"]
+        said = started("steam.35140", "wined3d", "2026-11-14T16:08:12Z", name="Batman: Arkham Asylum GOTY Edition",
+                       nightforge="0.3.2", built="2026-11-14T14:02:11Z", parts=parts)
+        document = liste.build([[said, event("steam.35140", "worked", "wined3d", "2026-11-14T16:11:13Z")]], [], {"steam.35140": "Another name"})
+        batman = entry(document, "steam.35140")
+        self.assertEqual((batman["name"], batman["nameFrom"]), ("Batman: Arkham Asylum GOTY Edition", "evidence"))
+        self.assertEqual((batman["confirmed"]["nightforge"], batman["confirmed"]["built"], batman["confirmed"]["parts"]),
+                         ("0.3.2", "2026-11-14T14:02:11Z", parts))
+        self.assertIn("bestätigt 14.11.2026, 1. Start · Nightforge 0.3.2 (gebaut 14.11.2026) · winecx@4.7.3", liste.markdown(document))
+        self.assertNotIn("Ohne Namen", liste.markdown(document))
+        # A report's name still comes first, and a line without these reads as before.
+        named = liste.build([[said]], [report("2026-11-14T17:00:00Z", [played("Batman GOTY", "steam.35140", way="wined3d")])])
+        self.assertEqual((entry(named, "steam.35140")["name"], entry(named, "steam.35140")["nameFrom"]), ("Batman GOTY", "report"))
+        self.assertIsNone(liste.stated(started("steam.1", "dxmt", "2026-11-09T22:45:04Z")))
+        self.assertIsNone(liste.stated(started("steam.1", "dxmt", "2026-11-09T22:45:04Z", nightforge="0.3.2")))  # no parts: not a build
+        self.assertEqual(liste.stated(said), ("0.3.2", "2026-11-14T14:02:11Z", tuple(parts)))
 
     def test_counts_the_starts_and_ways_before_it_worked(self):
         document = liste.build([[started("steam.287700", "d3dmetal", "2026-11-11T18:25:22Z"),
@@ -205,6 +223,19 @@ class GameTestTests(unittest.TestCase):
         self.assertEqual((valheim["level"], valheim["confirmed"]), ("startet", None))
         self.assertIn("| 10.11.2026 · Nightforge 0.3.2 · 60 s |", next(line for line in table.splitlines() if line.startswith("| Valheim")))
         self.assertIn("d3dmetal@apple-3.0", next(line for line in table.splitlines() if line.startswith("| Control")))
+
+    def test_with_the_huds_frame_log_only_opengl_and_mac_versions_report_none(self):
+        def why(way, platform="windows", **more):
+            runs = [report("2026-11-15T20:00:00Z", [played("X", "steam.1", way=way, platform=platform)], version=2, **more)]
+            return entry(liste.build([], runs), "steam.1", platform)["measured"]["noFrames"]
+
+        self.assertEqual((why("d3dmetal"), why("dxvk"), why("wined3d"), why("mac", "mac")), ("wayReportsNone", "noneInLog", "wayReportsNone", "wayReportsNone"))
+        self.assertEqual((why("d3dmetal", frameLog=True), why("dxvk", frameLog=True), why("wined3d", frameLog=True), why("mac", "mac", frameLog=True)),
+                         ("noneInLog", "noneInLog", "wayReportsNone", "wayReportsNone"))
+        logged = report("2026-11-15T20:00:00Z", [played("X", "steam.1", way="d3dmetal", measure={"noFrames": "noneInLog"})], version=2, frameLog=True)
+        document = liste.build([], [logged])
+        self.assertTrue(entry(document, "steam.1")["measured"]["frameLog"])
+        self.assertIn("nicht gemessen (keine im Log)", liste.markdown(document))
 
     def test_the_newest_run_decides_and_the_runs_are_counted(self):
         tests = [report("2026-11-09T20:00:00Z", [played("Wukong", "steam.3132990", way="d3dmetal", secondsToPicture=87.1)]),
@@ -373,7 +404,7 @@ class ChecklistTests(unittest.TestCase):
         old = report("2026-11-10T00:57:00Z", [played("ABZU", "epic.Curry", way="dxmt -dx11", frames={"average": 54.8, "low": 42.3, "periods": 6}, load=self.LOW)])
         abzu = liste.checklist(stock, [], [old])["games"][0]
         self.assertEqual((abzu["start"]["ok"], abzu["fps"]["ok"], abzu["fps"]["why"], abzu["fps"]["average"]), (True, False, "limitUnknown", 54.8))
-        self.assertIn("fehlt: Wert ohne aufgezeichnetes Limit (altes Berichtsformat) (Ø 55, 10.11.2026, dxmt -dx11)", liste.checklist_markdown(liste.checklist(stock, [], [old])))
+        self.assertIn("fehlt: Wert ohne aufgezeichnetes Limit (Ø 55, 10.11.2026, dxmt -dx11)", liste.checklist_markdown(liste.checklist(stock, [], [old])))
         # A newer build's first run without the game: what the old build saw no longer counts.
         newer = self.measured_run("2026-11-15T20:00:00Z", [self.clean("MGS V", "steam.287700")])
         abzu = liste.checklist(stock, [], [old, newer])["games"][0]
@@ -420,6 +451,39 @@ class ChecklistTests(unittest.TestCase):
         self.assertEqual(start(*early, since="2026-11-11T20:00:00Z"), (True, "ok", "evidence"))
         another = dict(started("steam.35140", "wined3d", "2026-11-16T12:08:12Z"), engine="winecx@5.0")
         self.assertEqual(start(another, event("steam.35140", "worked", "wined3d", "2026-11-16T12:11:13Z")), (False, "never", None))
+
+    def test_a_start_that_names_its_build_counts_on_that_build_only(self):
+        stock = self.stock(("steam.35140", "windows", None, 8471095333))
+        parts = ["winecx@4.7.3", "d3dmetal@apple-3.0", "graphics@11.18-dxmt0.80-17"]
+        run = self.measured_run("2026-11-15T20:00:00Z", [self.clean("MGS V", "steam.287700")])
+
+        def said(at, built=self.BUILT, parts=parts, **more):
+            return started("steam.35140", "wined3d", at, name="Batman", nightforge="0.3.2", built=built, parts=parts, **more)
+
+        def check(*events, runs=(run,), since=None):
+            return liste.checklist(stock, [list(events)], list(runs), since=since)
+
+        worked = event("steam.35140", "worked", "wined3d", "2026-11-16T12:11:13Z")
+        # The report's build, named by the start: it counts, and the game has its name from the start.
+        game = check(said("2026-11-16T12:08:12Z"), worked)["games"][0]
+        self.assertEqual((game["start"]["ok"], game["start"]["by"], game["name"]), (True, "evidence", "Batman"))
+        # A newer test build shares the version: its starts are the current build now, the older report isn't.
+        newer = check(said("2026-11-16T12:08:12Z", built="2026-11-16T09:00:00Z"), worked)
+        self.assertEqual((newer["build"]["built"], newer["build"]["since"], newer["build"]["sinceFrom"]),
+                         ("2026-11-16T09:00:00Z", "2026-11-16T12:08:12Z", "firstStart"))
+        self.assertEqual((newer["games"][0]["start"]["ok"], newer["games"][0]["fps"]["why"]), (True, "never"))
+        self.assertIn("(erster aufgezeichneter Start auf diesem Build)", liste.checklist_markdown(newer))
+        # A start on an older build, or on other engine parts, says nothing of the current one – whatever its date.
+        older = check(said("2026-11-15T21:00:00Z", built="2026-11-10T09:00:00Z"), event("steam.35140", "worked", "wined3d", "2026-11-15T21:04:00Z"),
+                      runs=[run, self.measured_run("2026-11-15T22:00:00Z", [self.clean("MGS V", "steam.287700")])])
+        self.assertEqual((older["build"]["built"], older["games"][0]["start"]["why"]), (self.BUILT, "never"))
+        other = check(said("2026-11-15T21:00:00Z", parts=["winecx@4.7.3", "graphics@11.19"]), event("steam.35140", "worked", "wined3d", "2026-11-15T21:04:00Z"),
+                      runs=[run, self.measured_run("2026-11-15T22:00:00Z", [self.clean("MGS V", "steam.287700")])])
+        self.assertEqual(other["games"][0]["start"]["why"], "never")
+        # No report at all: the starts alone name the build.
+        alone = check(said("2026-11-16T12:08:12Z"), worked, runs=[])
+        self.assertEqual((alone["build"]["nightforge"], alone["build"]["engine"], alone["games"][0]["start"]["ok"]), ("0.3.2", parts, True))
+        self.assertIsNone(check(started("steam.35140", "wined3d", "2026-11-16T12:08:12Z"), worked, runs=[])["build"])
 
     def test_what_no_game_test_starts_is_for_a_person(self):
         stock = self.stock(("steam.77", "windows", None, 84000000000), ("steam.35140", "windows", "Batman", 8471095333), ("steam.5", "windows", "Updater", 1))

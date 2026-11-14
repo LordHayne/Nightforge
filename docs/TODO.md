@@ -62,20 +62,25 @@ FPS-Wert vorliegen; die FPS-Werte offen auf der Landingpage. Gebaut: `docs/LAEUF
 `scripts/laeuft-liste.py` → `docs/laeuft/` (`laeuft.json`, `LAEUFT.md`, `abhakliste.json`, `ABHAKLISTE.md`,
 `namen.json`), Spieletest-Bericht im Format 2 (`GameTestMeasure.swift`: Messwerte, Prüfung je Spiel, Größe, Baudatum,
 Leseseite für Apples Metal-HUD-Protokoll). Stand der echten Daten: 15 „läuft“, 6 „startet“; 23 geladene Spiele mit
-594,8 GB, davon **0 fertig**. Nichts davon ist live gelaufen: Format 2 schreibt erst der nächste Spieletest.
+594,8 GB, davon **0 fertig**. Format 2 ist am 14.11. einmal live gelaufen (Batman, 190 s): Baudatum, Größe, Prüfung
+und Messwerte stehen im Bericht.
+
+Nachzug am 14.11. (derselbe Zweig): Jeder Start eines Spieletests lässt Apples Metal-HUD die Frames mitschreiben
+(`Engine.setFrameLog`, unsichtbar bei ausgeschalteter Leistungsanzeige – mit einem eigenen Metal-Programm belegt),
+`started` nennt Version, Baudatum, Engine-Teile und Namen, jeder Start schreibt sein Limit und MetalFX als Zeile ins
+Protokoll, und der Generator zählt Starts nach ihrem Build. Nichts davon ist in einem Spiel gelaufen.
 
 Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
 
-- **FPS auf jedem Weg:** `MTL_HUD_LOG_ENABLED=1` neben `MTL_HUD_ENABLED=1` für Starts im Spieletest (`Engine.swift`
-  Zeile 92, `Launcher.swift` Zeilen 614 und 726; Abschnitt 9, Punkt 1) – sobald die Diagnose-Session die Dateien
-  freigibt. Ohne das bekommen 16 der 23 Spiele nie einen FPS-Wert (D3DMetal, WineD3D, Mac-Fassungen, OxyRail). Live zu
-  prüfen: Zeilen auf D3DMetal, MoltenVK, WineD3D? Protokoll bei Deckkraft 0? Mac-Fassungen und WineD3D sind offen.
-- **Messlauf** nach Abschnitt 6: `gameTest.playSeconds` 190, alle geladenen Spiele (anderthalb bis knapp drei Stunden).
-  Danach `scripts/import-game-test.py`, `scripts/laeuft-liste.py`. Schon ohne den Punkt darüber können 6 Spiele
-  (193,7 GB, DXMT und Vulkan-Schicht) fertig werden.
-- **Evidenz erweitern** (`StartEvidence.swift`, `LibraryModel.swift`): Nightforge-Version mit Baudatum, Engine-Teile
-  und Name in `started`; das Frame-Limit als Logzeile (Abschnitt 9, Punkte 2 und 3). Bis dahin zählt die Abhakliste
-  Starts von Hand nur nach Datum; für einen Build ohne Spieletest `--since` angeben.
+- **Messlauf** nach Abschnitt 6: `gameTest.playSeconds` 190, alle geladenen Spiele auf einem Build (anderthalb bis
+  knapp drei Stunden), danach `scripts/laeuft-liste.py`. Jeder neue Testbuild beginnt die Abhakliste von vorn.
+- **Live zu sehen im ersten Lauf** (Abschnitt 9, Punkt 1): `metal-HUD:`-Zeilen unter Wine auf D3DMetal und auf
+  DXVK/MoltenVK (auf DXMT sind sie belegt); die Anzeige bleibt bei Deckkraft 0 im Spiel unsichtbar; Steam startet für
+  den Test einmal neu und danach zurück; die Zeile „Frame limit of …“ steht im Protokoll und im Bericht; ein Start von
+  Hand schreibt Version, Baudatum, Teile und Namen in die Evidenz.
+- **Ohne FPS-Wert bleiben** WineD3D (5 Spiele, 58,9 GB: OpenGL, die Anzeige sieht es nicht) und Mac-Fassungen
+  (5 Spiele, 64,0 GB: Steam für Mac müsste mit der Variable und lesbarer Fehlerausgabe gestartet werden) – Abschnitt 9,
+  Punkte 4 und 5.
 
 Zu entscheiden (der Nutzer):
 
@@ -92,8 +97,10 @@ Zu entscheiden (der Nutzer):
   Anti-Cheat hat, ist für es nicht aufgezeichnet. Braucht die Liste eine von Hand gepflegte Hinweis-Datei?
 - **Community-Beiträge:** Die Evidenz „bleibt auf dem Mac“. Ein Export, den der Spieler selbst auslöst – ja oder nein
   (Abschnitt 8)?
-- **Engine-Build:** gezeichnete Auflösung unter DXMT und, falls die Leistungsanzeige dort nichts liefert, eine eigene
-  Zählung für WineD3D – lohnt das einen Build?
+- **Engine-Build:** gezeichnete Auflösung unter DXMT und eine eigene Zählung für WineD3D (die Leistungsanzeige liefert
+  dort nichts) – lohnt das einen Build? Oder gelten WineD3D-Spiele ohne FPS-Wert als abhakbar?
+- **Aktueller Build:** Die Abhakliste zählt nur, was auf genau dem jüngsten Build aufgezeichnet ist (Version, Baudatum,
+  Engine-Teile). Soll ein Testbuild mit denselben Engine-Teilen die Starts des vorigen behalten?
 
 ## Erlebnis-Audit (14.11., Zweig `claude/erlebnis-audit-033-0f5292`, `docs/AUDIT-ERLEBNIS-0.3.3.md`)
 
