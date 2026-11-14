@@ -130,6 +130,15 @@ enum OverlayRules {
         platform == .windows && onlineOnly
     }
 
+    /// Whether the panel goes when its game has ended. A game the overlay doesn't stop (one that only
+    /// plays online) can end under it – thrown out by its server, crashed – and a stopped one can be
+    /// ended from outside: the side bar then stood over Nightforge with "Continue Playing" and "Quit
+    /// Game" for a game that was gone, and kept the pad. Not the question about a start (`openedFor`),
+    /// which the curtain's watch takes away, nor a panel already on its way to Nightforge.
+    nonisolated static func goesWithGame(open: Bool, openedFor: OverlayStep, leaving: Bool) -> Bool {
+        open && openedFor == .menu && !leaving
+    }
+
     /// Whether a stopped game may run on: nothing is held any more – or it has waited long enough,
     /// for a stick the player keeps pushed.
     nonisolated static func mayRunOn(padIdle: Bool, waited: TimeInterval) -> Bool {

@@ -21,6 +21,7 @@ struct ExperienceAuditTest {
         _ = NSApplication.shared  // a message asks NSApp for the main window; no window, no Dock icon without run()
         hintWords()
         saveLine()
+        overlayAfterItsGame()
         await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -32,6 +33,20 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// A game that ends by itself under the overlay's side bar (it isn't stopped: it only plays online) left
+    /// the bar standing over Nightforge: LibraryModel.watchForGameEnd only cleared the late controller's note.
+    static func overlayAfterItsGame() {
+        check(OverlayRules.goesWithGame(open: true, openedFor: .menu, leaving: false), "the side bar goes with its game")
+        check(!OverlayRules.goesWithGame(open: false, openedFor: .menu, leaving: false), "nothing to close when it isn't up (Quit Game closed it already)")
+        check(!OverlayRules.goesWithGame(open: true, openedFor: .menu, leaving: true), "on its way to Nightforge it closes by itself")
+        check(!OverlayRules.goesWithGame(open: true, openedFor: .notStarting, leaving: false), "\"Not starting?\" is the curtain's watch's to take away")
+        check(!OverlayRules.goesWithGame(open: true, openedFor: .stuck, leaving: false), "the way out of a curtain belongs to the next start, not to a game that ended")
+        // Not open in a test: the call stays what it was, and takes the late controller's note.
+        GameOverlay.lateController = true
+        GameOverlay.gameEnded()
+        check(!GameOverlay.lateController && !GameOverlay.isOpen, "the late controller's note ends with its game")
     }
 
     /// A click on a message's button takes the message away under the pointer, and SwiftUI then never reports
