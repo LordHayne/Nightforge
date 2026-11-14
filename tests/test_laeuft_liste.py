@@ -336,6 +336,14 @@ class GameTestTests(unittest.TestCase):
         self.assertEqual(one(59.9, 58.7, limit=60, way="dxmt")[2]["games"][0]["status"], "fertig")
         # Where the limit doesn't count, a steady number is marked like any free one.
         self.assertTrue(one(201.0, 198.0, limit=60, way="d3dmetal")[0]["steady"])
+        # A game test that says so itself (check.fps "steady", since 15.11.2026) is taken at its word.
+        frames = {"average": 23.9, "low": 23.3, "periods": 17, "seconds": 186, "source": "wine-fps"}
+        run = report("2026-11-15T20:00:00Z", [played("L4D2", "steam.550", way="wined3d", frames=frames, load=low, check={"start": "ok", "fps": "steady"},
+                                                    measure={"window": "1512×982", "frameLimit": 0, "refreshRate": 120})],
+                     version=2, built="2026-11-15T18:00:00Z", playSeconds=190, wineFps=True)
+        stock = [{"key": "steam.550", "platform": "windows", "name": "L4D2", "sizeBytes": 1_000_000_000, "location": "extern"}]
+        game = liste.checklist(stock, [], [run])["games"][0]
+        self.assertEqual((game["status"], game["fps"]["why"]), ("offen", "steady"))
 
     def test_wines_own_direct3d_brings_a_rate_through_wines_fps_channel(self):
         low = {"average": 2, "cores": 10, "low": True}

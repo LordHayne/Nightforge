@@ -155,8 +155,8 @@ oder DXVK heißt dann „keine im Log“, nicht mehr „der Weg meldet keine“.
   Overwatch im Messlauf: Die Anzeige war geladen (`[libMTLHud]`-Zeilen im Prozess des Spiels), das Fenster kam nie
   auf den Bildschirm, es gab keine einzige `metal-HUD:`-Zeile – DXMTs eigene Zählung lief trotzdem (Ø 49). Die zählt,
   was das Spiel abgibt, nicht was jemand sieht: Ein Wert aus `source: dxmt` zu einem Lauf ohne Bild ist kein FPS-Wert
-  des Spiels. Der Generator nimmt ihn nicht (nur Läufe mit Bild); der Bericht des Laufs zeigt ihn noch (Abschnitt 9,
-  Punkt 12).
+  des Spiels. Der Generator nimmt ihn nicht (nur Läufe mit Bild); der Bericht des Laufs nennt ihn seit dem 15.11.
+  „ohne Bild gezeichnet: 49 / 36“.
 - **Nicht über die Anzeige messbar:** WineD3D (OpenGL: auf diesem Mac Dishonored, Left 4 Dead 2, Alan Wake, Mafia II,
   Batman – 58,9 GB) – dafür gibt es Wines fps-Kanal, nächster Abschnitt – und Mac-Fassungen (Tomb Raider, Asphalt
   Legends, Valheim, Drawful 2, Dying Light – 64,0 GB), Abschnitt 9.
@@ -223,13 +223,14 @@ Eine Zeile im Protokoll sieht damit so aus (Kopf aus `dlls/ntdll/unix/debug.c`: 
   auf den Gesamtschnitt. Der Leser zählt nur die erste: Bei der zweiten ist der Text hinter „approx“ keine Zahl, sie
   fällt heraus. Nachgerechnet an Left 4 Dead 2 (123 Zeilen je Art, in allen 123 Paaren derselbe Wert): Bericht und
   Nachrechnung ergeben Ø 23,9 über 186 s – nichts geht doppelt in die Kette. Dass die zweite Art herausfällt, ist
-  bisher Folge des Formats, kein eigener Test: Die zwei Zeilen oben gehören in `tests/GameTestTest` (Abschnitt 9,
-  Punkt 5). Die erste Zeile jeder Swapchain nennt 0,00 und fällt wie vorgesehen weg.
+  seit dem 15.11. mit den echten Zeilen in `tests/GameTestTest` festgehalten (`wineFpsAsSeen`). Die erste Zeile
+  jeder Swapchain nennt 0,00 und fällt wie vorgesehen weg.
 
 Der Spieletest schreibt seit Berichtsformat 2 je Spiel (`GameTestMeasure.swift`): `frames` mit `average`, `low`,
 `periods`, `seconds`, `slowestFrame`, `slowestTypical`, `source`, `onePercentLow`, `gpuTime`; `measure` mit `window`,
 `screen`, `swapchain`, `upscaledTo`, `displayMode`, `frameLimit`, `refreshRate`, `metalFX`, `throttled` und `noFrames`
-(`wayReportsNone` oder `noneInLog`); `check` (Abschnitt 4) und `sizeBytes`; je Lauf `built` (das Datum des Programms:
+(`wayReportsNone` oder `noneInLog`); `check` (Abschnitt 4), `sizeBytes` und – bei einem Spiel, das hing und von dem
+kein `sample` genommen wurde – `noSample` (Abschnitt 9, Punkt 13); je Lauf `built` (das Datum des Programms:
 Testbuilds zwischen zwei Versionen tragen dieselbe Versionsnummer), `onBattery`, `lowPower`, `frameLog`, `wineFps`. Berichte im Format 1 liest
 der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nicht gemessen“.
 
@@ -268,7 +269,9 @@ der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nich
   sagt „starr, kein Leistungswert“, der Wert ist nicht öffentlich (`notPublic: steady`) und zählt auf der Abhakliste
   nicht als FPS-Wert. Anlass: Left 4 Dead 2 am 14.11. mit Ø 24 über 186 s – das Messfenster war der Vorspann
   (`valve.bik` 13 s mit 23,3 Bildern je Sekunde, `l4d2_intro.bik` 174 s mit 23,98, aus den Köpfen der Filmdateien
-  gelesen). Unter einem Limit, das hält, ist ein starrer Wert der Zweck und wird nicht markiert.
+  gelesen). Unter einem Limit, das hält, ist ein starrer Wert der Zweck und wird nicht markiert. Der Spieletest
+  rechnet seit dem 15.11. nach derselben Regel (`GameTest.steady`): `check.fps` ist dann `steady`, die Zahl trägt im
+  Bericht „(starr)“, und „wenig FPS“ entfällt für sie.
 - **Was das Limit senkt:** „Akku sparen“ (30 FPS) und der Stromsparmodus stehen als `throttled`; solche Werte sind
   nicht öffentlich. Ein von `FramePacing` gelerntes niedrigeres Limit (40 statt 60) ist Nightforges eigene Wahl und
   steht als Limit da. Das V-Sync des Spiels selbst ist nicht aufgezeichnet: Auch eine freie Zahl kann daran hängen.
@@ -538,8 +541,8 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
    in Steams Signatur) und mit `+pid,+loaddll,+timestamp` dazu. Das kostet je Wechsel zwischen einem WineD3D-Spiel und
    einem anderen einen Neustart von Steam; in einem Lauf also am besten die WineD3D-Spiele hintereinander. Dateien:
    `Engine.swift`, `LibraryModel.swift`. Langsamster Frame und 1-%-Tief bräuchten weiter einen Engine-Build.
-   Dazu ein Test mit den zwei echten Zeilenarten aus dem Messlauf (Abschnitt 3), damit die `wglSwapBuffers`-Zeile
-   nie mitzählt; das Protokoll des Laufs liegt im Notizordner des Koordinators (`messlauf/2026-11-14-1941-wine.log`).
+   Der Test mit den zwei echten Zeilenarten aus dem Messlauf ist seit dem 15.11. da (`wineFpsAsSeen`). Ein Spiel,
+   das nur über OpenGL zeichnet (ohne Wines Direct3D), schriebe allein `wglSwapBuffers`-Zeilen und bliebe ohne Wert.
 6. **Gezeichnete Auflösung unter DXMT und D3DMetal** (`engine/patches/dxmt-0.80-frame-log.patch`): eine Zeile zur
    Backbuffer-Größe. Braucht einen Engine-Build. (Die Anzeige selbst zeigt die Größe, ihr Protokoll nennt sie nicht.)
 7. **Der Spieletest bestätigt bei 60 s keinen Weg** (steht schon in `docs/TODO.md`); am 10.11. blieb ABZU nach vier
@@ -566,18 +569,32 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
     in `LibraryModel.swift` – für `.d3dmetal` „Frame limit of <Spiel>: none possible on D3DMetal (asked 60 FPS) at
     120 Hz, MetalFX on“; `GameTest.held` liest das schon heute als Limit 0 –, `GameLog.d3dMetalStart` (nennt
     `D3DM_MAX_FPS`) und der Kommentar in `Engine.swift`.
-11. **Starre Werte – was über die Kennzeichnung hinaus fehlt.** Gebaut ist die Markierung im Generator (Abschnitt 3).
-    Vorschläge: (a) Der Spieletest selbst sagt es: `GameTest.check` mit `fps: steady`, und `lowFrameRate` („wenig
-    FPS“, Ergebnis „Probleme“) entfällt für einen starren Wert – Left 4 Dead 2 steht im Bericht vom 14.11. deshalb
-    unter „Probleme“. (b) Für Source-Spiele die Startoption `-novid` über das Profil (überspringt die Filme; keine
-    Spieldatei, nicht Steams `localconfig`, wenn Nightforge sie beim Start mitgibt – zu prüfen); gemessen würde dann
-    das Menü. (c) Eine freie Zahl am Takt des Bildschirms kennzeichnen („am Bildschirmtakt, 120 Hz“): Mafia II lief
-    mit Ø 119,5 bei 120 Hz, tiefste zehn Sekunden 112 – nach der 95-%-Regel knapp nicht starr, aber sehr
+11. **Starre Werte** – gebaut am 15.11.: Generator (Abschnitt 3) und Spieletest (`check.fps: steady`, kein „wenig
+    FPS“). Offene Vorschläge: (a) Für Source-Spiele die Startoption `-novid` über das Profil (überspringt die Filme;
+    keine Spieldatei, nicht Steams `localconfig`, wenn Nightforge sie beim Start mitgibt – zu prüfen); gemessen würde
+    dann das Menü. (b) Eine freie Zahl am Takt des Bildschirms kennzeichnen („am Bildschirmtakt, 120 Hz“): Mafia II
+    lief mit Ø 119,5 bei 120 Hz, tiefste zehn Sekunden 112 – nach der 95-%-Regel knapp nicht starr, aber sehr
     wahrscheinlich VSync. Allgemein gilt weiter: Gemessen sind die ersten drei Minuten ohne Eingabe.
-12. **Bericht: FPS zu einem Lauf ohne Bild.** Overwatch steht im Bericht vom 14.11. mit „hängt ohne Bild“ und
-    FPS 49 / 36. Der Wert stammt aus DXMTs eigener Zählung (`[nightforge-dxmt] Overwatch: 49.9 FPS over 10 s`, zwölf
-    Perioden, 170 s), nicht aus dem HUD: Das Fenster kam nie auf den Bildschirm, und dann schreibt Apples Anzeige
-    nichts (Abschnitt 3). Vorschlag für `GameTestReport`: zu einem Lauf ohne Bild keinen FPS-Wert in der Tabelle,
-    stattdessen in der Zeile des Spiels „zeichnete ohne sichtbares Fenster (DXMT zählte Ø 49)“ – für die Fehlersuche
+12. **Bericht: FPS zu einem Lauf ohne Bild** – gebaut am 15.11.: „ohne Bild gezeichnet: 49 / 36“ statt einer
+    Bildrate. Anlass war Overwatch im Bericht vom 14.11. („hängt ohne Bild“, FPS 49 / 36): Der Wert stammte aus DXMTs
+    eigener Zählung (`[nightforge-dxmt] Overwatch: 49.9 FPS over 10 s`, zwölf Perioden, 170 s), nicht aus dem HUD –
+    das Fenster kam nie auf den Bildschirm, und dann schreibt Apples Anzeige nichts (Abschnitt 3). Für die Fehlersuche
     ist genau das der Hinweis: Das Spiel läuft, nur sein Fenster fehlt. Nebenbefund: Verlangt waren 40 FPS („Frame
     limit of Overwatch®: 40 FPS“), gezählt sind 50 bei einem Modus mit 60 Hz.
+13. **Kein Werkzeug am Prozess eines Spiels mit Cheat-Schutz** – gebaut am 15.11. (Entscheidung des Nutzers vom
+    14.11.: „Ja, weglassen“). Anlass: Der Messlauf nahm von Overwatch ein `sample`, als es ohne Bild hing; der
+    Spieletest ist die einzige Stelle im Programm, die `/usr/bin/sample` aufruft. Seitdem:
+    - Profilfeld `ownAntiCheat: true` (`profiles/mac.json`, beschrieben in `docs/CONTRIBUTING.md`): Das Spiel läuft
+      und bringt einen eigenen Cheat-Schutz mit. Gesetzt für Overwatch (Steam 2357570). Battle.net-Titel haben keinen
+      eigenen Eintrag in der Profilliste und werden vom Spieletest nie gestartet; eine Kopie aus einem anderen Laden
+      nimmt das Profil ihres Steam-Zwillings.
+    - Der Spieletest nimmt dann kein `sample` (`GameTest.handsOff`, `GameTest.hangSample`). Dasselbe gilt für
+      Spiele, von deren Anti-Cheat Nightforge schon weiß (`ShaderCaches.hasAntiCheat`: Listen im Profil, das Wort
+      der Läden, Easy Anti-Cheat oder BattlEye im Spielordner) – ein Zusatz dieser Sitzung über den Auftrag hinaus,
+      eine Zeile in `GameTest.handsOff`.
+    - Im Bericht steht statt des Stapels „Wo es hängt: kein sample: Spiel mit eigenem Cheat-Schutz.“ (oder „… mit
+      Anti-Cheat“), in `report.json` das Feld `noSample` (`ownAntiCheat` oder `antiCheat`). Alles andere am Lauf
+      bleibt gleich: Protokoll, Fehlerzeilen, letzter Blick des Vorhangs.
+    - **Vorgeschlagen, nicht gesetzt** (kein Beleg aus eigener Prüfung; die Profilliste kennt für sie keinen
+      Anti-Cheat): Left 4 Dead 2 (550), Counter-Strike 2 (730), Team Fortress 2 (440), Dota 2 (570) – Valves VAC;
+      Diablo IV (2344520) – Blizzard wie Overwatch.

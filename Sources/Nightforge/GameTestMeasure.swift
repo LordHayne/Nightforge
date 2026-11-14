@@ -402,16 +402,31 @@ extension GameTest {
     struct Check: Codable, Equatable {
         /// ok · neededPlayer · noPicture · severalWays · endedByItself · tooShort
         var start: String
-        /// ok · noPicture · wayReportsNone · noneInLog · throttled · loadHigh
+        /// ok · noPicture · wayReportsNone · noneInLog · throttled · loadHigh · steady
         var fps: String
 
         var done: Bool { start == "ok" && fps == "ok" }
     }
 
+    /// A free number that hardly moved: the lowest ten seconds within 5 % of the average over a minute or
+    /// more. A film or a lock of the game's own sets that pace, not the Mac (Left 4 Dead 2's intro at 24,
+    /// 14.11.2026) – no frame rate for a list of what runs how well. Free is a number without a limit, one on
+    /// D3DMetal (which holds none) and one that ran past its limit by more than 5 %; under a limit that holds,
+    /// a steady rate is the point. The same rule as the list's (scripts/laeuft-liste.py, `steady`).
+    static func steady(_ frames: Frames?, limit: Int?, way: String?) -> Bool {
+        guard let frames, let limit, frames.average > 0, (frames.seconds ?? 0) >= 60 else { return false }
+        let free = limit <= 0 || way?.split(separator: " ").first == "d3dmetal" || frames.average > Double(limit) * 1.05
+        return free && frames.low >= frames.average * 0.95
+    }
+
+    static func steady(_ entry: Entry) -> Bool {
+        entry.outcome == .picture && steady(entry.frames, limit: entry.measure?.frameLimit, way: entry.way)
+    }
+
     /// A clean start: a picture on the first and only way, not ended by itself, and working by LaunchHealth's
     /// own measure – frames counted, or `drawingWindow` (180 s) with the picture, which a run shorter than
     /// that can't have seen. A frame rate that counts: measured, on mains and out of Low Power Mode, with the
-    /// Mac not busy. Nil for a game that wasn't started.
+    /// Mac not busy, and not a steady one (`steady`). Nil for a game that wasn't started.
     static func check(_ entry: Entry, playSeconds: TimeInterval, onBattery: Bool, lowPower: Bool) -> Check? {
         guard entry.outcome != .skipped else { return nil }
         let picture = entry.outcome == .picture
@@ -438,6 +453,8 @@ extension GameTest {
             fps = "throttled"
         } else if entry.load?.low == false {
             fps = "loadHigh"
+        } else if steady(entry) {
+            fps = "steady"
         } else {
             fps = "ok"
         }
@@ -448,7 +465,7 @@ extension GameTest {
         "ok": "ja", "neededPlayer": "brauchte den Spieler", "noPicture": "kein Bild", "severalWays": "brauchte mehrere Wege",
         "endedByItself": "endete von selbst", "tooShort": "Bild, aber unter 180 s beobachtet und keine Frames gezählt",
         "wayReportsNone": "der Weg meldet keine", "noneInLog": "keine im Log", "throttled": "auf Akku oder gedrosselt gemessen",
-        "loadHigh": "Last war hoch",
+        "loadHigh": "Last war hoch", "steady": "starrer Wert, kein Leistungswert (Film oder Sperre des Spiels)",
     ]
 
     /// The skips a run can't mend by itself or by waiting: someone has to look at the game by hand.
@@ -488,10 +505,13 @@ extension GameTest {
 
     // MARK: - In the German summary
 
-    /// The frame rates' cell: "58 / 41", or why there are none.
+    /// The frame rates' cell: "58 / 41", or why there are none. What a game drew without a picture is said as
+    /// that: a layer counts what the game hands over, whether or not a window shows it (Overwatch, 14.11.2026).
     static func framesText(_ entry: Entry) -> String {
         if let frames = entry.frames {
-            return "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))" + (entry.load?.low == false ? " (Last hoch)" : "")
+            let numbers = "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))"
+            guard entry.outcome == .picture else { return "ohne Bild gezeichnet: \(numbers)" }
+            return numbers + (steady(entry) ? " (starr)" : "") + (entry.load?.low == false ? " (Last hoch)" : "")
         }
         guard entry.outcome == .picture else { return "–" }
         // With the HUD's frame log on, a way that presents through Metal had its chance (`noFrames`).
@@ -513,7 +533,9 @@ extension GameTest {
                      + "die das Spiel mitbringt. Keine feste Szene: meist Intro, Menü oder die ersten Sekunden im Spiel. "
                      + "Das 1-%-Tief gibt es nur aus Apples Metal-HUD-Protokoll (jeder Frame einzeln); "
                      + "„langsamster Frame“ ist der eine langsamste je zehn Sekunden. WineD3D meldet über Wines fps-Kanal "
-                     + "nur seine Bildrate (alle 1,5 s): Ø und tiefste zehn Sekunden, weder 1-%-Tief noch langsamsten Frame."]
+                     + "nur seine Bildrate (alle 1,5 s): Ø und tiefste zehn Sekunden, weder 1-%-Tief noch langsamsten Frame. "
+                     + "„Starr“ ist eine Zahl ohne Limit, die sich über die ganze Messung kaum bewegt: ein Film oder eine Sperre "
+                     + "des Spiels, kein Leistungswert."]
         if report.onBattery == true || report.lowPower == true {
             let how = [report.onBattery == true ? "auf Akku" : nil, report.lowPower == true ? "im Stromsparmodus" : nil].compactMap { $0 }
             lines.append("Der Mac lief \(how.joined(separator: " und ")): Die Werte sind mit anderen Läufen nicht vergleichbar.")

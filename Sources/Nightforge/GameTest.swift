@@ -431,12 +431,34 @@ enum GameTest {
     /// Below this a picture counts as a low frame rate (GameRating's lowFrameRate).
     static let lowFrameRate: Double = 25
 
-    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low.
-    static func issues(endedWhilePlaying: Bool, frames: Frames?) -> [String] {
+    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low. A rate that
+    /// hardly moved (`steady`) is a film's or a lock's pace, not the game running badly.
+    static func issues(endedWhilePlaying: Bool, frames: Frames?, steady: Bool = false) -> [String] {
         var issues: [String] = []
         if endedWhilePlaying { issues.append("crashed") }
-        if let frames, frames.average < lowFrameRate { issues.append("lowFrameRate") }
+        if let frames, frames.average < lowFrameRate, !steady { issues.append("lowFrameRate") }
         return issues
+    }
+
+    /// Why no tool may attach to a game's process – `sample` does – or nil when nothing speaks against it:
+    /// "ownAntiCheat" where its profile says it brings a cheat protection of its own, "antiCheat" where
+    /// Nightforge knows of an anti-cheat otherwise (ShaderCaches.hasAntiCheat: its profile's lists, the
+    /// stores' word, the files in its folder). The player's account is at stake (the user, 14.11.2026).
+    static func handsOff(profile: GameProfile?, knownAntiCheat: Bool) -> String? {
+        if profile?.ownAntiCheat == true { return "ownAntiCheat" }
+        return knownAntiCheat ? "antiCheat" : nil
+    }
+
+    /// A hanging game's sample for the report, or the word why none was taken: with a reason to keep hands
+    /// off, `take` isn't called at all.
+    static func hangSample(handsOff: String?, take: () async -> String?) async -> (sample: String?, skipped: String?) {
+        if let handsOff { return (nil, handsOff) }
+        return (await take(), nil)
+    }
+
+    /// `Entry.noSample` in the report's words.
+    static func noSampleText(_ why: String) -> String {
+        "kein sample: Spiel mit " + (why == "ownAntiCheat" ? "eigenem Cheat-Schutz" : "Anti-Cheat")
     }
 
     /// compat-report.yml's words (CompatReport.result), so a count of reports takes an entry as it

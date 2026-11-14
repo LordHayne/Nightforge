@@ -384,12 +384,19 @@ final class GameTestRun {
         }
         var files: [String] = []
         var stack: [String]?
+        var noSample: String?
         // The game's own process, not a launcher waiting for it (2.11.: Wukong's b1_benchmark.exe, 4 threads).
         if seen.stillRunning, !seen.smallWindow, let pid = await Task.detached(priority: .utility, operation: { [pids] in
             GameProcesses.biggest(pids)
         }).value {
             let name = GameTest.fileName(game.gameID.key, "sample.txt")
-            if let sample = await Self.sample(pid, to: folder.appendingPathComponent(name)) {
+            let file = folder.appendingPathComponent(name)
+            // Not of a game with a cheat protection: nothing attaches to its process.
+            let taken = await GameTest.hangSample(handsOff: await handsOff(game)) { await Self.sample(pid, to: file) }
+            if let why = taken.skipped {
+                noSample = why
+                GameLog.note("Game test: no sample of \(game.name) (\(why))")
+            } else if let sample = taken.sample {
                 stack = GameTest.topOfStack(in: sample)
                 files.append(name)
             } else {
@@ -417,20 +424,21 @@ final class GameTestRun {
         entry.ways = game.platform == .mac ? [GameTest.Way(way: "mac", outcome: outcome)]
             : GameTest.ways(of: game.name, in: log, last: outcome)
         entry.way = entry.ways.last?.way
-        entry.issues = GameTest.issues(endedWhilePlaying: endedWhilePlaying, frames: frames)
-        entry.result = GameTest.result(outcome, issues: entry.issues)
-        entry.startedAt = started
-        entry.load = load
-        entry.secondsToProcess = processAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
-        entry.secondsToPicture = pictureAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
         entry.frames = frames
         if outcome == .picture {
             entry.measure = GameTest.measure(of: game.name, way: entry.way, in: log, frames: frames,
                                              held: GameTest.held(of: game.name, in: log), frameLog: report.frameLog == true,
                                              wineFps: report.wineFps == true)
         }
+        entry.issues = GameTest.issues(endedWhilePlaying: endedWhilePlaying, frames: frames, steady: GameTest.steady(entry))
+        entry.result = GameTest.result(outcome, issues: entry.issues)
+        entry.startedAt = started
+        entry.load = load
+        entry.secondsToProcess = processAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
+        entry.secondsToPicture = pictureAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
         entry.check = GameTest.check(entry, playSeconds: settings.playSeconds, onBattery: report.onBattery == true, lowPower: report.lowPower == true)
         entry.stack = stack
+        entry.noSample = noSample
         let learned = LearnedFixes.winetricks(game.gameID).filter { !learnedBefore.contains($0) }
         if !learned.isEmpty { notes.append("laut Log fehlen Laufzeiten, im Test nicht installiert: " + learned.joined(separator: ", ")) }
         if log.contains("Curtain under a window of \(game.name)'s") { notes.append("das Spiel zeigte vor dem Bild ein Fenster mit einer Frage") }
@@ -638,6 +646,16 @@ final class GameTestRun {
             try? await Task.sleep(for: .seconds(2))
         }
         GameLog.note("Game test: Steam and Wine still busy after two minutes – on to the next game")
+    }
+
+    /// Why no tool may attach to `game`'s process (GameTest.handsOff), by its profile – a copy from another
+    /// store by the same game's on Steam – and by what Nightforge knows of an anti-cheat.
+    private func handsOff(_ game: Game) async -> String? {
+        var profile = await ProfileStore.shared.profile(for: game.gameID)
+        if profile == nil, let twin = game.steamTwin { profile = await ProfileStore.shared.profile(for: twin) }
+        let block = game.antiCheatBlock, installDir = game.installDir
+        let known = await Engine.offMain { [profile] in ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) }
+        return GameTest.handsOff(profile: profile, knownAntiCheat: known)
     }
 
     nonisolated private static func ps() -> String? {

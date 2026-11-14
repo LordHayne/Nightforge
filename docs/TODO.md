@@ -232,13 +232,16 @@ Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
   (`winemac.so` aus dem winecx-Quelltext, in den Teil `enginefix`), vorher den Quelltext der Klasse lesen; daneben
   DXMT für Spiele, die dort belegt sind. Bis dahin: Protokollzeile in `LibraryModel.swift` und `GameLog.d3dMetalStart`
   ehrlich machen, den Kommentar in `Engine.swift` berichtigen (Liste und Bericht sind es schon).
-- **Starre Werte im Spieletest selbst** (Punkt 11): `check.fps: steady`, kein „wenig FPS“ dafür; `-novid` für
+- **Kein `sample` bei Spielen mit Cheat-Schutz** (Punkt 13, gebaut am 15.11. nach der Entscheidung des Nutzers):
+  Profilfeld `ownAntiCheat` (gesetzt für Overwatch), der Spieletest hängt dann nichts an den Prozess und sagt es im
+  Bericht (`noSample`). Die Profilliste (`profiles/profiles.json`) ist von Hand ergänzt und trägt einen neuen
+  Stempel; **signiert wird sie beim Release** (der Nutzer). Vorgeschlagen, nicht gesetzt: Left 4 Dead 2,
+  Counter-Strike 2, Team Fortress 2, Dota 2 (VAC), Diablo IV – der Nutzer entscheidet, mit Beleg.
+- **Gebaut am 15.11.** aus den Vorschlägen: `check.fps: steady` ohne „wenig FPS“, „ohne Bild gezeichnet“ statt einer
+  Bildrate zu einem Lauf ohne Bild, Test mit den zwei echten Zeilenarten des fps-Kanals. Offen daraus: `-novid` für
   Source-Spiele über das Profil prüfen; freie Zahlen am Bildschirmtakt kennzeichnen (Mafia II Ø 119,5 bei 120 Hz).
-- **Bericht ohne FPS zu einem Lauf ohne Bild** (Punkt 12): Overwatchs Ø 49 kam aus DXMTs Zählung bei einem Fenster,
-  das nie auf dem Bildschirm war; Apples Anzeige schreibt dann nichts (Probe).
-- **Test mit den zwei echten Zeilenarten des fps-Kanals** (Punkt 5), und: Der Spieletest setzt den Kanal selbst, nur
-  für WineD3D-Starts (`Engine.swift`, `LibraryModel.swift`). Bis dahin vor einem Lauf `wineDebug` setzen und danach
-  löschen (Abschnitt 6).
+- **Der Spieletest setzt den fps-Kanal selbst**, nur für WineD3D-Starts (`Engine.swift`, `LibraryModel.swift`). Bis
+  dahin vor einem Lauf `wineDebug` setzen und danach löschen (Abschnitt 6).
 - **Mac-Fassungen** (5 Spiele, 64,0 GB) bleiben ohne FPS-Wert, bis der Nutzer zwischen den Wegen in Abschnitt 9,
   Punkt 4 gewählt hat: Steam für Mac mit der Variable starten (Probe, dann ein halber Tag) oder nur den Start zählen.
 
