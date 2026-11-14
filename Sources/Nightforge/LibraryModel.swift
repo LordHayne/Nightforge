@@ -804,6 +804,7 @@ final class LibraryModel: ObservableObject {
                 let warning = chargerCheck.add(reading.source, batteryCurrent: reading.batteryCurrent)
                 if warning != chargerWarning { chargerWarning = warning }
                 await lookAtSteamOnDemand()
+                lookAtDrives()
                 lookAtWakeCatchUp()
                 offerFullScreenIfDue()
                 input.takeHomeButton()
