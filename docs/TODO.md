@@ -159,6 +159,12 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Schritt E, Teil 1 ist im Testzweig (14.11., 21:13, Zusammenführung `dd99a43`):** Kette grün, 119 Testreihen
+(neu: StartRecipeTest), 271 pytest. Nichts außerhalb der eigenen Dateien ruft `NextStart`,
+`StartRecipe.Learned` oder `LaunchHealth.ownQuestionWasAChoice` auf (nachgesehen). Nicht eingespielt: Der
+Testbuild auf dem Mac bleibt `c453e40`, weil sich am Verhalten nichts ändert. Teil 2 (die Startschleife
+verdrahten) wartet auf die vier Entscheidungen des Nutzers (Entwurf 3.3).
+
 **Messlauf gestartet, 14.11., 19:41 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** 20 von 24
 geladenen Spielen, 190 s je Spiel, am Netzteil, mit `wineDebug` `+fps,+pid,+loaddll,+timestamp` für die
 WineD3D-Spiele. Im Build: die Abendrunde des Erlebnis-Audits (E4, E8, Beenden an jedem Blatt vorbei, Testreihen
