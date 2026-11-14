@@ -4893,10 +4893,12 @@ final class LibraryModel: ObservableObject {
                     let cannotDraw = automatic && !wayConfirmed && LaunchHealth.layerCannotDraw(analysis, layer: layer)
                     let stands = Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
                                                            graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll)
-                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: StartDiagnosis.sawFailure(found ?? []), endedAtBox: endedAtBox)
+                    let failureSeen = StartDiagnosis.sawFailure(found ?? [])
+                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: failureSeen, endedAtBox: endedAtBox)
                     if stands, !choice {
                         GameLog.note("Start of \(game.name): the window it ended at was no question – "
-                                     + (endedAtBox.map { "a message box that says \"\(GameLog.redacted(String($0.prefix(120))))\"" } ?? "the diagnosis says why it ended")
+                                     + (failureSeen ? "the diagnosis says why it ended"
+                                                    : "a message box that only says \"\(GameLog.redacted(String((endedAtBox ?? "").prefix(120))))\"")
                                      + ": a failed start")
                     }
                     if stands, choice {
