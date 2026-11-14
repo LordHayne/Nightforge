@@ -33,6 +33,13 @@ an eine eigene Session, Zweig von `claude/start-logik-033`. Schritt E wartet dar
 als Referenz für Community und Landingpage. Ebenfalls an eine eigene Session abgegeben (Definition, Generator aus
 Evidenz und Spieletest-Berichten, Messwerte im Spieletest; `site/` bleibt bei der Landingpage-Session, Design zuerst).
 Danach: ein Messabend mit dem Nutzer (Spieletest mit `gameTest.playSeconds` 200 über die geladenen Spiele).
+Zweck (der Nutzer, 14.11.): Spiele, die er nicht braucht, will er erst deinstallieren, wenn ein 100%iger Start gesehen
+ist und ein FPS-Wert in der Benchmark-Liste steht; die Werte sollen offen auf die Landingpage (mit ihren Bedingungen,
+„hält 60 FPS“ getrennt von Messungen ohne Limit). FPS misst heute nur der DXMT-Weg.
+
+**Erlebnis-Audit (der Nutzer, 14.11.):** eine Session sucht Fehler in Oberfläche und Logik entlang der Wege des Spielers,
+belegt sie mit Tests, behebt die klaren und listet den Rest in `docs/AUDIT-ERLEBNIS-0.3.3.md`. Die Dateien der beiden
+anderen Sessions fasst sie nicht an, Fehler dort beschreibt sie nur.
 
 ## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
 
