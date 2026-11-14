@@ -111,6 +111,19 @@ bei Deckkraft 0 (die Leistungsanzeige des Nutzers ist an).
   die Abhakliste braucht es dort einen eigenen Messweg oder eine Entscheidung des Nutzers.
 - **Messabend:** am Netzteil, ohne laufende Sessions (Last), Befehle in `docs/LAEUFT-LISTE.md` Abschnitt 6.
 
+**Stand 14.11., 19:15:** Die Abhak-Regel („einmal sauber gemessen bleibt abgehakt“) ist im Testzweig (`70b38c1`,
+pytest 270). Der Messlauf startet, wenn der Nutzer schlafen geht (er sagt Bescheid; Bildschirm entsperrt, Netzteil).
+Drei Sessions arbeiten, jede in ihren Dateien:
+
+- **Läuft-Liste:** FPS für WineD3D über Wines Debug-Kanal `fps` (in winecx 4.7.3 vorhanden: `wined3d.dll` trägt
+  `%p @ approx %.2ffps`), eingeschaltet über den vorhandenen Schalter `wineDebug` (`+fps,+pid`); Leser, Bericht,
+  Regeln. Muss vor dem Messlauf eingespielt sein. Dazu eine Einschätzung, ob die Mac-Fassungen messbar sind.
+- **Erlebnis-Audit:** E4, E8, Beenden bei offenem Blatt, Testreihe im echten Protokoll (`Engine.swift`,
+  `LibraryModel.swift` außerhalb der Startschleife, `Quit.swift`).
+- **Diagnose-Start, Schritt E Teil 1:** Plan (Entwurf 3.3) und die reine Logik (Abhilfe auf ein Rezept anwenden,
+  Entscheidung nach einem Fehlstart, Beweise je Rezept, Fehlerfenster gegen Frage), noch ohne die Startschleife.
+  Teil 2 (Verdrahten) nach dem Zusammenführen des Erlebnis-Audits.
+
 ## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
 
 Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, sobald ein 100%iger Start und ein
