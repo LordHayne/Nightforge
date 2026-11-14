@@ -90,7 +90,7 @@ und mit einem eigenen kleinen Metal-Programm (unten: „Probe“).
 | DXVK auf KosmicKrisp (Direct3D 9), Vulkan-Spiele | **ja**, immer: `[nightforge-vulkan]`, gleiches Format | erwartet (zeichnet über einen Metal-Layer), unter Wine noch nicht gesehen | **ja:** Swapchain in Pixeln und MetalFX-Ziel |
 | DXVK auf MoltenVK (Direct3D 10/11) | nein | erwartet: Die Anzeige hängt sich laut Log an; Protokollzeilen unter Wine noch nicht gesehen | nein |
 | D3DMetal | nein | erwartet: wie oben | nein |
-| WineD3D (OpenGL) | nein | **nein:** Ein OpenGL-Fenster bekommt weder Anzeige noch Zeilen (Probe) | nein |
+| WineD3D (OpenGL) | **mit Wines fps-Kanal** (`WINEDEBUG=+fps`, unten): die Bildrate alle 1,5 s – Ø und tiefste zehn Sekunden, kein langsamster Frame, kein 1-%-Tief | **nein:** Ein OpenGL-Fenster bekommt weder Anzeige noch Zeilen (Probe) | nein |
 | Mac-Fassung | nein | **nicht im Spieletest:** Das Spiel startet Steam für Mac, die Umgebungsvariable erreicht es nicht, und die Zeilen gingen an seine eigene Fehlerausgabe (Abschnitt 9, Punkt 4) | nein |
 | alle | Sekunden bis zum Bild; Fenstergröße und Bildschirm in Punkten (Zeile des Vorhangs); Frame-Limit, Bildwiederholrate, MetalFX an/aus und ob das Limit gedrosselt war (Zeile des Starts, nur Windows-Fassungen); Last, Akku, Stromsparmodus; Größe auf der Platte | | |
 
@@ -144,15 +144,72 @@ oder DXVK heißt dann „keine im Log“, nicht mehr „der Weg meldet keine“.
 
 - **Mit dem Protokoll messbar (erwartet):** alles, was über Metal zeichnet – DXMT, DXVK auf MoltenVK und KosmicKrisp,
   D3DMetal. Unter Wine gesehen ist es bisher nur auf DXMT (7.11.); D3DMetal und MoltenVK zeigt der erste Messlauf.
-- **Weiter nicht messbar:** WineD3D (OpenGL: auf diesem Mac Dishonored, Left 4 Dead 2, Alan Wake, Mafia II, Batman –
-  58,9 GB) und Mac-Fassungen (Tomb Raider, Asphalt Legends, Valheim, Drawful 2, Dying Light – 64,0 GB). Was es dafür
-  bräuchte, steht in Abschnitt 9.
+- **Unter Wine gesehen** (Probelauf 14.11., Bericht `2026-11-14-1843`): Zeilen auf DXVK (The Forest), DXMT (ABZU) und
+  D3DMetal (Control), dazu die Limit-Zeile und Steams Neustart hin und zurück. Die Werte selbst zählen nicht (Akku,
+  andere Arbeit lief mit).
+- **Nicht über die Anzeige messbar:** WineD3D (OpenGL: auf diesem Mac Dishonored, Left 4 Dead 2, Alan Wake, Mafia II,
+  Batman – 58,9 GB) – dafür gibt es Wines fps-Kanal, nächster Abschnitt – und Mac-Fassungen (Tomb Raider, Asphalt
+  Legends, Valheim, Drawful 2, Dying Light – 64,0 GB), Abschnitt 9.
+
+### WineD3D: Wines fps-Kanal
+
+Wines eigenes Direct3D sagt seine Bildrate selbst, wenn der Debug-Kanal `fps` an ist. Quelle (Wine 11.17, der Stand
+von winecx 4.7.3; `dlls/wined3d/cs.c`, Funktion `wined3d_cs_exec_present`, gelesen am 14.11.2026):
+
+```c
+if (TRACE_ON(fps))
+{
+    DWORD time = GetTickCount();
+    ++swapchain->frames;
+
+    /* every 1.5 seconds */
+    if (time - swapchain->prev_time > 1500)
+    {
+        TRACE_(fps)("%p @ approx %.2ffps\n",
+                swapchain, 1000.0 * swapchain->frames / (time - swapchain->prev_time));
+        swapchain->prev_time = time;
+        swapchain->frames = 0;
+    }
+}
+```
+
+Eine Zeile im Protokoll sieht damit so aus (Kopf aus `dlls/ntdll/unix/debug.c`: Zeit mit `+timestamp`, Prozess mit
+`+pid`, dann Thread, Klasse, Kanal, Funktion):
+
+```
+253520.000:0810:0124:trace:fps:wined3d_cs_exec_present 00000000012A3B40 @ approx 59.94fps
+```
+
+- **Was die Zahl ist:** die Bilder seit der letzten Zeile dieser Swapchain, geteilt durch die Zeit seit ihr – ein
+  Mittel über gut 1,5 s, keine einzelnen Bilder. Der Bericht macht daraus **Ø** (nach Zeit gewichtet) und die
+  **tiefste Strecke von zehn Sekunden**, vergleichbar mit den Perioden von DXMT. **Langsamster Frame, 1-%-Tief und
+  GPU-Zeit gibt dieser Weg nicht her**; die Liste sagt das wörtlich („gibt Wines fps-Kanal nicht her“), `source` ist
+  `wine-fps`.
+- **Wessen Zeile:** Die Prozessnummer von `+pid` ist Wines eigene, nicht die von macOS (im echten Protokoll `0810`,
+  `0294` …). Wem sie gehört, sagen die Ladezeilen von `+loaddll` (`Loaded L"…\\Spiel.exe"`): Es zählen nur Prozesse,
+  deren Programm im Ordner des Spiels liegt; Steams Fenster nie. Fehlen `+pid` oder `+loaddll`, nimmt der Leser die
+  Swapchain mit den meisten Zeilen und kann Steam nicht ausschließen – deshalb gehören beide zum Schalter.
+- **Genauigkeit:** Mit `+timestamp` zählt jede Zeile für die Zeit seit der vorigen (dieselbe Uhr wie in der Quelle).
+  Ohne zählt jede für 1,5 s; eine Ladepause ohne Bild wird dann zu leicht gewichtet. Die erste Zeile einer Swapchain
+  lässt der Leser weg: Ihr Zähler beginnt nicht bei einer Zeile davor.
+- **Einschalten** – heute über den vorhandenen Schalter für Engine-Tests, einmal je Programmlauf gelesen, also vor dem
+  Start von Nightforge:
+
+  ```bash
+  defaults write io.github.lordhayne.nightforge wineDebug -string "+fps,+pid,+loaddll,+timestamp"
+  ```
+
+  Er gilt für **alle** Starts, bis er zurückgenommen ist (Abschnitt 6): `+loaddll` schreibt beim Start jedes
+  Prozesses einige hundert Zeilen, `+fps` eine alle 1,5 s. Der Bericht nennt den Kanal mit `wineFps`; ein Bild auf
+  WineD3D ohne Zeile heißt dann „keine im Log“.
+- **Nicht gesehen:** eine echte Zeile. Das Format stammt aus der Quelle; der Funktionsname in der Zeile ist dem Leser
+  gleich (er liest Kanal und Text), die erste echte Zeile kommt aus dem Messlauf.
 
 Der Spieletest schreibt seit Berichtsformat 2 je Spiel (`GameTestMeasure.swift`): `frames` mit `average`, `low`,
 `periods`, `seconds`, `slowestFrame`, `slowestTypical`, `source`, `onePercentLow`, `gpuTime`; `measure` mit `window`,
 `screen`, `swapchain`, `upscaledTo`, `displayMode`, `frameLimit`, `refreshRate`, `metalFX`, `throttled` und `noFrames`
 (`wayReportsNone` oder `noneInLog`); `check` (Abschnitt 4) und `sizeBytes`; je Lauf `built` (das Datum des Programms:
-Testbuilds zwischen zwei Versionen tragen dieselbe Versionsnummer), `onBattery`, `lowPower`, `frameLog`. Berichte im Format 1 liest
+Testbuilds zwischen zwei Versionen tragen dieselbe Versionsnummer), `onBattery`, `lowPower`, `frameLog`, `wineFps`. Berichte im Format 1 liest
 der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nicht gemessen“.
 
 ### Was die Zahlen bedeuten
@@ -304,6 +361,12 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
    defaults write io.github.lordhayne.nightforge gameTest.playSeconds -int 190
    ```
 
+   Damit auch die WineD3D-Spiele eine Bildrate melden (Wines fps-Kanal, Abschnitt 3):
+
+   ```bash
+   defaults write io.github.lordhayne.nightforge wineDebug -string "+fps,+pid,+loaddll,+timestamp"
+   ```
+
    ```bash
    defaults write io.github.lordhayne.nightforge gameTest -bool true
    ```
@@ -324,7 +387,14 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
    ```
 
    Nach dem Abend `gameTest.only` wieder löschen (`defaults delete io.github.lordhayne.nightforge gameTest.only`); die
-   Spieldauer darf stehen bleiben.
+   Spieldauer darf stehen bleiben. **Wines Kanäle zurücknehmen**, sonst schreiben alle Spiele weiter mit – Nightforge
+   beenden, dann:
+
+   ```bash
+   defaults delete io.github.lordhayne.nightforge wineDebug
+   ```
+
+   Beim nächsten Start liest Nightforge den Schalter neu, und Steam startet einmal ohne die Kanäle.
 
    Je Spiel sind das bis zu 120 s Warten aufs Bild (`gameTest.pictureWait`), 190 s Spiel und 10 bis 120 s Ruhe danach:
    vier bis sieben Minuten. Für die 23 Spiele dieses Macs also anderthalb bis knapp drei Stunden. Der Bildschirm bleibt
@@ -401,14 +471,28 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
    Datum.
 3. **Frame-Limit im Log** – gebaut. Der eine Format-2-Lauf vom 14.11. stammt noch von davor und nennt für Batman auf
    WineD3D „60 FPS, MetalFX an“, obwohl WineD3D beides nicht nimmt: nachgerechnet, nicht gelesen.
-4. **Mac-Fassungen:** Die Probe zeigt, dass das Protokoll auch mit `MetalForceHudEnabled` (dem Schalter, den
-   `MacGameHUD` schon setzt) läuft, wenn das Spiel `MTL_HUD_LOG_ENABLED=1` in seiner Umgebung hat. Die hat es von
-   Steam für Mac, und die Zeilen gehen an die Fehlerausgabe des Spiels, nicht ins einheitliche Log. Nötig wäre also:
-   Steam für Mac von Nightforge mit dieser Variable und mit einer lesbaren Fehlerausgabe starten. Einen
-   `defaults`-Schalter fürs Protokoll gibt es nicht (Apples Seiten nennen keinen, und in den Systembibliotheken dieses
-   Macs stehen nur `MetalForceHudEnabled` und `MetalHudEnabled`).
-5. **WineD3D:** Die Anzeige liefert dort nichts (OpenGL, Probe). Bleibt eine eigene Zählung wie die von DXMT in Wines
-   OpenGL-Weg – braucht einen Engine-Build – oder das Spiel auf einem Weg über Metal zu messen, wo es einen hat.
+4. **Mac-Fassungen** (Dying Light, Tomb Raider, Asphalt Legends, Valheim, Drawful 2): Heute zählt dort nur der Start.
+   Was die Probe zeigt: Das Protokoll läuft auch mit `MetalForceHudEnabled` (dem Schalter, den `MacGameHUD` schon
+   setzt), wenn das Spiel `MTL_HUD_LOG_ENABLED=1` in seiner Umgebung hat; die Zeilen gehen an die Fehlerausgabe des
+   Spiels, nicht ins einheitliche Log; einen `defaults`-Schalter fürs Protokoll gibt es nicht (Apples Seiten nennen
+   keinen, in den Systembibliotheken stehen nur `MetalForceHudEnabled` und `MetalHudEnabled`). Wege, die weder Steams
+   `localconfig` noch macOS-Einstellungen anfassen:
+
+   | Weg | Was er braucht | Aufwand | Offen |
+   |---|---|---|---|
+   | **A. Steam für Mac mit der Variable starten.** Nightforge startet Steam für Mac ohnehin selbst (`MacSteam`); im Spieletest bekäme es `MTL_HUD_LOG_ENABLED=1` (und `MTL_HUD_OPACITY=0`) in seine Umgebung und eine Datei als Fehlerausgabe. Das Spiel erbt beides, die Anzeige schaltet `MacGameHUD` je Spiel ein. | Start über `/usr/bin/open --env … --stderr <Datei>` statt `NSWorkspace` (das keine Fehlerausgabe umlenkt); ein laufendes Steam für Mac muss dafür einmal neu starten und nach dem Test zurück; der Leser (`hudSample`) passt, er braucht nur die zweite Datei. | eine Probe von einer halben Stunde mit dem Nutzer, dann etwa ein halber Tag | Erbt ein Spiel Umgebung und Fehlerausgabe von Steam für Mac? Nicht belegt – das zeigt die Probe (Valheim reicht). Steams Selbst-Neustart nach einem Update verliert beides. |
+   | **B. Das Spiel am Laden vorbei starten** (sein Programm direkt, mit Umgebung und Fehlerausgabe). | je Spiel prüfen, ob es ohne Steams Start läuft (DRM-Hüllen starten sich über Steam neu) | hoch, je Spiel anders | Es wäre nicht mehr der Start, den der Spieler macht: Für „100%iger Start“ zählte er nicht. |
+   | **C. Nur der Start zählt.** Die Abhakliste hakt eine Mac-Fassung mit einem sauberen Start ab (190 s mit Bild) und sagt „FPS: bei Mac-Fassungen nicht gemessen“. | eine Regel im Generator | eine Stunde | Entscheidung des Nutzers: Dann ist „fertig“ bei Mac-Fassungen etwas anderes als bei Windows-Fassungen. |
+
+   Ausgeschlossen: Startoptionen je Spiel (`localconfig`), `launchctl setenv` (ändert die Umgebung der ganzen
+   Sitzung), ⌘F8 von Hand (die Zeilen landen ohne A nirgends lesbar), Bildschirmaufnahme zum Zählen (braucht eine
+   Freigabe von macOS) und alles mit Xcode oder `sudo`.
+5. **WineD3D:** Die Anzeige liefert dort nichts (OpenGL, Probe); die Bildrate kommt über Wines fps-Kanal (Abschnitt 3),
+   heute über den Schalter `wineDebug` für alle Starts. **Nächster Schritt:** Der Spieletest setzt den Kanal selbst,
+   nur für seine Starts auf WineD3D – wie die Kanäle der Nahaufnahme (`Engine.setCloserLook`: `WINEDEBUG` der Sitzung,
+   in Steams Signatur) und mit `+pid,+loaddll,+timestamp` dazu. Das kostet je Wechsel zwischen einem WineD3D-Spiel und
+   einem anderen einen Neustart von Steam; in einem Lauf also am besten die WineD3D-Spiele hintereinander. Dateien:
+   `Engine.swift`, `LibraryModel.swift`. Langsamster Frame und 1-%-Tief bräuchten weiter einen Engine-Build.
 6. **Gezeichnete Auflösung unter DXMT und D3DMetal** (`engine/patches/dxmt-0.80-frame-log.patch`): eine Zeile zur
    Backbuffer-Größe. Braucht einen Engine-Build. (Die Anzeige selbst zeigt die Größe, ihr Protokoll nennt sie nicht.)
 7. **Der Spieletest bestätigt bei 60 s keinen Weg** (steht schon in `docs/TODO.md`); am 10.11. blieb ABZU nach vier

@@ -54,6 +54,7 @@ final class GameTestRun {
         if model.power.onBattery { report.onBattery = true }
         if ProcessInfo.processInfo.isLowPowerModeEnabled { report.lowPower = true }
         if GameTest.logsFrames(active: true) { report.frameLog = true }
+        if GameTest.wineFpsOn() { report.wineFps = true }
     }
 
     private func run() async {
@@ -407,9 +408,11 @@ final class GameTestRun {
         }
         seen.crashSigns = GameLog.crashed(in: log) || unrealCrash
         let outcome = GameTest.outcome(seen)
-        // Apple's HUD frame by frame where its logging is on, else the layer's periods.
+        // Apple's HUD frame by frame where its logging is on, else the layer's periods, else what Wine's own
+        // Direct3D says of its rate where Wine's fps channel is on.
         let frames = GameTest.hudSample(in: log, processes: everSeen).flatMap { GameTest.measuredFrames($0) }
             ?? GameTest.measuredFrames(GameTest.periods(in: log, programs: programs))
+            ?? GameTest.wineFrames(GameTest.wineRates(in: log, programs: programs))
         var entry = GameTest.Entry(candidate, outcome: outcome, skip: seen.needs)
         entry.ways = game.platform == .mac ? [GameTest.Way(way: "mac", outcome: outcome)]
             : GameTest.ways(of: game.name, in: log, last: outcome)
@@ -423,7 +426,8 @@ final class GameTestRun {
         entry.frames = frames
         if outcome == .picture {
             entry.measure = GameTest.measure(of: game.name, way: entry.way, in: log, frames: frames,
-                                             held: GameTest.held(of: game.name, in: log), frameLog: report.frameLog == true)
+                                             held: GameTest.held(of: game.name, in: log), frameLog: report.frameLog == true,
+                                             wineFps: report.wineFps == true)
         }
         entry.check = GameTest.check(entry, playSeconds: settings.playSeconds, onBattery: report.onBattery == true, lowPower: report.lowPower == true)
         entry.stack = stack

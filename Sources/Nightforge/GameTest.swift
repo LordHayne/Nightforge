@@ -41,6 +41,13 @@ enum GameTest {
         active && defaults.object(forKey: Keys.frameLog) as? Bool != false
     }
 
+    /// Whether Wine's debug channels (GameLog.extraWineDebug, the switch `wineDebug`) have its fps channel on:
+    /// "+fps" among them, as in "+fps,+pid,+loaddll,+timestamp". Wine's own Direct3D then logs its frame rate
+    /// (GameTestMeasure.wineRates).
+    static func wineFpsOn(_ channels: String? = GameLog.extraWineDebug) -> Bool {
+        (channels ?? "").split(separator: ",").contains { $0 == "+fps" || $0 == "fps" || $0 == "trace+fps" }
+    }
+
     struct Settings: Equatable {
         var pictureWait: TimeInterval = 120
         var playSeconds: TimeInterval = 60
@@ -456,7 +463,8 @@ enum GameTest {
         var slowestFrame: Double?
         /// The slowest frame of a usual period: the median of the periods' slowest, in milliseconds.
         var slowestTypical: Double?
-        /// Who logged them: "dxmt", "vulkan" (a layer, by period) or "metal-hud" (Apple's HUD, frame by frame).
+        /// Who logged them: "dxmt", "vulkan" (a layer, by period), "metal-hud" (Apple's HUD, frame by frame) or
+        /// "wine-fps" (Wine's own Direct3D through its fps channel: rates only, no single frames).
         var source: String?
         /// Only from the Metal HUD's frames: the rate at the 99th percentile of the frame times (99 of 100
         /// frames were faster), and the median GPU time of a frame in milliseconds.

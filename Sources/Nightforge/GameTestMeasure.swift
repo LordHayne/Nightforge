@@ -5,9 +5,10 @@ import Foundation
 /// that run (docs/LAEUFT-LISTE.md, scripts/laeuft-liste.py). Only what something reports: Apple's Metal
 /// HUD logs every frame of whatever presents through a Metal layer, and a game test's starts have it on
 /// (Engine.setFrameLog); DXMT and Nightforge's Vulkan layer log periods of their own. Wine's own Direct3D
-/// draws with OpenGL, which the HUD doesn't see, and a Mac version isn't started with the HUD's logging: there
-/// the report says "not measured" instead of a number. Only the HUD gives the slowest 1 % of frames: a
-/// layer's period carries its one slowest frame.
+/// draws with OpenGL, which the HUD doesn't see: it says its frame rate itself where Wine's fps channel is on
+/// (`wineRates`, `wineFrames`), and neither its slowest frames nor the slowest percent. A Mac version isn't started with
+/// the HUD's logging: there the report says "not measured" instead of a number. Only the HUD gives the slowest
+/// 1 % of frames: a layer's period carries its one slowest frame.
 extension GameTest {
     /// One period a layer logged:
     /// "[nightforge-dxmt] Game: 58.2 FPS over 10 s, frames 17.2 ms on average, slowest 76 ms".
@@ -124,7 +125,7 @@ extension GameTest {
     /// report hangs on the HUD's frame log (`frameLog`, Engine.setFrameLog): with it, all that present through
     /// Metal – D3DMetal and DXVK on MoltenVK too – and not Wine's own Direct3D (OpenGL) or a Mac version;
     /// without it, DXMT and DXVK only (DXVK's frames come from Nightforge's Vulkan layer, under winecx only
-    /// where KosmicKrisp draws).
+    /// where KosmicKrisp draws). Wine's own Direct3D reports with Wine's fps channel on (`wineFps`).
     enum NoFrames: String {
         case wayReportsNone, noneInLog
 
@@ -133,9 +134,12 @@ extension GameTest {
         }
     }
 
-    static func noFrames(way: String?, frameLog: Bool = false) -> NoFrames {
+    static func noFrames(way: String?, frameLog: Bool = false, wineFps: Bool = false) -> NoFrames {
         let layer = way?.split(separator: " ").first.map(String.init) ?? ""
-        return (frameLog ? ["wined3d", "mac"] : ["d3dmetal", "wined3d", "mac"]).contains(layer) ? .wayReportsNone : .noneInLog
+        var silent: Set<String> = ["mac"]
+        if !frameLog { silent.insert("d3dmetal") }
+        if !wineFps { silent.insert("wined3d") }
+        return silent.contains(layer) ? .wayReportsNone : .noneInLog
     }
 
     /// "1512x982" or "1512×982" as "1512×982"; nil for anything else.
@@ -186,7 +190,8 @@ extension GameTest {
     }
 
     /// What holds for a picture's numbers, from the start's stretch of the log and what it was held to.
-    static func measure(of game: String, way: String?, in log: String, frames: Frames?, held: Held?, frameLog: Bool = false) -> Measure {
+    static func measure(of game: String, way: String?, in log: String, frames: Frames?, held: Held?, frameLog: Bool = false,
+                        wineFps: Bool = false) -> Measure {
         var measure = Measure()
         if let picture = pictureSize(of: game, in: log) {
             measure.window = picture.window
@@ -201,8 +206,118 @@ extension GameTest {
         measure.refreshRate = held?.refreshRate
         measure.metalFX = held?.metalFX
         measure.throttled = held?.throttled
-        if frames == nil { measure.noFrames = noFrames(way: way, frameLog: frameLog).rawValue }
+        if frames == nil { measure.noFrames = noFrames(way: way, frameLog: frameLog, wineFps: wineFps).rawValue }
         return measure
+    }
+
+    // MARK: - Wine's fps channel
+
+    /// What Wine's own Direct3D says of its frame rate with the debug channel `fps` on (WINEDEBUG=+fps): every
+    /// time a swapchain presents and more than 1.5 s have passed since its last line,
+    /// "0124:trace:fps:wined3d_cs_exec_present 00000000012A3B40 @ approx 59.94fps" – the frames since then over
+    /// the time since then (Wine 11.17, dlls/wined3d/cs.c: `1000.0 * swapchain->frames / (time -
+    /// swapchain->prev_time)`, by GetTickCount). Before the thread stands the process with +pid ("0810:0124:…")
+    /// and before that the same clock with +timestamp ("253517.239:0810:0124:…", dlls/ntdll/unix/debug.c). The
+    /// process is Wine's own number, not the one macOS gives: whose it is, the loads of +loaddll say
+    /// ("…:trace:loaddll:build_module Loaded L"C:\\…\\Game.exe" at …").
+    struct WineRate: Equatable {
+        var fps: Double
+        /// The seconds it covers: the time since the swapchain's line before it where the lines carry a time,
+        /// else the 1.5 s the channel waits at least.
+        var seconds: Double
+    }
+
+    static let wineRateWindow = 1.5
+
+    /// The game's rates in a stretch of the log: those of its own processes – by the program a process loaded
+    /// (`programs`, the game's executables) – and of them the swapchain with the most lines. A process known to
+    /// be another program's (Steam's windows) never counts. Where no load says whose a process is (no +pid, no
+    /// +loaddll), it's the process and swapchain with the most lines. A process is a pid from one program's load
+    /// to the next: Wine hands a pid out again (CloserLook.read). A swapchain's first line is left out: its
+    /// count begins at Wine's start, not at a line before it. Whatever function Wine names in the line, it's
+    /// read by its channel and its text.
+    static func wineRates(in log: String, programs: Set<String>) -> [WineRate] {
+        let names = Set(programs.map(programName))
+        var instance: [Substring: Int] = [:], instances = 0
+        var ownerKnown: [Int: Bool] = [:]  // the process's program is one of the game's
+        struct Chain { var rates: [WineRate] = []; var lastTime: Double?; var lines = 0 }
+        var chains: [String: Chain] = [:], order: [String] = [], processOf: [String: Int?] = [:]
+        for raw in log.split(whereSeparator: \.isNewline) {
+            guard let line = CloserLook.Line(raw) else { continue }
+            if line.channel == "loaddll" {
+                guard let pid = line.pid, line.text.hasPrefix("Loaded "), let open = line.text.firstIndex(of: "\""),
+                      let close = line.text[line.text.index(after: open)...].firstIndex(of: "\"")
+                else { continue }
+                let path = line.text[line.text.index(after: open)..<close].lowercased()
+                guard path.hasSuffix(".exe") else { continue }
+                let program = path.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? path
+                instances += 1
+                instance[pid] = instances
+                ownerKnown[instances] = names.contains(programName(program))
+                continue
+            }
+            guard line.channel == "fps", let at = line.text.range(of: " @ approx "), line.text.hasSuffix("fps"),
+                  let fps = Double(line.text[at.upperBound...].dropLast(3)), fps >= 0
+            else { continue }
+            let process = line.pid.flatMap { instance[$0] }
+            // One swapchain of one process: its pointer, and the process as far as the line says it.
+            let key = "\(process.map(String.init) ?? line.pid.map(String.init) ?? "-") \(line.text[..<at.lowerBound])"
+            if chains[key] == nil {
+                order.append(key)
+                processOf[key] = process
+            }
+            var chain = chains[key] ?? Chain()
+            let time = wineTime(raw)
+            if chain.lines > 0, fps > 0 {
+                let seconds = time.flatMap { now in chain.lastTime.map { now - $0 } }.flatMap { $0 > 0 ? $0 : nil } ?? wineRateWindow
+                chain.rates.append(WineRate(fps: fps, seconds: seconds))
+            }
+            chain.lines += 1
+            chain.lastTime = time ?? chain.lastTime
+            chains[key] = chain
+        }
+        func owned(_ key: String) -> Bool? { (processOf[key] ?? nil).flatMap { ownerKnown[$0] } }
+        let own = order.filter { owned($0) == true }
+        let pool = own.isEmpty ? order.filter { owned($0) == nil } : own
+        // The most lines; the earlier one where two have as many.
+        var best: String?
+        for key in pool where (chains[key]?.rates.count ?? 0) > (best.flatMap { chains[$0]?.rates.count } ?? 0) { best = key }
+        return best.flatMap { chains[$0]?.rates } ?? []
+    }
+
+    /// The seconds a line begins with under +timestamp ("253517.239:0810:…", "%3u.%03u:"), nil without.
+    private static func wineTime(_ line: Substring) -> Double? {
+        let line = line.drop { $0 == " " }
+        guard let colon = line.firstIndex(of: ":"), line[..<colon].contains("."),
+              line[..<colon].allSatisfy({ $0.isNumber || $0 == "." })
+        else { return nil }
+        return Double(line[..<colon])
+    }
+
+    /// Wine's rates in the report's shape: the average over all of them by the time each covers, and the
+    /// lowest stretch of ten seconds as the layers' periods and the HUD's frames give it (a last stretch
+    /// shorter than that is left out). No slowest frame and no slowest percent: the channel says a rate, not
+    /// its frames.
+    static func wineFrames(_ rates: [WineRate]) -> Frames? {
+        let rates = rates.filter { $0.fps > 0 && $0.seconds > 0 }
+        guard !rates.isEmpty else { return nil }
+        var stretches: [(fps: Double, seconds: Double)] = []
+        var count = 0.0, time = 0.0
+        for rate in rates {
+            count += rate.fps * rate.seconds
+            time += rate.seconds
+            if time >= 10 {
+                stretches.append((count / time, time))
+                (count, time) = (0, 0)
+            }
+        }
+        if stretches.isEmpty { stretches.append((count / time, time)) }
+        guard var frames = frames(stretches) else { return nil }
+        let seconds = rates.map(\.seconds).reduce(0, +)
+        frames.average = (rates.map { $0.fps * $0.seconds }.reduce(0, +) / seconds * 10).rounded() / 10
+        frames.seconds = (seconds * 10).rounded() / 10
+        frames.source = "wine-fps"
+        return frames
     }
 
     // MARK: - Apple's Metal HUD
@@ -384,7 +499,7 @@ extension GameTest {
         let way = entry.way ?? ""
         if way.hasPrefix("d3dmetal") { return "nicht gemessen (D3DMetal meldet keine)" }
         if way == "mac" { return "nicht gemessen (Mac-Fassung meldet keine)" }
-        if way.hasPrefix("wined3d") { return "nicht gemessen (WineD3D meldet keine)" }
+        if way.hasPrefix("wined3d") { return "nicht gemessen (WineD3D meldet keine ohne Wines fps-Kanal)" }
         return "nicht gemessen (keine im Log)"
     }
 
@@ -397,7 +512,8 @@ extension GameTest {
                      "Vom ersten Frame bis zum Ende des Spielfensters (\(Int(report.playSeconds)) s nach dem ersten Bild), mit den Einstellungen, "
                      + "die das Spiel mitbringt. Keine feste Szene: meist Intro, Menü oder die ersten Sekunden im Spiel. "
                      + "Das 1-%-Tief gibt es nur aus Apples Metal-HUD-Protokoll (jeder Frame einzeln); "
-                     + "„langsamster Frame“ ist der eine langsamste je zehn Sekunden."]
+                     + "„langsamster Frame“ ist der eine langsamste je zehn Sekunden. WineD3D meldet über Wines fps-Kanal "
+                     + "nur seine Bildrate (alle 1,5 s): Ø und tiefste zehn Sekunden, weder 1-%-Tief noch langsamsten Frame."]
         if report.onBattery == true || report.lowPower == true {
             let how = [report.onBattery == true ? "auf Akku" : nil, report.lowPower == true ? "im Stromsparmodus" : nil].compactMap { $0 }
             lines.append("Der Mac lief \(how.joined(separator: " und ")): Die Werte sind mit anderen Läufen nicht vergleichbar.")

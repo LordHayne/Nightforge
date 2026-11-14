@@ -148,9 +148,12 @@ Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
   DXVK/MoltenVK (auf DXMT sind sie belegt); die Anzeige bleibt bei Deckkraft 0 im Spiel unsichtbar; Steam startet für
   den Test einmal neu und danach zurück; die Zeile „Frame limit of …“ steht im Protokoll und im Bericht; ein Start von
   Hand schreibt Version, Baudatum, Teile und Namen in die Evidenz.
-- **Ohne FPS-Wert bleiben** WineD3D (5 Spiele, 58,9 GB: OpenGL, die Anzeige sieht es nicht) und Mac-Fassungen
-  (5 Spiele, 64,0 GB: Steam für Mac müsste mit der Variable und lesbarer Fehlerausgabe gestartet werden) – Abschnitt 9,
-  Punkte 4 und 5.
+- **WineD3D** (5 Spiele, 58,9 GB) meldet seine Bildrate über Wines fps-Kanal: Schalter `wineDebug` mit
+  `+fps,+pid,+loaddll,+timestamp` vor dem Messlauf, danach wieder löschen (Abschnitt 6). Der Leser ist nach Wines
+  Quelle gebaut; eine echte Zeile gibt es erst aus dem Lauf – dann den Test damit ergänzen. Nächster Schritt: Der
+  Spieletest setzt den Kanal selbst, nur für WineD3D-Starts (Abschnitt 9, Punkt 5; `Engine.swift`, `LibraryModel.swift`).
+- **Mac-Fassungen** (5 Spiele, 64,0 GB) bleiben ohne FPS-Wert, bis der Nutzer zwischen den Wegen in Abschnitt 9,
+  Punkt 4 gewählt hat: Steam für Mac mit der Variable starten (Probe, dann ein halber Tag) oder nur den Start zählen.
 
 Zu entscheiden (der Nutzer):
 

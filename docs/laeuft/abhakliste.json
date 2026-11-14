@@ -17,6 +17,21 @@
  },
  "builds": [
   {
+   "built": "2026-11-14T17:41:36Z",
+   "current": true,
+   "engine": [
+    "winecx@4.7.3",
+    "d3dmetal@apple-3.0",
+    "dxvk-macos@1.10.3-20230507",
+    "enginefix@4.7.3-4",
+    "gamepad@4.7.3-15",
+    "graphics@11.18-dxmt0.80-17",
+    "moltenvk@1.4.2"
+   ],
+   "nightforge": "0.3.2",
+   "since": "2026-11-14T17:43:40Z"
+  },
+  {
    "built": "2026-11-14T14:40:10Z",
    "current": false,
    "engine": [
@@ -62,7 +77,7 @@
    "since": "2026-11-06T18:32:38Z"
   }
  ],
- "dataUntil": "2026-11-14T17:44:13Z",
+ "dataUntil": "2026-11-14T17:52:27Z",
  "formatVersion": 1,
  "games": [
   {
@@ -318,8 +333,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-14T17:41:36Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -330,25 +345,24 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-14T17:43:40Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:54:25Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "at": "2026-11-14T17:52:25Z",
+    "average": 109.2,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
     "ok": false,
     "public": false,
     "way": "d3dmetal",
-    "why": "wayReportsNone"
+    "why": "throttled"
    },
    "key": "epic.Calluna",
    "later": null,
    "location": "extern",
    "missing": [
-    "start",
     "fps"
    ],
    "name": "Control",
@@ -356,11 +370,11 @@
    "sizeBytes": 45010292103,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:54:26Z",
-    "by": "evidence",
-    "ok": false,
+    "at": "2026-11-14T17:52:25Z",
+    "by": "gameTest",
+    "ok": true,
     "way": "d3dmetal",
-    "why": "noOutcome"
+    "why": "ok"
    },
    "status": "offen",
    "store": "epic",
@@ -989,8 +1003,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-14T17:41:36Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1001,19 +1015,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-14T17:43:40Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-09T23:41:41Z",
-    "average": 58.4,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "at": "2026-11-14T17:43:46Z",
+    "average": 59.7,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
     "ok": false,
     "public": false,
     "way": "dxvk",
-    "why": "limitUnknown"
+    "why": "throttled"
    },
    "key": "steam.242760",
    "later": null,
@@ -1026,7 +1040,7 @@
    "sizeBytes": 5950220689,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:41:41Z",
+    "at": "2026-11-14T17:43:46Z",
     "by": "gameTest",
     "ok": true,
     "way": "dxvk",
@@ -1038,8 +1052,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-14T17:41:36Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1050,19 +1064,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-14T17:43:40Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:59:13Z",
-    "average": 54.8,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "at": "2026-11-14T17:48:41Z",
+    "average": 57.6,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
     "ok": false,
     "public": false,
     "way": "dxmt -dx11",
-    "why": "limitUnknown"
+    "why": "throttled"
    },
    "key": "epic.Curry",
    "later": null,
@@ -1075,8 +1089,8 @@
    "sizeBytes": 4818969865,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:59:13Z",
-    "by": "gameTest",
+    "at": "2026-11-14T17:48:41Z",
+    "by": "evidence",
     "ok": true,
     "way": "dxmt -dx11",
     "why": "ok"
