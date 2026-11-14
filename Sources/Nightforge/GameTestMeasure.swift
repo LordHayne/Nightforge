@@ -521,7 +521,7 @@ extension GameTest {
         lines += ["", "| Spiel | Weg | Frame-Limit | Größe | FPS Ø / tiefste Periode | 1-%-Tief | Langsamster Frame |", "|---|---|---|---|---|---|---|"]
         for entry in pictures {
             let measure = entry.measure
-            let limit = measure?.frameLimit.map { $0 > 0 ? "\($0) FPS" : "keins" } ?? "nicht gemessen"
+            let limit = limitText(measure, way: entry.way)
             var frames = framesText(entry)
             if let seconds = entry.frames?.seconds { frames += " über \(Int(seconds)) s" }
             let onePercent = entry.frames?.onePercentLow.map { "\(Int($0.rounded())) FPS" } ?? "–"
@@ -531,6 +531,14 @@ extension GameTest {
         }
         lines.append("")
         return lines
+    }
+
+    /// The limit a row names. D3DMetal has nothing that holds one (Apple's D3DMetal 3.0 has no switch for the
+    /// frame rate, and five games ran past 60 on 14.11.2026): what a start asked for there is said as asked.
+    static func limitText(_ measure: Measure?, way: String?) -> String {
+        guard let limit = measure?.frameLimit else { return "nicht gemessen" }
+        guard limit > 0 else { return "keins" }
+        return way?.split(separator: " ").first == "d3dmetal" ? "keins möglich (verlangt: \(limit) FPS)" : "\(limit) FPS"
     }
 
     /// What it drew at where a layer says so, else the game's display mode, else its window.
