@@ -92,6 +92,25 @@ Funde dabei:
 Entscheidung des Nutzers (14.11.): Ein Spiel mit sauberem Start und sauberem FPS-Wert bleibt abgehakt, auch wenn
 später ein neuer Testbuild kommt; der Build steht am Wert. Die Läuft-Liste-Session baut die Regel um.
 
+**Probelauf des HUD-Protokolls (14.11., 18:43–18:56, Testbuild `548a4eb`, Bericht `GameTests/2026-11-14-1843`):**
+drei Spiele, alle mit Bild und FPS-Wert. The Forest (DXVK) Ø 60 / tiefste Periode 55, ABZU (DXMT) Ø 58 / 52,
+Control (D3DMetal) Ø 109 / 30. Damit live gesehen: `metal-HUD:`-Zeilen unter Wine auf DXVK/MoltenVK und auf D3DMetal
+(600 Zeilen in drei Spielen), die Zeile „Frame limit of …“ je Start, Steam startet für das erste Steam-Spiel einmal
+neu und nach dem Lauf zurück, `started` trägt `nightforge`, `built`, `parts`, `name`, das 1-%-Tief steht im Bericht.
+Die Werte zählen nicht: Der Mac lief auf Akku, und nebenbei liefen Tests der Sessions. Nicht gesehen: die Anzeige
+bei Deckkraft 0 (die Leistungsanzeige des Nutzers ist an).
+
+- **D3DMetal hält das Limit nicht (Control, gefunden im Probelauf):** „Frame limit of Control: 60 FPS at 120 Hz“,
+  `D3DM_MAX_FPS` war gesetzt, gemessen sind Ø 109 FPS mit Frames im 8,33-ms-Takt. Erste Messung auf D3DMetal
+  überhaupt; der alte Punkt „prüfen, ob die Bildratengrenze auch für D3DMetal-Spiele greift“ hat damit eine Zahl.
+  Offen: gilt es nur für den Direktstart (Epic) oder auch über Steam, nur für Control (DX12) oder für alle? Anfang:
+  `Engine.swift` (`D3DM_MAX_FPS` in `prepareLaunchEnvironment` und `directLaunchEnvironment`), Gegenprobe mit dem
+  Wukong-Benchmark über Steam.
+- **Ohne FPS-Wert bleiben** die Spiele auf WineD3D (Batman, Alan Wake, Dishonored, Mafia II, Left 4 Dead 2) und die
+  Mac-Fassungen (Dying Light, Tomb Raider, Asphalt Legends, Valheim, Drawful 2): zehn der 23 geladenen Spiele. Für
+  die Abhakliste braucht es dort einen eigenen Messweg oder eine Entscheidung des Nutzers.
+- **Messabend:** am Netzteil, ohne laufende Sessions (Last), Befehle in `docs/LAEUFT-LISTE.md` Abschnitt 6.
+
 ## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
 
 Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, sobald ein 100%iger Start und ein
