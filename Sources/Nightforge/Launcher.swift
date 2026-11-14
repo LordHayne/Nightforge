@@ -547,11 +547,12 @@ enum Launcher {
     }
 
     /// `frameLimit`: what the game is held to (FramePacing.automaticLimit or the player's choice).
-    /// The client it starts: it ends once it has handed the command to the running Steam, or is
-    /// that Steam when none ran.
+    /// `recipe`: what the start is made of (StartRecipe) – its arguments go to the game, its DLL overrides
+    /// and Windows version into the prefix. The client it starts: it ends once it has handed the command
+    /// to the running Steam, or is that Steam when none ran.
     @discardableResult
     static func launch(_ game: Game, runnerPath: String, options: GameOptions, profile: GameProfile? = nil,
-                       frameLimit: Int = 0, extraArguments: [String] = []) throws -> DetachedProcess {
+                       frameLimit: Int = 0, recipe: StartRecipe) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -589,7 +590,7 @@ enum Launcher {
             Engine.applyIniSettings(profile?.iniSettings ?? [])
             // Before regedit: it would join what's left of a session with msync the other way.
             if Engine.steamRunningKnown == false { Engine.applyMsyncMode(runner) }
-            Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+            Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner, recipe: recipe)
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
             // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
             let switches = Engine.launchEnvironment.filter { GameEnvironment.allowed[$0.key] != nil && !$0.value.isEmpty }
@@ -619,8 +620,7 @@ enum Launcher {
         var gameArguments: [String] = []
         if game.bottle.isBuiltIn {
             gameArguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
-            gameArguments += profile?.arguments(on: layer) ?? []
-            gameArguments += extraArguments
+            gameArguments += recipe.arguments  // the profile's for this layer, the way's, the switch past its launcher window
         }
         gameArguments += splitArguments(options.extraArgs)
         let name = { (path: String) in (path.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent }
@@ -656,9 +656,10 @@ enum Launcher {
 
     /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
     /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
-    /// the game log. `environment`: `Engine.directLaunchEnvironment`; `usesD3D9`: see `directEnvironment`.
+    /// the game log. `recipe`: as for `launch`. `environment`: `Engine.directLaunchEnvironment`; `usesD3D9`:
+    /// see `directEnvironment`.
     static func launchDirect(_ game: Game, command: StoreLaunchCommand, runnerPath: String, options: GameOptions,
-                             profile: GameProfile?, frameLimit: Int, extraArguments: [String],
+                             profile: GameProfile?, frameLimit: Int, recipe: StartRecipe,
                              environment gameEnvironment: [String: String], usesD3D9: Bool) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
@@ -671,7 +672,7 @@ enum Launcher {
                                 vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
         Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
         Engine.applyIniSettings(profile?.iniSettings ?? [])
-        Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+        Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner, recipe: recipe)
         // It joins the Wine session that runs, or starts one in the Retina mode the prefix has.
         GameResolution.fit(game, profile: profile, retina: Engine.retinaModeApplied, wine: runner)
 
@@ -689,8 +690,8 @@ enum Launcher {
         }
         let loader = Engine.loader(for: runner)
         if loader != runner { environment["WINELOADER"] = loader.path }
-        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments(on: layer) ?? [])
-            + extraArguments + splitArguments(options.extraArgs))
+        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + recipe.arguments
+            + splitArguments(options.extraArgs))
         process.currentDirectoryURL = otherProgram ? program.deletingLastPathComponent() : command.workingDirectory
         process.environment = environment
         process.standardInput = FileHandle.nullDevice

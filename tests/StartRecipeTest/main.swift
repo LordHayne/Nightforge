@@ -117,6 +117,46 @@ struct StartRecipeTest {
         check(old.steps == nil && old.windowsVersion == nil && old.arguments == ["-dx12"], "a recipe recorded before 14.11. reads as before")
         check(try JSONDecoder().decode(StartRecipe.self, from: JSONEncoder().encode(withoutNvidia)) == withoutNvidia, "one with steps, written and read")
 
+        // MARK: Step E1 – a start is made of its recipe
+
+        // The game gets the profile's arguments, then the way's, then the switch past its launcher window: the
+        // order Launcher.launch handed them over in before the recipe carried them.
+        let forced = LaunchAttempt(graphics: .d3dmetal, arguments: ["-force-d3d12"])
+        let made = StartRecipe.of(way: forced, learned: none, profile: shaped, launcherSwitch: "-nolauncher", d3dMetalEngine: true)
+        check(made.arguments == ["-dx12", "-force-d3d12", "-nolauncher"], "the arguments in the order the game gets them (\(made.arguments))")
+        check(StartRecipe.pastLauncher(["-dx11"], switch: nil) == ["-dx11"] && StartRecipe.pastLauncher([], switch: "-nolauncher") == ["-nolauncher"],
+              "the switch past the launcher window stands in one place")
+        // A line recorded up to 14.11. has the profile's last: the same start, and a proof from then holds.
+        var recorded = made
+        recorded.arguments = ["-force-d3d12", "-nolauncher", "-dx12"]
+        check(recorded.startsLike(made) && recorded != made, "the same arguments in the record's old order are the same start")
+        var otherSwitch = made
+        otherSwitch.arguments = ["-dx12", "-force-d3d11", "-nolauncher"]
+        check(!otherSwitch.startsLike(made), "… other arguments aren't")
+        check(StartEvidence.Proof(worked: [forced.id], workedWith: [forced.id: recorded]).holds(for: made, on: forced.id),
+              "a proof recorded in the old order holds for the start of today")
+        // The prefix gets the recipe's DLL overrides and Windows version (Engine.applyGameSettings): with nothing
+        // learned exactly what the layer and the profile gave before, with something learned that on top.
+        let unshaped = StartRecipe.of(way: d3dmetal, learned: none, profile: shaped, d3dMetalEngine: true)
+        check(Engine.appDefaults("Game.exe", dllOverrides: unshaped.dllOverrides, windowsVersion: unshaped.windowsVersion)
+              == Engine.appDefaults("Game.exe", dllOverrides: Engine.gameDllOverrides(.d3dmetal, profile: shaped, d3dMetalEngine: true), windowsVersion: "win10"),
+              "with nothing learned the prefix gets what it got before")
+        for layer in [GraphicsLayer.dxmt, .dxvk, .d3dmetal, .wined3d] {
+            for engine in [true, false] {
+                let plainRecipe = StartRecipe.of(way: LaunchAttempt(graphics: layer, arguments: []), learned: none, profile: nil, d3dMetalEngine: engine)
+                check(plainRecipe.dllOverrides == Engine.gameDllOverrides(layer, profile: nil, d3dMetalEngine: engine) && plainRecipe.windowsVersion == nil,
+                      "\(layer.rawValue): a recipe without anything learned has the layer's overrides")
+            }
+        }
+        let section = Engine.appDefaults("Game.exe", dllOverrides: withoutNvidia.dllOverrides, windowsVersion: withoutNvidia.windowsVersion)
+        check(withoutNvidia.dllOverrides.allSatisfy { section.contains("\"\($0.key)\"=\"\($0.value)\"") }
+              && section.split(separator: "\n").filter { $0.hasPrefix("\"") && !$0.hasPrefix("\"Version\"") }.count == withoutNvidia.dllOverrides.count,
+              "every DLL override of the recipe goes into the prefix, and no other")
+        check(section.contains("\"nvapi64\"=\"\"") && section.hasPrefix("[-HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\Game.exe\\DllOverrides]")
+              && section.hasSuffix("\"Version\"=-"), "a DLL learned to stay out is written as off, the old ones cleared first, no Windows version without one")
+        check(Engine.appDefaults("Game.exe", dllOverrides: onProfile.dllOverrides, windowsVersion: onProfile.windowsVersion).hasSuffix("\"Version\"=\"win10\""),
+              "the recipe's Windows version")
+
         // MARK: What was learned, kept with the game
 
         let defaults = TestDefaults.suite("start-recipe")

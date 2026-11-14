@@ -4601,8 +4601,11 @@ final class LibraryModel: ObservableObject {
                     runner = engine.wine.path
                     build = engine.build
                 }
+                // What earlier starts taught about this game (LearnedFixes.learned), read once per start: its
+                // runtimes are set up here, and with the way and the profile it makes the start's recipe below.
+                let learned = LearnedFixes.learned(game.gameID)
                 if let runner {
-                    await installRuntimes(for: game, profile: profile, analysis: analysis,
+                    await installRuntimes(for: game, profile: profile, analysis: analysis, learned: learned.runtimes,
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
                     if game.provider == .gog { await setUpGOG(game, wine: URL(fileURLWithPath: runner), showStatus: true) }
                 }
@@ -4682,11 +4685,15 @@ final class LibraryModel: ObservableObject {
                 // (GameTest.logsFrames). It comes as the channels do: through Steam from the Steam that starts it.
                 let frameLogBefore = Engine.frameLog
                 let frameLogChanged = game.bottle.isBuiltIn && Engine.setFrameLog(GameTest.logsFrames())
+                // DXVK's Direct3D 9 draws on KosmicKrisp under winecx – on a held build too: DXVK-macOS's
+                // d3d9 gets its device there as well (31.10.2026). Not with the engine test's loader on: that way wins.
+                let winecx = game.bottle.isBuiltIn && runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true
+                // Step E1: all this start is made of, as one value (StartRecipe) – the way, the profile and what
+                // was learned. Its record, the prefix's settings for the game's programs, its arguments and
+                // Rosetta's AVX are all read from it, so what is recorded is what started.
+                let recipe = StartRecipe.of(way: LaunchAttempt(graphics: layer, arguments: arguments), learned: learned, profile: profile,
+                                            launcherSwitch: analysis?.launcherSwitch, d3dMetalEngine: winecx)
                 if automatic, !attempts.isEmpty {
-                    let recipe = StartRecipe.of(layer: layer, arguments: Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch),
-                                                profile: profile, learnedRuntimes: LearnedFixes.winetricks(game.gameID),
-                                                avx: LearnedFixes.avx(game.gameID, profile: profile),
-                                                d3dMetalEngine: runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true)
                     StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
                                        kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook,
                                        name: game.name, parts: build?.parts)
@@ -4697,15 +4704,12 @@ final class LibraryModel: ObservableObject {
                         SteamProgram.prepare(game, route: SteamProgram.route(game, layer: layer, options: options, profile: profile))
                     }
                     : false
-                // DXVK's Direct3D 9 draws on KosmicKrisp under winecx – on a held build too: DXVK-macOS's
-                // d3d9 gets its device there as well (31.10.2026). Not with the engine test's loader on: that way wins.
-                let winecx = game.bottle.isBuiltIn && runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true
                 let vulkan = Engine.vulkanDriver(layer: layer, analysis: analysis, winecx: winecx,
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
                 // A session has msync or doesn't: a game joining one that runs takes it as it is.
                 let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
                 if viaSteam, game.bottle.isBuiltIn,
-                   Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
+                   Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: options.retina(profile: profile, layer: layer, analysis: analysis),
                                                    environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
@@ -4758,13 +4762,14 @@ final class LibraryModel: ObservableObject {
                         metalFX: layer.upscales && options.effectiveUpscaling(profile: profile), throttled: throttled)))
                 }
                 // Past the game's own launcher window where its program knows the switch: straight into the
-                // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way.
-                let startArguments = Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch)
-                if startArguments != arguments { GameLog.note("\(game.name) starts past its own launcher window (\(startArguments.last ?? ""))") }
+                // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way; the recipe has it.
+                if let past = analysis?.launcherSwitch, StartRecipe.pastLauncher(arguments, switch: past) != arguments {
+                    GameLog.note("\(game.name) starts past its own launcher window (\(past))")
+                }
                 raiseCurtain(for: game)
                 let started = viaSteam
-                    ? await start(game, runner: runner, options: options, profile: profile, arguments: startArguments, frameLimit: frameLimit)
-                    : await startDirect(game, runner: runner, options: options, profile: profile, arguments: startArguments,
+                    ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)
+                    : await startDirect(game, runner: runner, options: options, profile: profile, recipe: recipe,
                                         frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
                 // Step C: a store's game has the channels from its own start; Steam's settings don't keep them.
                 if !viaSteam, closerLook { Engine.setCloserLook(false) }
@@ -4984,11 +4989,11 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Runtimes the profile asks for and those an earlier start turned out to need, and Wine Mono
-    /// for .NET games. `showStatus` says so on the Play button while it takes.
-    private func installRuntimes(for game: Game, profile: GameProfile?, analysis: GameAnalysis?,
+    /// Runtimes the profile asks for and those an earlier start turned out to need (`learned`:
+    /// StartRecipe.Learned.runtimes), and Wine Mono for .NET games. `showStatus` says so on the Play button
+    /// while it takes.
+    private func installRuntimes(for game: Game, profile: GameProfile?, analysis: GameAnalysis?, learned: [String],
                                  wine: URL, showStatus: Bool) async {
-        let learned = LearnedFixes.winetricks(game.gameID)
         // What the game is known to need from the start (PCGamingWiki, macSources) goes in before its first start.
         let known = macSources.runtimes(for: game)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono } + known)
@@ -5022,7 +5027,8 @@ final class LibraryModel: ObservableObject {
             guard let wine = await Engine.installedWine() else { return }
             let profile = await ProfileStore.shared.profile(for: game.gameID)
             let analysis = await insight(of: game)?.analysis
-            await installRuntimes(for: game, profile: profile, analysis: analysis, wine: wine, showStatus: false)
+            await installRuntimes(for: game, profile: profile, analysis: analysis, learned: LearnedFixes.learned(game.gameID).runtimes,
+                                  wine: wine, showStatus: false)
             if game.provider == .gog { await setUpGOG(game, wine: wine, showStatus: false) }
         }
     }
@@ -5030,7 +5036,7 @@ final class LibraryModel: ObservableObject {
     /// Hands the game to Steam and follows Steam's log until the game runs. True once it does; a
     /// question from Steam can take as long as the player needs, no sign of life ends after 2 min.
     private func start(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
-                       arguments: [String], frameLimit: Int) async -> Bool {
+                       recipe: StartRecipe, frameLimit: Int) async -> Bool {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
         var licenceLog = SteamLicenceLog(steamRoot: game.steamRoot, appID: game.appID)
         launchAsksLicence = false
@@ -5044,7 +5050,7 @@ final class LibraryModel: ObservableObject {
             // would freeze the window for a moment.
             client = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
-                                    frameLimit: frameLimit, extraArguments: arguments)
+                                    frameLimit: frameLimit, recipe: recipe)
             }.value
         } catch {
             errorMessage = error.localizedDescription
@@ -5133,7 +5139,7 @@ final class LibraryModel: ObservableObject {
                              + (answerStored ? "" : " (the answer isn't to be seen in its record)") + ", at \(GameLog.clock())")
                 client = try? await Task.detached(priority: .userInitiated) {
                     try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
-                                        frameLimit: frameLimit, extraArguments: arguments)
+                                        frameLimit: frameLimit, recipe: recipe)
                 }.value
                 continue
             }
@@ -5191,7 +5197,7 @@ final class LibraryModel: ObservableObject {
                         sentAt = Date()
                         client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
-                                                frameLimit: frameLimit, extraArguments: arguments)
+                                                frameLimit: frameLimit, recipe: recipe)
                         }.value
                     }
                     launchPhase = nil
@@ -5207,7 +5213,7 @@ final class LibraryModel: ObservableObject {
                         sentAt = Date()
                         client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
-                                                frameLimit: frameLimit, extraArguments: arguments)
+                                                frameLimit: frameLimit, recipe: recipe)
                         }.value
                         continue
                     }
@@ -5223,7 +5229,7 @@ final class LibraryModel: ObservableObject {
                         sentAt = Date()
                         client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
-                                                frameLimit: frameLimit, extraArguments: arguments)
+                                                frameLimit: frameLimit, recipe: recipe)
                         }.value
                     }
                     launchPhase = nil
@@ -5293,7 +5299,7 @@ final class LibraryModel: ObservableObject {
     /// info file), and Nightforge waits until its process is there. Whether it keeps running,
     /// `survivesFirstSeconds` sees. `usesD3D9`: from the start's analysis (`insight`).
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
-                             arguments: [String], frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?,
+                             recipe: StartRecipe, frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?,
                              usesD3D9: Bool) async -> Bool {
         guard let runner else {
             errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
@@ -5312,7 +5318,7 @@ final class LibraryModel: ObservableObject {
         }
         launchPhase = nil
         guard !Task.isCancelled else { return false }
-        let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
+        let environment = Engine.directLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                          vulkan: vulkan)
         if layer == .d3dmetal {
@@ -5324,7 +5330,7 @@ final class LibraryModel: ObservableObject {
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
-                                          frameLimit: frameLimit, extraArguments: arguments, environment: environment,
+                                          frameLimit: frameLimit, recipe: recipe, environment: environment,
                                           usesD3D9: usesD3D9)
             }.value
         } catch {
@@ -5485,12 +5491,6 @@ final class LibraryModel: ObservableObject {
                 return "hung without a picture"
             }
         }
-    }
-
-    /// A start's arguments with the switch past the game's own launcher window, once.
-    nonisolated static func argumentsPastLauncher(_ arguments: [String], switch launcherSwitch: String?) -> [String] {
-        guard let launcherSwitch, !arguments.contains(where: { $0.caseInsensitiveCompare(launcherSwitch) == .orderedSame }) else { return arguments }
-        return arguments + [launcherSwitch]
     }
 
     /// What a game's files reveal (read once per game and app run) and the ways to start it.

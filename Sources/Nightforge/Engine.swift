@@ -2050,7 +2050,10 @@ enum Engine {
     /// profile's DLL overrides and Windows version. Rewritten in full when anything in them differs
     /// from what the prefix holds (GameRegistryRecord), so a changed choice or profile never leaves
     /// stale entries. The profile's registry entries go in as well, at every launch.
-    static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL) {
+    /// `recipe`: what the start is made of (StartRecipe, step E1) – its DLL overrides and Windows version
+    /// are the ones written, the same value its record carries. Without one: the layer's and the profile's.
+    static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL,
+                                  recipe: StartRecipe? = nil) {
         let layer = choice == .automatic ? (profile?.graphics ?? defaultGraphics) : choice
         let d3dMetalEngine = isGPTKCapable(wine: wine)
         if d3dMetalEngine, let dxvk = installedComponentNow(dxvkID) {
@@ -2063,16 +2066,10 @@ enum Engine {
         // Roots Windows trusts and the Mac no longer carries, for games that check signatures (WindowsRoots).
         let roots = WindowsRoots.registrySection
         if !roots.isEmpty { sections.append(GameRegistryRecord.Section(key: "WindowsRoots", text: roots)) }
+        let overrides = recipe?.dllOverrides ?? gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine)
+        let version = recipe != nil ? recipe?.windowsVersion : profile?.windowsVersion
         for exe in exes where isPlainProgramName(exe) {
-            let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
-            let overrides = gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine)
-            var section = "[-\(app)\\DllOverrides]"
-            if !overrides.isEmpty {
-                section += "\n[\(app)\\DllOverrides]\n" + overrides.sorted { $0.key < $1.key }
-                    .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
-            }
-            section += "\n[\(app)]\n\"Version\"=" + (profile?.windowsVersion.map(regString) ?? "-")
-            sections.append(GameRegistryRecord.Section(key: exe, text: section))
+            sections.append(GameRegistryRecord.Section(key: exe, text: appDefaults(exe, dllOverrides: overrides, windowsVersion: version)))
         }
         let imported = gameSettingsLock.withLock {
             GameRegistryRecord.importIfChanged(sections, unrecorded: (profile?.registry ?? []).compactMap(regSection),
@@ -2082,6 +2079,19 @@ enum Engine {
             }
         }
         if !imported { GameLog.note("Game settings as the prefix has them: no regedit") }
+    }
+
+    /// One program's AppDefaults as regedit takes them: its DLL overrides written afresh, none left from
+    /// before, and its Windows version ("-" takes one away).
+    static func appDefaults(_ exe: String, dllOverrides overrides: [String: String], windowsVersion: String?) -> String {
+        let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
+        var section = "[-\(app)\\DllOverrides]"
+        if !overrides.isEmpty {
+            section += "\n[\(app)\\DllOverrides]\n" + overrides.sorted { $0.key < $1.key }
+                .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
+        }
+        section += "\n[\(app)]\n\"Version\"=" + (windowsVersion.map(regString) ?? "-")
+        return section
     }
 
     /// One start at a time compares with the record, imports and notes what it wrote.
