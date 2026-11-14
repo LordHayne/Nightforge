@@ -163,6 +163,28 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Teil 2 eingespielt und erster Probelauf, 15.11., 00:19–00:30 (Testbuild `af20360`, mit „Ja, einspielen“ des
+Nutzers; Bericht `GameTests/2026-11-15-0020`, je 40 s):** 6 von 6 mit Bild – MGS V (Steam, dxmt, Ø 59),
+It Takes Two (Steam, d3dmetal), ABZU (Epic, dxmt -dx11), Mafia II (GOG, wined3d), Valheim (Mac), Rise of the
+Tomb Raider (Epic, erster Start überhaupt: Startplan „d3dmetal, dxmt, dxvk; now d3dmetal, its files show
+DirectX 12 …“, am Launcher-Fenster vorbei mit `-nolauncher`, Bild nach 19 s).
+
+- **Gesehen, E1:** Jede `started`-Zeile der Evidenz trägt `recipe` (arguments, avx, dllOverrides, graphics,
+  runtimes); die Starts gehen wie vorher, „Game settings as the prefix has them: no regedit“.
+- **Gesehen, E5:** Jeder Start trägt die Kanäle (3842 `trace:loaddll`-Zeilen in 6 Starts, +608 KB); Steam
+  startete für MGS V einmal neu. Ein Fehlerfenster kam nicht vor.
+- **Nicht gesehen:** E2 (fehlende Laufzeit, Hogwarts ohne Profil), E3 (It Takes Two mit Testprofil), E4 (anderes
+  Rezept), E6 (Blick für den bewährten Weg), ein Start auf DXVK (The Forest ist gelöscht, OxyRail bräuchte ein
+  Update). Anleitung: Notizordner `closer-look/live-pruefung-schritt-e.md`.
+- [ ] **ABZU braucht zum dritten Mal in Folge zwei Anläufe** (14.11. 20:14, 15.11. 00:24; am 14.11. 18:43 nicht).
+  Mit den Kanälen jetzt lesbar: Der erste Anlauf endet still, ohne Fehlerzeile, nach dem Laden von
+  `explorerframe.dll` (101 Bibliotheken); der zweite lädt danach `cryptnet.dll`, `rtworkq`, `mfplat`,
+  `mfreadwrite`, `XAudio2_7`, `mmdevapi` und die Vorbis-Bibliotheken (112). Es greift der alte Zweig „ended in
+  its first seconds … started once more on it“, ohne Diagnose. Beide Anläufe liegen im Notizordner
+  (`closer-look/live-2026-11-15-abzu-anlauf-1.log`, `-2.log`). Für die Diagnose-Session.
+- Während des Laufs kam einmal Google Chrome nach vorn (der Nutzer war am Mac); der Vorhang ging hoch und
+  wieder herunter, der Test lief weiter.
+
 **Schritt E, Teil 2 ist im Testzweig (15.11., 00:14, Zusammenführung `7d12b51`):** E1 bis E5 und die Logik von E6
 in neun Commits der Diagnose-Session. Kette des Koordinators grün: 119 Testreihen, 273 pytest. **Nicht
 eingespielt, live nichts gesehen.** Nach dem Einspielen (OK des Nutzers) live: E2 mit einem Spiel mit fehlender
