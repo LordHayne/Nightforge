@@ -163,23 +163,43 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
-**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.; aus dem Code gelesen, nicht live
-probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
+**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.):** gebaut auf
+`claude/sad-nightingale-196da3` (vier Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
+Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entwuerfe/LaufwerkUebernahme.dc.html`.
 
-- [ ] **Steam (Windows):** Installiert ist, was in Steams `libraryfolders.vdf` steht (`LibraryScanner.libraryFolders`,
-  `Library.swift`). Die Liste einer frischen Installation kennt die Bibliothek auf dem Laufwerk nicht.
-  `SteamLibraries.ensure` trägt sie mit den Spielen ein, die schon dort liegen – wird aber nur beim Laden oder
-  Verschieben auf das Laufwerk gerufen (`DriveMoves.swift`). `watchDrives` lädt beim Anstecken nur neu. Folge:
-  Alle Steam-Spiele des Laufwerks stehen als „nicht installiert“ da, bis der Spieler irgendein Steam-Spiel auf
-  dieses Laufwerk lädt; dann kommen alle zurück, ohne neu zu laden (`requestDownload` lässt ein vorhandenes
-  Manifest stehen). Steam für Mac ebenso über seine eigene Liste.
-- [ ] **Epic:** Installiert ist, was in legendarys `installed.json` in Nightforges Daten steht; nach der
-  Neuinstallation leer. Nichts ruft `legendary import`. Lädt der Spieler das Spiel erneut auf das Laufwerk,
-  geht `legendary install --base-path` in den vorhandenen Ordner (ungeprüft: vermutlich lädt es alles neu).
-- [ ] **GOG:** Nightforges eigene `GOG/installed.json`; nach der Neuinstallation leer, nichts liest die Ordner.
-- In Einstellungen › Speicher steht das Laufwerk mit seinem Balken, aber ohne Spiele.
-- Vorschlag (eigene Session, Karte gestellt): ein Laufwerk mit „Nightforge Games“ beim Anstecken und beim Start
-  wiedererkennen und übernehmen, je Laden, ohne neu zu laden; Hinweis an den Spieler erst als Board.
+- [x] **Befund nachgelesen, zwei Korrekturen.** Steam und GOG wie notiert. Epic: legendary legt im Spielordner nichts
+  Eigenes ab – ein `.egstore` gibt es nur, wo die Spieldateien eines mitbringen (auf „Games“ bei einem von neun) –,
+  welcher Ordner welches Spiel ist, sagt erst die Liste des Kontos (Epics Ordnername je Spiel). gogdls `import`
+  trägt nichts ein, es liest nur die `goggame-<id>.info` und fragt GOG nach dem Versionsnamen.
+- [x] **Erkennen** (`DriveFinds.swift`, rein): was auf dem Laufwerk liegt, aus dessen Dateien allein, und was davon
+  Nightforge nicht kennt – zu übernehmen oder wartend, mit Grund. `tests/DriveFindsTest`.
+- [x] **Übernehmen** (`DriveTakeover.swift`, dazu je ein Abschnitt in `EpicStore.swift`, `GOGStore.swift`), ohne
+  Download, ohne etwas auf dem Laufwerk zu ändern: Steam und Steam für Mac über `SteamLibraries.ensure` bei gestopptem
+  Steam, eingereiht wie jeder Steam-Start; Epic über `legendary import` (aus der mitgelieferten 0.21.1 gelesen: braucht
+  Anmeldung und Netz, holt das Manifest, prüft Programmdatei und Dateien, endet auch nach einer Weigerung mit 0 –
+  darum entscheidet legendarys Liste); GOG als Eintrag in Nightforges `GOG/installed.json`. Nur Spiele des
+  angemeldeten Kontos. `tests/DriveTakeoverTest` (leeres HOME, Ersatz-legendary).
+- [x] **Wann:** einmal nach dem Start, nach dem Anstecken, und sobald etwas Wartendes dran sein könnte (Spiel,
+  Download oder Umzug vorbei; Steam eingerichtet; Laden angemeldet; Liste des Ladens da). Eine Zeile in
+  `LibraryModel.swift` (`lookAtDrives()` in der Schleife, die die laufenden Spiele beobachtet).
+- **Was der Testbau auf „Games“ fände (15.11., nur gelesen):** 8 Steam-Spiele (eines halb geladen), 5 für Steam für
+  Mac, 9 Epic-Ordner, 1 GOG-Spiel – alle bekannt, also nichts zu tun und nichts wartend. Derselbe Stand ohne Nightforges
+  Listen, alle Läden angemeldet: alle 23 werden erkannt, kein Ordner bleibt übrig.
+- [ ] **Der Nutzer wählt am Board, was der Spieler sieht** (A still mit ruhigem Hinweis, B Hinweis mit „Ansehen“,
+  C einmal fragen; Empfehlung A). Bis dahin stehen die Spiele einfach als installiert da; der Hinweis hängt an
+  `DriveTakeover.onTaken`, die Zeile für Wartendes an `DriveFinds.waiting`. Texte deutsch und englisch am Board.
+- [ ] **Live prüfen** nach `docs/LIVETEST-LAUFWERK.md`: Teil A im leeren HOME mit einem Disk-Image (dort sieht die
+  Übernahme nur Disk-Images an, nie ein echtes Laufwerk); Teil B der echte Fall über „Laufwerk vergessen“ – ändert
+  Nightforges echte Listen, also die Entscheidung des Nutzers.
+- [ ] **Offen, gelesen und nicht belegt:** (1) Epic trägt nach dem Import den neuesten Stand ein, auch wenn die
+  Dateien älter sind, und merkt das Spiel zur Prüfung vor; ob Nightforges „Aktualisieren & Spielen“ damit richtig
+  umgeht, ist nicht gelaufen. (2) Ein Epic-Download, dem unter 5 % fehlen, gilt nach dem Import als installiert.
+  (3) GOG: gogdl fehlt nach der Übernahme das gespeicherte Manifest; das nächste Update lädt vermutlich alles.
+  (4) Ob die auslösende Schleife schon während der ersten Einrichtung läuft.
+- Vorschlag für später: Beim Laden auf ein Laufwerk einen Merkzettel dazulegen (Epic: App-Name und Stand, GOG: gogdls
+  Manifest). Dann wäre die Übernahme genau und ginge für Epic auch ohne Netz. Nicht gebaut – es schreibt bei jedem
+  Download auf das Laufwerk und will eine eigene Entscheidung.
+- In Einstellungen › Speicher steht das Laufwerk nach der Übernahme wieder mit seinen Spielen.
 
 **Entschieden vom Nutzer, 15.11. kurz nach Mitternacht:** „aber das menü sagt halt echt nichts aus über die
 leistung im spiel“ – die FPS-Werte des Spieletests (Vorspann, Menü) belegen den Start, nicht die Leistung. Ein
