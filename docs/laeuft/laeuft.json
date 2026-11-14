@@ -1,5 +1,23 @@
 {
- "dataUntil": "2026-11-14T14:59:07Z",
+ "currentBuilds": {
+  "Apple M5 · macOS 27.0": {
+   "built": "2026-11-14T17:41:36Z",
+   "engine": [
+    "winecx@4.7.3",
+    "d3dmetal@apple-3.0",
+    "dxvk-macos@1.10.3-20230507",
+    "enginefix@4.7.3-4",
+    "gamepad@4.7.3-15",
+    "graphics@11.18-dxmt0.80-17",
+    "moltenvk@1.4.2"
+   ],
+   "mac": "Apple M5 · macOS 27.0",
+   "nightforge": "0.3.2",
+   "since": "2026-11-14T17:43:40Z",
+   "sinceFrom": "firstRun"
+  }
+ },
+ "dataUntil": "2026-11-14T17:44:13Z",
  "entries": [
   {
    "antiCheat": false,
@@ -81,9 +99,11 @@
    },
    "name": "Alan Wake",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [
     "endedByItself"
    ],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -173,7 +193,9 @@
    },
    "name": "Batman: Arkham Asylum GOTY Edition",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -260,7 +282,9 @@
    },
    "name": "Black Myth: Wukong Benchmark Tool",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -347,7 +371,9 @@
    },
    "name": "Control",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -437,7 +463,9 @@
    },
    "name": "Dishonored - Definitive Edition",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -524,7 +552,9 @@
    },
    "name": "Hogwarts Legacy",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -549,8 +579,8 @@
    "evidence": {
     "failed": 3,
     "gaveUp": true,
-    "last": "2026-11-10T19:55:20Z",
-    "starts": 8,
+    "last": "2026-11-14T15:09:09Z",
+    "starts": 10,
     "ways": [
      "d3dmetal",
      "dxmt -dx11",
@@ -616,7 +646,11 @@
    },
    "name": "It Takes Two",
    "nameFrom": "report",
-   "notes": [],
+   "noPictureSince": null,
+   "notes": [
+    "profiled"
+   ],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -715,7 +749,9 @@
    },
    "name": "Just Cause 4",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -802,7 +838,9 @@
    },
    "name": "Left 4 Dead 2",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -889,7 +927,9 @@
    },
    "name": "Mafia II (Classic)",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "gog",
@@ -989,9 +1029,11 @@
    },
    "name": "METAL GEAR SOLID V: THE PHANTOM PAIN",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [
     "endedByItself"
    ],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1090,7 +1132,9 @@
    },
    "name": "Overwatch®",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1177,7 +1221,9 @@
    },
    "name": "OxyRail",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1276,7 +1322,9 @@
    },
    "name": "REANIMAL",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1285,7 +1333,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T23:41:41Z",
     "basis": "known",
@@ -1301,13 +1349,16 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-09T23:41:41Z",
-    "starts": 1,
+    "last": "2026-11-14T17:44:13Z",
+    "starts": 2,
     "ways": [
      "dxvk"
     ]
    },
-   "gameEngine": null,
+   "gameEngine": {
+    "engine": "unity",
+    "version": "5.6"
+   },
    "gameTest": {
     "last": "2026-11-09T23:41:41Z",
     "lastOutcome": "picture",
@@ -1375,7 +1426,13 @@
    },
    "name": "The Forest",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": {
+    "at": "2026-11-14T17:44:13Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1463,9 +1520,11 @@
    },
    "name": "ABZU",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [
     "confirmationWithdrawn"
    ],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": {
     "at": "2026-11-10T00:59:13Z",
@@ -1540,7 +1599,9 @@
    },
    "name": "Asphalt Legends",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "mac",
    "seen": {
     "at": "2026-11-10T00:01:00Z",
@@ -1611,9 +1672,11 @@
    },
    "name": "Drawful 2",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [
     "loadHigh"
    ],
+   "onCurrentBuild": null,
    "platform": "mac",
    "seen": {
     "at": "2026-11-10T00:03:05Z",
@@ -1694,7 +1757,9 @@
    },
    "name": "Marvel's Guardians of the Galaxy",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": {
     "at": "2026-11-09T23:57:27Z",
@@ -1765,7 +1830,9 @@
    },
    "name": "Tomb Raider",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "mac",
    "seen": {
     "at": "2026-11-10T00:05:02Z",
@@ -1836,7 +1903,9 @@
    },
    "name": "Valheim",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "mac",
    "seen": {
     "at": "2026-11-10T00:07:03Z",
@@ -1875,7 +1944,9 @@
    "measured": null,
    "name": "Grand Theft Auto V Enhanced",
    "nameFrom": "report",
+   "noPictureSince": null,
    "notes": [],
+   "onCurrentBuild": null,
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1886,7 +1957,7 @@
  ],
  "formatVersion": 1,
  "sources": {
-  "evidenceEntries": 67,
-  "gameTestRuns": 28
+  "evidenceEntries": 71,
+  "gameTestRuns": 29
  }
 }

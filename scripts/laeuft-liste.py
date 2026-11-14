@@ -513,6 +513,12 @@ def build(evidence_lists, reports, names=None, stock=None):
             if game["name"]:
                 evidence_names[key] = game["name"]
     tests, report_names = from_reports(reports)
+    # Per Mac: the build that ran last there, and every time something named a build – for what an entry
+    # says of the current state beside the values it keeps from the build they were measured on.
+    launches = [launch for game in starts.values() for launch in game["launches"]]
+    macs = sorted({mac for _, _, mac in set(starts) | set(tests)})
+    marks = {mac: build_marks(reports, launches, mac) for mac in macs}
+    currents = {mac: current_build(reports, launches, mac=mac) for mac in macs}
     entries = []
     for key, platform, mac in sorted(set(starts) | set(tests)):
         evidence, runs = starts.get((key, platform, mac)), tests.get((key, platform, mac), [])
@@ -529,28 +535,48 @@ def build(evidence_lists, reports, names=None, stock=None):
                 withdrawn = {"way": current, "at": evidence["withdrawn"][current], "confirmedAt": evidence["confirmed"][current]["at"]}
             else:
                 confirmed = evidence["confirmed"][current]
-        # The newest of: the last tried run, a start the evidence saw end with a picture.
+        # The newest picture: a game test's run, or a start the evidence saw end with one. A picture stays one –
+        # a start without one after it is said beside it (`noPictureSince`) and takes nothing back, as a newer
+        # build takes no value away.
         seen = []
-        if tried:
-            seen.append((tried[-1]["at"], tried[-1]["outcome"] == "picture", tried[-1]["way"], "gameTest"))
+        if pictures:
+            seen.append((pictures[-1]["at"], pictures[-1]["way"], "gameTest"))
         if evidence and evidence["picture"]:
-            seen.append((evidence["picture"]["at"], True, evidence["picture"]["way"], "evidence"))
-        newest = max(seen) if seen else None
+            seen.append((evidence["picture"]["at"], evidence["picture"]["way"], "evidence"))
+        newest = max(seen, key=lambda one: one[0]) if seen else None
 
         if blocked:
             level, way = "anti-cheat", None
         elif confirmed:
             level, way = "laeuft", confirmed["way"]
-        elif newest and newest[1]:
-            level, way = "startet", newest[2]
+        elif newest:
+            level, way = "startet", newest[1]
         else:
             level = "kein-bild"
-            way = (newest[2] if newest else None) or (evidence["lastWay"] if evidence else None)
+            way = (tried[-1]["way"] if tried else None) or (evidence["lastWay"] if evidence else None)
+        since = None
+        if level == "startet":
+            after = [(run["at"], "gameTest") for run in tried if run["outcome"] != "picture" and run["at"] > newest[0]]
+            after += [(launch["at"], "evidence") for launch in (evidence["launches"] if evidence else [])
+                      if launch["at"] > newest[0] and (launch["failed"] or launch["gaveUp"]) and not launch["worked"]]
+            if after:
+                since = dict(zip(("at", "by"), max(after)), count=len(after))
 
+        # A value doesn't go with a newer build or a newer run without one: the newest that can stand in public,
+        # else the newest with a frame rate, else the newest picture – each with the build it was measured on.
         chosen = None
         if level in ("laeuft", "startet") and pictures:
-            on_way = [run for run in pictures if run["way"] == way]
-            chosen = measured((on_way or pictures)[-1])
+            on_way = [measured(run) for run in pictures if run["way"] == way] or [measured(run) for run in pictures]
+            chosen = next((m for m in reversed(on_way) if m["public"]), None) or next((m for m in reversed(on_way) if m["fps"]), on_way[-1])
+        # What the current build has seen of it: its newest start there, with or without a picture.
+        current, now = currents.get(mac), None
+        if current:
+            here = [(run["at"], run["outcome"] == "picture", "gameTest") for run in tried if build_of(run) == build_of(current)]
+            here += [(launch["at"], bool(launch["worked"] or (launch["ended"] and launch["ended"]["picture"])), "evidence")
+                     for launch in (evidence["launches"] if evidence else [])
+                     if build_of_launch(launch, marks[mac]) == build_of(current)]
+            if here:
+                now = dict(zip(("at", "picture", "by"), max(here)))
         # True, false, or null where no record says.
         anti_cheat = True if blocked else evidence["antiCheat"] if evidence else None
         notes = []
@@ -558,6 +584,8 @@ def build(evidence_lists, reports, names=None, stock=None):
             notes.append("antiCheatOnlineUnproven")
         if withdrawn:
             notes.append("confirmationWithdrawn")
+        if since:
+            notes.append("noPictureSince")
         if confirmed and evidence["profiled"].get(way):
             notes.append("profiled")
         if confirmed and evidence["failedSince"].get(way):
@@ -584,7 +612,8 @@ def build(evidence_lists, reports, names=None, stock=None):
             "level": level, "way": way, "antiCheat": anti_cheat,
             "confirmed": dict(confirmed, failedSince=evidence["failedSince"].get(way, 0)) if confirmed else None,
             "withdrawn": withdrawn,
-            "seen": {"at": newest[0], "by": newest[3]} if level == "startet" else None,
+            "seen": {"at": newest[0], "by": newest[2]} if level == "startet" else None,
+            "noPictureSince": since,
             "evidence": {
                 "starts": evidence["starts"], "ways": evidence["ways"], "failed": evidence["failed"],
                 "gaveUp": evidence["gaveUp"], "last": evidence["last"],
@@ -595,7 +624,7 @@ def build(evidence_lists, reports, names=None, stock=None):
             } if tried else None,
             "gameEngine": {"engine": kind.get("engine"), "version": kind.get("engineVersion")}
             if kind and kind.get("engine") not in (None, "other") else None,
-            "measured": chosen, "notes": notes,
+            "measured": chosen, "onCurrentBuild": now, "notes": notes,
         })
     entries.sort(key=lambda e: (e["mac"], LEVELS.index(e["level"]), (e["name"] or e["key"]).casefold(), e["key"], e["platform"]))
     stamps = [entry["at"] for entries_ in evidence_lists for entry in entries_] + [report["started"] for report in reports]
@@ -603,84 +632,144 @@ def build(evidence_lists, reports, names=None, stock=None):
         "formatVersion": FORMAT_VERSION,
         "dataUntil": max(stamps) if stamps else None,
         "sources": {"evidenceEntries": sum(len(e) for e in evidence_lists), "gameTestRuns": len(reports)},
+        "currentBuilds": {mac: build for mac, build in currents.items() if build},
         "entries": entries,
     }
 
 
 # MARK: - The checklist
 
-def current_build(reports, launches=(), since=None):
-    """The build the checklist asks about: the one the newest game test or the newest start that names its
-    build ran on, and since when it has been seen – or `since`, for a build nothing names yet."""
-    seen = [(report["started"], build_of(report), report.get("mac") or UNKNOWN_MAC, "firstRun") for report in reports]
-    seen += [(launch["at"], stated(launch), launch["mac"], "firstStart") for launch in launches if stated(launch)]
-    if not seen:
+def build_marks(reports, launches=(), mac=None):
+    """Every time something named its build, oldest first: a game test's report, a start since 14.11.2026."""
+    marks = [(report["started"], build_of(report), report.get("mac") or UNKNOWN_MAC, "firstRun") for report in reports]
+    marks += [(launch["at"], stated(launch), launch["mac"], "firstStart") for launch in launches if stated(launch)]
+    return sorted((mark for mark in marks if mac is None or mark[2] == mac), key=lambda one: (one[0], one[3]))
+
+
+def current_build(reports, launches=(), since=None, mac=None):
+    """The build that ran last: the one the newest game test or the newest start that names its build ran on,
+    and since when it has been seen – or `since`, for a build nothing names yet."""
+    marks = build_marks(reports, launches, mac)
+    if not marks:
         return None
-    seen.sort(key=lambda one: (one[0], one[3]))
-    newest = seen[-1]
-    first = next(one for one in seen if one[1] == newest[1])
+    newest = marks[-1]
+    first = next(one for one in marks if one[1] == newest[1])
     nightforge, built, engine = newest[1]
     return {"nightforge": nightforge, "built": built, "engine": list(engine), "mac": newest[2],
             "since": since or first[0], "sinceFrom": "argument" if since else first[3]}
 
 
+def build_of_launch(launch, marks, current=None, since=None):
+    """The build a start ran on: the one it names; else – a line from before 14.11.2026 – the build last
+    named before it, or the current one from `since` on. None where nothing says, or the line's engine is
+    another."""
+    named = stated(launch)
+    if named:
+        return named
+    build = None
+    if current and since and launch["at"] >= since:
+        build = current
+    else:
+        for at, marked, _, _ in marks:
+            if at > launch["at"]:
+                break
+            build = marked
+    if build is None:
+        return None
+    winecx = next((part for part in build[2] if part.startswith("winecx@")), None)
+    if (winecx and launch["engine"] not in (None, winecx)) or launch["nightforge"] not in (None, build[0]):
+        return None
+    return build
+
+
+def start_on(starts):
+    """One build's answer on the start: its newest clean one – a clean start stays one, whatever came after
+    it – else what its newest start says."""
+    starts = sorted(starts, key=lambda one: one["at"])
+    clean = [one for one in starts if one["why"] == "ok"]
+    newest = clean[-1] if clean else starts[-1] if starts else None
+    return {"ok": bool(clean), "why": newest["why"] if newest else "never", "at": newest["at"] if newest else None,
+            "by": newest["by"] if newest else None, "way": newest["way"] if newest else None}
+
+
+def fps_on(pictures):
+    """One build's answer on the frame rate: its newest run with one that counts, else why its newest has none."""
+    fps = {"ok": False, "why": "never", "at": None, "way": None, "average": None, "frameLimit": None, "kind": None, "holds": None, "public": False}
+    for run in sorted(pictures, key=lambda run: run["at"], reverse=True):
+        m, code = measured(run), check_of(run)[1]
+        if code == "ok" and "limitUnknown" in m["notPublic"]:
+            code = "limitUnknown"  # a number without its limit isn't one with its conditions
+        found = {"ok": code == "ok", "why": code, "at": run["at"], "way": run["way"], "average": m["fps"]["average"] if m["fps"] else None,
+                 "frameLimit": m["frameLimit"], "kind": m["kind"], "holds": m["holds"], "public": m["public"]}
+        if found["ok"] or fps["why"] == "never":
+            fps = found
+        if found["ok"]:
+            break
+    return fps
+
+
 def checklist(stock, evidence_lists, reports, names=None, since=None):
-    """Per installed game: its size, and whether a clean start and a frame rate that counts are on record for
-    the current build. "fertig" needs both; "von-hand" is what no game test will ever start."""
+    """Per installed game: its size, and whether a clean start and a frame rate that counts were once on
+    record for the same build. That is "fertig", and stays it when a newer build runs: a game that has been
+    uninstalled can't be measured again. The build is named with the entry, and a start that went wrong
+    later is a note beside it. "von-hand" is what no game test will ever start."""
     names = names or {}
     stamps = [entry["at"] for entries in evidence_lists for entry in entries] + [report["started"] for report in reports]
     starts = {}
     for entries in evidence_lists:
         starts.update(from_evidence(entries))
-    build = current_build(reports, [launch for game in starts.values() for launch in game["launches"]], since)
+    launches = [launch for game in starts.values() for launch in game["launches"]]
+    build = current_build(reports, launches, since)
     tests, report_names = from_reports(reports)
     mac = build["mac"] if build else next((key[1] for key in reversed(list(starts))), UNKNOWN_MAC)
-    since = build["since"] if build else since
-    winecx = next((part for part in build["engine"] if part.startswith("winecx@")), None) if build else None
-    games = []
+    marks = build_marks(reports, launches, mac)
+    current = build_of(build) if build else None
+    first_seen = {}
+    for at, marked, _, _ in marks:
+        first_seen.setdefault(marked, at)
+    games, used = [], set()
     for item in stock:
         key, platform = item["key"], item["platform"]
         evidence = starts.get((key, mac)) if platform == "windows" else None
         runs = tests.get((key, platform, mac), [])
-        on_build = [run for run in runs if build and build_of(run) == build_of(build) and run["at"] >= since and run["outcome"] != "skipped"]
-
-        seen = []
-        for run in on_build:
-            code = check_of(run)[0]
-            seen.append((run["at"], code, code not in ("tooShort", "neededPlayer"), "gameTest", run["way"]))
-        for launch in evidence["launches"] if evidence else []:
-            if since and launch["at"] < since:
+        # Per build: every start seen on it, and its runs with a picture.
+        seen = {}
+        for run in runs:
+            if run["outcome"] == "skipped":
                 continue
-            # A start that names its build counts on that build only; an older line by its date and engine.
-            if stated(launch):
-                if not build or stated(launch) != build_of(build):
-                    continue
-            elif (winecx and launch["engine"] not in (None, winecx)) or (build and launch["nightforge"] not in (None, build["nightforge"])):
+            on = seen.setdefault(build_of(run), {"starts": [], "pictures": []})
+            code = check_of(run)[0]
+            on["starts"].append({"at": run["at"], "why": code, "settles": code not in ("tooShort", "neededPlayer"), "by": "gameTest", "way": run["way"]})
+            if run["outcome"] == "picture":
+                on["pictures"].append(run)
+        for launch in evidence["launches"] if evidence else []:
+            ran_on = build_of_launch(launch, marks, current, since)
+            if ran_on is None:
                 continue
             code, settles = launch_verdict(launch)
-            seen.append((launch["at"], code, settles, "evidence", launch["ways"][-1] if launch["ways"] else None))
-        seen.sort(key=lambda one: one[0])
-        # The newest start decides. One that settles nothing (too short, no outcome on record) leaves a clean
-        # start before it standing, and is itself the answer after anything else.
-        newest = seen[-1] if seen else None
-        if newest and not newest[2]:
-            settled = next((one for one in reversed(seen) if one[2]), None)
-            if settled and settled[1] == "ok":
-                newest = settled
-        start = {"ok": bool(newest and newest[1] == "ok"), "why": newest[1] if newest else "never",
-                 "at": newest[0] if newest else None, "by": newest[3] if newest else None, "way": newest[4] if newest else None}
-
-        fps = {"ok": False, "why": "never", "at": None, "way": None, "average": None, "frameLimit": None, "kind": None, "holds": None, "public": False}
-        for run in reversed([run for run in on_build if run["outcome"] == "picture"]):
-            m, code = measured(run), check_of(run)[1]
-            if code == "ok" and "limitUnknown" in m["notPublic"]:
-                code = "limitUnknown"  # a number without its limit isn't one with its conditions
-            found = {"ok": code == "ok", "why": code, "at": run["at"], "way": run["way"], "average": m["fps"]["average"] if m["fps"] else None,
-                     "frameLimit": m["frameLimit"], "kind": m["kind"], "holds": m["holds"], "public": m["public"]}
-            if found["ok"] or fps["why"] == "never":
-                fps = found
-            if found["ok"]:
-                break
+            seen.setdefault(ran_on, {"starts": [], "pictures": []})["starts"].append(
+                {"at": launch["at"], "why": code, "settles": settles, "by": "evidence", "way": launch["ways"][-1] if launch["ways"] else None})
+        answers = []
+        for ran_on, on in seen.items():
+            start, fps = start_on(on["starts"]), fps_on(on["pictures"])
+            answers.append((start["ok"] and fps["ok"], max(one["at"] for one in on["starts"]), ran_on, start, fps))
+        # Done once is done: the newest build that had both. Else the build that got furthest – a clean start or a
+        # frame rate stays what it is – and among those the newest with a record of it.
+        chosen = max(answers, key=lambda one: (one[0], one[3]["ok"] + one[4]["ok"], one[1])) if answers else None
+        done = bool(chosen and chosen[0])
+        start, fps = (chosen[3], chosen[4]) if chosen else (start_on([]), fps_on([]))
+        # A start that went wrong after the clean one, on whichever build: said, and takes nothing back.
+        later = None
+        if start["ok"]:
+            after = sorted((one for on in seen.values() for one in on["starts"]
+                            if one["settles"] and one["why"] != "ok" and one["at"] > start["at"]), key=lambda one: one["at"])
+            if after:
+                later = {"count": len(after), "at": after[-1]["at"], "why": after[-1]["why"], "by": after[-1]["by"]}
+        ran_on = None
+        if chosen:
+            used.add(chosen[2])
+            ran_on = {"nightforge": chosen[2][0], "built": chosen[2][1], "engine": list(chosen[2][2]), "since": first_seen.get(chosen[2]),
+                      "current": chosen[2] == current}
 
         # What the newest game test left it out for – unless it has been started since: the other version's
         # first start is over once the player has made it.
@@ -688,21 +777,24 @@ def checklist(stock, evidence_lists, reports, names=None, since=None):
         if skipped and evidence and evidence["launches"] and evidence["launches"][-1]["at"] > runs[-1]["at"]:
             skipped = None
         by_hand = skipped if skipped in BY_HAND else "antiCheat" if evidence and evidence["antiCheat"] else None
-        status = "von-hand" if by_hand else "fertig" if start["ok"] and fps["ok"] else "offen"
+        status = "fertig" if done and by_hand != "antiCheat" else "von-hand" if by_hand else "offen"
         store, _, store_id = key.partition(".")
         games.append({
             "key": key, "store": store, "storeID": store_id, "platform": platform,
             "name": report_names.get(key) or (evidence["name"] if evidence else None) or item.get("name") or names.get(key),
             "sizeBytes": item["sizeBytes"], "location": item["location"], "status": status,
             "missing": [] if status == "fertig" else [what for what, have in (("start", start["ok"]), ("fps", fps["ok"])) if not have],
-            "byHand": by_hand, "skipped": skipped, "start": start, "fps": fps,
+            "byHand": by_hand if status == "von-hand" else None, "skipped": skipped, "start": start, "fps": fps, "build": ran_on, "later": later,
         })
     order = ("fertig", "offen", "von-hand")
     games.sort(key=lambda game: (order.index(game["status"]), -game["sizeBytes"], (game["name"] or game["key"]).casefold(), game["key"], game["platform"]))
     totals = {status: {"games": sum(1 for game in games if game["status"] == status),
                        "bytes": sum(game["sizeBytes"] for game in games if game["status"] == status)} for status in order}
+    # The builds the entries name, newest first.
+    builds = [{"nightforge": one[0], "built": one[1], "engine": list(one[2]), "since": first_seen.get(one), "current": one == current}
+              for one in sorted(used, key=lambda one: (first_seen.get(one) or "", one[0] or "", one[1] or "", one[2]), reverse=True)]
     return {"formatVersion": FORMAT_VERSION, "dataUntil": max(stamps) if stamps else None, "mac": mac, "build": build,
-            "totals": totals, "games": games}
+            "builds": builds, "totals": totals, "games": games}
 
 
 # MARK: - The German table
@@ -711,6 +803,15 @@ def date(stamp):
     """An ISO 8601 UTC stamp as "14.11.2026" (its UTC day: the same on every Mac)."""
     match = re.match(r"(\d{4})-(\d{2})-(\d{2})", stamp or "")
     return f"{int(match[3])}.{int(match[2])}.{match[1]}" if match else "–"
+
+
+def moment(stamp):
+    """An ISO 8601 UTC stamp as "14.11.2026 14:40 UTC": two builds of one day are told apart by the minute."""
+    match = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})", stamp or "")
+    if not match:
+        return date(stamp)
+    year, month, day, hour, minute = match.groups()
+    return f"{int(day)}.{int(month)}.{year} {hour}:{minute} UTC"
 
 
 def number(value, digits=0):
@@ -736,7 +837,7 @@ def proof_text(entry):
                 text += f", {confirmed['starts']}. Start"
                 if confirmed["ways"] and confirmed["ways"] > 1:
                     text += f", {confirmed['ways']} Wege"
-        version = f"Nightforge {confirmed['nightforge']}" + (f" (gebaut {date(confirmed['built'])})" if confirmed.get("built") else "") \
+        version = f"Nightforge {confirmed['nightforge']}" + (f" (gebaut {moment(confirmed['built'])})" if confirmed.get("built") else "") \
             if confirmed.get("nightforge") else None
         return " · ".join(filter(None, [text, version, confirmed["engine"]]))
     seen = entry["seen"]
@@ -797,7 +898,7 @@ def run_text(m):
     wanted = [] if layer(m["way"]) == "mac" else ["winecx", "graphics"] + (["d3dmetal"] if layer(m["way"]) == "d3dmetal" else [])
     parts = [part for part in m["engine"] if part.split("@")[0] in wanted]
     seconds = f"{number(m['playSeconds'])} s" if m["playSeconds"] else None
-    version = f"Nightforge {m['nightforge']}" + (f" (gebaut {date(m['built'])})" if m["built"] else "") if m["nightforge"] else None
+    version = f"Nightforge {m['nightforge']}" + (f" (gebaut {moment(m['built'])})" if m["built"] else "") if m["nightforge"] else None
     return " · ".join(filter(None, [date(m["at"]), version] + parts + [seconds]))
 
 
@@ -825,6 +926,10 @@ def notes_text(entry):
     if "confirmationWithdrawn" in entry["notes"]:
         gone = entry["withdrawn"]
         notes.append(f"{gone['way']} war bestätigt, seit {date(gone['at'])} nicht mehr")
+    if "noPictureSince" in entry["notes"]:
+        gone = entry["noPictureSince"]
+        times = f"{gone['count']} Starts" if gone["count"] > 1 else "ein Start"
+        notes.append(f"danach {times} ohne Bild, zuletzt {date(gone['at'])} ({'Spieletest' if gone['by'] == 'gameTest' else 'Evidenz'})")
     m = entry["measured"]
     if m and m["fps"] and not m["public"]:
         notes.append("FPS nicht für die öffentliche Liste: " + ", ".join(GAPS.get(gap, gap) for gap in m["notPublic"]))
@@ -834,8 +939,8 @@ def notes_text(entry):
 
 
 def rows(entries):
-    lines = ["| Spiel | Laden | Fassung | Weg | Beleg | Spieletest | Bild nach | Frame-Limit | FPS | Langsamster Frame | Größe | Messung | Hinweis |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines = ["| Spiel | Laden | Fassung | Weg | Beleg | Spieletest | Bild nach | Frame-Limit | FPS | Langsamster Frame | Größe | Messung | "
+             "Aktueller Build | Hinweis |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for entry in entries:
         m, test = entry["measured"], entry["gameTest"]
         cells = [
@@ -843,10 +948,18 @@ def rows(entries):
             entry["way"] or "–", proof_text(entry),
             f"Bild in {test['pictures']} von {test['runs']}" if test else "–",
             f"{number(m['secondsToPicture'])} s" if m and m["secondsToPicture"] is not None else "nicht gemessen",
-            limit_text(m), frames_text(m), slowest_text(m), size_text(m), run_text(m), notes_text(entry),
+            limit_text(m), frames_text(m), slowest_text(m), size_text(m), run_text(m), now_text(entry.get("onCurrentBuild")), notes_text(entry),
         ]
         lines.append("| " + " | ".join(cells) + " |")
     return lines
+
+
+def now_text(now):
+    """What the current build has seen of a game: its newest start there."""
+    if not now:
+        return "noch nichts"
+    source = "Spieletest" if now["by"] == "gameTest" else "Evidenz"
+    return ("Bild" if now["picture"] else "kein Bild") + f" {date(now['at'])} ({source})"
 
 
 def tried_text(entry):
@@ -877,6 +990,11 @@ def markdown(document):
         here = [entry for entry in entries if entry["mac"] == mac]
         by = {level: [entry for entry in here if entry["level"] == level] for level in LEVELS}
         lines += [f"## {mac}", ""]
+        current = (document.get("currentBuilds") or {}).get(mac)
+        if current:
+            lines += [f"Aktueller Build: {build_text(current)}, gesehen seit dem {date(current['since'])}. Messwerte stehen mit dem Build, "
+                      "auf dem sie gemessen sind, und bleiben, wenn ein neuerer läuft; die Spalte „Aktueller Build“ sagt, was der "
+                      "jüngste von dem Spiel gesehen hat.", ""]
         if by["laeuft"]:
             lines += [f"### Läuft ({len(by['laeuft'])})", "",
                       "Der Weg ist bestätigt: Das Spiel hat gemessene Frames gezeichnet oder lief 180 s mit Bild.", ""]
@@ -908,11 +1026,11 @@ def markdown(document):
 START = {
     "severalWays": "brauchte mehrere Wege", "failed": "Fehlstart", "endedByItself": "endete von selbst", "noPicture": "kein Bild",
     "tooShort": "Bild, aber unter 180 s beobachtet", "neededPlayer": "brauchte den Spieler", "noOutcome": "Ausgang nicht aufgezeichnet",
-    "endedEarly": "vor dem Bild beendet", "never": "auf diesem Build nie gestartet",
+    "endedEarly": "vor dem Bild beendet", "never": "kein Start aufgezeichnet",
 }
 NO_FPS = {
     "noPicture": "kein Bild", "noneInLog": "keine im Log", "throttled": "auf Akku oder gedrosselt gemessen", "loadHigh": "Last war hoch",
-    "limitUnknown": "Wert ohne aufgezeichnetes Limit", "never": "auf diesem Build nie gemessen",
+    "limitUnknown": "Wert ohne aufgezeichnetes Limit", "never": "auf diesem Build nicht gemessen", "nowhere": "nie gemessen",
 }
 SKIPS = dict(BY_HAND, signIn="bräuchte eine Anmeldung", update="ein Update stünde an", runtimes="bräuchte erst Laufzeiten",
              d3dMetal="braucht D3DMetal, das nicht eingerichtet ist", macSteamSetup="Steam für Mac ist nicht eingerichtet",
@@ -923,13 +1041,19 @@ def size_gb(count):
     return number(count / 1_000_000_000, 1) + " GB"
 
 
-def start_text(start):
+def start_text(start, later=None):
     source = "Spieletest" if start["by"] == "gameTest" else "Evidenz"
     where = f" ({source} {date(start['at'])}" + (f", {start['way']}" if start["way"] else "") + ")" if start["at"] else ""
-    return ("ja" if start["ok"] else "fehlt: " + START.get(start["why"], start["why"])) + where
+    text = ("ja" if start["ok"] else "fehlt: " + START.get(start["why"], start["why"])) + where
+    if later:
+        # Said, not counted: a clean start stays one.
+        again = "Spieletest" if later["by"] == "gameTest" else "Evidenz"
+        count = f"{later['count']} Starts gingen" if later["count"] > 1 else "ein Start ging"
+        text += f"; danach {count} schief, zuletzt {date(later['at'])}: {START.get(later['why'], later['why'])} ({again})"
+    return text
 
 
-def fps_text(fps):
+def fps_text(fps, nowhere=False):
     value = f"Ø {number(fps['average'])}" if fps["average"] is not None else None
     where = f"{date(fps['at'])}" + (f", {fps['way']}" if fps["way"] else "") if fps["at"] else None
     if fps["ok"]:
@@ -937,11 +1061,18 @@ def fps_text(fps):
         return "ja: " + ", ".join(filter(None, [held, value, where]))
     silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine", "mac": "Mac-Fassung meldet keine"}
     why = silent.get(layer(fps["way"]), "der Weg meldet keine") if fps["why"] == "wayReportsNone" else NO_FPS.get(fps["why"], fps["why"])
+    if fps["why"] == "never" and not fps["at"] and nowhere:
+        why = NO_FPS["nowhere"]
     return "fehlt: " + why + (" (" + ", ".join(filter(None, [value, where])) + ")" if where else "")
 
 
+def build_text(build):
+    """A build in words: the version, when it was built, the engine's parts."""
+    return " · ".join([f"Nightforge {build['nightforge']}" + (f" (gebaut {moment(build['built'])})" if build["built"] else "")] + build["engine"])
+
+
 def checklist_markdown(document):
-    build, totals = document["build"], document["totals"]
+    build, totals, builds = document["build"], document["totals"], document.get("builds") or []
     lines = [
         "# Abhakliste: Was darf weg?", "",
         "Erzeugt von `scripts/laeuft-liste.py` aus dem Bestand der Läden (Steam, Epic, GOG – nur gelesen), der Start-Evidenz und den "
@@ -950,20 +1081,29 @@ def checklist_markdown(document):
         f"Mac: {document['mac']}. Stand der Daten: {date(document['dataUntil'])} (Tage in UTC).",
     ]
     if build:
-        parts = " · ".join([f"Nightforge {build['nightforge']}" + (f" (gebaut {date(build['built'])})" if build["built"] else "")] + build["engine"])
         since = {"argument": "so angegeben", "firstStart": "erster aufgezeichneter Start auf diesem Build"}.get(
             build["sinceFrom"], "erster Spieletest auf diesem Build")
-        lines.append(f"Aktueller Build: {parts}. Gezählt wird, was seit dem {date(build['since'])} aufgezeichnet ist ({since}).")
+        lines.append(f"Aktueller Build: {build_text(build)}. Gesehen seit dem {date(build['since'])} ({since}).")
     else:
         lines.append("Kein Spieletest-Bericht und kein Start, der seinen Build nennt: Der Build ist unbekannt, FPS-Werte gibt es keine.")
     lines += ["",
-              "**Fertig** ist ein Spiel mit beidem auf dem aktuellen Build: einem sauberen Start (Bild auf dem ersten und einzigen Weg, kein "
-              "Fehlversuch, nicht von selbst beendet, als laufend bestätigt) und einem FPS-Wert mit seinen Bedingungen (Limit aufgezeichnet, "
-              "am Netz, Last niedrig).", "",
+              "**Fertig** ist ein Spiel, sobald beides einmal auf demselben Build aufgezeichnet war: ein sauberer Start (Bild auf dem "
+              "ersten und einzigen Weg, kein Fehlversuch, nicht von selbst beendet, als laufend bestätigt) und ein FPS-Wert mit seinen "
+              "Bedingungen (Limit aufgezeichnet, am Netz, Last niedrig). Es bleibt fertig, auch wenn seither ein neuerer Build läuft: Der "
+              "Build, auf dem beides vorlag, steht am Eintrag. Geht ein späterer Start schief, steht das dabei und nimmt nichts zurück.", "",
               "**" + " ".join(f"{label}: {totals[status]['games']} {'Spiel' if totals[status]['games'] == 1 else 'Spiele'}, "
                               f"{size_gb(totals[status]['bytes'])}." for label, status in
-                              (("Fertig", "fertig"), ("Offen", "offen"), ("Von Hand zu prüfen", "von-hand"))) + "**", "",
-              "| Spiel | Laden | Fassung | Größe | Start (100 %) | FPS | Status |", "|---|---|---|---|---|---|---|"]
+                              (("Fertig", "fertig"), ("Offen", "offen"), ("Von Hand zu prüfen", "von-hand"))) + "**", ""]
+    labels = {}
+    if builds:
+        lines.append("Builds, auf denen die Einträge stehen (neuester zuerst):")
+        lines.append("")
+        for number_, one in enumerate(builds, 1):
+            labels[build_of(one)] = f"B{number_}"
+            seen = f", gesehen seit {date(one['since'])}" if one["since"] else ""
+            lines.append(f"- **B{number_}**{' (aktuell)' if one['current'] else ''}: {build_text(one)}{seen}")
+        lines.append("")
+    lines += ["| Spiel | Laden | Fassung | Größe | Start (100 %) | FPS | Build | Status |", "|---|---|---|---|---|---|---|---|"]
     for game in document["games"]:
         if game["status"] == "fertig":
             status = "**fertig – darf weg**"
@@ -972,8 +1112,11 @@ def checklist_markdown(document):
         else:
             status = "offen" + (f" (Spieletest ließ es aus: {SKIPS.get(game['skipped'], game['skipped'])})" if game["skipped"] else "")
         name = cell(game["name"]) if game["name"] else f"`{game['key']}`"
+        on = game.get("build")
+        where = labels.get(build_of(on), "–") + (" (aktuell)" if on["current"] else "") if on else "–"
         lines.append("| " + " | ".join([name, STORES.get(game["store"], game["store"]), "Mac" if game["platform"] == "mac" else "Windows",
-                                         size_gb(game["sizeBytes"]), start_text(game["start"]), fps_text(game["fps"]), status]) + " |")
+                                         size_gb(game["sizeBytes"]), start_text(game["start"], game.get("later")),
+                                         fps_text(game["fps"], nowhere=on is None), where, status]) + " |")
     lines.append("")
     return "\n".join(lines)
 

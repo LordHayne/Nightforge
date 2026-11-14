@@ -32,7 +32,7 @@ Ein Eintrag gilt für **ein Spiel, eine Fassung (Windows oder Mac) und einen Mac
 | Stufe | Bedingung in den Daten | Bedeutet |
 |---|---|---|
 | **läuft** | Die Evidenz hat für den Weg ein `worked` – das ist `LaunchHealth.verdict`: gemessene Frames oder 180 s mit Bild – oder einen Start mit `known: true` (der Weg war schon bestätigt, bevor die Aufzeichnung am 9.11.2026 begann). Und: Kein späterer Start desselben Wegs war wieder unbestätigt. | Nightforge startet das Spiel auf Automatik, es zeichnet, und Nightforge selbst hält den Weg für bewährt. |
-| **startet** | Kein bestätigter Weg, aber ein Bild: Der jüngste Spieletest-Lauf des Spiels endete mit `picture`, oder die Evidenz hat ein `ended` mit `picture: true`, das jünger ist. | Es kam ins Bild. Ob es dabei bleibt, ist nicht belegt. |
+| **startet** | Kein bestätigter Weg, aber ein Bild: Ein Spieletest-Lauf des Spiels endete mit `picture`, oder die Evidenz hat ein `ended` mit `picture: true`. Es zählt das jüngste Bild, mit seinem Datum. | Es kam ins Bild. Ob es dabei bleibt, ist nicht belegt. |
 | **Anti-Cheat** | Der jüngste Spieletest hat es mit `antiCheat` übersprungen. | Nightforge startet es nicht. Mehr sagt die Liste dazu nicht. |
 | *versucht, bisher ohne Bild* | Starts oder Läufe ohne Bild. | Gehört nicht zur Liste. Steht in `LAEUFT.md` unten, damit die Liste nicht nur Erfolge zeigt; die Landingpage lässt es weg. |
 
@@ -48,6 +48,12 @@ Zu jeder Stufe gehört, **wie** sie erreicht wurde:
   oder ganz heraus, bis ein neues `worked` kommt. So steht ABZU am 14.11. unter „startet“.
 - **Fehlstarts danach** (`failedSince`): `failed` auf dem bestätigten Weg nach der Bestätigung. Der Eintrag bleibt
   „läuft“ (so hält es auch `StartEvidence.proofs`), der Hinweis steht dabei.
+- **Kein Bild danach** (`noPictureSince`): Starts ohne Bild nach dem jüngsten Bild eines „startet“-Eintrags. Der
+  Eintrag und sein Messwert bleiben, der Hinweis sagt, wie oft und wann zuletzt. Ein Bild nimmt kein späterer Lauf
+  zurück, so wenig wie ein neuerer Build einen Wert.
+- **Was der aktuelle Build gesehen hat** (`onCurrentBuild`): der jüngste Start des Spiels auf dem Build, der zuletzt
+  lief – mit Bild, ohne Bild oder „noch nichts“. Das ist die Angabe für „läuft auf dem aktuellen Stand“; die Stufe und
+  die Messwerte hängen nicht daran.
 - **Spieletest-Quote** („Bild in 3 von 5“): alle Läufe, in denen das Spiel wirklich gestartet wurde. Sie steht auch bei
   „läuft“: Ein bestätigter Weg mit „Bild in 1 von 7“ ist ein ehrlicher Eintrag, kein glatter.
 
@@ -190,7 +196,10 @@ Netz, außerhalb des Stromsparmodus, ohne gedrosseltes Limit und bei niedriger L
 seiner Größe auf der Platte und der Antwort, ob es fertig ist. **Deinstalliert wird nie vom Generator und nie vom
 Spieletest: Das macht der Nutzer selbst.**
 
-**Fertig** ist ein Spiel, wenn auf dem aktuellen Build beides aufgezeichnet ist:
+**Fertig** ist ein Spiel, sobald beides einmal **auf demselben Build** aufgezeichnet war – und es bleibt fertig, auch
+wenn seither ein neuerer Build läuft. Der Zweck ist das Deinstallieren: Ein Spiel, das weg ist, kann auf einem
+späteren Build nicht neu gemessen werden. Der Build, auf dem beides vorlag (Version, Baudatum, Engine-Teile), steht am
+Eintrag.
 
 **(a) Ein 100%iger Start.** Ein Start ist sauber, wenn alles gilt:
 
@@ -203,28 +212,35 @@ Spieletest: Das macht der Nutzer selbst.**
    „klärt nichts“, auch für die eine Lizenzfrage, die der Nutzer dann von Hand beantwortet). Bei Starts von Hand sind
    Handgriffe nicht aufgezeichnet; die Liste nennt deshalb die Quelle („Spieletest“ oder „Evidenz“).
 
-Es entscheidet der **jüngste** Start. Einer, der nichts klärt (unter 180 s beobachtet, Ausgang nicht aufgezeichnet,
-brauchte den Spieler), lässt einen sauberen Start davor stehen – nach einem unsauberen ist er selbst die Antwort.
+**Ein sauberer Start bleibt einer.** Geht ein späterer Start schief (Fehlstart, mehrere Wege, kein Bild, von selbst
+beendet) – auf demselben oder einem neueren Build –, steht das als Hinweis am Eintrag („danach ein Start ging schief,
+zuletzt …“) und nimmt nichts zurück. Einer, der nichts klärt (unter 180 s beobachtet, Ausgang nicht aufgezeichnet,
+brauchte den Spieler), ist kein Hinweis. Gibt es auf einem Build keinen sauberen Start, sagt die Liste, was sein
+jüngster Start war.
 
-**(b) Ein FPS-Wert mit seinen Bedingungen:** aus einem Spieletest auf dem aktuellen Build, gemessen, mit
-aufgezeichnetem Limit (Format 2), am Netz, ungedrosselt, bei niedriger Last.
+**(b) Ein FPS-Wert mit seinen Bedingungen:** aus einem Spieletest auf demselben Build wie der saubere Start, gemessen,
+mit aufgezeichnetem Limit (Format 2), am Netz, ungedrosselt, bei niedriger Last.
 
-**Aktueller Build** ist der, auf dem zuletzt etwas aufgezeichnet wurde: der des jüngsten Spieletest-Berichts oder des
-jüngsten Starts, der seinen Build nennt – Version, Baudatum und Engine-Teile. Ein Start, der seinen Build nennt (seit
-dem 14.11.), zählt nur auf genau diesem Build. Ältere Zeilen der Evidenz zählen nach Datum und winecx-Stand, ab dem
-ersten Mal, dass der Build gesehen wurde, oder ab `--since`. **Jeder neue Testbuild beginnt die Abhakliste von vorn:**
-Ein Messabend gehört auf einen Build.
+**Auf welchem Build etwas lief:** Ein Spieletest-Lauf trägt den Build seines Berichts, ein Start der Evidenz den, den
+er nennt (seit dem 14.11.). Ältere Zeilen der Evidenz gehören zu dem Build, der zuletzt vor ihnen genannt wurde, wenn
+ihr winecx-Stand dazu passt – oder zum aktuellen ab `--since`. **Aktueller Build** ist der, auf dem zuletzt etwas
+aufgezeichnet wurde; die Abhakliste nennt ihn oben und markiert Einträge, die auf ihm stehen.
+
+**Welchen Build ein Eintrag zeigt:** bei einem fertigen Spiel den jüngsten, auf dem beides vorlag. Bei einem offenen
+den, auf dem es am weitesten kam (ein sauberer Start oder ein zählender FPS-Wert), sonst den jüngsten mit einer
+Aufzeichnung. Ein sauberer Start auf einem Build und ein FPS-Wert auf einem anderen ergeben kein „fertig“; ein
+Spieletest-Lauf mit FPS-Wert bringt in aller Regel beides zugleich.
 
 | Status | Bedeutet |
 |---|---|
-| **fertig – darf weg** | (a) und (b) liegen vor. |
+| **fertig – darf weg** | (a) und (b) lagen einmal auf demselben Build vor. Bleibt, auch auf neueren Builds. |
 | **offen** | Die Liste sagt, was fehlt: „Start fehlt: brauchte mehrere Wege“, „FPS fehlt: D3DMetal meldet keine“ … Ließ der jüngste Spieletest das Spiel aus (Update, Laufzeiten, Anmeldung), steht das dabei. |
 | **von Hand zu prüfen** | Kein Spieletest wird es je starten: Anti-Cheat, nur VR, CrossOver-Flasche, Battle.net – und der erste Start der anderen Fassung (`versionSwitch`), bis der Nutzer ihn einmal von Hand gemacht hat. Anti-Cheat-Spiele werden nicht geprüft; über sie entscheidet der Nutzer ohne Messung. |
 
-Stand 14.11. abends: 23 geladene Spiele, 594,8 GB; **0 fertig**. Der aktuelle Build ist der Testbuild vom 14.11.; auf
-ihm ist bisher nur Batman gelaufen (sauberer Start im Spieletest, kein FPS-Wert: WineD3D). Auf dem Build davor hatten
-11 Spiele einen sauberen Start und keines einen FPS-Wert, der zählt (6 Werte ohne aufgezeichnetes Limit, 14 auf Wegen
-ohne Meldung, 3 nie gemessen).
+Stand 14.11. abends: 23 geladene Spiele, 594,8 GB; **0 fertig**. Am 14.11. liefen zwei Testbuilds (gebaut 14:40 und
+17:41 UTC); die Einträge stehen mit dem Build, auf dem sie entstanden sind, die meisten mit dem vom 9.11. Kein Spiel hat einen FPS-Wert, der
+zählt: Die Werte von DXMT und der Vulkan-Schicht stammen aus Berichten ohne aufgezeichnetes Limit, die übrigen Wege
+meldeten nichts. Ein Messlauf mit dem HUD-Protokoll (Abschnitt 6) ist der Weg dahin.
 
 Der Spieletest schreibt dieselbe Prüfung selbst: `check` je Spiel (`GameTest.check`) und in `report.md` den Abschnitt
 „Abhakliste“ mit Größe, Start, FPS und Fazit für **jedes** geladene Spiel. Ein Lauf über alle Spiele endet also mit der
@@ -254,16 +270,20 @@ es auch anders. `--no-stock` liest keinen Bestand und schreibt keine Abhakliste 
   des Ladens, solange das Spiel geladen ist (`nameFrom: stock`); sonst steht der Schlüssel da, und der Generator
   meldet ihn. `namen.json` braucht nur noch, was vor dem 14.11. gestartet, nie im Spieletest gespielt und inzwischen
   deinstalliert wurde.
-- **Messung je Eintrag:** der jüngste Lauf mit Bild auf dem gelisteten Weg; gibt es keinen, der jüngste mit Bild
-  überhaupt, mit dem Hinweis „Messung auf …“.
+- **Messung je Eintrag:** von den Läufen mit Bild auf dem gelisteten Weg der jüngste, dessen FPS-Wert öffentlich
+  standhält; sonst der jüngste mit einem FPS-Wert; sonst der jüngste mit Bild. Gibt es auf dem Weg keinen, dasselbe
+  über alle Wege, mit dem Hinweis „Messung auf …“. Ein Wert trägt den Build, auf dem er gemessen ist, und bleibt, wenn
+  ein neuerer Build läuft oder ein neuerer Lauf keinen Wert bringt.
 - **Datenschutz:** In die Liste gehen nur feste Felder – keine Notizen, Fehlerzeilen oder Gründe aus den Berichten.
   Vor dem Schreiben prüft der Generator beide Dateien auf Home-Ordner, Kontonamen und Laufwerke und schreibt sonst
   nichts. Was drinsteht: Spielnamen und Laden-IDs der getesteten Spiele, Chip, macOS, Wege, Zahlen, Tage.
 - **Format:** `laeuft.json` hat `formatVersion: 1`, `dataUntil`, `sources` und `entries`. Je Eintrag: `key`, `store`,
   `storeID`, `name`, `platform`, `mac`, `level` (`laeuft`, `startet`, `anti-cheat`, `kein-bild`), `way`, `antiCheat`
   (wahr, falsch oder `null` für „nicht aufgezeichnet“), `confirmed` (mit `nightforge`, `built` und `parts` des Starts,
-  wo die Zeile sie nennt), `withdrawn`, `seen`, `evidence`, `gameTest`, `gameEngine`, `measured`, `notes`. Tests:
-  `tests/test_laeuft_liste.py`.
+  wo die Zeile sie nennt), `withdrawn`, `seen`, `noPictureSince`, `evidence`, `gameTest`, `gameEngine`, `measured`,
+  `onCurrentBuild`, `notes`; dazu oben `currentBuilds` je Mac. `abhakliste.json`: `build` (der aktuelle), `builds`
+  (die Builds, auf denen Einträge stehen) und je Spiel `status`, `missing`, `start`, `fps`, `build` (mit `current`),
+  `later` (Starts, die nach dem sauberen schiefgingen). Tests: `tests/test_laeuft_liste.py`.
 
 ## 6. Ein Messlauf über alle geladenen Spiele
 
@@ -271,8 +291,8 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
 
 1. **Mac:** am Netzteil, kein Stromsparmodus, interner Bildschirm (oder der Bildschirm wird genannt), keine anderen
    Apps, kein Build nebenher. Der Test wartet bis zu fünf Minuten auf niedrige Last und markiert den Rest.
-2. **Nightforge:** der Stand, der gemessen werden soll – ein Build für den ganzen Abend, denn ein neuer beginnt die
-   Abhakliste von vorn. Alle Spiele auf Automatik, „Scharf & flüssig“ wie ausgeliefert. Keine versteckten
+2. **Nightforge:** der Stand, der gemessen werden soll – am besten ein Build für den ganzen Abend: Start und FPS-Wert
+   zählen zusammen nur auf demselben Build (was schon fertig ist, bleibt es). Alle Spiele auf Automatik, „Scharf & flüssig“ wie ausgeliefert. Keine versteckten
    Engine-Schalter, kein Eingriff in den Prefix. Nightforge ist beendet, wenn die Schalter unten gesetzt werden.
 3. **Spiele:** unverändert, mit ihren eigenen Einstellungen. Der Test spielt alle geladenen Spiele; was er auslässt,
    nennt die Abhakliste mit dem Grund.
@@ -310,7 +330,8 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
    vier bis sieben Minuten. Für die 23 Spiele dieses Macs also anderthalb bis knapp drei Stunden. Der Bildschirm bleibt
    im Lauf von selbst wach; gesperrt sein darf er nicht.
 5. **Zweimal, wenn es um Zahlen geht.** Der erste Lauf nach einem Engine-Wechsel übersetzt Shader und ist langsamer.
-   Für die Abhakliste zählt der jüngste Start, für die Messung der jüngste Lauf mit Bild.
+   Für die Abhakliste reicht ein Lauf, in dem beides vorliegt; für die Messung zählt der jüngste Wert, der öffentlich
+   standhält.
 6. **Freie Zahlen** (ohne Limit) brauchen einen eigenen Durchgang: „Scharf & flüssig“ in den Einstellungen aus, dann
    hält Nightforge kein Limit, und der Bericht zeigt `frameLimit: 0`. Nicht live geprüft; MetalFX steht als `metalFX` dabei.
 7. **Danach:** Der Bericht liegt in `~/Library/Application Support/Nightforge/GameTests/<Datum>/report.md` und endet
@@ -338,6 +359,9 @@ FPS-Werte offen zeigen, als Übersicht für alle.
     Bild üblich 24 ms“ (`fps.slowestTypical`) und, wo vorhanden, „1-%-Tief 56“ und „GPU 10 ms je Bild“. Keine große
     FPS-Zahl: Sie wäre immer 60.
   - *Frei gemessen* (`kind: free`): „Ø 87 FPS, 1-%-Tief 61“, mit dem Wort „ohne Limit“.
+- **Werte verschwinden nicht mit einem neuen Build:** Jede Zahl steht mit dem Build, auf dem sie gemessen ist. Was der
+  jüngste Build von dem Spiel gesehen hat (`onCurrentBuild`: Bild, kein Bild, noch nichts), kann als eigene, kleine
+  Angabe daneben stehen („zuletzt geprüft auf …“).
 - **Nur `measured.public: true`.** Alles andere zeigt die Stufe ohne Zahl. Akku, Stromsparmodus, gedrosseltes Limit,
   hohe Last oder eine fehlende Bedingung schließen einen Wert aus; `notPublic` sagt, warum.
 - **Bedingungen an jeder Zahl** (als zweite Zeile oder aufklappbar): Mac und macOS (`mac`), Nightforge-Version und

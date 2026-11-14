@@ -108,7 +108,8 @@ Protokoll, und der Generator zählt Starts nach ihrem Build. Nichts davon ist in
 Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
 
 - **Messlauf** nach Abschnitt 6: `gameTest.playSeconds` 190, alle geladenen Spiele auf einem Build (anderthalb bis
-  knapp drei Stunden), danach `scripts/laeuft-liste.py`. Jeder neue Testbuild beginnt die Abhakliste von vorn.
+  knapp drei Stunden), danach `scripts/laeuft-liste.py`. Was einmal fertig ist, bleibt es auch auf neueren Builds;
+  Start und FPS-Wert zählen zusammen nur auf demselben Build.
 - **Live zu sehen im ersten Lauf** (Abschnitt 9, Punkt 1): `metal-HUD:`-Zeilen unter Wine auf D3DMetal und auf
   DXVK/MoltenVK (auf DXMT sind sie belegt); die Anzeige bleibt bei Deckkraft 0 im Spiel unsichtbar; Steam startet für
   den Test einmal neu und danach zurück; die Zeile „Frame limit of …“ steht im Protokoll und im Bericht; ein Start von
@@ -134,8 +135,8 @@ Zu entscheiden (der Nutzer):
   (Abschnitt 8)?
 - **Engine-Build:** gezeichnete Auflösung unter DXMT und eine eigene Zählung für WineD3D (die Leistungsanzeige liefert
   dort nichts) – lohnt das einen Build? Oder gelten WineD3D-Spiele ohne FPS-Wert als abhakbar?
-- **Aktueller Build:** Die Abhakliste zählt nur, was auf genau dem jüngsten Build aufgezeichnet ist (Version, Baudatum,
-  Engine-Teile). Soll ein Testbuild mit denselben Engine-Teilen die Starts des vorigen behalten?
+- **Stufe „startet“:** Seit dem 14.11. bleibt ein Bild ein Bild; spätere Starts ohne Bild stehen als Hinweis dabei
+  (wie bei der Abhakliste ein späterer Fehlstart). Vorher entschied der jüngste Lauf. So lassen?
 
 ## Erlebnis-Audit (14.11., Zweig `claude/erlebnis-audit-033-0f5292`, `docs/AUDIT-ERLEBNIS-0.3.3.md`)
 
