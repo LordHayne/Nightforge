@@ -53,7 +53,42 @@ Engine-Teilen), dann Erlebnis-Audit E4 und E8, dann Schritt E.
   „Steam switch: the Windows Steam waits, Steam for Mac has the account, at …“ ins echte `Logs/wine.log`
   (`Engine.supportDir` folgt `HOME` nicht). Gesehen um 15:38:40, als kein Nightforge lief. Harmlos (eine Zeile je Lauf,
   kein Start), aber sie sieht aus wie von Nightforge. Anfang: nur `Engine.holdsBack` prüfen oder der Reihe ein eigenes
-  Zuhause geben.
+  Zuhause geben. Am 14.11. um 15:59:30 stand sie mitten in einem echten Start. Abgegeben an die Erlebnis-Audit-Session.
+
+**Live-Prüfung von Schritt C/D am 14.11. (Testbuild `ed9b785`, Testschalter `closerLook`, Starts über den Spieletest):**
+
+- **Gesehen, Steam-Spiel (Batman, WineD3D):** Steam startet genau einmal neu (15:47:09 Hintergrund, 15:47:50 mit
+  Kanälen), im Protokoll `pid:tid:trace:loaddll:…`, die Evidenz schreibt `started` mit `"closerLook":true`, das Spiel
+  läuft mit den Kanälen normal (Bild, 190 s; sechs Signaturprüfungen, alle 0). Der Start samt Steam-Neustart ließ das
+  Protokoll um 339 KB wachsen (4.423 Zeilen, davon 3.204 `+chain`).
+- **Gesehen, Direktstart mit Fehlerfenster (Alan Wake von Hand auf D3DMetal, Epic):** Kanäle im Protokoll, kein
+  Steam-Neustart. `+msgbox` druckt wie aus der Quelle geschlossen:
+  `0308:030c:trace:msgbox:MSGBOX_OnInit L"Alan Wake could not initialize your 3D graphics card. … Technical: DEVICE_CREATE_ERROR - Not available"`.
+  Die Diagnose nennt `direct3d9 … → start on wined3d`; `loads-direct3d9` schweigt dann mit Absicht, der Fenstertext
+  wird nicht gesagt (er zählt nur als Wort des Spiels, wenn sonst nichts erklärt). Das Protokoll des Starts liegt im
+  Notizordner des Koordinators (`closer-look/live-2026-11-14-alanwake-d3dmetal.log`), als Vorlage für eine Testdatei.
+- **Gesehen, ohne Schalter:** Steam startet ohne Kanäle.
+- **Nicht gesehen:** der echte Ablauf ohne Schalter (unerklärter Fehlstart, danach „nothing explains why it ended“ und
+  ein Start mit Kanälen, `closerLook.<Spiel>` in den Defaults); `untrusted-root` und `signature` an einem echten Fall.
+- Alan Wakes Einstellungen und Startgedächtnis sind aus der Sicherung zurück; ein von Hand gewählter Weg schreibt
+  keine Evidenz, also blieb dort nichts vom Test.
+
+Funde dabei:
+
+- **Beenden scheitert bei offenem Blatt.** Kurz nach dem Ende eines Spieletests: „Quit by an Apple Event from
+  osascript didn't go through: a sheet is still open (SheetPresentationWindow)“ (15:55:00 nach Batman; nach Alan
+  Wakes Fehlstart 16:01:16 und 16:01:28, der dritte Versuch schrieb nur „Quit by …“, der vierte ging durch).
+  Nightforge bleibt danach einfach stehen. Offen: welches Blatt, und ob es den Spieler mit Cmd+Q genauso trifft.
+  Anfang: `Quit.swift` (`Quit.now`, `closeModelSheets`). Abgegeben an die Erlebnis-Audit-Session.
+- **Ein Fehlerfenster zählt als Wahl des Spielers.** Alan Wakes Meldung stand unter dem Vorhang („it asks
+  something“), das Spiel endete an ihr, und der Start wertete das als „ended right at a question of its own, answered
+  by the player“ – kein Fehlstart, kein nächster Weg (hier ohnehin keiner, der Weg war von Hand gewählt). Gedacht war
+  das für Unitys Startfenster (The Forest). Mit `+msgbox` ließe sich ein Meldungsfenster mit Fehlertext von einer
+  Frage unterscheiden; dazu müsste der Kanal aber bei jedem Start mitlaufen, nicht erst beim genaueren Blick. Für
+  Schritt E. Anfang: `LaunchHealth.endedAtOwnQuestion`, `LibraryModel.swift` um Zeile 1620 und 3509.
+
+**Nachzug der Läuft-Liste im Testzweig (14.11., 18:38, `5cf8e12`, noch nicht eingespielt):** Kette des Koordinators
+grün (118 Testreihen, 267 pytest). Erlebnis-Audit baut darauf E4, E8, das Beenden und die Testreihe.
 
 ## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
 
@@ -181,7 +216,7 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
   von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
 
-- **Genauerer Blick (Schritt C, 14.11., Zweig `claude/diagnose-start-033-92f729`, eingespielt als `ed9b785`, live noch nicht gesehen):** Nach einem
+- **Genauerer Blick (Schritt C, 14.11., Zweig `claude/diagnose-start-033-92f729`, eingespielt als `ed9b785`, live geprüft am 14.11. – siehe „Live-Prüfung von Schritt C/D“ oben):** Nach einem
   Fehlstart der Leiter, den die Diagnose nicht erklärt, tragen die folgenden Starts Wines Debug-Kanäle
   (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`); beim letzten Weg startet derselbe Weg einmal still noch
   einmal. Gelesen werden nur die Prozesse des Spiels (`CloserLook.read`). Neue Regeln `untrusted-root`, `signature`,
