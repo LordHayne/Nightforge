@@ -79,6 +79,14 @@ enum PadRules {
         inFront && !sheet && !panel
     }
 
+    /// The downloads panel or a chip's list is open over the levels: the keyboard's arrows, Return and
+    /// letters are its own, as the pad's steps are. They went to the games behind it: Return under the
+    /// open downloads started (or downloaded) Home's selected game, in the library it opened a game's
+    /// page, and the arrows moved a selection half hidden. A big screenshot over them has the keys first.
+    static func panelHasKeys(downloads: Bool, list: Bool, lightbox: Bool) -> Bool {
+        (downloads || list) && !lightbox
+    }
+
     /// The curtain is up over Nightforge's levels. Nightforge often still is the active app then, until the
     /// game takes the front: a start's first seconds, or minutes of Steam updating it. What's under the
     /// curtain can't be seen, so it isn't reached either, as with B (`back`). The overlay over it has the pad.

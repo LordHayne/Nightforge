@@ -22,6 +22,7 @@ struct ExperienceAuditTest {
         hintWords()
         saveLine()
         overlayAfterItsGame()
+        keysUnderAPanel()
         await messageAfterAClick()
         print(failures == 0 ? "✓ Experience audit" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
@@ -33,6 +34,16 @@ struct ExperienceAuditTest {
         game.install = install
         change(&game)
         return game
+    }
+
+    /// With the downloads panel or a chip's list open, the keyboard reached the games behind it (the pad never did).
+    static func keysUnderAPanel() {
+        check(PadRules.panelHasKeys(downloads: true, list: false, lightbox: false), "the open downloads have the keys")
+        check(PadRules.panelHasKeys(downloads: false, list: true, lightbox: false), "a chip's open list has the keys")
+        check(!PadRules.panelHasKeys(downloads: false, list: false, lightbox: false), "nothing open: the keys are the games'")
+        check(!PadRules.panelHasKeys(downloads: true, list: false, lightbox: true), "a big screenshot over it has the keys first")
+        // The same order as the pad's B: what's innermost goes first.
+        check(PadRules.back(.init(lightbox: true, downloads: true)) == .lightbox, "B and the keys agree on the screenshot first")
     }
 
     /// A game that ends by itself under the overlay's side bar (it isn't stopped: it only plays online) left
